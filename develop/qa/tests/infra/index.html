@@ -1791,6 +1791,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i43-sse-consent-wait-doesnt-stall-other-connections-and-sigterm-stops-the-server-issue-833-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i44-over-sse-an-auth-failure-starts-the-connection-without-google-access-and-sigterm-still-exits-pr-867-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I44: over SSE, an auth failure starts the connection without Google access, and SIGTERM still exits (PR #867) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2655,15 +2677,17 @@ Playwright signed-in check passed (fixture doc title). Step 1: <code>Credentials
 <p><strong>Background:</strong> an SSE server has no protocol traffic on stdout, but #811 still moves the consent prompt to stderr, and bounds the wait at 5 minutes (<code>OAUTH_CONSENT_TIMEOUT_SECONDS</code>). On a timeout, the server starts without access, the same way TC-I35 does (see TC-I40 for that path).</p>
 <p><strong>Setup:</strong> same as TC-I35.</p>
 <p><strong>Action</strong>
-Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;nonexistent&gt;</code>, <code>CREDENTIALS_PATH=&lt;client json&gt;</code>, <code>BROWSER=/usr/bin/true</code>, <code>PORT=&lt;free port&gt;</code>, <code>PYTHONUNBUFFERED=1</code>, with stdout and stderr redirected to separate files. Open <code>http://127.0.0.1:&lt;port&gt;/sse</code> to trigger the lifespan, wait a few seconds, then kill the process group (<code>SIGKILL</code>: SIGTERM doesn't interrupt the synchronous consent wait).</p>
+Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;nonexistent&gt;</code>, <code>CREDENTIALS_PATH=&lt;client json&gt;</code>, <code>BROWSER=/usr/bin/true</code>, <code>PORT=&lt;free port&gt;</code>, <code>PYTHONUNBUFFERED=1</code>, with stdout and stderr redirected to separate files. Open <code>http://127.0.0.1:&lt;port&gt;/sse</code> to trigger the lifespan, wait a few seconds, then send the server <code>SIGTERM</code> (since #833 it stops the server during the consent wait; TC-I43 covers that).</p>
 <p><strong>Checks</strong>
-- The stdout file is empty
+- The stdout file has no <code>Please visit</code> line. It may hold uvicorn access-log lines (<code>"GET /sse HTTP/1.1" 200</code>): since #833 the event loop keeps serving while the consent waits, and uvicorn logs access to stdout
 - The stderr file contains <code>Please visit this URL to authorize this application: https://accounts.google.com/...</code></p>
 <p><strong>Cleanup:</strong> make sure nothing is still listening on <code>&lt;port&gt;</code> (<code>lsof -i :&lt;port&gt;</code>).</p>
 <p><strong>Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS</strong>
 stdout file 0 bytes. stderr has <code>Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...</code> (full scope set incl. <code>gmail.modify</code>, redirect to a random localhost port), after the uvicorn startup lines and <code>AUTH_METHOD=oauth</code>. Process group SIGKILLed; <code>lsof -i :&lt;port&gt;</code> empty afterward.</p>
 <p><strong>Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS</strong>
 stdout 0 bytes; stderr has the <code>Please visit ... https://accounts.google.com/o/oauth2/auth?...</code> prompt; port released. (A first attempt with <code>TOKEN_PATH</code> under a nonexistent directory printed no prompt: the new pre-consent writability check degraded with <code>the browser consent failed (RuntimeError: The directory for TOKEN_PATH ... doesn't exist...)</code>, and later connections logged <code>an earlier browser consent in this server process didn't complete</code>. Correct behavior; the Setup now says the parent directory must exist.)</p>
+<p><strong>Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS</strong>
+Stopped with SIGTERM, not SIGKILL. stdout had 0 <code>Please visit</code> lines, only uvicorn access lines (<code>GET /sse 200</code>, <code>POST /messages/ 202</code>). stderr had <code>Please visit this URL to authorize this application: https://accounts.google.com/...</code>. Server exited on SIGTERM and the port was released.</p>
 <hr />
 <h3 id="tc-i39-mcp-gee-sweet-auth-argument-handling-and-pre-consent-checks-issue-811-local-filesystem">TC-I39: <code>mcp-gee-sweet auth</code> argument handling and pre-consent checks (issue #811) ⚠️ local-filesystem<a class="headerlink" href="#tc-i39-mcp-gee-sweet-auth-argument-handling-and-pre-consent-checks-issue-811-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> PR #828 QA round 1 found that <code>auth</code> was only recognized as the first argument. <code>mcp-gee-sweet --include-tools X auth</code> started a stdio server instead, although <code>docs/auth.md</code> documents <code>--include-tools</code> as narrowing the scopes. Unknown flags were silently ignored. A missing <code>TOKEN_PATH</code> directory also only failed <em>after</em> the consent, losing the refresh token the user had just granted.</p>
@@ -2698,9 +2722,17 @@ Run 1: start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_M
 - Run 1, step 3: A's error still says <code>within 4s</code> (B didn't overwrite it)
 - Run 1: the stderr file has exactly one <code>Please visit</code> prompt
 - Run 2: the connection initializes right after the stray request (no 4s wait), and its tool error says <code>the browser consent failed</code> with the <code>mcp-gee-sweet auth</code> instructions. The lifespan doesn't crash.</p>
-<p><strong>Cleanup:</strong> SIGKILL each server's process group; confirm <code>lsof -i :&lt;port&gt;</code> is empty.</p>
+<p><strong>Cleanup:</strong> SIGTERM each server (it exits within a few seconds, #833); confirm <code>lsof -i :&lt;port&gt;</code> is empty.</p>
 <p><strong>Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS</strong>
 <code>mcp</code> SDK <code>sse_client</code>. Run 1: A opened (≈4s consent wait inside the SSE connect; <code>initialize</code> itself 0.0s) → error <code>...the browser consent wasn't completed within 4s. To authorize, run \</code>mcp-gee-sweet auth`...<code>. B (A still open): connected + initialized 0.00s →</code>...an earlier browser consent in this server process didn't complete (it isn't retried, since waiting for it blocks every connection)<code>. A again: still</code>within 4s<code>. stderr: exactly 1</code>Please visit<code>. Run 2: stray</code>GET http://localhost:<cb>/?state=bogus&amp;code=x<code>fired while the connection was opening; connect+init finished 0.02s after it, tool error</code>...the browser consent failed (MismatchingStateError: (mismatching_state) CSRF Warning! State not equal in request and response.). To authorize, run `mcp-gee-sweet auth`...<code>; lifespan didn't crash.</code>lsof -i :<port>` empty after both.</p>
+<p><strong>Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS</strong>
+<code>mcp</code> SDK <code>sse_client</code>. Run 1: A open+init 4.09s; tool error <code>...the browser consent wasn't completed within 4s. To authorize, run \</code>mcp-gee-sweet auth`...<code>. B (A still open) open+init 0.01s; error</code>...an earlier browser consent in this server process didn't complete (it isn't retried, so new connections don't each wait for it again)<code>. A again: still</code>within 4s<code>. stderr had exactly 1</code>Please visit<code>. Run 2: init 0.01s after the stray</code>GET /?state=bogus&amp;code=x<code>; error</code>...the browser consent failed (MismatchingStateError: ...)<code>, and the lifespan didn't crash. SIGTERM exits took 0.28s each, and</code>lsof -i :<port>` was empty after both.</p>
+<p><strong>Result (2026-10-01, PR #867 round 2 @ a4c18c9, Sky) ✅ PASS</strong>
+Same as round 1. Run 1: A open+init 4.09s with <code>within 4s</code>; B 0.01s with <code>an earlier browser consent ... didn't complete</code>; A again still <code>within 4s</code>; 1 <code>Please visit</code>. Run 2: init 0.01s after the stray request; <code>the browser consent failed (MismatchingStateError ...)</code>. SIGTERM exits 0.17s / 0.23s, and <code>lsof</code> was empty.</p>
+<p><strong>Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS</strong>
+Run 1: A 4.10s with <code>within 4s</code>; B 0.01s with <code>an earlier browser consent ... didn't complete</code>; A again still <code>within 4s</code>; 1 <code>Please visit</code>. Run 2: init 0.01s after the stray request, <code>the browser consent failed (MismatchingStateError ...)</code>. SIGTERM exits 0.24s / 0.24s. (Run 1's <code>lsof -i :&lt;port&gt;</code> matched an unrelated macOS process, <code>PowerChime</code>, on the same port number over IPv6. That was port reuse, not the server.)</p>
+<p><strong>Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS</strong>
+Run 1: A 4.08s with <code>within 4s</code>; B 0.01s with <code>an earlier browser consent ... didn't complete</code>; A again still <code>within 4s</code>; 1 <code>Please visit</code>. Run 2: init 0.01s after the stray request, <code>the browser consent failed</code>. SIGTERM exits 0.29s / 0.27s, and <code>lsof</code> was empty.</p>
 <hr />
 <h3 id="tc-i41-the-stop-hook-warns-a-lane-session-once-its-context-passes-the-threshold-once-per-band-issue-847-local-filesystem">TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem<a class="headerlink" href="#tc-i41-the-stop-hook-warns-a-lane-session-once-its-context-passes-the-threshold-once-per-band-issue-847-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>.claude/settings.json</code> runs <code>scripts/lane_context_hook.py</code> on every <code>Stop</code>. Inside a lane worktree (<code>.claude/worktrees/{ash,jay,sky,kit}</code>) it sums the latest main-thread assistant message's <code>input_tokens + cache_read_input_tokens + cache_creation_input_tokens</code> from the session's own <code>transcript_path</code>. Past <code>LANE_CONTEXT_WARN_TOKENS</code> (default <code>DEFAULT_WARN_TOKENS</code> in the script) it shows a <code>systemMessage</code> suggesting <code>/clear</code> + <code>/team-member &lt;Name&gt;</code>. It warns again only after each further <code>LANE_CONTEXT_WARN_STEP</code> (default <code>DEFAULT_WARN_STEP</code>) tokens, tracked per session under <code>$TMPDIR/mcp-gee-sweet-lane-context/</code>. Other cwds get no output. The env vars lower the threshold so a fresh session crosses it.</p>
@@ -2733,6 +2765,52 @@ Re-ran step 1 against the guarded settings.json command: Stop <code>hook_respons
 Claude Code 2.1.287, <code>kit</code> worktree. Old session: a ~43k-token <code>kit</code> transcript last modified 2026-09-29. Step 1: <code>hook_name</code> <code>SessionStart:fork</code>, exit 0, <code>output</code> <code>{"systemMessage": "Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). If this session's ticket is done or between rounds, /clear, then /team-member Kit is cheaper."}</code>. Step 2 (fork of step 1's fork, seconds later): <code>SessionStart:fork</code> <code>output</code> empty.</p>
 <p><strong>Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS</strong>
 Re-ran step 1 (same 2026-09-29 session) after the <code>type(cost) in (int, float)</code> change: <code>SessionStart:fork</code> exit 0, <code>output</code> <code>Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). ... /clear, then /team-member Kit is cheaper.</code> The cost clause, which round 1's <code>int | float</code> check dropped under Python 3.9, is present. <code>tests/test_lane_context_hook.py::TestRunsUnderPython39</code> ran (not skipped) against <code>/usr/bin/python3</code> 3.9.6. All 46 tests in the file pass. Step 2 not re-run: the warm-cache path is unchanged by the fix.</p>
+<hr />
+<h3 id="tc-i43-sse-consent-wait-doesnt-stall-other-connections-and-sigterm-stops-the-server-issue-833-local-filesystem">TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem<a class="headerlink" href="#tc-i43-sse-consent-wait-doesnt-stall-other-connections-and-sigterm-stops-the-server-issue-833-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the consent wait used to run on the event loop. Until consent or <code>OAUTH_CONSENT_TIMEOUT_SECONDS</code> (default 300), every other request stalled, and SIGTERM didn't stop the server (uvicorn waits for open connections, and this one couldn't finish), so QA had to SIGKILL it. The wait now runs on a daemon thread that the lifespan awaits. Connections that arrive during the wait share it (one prompt, one callback port). On SIGTERM, a waiting lifespan starts the connection degraded with a "server shut down" message, and the callback server closes.</p>
+<p><strong>Setup:</strong> same as TC-I35. A small script using the <code>mcp</code> SDK's <code>sse_client</code> + <code>ClientSession</code>.</p>
+<p><strong>Action</strong>
+Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;nonexistent&gt;</code>, <code>CREDENTIALS_PATH=&lt;client json&gt;</code>, <code>BROWSER=/usr/bin/true</code>, <code>PORT=&lt;free port&gt;</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=120</code>, <code>DEBUG_LEVEL=INFO</code>, <code>PYTHONUNBUFFERED=1</code>, stderr to a file, in its own process group.
+1. Open connection A (<code>sse_client</code>); its connect blocks on the consent. Leave it waiting
+2. While A waits, time <code>POST http://127.0.0.1:&lt;port&gt;/messages/?session_id=00000000000000000000000000000000</code> with body <code>{}</code>
+3. While A waits, open connection B the same way and leave it waiting too
+4. Read the callback port from <code>redirect_uri=http%3A%2F%2Flocalhost%3A&lt;cb&gt;</code> in the stderr file
+5. Send the server process <code>SIGTERM</code> (not SIGKILL, and not the process group) and time how long it takes to exit</p>
+<p><strong>Checks</strong>
+- 2: the POST answers <code>404</code> (no such session) in well under a second (before #833: no answer until the consent ended)
+- 3: the stderr file has exactly one <code>Please visit</code> prompt (B shares A's consent instead of starting a second one)
+- 5: the server exits within a few seconds (before #833: it kept running until the 120s timeout)
+- 5: the stderr file has <code>Starting without Google access: ... the server shut down before the browser consent completed</code>
+- 5: <code>lsof -i :&lt;port&gt;</code> and <code>lsof -i :&lt;cb&gt;</code> are both empty afterward</p>
+<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'</code> traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on <code>develop</code> before #833).</p>
+<p><strong>Cleanup:</strong> if the server is still running, SIGKILL its process group and record the case as failed.</p>
+<p><strong>Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS</strong>
+<code>mcp</code> SDK <code>sse_client</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=120</code>. Step 2: POST answered <code>404</code> in 0.016s. The case said <code>400</code>, but an unknown all-zero session id is 404; corrected above. Step 3: exactly 1 <code>Please visit</code>. Step 5: SIGTERM to the server pid exited in 4.6s; stderr has <code>...the server shut down before the browser consent completed</code>; <code>lsof</code> empty for both <code>&lt;port&gt;</code> and <code>&lt;cb&gt;</code>. A and B both ended with <code>Connection closed</code> (expected: the server exited). Probe outside the case (PR comment, finding 1): with <code>OAUTH_CONSENT_TIMEOUT_SECONDS=4</code> and a silent TCP connection held open on <code>&lt;cb&gt;</code>, A was still waiting after 20s and resolved only once the silent connection closed. SIGTERM still exits (0.56s) because the consent thread is a daemon.</p>
+<p><strong>Result (2026-10-01, PR #867 round 2 @ a4c18c9, Sky) ✅ PASS</strong>
+Step 2: POST <code>404</code> in 0.017s. Step 3: 1 <code>Please visit</code>. Step 5: SIGTERM exit in 0.61s, the shut-down message was logged, and <code>lsof</code> was empty for <code>&lt;port&gt;</code> and <code>&lt;cb&gt;</code>. Re-checked the round-1 findings outside the case. (1) Silent TCP connection on <code>&lt;cb&gt;</code> with <code>OAUTH_CONSENT_TIMEOUT_SECONDS=4</code>: degraded at 5.2s (<code>within 4s</code>) and the stderr had 0 tracebacks. (2) Waterfall (<code>AUTH_METHOD</code> unset, <code>SERVICE_ACCOUNT_PATH</code> set, timeout 4s), two sequential connections: 1 <code>Please visit</code> in total, and both connections ran on the service account. (3) Token refresh hanging (expired token, <code>HTTPS_PROXY</code> pointed at a blackhole): a POST during it answered in 0.017s, and SIGTERM exited in 0.6s with <code>the server shut down while loading the token</code>. Separately, with <code>AUTH_METHOD=oauth</code> and a token missing required scopes (<code>MissingOAuthScopesError</code>), SIGTERM intermittently hung at <code>Waiting for background tasks to complete</code> past 30s: 3 of 39 runs on the PR code, 0 of 14 on <code>develop</code>. Reported on the PR.</p>
+<p><strong>Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS</strong>
+Step 2: POST <code>404</code> in 0.015s. Step 3: 1 <code>Please visit</code>. Step 5: SIGTERM exit 0.60s, the shut-down message was logged, and <code>lsof</code> was empty for both ports. The round-1/2 probes still hold: a silent connection on <code>&lt;cb&gt;</code> degrades at 5.2s; the waterfall shows 1 prompt across two connections; with the refresh hanging, a POST answers in 0.018s and SIGTERM exits in 0.56s with <code>shut down while loading the token</code>.</p>
+<p><strong>Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS</strong>
+Step 2: <code>404</code> in 0.013s. Step 3: 1 <code>Please visit</code>. Step 5: SIGTERM exit 0.65s, the shut-down message was logged, and <code>lsof</code> was empty for both ports. The earlier probes still pass: a silent <code>&lt;cb&gt;</code> connection degrades at 5.2s; the waterfall shows 1 prompt across two connections; with the refresh hanging, a POST answers in 0.017s and SIGTERM exits in 0.44s. All four states of the shared consent attempt were checked with standalone scripts against the real <code>_oauth_creds_async</code>. <strong>Running:</strong> joins it (<code>test_concurrent_connections_share_one_consent</code>). <strong>Failed:</strong> consent-off error, no new attempt. <strong>Succeeded, with a token load in flight across the success:</strong> that load re-reads the token, 1 consent in total; <code>18c839e</code> ran 2. <strong>Succeeded, then the token deleted:</strong> a new consent runs, as intended. <strong>Stopped (the last waiter cancelled):</strong> the next connection starts a new attempt and gets creds.</p>
+<hr />
+<h3 id="tc-i44-over-sse-an-auth-failure-starts-the-connection-without-google-access-and-sigterm-still-exits-pr-867-local-filesystem">TC-I44: over SSE, an auth failure starts the connection without Google access, and SIGTERM still exits (PR #867) ⚠️ local-filesystem<a class="headerlink" href="#tc-i44-over-sse-an-auth-failure-starts-the-connection-without-google-access-and-sigterm-still-exits-pr-867-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> once the token load moved off the event loop (#833), a lifespan that raised (e.g. <code>MissingOAuthScopesError</code>) did so after the SSE <code>endpoint</code> event had gone out. A client that POSTs <code>initialize</code> the instant it sees the endpoint got <code>202</code>, and that POST then waited forever in mcp's transport, because the session's stream is never closed when the lifespan fails (python-sdk#3616). SIGTERM then hung at <code>Waiting for background tasks to complete</code>. Over SSE, an auth failure now starts the connection without Google access, and every tool returns the failure as its error. Stdio still exits on it (#790).</p>
+<p><strong>Setup:</strong> an OAuth client JSON, and a token file <code>&lt;scratch&gt;/token.json</code> whose <code>scopes</code> is only <code>["https://www.googleapis.com/auth/drive"]</code> (any <code>token</code>/<code>refresh_token</code>/<code>client_id</code>/<code>client_secret</code>, with an <code>expiry</code> in the future so no refresh is attempted).</p>
+<p><strong>Action</strong>
+Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;scratch&gt;/token.json</code>, <code>CREDENTIALS_PATH=&lt;client json&gt;</code>, <code>PORT=&lt;free port&gt;</code>, <code>DEBUG_LEVEL=INFO</code>, <code>PYTHONUNBUFFERED=1</code>, stderr to a file, in its own process group.
+1. With the <code>mcp</code> SDK's <code>sse_client</code> + <code>ClientSession</code>: <code>initialize</code>, then call <code>list_spreadsheets</code> with <code>max_results: 1</code>
+2. The race, 10 times against a fresh server each time: open <code>GET /sse</code> on a raw socket, and the moment the <code>endpoint</code> event's <code>session_id</code> arrives, <code>POST /messages/?session_id=&lt;id&gt;</code> with an <code>initialize</code> request. Wait 0.5s, then send the server <code>SIGTERM</code> and time its exit
+3. Restart the same way with <code>AUTH_METHOD</code> unset and no service account or ADC configured; repeat step 1</p>
+<p><strong>Checks</strong>
+- 1: <code>initialize</code> succeeds. The tool result is an error that names the missing scopes (<code>wasn't authorized for scope(s) the enabled tools require: ...</code>) and gives the <code>mcp-gee-sweet auth</code> instructions
+- 1: the stderr file has <code>ERROR mcp_gee_sweet.auth Starting without Google access: The OAuth token at ...</code>
+- 2: every POST answers <code>202</code>, and every server exits within a few seconds of SIGTERM (before this fix: hung every time)
+- 3: the tool error is the missing-scopes message again (a token on disk means OAuth was intended, so #790 still doesn't fall through to another method)</p>
+<p><strong>Cleanup:</strong> SIGKILL any server process group still running (and record the case as failed); delete <code>&lt;scratch&gt;</code>.</p>
+<p><strong>Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS</strong>
+Step 1: <code>initialize</code> OK; the tool error is <code>The OAuth token at ... wasn't authorized for scope(s) the enabled tools require: ...</code>, and the stderr has the <code>ERROR mcp_gee_sweet.auth Starting without Google access: The OAuth token at</code> line. SIGTERM exit 0.23s. Step 2: 10 of 10 POSTs answered <code>202</code>, and SIGTERM exited in 0.49–0.56s every time. Control: the same raw-socket race against round 2's <code>a4c18c9</code> hung 3 of 3, so the case does exercise the bug. Step 3 (<code>AUTH_METHOD</code> unset): same missing-scopes error, SIGTERM exit 0.12s. Also checked: stdio with the same token still exits (code 1, missing-scopes error on stderr, empty stdout), per #790.</p>
+<p><strong>Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS</strong>
+Step 1: missing-scopes tool error plus the <code>ERROR ... Starting without Google access</code> line; SIGTERM 0.23s. Step 2: 10 of 10 POSTs <code>202</code>, SIGTERM 0.50–0.60s. Step 3: same error, SIGTERM 0.18s. Stdio with the same token still exits with code 1.</p>
 
 
 

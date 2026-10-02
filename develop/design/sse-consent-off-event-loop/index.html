@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/auth/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/sse-consent-off-event-loop/">
       
       
-        <link rel="prev" href="../tools/">
-      
-      
-        <link rel="next" href="../configuration/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Authentication - mcp-gee-sweet</title>
+        <title>SSE OAuth Consent Off the Event Loop - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#authentication" class="md-skip">
+        <a href="#sse-oauth-consent-off-the-event-loop" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Authentication
+              SSE OAuth Consent Off the Event Loop
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -290,8 +286,6 @@
       
   
   
-    
-  
   
   
     
@@ -304,11 +298,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
@@ -329,7 +323,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -347,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -372,37 +366,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Authentication
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -418,114 +385,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#auth-waterfall-default" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Auth waterfall (default)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pinning-a-method" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pinning a method
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-a-service-account-recommended-for-servers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method A: Service account (recommended for servers)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-b-oauth-20-personal-use-local-dev" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method B: OAuth 2.0 (personal use / local dev)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-c-base64-credential-injection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method C: Base64 credential injection
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-d-application-default-credentials" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method D: Application Default Credentials
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#required-google-apis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required Google APIs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-variable-summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Environment variable summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -538,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -566,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -653,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -681,7 +540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -709,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/docs-ast-pipeline/" class="md-nav__link">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -796,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../../decisions/" class="md-nav__link">
         
   
   
@@ -824,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-fork/" class="md-nav__link">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
         
   
   
@@ -852,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -880,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-testing/" class="md-nav__link">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
         
   
   
@@ -908,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-publishing/" class="md-nav__link">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
         
   
   
@@ -943,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -1022,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -1050,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -1078,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -1106,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1183,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1211,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs.md" class="md-nav__link">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
         
   
   
@@ -1239,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive.md" class="md-nav__link">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
         
   
   
@@ -1267,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/gmail/" class="md-nav__link">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
         
   
   
@@ -1295,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1323,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1351,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1379,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1407,7 +1266,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1443,7 +1302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1491,144 +1350,77 @@
   
 
 
-<h1 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h1>
-<p>The server tries auth methods in a waterfall by default. Set <code>AUTH_METHOD</code> to pin a specific method with no fallback.</p>
-<h2 id="auth-waterfall-default">Auth waterfall (default)<a class="headerlink" href="#auth-waterfall-default" title="Permanent link">&para;</a></h2>
-<ol>
-<li>OAuth (<code>CREDENTIALS_PATH</code> / <code>TOKEN_PATH</code>)</li>
-<li>Service account (<code>CREDENTIALS_CONFIG</code> or <code>SERVICE_ACCOUNT_PATH</code>)</li>
-<li>Application Default Credentials (ADC)</li>
-</ol>
-<p>OAuth is tried first because it authenticates as a user and has full personal Drive access. Service account is the headless fallback. ADC covers GCP-hosted deployments.</p>
-<h2 id="pinning-a-method">Pinning a method<a class="headerlink" href="#pinning-a-method" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>oauth<span class="w">            </span><span class="c1"># OAuth only — fails fast if credentials are missing</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>service_account<span class="w">  </span><span class="c1"># Service account only</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>adc<span class="w">              </span><span class="c1"># ADC only</span>
-</code></pre></div>
-<h2 id="method-a-service-account-recommended-for-servers">Method A: Service account (recommended for servers)<a class="headerlink" href="#method-a-service-account-recommended-for-servers" title="Permanent link">&para;</a></h2>
-<p>Best for headless or automated environments. Credentials don't expire.</p>
-<ol>
-<li>Create a service account in GCP Console → IAM &amp; Admin → Service Accounts.</li>
-<li>Download the JSON key file.</li>
-<li>Share a Google Drive folder with the service account's <code>client_email</code> (Editor access).</li>
-<li>Set environment variables:</li>
-<li><code>SERVICE_ACCOUNT_PATH</code> — path to the JSON key file</li>
-<li><code>DRIVE_FOLDER_ID</code> — ID of the shared Drive folder</li>
-</ol>
-<p><strong>Limitation:</strong> service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so <code>transfer_ownership</code> always fails — that one requires OAuth, with no Shared Drive workaround. <strong>Gmail tools require OAuth</strong> — service-account / domain-wide delegation is not wired yet. See <code>server://auth-status</code> to check your active auth method and affected tools (Gmail's are listed under the <code>no_user_mailbox</code> category).</p>
-<h2 id="method-b-oauth-20-personal-use-local-dev">Method B: OAuth 2.0 (personal use / local dev)<a class="headerlink" href="#method-b-oauth-20-personal-use-local-dev" title="Permanent link">&para;</a></h2>
-<p>Authenticates as you — gives full access to your personal Drive. Requires a one-time browser login.</p>
-<ol>
-<li>Configure an OAuth consent screen in GCP Console → APIs &amp; Services → OAuth consent screen.</li>
-<li>Create an OAuth Client ID credential (type: Desktop app) and download the JSON.</li>
-<li>Set environment variables:</li>
-<li><code>CREDENTIALS_PATH</code> — path to the downloaded OAuth JSON (default: <code>credentials.json</code>)</li>
-<li><code>TOKEN_PATH</code> — where the refresh token is stored after login (default: <code>token.json</code>). Use an absolute path: the default is relative to the working directory, and an MCP client may start the server somewhere other than your shell's directory.</li>
-<li>Log in once from a terminal, with the same <code>CREDENTIALS_PATH</code>, <code>TOKEN_PATH</code> and <code>ENABLED_TOOLS</code> the server will use:</li>
-</ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mcp-gee-sweet<span class="w"> </span>auth<span class="w">              </span><span class="c1"># cloned repo: uv run mcp-gee-sweet auth</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uvx<span class="w"> </span>mcp-gee-sweet<span class="w"> </span>auth<span class="w">          </span><span class="c1"># PyPI install</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>mcp-gee-sweet<span class="w"> </span>auth<span class="w"> </span>--no-browser<span class="w"> </span><span class="c1"># print the URL instead of opening a browser</span>
-</code></pre></div>
-<p>This opens the Google consent page, waits for you to finish, and writes the token to <code>TOKEN_PATH</code>, replacing any token already there. It requests the scopes the registered tools need, so <code>--include-tools</code> / <code>ENABLED_TOOLS</code> narrow it the same way they narrow the server.</p>
-<p><strong>Without a usable token, a stdio server doesn't open a browser itself.</strong> Under stdio, stdout is the protocol channel and the client gives up on a slow start, so the server can't show a consent prompt. It starts without Google access instead: every tool returns an error with the <code>mcp-gee-sweet auth</code> instructions, and <code>server://auth-status</code> reports <code>auth_method: "none"</code> with an <code>oauth_not_authorized</code> limitation. In the waterfall, the server first tries a service account and ADC, and only starts without access if neither is available. If a service account or ADC was configured on purpose (<code>SERVICE_ACCOUNT_PATH</code> or <code>GOOGLE_APPLICATION_CREDENTIALS</code> set) but wasn't usable, the error says why. Run <code>mcp-gee-sweet auth</code>, then restart the server. An expired token whose refresh Google rejects (for example, a revoked refresh token) is handled the same way. If Google simply can't be reached at startup (say, the network isn't up yet), the server keeps the token and refreshes it on the first tool call.</p>
-<p>Over SSE, the server still runs the browser consent itself when there's no usable token. The prompt goes to stderr, and the server waits at most <code>OAUTH_CONSENT_TIMEOUT_SECONDS</code> (default 5 minutes). The rest of the server keeps working during the wait. Connections that open during it wait for the same consent instead of starting another one, and stopping the server (SIGTERM, Ctrl+C) ends the wait. If consent is denied, fails, or isn't finished by then, the connections waiting on it start without Google access as described above. The server doesn't try the browser consent again for later connections, so an unattended server doesn't make each new connection wait out the timeout. Each new connection re-reads <code>TOKEN_PATH</code> instead, so after <code>mcp-gee-sweet auth</code> a reconnect is enough.</p>
-<p><code>mcp-gee-sweet auth</code> checks that the <code>TOKEN_PATH</code> directory exists and is writable before it opens the consent page, and saves the token readable by your user only (mode <code>0600</code>). The server rewrites it the same way when it refreshes.</p>
-<p><strong>Re-authenticating after a scope change:</strong> at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:</p>
+<h1 id="sse-oauth-consent-off-the-event-loop">SSE OAuth Consent Off the Event Loop<a class="headerlink" href="#sse-oauth-consent-off-the-event-loop" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-10-01 · <strong>Issue:</strong> #833 (follow-up to #811 / PR #828) · <strong>Module:</strong> <code>src/mcp_gee_sweet/auth.py</code></p>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p>Under <code>--transport sse</code> with no usable OAuth token, the lifespan ran the browser consent (<code>InstalledAppFlow.run_local_server</code>) directly on the event loop. Until the user consented or <code>OAUTH_CONSENT_TIMEOUT_SECONDS</code> passed:</p>
 <ul>
-<li><strong>Only the Gmail scope is missing</strong> (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and <code>server://auth-status</code> lists the Gmail tools under a <code>gmail_not_authorized</code> limitation.</li>
-<li><strong>Any other scope is missing:</strong> under stdio, startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set <code>DEBUG_LEVEL</code> and <code>LOG_FILE</code> to capture it in a file.) Over SSE, the server keeps running and the connection starts without Google access: every tool returns that error, with the instructions to re-authorize. The same applies to any other authentication failure over SSE.</li>
+<li>every other request stalled, because the loop was blocked</li>
+<li>SIGTERM didn't stop the server. Uvicorn's shutdown waits for open connections, and the connection holding the consent couldn't finish until its lifespan did. QA had to SIGKILL it (TC-I38, TC-I40).</li>
 </ul>
-<p>Either way, run <code>mcp-gee-sweet auth</code> (see step 4 above) and restart the server to re-authorize.</p>
-<p><strong>Gmail scope is only requested when a Gmail tool is registered.</strong> With no <code>ENABLED_TOOLS</code> filter every tool is registered, so the server asks for <code>gmail.modify</code> (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of <code>ENABLED_TOOLS</code> / <code>--include-tools</code>. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.</p>
-<h2 id="method-c-base64-credential-injection">Method C: Base64 credential injection<a class="headerlink" href="#method-c-base64-credential-injection" title="Permanent link">&para;</a></h2>
-<p>Useful in Docker/Kubernetes where file mounts are inconvenient. Encode your service account or OAuth JSON as Base64 and pass it via environment variable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># macOS / Linux</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>base64<span class="w"> </span>-i<span class="w"> </span>service_account.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span>
-</code></pre></div>
-<p>Set the output as <code>CREDENTIALS_CONFIG</code>. The server detects the credential type automatically.</p>
-<h2 id="method-d-application-default-credentials">Method D: Application Default Credentials<a class="headerlink" href="#method-d-application-default-credentials" title="Permanent link">&para;</a></h2>
-<p>For GCP-hosted environments (GKE, Cloud Run, Compute Engine) or local dev with <code>gcloud</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Local development</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>login<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--scopes<span class="o">=</span>https://www.googleapis.com/auth/cloud-platform,<span class="se">\</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>https://www.googleapis.com/auth/spreadsheets,<span class="se">\</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>https://www.googleapis.com/auth/drive,<span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>https://www.googleapis.com/auth/drive.activity.readonly,<span class="se">\</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>https://www.googleapis.com/auth/documents,<span class="se">\</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>https://www.googleapis.com/auth/calendar,<span class="se">\</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>https://www.googleapis.com/auth/gmail.modify
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>set-quota-project<span class="w"> </span>YOUR_PROJECT_ID
-</code></pre></div>
-<p>On GCP, attach a service account to your compute resource — ADC picks it up automatically. The <code>GOOGLE_APPLICATION_CREDENTIALS</code> env var (Google's standard) also feeds into ADC.</p>
-<p><strong>ADC can resolve to either a real user or a service identity</strong>, and the two have different limitations: a real user credential (<code>gcloud auth application-default login</code>, or Workforce Identity Federation) has full personal Drive access, while a service identity — a GCE/Cloud Run/GKE attached metadata identity, <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key, Workload Identity Federation, an impersonated service account, or a GDCH service account — has the same restrictions as Method A above. <code>server://auth-status</code> reports which one is actually active — <code>auth_method</code> stays <code>"adc"</code> either way, but <code>is_service_account_identity</code> distinguishes them.</p>
-<h2 id="required-google-apis">Required Google APIs<a class="headerlink" href="#required-google-apis" title="Permanent link">&para;</a></h2>
-<p>Enable these in GCP Console → APIs &amp; Services → Library:</p>
+<h2 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h2>
+<h3 id="1-the-lifespan-awaits-a-daemon-thread">1. The lifespan awaits a daemon thread<a class="headerlink" href="#1-the-lifespan-awaits-a-daemon-thread" title="Permanent link">&para;</a></h3>
+<p><code>_oauth_creds(defer_consent=True)</code> does everything up to the consent (token load, refresh), then raises <code>_ConsentDeferred</code> instead of running it. <code>_oauth_creds_async()</code> (what the lifespan calls) runs that on a daemon thread (<code>oauth-token</code>), so a hanging token endpoint can't block the loop either (PR #867 QA round 1). On <code>_ConsentDeferred</code> it awaits <code>_await_server_consent()</code>, which runs the flow on a thread named <code>oauth-consent</code>. Both go through <code>_run_in_daemon_thread</code> and <code>_await_unless_shutdown</code> (§4).</p>
+<p>These are <strong>daemon threads, not <code>asyncio.to_thread</code></strong>. Interpreter shutdown joins the default executor's worker threads, so a consent still waiting there would hold process exit until the timeout. The hang would just move from the event loop to shutdown (Kai's triage note on #833).</p>
+<p>The sync <code>_oauth_creds()</code> (no flag) still runs the consent inline. Only scratch scripts use it that way; the server never does.</p>
+<h3 id="2-our-own-callback-server-instead-of-run_local_server">2. Our own callback server instead of <code>run_local_server</code><a class="headerlink" href="#2-our-own-callback-server-instead-of-run_local_server" title="Permanent link">&para;</a></h3>
+<p><code>_serve_consent()</code> replaces the library's <code>run_local_server</code> for the server's consent. It does the same steps: a <code>wsgiref</code> server on a random localhost port, <code>flow.authorization_url()</code>, open the browser, take the first request, <code>flow.fetch_token()</code>. It changes two things:</p>
 <ul>
-<li>Google Sheets API</li>
-<li>Google Drive API</li>
-<li>Google Drive Activity API (required for <code>list_file_activity</code>)</li>
-<li>Google Docs API</li>
-<li>Google Calendar API</li>
-<li>Gmail API</li>
+<li><strong>Stoppable.</strong> The library makes one blocking <code>handle_request()</code> call for the whole timeout, so nothing outside the call can end it early. Ours calls <code>handle_request()</code> with a 0.5s timeout in a loop, checking the deadline and a <code>threading.Event</code>.</li>
+<li><strong>Prompt on stderr without <code>redirect_stdout</code>.</strong> The library <code>print()</code>s its prompt to stdout, and #811 moved it with <code>redirect_stdout(sys.stderr)</code>. That swaps <code>sys.stdout</code> for every thread in the process, which was harmless only while nothing else could run. We <code>print(..., file=sys.stderr)</code> ourselves.</li>
 </ul>
-<h2 id="environment-variable-summary">Environment variable summary<a class="headerlink" href="#environment-variable-summary" title="Permanent link">&para;</a></h2>
-<p>Auth-specific variables only — see <a href="../configuration/#environment-variables">Configuration</a> for the full list including cache, tool filtering, and transport settings.</p>
+<p>The same first-request semantics are kept: a stray request ends the wait, and fails on the state check (TC-I40 run 2). The request handler has a 5s socket timeout: a connection that sends nothing (a browser preconnect, a port scanner) would otherwise block <code>handle_request()</code> in <code>readline()</code> with no deadline or stop check (PR #867 QA round 1). The dropped connection is logged at debug, not as a traceback. A missing browser (<code>webbrowser.Error</code>, e.g. in a container) no longer fails the flow; the URL is on stderr regardless. The request handler logs nothing, since the request line carries the authorization code. <code>mcp-gee-sweet auth</code> keeps using the library's <code>run_local_server</code>, because a terminal is where its stdout prompt belongs.</p>
+<h3 id="3-one-shared-attempt">3. One shared attempt<a class="headerlink" href="#3-one-shared-attempt" title="Permanent link">&para;</a></h3>
+<p><code>_consent_attempt</code> is process-wide on purpose. A connection that opens while a consent is in flight awaits the same future (one prompt, one callback port) instead of starting a second consent. Each waiter awaits it through <code>asyncio.shield</code>, so cancelling one connection doesn't cancel the attempt for the others. When the last waiter is cancelled, the stop event is set. The thread then exits within one poll and closes the port. That kind of cancellation isn't a failed attempt, so <code>_interactive_consent</code> stays on.</p>
+<p>The "no retry after a failed attempt" rule from #811 is unchanged, but its reason has changed. The wait no longer blocks the server. Retrying would make an unattended server print a new prompt and hold each new connection for the timeout.</p>
+<p>Consent is turned off <strong>when the attempt settles with an error</strong>, on the loop, before any waiter sees the failure (<code>_ConsentAttempt._on_settle</code>), not later in the lifespan. Two reasons (PR #867 QA round 1). A waterfall that falls back to a service account never reaches <code>_degrade_unauthorized</code>, so the next connection prompted again. And with the lifespan doing it, a connection opening in the few loop hops between the future failing and the lifespan degrading saw a settled attempt with consent still on, and started another.</p>
+<p>The token load runs on its own thread, so a connection can decide "consent needed" and reach the loop after an attempt has settled (PR #867 CI flake and QA round 4). Both outcomes are handled on the loop: after a failure, <code>_await_server_consent</code> re-checks <code>_interactive_consent</code> before starting an attempt. After a success, a counter (<code>_consent_successes</code>, bumped in <code>_on_settle</code>) tells <code>_oauth_creds_async</code> that a consent finished while its load ran, and it reads the token again instead of starting a second consent. It doesn't reuse the finished attempt's credentials, because a connection whose load starts <em>after</em> a success and still finds no usable token (say, the token was deleted to re-authorize) should get a new consent, not the old credentials.</p>
+<h3 id="4-noticing-shutdown">4. Noticing shutdown<a class="headerlink" href="#4-noticing-shutdown" title="Permanent link">&para;</a></h3>
+<p>The lifespan runs inside the SSE request, and nothing cancels it on SIGTERM: sse_starlette ends the response stream, but <code>connect_sse</code>'s task group still waits for the body (the lifespan). So <code>_await_unless_shutdown</code> polls <code>sse_starlette.sse.AppStatus.should_exit</code> alongside the future. That flag is sse_starlette's public shutdown signal, set from uvicorn's exit handler, and it's how SSE streams learn to close. When it flips, the waiter raises <code>OAuthConsentRequiredError("...the server shut down before the browser consent completed...")</code>. The lifespan then degrades normally, the connection finishes, and uvicorn exits. The consent thread is stopped the same way as for a cancellation.</p>
+<h3 id="5-auth-failures-degrade-outside-stdio">5. Auth failures degrade outside stdio<a class="headerlink" href="#5-auth-failures-degrade-outside-stdio" title="Permanent link">&para;</a></h3>
+<p>Moving the token load off the loop changed <em>when</em> a failing lifespan raises: after its first <code>await</code>, so after the SSE response task has already sent the <code>endpoint</code> event. A client that POSTs <code>initialize</code> the instant it sees that event gets <code>202</code>, and the POST then waits in <code>writer.send()</code> on mcp's zero-buffer session stream. <code>Server.run</code> never starts reading it, and <code>connect_sse</code> never closes it when the body raises, so the POST waits forever and SIGTERM hangs on it (<code>Waiting for background tasks to complete</code>). On <code>develop</code> the lifespan raised before any <code>await</code>, before the endpoint event went out, so no client could POST. PR #867 QA round 2 hit this 3 times in 39; a client that POSTs immediately hits it every time (25 of 25). It reproduces on a bare <code>mcp</code> 2.0.0 server with no code of ours, filed upstream as <a href="https://github.com/modelcontextprotocol/python-sdk/issues/3616">python-sdk#3616</a> (related: python-sdk#514).</p>
+<p>The fix is in our lifespan, not mcp's transport: <code>spreadsheet_lifespan</code> wraps <code>_build_context()</code>, and outside stdio any exception becomes a degraded connection (<code>_degraded_context</code>) whose <code>unauthorized_message</code> is the failure (with its cause). The connection then runs normally, so a raced-in POST is read. Raising bought nothing over SSE anyway: the server keeps running, and the client only saw "Connection closed". Now every tool call returns the actual reason, such as the missing-scopes re-authorize instructions. <code>server.main()</code> sets <code>set_raise_auth_failures(True)</code> for stdio, which keeps #790's fail-fast exit there; stdio has no POST endpoint, so no race. #790's other rule is unchanged: a token on disk missing scopes still isn't masked by falling through to a service account.</p>
+<p>Patching mcp's transport instead was rejected: it means carrying a copy of <code>connect_sse</code> (or monkeypatching it), which silently goes stale on mcp upgrades, for a transport the MCP spec has deprecated.</p>
+<h2 id="verified-live-2026-10-01-dummy-installed-app-client-json-browserusrbintrue">Verified live (2026-10-01, dummy installed-app client JSON, <code>BROWSER=/usr/bin/true</code>)<a class="headerlink" href="#verified-live-2026-10-01-dummy-installed-app-client-json-browserusrbintrue" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Variable</th>
-<th>Auth method</th>
-<th>Description</th>
-<th>Default</th>
+<th></th>
+<th><code>develop</code> before</th>
+<th>this change</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH_METHOD</code></td>
-<td>all</td>
-<td>Pin to one method: <code>oauth</code>, <code>service_account</code>, <code>adc</code></td>
-<td>waterfall</td>
+<td><code>POST /messages/</code> during the wait</td>
+<td>no answer within 5s</td>
+<td><code>400</code> in 0.07s</td>
 </tr>
 <tr>
-<td><code>SERVICE_ACCOUNT_PATH</code></td>
-<td>service account</td>
-<td>Path to service account JSON key</td>
-<td>—</td>
+<td>SIGTERM during the wait</td>
+<td>still running after 15s</td>
+<td>exited in 0.39s, both ports released</td>
 </tr>
 <tr>
-<td><code>GOOGLE_APPLICATION_CREDENTIALS</code></td>
-<td>ADC</td>
-<td>Path to service account key (Google standard)</td>
-<td>—</td>
+<td>A, then B during the wait (timeout 4s)</td>
+<td>n/a</td>
+<td>1 prompt, both degrade "within 4s"; C afterward degrades with no wait</td>
 </tr>
 <tr>
-<td><code>DRIVE_FOLDER_ID</code></td>
-<td>service account</td>
-<td>Drive folder shared with the service account</td>
-<td>—</td>
+<td>Stray callback request</td>
+<td></td>
+<td>degrades in 0.08s (<code>MismatchingStateError</code>)</td>
 </tr>
 <tr>
-<td><code>CREDENTIALS_PATH</code></td>
-<td>OAuth</td>
-<td>Path to OAuth client ID JSON</td>
-<td><code>credentials.json</code></td>
-</tr>
-<tr>
-<td><code>TOKEN_PATH</code></td>
-<td>OAuth</td>
-<td>Path to store the OAuth refresh token</td>
-<td><code>token.json</code></td>
-</tr>
-<tr>
-<td><code>CREDENTIALS_CONFIG</code></td>
-<td>service account / OAuth</td>
-<td>Base64-encoded credentials JSON</td>
-<td>—</td>
+<td>Missing-scope token, client POSTs <code>initialize</code> on the endpoint event, then SIGTERM</td>
+<td>n/a (no endpoint before the raise)</td>
+<td>before §5: 25 of 25 hang. After: 0 of 25, POST <code>202</code>; a real <code>sse_client</code> initializes and gets the missing-scopes message as the tool error</td>
 </tr>
 </tbody>
 </table>
+<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body'</code> traceback at shutdown appears on <code>develop</code> too, for any SSE stream open at SIGTERM, so it's unrelated to this change.</p>
+<h2 id="not-changed">Not changed<a class="headerlink" href="#not-changed" title="Permanent link">&para;</a></h2>
+<p>The synchronous <code>_oauth_creds()</code> (no flag) still runs everything inline, for scratch scripts. <code>_server_shutting_down</code> reads only <code>AppStatus.should_exit</code>, not sse_starlette's fallback that introspects uvicorn's signal handler: its monkey-patch works in our launch path (TC-I43).</p>
 
 
 
@@ -1684,10 +1476,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
