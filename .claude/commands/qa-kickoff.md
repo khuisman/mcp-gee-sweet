@@ -13,6 +13,8 @@ Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to
 /mcp reconnect mcp-gee-sweet-<name>
 ```
 
+**No `src/` change, no reconnect:** if `git diff --name-only origin/develop...HEAD` lists nothing under `src/`, leave the `/mcp reconnect` line out of either block, because the live server never runs the changed code. A re-verification round in that case sends the user nothing and goes straight to the fix commit. PR #866 (a Claude Code hook script) asked for two reconnects that verified nothing.
+
 On a re-verification round, do not ask for `/code-review` again. After the reconnect lands, run `git show <fix-sha>` on the Dev's new commit yourself and live-verify against its own new QA test case (see `.claude/team-roles/qa.md` Retro). Fall back to a full `/code-review` only if the fix's diff is structurally larger than the named finding, or unrelated commits landed in between.
 
 Either way, once the reconnect confirmation lands, check it names *this role's own* `mcp-gee-sweet-<name>` server before trusting any live tool result — naming the server explicitly in the command above rules out the old bare-`/mcp reconnect` failure mode where the wrong role's server got reconnected, but the confirmation is still worth a glance. Don't rely on `ToolSearch`'s cached tool description as a substitute freshness check either — it can keep showing the pre-reset docstring even after a correct reconnect. Treat a live tool call's own observed behavior as the only reliable signal a reconnect actually took effect.
