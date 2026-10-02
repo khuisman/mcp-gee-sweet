@@ -943,6 +943,9 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 **Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
 `mcp` SDK `sse_client`. Run 1: A open+init 4.09s; tool error `...the browser consent wasn't completed within 4s. To authorize, run \`mcp-gee-sweet auth\`...`. B (A still open) open+init 0.01s; error `...an earlier browser consent in this server process didn't complete (it isn't retried, so new connections don't each wait for it again)`. A again: still `within 4s`. stderr had exactly 1 `Please visit`. Run 2: init 0.01s after the stray `GET /?state=bogus&code=x`; error `...the browser consent failed (MismatchingStateError: ...)`, and the lifespan didn't crash. SIGTERM exits took 0.28s each, and `lsof -i :<port>` was empty after both.
 
+**Result (2026-10-01, PR #867 round 2 @ a4c18c9, Sky) ✅ PASS**
+Same as round 1. Run 1: A open+init 4.09s with `within 4s`; B 0.01s with `an earlier browser consent ... didn't complete`; A again still `within 4s`; 1 `Please visit`. Run 2: init 0.01s after the stray request; `the browser consent failed (MismatchingStateError ...)`. SIGTERM exits 0.17s / 0.23s, and `lsof` was empty.
+
 ---
 
 ### TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem
@@ -972,3 +975,6 @@ An `Exception in ASGI application ... Expected ASGI message 'http.response.body'
 
 **Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
 `mcp` SDK `sse_client`, `OAUTH_CONSENT_TIMEOUT_SECONDS=120`. Step 2: POST answered `404` in 0.016s. The case said `400`, but an unknown all-zero session id is 404; corrected above. Step 3: exactly 1 `Please visit`. Step 5: SIGTERM to the server pid exited in 4.6s; stderr has `...the server shut down before the browser consent completed`; `lsof` empty for both `<port>` and `<cb>`. A and B both ended with `Connection closed` (expected: the server exited). Probe outside the case (PR comment, finding 1): with `OAUTH_CONSENT_TIMEOUT_SECONDS=4` and a silent TCP connection held open on `<cb>`, A was still waiting after 20s and resolved only once the silent connection closed. SIGTERM still exits (0.56s) because the consent thread is a daemon.
+
+**Result (2026-10-01, PR #867 round 2 @ a4c18c9, Sky) ✅ PASS**
+Step 2: POST `404` in 0.017s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit in 0.61s, the shut-down message was logged, and `lsof` was empty for `<port>` and `<cb>`. Re-checked the round-1 findings outside the case. (1) Silent TCP connection on `<cb>` with `OAUTH_CONSENT_TIMEOUT_SECONDS=4`: degraded at 5.2s (`within 4s`) and the stderr had 0 tracebacks. (2) Waterfall (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` set, timeout 4s), two sequential connections: 1 `Please visit` in total, and both connections ran on the service account. (3) Token refresh hanging (expired token, `HTTPS_PROXY` pointed at a blackhole): a POST during it answered in 0.017s, and SIGTERM exited in 0.6s with `the server shut down while loading the token`. Separately, with `AUTH_METHOD=oauth` and a token missing required scopes (`MissingOAuthScopesError`), SIGTERM intermittently hung at `Waiting for background tasks to complete` past 30s: 3 of 39 runs on the PR code, 0 of 14 on `develop`. Reported on the PR.
