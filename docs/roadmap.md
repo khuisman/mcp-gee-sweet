@@ -295,7 +295,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] `server.json`/`test_server_json.py`: minor hardening findings from PR #603's review — triaged out of `backlog` 2026-09-11 ([#607](https://github.com/khuisman/mcp-gee-sweet/issues/607))
 - [ ] Restore the explanatory comment for the `annotations=None` stub param in `gen_tool_docs.py` — triaged out of `backlog` 2026-09-11 ([#637](https://github.com/khuisman/mcp-gee-sweet/issues/637))
 - [x] Team setup: give each worktree only its own MCP server — other roles' tool names are an estimated ~15–20k of the ~80k lane bootstrap; measure first. Prioritized 2026-09-29, lane-b ahead of #789 ([#850](https://github.com/khuisman/mcp-gee-sweet/issues/850)) (PR #856)
-- [ ] Context-size backstop hook for lane sessions, plus a warning before a cold `--resume` — code half of #843; lane-b after #850 ([#847](https://github.com/khuisman/mcp-gee-sweet/issues/847))
+- [x] Context-size backstop hook for lane sessions, plus a warning before a cold `--resume` — code half of #843; lane-b after #850 ([#847](https://github.com/khuisman/mcp-gee-sweet/issues/847)) (PR #866)
 - [ ] Cut `CLAUDE.md` and the role files down to lasting rules + pointers, moving per-PR history to `docs/design/`/`docs/decisions/` — Amy writes it (user-assigned), Bob reviews each PR under the prompt-QA gate; can land as one PR per file ([#849](https://github.com/khuisman/mcp-gee-sweet/issues/849))
 - [x] `merge-pr.md` step 6: guard the team-slot reset against in-flight work on another ticket, mirroring #837's receiving-side guard in `dev.md` — Bob's track ([#838](https://github.com/khuisman/mcp-gee-sweet/issues/838)) (PR #853)
 

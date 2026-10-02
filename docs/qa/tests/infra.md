@@ -25,6 +25,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
 | TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0). ✅ Live re-verified post-migration against the real SDK — see Result entries below |
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
+| TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
 
 ---
 
@@ -948,6 +949,56 @@ Same as round 1. Run 1: A open+init 4.09s with `within 4s`; B 0.01s with `an ear
 
 ---
 
+### TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem
+
+**Background:** `.claude/settings.json` runs `scripts/lane_context_hook.py` on every `Stop`. Inside a lane worktree (`.claude/worktrees/{ash,jay,sky,kit}`) it sums the latest main-thread assistant message's `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` from the session's own `transcript_path`. Past `LANE_CONTEXT_WARN_TOKENS` (default `DEFAULT_WARN_TOKENS` in the script) it shows a `systemMessage` suggesting `/clear` + `/team-member <Name>`. It warns again only after each further `LANE_CONTEXT_WARN_STEP` (default `DEFAULT_WARN_STEP`) tokens, tracked per session under `$TMPDIR/mcp-gee-sweet-lane-context/`. Other cwds get no output. The env vars lower the threshold so a fresh session crosses it.
+
+**Setup:** this lane's worktree checked out on the PR branch (`.claude/settings.json` there carries the hook). `<scratch>` is a fresh empty directory used as `TMPDIR`.
+
+**Action** (all from the lane worktree root)
+1. `LANE_CONTEXT_WARN_TOKENS=1000 LANE_CONTEXT_WARN_STEP=10000000 TMPDIR=<scratch> claude -p "Reply with just: ok" --model haiku --output-format stream-json --verbose --include-hook-events > <scratch>/s1.jsonl`. Note the `session_id` from its `init` line.
+2. Same env, `claude -p "Reply with just: ok again" --resume <session_id> --model haiku --output-format stream-json --verbose --include-hook-events > <scratch>/s2.jsonl`
+3. Pipe a hand-built Stop payload into the script with a non-lane cwd: `echo '{"hook_event_name":"Stop","cwd":"<repo root>/.claude/worktrees/bob","session_id":"x","transcript_path":"<step 1 transcript>"}' | LANE_CONTEXT_WARN_TOKENS=1000 TMPDIR=<scratch> python3 scripts/lane_context_hook.py`. The step 1 transcript is `~/.claude/projects/<lane worktree path, with / and . replaced by ->/<session_id>.jsonl`.
+
+**Checks**
+- Step 1: a `hook_response` line with `"hook_event":"Stop"`, `exit_code` 0 and empty `stderr`, whose `output` is a `systemMessage` starting `Lane context is ~<N>k tokens (warning threshold 1k)` and ending `/clear, then /team-member <Lane>.` (this lane's name, capitalized). `<N>k` matches the step 1 `assistant` line's `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, rounded to thousands. An `informational` line shows the same text as `Stop says: ...`.
+- Step 2: the Stop `hook_response` has an empty `output` (same band, so no second warning), and there's no `Stop says:` line.
+- Step 3: no output, exit 0.
+
+**Cleanup:** remove `<scratch>`. The headless sessions stay in this lane's transcript directory.
+
+**Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
+Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty `stderr`, `output` `{"systemMessage": "Lane context is ~41k tokens (warning threshold 1k). ... start fresh: /clear, then /team-member Kit."}`; the `assistant` line's three usage fields sum to 41019; `informational` line `Stop says: Lane context is ~41k tokens ...`. State file under `<scratch>/mcp-gee-sweet-lane-context/` held `0`. Step 2 (`--resume`): Stop `output` empty, no `Stop says:` line (`SessionStart:resume` also empty, since no `LANE_RESUME_WARN_TOKENS` override). Step 3 (`cwd` = `.../worktrees/bob`): no output, exit 0.
+
+**Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
+Re-ran step 1 against the guarded settings.json command: Stop `hook_response` exit 0 with `Lane context is ~39k tokens (warning threshold 1k). ... /clear, then /team-member Kit.` and one `Stop says:` line. Round 1 finding (missing script): a scratch project whose Stop hook uses the same guarded command with no `scripts/lane_context_hook.py` now gives exit 0, `outcome: "success"`, empty output and stderr (round 1's unguarded command: exit 2, `outcome: "error"`, `can't open file`).
+
+---
+
+### TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
+
+**Background:** on `SessionStart` with source `resume` or `fork`, Claude Code (2.1.251+) passes `context_tokens`, `prompt_cache_likely_expired` and `estimated_cache_write_usd`. The hook warns when the cache has likely expired and `context_tokens` is at least `LANE_RESUME_WARN_TOKENS` (default `DEFAULT_RESUME_WARN_TOKENS` in the script). A warm-cache resume stays silent. `--fork-session` leaves the original transcript untouched; the hook sees it as `SessionStart:fork`.
+
+**Setup:** pick a session in this lane's transcript directory last modified more than 2 hours ago (cache expired), with a small context so the test is cheap. `<scratch>` as in TC-I41.
+
+**Action** (from the lane worktree root)
+1. `LANE_RESUME_WARN_TOKENS=1000 TMPDIR=<scratch> claude -p "Reply with just: ok" --resume <old session_id> --fork-session --model haiku --output-format stream-json --verbose --include-hook-events > <scratch>/r1.jsonl`
+2. Immediately repeat step 1 against the session step 1 forked (its `session_id` from `r1.jsonl`'s `init` line), so the cache is warm.
+
+**Checks**
+- Step 1: a `hook_response` line with `"hook_name":"SessionStart:fork"`, exit 0, whose `output` is a `systemMessage` starting `Resuming a ~<N>k-token lane session with an expired prompt cache` and containing a `(~$<cost>)` clause and `/clear, then /team-member <Lane>`.
+- Step 2: the SessionStart `hook_response` has an empty `output` (cache not expired).
+
+**Cleanup:** remove `<scratch>`.
+
+**Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
+Claude Code 2.1.287, `kit` worktree. Old session: a ~43k-token `kit` transcript last modified 2026-09-29. Step 1: `hook_name` `SessionStart:fork`, exit 0, `output` `{"systemMessage": "Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). If this session's ticket is done or between rounds, /clear, then /team-member Kit is cheaper."}`. Step 2 (fork of step 1's fork, seconds later): `SessionStart:fork` `output` empty.
+
+**Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
+Re-ran step 1 (same 2026-09-29 session) after the `type(cost) in (int, float)` change: `SessionStart:fork` exit 0, `output` `Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). ... /clear, then /team-member Kit is cheaper.` The cost clause, which round 1's `int | float` check dropped under Python 3.9, is present. `tests/test_lane_context_hook.py::TestRunsUnderPython39` ran (not skipped) against `/usr/bin/python3` 3.9.6. All 46 tests in the file pass. Step 2 not re-run: the warm-cache path is unchanged by the fix.
+
+---
+
 ### TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem
 
 **Background:** the consent wait used to run on the event loop. Until consent or `OAUTH_CONSENT_TIMEOUT_SECONDS` (default 300), every other request stalled, and SIGTERM didn't stop the server (uvicorn waits for open connections, and this one couldn't finish), so QA had to SIGKILL it. The wait now runs on a daemon thread that the lifespan awaits. Connections that arrive during the wait share it (one prompt, one callback port). On SIGTERM, a waiting lifespan starts the connection degraded with a "server shut down" message, and the callback server closes.
@@ -978,3 +1029,25 @@ An `Exception in ASGI application ... Expected ASGI message 'http.response.body'
 
 **Result (2026-10-01, PR #867 round 2 @ a4c18c9, Sky) ✅ PASS**
 Step 2: POST `404` in 0.017s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit in 0.61s, the shut-down message was logged, and `lsof` was empty for `<port>` and `<cb>`. Re-checked the round-1 findings outside the case. (1) Silent TCP connection on `<cb>` with `OAUTH_CONSENT_TIMEOUT_SECONDS=4`: degraded at 5.2s (`within 4s`) and the stderr had 0 tracebacks. (2) Waterfall (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` set, timeout 4s), two sequential connections: 1 `Please visit` in total, and both connections ran on the service account. (3) Token refresh hanging (expired token, `HTTPS_PROXY` pointed at a blackhole): a POST during it answered in 0.017s, and SIGTERM exited in 0.6s with `the server shut down while loading the token`. Separately, with `AUTH_METHOD=oauth` and a token missing required scopes (`MissingOAuthScopesError`), SIGTERM intermittently hung at `Waiting for background tasks to complete` past 30s: 3 of 39 runs on the PR code, 0 of 14 on `develop`. Reported on the PR.
+
+---
+
+### TC-I44: over SSE, an auth failure starts the connection without Google access, and SIGTERM still exits (PR #867) ⚠️ local-filesystem
+
+**Background:** once the token load moved off the event loop (#833), a lifespan that raised (e.g. `MissingOAuthScopesError`) did so after the SSE `endpoint` event had gone out. A client that POSTs `initialize` the instant it sees the endpoint got `202`, and that POST then waited forever in mcp's transport, because the session's stream is never closed when the lifespan fails (python-sdk#3616). SIGTERM then hung at `Waiting for background tasks to complete`. Over SSE, an auth failure now starts the connection without Google access, and every tool returns the failure as its error. Stdio still exits on it (#790).
+
+**Setup:** an OAuth client JSON, and a token file `<scratch>/token.json` whose `scopes` is only `["https://www.googleapis.com/auth/drive"]` (any `token`/`refresh_token`/`client_id`/`client_secret`, with an `expiry` in the future so no refresh is attempted).
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<scratch>/token.json`, `CREDENTIALS_PATH=<client json>`, `PORT=<free port>`, `DEBUG_LEVEL=INFO`, `PYTHONUNBUFFERED=1`, stderr to a file, in its own process group.
+1. With the `mcp` SDK's `sse_client` + `ClientSession`: `initialize`, then call `list_spreadsheets` with `max_results: 1`
+2. The race, 10 times against a fresh server each time: open `GET /sse` on a raw socket, and the moment the `endpoint` event's `session_id` arrives, `POST /messages/?session_id=<id>` with an `initialize` request. Wait 0.5s, then send the server `SIGTERM` and time its exit
+3. Restart the same way with `AUTH_METHOD` unset and no service account or ADC configured; repeat step 1
+
+**Checks**
+- 1: `initialize` succeeds. The tool result is an error that names the missing scopes (`wasn't authorized for scope(s) the enabled tools require: ...`) and gives the `mcp-gee-sweet auth` instructions
+- 1: the stderr file has `ERROR mcp_gee_sweet.auth Starting without Google access: The OAuth token at ...`
+- 2: every POST answers `202`, and every server exits within a few seconds of SIGTERM (before this fix: hung every time)
+- 3: the tool error is the missing-scopes message again (a token on disk means OAuth was intended, so #790 still doesn't fall through to another method)
+
+**Cleanup:** SIGKILL any server process group still running (and record the case as failed); delete `<scratch>`.
