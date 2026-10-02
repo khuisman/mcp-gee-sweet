@@ -45,3 +45,15 @@ Read the file for this role and follow it exactly — each role's process moved 
 | Joy | `.claude/team-roles/joy.md` |
 | Bob | `.claude/team-roles/bob.md` |
 | Kai | `.claude/team-roles/kai.md` |
+
+## 4. Status when a turn ends
+
+Every turn ends with a status that Agent View shows to the human. Pick it by the rule below, never case by case, so the same situation always shows the same label on every lane:
+
+| Situation when you stop | Status |
+|---|---|
+| Waiting on the human: a go-ahead, an approval, or an answer to a question | `blocked` (shows as "needs input") |
+| Idle, waiting on another agent or event with nothing for the human to do (e.g. QA with no partner PR, Dev waiting on QA's verdict) | `done` (shows as "completed") |
+| Still running work: a background task, a Monitor, or a scheduled wakeup that will resume this ticket or review | `working` |
+
+Idle is never `working`, even with an idle tempo: that label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky reported `done` while Kit reported `working`.
