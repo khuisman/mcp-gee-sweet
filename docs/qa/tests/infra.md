@@ -961,6 +961,9 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 **Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
 Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty `stderr`, `output` `{"systemMessage": "Lane context is ~41k tokens (warning threshold 1k). ... start fresh: /clear, then /team-member Kit."}`; the `assistant` line's three usage fields sum to 41019; `informational` line `Stop says: Lane context is ~41k tokens ...`. State file under `<scratch>/mcp-gee-sweet-lane-context/` held `0`. Step 2 (`--resume`): Stop `output` empty, no `Stop says:` line (`SessionStart:resume` also empty, since no `LANE_RESUME_WARN_TOKENS` override). Step 3 (`cwd` = `.../worktrees/bob`): no output, exit 0.
 
+**Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
+Re-ran step 1 against the guarded settings.json command: Stop `hook_response` exit 0 with `Lane context is ~39k tokens (warning threshold 1k). ... /clear, then /team-member Kit.` and one `Stop says:` line. Round 1 finding (missing script): a scratch project whose Stop hook uses the same guarded command with no `scripts/lane_context_hook.py` now gives exit 0, `outcome: "success"`, empty output and stderr (round 1's unguarded command: exit 2, `outcome: "error"`, `can't open file`).
+
 ---
 
 ### TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
@@ -981,3 +984,6 @@ Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty 
 
 **Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
 Claude Code 2.1.287, `kit` worktree. Old session: a ~43k-token `kit` transcript last modified 2026-09-29. Step 1: `hook_name` `SessionStart:fork`, exit 0, `output` `{"systemMessage": "Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). If this session's ticket is done or between rounds, /clear, then /team-member Kit is cheaper."}`. Step 2 (fork of step 1's fork, seconds later): `SessionStart:fork` `output` empty.
+
+**Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
+Re-ran step 1 (same 2026-09-29 session) after the `type(cost) in (int, float)` change: `SessionStart:fork` exit 0, `output` `Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). ... /clear, then /team-member Kit is cheaper.` The cost clause, which round 1's `int | float` check dropped under Python 3.9, is present. `tests/test_lane_context_hook.py::TestRunsUnderPython39` ran (not skipped) against `/usr/bin/python3` 3.9.6. All 46 tests in the file pass. Step 2 not re-run: the warm-cache path is unchanged by the fix.
