@@ -13,9 +13,9 @@ Under `--transport sse` with no usable OAuth token, the lifespan ran the browser
 
 ### 1. The lifespan awaits a daemon thread
 
-`_oauth_creds(defer_consent=True)` does everything up to the consent, then raises `_ConsentDeferred` instead of running it. `_oauth_creds_async()` (what the lifespan calls) catches that and awaits `_await_server_consent()`, which runs the flow on a thread named `oauth-consent`.
+`_oauth_creds(defer_consent=True)` does everything up to the consent (token load, refresh), then raises `_ConsentDeferred` instead of running it. `_oauth_creds_async()` (what the lifespan calls) runs that on a daemon thread (`oauth-token`), so a hanging token endpoint can't block the loop either (PR #867 QA round 1). On `_ConsentDeferred` it awaits `_await_server_consent()`, which runs the flow on a thread named `oauth-consent`. Both go through `_run_in_daemon_thread` and `_await_unless_shutdown` (§4).
 
-That thread is a **daemon thread, not `asyncio.to_thread`**. Interpreter shutdown joins the default executor's worker threads, so a consent still waiting there would hold process exit until the timeout. The hang would just move from the event loop to shutdown (Kai's triage note on #833).
+These are **daemon threads, not `asyncio.to_thread`**. Interpreter shutdown joins the default executor's worker threads, so a consent still waiting there would hold process exit until the timeout. The hang would just move from the event loop to shutdown (Kai's triage note on #833).
 
 The sync `_oauth_creds()` (no flag) still runs the consent inline. Only scratch scripts use it that way; the server never does.
 
@@ -26,7 +26,7 @@ The sync `_oauth_creds()` (no flag) still runs the consent inline. Only scratch 
 - **Stoppable.** The library makes one blocking `handle_request()` call for the whole timeout, so nothing outside the call can end it early. Ours calls `handle_request()` with a 0.5s timeout in a loop, checking the deadline and a `threading.Event`.
 - **Prompt on stderr without `redirect_stdout`.** The library `print()`s its prompt to stdout, and #811 moved it with `redirect_stdout(sys.stderr)`. That swaps `sys.stdout` for every thread in the process, which was harmless only while nothing else could run. We `print(..., file=sys.stderr)` ourselves.
 
-The same first-request semantics are kept: a stray request ends the wait, and fails on the state check (TC-I40 run 2). A missing browser (`webbrowser.Error`, e.g. in a container) no longer fails the flow; the URL is on stderr regardless. The request handler logs nothing, since the request line carries the authorization code. `mcp-gee-sweet auth` keeps using the library's `run_local_server`, because a terminal is where its stdout prompt belongs.
+The same first-request semantics are kept: a stray request ends the wait, and fails on the state check (TC-I40 run 2). The request handler has a 5s socket timeout: a connection that sends nothing (a browser preconnect, a port scanner) would otherwise block `handle_request()` in `readline()` with no deadline or stop check (PR #867 QA round 1). The dropped connection is logged at debug, not as a traceback. A missing browser (`webbrowser.Error`, e.g. in a container) no longer fails the flow; the URL is on stderr regardless. The request handler logs nothing, since the request line carries the authorization code. `mcp-gee-sweet auth` keeps using the library's `run_local_server`, because a terminal is where its stdout prompt belongs.
 
 ### 3. One shared attempt
 
@@ -34,9 +34,11 @@ The same first-request semantics are kept: a stray request ends the wait, and fa
 
 The "no retry after a failed attempt" rule from #811 is unchanged, but its reason has changed. The wait no longer blocks the server. Retrying would make an unattended server print a new prompt and hold each new connection for the timeout.
 
+Consent is turned off **when the attempt settles with an error**, on the loop, before any waiter sees the failure (`_ConsentAttempt._on_settle`), not later in the lifespan. Two reasons (PR #867 QA round 1). A waterfall that falls back to a service account never reaches `_degrade_unauthorized`, so the next connection prompted again. And with the lifespan doing it, a connection opening in the few loop hops between the future failing and the lifespan degrading saw a settled attempt with consent still on, and started another.
+
 ### 4. Noticing shutdown
 
-The lifespan runs inside the SSE request, and nothing cancels it on SIGTERM: sse_starlette ends the response stream, but `connect_sse`'s task group still waits for the body (the lifespan). So the waiter polls `sse_starlette.sse.AppStatus.should_exit` alongside the future. That flag is sse_starlette's public shutdown signal, set from uvicorn's exit handler, and it's how SSE streams learn to close. When it flips, the waiter raises `OAuthConsentRequiredError("...the server shut down before the browser consent completed...")`. The lifespan then degrades normally, the connection finishes, and uvicorn exits. The consent thread is stopped the same way as for a cancellation.
+The lifespan runs inside the SSE request, and nothing cancels it on SIGTERM: sse_starlette ends the response stream, but `connect_sse`'s task group still waits for the body (the lifespan). So `_await_unless_shutdown` polls `sse_starlette.sse.AppStatus.should_exit` alongside the future. That flag is sse_starlette's public shutdown signal, set from uvicorn's exit handler, and it's how SSE streams learn to close. When it flips, the waiter raises `OAuthConsentRequiredError("...the server shut down before the browser consent completed...")`. The lifespan then degrades normally, the connection finishes, and uvicorn exits. The consent thread is stopped the same way as for a cancellation.
 
 ## Verified live (2026-10-01, dummy installed-app client JSON, `BROWSER=/usr/bin/true`)
 
@@ -51,4 +53,4 @@ An `Exception in ASGI application ... Expected ASGI message 'http.response.body'
 
 ## Not changed
 
-`_oauth_creds` still refreshes an expired token synchronously on the loop. That call is a bounded HTTP request, not a wait on a human.
+The synchronous `_oauth_creds()` (no flag) still runs everything inline, for scratch scripts. `_server_shutting_down` reads only `AppStatus.should_exit`, not sse_starlette's fallback that introspects uvicorn's signal handler: its monkey-patch works in our launch path (TC-I43).

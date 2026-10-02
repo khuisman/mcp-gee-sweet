@@ -934,6 +934,27 @@ class TestServeConsent:
         ):
             auth_module._serve_consent(self._flow(), 0.1, threading.Event())
 
+    def test_a_silent_connection_doesnt_hold_off_the_timeout(self, monkeypatch, capsys):
+        # PR #867 QA round 1: a connection that sends nothing (browser preconnect,
+        # port scanner) blocked handle_request() in readline(), so the deadline and
+        # stop checks never ran again until the client hung up.
+        assert 0 < (auth_module._CallbackHandler.timeout or 0) <= 10
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        monkeypatch.setattr(auth_module._CallbackHandler, "timeout", 0.3)  # keep the test fast
+        flow = self._flow()
+        with patch.object(auth_module.webbrowser, "get"):
+            thread, box = self._serve_in_thread(flow, 0.5, threading.Event())
+            redirect = self._wait_for_redirect_uri(flow)
+            port = int(redirect.rstrip("/").rsplit(":", 1)[1])
+            silent = socket.create_connection(("localhost", port), timeout=5)
+            try:
+                thread.join(3)
+                assert not thread.is_alive(), "the silent connection held off the timeout"
+            finally:
+                silent.close()
+        assert isinstance(box.get("error"), auth_module.WSGITimeoutError)
+        assert "Traceback" not in capsys.readouterr().err
+
 
 class TestConsentOffEventLoop:
     @pytest.fixture(autouse=True)
@@ -1110,6 +1131,91 @@ class TestConsentOffEventLoop:
             stopped, creds = asyncio.run(_run())
         assert stopped is False
         assert creds is fresh
+
+    def test_failed_attempt_turns_off_consent_even_when_the_waterfall_falls_back(self, monkeypatch):
+        # PR #867 QA round 1: a waterfall that falls back to a service account after
+        # a failed consent never reached _degrade_unauthorized, so the next connection
+        # prompted again and waited out the timeout again.
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", None)
+        serve = MagicMock(side_effect=auth_module.WSGITimeoutError("timed out"))
+
+        async def _run():
+            async with spreadsheet_lifespan(MagicMock()) as ctx:
+                return ctx
+
+        with (
+            patch("mcp_gee_sweet.auth._serve_consent", serve),
+            patch("mcp_gee_sweet.auth._service_account_creds", return_value=MagicMock()),
+            patch("googleapiclient.discovery.build"),
+        ):
+            first = asyncio.run(_run())
+            second = asyncio.run(_run())
+        assert first.auth_method == second.auth_method == "service_account"
+        assert auth_module._interactive_consent is False
+        serve.assert_called_once()
+
+    def test_consent_is_off_before_any_waiter_sees_the_failure(self):
+        # PR #867 QA round 1: turning consent off in the lifespan left a gap of a few
+        # loop hops in which a new connection saw a settled attempt with consent
+        # still on, and started a second one.
+        seen = []
+
+        async def _run():
+            consent = asyncio.create_task(auth_module._oauth_creds_async())
+            consent.add_done_callback(lambda _: seen.append(auth_module._interactive_consent))
+            with pytest.raises(auth_module.OAuthConsentRequiredError):
+                await consent
+
+        with patch(
+            "mcp_gee_sweet.auth._serve_consent",
+            side_effect=auth_module.WSGITimeoutError("timed out"),
+        ):
+            asyncio.run(_run())
+        assert seen == [False]
+
+    def test_token_refresh_runs_off_the_event_loop(self):
+        # PR #867 QA round 1: a hanging token endpoint blocked the loop the same way
+        # the consent wait did.
+        release, started, fresh = threading.Event(), threading.Event(), self._fresh()
+
+        def _hanging_refresh(**kwargs):
+            started.set()
+            release.wait(5)
+            return fresh
+
+        async def _run():
+            loading = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            for _ in range(5):
+                await asyncio.sleep(0.01)
+            assert not loading.done()
+            release.set()
+            return await loading
+
+        with patch("mcp_gee_sweet.auth._oauth_creds", side_effect=_hanging_refresh):
+            assert asyncio.run(_run()) is fresh
+
+    def test_shutdown_ends_a_hanging_token_refresh(self):
+        from sse_starlette.sse import AppStatus
+
+        release, started = threading.Event(), threading.Event()
+
+        def _hanging_refresh(**kwargs):
+            started.set()
+            release.wait(5)
+
+        async def _run():
+            loading = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            AppStatus.should_exit = True
+            with pytest.raises(auth_module.OAuthConsentRequiredError, match="loading the token"):
+                await asyncio.wait_for(loading, 2)
+
+        try:
+            with patch("mcp_gee_sweet.auth._oauth_creds", side_effect=_hanging_refresh):
+                asyncio.run(_run())
+        finally:
+            release.set()
 
 
 class TestConsentTimeoutSetting:

@@ -10,7 +10,7 @@ import time
 import webbrowser
 import wsgiref.simple_server
 import wsgiref.util
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from typing import Any
@@ -345,11 +345,20 @@ def _oauth_creds(*, defer_consent: bool = False) -> Credentials:
 
 
 async def _oauth_creds_async() -> Credentials:
-    """_oauth_creds for the lifespan. The consent wait runs on a daemon thread that
-    the lifespan awaits, so other connections keep being served and SIGTERM still
-    stops the server while it waits (#833). Before, the wait ran on the event loop."""
+    """_oauth_creds for the lifespan. Nothing here runs on the event loop (#833): the
+    token load and refresh run on a daemon thread, and so does the consent wait, so
+    other connections keep being served and SIGTERM still stops the server. Before,
+    a consent wait (or a hanging token endpoint) blocked the loop."""
+    loop = asyncio.get_running_loop()
+    loading = _run_in_daemon_thread(
+        loop, lambda: _oauth_creds(defer_consent=True), name="oauth-token"
+    )
     try:
-        return _oauth_creds(defer_consent=True)
+        return await _await_unless_shutdown(
+            loading,
+            f"No usable OAuth token yet: the server shut down while loading the token at "
+            f"{TOKEN_PATH!r}.",
+        )
     except _ConsentDeferred as deferred:
         return await _await_server_consent(deferred.scopes)
 
@@ -399,6 +408,11 @@ class _CallbackApp:
 
 
 class _CallbackHandler(wsgiref.simple_server.WSGIRequestHandler):
+    # A connection that sends nothing (a browser preconnect, a port scanner) would
+    # otherwise block handle_request() in readline() until the client hung up, and
+    # the deadline and stop checks between requests would never run (PR #867 QA).
+    timeout = 5
+
     def log_message(self, format, *args):
         # Not logged at all: the request line carries the authorization code.
         pass
@@ -413,6 +427,11 @@ class _CallbackServer(wsgiref.simple_server.WSGIServer):
         if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
+
+    def handle_error(self, request, client_address):
+        # socketserver's default prints a traceback to stderr. A silent connection
+        # timing out is expected, and nothing here is worth a traceback.
+        logger.debug("Consent callback: dropped a connection", exc_info=True)
 
 
 def _serve_consent(
@@ -450,38 +469,84 @@ def _serve_consent(
     return flow.credentials
 
 
-class _ConsentAttempt:
-    """One consent flow running on a daemon thread, awaited by every connection
-    that needs it. A daemon thread, not asyncio.to_thread: interpreter shutdown
-    joins the default executor's threads, which would just move the hang there."""
+def _run_in_daemon_thread(
+    loop: asyncio.AbstractEventLoop,
+    fn: Callable[[], Any],
+    name: str,
+    on_settle: Callable[[BaseException | None], None] | None = None,
+) -> asyncio.Future:
+    """Run `fn` on a daemon thread and return a future for its result. A daemon
+    thread, not asyncio.to_thread: interpreter shutdown joins the default executor's
+    threads, so a call still waiting there would just move the hang to shutdown.
+    `on_settle` runs on the loop just before the future settles."""
+    future = loop.create_future()
+    # Retrieve the outcome even if every awaiter gave up, so an exception settling
+    # later isn't logged as never retrieved.
+    future.add_done_callback(lambda f: f.cancelled() or f.exception())
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, scopes: list[str]):
-        self.future: asyncio.Future = loop.create_future()
-        self.stop = threading.Event()
-        self.waiters = 0
-        threading.Thread(
-            target=self._run, args=(loop, scopes), name="oauth-consent", daemon=True
-        ).start()
+    def settle(result: Any, error: BaseException | None) -> None:
+        if on_settle is not None:
+            on_settle(error)
+        if future.done():
+            return
+        if error is None:
+            future.set_result(result)
+        else:
+            future.set_exception(error)
 
-    def _run(self, loop: asyncio.AbstractEventLoop, scopes: list[str]) -> None:
+    def run() -> None:
         try:
-            result, error = _run_server_consent(scopes, self.stop), None
+            result, error = fn(), None
         except BaseException as e:
             result, error = None, e
-        # RuntimeError: the loop already closed, because the server shut down mid-consent.
+        # RuntimeError: the loop already closed, because the server shut down.
         with suppress(RuntimeError):
-            loop.call_soon_threadsafe(self._settle, result, error)
+            loop.call_soon_threadsafe(settle, result, error)
 
-    def _settle(self, result: Credentials | None, error: BaseException | None) -> None:
-        if self.future.done():
-            return
-        if self.waiters == 0:
-            # Nobody left to retrieve it; cancelling avoids an unretrieved-exception log.
-            self.future.cancel()
-        elif error is None:
-            self.future.set_result(result)
-        else:
-            self.future.set_exception(error)
+    threading.Thread(target=run, name=name, daemon=True).start()
+    return future
+
+
+async def _await_unless_shutdown(future: asyncio.Future, shutdown_message: str) -> Any:
+    """Await `future`, but give up with OAuthConsentRequiredError(`shutdown_message`)
+    once the server starts shutting down. Uvicorn waits for open connections before
+    exiting, and this one can't finish until its lifespan does, so without this,
+    SIGTERM waits for whatever the thread is waiting on. The future itself isn't
+    cancelled (a shared consent may have other waiters)."""
+    waiter = asyncio.shield(future)
+    try:
+        while True:
+            done, _ = await asyncio.wait({waiter}, timeout=_CONSENT_POLL_SECONDS)
+            if done:
+                return waiter.result()
+            if _server_shutting_down():
+                raise OAuthConsentRequiredError(shutdown_message)
+    finally:
+        waiter.cancel()  # no-op once done; otherwise detaches this waiter
+
+
+class _ConsentAttempt:
+    """One consent flow running on a daemon thread, awaited by every connection
+    that needs it."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, scopes: list[str]):
+        self.stop = threading.Event()
+        self.waiters = 0
+        self.future = _run_in_daemon_thread(
+            loop,
+            lambda: _run_server_consent(scopes, self.stop),
+            name="oauth-consent",
+            on_settle=self._on_settle,
+        )
+
+    @staticmethod
+    def _on_settle(error: BaseException | None) -> None:
+        # A failed attempt turns off consent here, on the loop, before any waiter
+        # sees the failure: not later in the lifespan, which a waterfall fallback
+        # skips, and which a connection opening in between would race (PR #867 QA).
+        # A stopped attempt (every waiter gave up) isn't a failure.
+        if error is not None and not isinstance(error, _ConsentStopped):
+            _disable_consent_after_failure()
 
 
 # Process-wide on purpose: one consent wait (one prompt, one callback port) is shared
@@ -512,23 +577,13 @@ async def _await_server_consent(scopes: list[str]) -> Credentials:
     ):
         attempt = _consent_attempt = _ConsentAttempt(loop, scopes)
     attempt.waiters += 1
-    waiter = asyncio.shield(attempt.future)
     try:
-        while True:
-            done, _ = await asyncio.wait({waiter}, timeout=_CONSENT_POLL_SECONDS)
-            if done:
-                return waiter.result()
-            if _server_shutting_down():
-                # uvicorn waits for open connections before exiting, and this one
-                # can't finish until its lifespan does: without this, SIGTERM waits
-                # out the consent timeout.
-                waiter.cancel()
-                raise OAuthConsentRequiredError(
-                    f"No usable OAuth token at {TOKEN_PATH!r}, and the server shut down "
-                    f"before the browser consent completed. {reauthorize_instructions()}"
-                )
+        return await _await_unless_shutdown(
+            attempt.future,
+            f"No usable OAuth token at {TOKEN_PATH!r}, and the server shut down "
+            f"before the browser consent completed. {reauthorize_instructions()}",
+        )
     finally:
-        waiter.cancel()  # no-op once done; otherwise detaches this waiter
         attempt.waiters -= 1
         if attempt.waiters == 0 and not attempt.future.done():
             # Every connection waiting on it gave up (shutdown, or cancelled):
@@ -634,15 +689,20 @@ def _degrade_unauthorized(message: str) -> str:
     # Logged as well: stdio hosts drop stderr, so LOG_FILE is where an operator sees it.
     logger.warning("Starting without Google access: %s", message)
     if _interactive_consent:
-        # Only reachable after a failed SSE consent attempt. The lifespan runs per
-        # connection, so a retry would make each new connection wait for the timeout
-        # again; later connections just re-read TOKEN_PATH instead.
-        set_interactive_consent(
-            False,
-            reason="an earlier browser consent in this server process didn't complete "
-            "(it isn't retried, so new connections don't each wait for it again)",
-        )
+        # Normally already off: a failed attempt turns it off as it settles. Kept for
+        # a degrade that didn't come from a settled attempt (e.g. a shutdown).
+        _disable_consent_after_failure()
     return message
+
+
+def _disable_consent_after_failure() -> None:
+    # The lifespan runs per connection, so a retry would make each new connection
+    # wait for the timeout again; later connections just re-read TOKEN_PATH instead.
+    set_interactive_consent(
+        False,
+        reason="an earlier browser consent in this server process didn't complete "
+        "(it isn't retried, so new connections don't each wait for it again)",
+    )
 
 
 def _unusable_fallbacks_note(adc_error: Exception) -> str:
