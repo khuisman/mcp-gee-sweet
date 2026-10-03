@@ -264,6 +264,26 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
+def _validate_local_destination(local_path: str) -> tuple[Path, bool]:
+    """Reject a non-directory path component before making any Drive request.
+
+    A trailing separator means the destination itself must be a directory;
+    otherwise the destination is a file and only its parents must be directories.
+    Existing regular files at an explicit file destination may still be replaced.
+    """
+    dest = Path(local_path)
+    wants_dir = local_path.endswith(("/", os.sep))
+    start = dest if wants_dir else dest.parent
+    for path in (start, *start.parents):
+        if path.exists() or path.is_symlink():
+            if not path.is_dir():
+                raise ValueError(
+                    f"local_path {local_path!r} has a non-directory path component at {str(path)!r}"
+                )
+            break
+    return dest, wants_dir
+
+
 def _local_mtime_dt(path: Path, st: os.stat_result | None = None) -> datetime:
     """A local file's mtime as an aware UTC datetime. The one place that reads
     it, so sync_folder's mtime comparison and every modifiedTime value this
@@ -2638,20 +2658,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        dest = Path(local_path)
-
-        # A trailing path separator means "this is a directory" even when it
-        # doesn't exist yet -- Path() has already stripped it from `dest`, so the
-        # intent has to be read off the raw string. Without this, a call like
-        # download_file(..., local_path="/new/dir/") writes a plain file literally
-        # named "dir" and every later download to the same local_path silently
-        # clobbers it (#690).
-        wants_dir = local_path.endswith(("/", os.sep))
-        if wants_dir and dest.exists() and not dest.is_dir():
-            raise ValueError(
-                f"local_path {local_path!r} ends in a path separator (implying a "
-                f"directory) but a non-directory already exists at {str(dest)!r}"
-            )
+        dest, wants_dir = _validate_local_destination(local_path)
 
         metadata = await execute_in_thread(
             drive_service.files()
@@ -2663,13 +2670,7 @@ def register(tool):
         is_workspace = _is_workspace_entry(metadata)
 
         if wants_dir:
-            try:
-                dest.mkdir(parents=True, exist_ok=True)
-            except (NotADirectoryError, FileExistsError) as exc:
-                raise ValueError(
-                    f"local_path {local_path!r} ends in a path separator (implying a "
-                    "directory) but a non-directory exists in its parent path"
-                ) from exc
+            dest.mkdir(parents=True, exist_ok=True)
 
         if dest.is_dir():
             if is_workspace and export_format:
