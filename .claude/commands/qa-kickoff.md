@@ -1,4 +1,4 @@
-Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to the partner Dev's PR branch. Determine which case applies, then send the user **exactly** the block below as your next message — verbatim, no rewording, no splitting across turns — except substitute `<name>` with this role's own lowercase name (e.g. `sky`, `kit`) so the block is directly copy-pasteable:
+Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to the partner Dev's PR branch. Determine which case applies, then send the user **exactly** the block below as your next message — verbatim, no rewording, no splitting across turns — except substitute `<name>` with this role's own lowercase name (e.g. `sky`, `kit`) so the block is directly copy-pasteable, and drop the `/mcp reconnect` line when the "No server-code change" rule below applies:
 
 **First QA pass on this PR** (no `/code-review` has run against it yet this cycle):
 
@@ -13,7 +13,7 @@ Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to
 /mcp reconnect mcp-gee-sweet-<name>
 ```
 
-**No `src/` change, no reconnect:** if `git diff --name-only origin/develop...HEAD` lists nothing under `src/`, leave the `/mcp reconnect` line out of either block, because the live server never runs the changed code. A re-verification round in that case sends the user nothing and goes straight to the fix commit. PR #866 (a Claude Code hook script) asked for two reconnects that verified nothing.
+**No server-code change, no reconnect:** if `git diff --name-only origin/develop...HEAD` lists nothing under `src/` and neither `pyproject.toml` nor `uv.lock` (a dependency change alters what the `uv run`-launched server imports), leave the `/mcp reconnect` line out of either block, because the live server never runs the changed code. A re-verification round in that case sends the user nothing and goes straight to the fix commit. PR #866 (a Claude Code hook script) asked for two reconnects that verified nothing.
 
 On a re-verification round, do not ask for `/code-review` again. After the reconnect lands, run `git show <fix-sha>` on the Dev's new commit yourself and live-verify against its own new QA test case (see `.claude/team-roles/qa.md` Retro). Fall back to a full `/code-review` only if the fix's diff is structurally larger than the named finding, or unrelated commits landed in between.
 
