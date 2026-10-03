@@ -4912,6 +4912,7 @@ class TestDownloadFile:
         )
         svc.files.return_value.export.return_value.execute.return_value = b"pptx bytes"
         dest = tmp_path / "custom_name.pptx"
+        dest.write_bytes(b"previous download")
 
         result = await _transfer_tools["download_file"](
             file_id="slides1",
@@ -5092,7 +5093,7 @@ class TestDownloadFile:
         clash = tmp_path / "clash"
         clash.write_bytes(b"i am a file")
 
-        with pytest.raises(ValueError, match="non-directory already exists"):
+        with pytest.raises(ValueError, match=r"non-directory path component at.*clash"):
             await _transfer_tools["download_file"](
                 file_id="bin1",
                 local_path=str(clash) + os.sep,
@@ -5113,7 +5114,7 @@ class TestDownloadFile:
         clash.write_bytes(b"i am a file")
         target = clash / "sub"
 
-        with pytest.raises(ValueError, match="non-directory exists in its parent path"):
+        with pytest.raises(ValueError, match=r"non-directory path component at.*clash"):
             await _transfer_tools["download_file"](
                 file_id="bin1",
                 local_path=str(target) + os.sep,
@@ -5121,6 +5122,36 @@ class TestDownloadFile:
             )
 
         assert clash.read_bytes() == b"i am a file"
+        svc.files.return_value.get.assert_not_called()
+
+    async def test_file_destination_with_file_parent_fails_before_drive_call(self, tmp_path):
+        """#836: a regular file in an intermediate parent must not leak
+        NotADirectoryError or spend a Drive metadata request."""
+        svc = MagicMock()
+        clash = tmp_path / "clash"
+        clash.write_bytes(b"i am a file")
+        target = clash / "sub" / "out.bin"
+
+        with pytest.raises(ValueError, match=r"non-directory path component at.*clash"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(target), ctx=self._ctx(svc)
+            )
+
+        svc.files.return_value.get.assert_not_called()
+        assert clash.read_bytes() == b"i am a file"
+
+    async def test_trailing_slash_with_dangling_symlink_names_blocker(self, tmp_path):
+        """#836: exists() is false for a dangling symlink, but mkdir sees it."""
+        svc = MagicMock()
+        blocker = tmp_path / "dangling"
+        blocker.symlink_to(tmp_path / "missing-target")
+
+        with pytest.raises(ValueError, match=r"non-directory path component at.*dangling"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(blocker) + os.sep, ctx=self._ctx(svc)
+            )
+
+        svc.files.return_value.get.assert_not_called()
 
 
 class TestSyncFolderResponseSizeCap:
