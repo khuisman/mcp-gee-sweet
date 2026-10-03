@@ -58,4 +58,6 @@ The only lever is the final message itself. End every turn with one plain closin
 | Idle, waiting on another agent or event, with nothing for the human to do (e.g. QA with no partner PR, Dev waiting on QA's verdict) | `Idle until <agent/event>; nothing running.` | `done` |
 | Still running work: a background task, a Monitor, or a scheduled wakeup that will resume this ticket or review | `Running: <what>; will resume when it finishes.` | `working` |
 
+If a command file scripts your message verbatim (e.g. `qa-kickoff.md`'s block), send the scripted block unchanged and put the closing line after it, outside its code fence.
+
 Don't end an idle turn with wording that sounds like you're still working, even if you expect to be woken soon: a `working` label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky got `done` while Kit, who ended with "awaiting Jay's PR or /notify-partner", got `working`. The mislabeling itself is a harness issue, reported to Claude Code separately.
