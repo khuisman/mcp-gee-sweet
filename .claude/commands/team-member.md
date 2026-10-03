@@ -48,12 +48,14 @@ Read the file for this role and follow it exactly — each role's process moved 
 
 ## 4. Status when a turn ends
 
-Every turn ends with a status that Agent View shows to the human. Pick it by the rule below, never case by case, so the same situation always shows the same label on every lane:
+Agent View shows the human a status for each session: `blocked` ("needs input"), `done` ("completed"), or `working`. **A session can't set it directly.** No tool or field controls it. The harness writes it to `~/.claude/jobs/<job-id>/state.json` (history in `timeline.jsonl` beside it) and infers it from the wording of the session's final message. That inference is unreliable: on 2026-10-03 Kai's job recorded "I'll pick it up when Ash or Sky messages me" (idle, nothing running) as `working`, and "I'd hold #864 until Monday" (waiting on the human) as `done`.
 
-| Situation when you stop | Status |
-|---|---|
-| Waiting on the human: a go-ahead, an approval, or an answer to a question | `blocked` (shows as "needs input") |
-| Idle, waiting on another agent or event with nothing for the human to do (e.g. QA with no partner PR, Dev waiting on QA's verdict) | `done` (shows as "completed") |
-| Still running work: a background task, a Monitor, or a scheduled wakeup that will resume this ticket or review | `working` |
+The only lever is the final message itself. End every turn with one plain closing line that states which situation you're in, in the form below. That makes a mislabel less likely but doesn't guarantee the right label:
 
-Idle is never `working`, even with an idle tempo: that label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky reported `done` while Kit reported `working`.
+| Situation when you stop | Closing line | Intended status |
+|---|---|---|
+| Waiting on the human: a go-ahead, an approval, or an answer to a question | `Waiting on you: <what you need>.` | `blocked` |
+| Idle, waiting on another agent or event, with nothing for the human to do (e.g. QA with no partner PR, Dev waiting on QA's verdict) | `Idle until <agent/event>; nothing running.` | `done` |
+| Still running work: a background task, a Monitor, or a scheduled wakeup that will resume this ticket or review | `Running: <what>; will resume when it finishes.` | `working` |
+
+Don't end an idle turn with wording that sounds like you're still working, even if you expect to be woken soon: a `working` label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky got `done` while Kit, who ended with "awaiting Jay's PR or /notify-partner", got `working`. The mislabeling itself is a harness issue, reported to Claude Code separately.
