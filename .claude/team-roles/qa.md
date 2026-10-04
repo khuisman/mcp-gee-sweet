@@ -17,13 +17,13 @@ Find the partner Dev's open PR by matching the branch's second `/`-separated seg
      **Triage every finding before you write a verdict.** Each code-review or live-QA finding goes in this round's PR comment as exactly one of these lines:
      - `send-back: <finding>` — the default. The Dev fixes it in this branch, this round. A `send-back` counts as a failure for step 7.
      - `ticket — bar N: <one line on why this finding clears bar N> (#<issue>)` — only when one of the four bars below applies. Search first (below), then file it with the `from-review` label.
-     - `dropped: <finding> — <why it isn't worth anyone's time>` — no ticket.
+     - `dropped: <finding> — <why it isn't a real defect>` — a false positive, not reproducible, or the current behavior is intended. No ticket. A real finding that's merely small or low priority is a `send-back`, not a drop.
 
-     There is no "non-blocking" heading. "Small," "narrow," "low priority," and "doesn't block `qa-approved`" describe a `send-back`; they aren't reasons to file. Kai's `/merge-pr` step 2 reads this list and won't merge a PR whose comments file a ticket without a `bar N:` reason.
+     There is no "non-blocking" heading. "Small," "narrow," "low priority," and "doesn't block `qa-approved`" describe a `send-back`; they aren't reasons to file. Kai's `/merge-pr` step 2 reads this list and won't merge a PR whose comments file a ticket without a `bar N:` reason, or drop a finding for its size or priority.
 
      The four bars:
      1. **Maintainer/product decision.** A real design or scope call the Dev can't make: it changes user-facing behavior, trades off cost or risk only the maintainer can accept, or sets precedent beyond this PR. Test: if you sent it back now, could the Dev pick a reasonable option and ship it? If yes, it isn't bar 1. Several valid ways to implement a fix is not a bar-1 reason.
-     2. **Outside this PR's diff.** The finding is in a function the diff doesn't touch, or needs a sweep across call sites the diff didn't create (e.g. #737's 6+ untouched call sites). When the same pattern also appears elsewhere, only the elsewhere part qualifies; the copy inside the diff is a `send-back`.
+     2. **Outside this PR's diff.** The finding is in a function the diff doesn't touch, or needs a sweep across call sites the diff doesn't touch (e.g. #737's 6+ untouched call sites). When the same pattern also appears elsewhere, only the elsewhere part qualifies; the copy inside the diff is a `send-back`.
      3. **Needs infrastructure or access** this pass doesn't have.
      4. **A pre-existing defect inside a function this diff modifies, whose fix would move code to another thread or change what awaits what.** A short fix like that opens new races for the next round to find (PR #867). A pre-existing defect whose fix doesn't change threading or await order is a `send-back`.
 
