@@ -1491,6 +1491,16 @@ Remove `/tmp/qa-239/`.
 **Teardown**
 `delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-278`.
 
+**Result** (2026-10-03, Sky, 0.9.1 hotfix backport `release/0.9.1-hotfix` at `e09b849` on v0.9.0, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. All six steps matched the checks. Nothing was written outside `/tmp/qa-278/a/b/` at any step: `/tmp/escaped-probe.txt`, `/tmp/qa-278/escaped-probe.txt`, and `/tmp/qa-278/a/payload.txt` never existed.
+- Step 1: raised "Drive file name '../../escaped-probe.txt' can't be used as a local filename: name contains a path separator. Pass a full file path as local_path to choose the name." Nothing new on disk.
+- Step 2: wrote `/tmp/qa-278/a/b/chosen.txt` containing `probe`.
+- Step 3: `downloaded == ["fine.txt"]`, `skipped == [".."]`, and `failed` held one entry: "'../../escaped-probe.txt' can't be used as a local filename: name contains a path separator".
+- Step 4: `actions` held `../../escaped-probe.txt` and `../` as `unsafe_name`, and `fine.txt` as `download`. Every other list was empty, and the disk was unchanged.
+- Step 5: `downloaded == ["fine.txt"]`. `failed` held `../../escaped-probe.txt` ("name contains a path separator; not synced") and `../` ("name is the special path segment '..'; not synced"). There was no `actions` key in the real-run response, as expected on v0.9.0. `/tmp/qa-278/a/` held only `b/` and `secret.txt`, and `list_files` on `{DOTDOT}` showed only `payload.txt`.
+- Step 6: `failed` and `uploaded` were empty, `skipped == ["../../escaped-probe.txt", "fine.txt"]`, and `folders_skipped == ["../"]`.
+- Side probe: a second Drive file named `../../escaped-probe.txt`, a second `..` folder, and a local `x\y.txt`. Under `dry_run`, `actions` reported "name contains a path separator (2 Drive entries have this name); not synced", "name is the special path segment '..' (2 Drive entries have this name); not synced", and `x\y.txt` as `unsafe_name`. A real bidirectional run put the same three in `failed`, and a `list_files` on `{F}` afterward showed `x\y.txt` wasn't uploaded.
+- Local suite: 1368 passed, 3 skipped. The 40 new unsafe-name tests run against v0.9.0's unpatched `transfer.py`: 36 failed, 4 passed.
+
 ---
 
 ## `list_revisions`
