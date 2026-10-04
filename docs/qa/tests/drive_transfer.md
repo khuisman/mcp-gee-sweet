@@ -1649,6 +1649,54 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 
 ---
 
+### TC-D278: Drive names that aren't a single filename are never written outside `local_path` ⚠️ local-filesystem ⚠️ destructive
+
+**Background:** `download_file`, `download_folder`, and `sync_folder` build each local path from a Drive name. Drive stores `/` and `..` in names unchanged, so every one of those names now goes through one check (`_safe_local_dest`), and a name that isn't one ordinary filename is refused. Unit-tested in `tests/drive/test_transfer.py::TestDriveNameUnsafeReason`, `TestDownloadFileUnsafeName`, `TestDownloadFolderUnsafeName`, and `TestSyncFolderUnsafeName`.
+
+**Setup**
+> 1. Call `create_folder(name="qa-278", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
+> 2. Call `upload_file(name="../../escaped-probe.txt", content="probe", folder_id="{F}")` and `upload_file(name="fine.txt", content="ok", folder_id="{F}")`.
+> 3. Call `create_folder(name="..", parent_folder_id="{F}")`; call the returned ID `{DOTDOT}`. Call `upload_file(name="payload.txt", content="payload", folder_id="{DOTDOT}")`.
+> 4. Run `rm -rf /tmp/qa-278 && mkdir -p /tmp/qa-278/a/b && echo secret > /tmp/qa-278/a/secret.txt`.
+
+**Steps**
+> 1. `download_file(file_id=<ID of ../../escaped-probe.txt>, local_path="/tmp/qa-278/a/b/")`.
+> 2. `download_file(file_id=<ID of ../../escaped-probe.txt>, local_path="/tmp/qa-278/a/b/chosen.txt")`.
+> 3. `download_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/")`.
+> 4. `rm /tmp/qa-278/a/b/*`, then `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, dry_run=true)`.
+> 5. `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true)` (real run, default `bidirectional`).
+> 6. `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, direction="upload")`.
+> 7. After each step, run `find /tmp/qa-278 | sort`.
+
+**Checks**
+- Step 1: the call fails with an error that the Drive file name can't be used as a local filename, naming the path separator. Nothing new under `/tmp/qa-278`.
+- Step 2: succeeds; `/tmp/qa-278/a/b/chosen.txt` contains `probe`. An explicit file path never uses the Drive name.
+- Step 3: `downloaded` contains `fine.txt`. `failed` has one entry, `../../escaped-probe.txt`, whose error names the path separator. `skipped` lists the `..` folder, as for any subfolder. No `escaped-probe.txt` anywhere under `/tmp/qa-278` except as step 2's `chosen.txt`.
+- Step 4: `actions` contains `../../escaped-probe.txt` with `action: "unsafe_name"` and `../` with `action: "unsafe_name"`; `fine.txt` is `download`. `failed` is empty. Nothing changed on disk.
+- Step 5: `downloaded` is `["fine.txt"]`. `failed` has `../../escaped-probe.txt` and `../` (reason: special path segment `'..'`). `/tmp/qa-278/a/` still holds only `b/` and `secret.txt`: no `payload.txt` there, and `list_files(folder_id="{DOTDOT}")` shows `secret.txt` wasn't uploaded.
+- Step 6: `failed` is empty. `skipped` contains `../../escaped-probe.txt` and `folders_skipped` contains `../` (Drive-only names the upload direction never touches). `fine.txt` is in `skipped` (in sync since step 5); `uploaded` is empty.
+
+**Teardown**
+`delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-278`.
+
+**Result** (2026-10-03, Sky, fork PR #1 round 1 at `c69665c`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. The checks as written all pass. Nothing was written outside `/tmp/qa-278/a/b/` at any step: `/tmp/qa-278/escaped-probe.txt` and `/tmp/escaped-probe.txt` never existed. Side probes are below.
+- Step 1: raised "Drive file name '../../escaped-probe.txt' can't be used as a local filename: name contains a path separator. …". Nothing new on disk.
+- Step 2: wrote `/tmp/qa-278/a/b/chosen.txt` containing `probe`.
+- Step 3: `downloaded == ["fine.txt"]`, `skipped == [".."]`, and `failed` held one entry for `../../escaped-probe.txt` ("refusing Drive name …: name contains a path separator").
+- Step 4: `actions` held `../../escaped-probe.txt` and `../` as `unsafe_name`, and `fine.txt` as `download`. Every other list was empty, and the disk was unchanged.
+- Step 5: `downloaded == ["fine.txt"]`. `failed` held `../../escaped-probe.txt` and `../` ("name is the special path segment '..'; not synced"). `/tmp/qa-278/a/` held only `b/` and `secret.txt`, and `list_files` on `{DOTDOT}` showed only `payload.txt`.
+- Step 6: `failed` and `uploaded` were empty, `skipped == ["../../escaped-probe.txt", "fine.txt"]`, and `folders_skipped == ["../"]`.
+- Side probe, a local `x\y.txt` (upload, `dry_run`): planned as `unsafe_name` ("name contains a path separator; not synced"), as `known-limitations.md` documents.
+- Side probe, a second Drive file also named `../../escaped-probe.txt`: `sync_folder` reported **one** `failed` entry for the two files, while `download_folder` reported two. This reproduces code-review finding 2 and was sent back to the Dev.
+
+**Result** (2026-10-03, Sky, fork PR #1 round 2 re-verification of `f199bb0`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Fresh fixture. All six steps matched round 1 apart from the new error wording. Nothing was written outside `/tmp/qa-278/a/b/`, and `payload.txt` never reached `/tmp/qa-278/a/`.
+- Step 3: the `failed` error now quotes the Drive name: "'../../escaped-probe.txt' can't be used as a local filename: name contains a path separator".
+- Finding 2, a second Drive file named `../../escaped-probe.txt` plus a second `..` folder: a real recursive run gave one `failed` entry for each name, "name contains a path separator (2 Drive entries have this name); not synced" and "name is the special path segment '..' (2 Drive entries have this name); not synced". The `dry_run` `actions` carried the same reasons, with `failed` empty.
+- Side probe, a local `x\y.txt` (bidirectional, real run): `failed` held "name contains a path separator; not synced", and nothing was uploaded.
+- Local suite: 2078 passed, 3 skipped.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet
