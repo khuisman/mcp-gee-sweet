@@ -933,10 +933,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" class="md-nav__link">
+  <a href="#v092-post-release-defect-fixes-infrastructure-addons-target-v092-before-tier-3-begins" class="md-nav__link">
     <span class="md-ellipsis">
       
-        v0.9.1 — Post-release defect fixes &amp; infrastructure addons (target: v0.9.1, before Tier 3 begins)
+        v0.9.2 — Post-release defect fixes &amp; infrastructure addons (target: v0.9.2, before Tier 3 begins)
       
     </span>
   </a>
@@ -944,10 +944,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" class="md-nav__link">
+  <a href="#v093-comments-as-a-first-class-cross-suite-capability-target-v093-before-tier-3-begins" class="md-nav__link">
     <span class="md-ellipsis">
       
-        v0.9.2 — Comments as a first-class, cross-suite capability (target: v0.9.2, before Tier 3 begins)
+        v0.9.3 — Comments as a first-class, cross-suite capability (target: v0.9.3, before Tier 3 begins)
       
     </span>
   </a>
@@ -1748,12 +1748,17 @@
 <td>Published 2026-09-08</td>
 </tr>
 <tr>
-<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1"><strong>v0.9.1</strong></a></td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.1"><strong>v0.9.1</strong></a></td>
+<td>✅ Security hotfix cut from v0.9.0 — <code>download_file</code>, <code>download_folder</code>, and <code>sync_folder</code> keep every write inside <code>local_path</code>. Nothing else from <code>develop</code></td>
+<td>Published 2026-10-04</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2"><strong>v0.9.2</strong></a></td>
 <td>Post-release defect fixes &amp; infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786)</td>
 <td>Stabilizes before Tier 3 begins</td>
 </tr>
 <tr>
-<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2"><strong>v0.9.2</strong></a></td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3"><strong>v0.9.3</strong></a></td>
 <td>Comments as a first-class, cross-suite capability — generalize + complete the Drive <code>comments</code>/<code>replies</code> surface (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>); ships a breaking rename</td>
 <td>Closes out the comments story before Tier 3</td>
 </tr>
@@ -1764,7 +1769,7 @@
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22"><strong>v1.1.0+</strong></a></td>
-<td>Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.1)</td>
+<td>Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.2)</td>
 <td>Expanded scope</td>
 </tr>
 </tbody>
@@ -1904,7 +1909,8 @@
 <p><strong>v0.9.0 Full Regression QA pass (2026-09-04)</strong> — 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs (effective 630 PASS / 5 FAIL after the two fixes below); see <code>docs/qa/runs/v0.9.0.md</code> for the full sign-off. Unconditional sign-off finalized in PR #703 — cleared to tag. Two real bugs found, both routed to lane B and now shipped:
 - [x] <code>share_spreadsheet</code> fails with "File not found" on any Shared Drive file — missing <code>supportsAllDrives=True</code> on its <code>permissions().create()</code> call, the only one in <code>sharing.py</code> without it (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a>) (PR #695)
 - [x] Folder-listing cache key omits <code>max_results</code> — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a>) (PR #697)</p>
-<h3 id="v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins">v0.9.1 — Post-release defect fixes &amp; infrastructure addons <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1">v0.9.1</a>, before Tier 3 begins)</em><a class="headerlink" href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<h3 id="v092-post-release-defect-fixes-infrastructure-addons-target-v092-before-tier-3-begins">v0.9.2 — Post-release defect fixes &amp; infrastructure addons <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2">v0.9.2</a>, before Tier 3 begins)</em><a class="headerlink" href="#v092-post-release-defect-fixes-infrastructure-addons-target-v092-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p><em>Renumbered from v0.9.1 on 2026-10-04: v0.9.1 shipped as a security hotfix cut from v0.9.0, so this release (and the old v0.9.2, now v0.9.3) moved up one. The GitHub labels were renamed to match.</em></p>
 <p>Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely. The one exception to its original "no new tools" scope is the Gmail domain, pulled forward from v1.1+ on 2026-09-23 because a community contributor had already implemented it (see <strong>Gmail domain</strong> below).</p>
 <p><strong>Defects</strong>
 - [x] Isolated depth&gt;0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (PR #711) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/439">#439</a>)
@@ -2058,8 +2064,8 @@
 - [ ] <code>qa(docs)</code>: no comprehensive fixture exercising every Docs formatting construct in one pass — Aziz, triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/477">#477</a>)
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)
 - [x] QA test-doc cross-reference cleanup after the <code>drive.md</code>/<code>docs.md</code> split (PR #582) — triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/590">#590</a>) (PR #851)</p>
-<p><strong>Backlog triage, 2026-09-11 (Kai orchestrator session):</strong> open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled <code>backlog</code> with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (the sections above marked "triaged out of <code>backlog</code>"), one comments-API cleanup went to v0.9.2 (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. <code>backlog</code> (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.</p>
-<h3 id="v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins">v0.9.2 — Comments as a first-class, cross-suite capability <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2">v0.9.2</a>, before Tier 3 begins)</em><a class="headerlink" href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p><strong>Backlog triage, 2026-09-11 (Kai orchestrator session):</strong> open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled <code>backlog</code> with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (now v0.9.2) (the sections above marked "triaged out of <code>backlog</code>"), one comments-API cleanup went to v0.9.2 (now v0.9.3) (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. <code>backlog</code> (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.</p>
+<h3 id="v093-comments-as-a-first-class-cross-suite-capability-target-v093-before-tier-3-begins">v0.9.3 — Comments as a first-class, cross-suite capability <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3">v0.9.3</a>, before Tier 3 begins)</em><a class="headerlink" href="#v093-comments-as-a-first-class-cross-suite-capability-target-v093-before-tier-3-begins" title="Permanent link">&para;</a></h3>
 <p>Follows the design in <a href="../decisions/decision-comments-first-class/"><code>docs/decisions/decision-comments-first-class.md</code></a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>): the Drive <code>comments</code>/<code>replies</code> resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named <code>list</code>/<code>add</code>/<code>resolve</code> subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes. Also carries Joy's code-structure/typing initiative work (see below), slotted here 2026-09-09 to give it release deadlines rather than leaving it open-ended.</p>
 <p><strong>Comments capability</strong></p>
 <ul>
@@ -2069,12 +2075,12 @@
 <li>[ ] <strong>Decision needed:</strong> deprecate <code>share_spreadsheet</code> in favor of <code>share_file</code> (a strict superset over the same <code>permissions()</code> resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/665">#665</a>)</li>
 <li>[ ] Follow-up cleanup for the docs comments API (<code>add_doc_comment</code>/<code>resolve_doc_comment</code>/<code>list_doc_comments</code>) — same surface #663/#664 generalize, do it there rather than twice; triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/329">#329</a>)</li>
 </ul>
-<p><strong>Drive &amp; Docs follow-ups</strong> <em>(triaged 2026-09-26; off this release's comments theme, but version-labeled v0.9.2 at filing)</em></p>
+<p><strong>Drive &amp; Docs follow-ups</strong> <em>(triaged 2026-09-26; off this release's comments theme, but version-labeled v0.9.2 at filing, now v0.9.3)</em></p>
 <ul>
 <li>[ ] <code>sync_folder(export_format=...)</code>: converted Sheets/Slides probably have #814's <code>modifiedTime</code> lag and restamp race too. Suspected, not yet observed (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/818">#818</a>)</li>
 <li>[ ] Add a tool to set (and read back) Google Docs table column widths — <code>tableColumnProperties</code> isn't reachable through any tool today (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/809">#809</a>)</li>
 </ul>
-<p><strong>Code structure &amp; typing (Joy)</strong> <em>(slotted into v0.9.2 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)</em></p>
+<p><strong>Code structure &amp; typing (Joy)</strong> <em>(slotted into v0.9.2 (now v0.9.3) 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)</em></p>
 <ul>
 <li>[ ] Split <code>tools/sheets/structure.py</code> by domain (1865 lines, 25 tools) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/376">#376</a>)</li>
 <li>[ ] Plan type-annotation (ANN) adoption — 1635 untyped occurrences; <strong>decision needed</strong> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/379">#379</a>)</li>
