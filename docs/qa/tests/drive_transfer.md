@@ -1741,6 +1741,10 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 
 The case passes, but the PR goes back for a regression this case doesn't cover: a read-only (`0444`) local destination is now silently replaced. Live, after this case: `printf protected > big.bin && chmod 444 big.bin`, then `download_file(file_id="{BIG}", local_path=".../big.bin")` returned success and left a 3000000 B `-r--r--r--` file. Before this PR the `open("wb")` raised `PermissionError` and left the file alone. See the PR comment.
 
+**Result (2026-10-04) ✅ PASS** — Sky, PR #884 round 2 (`b4e7287`), step 8 only, after reconnecting to the fix. Steps 1–7 code paths are unchanged apart from the new up-front `os.access` check and the `0o777` mask. Fresh `qa-279` folder; setup plus step 7 (`download_folder` → `dl/big.bin`, 3000000 B) re-run first.
+- **Step 8, `ro.bin`:** `download_file` failed with `[Errno 13] Permission denied: '/tmp/qa-279/ro.bin'`. `ro.bin` still reads `protected`, still `-r--r--r--`, and there's no `.gee-sweet-partial-*` in `/tmp/qa-279/`.
+- **Step 8, `dl/big.bin` (`chmod 4644` first):** succeeded, `size_bytes` 3000000, and the file is now `-rw-r--r--`: setuid dropped.
+
 ---
 
 ## `list_revisions`
