@@ -287,6 +287,81 @@ def _local_md5(path: Path) -> str:
     return h.hexdigest()
 
 
+def _unsafe_name_reason(name: str) -> str | None:
+    """Why `name` can't be used as one local path component, or None if it can.
+
+    Drive names are arbitrary text (Drive accepts '/' and '..' unchanged), so a
+    name joined onto a local directory unchecked can resolve outside it. Only a
+    single, ordinary component is allowed. '\\' is refused on every platform,
+    not just Windows, where it's a separator, so the same names are refused as
+    separators whichever OS runs the server.
+    """
+    if not name:
+        return "name is empty"
+    if "\x00" in name:
+        return "name contains a NUL character"
+    if "/" in name or "\\" in name:
+        return "name contains a path separator"
+    if name in (".", ".."):
+        return f"name is the special path segment {name!r}"
+    # Catches a Windows drive-qualified name such as 'C:x' (relative but
+    # anchored to another drive); the separator check above already covers
+    # every POSIX absolute path.
+    if Path(name).is_absolute() or Path(name).anchor:
+        return "name is an absolute path"
+    return None
+
+
+def _safe_local_dest(base: Path, name: str, resolved_base: Path | None = None) -> Path:
+    """`base / name`, after checking that the result stays inside `base`.
+
+    The one place every Drive-supplied name is joined onto a local directory
+    (download_file, download_folder, _sync_level's files and subfolders).
+    Raises ValueError for a name _unsafe_name_reason refuses, or, as a
+    backstop, when the joined path doesn't stay under the resolved `base`. The
+    error's text is the reason alone, so each caller can phrase it around the
+    name its user sees. A caller joining many names onto one directory passes
+    `resolved_base` (`base.resolve()`, computed once) to skip a filesystem
+    call per name. The final component is deliberately not resolved: a
+    symlink the user put inside `base` keeps working as it did, and a Drive
+    name can't create one.
+    """
+    reason = _unsafe_name_reason(name)
+    if reason is None:
+        if resolved_base is None:
+            resolved_base = base.resolve()
+        candidate = Path(os.path.normpath(resolved_base / name))
+        if candidate == resolved_base or not candidate.is_relative_to(resolved_base):
+            reason = "name resolves outside the target directory"
+    if reason is not None:
+        raise ValueError(reason)
+    return base / name
+
+
+def _unsafe_name_step(
+    name: str,
+    reason: str,
+    in_drive: bool,
+    in_local: bool,
+    direction: str,
+    drive_count: int = 0,
+) -> dict[str, str]:
+    """sync_folder's plan step for a name _safe_local_dest refused, shared by
+    the file plan and the subfolder pass so both report it the same way.
+
+    A name on one side only that this direction never acts on stays the plain
+    skip it always was. Anything else is 'unsafe_name'. `drive_count` is how
+    many Drive entries carry the name: several can, and all are reported in
+    this one step, as a collision is."""
+    if in_drive and not in_local and direction == "upload":
+        return {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+    if in_local and not in_drive and direction == "download":
+        return {"name": name, "action": "skip", "reason": "local only, download direction"}
+    if drive_count > 1:
+        reason = f"{reason} ({drive_count} Drive entries have this name)"
+    return {"name": name, "action": "unsafe_name", "reason": f"{reason}; not synced"}
+
+
 async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict], list[dict]]:
     """Return (files, folders) among the direct children of a Drive folder."""
     results = await execute_in_thread(
@@ -381,6 +456,14 @@ async def _sync_level(
     drive_map: dict[str, dict] = {}
     collision_names: set[str] = set()
     collision_reasons: dict[str, str] = {}
+    # Names that can't be a single local path component (see
+    # _unsafe_name_reason), mapped to why. They never enter drive_map or
+    # local_map, so nothing below can join one onto dest_dir. Every Drive entry
+    # under such a name is counted, so duplicates don't vanish from the output
+    # (the same gap #422 closed for collisions).
+    unsafe_names: dict[str, str] = {}
+    unsafe_drive_counts: dict[str, int] = {}
+    unsafe_local_names: set[str] = set()
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
         is_converted_md = False
@@ -407,6 +490,13 @@ async def _sync_level(
         else:
             local_name = f["name"]
 
+        # Checked on local_name, not f["name"]: a converted Doc's source name
+        # comes from its Drive properties, which whoever shared it controls too.
+        unsafe_reason = _unsafe_name_reason(local_name)
+        if unsafe_reason is not None:
+            unsafe_names[local_name] = unsafe_reason
+            unsafe_drive_counts[local_name] = unsafe_drive_counts.get(local_name, 0) + 1
+            continue
         if local_name in collision_names:
             continue
         if local_name in drive_map:
@@ -451,6 +541,15 @@ async def _sync_level(
                 continue
             if skip_system_files and p.name in _SYSTEM_FILES:
                 continue
+            # Only a backslash (a separator on Windows, legal in a POSIX name) can
+            # fail this for a name the OS listed. Such a file would upload under
+            # a name this check then refuses on the Drive side, so it'd never
+            # match again; refuse it up front instead.
+            unsafe_reason = _unsafe_name_reason(p.name)
+            if unsafe_reason is not None:
+                unsafe_names[p.name] = unsafe_reason
+                unsafe_local_names.add(p.name)
+                continue
             local_map[p.name] = p
 
     def _drive_mtime(entry: dict) -> datetime:
@@ -460,7 +559,21 @@ async def _sync_level(
         return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
 
     plan: list[dict[str, str]] = []
-    for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
+    for name in sorted(drive_map.keys() | local_map.keys() | collision_names | unsafe_names.keys()):
+        if name in unsafe_names:
+            # Same shape as checksum_read_fail: one 'failed' entry on a real
+            # run, never an exception out of the whole call.
+            plan.append(
+                _unsafe_name_step(
+                    name,
+                    unsafe_names[name],
+                    in_drive=name in unsafe_drive_counts,
+                    in_local=name in unsafe_local_names,
+                    direction=direction,
+                    drive_count=unsafe_drive_counts.get(name, 0),
+                )
+            )
+            continue
         if name in collision_names:
             # Route through the normal plan machinery (like every other action)
             # rather than a bare `continue` — the earlier version silently
@@ -622,6 +735,10 @@ async def _sync_level(
     for step in plan:
         actions.append({**step, "name": f"{rel_prefix}{step['name']}"})
 
+    # Resolved once per level for every _safe_local_dest call below, rather
+    # than once per file on the event loop.
+    resolved_dest_dir = dest_dir.resolve()
+
     total_bytes = 0
 
     # dry_run leaves uploaded/downloaded/skipped/conflicts/failed empty rather than
@@ -649,6 +766,9 @@ async def _sync_level(
                 # above), since nothing was synced and the ambiguity needs a
                 # human to resolve it.
                 return {"kind": "collision_fail", "name": name, "error": step["reason"]}
+
+            if action == "unsafe_name":
+                return {"kind": "unsafe_name_fail", "name": name, "error": step["reason"]}
 
             if action == "checksum_read_fail":
                 # The local file became unreadable (deleted, permission-denied, a
@@ -819,8 +939,10 @@ async def _sync_level(
                         "(convert_markdown has no reverse conversion)"
                     ),
                 }
-            dest_file = dest_dir / name
             try:
+                # The plan already routed unsafe names to 'unsafe_name'; this is
+                # the shared backstop, and a refusal lands as download_fail.
+                dest_file = _safe_local_dest(dest_dir, name, resolved_dest_dir)
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
                     content = await execute_in_thread(
@@ -910,7 +1032,7 @@ async def _sync_level(
                 downloaded.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
-            else:  # upload_fail / download_fail / collision_fail / checksum_read_fail
+            else:  # upload/download/collision/unsafe_name/checksum_read _fail
                 entry = {"name": rel_name, "error": o["error"]}
                 if "fileId" in o:
                     # Set only for the create()-succeeded-but-restamp-failed case
@@ -930,6 +1052,9 @@ async def _sync_level(
 
     if recursive:
         drive_folder_map = {f["name"]: f for f in drive_folders}
+        drive_folder_counts: dict[str, int] = {}
+        for f in drive_folders:
+            drive_folder_counts[f["name"]] = drive_folder_counts.get(f["name"], 0) + 1
         local_folder_map: dict[str, Path] = {}
         if dest_dir.is_dir():
             for p in dest_dir.iterdir():
@@ -947,7 +1072,30 @@ async def _sync_level(
             in_drive = name in drive_folder_map
             in_local = name in local_folder_map
             child_rel_prefix = f"{rel_prefix}{name}/"
-            child_dest_dir = dest_dir / name
+
+            # Same rule as the file plan above, checked before the join: a
+            # folder name like '..' would otherwise be created, downloaded
+            # into, or (bidirectional) uploaded from outside dest_dir. Routed
+            # the way a file's plan step is: a skip, a dry_run action, or a
+            # 'failed' entry on a real run.
+            try:
+                child_dest_dir = _safe_local_dest(dest_dir, name, resolved_dest_dir)
+            except ValueError as e:
+                step = _unsafe_name_step(
+                    name,
+                    str(e),
+                    in_drive=in_drive,
+                    in_local=in_local,
+                    direction=direction,
+                    drive_count=drive_folder_counts.get(name, 0),
+                )
+                if step["action"] == "skip":
+                    folders_skipped.append(child_rel_prefix)
+                elif dry_run:
+                    actions.append({**step, "name": child_rel_prefix})
+                else:
+                    failed.append({"name": child_rel_prefix, "error": step["reason"]})
+                continue
 
             if in_drive and in_local:
                 child_drive_id = drive_folder_map[name]["id"]
@@ -1580,7 +1728,11 @@ def register(tool):
         file before download.
 
         If local_path is a directory, the file is saved inside it using the Drive
-        filename (with an extension appended for exported Workspace files).
+        filename (with an extension appended for exported Workspace files). A
+        Drive name that isn't a single ordinary filename (it contains '/' or
+        '\\', is '.' or '..', etc.) is refused for a directory target with a
+        ValueError, before anything is written; pass a full file path as
+        local_path instead.
 
         Args:
             file_id: The Google Drive file ID.
@@ -1608,11 +1760,20 @@ def register(tool):
 
         dest = Path(local_path)
         if dest.is_dir():
+            # The Drive name becomes the local filename only for a directory
+            # target, and a refused one raises before anything is written.
             if is_workspace and export_format:
                 ext = _EXPORT_MIME[export_format][1] if export_format in _EXPORT_MIME else ""
-                dest = dest / (drive_name + ext)
+                local_name = drive_name + ext
             else:
-                dest = dest / drive_name
+                local_name = drive_name
+            try:
+                dest = _safe_local_dest(dest, local_name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Drive file name {drive_name!r} can't be used as a local filename: "
+                    f"{e}. Pass a full file path as local_path to choose the name."
+                ) from None
 
         dest.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1666,7 +1827,9 @@ def register(tool):
         For non-Google files the raw content is downloaded. Google Workspace files
         are skipped unless export_format is provided, in which case they are exported
         to that format. Subfolders are always skipped, regardless of export_format —
-        this tool never descends into them.
+        this tool never descends into them. A file whose Drive name isn't a single
+        ordinary filename (it contains '/' or '\\', is '.' or '..', etc.) is
+        listed under 'failed' and not downloaded.
 
         Files transfer concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each file
@@ -1688,6 +1851,7 @@ def register(tool):
         drive_service = ctx.request_context.lifespan_context.drive_service
         dest_dir = Path(local_path)
         dest_dir.mkdir(parents=True, exist_ok=True)
+        resolved_dest_dir = dest_dir.resolve()
 
         query = f"'{folder_id}' in parents and trashed=false"
         if mime_type_filter:
@@ -1738,10 +1902,18 @@ def register(tool):
                         {"name": fname, "error": f"Unknown export_format '{export_format}'"}
                     )
                     continue
-                ext = _EXPORT_MIME[export_format][1]
-                dest_file = dest_dir / (fname + ext)
+                local_name = fname + _EXPORT_MIME[export_format][1]
             else:
-                dest_file = dest_dir / fname
+                local_name = fname
+            try:
+                dest_file = _safe_local_dest(dest_dir, local_name, resolved_dest_dir)
+            except ValueError as e:
+                # One failed entry, like the duplicate-name case below; the
+                # rest of the folder still downloads.
+                failed.append(
+                    {"name": fname, "error": f"{fname!r} can't be used as a local filename: {e}"}
+                )
+                continue
 
             if skip_if_exists and dest_file.exists():
                 skipped.append(dest_file.name)
@@ -1883,6 +2055,12 @@ def register(tool):
           Both sides, local newer by > 5 s           → upload  (if direction includes upload)
           Both sides, Drive newer by > 5 s           → download (if direction includes download)
           Both sides, conflict (direction mismatch)  → skip, listed under 'conflicts'
+
+        A name that isn't a single ordinary filename (it contains '/' or '\\', is
+        '.' or '..', etc.), for a file or a subfolder on either side, is never
+        synced: it's listed under 'failed' (action 'unsafe_name' in a dry_run),
+        unless it exists only on the side this direction wouldn't act on, where
+        it's skipped as usual.
 
         Modified times are compared in UTC. When a file is uploaded, its Drive
         modifiedTime is set to the local file's mtime so future syncs stay accurate.

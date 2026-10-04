@@ -2965,3 +2965,418 @@ class TestSyncFolderResponseSizeCap:
             ctx=self._ctx(fs),
         )
         assert manifest["folder_id"] == "root"
+
+
+def _tree(root: Path) -> set[str]:
+    """Every path under `root`, relative to it — used to prove nothing was
+    written anywhere a test didn't expect."""
+    return {str(p.relative_to(root)) for p in root.rglob("*")}
+
+
+_DOC_MIME = "application/vnd.google-apps.document"
+
+
+class TestDriveNameUnsafeReason:
+    """A Drive name is joined onto a local directory only if it's one ordinary
+    path component (_unsafe_name_reason / _safe_local_dest)."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            ".",
+            "..",
+            "../x",
+            "../../escaped-probe.txt",
+            "a/b",
+            "a/../../b",
+            "/etc/passwd",
+            "a\\b",
+            "..\\..\\x",
+            "C:\\x",
+            "a\x00b",
+        ],
+    )
+    def test_refuses(self, name):
+        assert transfer_module._unsafe_name_reason(name) is not None
+        with pytest.raises(ValueError) as exc:
+            transfer_module._safe_local_dest(Path("/tmp/base"), name)
+        # The reason alone; each caller names the file itself.
+        assert str(exc.value) == transfer_module._unsafe_name_reason(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["notes.txt", ".hidden", "...", "..x", "x..", "...pdf", "Meeting 10:30.txt", "ü 日本.md"],
+    )
+    def test_allows(self, name, tmp_path):
+        assert transfer_module._unsafe_name_reason(name) is None
+        assert transfer_module._safe_local_dest(tmp_path, name) == tmp_path / name
+
+    def test_uses_given_resolved_base_without_resolving(self, tmp_path, monkeypatch):
+        """A caller joining many names passes the resolved base once."""
+
+        def _no_resolve(self, *args, **kwargs):
+            raise AssertionError("resolve() called despite resolved_base")
+
+        resolved = tmp_path.resolve()
+        monkeypatch.setattr(Path, "resolve", _no_resolve)
+        assert transfer_module._safe_local_dest(tmp_path, "x", resolved) == tmp_path / "x"
+
+    def test_symlink_inside_base_is_not_followed(self, tmp_path):
+        """A symlink the user placed inside the target keeps working: only the
+        base is resolved, not the final component."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        base = tmp_path / "base"
+        base.mkdir()
+        (base / "linked").symlink_to(outside)
+        assert transfer_module._safe_local_dest(base, "linked") == base / "linked"
+
+
+class TestDownloadFileUnsafeName:
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        return ctx
+
+    def _svc(self, name, mime="text/plain"):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "name": name,
+            "mimeType": mime,
+        }
+        return svc
+
+    async def test_traversal_name_raises_before_any_write(self, tmp_path):
+        # The advisory's reproduction: '../../escaped-probe.txt' into <dir>/a/b/.
+        target = tmp_path / "a" / "b"
+        target.mkdir(parents=True)
+        before = _tree(tmp_path)
+        svc = self._svc("../../escaped-probe.txt")
+
+        with pytest.raises(ValueError, match="can't be used as a local filename"):
+            await _transfer_tools["download_file"](
+                file_id="f1", local_path=str(target), ctx=self._ctx(svc)
+            )
+
+        assert _tree(tmp_path) == before
+        svc.files.return_value.get_media.assert_not_called()
+        svc.files.return_value.export.assert_not_called()
+
+    async def test_dotdot_name_into_existing_dir_raises(self, tmp_path):
+        target = tmp_path / "a"
+        target.mkdir()
+        svc = self._svc("..")
+
+        with pytest.raises(ValueError, match="special path segment"):
+            await _transfer_tools["download_file"](
+                file_id="f1", local_path=str(target), ctx=self._ctx(svc)
+            )
+
+        assert _tree(tmp_path) == {"a"}
+        svc.files.return_value.get_media.assert_not_called()
+
+    async def test_exported_workspace_name_checked_with_extension(self, tmp_path):
+        svc = self._svc("../escaped", mime=_DOC_MIME)
+
+        with pytest.raises(ValueError):
+            await _transfer_tools["download_file"](
+                file_id="d1", local_path=str(tmp_path), export_format="pdf", ctx=self._ctx(svc)
+            )
+
+        assert _tree(tmp_path) == set()
+        svc.files.return_value.export.assert_not_called()
+
+    async def test_explicit_file_path_ignores_drive_name(self, tmp_path):
+        """With an explicit file destination the Drive name is never used as a
+        path, so an odd name doesn't block the download."""
+        svc = self._svc("../../escaped", mime=_DOC_MIME)
+        svc.files.return_value.export.return_value.execute.return_value = b"pdf"
+        dest = tmp_path / "chosen.pdf"
+
+        result = await _transfer_tools["download_file"](
+            file_id="d1", local_path=str(dest), export_format="pdf", ctx=self._ctx(svc)
+        )
+
+        assert result["local_path"] == str(dest)
+        assert _tree(tmp_path) == {"chosen.pdf"}
+
+
+class TestDownloadFolderUnsafeName:
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_refused_name_is_failed_entry_and_others_download(self, tmp_path):
+        target = tmp_path / "a" / "b"
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"id": "bad", "name": "../../escaped-probe", "mimeType": _DOC_MIME},
+                {"id": "ok", "name": "fine", "mimeType": _DOC_MIME},
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"pdf"
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root", local_path=str(target), export_format="pdf", ctx=self._ctx(svc)
+        )
+
+        assert result["downloaded"] == ["fine.pdf"]
+        assert result["failed"] == [
+            {
+                "name": "../../escaped-probe",
+                # Quotes the Drive name the user sees, not the '.pdf' local name.
+                "error": (
+                    "'../../escaped-probe' can't be used as a local filename: "
+                    "name contains a path separator"
+                ),
+            }
+        ]
+        assert _tree(tmp_path) == {"a", "a/b", "a/b/fine.pdf"}
+        svc.files.return_value.export.assert_called_once_with(
+            fileId="ok", mimeType="application/pdf"
+        )
+
+
+class TestSyncFolderUnsafeName:
+    """sync_folder never joins a name that isn't one ordinary path component:
+    it's an 'unsafe_name' plan action (a 'failed' entry on a real run), except
+    a one-sided name this direction wouldn't touch, which stays a plain skip."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _fs(self, *entries) -> _FakeDriveFS:
+        fs = _FakeDriveFS({"root": list(entries)})
+        fs.svc.files.return_value.export.return_value.execute.return_value = b"pdf"
+        return fs
+
+    @pytest.mark.parametrize("direction", ["download", "bidirectional"])
+    async def test_download_direction_refuses_and_writes_nothing_outside(self, tmp_path, direction):
+        local = tmp_path / "a" / "b"
+        local.mkdir(parents=True)
+        fs = self._fs(
+            _drive_file("../../escaped", "bad", mime=_DOC_MIME),
+            _drive_file("fine", "ok", mime=_DOC_MIME),
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(local),
+            direction=direction,
+            export_format="pdf",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["downloaded"] == ["fine.pdf"]
+        assert [f["name"] for f in result["failed"]] == ["../../escaped.pdf"]
+        assert "path separator" in result["failed"][0]["error"]
+        assert _tree(tmp_path) == {"a", "a/b", "a/b/fine.pdf"}
+
+    async def test_duplicate_unsafe_drive_names_are_counted(self, tmp_path):
+        """Two Drive files under one unsafe name are both accounted for, the
+        way a collision is, rather than the second vanishing."""
+        fs = self._fs(
+            _drive_file("../../escaped-probe.txt", "bad1"),
+            _drive_file("../../escaped-probe.txt", "bad2"),
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == [
+            {
+                "name": "../../escaped-probe.txt",
+                "error": (
+                    "name contains a path separator (2 Drive entries have this name); not synced"
+                ),
+            }
+        ]
+        assert _tree(tmp_path) == set()
+
+    async def test_duplicate_unsafe_drive_folders_are_counted(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_folder("..", "d1"), _drive_folder("..", "d2")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == [
+            {
+                "name": "../",
+                "error": (
+                    "name is the special path segment '..' "
+                    "(2 Drive entries have this name); not synced"
+                ),
+            }
+        ]
+        assert fs.list_calls == ["root"]
+
+    async def test_dry_run_reports_unsafe_name_action(self, tmp_path):
+        fs = self._fs(_drive_file("../escaped", "bad", mime=_DOC_MIME))
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert [(a["name"], a["action"]) for a in result["actions"]] == [
+            ("../escaped.pdf", "unsafe_name")
+        ]
+
+    async def test_upload_direction_drive_only_refused_name_is_plain_skip(self, tmp_path):
+        (tmp_path / "local.txt").write_text("x")
+        fs = self._fs(_drive_file("../escaped", "bad", mime=_DOC_MIME))
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            export_format="pdf",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert result["skipped"] == ["../escaped.pdf"]
+        assert result["uploaded"] == ["local.txt"]
+        assert [b["name"] for b in fs.created_files] == ["local.txt"]
+        assert _tree(tmp_path) == {"local.txt"}
+
+    @pytest.mark.skipif(os.name == "nt", reason="'\\' is a separator on Windows")
+    async def test_upload_direction_refuses_local_backslash_name(self, tmp_path):
+        """A POSIX file named 'a\\b' would upload under a name the Drive side
+        then refuses, so it would never match again; it's refused up front."""
+        (tmp_path / "a\\b").write_text("x")
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == []
+        assert [f["name"] for f in result["failed"]] == ["a\\b"]
+        assert fs.created_files == []
+
+    @pytest.mark.skipif(os.name == "nt", reason="'\\' is a separator on Windows")
+    async def test_download_direction_local_only_backslash_name_is_plain_skip(self, tmp_path):
+        (tmp_path / "a\\b").write_text("x")
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert result["skipped"] == ["a\\b"]
+
+    async def test_converted_md_source_property_is_checked(self, tmp_path):
+        """A converted Doc's local name comes from its Drive properties, which
+        whoever shared it can set; that name is checked, not the display name."""
+        local = tmp_path / "a" / "b"
+        local.mkdir(parents=True)
+        fs = self._fs(
+            _drive_file(
+                "innocent.md",
+                "doc",
+                mime=_DOC_MIME,
+                properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "../../evil.md"},
+            )
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(local),
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert [(a["name"], a["action"]) for a in result["actions"]] == [
+            ("../../evil.md", "unsafe_name")
+        ]
+
+    @pytest.mark.parametrize("direction", ["download", "bidirectional"])
+    async def test_recursive_refuses_dotdot_subfolder(self, tmp_path, direction):
+        """A Drive folder named '..' would otherwise be downloaded into (and,
+        bidirectionally, uploaded from) the parent of local_path."""
+        parent = tmp_path / "parent"
+        local = parent / "sync"
+        local.mkdir(parents=True)
+        (parent / "secret.txt").write_text("not for Drive")
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("..", "dotdot")],
+                "dotdot": [_drive_file("payload", "p", mime=_DOC_MIME)],
+            }
+        )
+        fs.svc.files.return_value.export.return_value.execute.return_value = b"pdf"
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(local),
+            direction=direction,
+            export_format="pdf",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == [
+            {"name": "../", "error": "name is the special path segment '..'; not synced"}
+        ]
+        assert "dotdot" not in fs.list_calls
+        assert fs.created_files == []
+        assert _tree(tmp_path) == {"parent", "parent/sync", "parent/secret.txt"}
+
+    async def test_recursive_dry_run_reports_unsafe_subfolder(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_folder("a/..", "bad")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            recursive=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert [(a["name"], a["action"]) for a in result["actions"]] == [("a/../", "unsafe_name")]
+        assert fs.list_calls == ["root"]
+
+    async def test_recursive_upload_direction_drive_only_unsafe_folder_skipped(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_folder("..", "dotdot")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert result["folders_skipped"] == ["../"]
+        assert fs.list_calls == ["root"]
