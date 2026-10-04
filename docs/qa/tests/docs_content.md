@@ -3816,3 +3816,39 @@ Tool call: `create_doc(title="TC-DOC201", content="![Big](/tmp/qa-oversized.png)
 **Cleanup:** trash the doc and `images[0].fileId`; `rm /tmp/qa-oversized.png`
 
 **Result (2026-09-28) ✅ PASS — Kit, PR #842 round 2 (`07e5139`).** `images[0]` had `fileId`, `downscaled: true`, `shared: false`. Playwright: the red image renders. Extra check for the `drive:` half of F3: `create_doc(content="![Big](drive:<oversized upload>)", auto_downscale=True)` also returned `downscaled: true`, with a new resized `fileId`. Docs, the resized copies, and the oversized upload were trashed.
+
+---
+
+### TC-DOC202: A failed doc edit still revokes the image's temporary share (#789) ⚠️ destructive
+
+**Background:** `_apply_doc_content` shares each local-path/`drive:` image `anyone:reader` before the doc edit, and used to revoke those shares only after the edit succeeded. Any failure after the shares were made (the content `batchUpdate`, a retry, `fill_tables`, anchor resolution) left the image publicly readable with nothing reporting it, and the raise lost every image file ID. The revoke now runs whether the edit succeeds, fails, or is cancelled, and a failed edit returns `{"error", "docId", "images"}` instead of raising (PR #877 round 2). The case forces a non-image failure by locking the target doc (`contentRestrictions.readOnly`), which makes the Docs API reject the `batchUpdate` with a 403. The doc is left empty so `write_doc_content` has nothing to clear and reaches the image step before the 403.
+
+**Setup:**
+1. `create_doc(title="TC-DOC202", folder_id={FOLDER_ID})` with no content. Record `docId` as `{LOCKED_DOC_ID}`.
+2. `upload_local_file(local_path="<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png", folder_id={FOLDER_ID})`. Record its ID as `{PIXEL_FILE_ID}`.
+3. No tool sets a content restriction, so lock the doc with a scratch script from the checkout under test, using the same OAuth token as the server under test:
+
+```bash
+uv run python3 -c "
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+d = build('drive', 'v3', credentials=_oauth_creds(), cache_discovery=False)
+d.files().update(fileId='{LOCKED_DOC_ID}', body={'contentRestrictions': [{'readOnly': True, 'reason': 'TC-DOC202'}]}, supportsAllDrives=True).execute()
+"
+```
+
+**Prompt**
+> "Replace the content of doc {LOCKED_DOC_ID} with this markdown: `Text\n\n![Pixel](drive:{PIXEL_FILE_ID})`"
+
+Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](drive:{PIXEL_FILE_ID})", content_format="markdown")`
+
+**Checks**
+- The call returns (doesn't raise) `{"error": "doc edit failed: ...", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`, and the error text includes the Docs `batchUpdate`'s 403 "The caller does not have permission". If the call succeeds instead, the lock didn't take and the case proves nothing; re-check setup step 3
+- `list_permissions(file_id={PIXEL_FILE_ID})` shows no `anyone` permission. Before the fix, an `anyone`/`reader` grant was left behind here (reproduced live by the Dev with a scratch script on 2026-10-03)
+- If the server under test writes a log file (`LOG_FILE`), it has a WARNING line naming `{LOCKED_DOC_ID}`, with `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none` (a `drive:` source is the caller's own file, never listed as created)
+
+**Cleanup:** unlock the doc with the setup script, using `body={'contentRestrictions': [{'readOnly': False}]}`. Then trash `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`.
+
+**Result (2026-10-03) ✅ PASS — Kit, PR #877 round 1 (`505e8a5`).** `write_doc_content` failed with the expected 403 "The caller does not have permission" from the Docs `batchUpdate`. A `list_permissions` call made after the failure showed no `anyone` grant on the pixel. `LOG_FILE` had `WARNING ... Doc edit failed for {LOCKED_DOC_ID} after its images were resolved; image file IDs: {PIXEL_FILE_ID}; still link-shared: none`. The case passes, but the log line lists `{PIXEL_FILE_ID}`, the caller's own pre-existing `drive:` file, under the IDs `_log_images_after_failed_edit`'s docstring calls now-orphaned files (finding F2 in the round 1 PR comment). The doc was unlocked, and both files were trashed.
+
+**Result (2026-10-03) ✅ PASS — Kit, PR #877 round 2 (`de95c80`).** `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. `LOG_FILE` had `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none`. Separately, a minimal anyio model of the new shielded resolve and revoke structure, cancelled both mid-resolution and mid-edit, ran every delete and logged the warning both times. The doc was unlocked, and both files were trashed.

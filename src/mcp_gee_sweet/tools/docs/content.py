@@ -5,6 +5,7 @@ import xml.etree.ElementTree as etree
 from pathlib import Path
 from typing import Any
 
+import anyio
 import markdown as _md
 from googleapiclient.errors import HttpError
 from markdown.extensions import Extension
@@ -201,8 +202,9 @@ async def _resolve_image_source(
     "permission_id": ...} for a drive:/local source (plus "downscaled": True for a
     local file auto_downscale resized) — the permission_id is the
     just-granted anyone:reader permission, for the caller to revoke once the doc edit
-    that actually embeds this image has succeeded (revoking any earlier would break the
-    embed, since Docs fetches the image at insertion time, not upload time). Returns
+    that embeds this image is over, whether it succeeded or not (revoking any earlier
+    would break the embed, since Docs fetches the image at insertion time, not upload
+    time; #789). Returns
     {"error": ...} on failure. If this call *uploaded* a local file and only the
     sharing step afterward failed, the error also carries {"file_id": ...} so the
     caller isn't left with an untracked orphan (#649, mirrors #420's fix in
@@ -320,17 +322,22 @@ async def _replace_doc_content(
             docs_service,
         )
 
-    image_outcomes = await _apply_doc_content(
-        docs_service,
-        drive_service,
-        doc_id,
-        content,
-        content_format,
-        autolink_urls,
-        folder_id,
-        revoke_sharing,
-        auto_downscale,
-    )
+    try:
+        image_outcomes = await _apply_doc_content(
+            docs_service,
+            drive_service,
+            doc_id,
+            content,
+            content_format,
+            autolink_urls,
+            folder_id,
+            revoke_sharing,
+            auto_downscale,
+        )
+    except DocEditError as e:
+        # The clear above already committed, so the doc changed either way.
+        doc_cache.mark_dirty(doc_id)
+        return _doc_edit_failure_result(e, doc_id)
 
     metadata = await execute_in_thread(
         drive_service.files()
@@ -345,6 +352,57 @@ async def _replace_doc_content(
     if image_outcomes is not None:
         result["images"] = image_outcomes
     return result
+
+
+class DocEditError(Exception):
+    """_apply_doc_content's doc edit raised after its images were resolved (#789).
+    Carries the per-image outcome list, which would otherwise be lost with the
+    exception, so the calling tool can return it alongside the error the way
+    insert_local_images does. The original exception is chained as __cause__."""
+
+    def __init__(self, cause: Exception, image_outcomes: list[dict[str, Any]]):
+        super().__init__(f"doc edit failed: {cause}")
+        self.image_outcomes = image_outcomes
+
+
+def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
+    """The tool response for a DocEditError: the error, the doc's ID (the doc
+    exists, possibly partly written), and the per-image outcomes when there are
+    any, so every file ID an image step created or shared reaches the caller."""
+    result: dict[str, Any] = {"error": str(e), "docId": doc_id}
+    if e.image_outcomes:
+        result["images"] = e.image_outcomes
+    return result
+
+
+def _log_images_after_failed_edit(
+    doc_id: str, image_outcomes: list[dict[str, Any]], created_file_ids: set[str]
+) -> None:
+    """Warn about the image files _apply_doc_content touched when its doc edit
+    failed or was cancelled (#789). A cancelled call returns nothing, so this log
+    is the only record there. Files this call created (a local upload, a resized
+    copy) are listed apart from the caller's own pre-existing drive: sources,
+    which are never orphans (PR #652 QA round 1). "still link-shared" names only
+    shares this call granted and didn't revoke (revoke_sharing=False, or a failed
+    revoke), not an already_shared link that predates the call."""
+    touched = [e["fileId"] for e in image_outcomes if e.get("fileId")]
+    if not touched:
+        return
+    created = [f for f in touched if f in created_file_ids]
+    pre_existing = [f for f in touched if f not in created_file_ids]
+    still_shared = [
+        e["fileId"]
+        for e in image_outcomes
+        if e.get("fileId") and e.get("shared") and not e.get("already_shared")
+    ]
+    logger.warning(
+        "Doc edit failed for %s after its images were resolved; files created by "
+        "this call: %s; pre-existing files: %s; still link-shared by this call: %s",
+        doc_id,
+        ", ".join(created) or "none",
+        ", ".join(pre_existing) or "none",
+        ", ".join(still_shared) or "none",
+    )
 
 
 async def _apply_doc_content(
@@ -364,9 +422,14 @@ async def _apply_doc_content(
     drive: references, matching insert_local_images's own lifecycle), runs the
     phase-1 batchUpdate, fills tables, resolves heading anchors, and finally
     best-effort revokes each image's temporary share (revoke_sharing=True, the
-    default) now that the doc edit embedding it has already succeeded — revoking
-    any earlier would break the embed, since Docs fetches the image at insertion
-    time, not upload time.
+    default) once the doc edit is over — revoking any earlier would break the
+    embed, since Docs fetches the image at insertion time, not upload time. The
+    revoke runs whether the edit succeeded, raised, or was cancelled (#789), and
+    both the image-resolution phase and the revoke are shielded from cancellation
+    so a share that was granted is always known and always revoked. A failed edit
+    raises DocEditError carrying the outcome list (the original exception chained
+    as its cause); a cancellation propagates as-is. Either way the touched file IDs
+    are also logged as a warning.
 
     auto_downscale (#400) is passed straight through to _resolve_image_source for
     each image — see that function's own docstring for the per-source-kind behavior
@@ -399,7 +462,8 @@ async def _apply_doc_content(
     entry_by_id: dict[int, dict[str, Any]] = {}
     real_uri_by_id: dict[int, str] = {}
     # (outcome_entry, file_id, permission_id) for images successfully shared —
-    # revoked only after the doc edit below actually succeeds. A retry-removed
+    # revoked once the doc edit below is over, whether it succeeded or raised
+    # (#789). A retry-removed
     # image (see below) stays in this list: it was still uploaded and shared,
     # so its temporary share is revoked the same as any other.
     pending_revokes: dict[int, tuple[dict[str, Any], str, str]] = {}
@@ -409,17 +473,31 @@ async def _apply_doc_content(
     # records which request dict came from which image.
     placeholder_uris: dict[int, str] = {}
 
+    # File IDs this call itself created (a local upload, or a drive: source's
+    # resized copy), as opposed to a caller's pre-existing drive: file. Only for
+    # the failed-edit warning, which must never present the caller's own file as
+    # an orphan (PR #877 QA round 1).
+    created_file_ids: set[str] = set()
+
     if images:
+        # Shielded from cancellation (PR #877 QA round 1): mcp cancels a request
+        # through an anyio cancel scope, and a resolution cancelled mid-gather can
+        # have already granted an anyone:reader share whose permission ID would
+        # then never reach pending_revokes. Letting every resolution finish means
+        # each granted share is recorded, and so revoked below; the cancellation is
+        # re-delivered at the next unshielded await.
+        #
         # return_exceptions=True: _resolve_image_source already catches its own
         # errors, but this also guards against anything unexpected escaping it
         # without one failed image's exception aborting every other resolution.
-        results = await asyncio.gather(
-            *(
-                _resolve_image_source(drive_service, img.src, target_folder_id, auto_downscale)
-                for img in images
-            ),
-            return_exceptions=True,
-        )
+        with anyio.CancelScope(shield=True):
+            results = await asyncio.gather(
+                *(
+                    _resolve_image_source(drive_service, img.src, target_folder_id, auto_downscale)
+                    for img in images
+                ),
+                return_exceptions=True,
+            )
         for img, result in zip(images, results, strict=True):
             entry: dict[str, Any] = {"src": img.src}
             if isinstance(result, BaseException):
@@ -440,133 +518,162 @@ async def _apply_doc_content(
                     # Public before this call: still shared, and never revoked —
                     # that link isn't this call's to remove (PR #842 QA round 1).
                     entry["shared"] = True
+            file_id = entry.get("fileId")
+            if file_id and (
+                not img.src.startswith("drive:") or file_id != img.src[len("drive:") :]
+            ):
+                created_file_ids.add(file_id)
             image_outcomes.append(entry)
 
-    content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=placeholder_uris)
-
-    # Swap each request's placeholder URI for the real one, recording which
-    # image produced that exact request *object* (by its own id()) so the retry
-    # below can trace a failure back to the right image without relying on URI
-    # or position, both of which two images can share (see the comment above).
-    # The retry's list copies and slices copy references, not the dicts, so id()
-    # still matches — deep-copying any of them would silently break this lookup.
-    placeholder_to_img_id = {
-        placeholder: img_id for img_id, placeholder in placeholder_uris.items()
-    }
-    request_id_to_img_id: dict[int, int] = {}
-    for req in content_requests:
-        inline = req.get("insertInlineImage")
-        if inline is None:
-            continue
-        img_id = placeholder_to_img_id.get(inline["uri"])
-        if img_id is not None:
-            request_id_to_img_id[id(req)] = img_id
-            inline["uri"] = real_uri_by_id[img_id]
-
-    if content_requests:
-        # A resolved image's URI is only proven *reachable to us*, not necessarily
-        # fetchable by Google's own (unauthenticated, separate-network-path)
-        # image-fetching service at insertion time — confirmed live (#333 QA,
-        # TC-DOC102 Case 8's deliberately unreachable URL): a single bad
-        # insertInlineImage request makes the Docs API reject the *entire*
-        # batchUpdate, silently losing every other request in the same call
-        # (text, styles, tables, and every other image) even though only one
-        # request was actually invalid. Since a rejected batchUpdate executes
-        # nothing at all, the remaining requests' positions are untouched by a
-        # failed attempt — so a bad request can simply be stripped and the
-        # exact same list retried, with no position recomputation needed.
-        # Google's own error message gives the failing request's index
-        # directly ("Invalid requests[N].insertInlineImage: ..."), which is
-        # what makes this retry possible without re-deriving that index
-        # some other way.
-        #
-        # Only the first failing image is named per error (confirmed live), so K
-        # bad images need K retries. Resending the whole document each time would
-        # be K+1 full-size round trips (#510). So: the first retry (K=1, the common
-        # case) is still one atomic call of the whole remaining list. Only if that
-        # names a *second* bad image does the list split: everything ahead of
-        # ast_to_requests's trailing descending-position insertTable/
-        # insertInlineImage pass (the "prefix": text, styles, bullets) is sent once
-        # on its own, then only that small tail is retried per further bad image.
-        # That boundary is the only safe split point: every prefix request must run
-        # before any positional insert, while within the tail each insert lands at
-        # or before every insert already applied, so dropping one never shifts the
-        # rest.
-        #
-        # Residual partial-write window (K>=2 only): once the prefix has committed,
-        # a tail retry failing for any *non*-image reason raises with the text
-        # already in the doc but no tables or images (and fill_tables never runs).
-        # Every path through K<=1 stays all-or-nothing.
-        #
-        # A dropped image's error is recorded on its outcome entry as it's dropped.
-        # If a later call raises instead, the exception propagates and no outcome
-        # list reaches the caller at all (same as before #510), so there's no
-        # partially-recorded state to preserve.
-
-        async def _batch_update(requests: list[dict]) -> None:
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                docs_service,
-            )
-
-        def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
-            """Pop the insertInlineImage request `e` names from `requests` (the
-            batch that raised `e`), recording the failure on its image's outcome
-            entry. False if `e` isn't an image-fetch failure, so the caller
-            re-raises."""
-            bad_index = _failed_insert_image_request_index(e)
-            if bad_index is None or bad_index >= len(requests):
-                return False
-            bad_request = requests.pop(bad_index)
-            img_id = request_id_to_img_id.get(id(bad_request))
-            entry = entry_by_id.get(img_id) if img_id is not None else None
-            if entry is not None:
-                # fileId/shared are left as-is: a local-path/drive: source was
-                # genuinely uploaded and shared even though embedding it
-                # failed, so that's still real information for the caller —
-                # and it still goes through the normal revoke_sharing-
-                # respecting cleanup below rather than being silently
-                # orphaned. An https:// source never had either field set — and
-                # is the one source kind #400's pre-validation doesn't cover, so
-                # this is its only chance to learn the size-limit cause at all.
-                entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
-            return True
-
-        committed: list[dict] = []
-        remaining = list(content_requests)
-        image_failures = 0
-        while remaining:
+    async def _revoke_and_report(failed: bool) -> None:
+        # Shielded: a cancellation is re-delivered at every unshielded await, which
+        # would cancel the revokes before they're sent (PR #877 QA round 1).
+        with anyio.CancelScope(shield=True):
             try:
-                await _batch_update(remaining)
-                break
-            except HttpError as e:
-                if not _drop_failed_image(remaining, e):
-                    raise
-                image_failures += 1
-                if image_failures != 2:
-                    continue
-                tail_start = _positional_insert_tail_start(remaining)
-                # Fail-safe: split only if every image request really is in the
-                # tail. If ast_to_requests ever emits something after its
-                # positional-insert pass, the boundary scan comes up short —
-                # fall back to whole-list retries rather than committing an
-                # image-bearing prefix whose image failures couldn't be retried.
-                if any("insertInlineImage" in r for r in remaining[:tail_start]):
-                    continue
-                if tail_start:
-                    await _batch_update(remaining[:tail_start])
-                committed = remaining[:tail_start]
-                remaining = remaining[tail_start:]
-        content_requests = committed + remaining
-    await fill_tables(docs_service, doc_id, tables)
-    if _has_pending_anchor_links(content_requests, tables):
-        await _resolve_heading_anchors(docs_service, doc_id)
+                if pending_revokes and revoke_sharing:
+                    await revoke_image_shares(drive_service, list(pending_revokes.values()))
+            finally:
+                if failed:
+                    _log_images_after_failed_edit(doc_id, image_outcomes, created_file_ids)
 
-    if pending_revokes and revoke_sharing:
-        await revoke_image_shares(drive_service, list(pending_revokes.values()))
+    # Everything from here to the revoke can raise (ast_to_requests, the content
+    # batchUpdate, a non-image retry failure, fill_tables, anchor resolution) or be
+    # cancelled, and by now every local-path/drive: image above is already shared
+    # anyone:reader. So the revoke runs on every exit, not only after success
+    # (#789): revoking after a failed edit is harmless, since a doc that did embed
+    # an image holds its own copy and one that didn't never needed the share.
+    try:
+        content_requests, tables = ast_to_requests(
+            nodes, start_index=1, image_uris=placeholder_uris
+        )
 
+        # Swap each request's placeholder URI for the real one, recording which
+        # image produced that exact request *object* (by its own id()) so the retry
+        # below can trace a failure back to the right image without relying on URI
+        # or position, both of which two images can share (see the comment above).
+        # The retry's list copies and slices copy references, not the dicts, so id()
+        # still matches — deep-copying any of them would silently break this lookup.
+        placeholder_to_img_id = {
+            placeholder: img_id for img_id, placeholder in placeholder_uris.items()
+        }
+        request_id_to_img_id: dict[int, int] = {}
+        for req in content_requests:
+            inline = req.get("insertInlineImage")
+            if inline is None:
+                continue
+            img_id = placeholder_to_img_id.get(inline["uri"])
+            if img_id is not None:
+                request_id_to_img_id[id(req)] = img_id
+                inline["uri"] = real_uri_by_id[img_id]
+
+        if content_requests:
+            # A resolved image's URI is only proven *reachable to us*, not necessarily
+            # fetchable by Google's own (unauthenticated, separate-network-path)
+            # image-fetching service at insertion time — confirmed live (#333 QA,
+            # TC-DOC102 Case 8's deliberately unreachable URL): a single bad
+            # insertInlineImage request makes the Docs API reject the *entire*
+            # batchUpdate, silently losing every other request in the same call
+            # (text, styles, tables, and every other image) even though only one
+            # request was actually invalid. Since a rejected batchUpdate executes
+            # nothing at all, the remaining requests' positions are untouched by a
+            # failed attempt — so a bad request can simply be stripped and the
+            # exact same list retried, with no position recomputation needed.
+            # Google's own error message gives the failing request's index
+            # directly ("Invalid requests[N].insertInlineImage: ..."), which is
+            # what makes this retry possible without re-deriving that index
+            # some other way.
+            #
+            # Only the first failing image is named per error (confirmed live), so K
+            # bad images need K retries. Resending the whole document each time would
+            # be K+1 full-size round trips (#510). So: the first retry (K=1, the common
+            # case) is still one atomic call of the whole remaining list. Only if that
+            # names a *second* bad image does the list split: everything ahead of
+            # ast_to_requests's trailing descending-position insertTable/
+            # insertInlineImage pass (the "prefix": text, styles, bullets) is sent once
+            # on its own, then only that small tail is retried per further bad image.
+            # That boundary is the only safe split point: every prefix request must run
+            # before any positional insert, while within the tail each insert lands at
+            # or before every insert already applied, so dropping one never shifts the
+            # rest.
+            #
+            # Residual partial-write window (K>=2 only): once the prefix has committed,
+            # a tail retry failing for any *non*-image reason raises with the text
+            # already in the doc but no tables or images (and fill_tables never runs).
+            # Every path through K<=1 stays all-or-nothing.
+            #
+            # A dropped image's error is recorded on its outcome entry as it's dropped.
+            # If a later call raises instead, those entries are kept: the raise
+            # becomes a DocEditError carrying the whole outcome list (#789), so an
+            # image dropped before the failure still reports its own error too.
+
+            async def _batch_update(requests: list[dict]) -> None:
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    docs_service,
+                )
+
+            def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
+                """Pop the insertInlineImage request `e` names from `requests` (the
+                batch that raised `e`), recording the failure on its image's outcome
+                entry. False if `e` isn't an image-fetch failure, so the caller
+                re-raises."""
+                bad_index = _failed_insert_image_request_index(e)
+                if bad_index is None or bad_index >= len(requests):
+                    return False
+                bad_request = requests.pop(bad_index)
+                img_id = request_id_to_img_id.get(id(bad_request))
+                entry = entry_by_id.get(img_id) if img_id is not None else None
+                if entry is not None:
+                    # fileId/shared are left as-is: a local-path/drive: source was
+                    # genuinely uploaded and shared even though embedding it
+                    # failed, so that's still real information for the caller —
+                    # and it still goes through the normal revoke_sharing-
+                    # respecting cleanup below rather than being silently
+                    # orphaned. An https:// source never had either field set — and
+                    # is the one source kind #400's pre-validation doesn't cover, so
+                    # this is its only chance to learn the size-limit cause at all.
+                    entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
+                return True
+
+            committed: list[dict] = []
+            remaining = list(content_requests)
+            image_failures = 0
+            while remaining:
+                try:
+                    await _batch_update(remaining)
+                    break
+                except HttpError as e:
+                    if not _drop_failed_image(remaining, e):
+                        raise
+                    image_failures += 1
+                    if image_failures != 2:
+                        continue
+                    tail_start = _positional_insert_tail_start(remaining)
+                    # Fail-safe: split only if every image request really is in the
+                    # tail. If ast_to_requests ever emits something after its
+                    # positional-insert pass, the boundary scan comes up short —
+                    # fall back to whole-list retries rather than committing an
+                    # image-bearing prefix whose image failures couldn't be retried.
+                    if any("insertInlineImage" in r for r in remaining[:tail_start]):
+                        continue
+                    if tail_start:
+                        await _batch_update(remaining[:tail_start])
+                    committed = remaining[:tail_start]
+                    remaining = remaining[tail_start:]
+            content_requests = committed + remaining
+        await fill_tables(docs_service, doc_id, tables)
+        if _has_pending_anchor_links(content_requests, tables):
+            await _resolve_heading_anchors(docs_service, doc_id)
+    except BaseException as e:
+        await _revoke_and_report(failed=True)
+        if isinstance(e, Exception):
+            # The outcome list rides on the error so the calling tool can return
+            # it; a raise alone would lose every file ID (#789).
+            raise DocEditError(e, image_outcomes) from e
+        raise
+    await _revoke_and_report(failed=False)
     return image_outcomes or None
 
 
@@ -798,6 +905,9 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when content contained any images.
+            If writing the content fails after the doc was created, returns
+            {"error", "docId", "images"} instead, with any temporary image share
+            already revoked.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -844,17 +954,22 @@ def register(tool):
 
         image_outcomes = None
         if content:
-            image_outcomes = await _apply_doc_content(
-                docs_service,
-                drive_service,
-                doc_id,
-                content,
-                content_format,
-                autolink_urls,
-                target_folder_id,
-                revoke_sharing,
-                auto_downscale,
-            )
+            try:
+                image_outcomes = await _apply_doc_content(
+                    docs_service,
+                    drive_service,
+                    doc_id,
+                    content,
+                    content_format,
+                    autolink_urls,
+                    target_folder_id,
+                    revoke_sharing,
+                    auto_downscale,
+                )
+            except DocEditError as e:
+                if target_folder_id:
+                    lc.drive_folder_cache.mark_dirty(target_folder_id)
+                return _doc_edit_failure_result(e, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -916,6 +1031,9 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when the file contained any images.
+            If writing the content fails after the doc was created, returns
+            {"error", "docId", "images"} instead, with any temporary image share
+            already revoked.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -970,17 +1088,22 @@ def register(tool):
 
         image_outcomes = None
         if content:
-            image_outcomes = await _apply_doc_content(
-                docs_service,
-                drive_service,
-                doc_id,
-                content,
-                content_format,
-                autolink_urls,
-                target_folder_id,
-                revoke_sharing,
-                auto_downscale,
-            )
+            try:
+                image_outcomes = await _apply_doc_content(
+                    docs_service,
+                    drive_service,
+                    doc_id,
+                    content,
+                    content_format,
+                    autolink_urls,
+                    target_folder_id,
+                    revoke_sharing,
+                    auto_downscale,
+                )
+            except DocEditError as e:
+                if target_folder_id:
+                    lc.drive_folder_cache.mark_dirty(target_folder_id)
+                return _doc_edit_failure_result(e, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -1122,6 +1245,9 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when content contained any images.
+            If writing the new content fails, returns {"error", "docId", "images"}
+            instead, with any temporary image share already revoked. The old content
+            was cleared first, so the doc may be empty or partly written.
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
@@ -1183,6 +1309,9 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when the file contained any images.
+            If writing the new content fails, returns {"error", "docId", "images"}
+            instead, with any temporary image share already revoked. The old content
+            was cleared first, so the doc may be empty or partly written.
         """
         path = Path(local_path)
         if not path.exists():
