@@ -3848,3 +3848,5 @@ Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](
 - If the server under test writes a log file (`LOG_FILE`), it has a WARNING line naming `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`, with `still link-shared: none`
 
 **Cleanup:** unlock the doc with the setup script, using `body={'contentRestrictions': [{'readOnly': False}]}`. Then trash `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`.
+
+**Result (2026-10-03) ✅ PASS — Kit, PR #877 round 1 (`505e8a5`).** `write_doc_content` failed with the expected 403 "The caller does not have permission" from the Docs `batchUpdate`. A `list_permissions` call made after the failure showed no `anyone` grant on the pixel. `LOG_FILE` had `WARNING ... Doc edit failed for {LOCKED_DOC_ID} after its images were resolved; image file IDs: {PIXEL_FILE_ID}; still link-shared: none`. The case passes, but the log line lists `{PIXEL_FILE_ID}`, the caller's own pre-existing `drive:` file, under the IDs `_log_images_after_failed_edit`'s docstring calls now-orphaned files (code-review finding F3 on this round). The doc was unlocked, and both files were trashed.
