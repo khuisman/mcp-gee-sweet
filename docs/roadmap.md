@@ -18,10 +18,11 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 | [**v0.8.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8) | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
 | [**v0.8.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1) | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #242, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
 | [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | ✅ Tier 2 complete — power-user and structured-work layer, plus defects that surfaced after v0.8.1 shipped ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248)) | Published 2026-09-08 |
-| [**v0.9.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1) | Post-release defect fixes & infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786) | Stabilizes before Tier 3 begins |
-| [**v0.9.2**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2) | Comments as a first-class, cross-suite capability — generalize + complete the Drive `comments`/`replies` surface ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)); ships a breaking rename | Closes out the comments story before Tier 3 |
+| [**v0.9.1**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.1) | ✅ Security hotfix cut from v0.9.0 — `download_file`, `download_folder`, and `sync_folder` keep every write inside `local_path`. Nothing else from `develop` | Published 2026-10-04 |
+| [**v0.9.2**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2) | Post-release defect fixes & infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786) | Stabilizes before Tier 3 begins |
+| [**v0.9.3**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3) | Comments as a first-class, cross-suite capability — generalize + complete the Drive `comments`/`replies` surface ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)); ships a breaking rename | Closes out the comments story before Tier 3 |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
-| [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.1) | Expanded scope |
+| [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.2) | Expanded scope |
 
 Tier 4 items remain backlog with no assigned version.
 
@@ -180,7 +181,9 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `share_spreadsheet` fails with "File not found" on any Shared Drive file — missing `supportsAllDrives=True` on its `permissions().create()` call, the only one in `sharing.py` without it (`ready-for-development`, `lane-b`) ([#687](https://github.com/khuisman/mcp-gee-sweet/issues/687)) (PR #695)
 - [x] Folder-listing cache key omits `max_results` — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (`ready-for-development`, `lane-b`) ([#688](https://github.com/khuisman/mcp-gee-sweet/issues/688)) (PR #697)
 
-### v0.9.1 — Post-release defect fixes & infrastructure addons _(target: [v0.9.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1), before Tier 3 begins)_
+### v0.9.2 — Post-release defect fixes & infrastructure addons _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
+
+_Renumbered from v0.9.1 on 2026-10-04: v0.9.1 shipped as a security hotfix cut from v0.9.0, so this release (and the old v0.9.2, now v0.9.3) moved up one. The GitHub labels were renamed to match._
 
 Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely. The one exception to its original "no new tools" scope is the Gmail domain, pulled forward from v1.1+ on 2026-09-23 because a community contributor had already implemented it (see **Gmail domain** below).
 
@@ -350,9 +353,9 @@ Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` sc
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 - [x] QA test-doc cross-reference cleanup after the `drive.md`/`docs.md` split (PR #582) — triaged out of `backlog` 2026-09-11 ([#590](https://github.com/khuisman/mcp-gee-sweet/issues/590)) (PR #851)
 
-**Backlog triage, 2026-09-11 (Kai orchestrator session):** open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled `backlog` with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (the sections above marked "triaged out of `backlog`"), one comments-API cleanup went to v0.9.2 (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. `backlog` (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.
+**Backlog triage, 2026-09-11 (Kai orchestrator session):** open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled `backlog` with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (now v0.9.2) (the sections above marked "triaged out of `backlog`"), one comments-API cleanup went to v0.9.2 (now v0.9.3) (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. `backlog` (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.
 
-### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
+### v0.9.3 — Comments as a first-class, cross-suite capability _(target: [v0.9.3](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3), before Tier 3 begins)_
 
 Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisions/decision-comments-first-class.md) ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)): the Drive `comments`/`replies` resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named `list`/`add`/`resolve` subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes. Also carries Joy's code-structure/typing initiative work (see below), slotted here 2026-09-09 to give it release deadlines rather than leaving it open-ended.
 
@@ -364,12 +367,12 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] **Decision needed:** deprecate `share_spreadsheet` in favor of `share_file` (a strict superset over the same `permissions()` resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
 - [ ] Follow-up cleanup for the docs comments API (`add_doc_comment`/`resolve_doc_comment`/`list_doc_comments`) — same surface #663/#664 generalize, do it there rather than twice; triaged out of `backlog` 2026-09-11 ([#329](https://github.com/khuisman/mcp-gee-sweet/issues/329))
 
-**Drive & Docs follow-ups** _(triaged 2026-09-26; off this release's comments theme, but version-labeled v0.9.2 at filing)_
+**Drive & Docs follow-ups** _(triaged 2026-09-26; off this release's comments theme, but version-labeled v0.9.2 at filing, now v0.9.3)_
 
 - [ ] `sync_folder(export_format=...)`: converted Sheets/Slides probably have #814's `modifiedTime` lag and restamp race too. Suspected, not yet observed ([#818](https://github.com/khuisman/mcp-gee-sweet/issues/818))
 - [ ] Add a tool to set (and read back) Google Docs table column widths — `tableColumnProperties` isn't reachable through any tool today ([#809](https://github.com/khuisman/mcp-gee-sweet/issues/809))
 
-**Code structure & typing (Joy)** _(slotted into v0.9.2 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)_
+**Code structure & typing (Joy)** _(slotted into v0.9.2 (now v0.9.3) 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)_
 
 - [ ] Split `tools/sheets/structure.py` by domain (1865 lines, 25 tools) ([#376](https://github.com/khuisman/mcp-gee-sweet/issues/376))
 - [ ] Plan type-annotation (ANN) adoption — 1635 untyped occurrences; **decision needed** ([#379](https://github.com/khuisman/mcp-gee-sweet/issues/379))
