@@ -1365,6 +1365,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM46: include_body: false returns headers without body or attachments (issue #793)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1444,10 +1455,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error" class="md-nav__link">
+  <a href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TC-GM31: An over-cap thread returns the size-cap error
+        TC-GM31: An over-cap thread returns the size-cap error, and include_body: false lists it (issue #793)
       
     </span>
   </a>
@@ -2367,6 +2378,17 @@
 - <code>body_plain</code> is <code>Café, niño, façade - ISO-8859-1 body (#792).</code> (ignore trailing whitespace)
 - No mojibake (<code>CafÃ©</code>), no <code>�</code>, no <code>body_decode_errors</code> field</p>
 <hr />
+<h3 id="tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793">TC-GM46: <code>include_body: false</code> returns headers without body or attachments (issue #793)<a class="headerlink" href="#tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>include_body: false</code> fetches with Gmail's <code>format='metadata'</code>, which returns headers but no payload parts (confirmed live 2026-10-04). So the result omits attachment metadata as well as the body.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_ATTACH_ID}"</code>, <code>include_body: false</code></p>
+<p><strong>Checks</strong>
+- <code>id</code> is <code>{TEST_GMAIL_ATTACH_ID}</code>; <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>internal_date</code>, and a positive <code>size_estimate</code> are present
+- <code>headers.subject</code> starts <code>[mcp-qa:</code>, <code>headers.from</code> contains <code>{SENDER}</code>, <code>headers.message_id</code> is non-empty
+- No <code>body_plain</code>, <code>body_html</code>, <code>attachments</code>, <code>body_decode_errors</code>, <code>body_fetch_errors</code>, or <code>error</code> key</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 1 at <code>47937d8</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. <code>id</code>, <code>thread_id</code>, <code>snippet</code> (<code>mcp-gee-sweet attachments fixture: a PDF and a CSV.</code>), <code>label_ids</code>, <code>internal_date</code> and <code>size_estimate</code> = 7893 present. <code>headers.subject</code> = <code>[mcp-qa:attachments] PDF + CSV</code>, <code>headers.from</code> = <code>{SENDER}</code>, <code>headers.message_id</code> non-empty. No body, attachment, error-list or <code>error</code> keys. The PR still went back to the Dev for code-review findings this case doesn't exercise; see the PR #885 comment.</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS (regression)</strong>. The output matches round 1 field for field. The fix's <code>metadataHeaders</code> filter can't be seen through shaping, so it was checked against the raw API instead (see TC-GM31's round 2 result).</p>
+<hr />
 <h2 id="list_threads"><code>list_threads</code><a class="headerlink" href="#list_threads" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm05-list-the-fixture-threads">TC-GM05: List the fixture threads<a class="headerlink" href="#tc-gm05-list-the-fixture-threads" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2397,15 +2419,20 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <hr />
-<h3 id="tc-gm31-an-over-cap-thread-returns-the-size-cap-error">TC-GM31: An over-cap thread returns the size-cap error<a class="headerlink" href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error" title="Permanent link">&para;</a></h3>
-<p><strong>Background:</strong> the <code>over-cap-thread</code> fixture is 3 messages of ~400 KB each, which is over the default <code>MAX_TOOL_RESPONSE_CHARS</code> in full format but under it per message. This is the failure #793 wants a lighter option for. Today the tool should refuse cleanly rather than drop the connection or truncate.</p>
+<h3 id="tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793">TC-GM31: An over-cap thread returns the size-cap error, and <code>include_body: false</code> lists it (issue #793)<a class="headerlink" href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the <code>over-cap-thread</code> fixture is 3 messages of ~400 KB each, which is over the default <code>MAX_TOOL_RESPONSE_CHARS</code> in full format but under it per message. The full fetch should refuse cleanly rather than drop the connection or truncate. Since #793, <code>include_body: false</code> fetches only metadata, which is small enough to list the thread's message IDs.</p>
 <p><strong>Action</strong>
 1. <code>get_thread</code> with <code>thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"</code>
-2. <code>list_messages</code> with <code>query: "label:mcp-qa-fixture subject:(mcp-qa over-cap-thread)"</code>, then <code>get_message</code> on any one returned ID</p>
+2. <code>get_thread</code> with <code>thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"</code>, <code>include_body: false</code>
+3. <code>get_message</code> with <code>message_id</code> set to the first message ID from step 2</p>
 <p><strong>Checks</strong>
-- Step 1: the tool call fails with an error containing <code>get_thread: the response is</code> and <code>safety cap</code>, and the error suggests <code>get_message</code> on individual IDs. The session stays connected: the next call works.
+- Step 1: the tool call fails with an error containing <code>get_thread: the response is</code> and <code>safety cap</code>. The error suggests <code>include_body=False</code> followed by <code>get_message</code> on individual IDs. The session stays connected: the next call works.
 - Step 1: no partial or truncated thread is returned
-- Step 2: 3 messages listed; <code>get_message</code> succeeds, with a <code>body_plain</code> that starts <code>mcp-gee-sweet over-cap-thread message</code></p>
+- Step 2: no <code>error</code>. <code>id</code> is <code>{TEST_GMAIL_BIG_THREAD_ID}</code>, and <code>messages</code> has 3 entries, each with <code>id</code>, <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>size_estimate</code>, and <code>headers</code> (<code>headers.subject</code> contains <code>[mcp-qa:over-cap-thread]</code>)
+- Step 2: no message has a <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code> key, and the whole response is a few KB, not ~1.2 MB
+- Step 3: succeeds, with a <code>body_plain</code> that starts <code>mcp-gee-sweet over-cap-thread message</code></p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 1 at <code>47937d8</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Step 1: <code>get_thread: the response is 1275124 characters, over the 1000000-character safety cap</code>, with the hint naming <code>include_body=False</code> then <code>get_message</code> on individual IDs; no partial thread, and the next call worked. Step 2: no <code>error</code>, 3 messages, each with <code>id</code>, <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>size_estimate</code> (~412 KB each) and <code>headers</code> (subjects contain <code>[mcp-qa:over-cap-thread]</code>; <code>in_reply_to</code>/<code>references</code> chain correctly), no body or attachment keys; the response was about 3 KB. Step 3: run with <code>local_path</code> to keep ~425 KB out of the QA session's context (424,899 bytes written); <code>body_plain</code> starts <code>mcp-gee-sweet over-cap-thread message 1.</code>. The thread-level <code>snippet</code> is <code>null</code>, the same as the full format (<code>threads.get</code> returns none).</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Steps 1–3 matched round 1 exactly (1,275,124-character cap error with the <code>include_body=False</code> hint; 3 metadata-only messages; step 3 via <code>local_path</code>, 424,899 bytes). The <code>metadataHeaders</code> filter was checked with a fresh-interpreter raw <code>threads.get</code> on the same thread using this slot's token. Plain <code>format=metadata</code> returned 24,591 bytes and 88 headers (ARC-<em>, DKIM-Signature, Received, X-Gm-</em>, and others). <code>_get_format_kwargs(False)</code> returned 3,003 bytes and 19 headers, all from the shaped set (Date, From, In-Reply-To, Message-ID, References, Subject, To).</p>
 <hr />
 <h3 id="tc-gm33-thread-order-and-reply-headers">TC-GM33: Thread order and reply headers<a class="headerlink" href="#tc-gm33-thread-order-and-reply-headers" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>

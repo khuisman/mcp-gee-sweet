@@ -1478,7 +1478,7 @@
 <td>Sent + Inserted</td>
 <td>Sent: body + small PDF + CSV. Inserted: a <code>multipart/related</code> inline PNG with <code>Content-ID</code> and <strong>no filename</strong> (<code>send_message</code> can't build <code>related</code>)</td>
 <td><code>TEST_GMAIL_ATTACH_ID</code>, <code>TEST_GMAIL_INLINE_ID</code></td>
-<td>GM28</td>
+<td>GM28, 46</td>
 </tr>
 <tr>
 <td><code>thread</code></td>
@@ -1598,7 +1598,7 @@
 <tr>
 <td>GM31</td>
 <td><code>get_thread</code></td>
-<td>Over-cap thread returns the size-cap error, not a dropped connection or a truncated body. Captures #793's motivating failure live.</td>
+<td>Over-cap thread returns the size-cap error, not a dropped connection or a truncated body, and the error points at <code>include_body=False</code>. With <code>include_body=False</code> the same thread lists its 3 message IDs and headers with no bodies (#793).</td>
 <td>read</td>
 </tr>
 <tr>
@@ -1684,6 +1684,12 @@
 <td><code>send_message</code> (QA) → <code>get_message</code> (sender)</td>
 <td>QA sends to the sender mailbox with <code>cc</code> = a QA plus-address and <code>bcc</code> = another. On the sender side, <code>get_message</code> shows <code>cc</code> present and <strong>no</strong> <code>bcc</code> header. Bcc must be stripped from delivered copies; GM39 only sees the sender's copy.</td>
 <td>write, cross-mailbox</td>
+</tr>
+<tr>
+<td>GM46</td>
+<td><code>get_message</code></td>
+<td><code>include_body=False</code> on the <code>attachments</code> fixture: headers, snippet, labels, and <code>size_estimate</code> present; no <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code> key, since Gmail's <code>metadata</code> format returns no payload parts (#793)</td>
+<td>read</td>
 </tr>
 </tbody>
 </table>
