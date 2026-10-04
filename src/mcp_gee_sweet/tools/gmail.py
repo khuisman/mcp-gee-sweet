@@ -398,10 +398,32 @@ class _PendingMessage:
     parts: _PayloadParts | None
 
 
-def _api_format(include_body: bool) -> str:
-    """The messages.get / threads.get format. 'metadata' returns headers, snippet,
-    labels, and size but no payload parts, so no body or attachment data (#793)."""
-    return "full" if include_body else "metadata"
+# The headers a shaped message surfaces, as (result key, header name). Also the
+# metadataHeaders filter for a body-less fetch, so it requests exactly these (#793).
+_SHAPED_HEADERS = (
+    ("from", "From"),
+    # Surfaced because reply_to_message prefers it over From when replying to
+    # someone else's message (#791).
+    ("reply_to", "Reply-To"),
+    ("to", "To"),
+    ("cc", "Cc"),
+    ("bcc", "Bcc"),
+    ("subject", "Subject"),
+    ("date", "Date"),
+    ("message_id", "Message-ID"),
+    ("in_reply_to", "In-Reply-To"),
+    ("references", "References"),
+)
+
+
+def _get_format_kwargs(include_body: bool) -> dict[str, Any]:
+    """The format kwargs for messages.get / threads.get. 'metadata' returns headers,
+    snippet, labels, and size but no payload parts, so no body or attachment data;
+    metadataHeaders keeps it from also returning every Received/ARC/DKIM header
+    that shaping would drop (#793)."""
+    if include_body:
+        return {"format": "full"}
+    return {"format": "metadata", "metadataHeaders": [name for _, name in _SHAPED_HEADERS]}
 
 
 def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _PendingMessage:
@@ -414,20 +436,7 @@ def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _Pendin
         "label_ids": msg.get("labelIds") or [],
         "internal_date": msg.get("internalDate"),
         "size_estimate": msg.get("sizeEstimate"),
-        "headers": {
-            "from": headers.get("from"),
-            # Surfaced because reply_to_message prefers it over From when replying
-            # to someone else's message (#791).
-            "reply_to": headers.get("reply-to"),
-            "to": headers.get("to"),
-            "cc": headers.get("cc"),
-            "bcc": headers.get("bcc"),
-            "subject": headers.get("subject"),
-            "date": headers.get("date"),
-            "message_id": headers.get("message-id"),
-            "in_reply_to": headers.get("in-reply-to"),
-            "references": headers.get("references"),
-        },
+        "headers": {key: headers.get(name.lower()) for key, name in _SHAPED_HEADERS},
     }
     parts = _extract_bodies_and_attachments(payload) if include_body else None
     return _PendingMessage(shaped, parts)
@@ -701,14 +710,15 @@ def register(tool):
             msg = await execute_in_thread(
                 lc.gmail_service.users()
                 .messages()
-                .get(userId=_USER, id=message_id, format=_api_format(include_body))
+                .get(userId=_USER, id=message_id, **_get_format_kwargs(include_body))
                 .execute,
                 lc.gmail_service,
             )
         except Exception as e:
             return {"error": str(e)}
 
-        hint = "The message body is large. "
+        # No body is fetched with include_body=False, so only headers can be large.
+        hint = "The message body is large. " if include_body else "The message headers are large. "
         pending = [_start_shaping(msg, include_body=include_body)]
         if not local_path:
             enforce_response_size_floor(
@@ -831,7 +841,7 @@ def register(tool):
             thread = await execute_in_thread(
                 lc.gmail_service.users()
                 .threads()
-                .get(userId=_USER, id=thread_id, format=_api_format(include_body))
+                .get(userId=_USER, id=thread_id, **_get_format_kwargs(include_body))
                 .execute,
                 lc.gmail_service,
             )
