@@ -887,6 +887,26 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 
 ---
 
+### TC-D271: Permanent delete without permanent-delete permission — clear error, file kept (issue #876) ⚠️ destructive
+
+**Requires:** an identity with the **Content manager** role (not Manager) on the `mcp-gee-sweet-shared` Shared Drive. The QA service account is added at exactly that role (`setup.md` Step 1), so run this on a service-account server (`mcp-gee-sweet-sa`, or the lane's own server relaunched with `AUTH_METHOD=service_account`). An OAuth identity that manages the Shared Drive gets `canDelete: true` and can't reproduce this.
+
+**Setup:** `upload_file(name="QA-876-Delete-Denied.txt", content="x", folder_id={FOLDER_ID})` as the Content-manager identity. Note the returned file ID.
+
+**Steps**
+1. `delete_file(file_id=<id>, permanent=True)`
+2. `get_file_metadata(file_id=<id>)`
+3. `delete_file(file_id=<id>, permanent=False)`
+
+**Checks**
+- Step 1 fails with a `ValueError` saying the identity lacks permanent-delete permission and suggesting `permanent=False`. It is **not** Drive's `HttpError 404 "File not found"`.
+- Step 2 returns the file with `trashed: false`: nothing was deleted.
+- Step 3 returns `{"fileId": <id>, "action": "trashed"}`.
+
+**Cleanup:** step 3 leaves the file in the Shared Drive's trash. Purge it with `delete_file(file_id=<id>, permanent=True)` from an identity with the Manager role (e.g. the lane's OAuth server), or leave it for a later `empty_trash(drive_id={SHARED_DRIVE_ID})` run.
+
+---
+
 ## `restore_file`
 
 ### TC-D269: Restore a trashed file ⚠️ destructive

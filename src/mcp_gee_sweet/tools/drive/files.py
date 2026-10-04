@@ -1260,6 +1260,9 @@ def register(tool):
             file_id: The ID of the file or folder to remove.
             permanent: If False (default), moves to trash (recoverable).
                        If True, permanently deletes — this cannot be undone.
+                       Raises ValueError, without deleting anything, if the
+                       caller can't permanently delete the file (e.g. a
+                       Content manager on a Shared Drive, who can only trash).
 
         Returns:
             Confirmation with fileId and action taken ('trashed' or 'deleted').
@@ -1267,13 +1270,32 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        # Fetch parents before deletion so we can invalidate the cache
+        # Fetch parents before deletion so we can invalidate the cache, plus
+        # capabilities: on a Shared Drive a Content manager can trash but not
+        # permanently delete, and Drive reports that missing permission as a
+        # misleading 404 "File not found" (#876).
         existing = await execute_in_thread(
             drive_service.files()
-            .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+            .get(
+                fileId=file_id,
+                fields="parents,capabilities(canDelete,canTrash)",
+                supportsAllDrives=True,
+            )
             .execute,
             drive_service,
         )
+        capabilities = existing.get("capabilities", {})
+        if permanent and capabilities.get("canDelete") is False:
+            hint = (
+                " Use permanent=False to move it to the trash instead."
+                if capabilities.get("canTrash")
+                else ""
+            )
+            raise ValueError(
+                f"Cannot permanently delete file {file_id}: the authenticated identity "
+                "lacks permanent-delete permission on it (on a Shared Drive, only the "
+                f"Manager role can permanently delete).{hint}"
+            )
         for parent in existing.get("parents", []):
             lc.drive_folder_cache.mark_dirty(parent)
 

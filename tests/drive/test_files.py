@@ -255,6 +255,68 @@ class TestFileMutations:
         await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
+    async def test_delete_file_requests_capabilities_in_parents_lookup(self):
+        """#876: the capability check rides on the existing get, no extra request."""
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {"parents": ["par1"]}
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
+        await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        mock.files.return_value.get.assert_called_once()
+        fields = mock.files.return_value.get.call_args.kwargs["fields"]
+        assert "capabilities(canDelete,canTrash)" in fields
+
+    async def test_delete_file_permanent_without_can_delete_raises_before_delete(self):
+        """#876: Content manager on a Shared Drive gets a clear error, not Drive's 404."""
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {
+            "parents": ["par1"],
+            "capabilities": {"canDelete": False, "canTrash": True},
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        with pytest.raises(ValueError, match="permanent=False"):
+            await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        mock.files.return_value.delete.assert_not_called()
+        folder_cache.mark_dirty.assert_not_called()
+
+    async def test_delete_file_permanent_without_delete_or_trash_omits_trash_hint(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {
+            "parents": ["par1"],
+            "capabilities": {"canDelete": False, "canTrash": False},
+        }
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
+        with pytest.raises(ValueError) as exc_info:
+            await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        assert "permanent=False" not in str(exc_info.value)
+        mock.files.return_value.delete.assert_not_called()
+
+    async def test_delete_file_permanent_with_can_delete_calls_delete(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {
+            "parents": ["par1"],
+            "capabilities": {"canDelete": True, "canTrash": True},
+        }
+        mock.files.return_value.delete.return_value.execute.return_value = None
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
+        result = await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        mock.files.return_value.delete.assert_called_once_with(
+            fileId="fid1", supportsAllDrives=True
+        )
+        assert result == {"fileId": "fid1", "action": "deleted"}
+
+    async def test_delete_file_trash_ignores_can_delete_false(self):
+        """Trashing only needs canTrash; a missing canDelete must not block it."""
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {
+            "parents": ["par1"],
+            "capabilities": {"canDelete": False, "canTrash": True},
+        }
+        mock.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
+        result = await _drive_tools["delete_file"](file_id="fid1", permanent=False, ctx=ctx)
+        assert result == {"fileId": "fid1", "action": "trashed"}
+
     async def test_restore_file_marks_parent_dirty(self):
         mock = MagicMock()
         mock.files.return_value.update.return_value.execute.return_value = {
