@@ -1798,6 +1798,7 @@ download {DOC_ID} with no export_format: ValueError "export_format is required f
 - Parent directory created if it didn't exist</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt": written to exactly that path (not a subdir), content "Hello from QA" intact, 13 bytes. Parent dir already existed.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — re-run after #855's destination preflight, via an isolated service-account sandbox. No PNG fixture — used a 25-byte <code>beta.bin</code> → <code>local_path=".../newparent/deeper/exact-name.bin"</code> (neither <code>newparent/</code> nor <code>deeper/</code> existing): written to exactly that path, content intact, both parent levels created. A second call to an existing regular file (<code>.../existing.bin</code>, content <code>old</code>) replaced it with the downloaded 15 bytes, as the preflight's docstring allows.</p>
 <hr />
 <h3 id="tc-d254-download_file-a-non-existent-trailing-slash-local_path-is-created-as-a-directory-not-written-as-a-file-issue-690-local-filesystem">TC-D254: <code>download_file</code> — a non-existent trailing-slash <code>local_path</code> is created as a directory, not written as a file (issue #690) ⚠️ local-filesystem<a class="headerlink" href="#tc-d254-download_file-a-non-existent-trailing-slash-local_path-is-created-as-a-directory-not-written-as-a-file-issue-690-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>download_file(file_id, local_path="/some/new/dir/")</code> where <code>/some/new/dir/</code> didn't exist wrote a plain <em>file</em> literally named <code>dir</code> (Python's <code>Path()</code> strips the trailing separator before the <code>.is_dir()</code> check), and every later download to the same <code>local_path</code> silently clobbered it. Fixed by reading the directory intent off the raw <code>local_path</code> string before <code>Path()</code> strips it: a trailing separator now means "directory", created <code>mkdir -p</code>-style if absent, with the Drive file saved inside using its own name. A non-directory already sitting at that path raises a <code>ValueError</code> instead of being written past.</p>
@@ -1813,7 +1814,7 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 <p><strong>Checks</strong>
 - Step 1: <code>/tmp/qa-d254/new/sub/</code> exists as a <strong>directory</strong>; the file is at <code>/tmp/qa-d254/new/sub/&lt;drive_name&gt;</code> with the real content; the returned <code>local_path</code> is that full file path. There is <strong>no</strong> plain file at <code>/tmp/qa-d254/new/sub</code>.
 - Step 2: both downloads are present as separate files inside <code>/tmp/qa-d254/new/sub/</code> (named after each Drive file) — the second did not overwrite the first, and <code>/tmp/qa-d254/new/sub</code> is still a directory, not a file.
-- Step 3: the call returns/raises a <code>ValueError</code> mentioning a non-directory already exists at that path; <code>/tmp/qa-d254/clash</code> still contains <code>x</code>, untouched.</p>
+- Step 3: the call raises a <code>ValueError</code> <code>local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'</code> (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); <code>/tmp/qa-d254/clash</code> still contains <code>x</code>, untouched.</p>
 <p><strong>Teardown</strong>
 <code>rm -rf /tmp/qa-d254</code>.</p>
 <p><strong>Result (2026-09-09) ✅ PASS</strong> — verified live via <code>mcp-gee-sweet-kit</code>. Fixtures: two throwaway binary files (<code>alpha.bin</code> 15 B, <code>beta.bin</code> 25 B) uploaded to a scratch subfolder of <code>{FOLDER_ID}</code> (<code>qa-d254-kit</code>, deleted after); local target under a job-scoped dir.
@@ -1821,6 +1822,71 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 - <strong>Step 2</strong> (download <code>beta</code> to the same trailing-slash <code>local_path</code>): <code>.../new/sub/</code> holds <code>alpha.bin</code> (15 B, unchanged) <strong>and</strong> <code>beta.bin</code> (25 B) as separate files — no clobber; <code>.../new/sub</code> still a directory.
 - <strong>Step 3</strong> (<code>printf x &gt; .../clash</code>, then <code>download_file(alpha, local_path=".../clash/")</code>): raised <code>ValueError</code> <code>"local_path '…/clash/' ends in a path separator (implying a directory) but a non-directory already exists at '…/clash'"</code>; <code>.../clash</code> still contains <code>x</code>, untouched.</p>
 <p>Unit tests: <code>tests/drive/test_transfer.py -k TestDownloadFile</code> — 10 passed (incl. the 3 new <code>test_trailing_slash_*</code> cases). <code>/code-review high origin/develop...HEAD</code> surfaced 3 non-blocking cleanups (fail-fast ordering of the clash <code>ValueError</code> vs. the <code>files().get()</code> call; a dead <code>os.altsep</code> clause in the <code>wants_dir</code> test; a raw <code>NotADirectoryError</code> when an <em>intermediate</em> parent is a regular file) — none blocking, filed as follow-up #724.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — regression re-run after #827 and #855, via an isolated service-account sandbox on a Shared Drive. Fixtures: <code>alpha.bin</code> (15 B) and <code>beta.bin</code> (25 B) uploaded to the sandbox drive root, removed at teardown.
+- <strong>Step 1:</strong> <code>.../new/sub/</code> created as a directory (both levels); returned <code>local_path</code> <code>/tmp/qa-d254/new/sub/alpha.bin</code>, 15 B, content intact.
+- <strong>Step 2:</strong> <code>beta.bin</code> (25 B) written next to <code>alpha.bin</code>, which was unchanged; <code>.../new/sub</code> still a directory.
+- <strong>Step 3:</strong> raised <code>ValueError</code> <code>local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'</code>; <code>clash</code> still contains <code>x</code>.</p>
+<hr />
+<h3 id="tc-d274-download_file-trailing-slash-local_path-over-an-existing-regular-file-fails-before-any-drive-request-827-855-local-filesystem">TC-D274: <code>download_file</code> — trailing-slash <code>local_path</code> over an existing regular file fails before any Drive request (#827, #855) ⚠️ local-filesystem<a class="headerlink" href="#tc-d274-download_file-trailing-slash-local_path-over-an-existing-regular-file-fails-before-any-drive-request-827-855-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #827 moved the trailing-slash clash check ahead of the Drive metadata call, and #855 folded it into a single preflight (<code>_validate_local_destination</code>). A bad destination should now fail without spending a Drive request. A file ID that doesn't exist is the live stand-in for "no Drive request": if the call reaches Drive it gets a 404 <code>HttpError</code>, and if the preflight rejects it first the path error comes back.</p>
+<p><strong>Setup:</strong> <code>rm -rf /tmp/qa-d274 &amp;&amp; mkdir -p /tmp/qa-d274 &amp;&amp; printf x &gt; /tmp/qa-d274/clash</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<ol>
+<li>Control: <code>download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d274/ok/")</code></li>
+<li><code>download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d274/clash/")</code></li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1 raises the Drive 404 <code>HttpError</code> ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. <code>/tmp/qa-d274/ok/</code> is <strong>not</strong> created, because mkdir runs after the metadata call.
+- Step 2 raises <code>ValueError</code> <code>local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'</code>, with <strong>no</strong> 404. <code>/tmp/qa-d274/clash</code> still contains <code>x</code>.</p>
+<p><strong>Teardown</strong>
+<code>rm -rf /tmp/qa-d274</code>.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — via an isolated service-account sandbox (PR #855), with a job-scoped local directory standing in for <code>/tmp/qa-d274</code>. Step 1: <code>HttpError 404 … "File not found: pr855-bogus-file-id."</code>, and the <code>control/</code> directory was not created. Step 2: <code>ValueError</code> <code>local_path '…/clash/' has a non-directory path component at '…/clash'</code>, no 404, and <code>clash</code> still contained <code>x</code>.</p>
+<hr />
+<h3 id="tc-d275-download_file-trailing-slash-local_path-whose-intermediate-parent-is-a-regular-file-raises-valueerror-not-notadirectoryerror-827-855-local-filesystem">TC-D275: <code>download_file</code> — trailing-slash <code>local_path</code> whose intermediate parent is a regular file raises <code>ValueError</code>, not <code>NotADirectoryError</code> (#827, #855) ⚠️ local-filesystem<a class="headerlink" href="#tc-d275-download_file-trailing-slash-local_path-whose-intermediate-parent-is-a-regular-file-raises-valueerror-not-notadirectoryerror-827-855-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Before #827, <code>.../clash/sub/</code> with <code>clash</code> a regular file leaked a raw <code>NotADirectoryError</code> from <code>mkdir</code>. Uses the same bogus-ID approach as TC-D274.</p>
+<p><strong>Setup:</strong> <code>rm -rf /tmp/qa-d275 &amp;&amp; mkdir -p /tmp/qa-d275 &amp;&amp; printf x &gt; /tmp/qa-d275/clash</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d275/clash/sub/")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Raises <code>ValueError</code> <code>local_path '/tmp/qa-d275/clash/sub/' has a non-directory path component at '/tmp/qa-d275/clash'</code>. The message names the blocking file <code>clash</code>, not <code>sub</code>.
+- No <code>NotADirectoryError</code> and no Drive 404.
+- <code>/tmp/qa-d275/clash</code> still contains <code>x</code>.</p>
+<p><strong>Teardown</strong>
+<code>rm -rf /tmp/qa-d275</code>.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — via an isolated service-account sandbox (PR #855). Raised <code>ValueError</code> <code>local_path '…/clash/sub/' has a non-directory path component at '…/clash'</code>, with no <code>NotADirectoryError</code> and no 404. <code>clash</code> still contained <code>x</code>.</p>
+<hr />
+<h3 id="tc-d276-download_file-plain-file-local_path-whose-intermediate-parent-is-a-regular-file-fails-before-any-drive-request-836-855-local-filesystem">TC-D276: <code>download_file</code> — plain file <code>local_path</code> whose intermediate parent is a regular file fails before any Drive request (#836, #855) ⚠️ local-filesystem<a class="headerlink" href="#tc-d276-download_file-plain-file-local_path-whose-intermediate-parent-is-a-regular-file-fails-before-any-drive-request-836-855-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #836: without a trailing slash, the destination's <em>parent</em> chain gets checked. Before #855, <code>.../clash/sub/out.bin</code> spent a Drive metadata request and then leaked <code>NotADirectoryError</code> from the parent <code>mkdir</code>.</p>
+<p><strong>Setup:</strong> <code>rm -rf /tmp/qa-d276 &amp;&amp; mkdir -p /tmp/qa-d276 &amp;&amp; printf x &gt; /tmp/qa-d276/clash</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d276/clash/sub/out.bin")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Raises <code>ValueError</code> <code>local_path '/tmp/qa-d276/clash/sub/out.bin' has a non-directory path component at '/tmp/qa-d276/clash'</code>.
+- No Drive 404 and no <code>NotADirectoryError</code>.
+- <code>/tmp/qa-d276/clash</code> still contains <code>x</code>.</p>
+<p><strong>Teardown</strong>
+<code>rm -rf /tmp/qa-d276</code>.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — via an isolated service-account sandbox (PR #855). Raised <code>ValueError</code> <code>local_path '…/clash/sub/out.bin' has a non-directory path component at '…/clash'</code>, with no 404. <code>clash</code> still contained <code>x</code>.</p>
+<hr />
+<h3 id="tc-d277-download_file-trailing-slash-local_path-that-is-a-dangling-symlink-names-the-symlink-and-fails-before-any-drive-request-836-855-local-filesystem">TC-D277: <code>download_file</code> — trailing-slash <code>local_path</code> that is a dangling symlink names the symlink and fails before any Drive request (#836, #855) ⚠️ local-filesystem<a class="headerlink" href="#tc-d277-download_file-trailing-slash-local_path-that-is-a-dangling-symlink-names-the-symlink-and-fails-before-any-drive-request-836-855-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>Path.exists()</code> is false for a dangling symlink, but <code>mkdir</code> still trips over it. #855's preflight also checks <code>is_symlink()</code> so this case gets caught.</p>
+<p><strong>Setup:</strong> <code>rm -rf /tmp/qa-d277 &amp;&amp; mkdir -p /tmp/qa-d277 &amp;&amp; ln -s /tmp/qa-d277/missing-target /tmp/qa-d277/dangling</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d277/dangling/")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Raises <code>ValueError</code> <code>local_path '/tmp/qa-d277/dangling/' has a non-directory path component at '/tmp/qa-d277/dangling'</code>, with no Drive 404.
+- The symlink is unchanged, and <code>/tmp/qa-d277/missing-target</code> was <strong>not</strong> created.</p>
+<p><strong>Teardown</strong>
+<code>rm -rf /tmp/qa-d277</code>.</p>
+<p><strong>Result (2026-10-03) ✅ PASS</strong> — via an isolated service-account sandbox (PR #855). Raised <code>ValueError</code> <code>local_path '…/dangling/' has a non-directory path component at '…/dangling'</code>, with no 404. The symlink was intact and <code>missing-target</code> did not exist afterwards.</p>
 <hr />
 <h2 id="download_folder"><code>download_folder</code><a class="headerlink" href="#download_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d107-download-folder-with-mixed-content-local-filesystem">TC-D107: Download folder with mixed content ⚠️ local-filesystem<a class="headerlink" href="#tc-d107-download-folder-with-mixed-content-local-filesystem" title="Permanent link">&para;</a></h3>
