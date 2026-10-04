@@ -3816,3 +3816,35 @@ Tool call: `create_doc(title="TC-DOC201", content="![Big](/tmp/qa-oversized.png)
 **Cleanup:** trash the doc and `images[0].fileId`; `rm /tmp/qa-oversized.png`
 
 **Result (2026-09-28) ✅ PASS — Kit, PR #842 round 2 (`07e5139`).** `images[0]` had `fileId`, `downscaled: true`, `shared: false`. Playwright: the red image renders. Extra check for the `drive:` half of F3: `create_doc(content="![Big](drive:<oversized upload>)", auto_downscale=True)` also returned `downscaled: true`, with a new resized `fileId`. Docs, the resized copies, and the oversized upload were trashed.
+
+---
+
+### TC-DOC202: A failed doc edit still revokes the image's temporary share (#789) ⚠️ destructive
+
+**Background:** `_apply_doc_content` shares each local-path/`drive:` image `anyone:reader` before the doc edit, and used to revoke those shares only after the edit succeeded. Any failure after the shares were made (the content `batchUpdate`, a retry, `fill_tables`, anchor resolution) left the image publicly readable with nothing reporting it. The revoke now runs whether or not the edit succeeds. The case forces a non-image failure by locking the target doc (`contentRestrictions.readOnly`), which makes the Docs API reject the `batchUpdate` with a 403. The doc is left empty so `write_doc_content` has nothing to clear and reaches the image step before the 403.
+
+**Setup:**
+1. `create_doc(title="TC-DOC202", folder_id={FOLDER_ID})` with no content. Record `docId` as `{LOCKED_DOC_ID}`.
+2. `upload_local_file(local_path="<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png", folder_id={FOLDER_ID})`. Record its ID as `{PIXEL_FILE_ID}`.
+3. No tool sets a content restriction, so lock the doc with a scratch script from the checkout under test, using the same OAuth token as the server under test:
+
+```bash
+uv run python3 -c "
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+d = build('drive', 'v3', credentials=_oauth_creds(), cache_discovery=False)
+d.files().update(fileId='{LOCKED_DOC_ID}', body={'contentRestrictions': [{'readOnly': True, 'reason': 'TC-DOC202'}]}, supportsAllDrives=True).execute()
+"
+```
+
+**Prompt**
+> "Replace the content of doc {LOCKED_DOC_ID} with this markdown: `Text\n\n![Pixel](drive:{PIXEL_FILE_ID})`"
+
+Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](drive:{PIXEL_FILE_ID})", content_format="markdown")`
+
+**Checks**
+- The call fails with a 403 "The caller does not have permission" error from the Docs `batchUpdate` (if it succeeds instead, the lock didn't take; the case proves nothing, so re-check setup step 3)
+- `list_permissions(file_id={PIXEL_FILE_ID})` shows no `anyone` permission. Before the fix, an `anyone`/`reader` grant was left behind here (reproduced live by the Dev with a scratch script on 2026-10-03)
+- If the server under test writes a log file (`LOG_FILE`), it has a WARNING line naming `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`, with `still link-shared: none`
+
+**Cleanup:** unlock the doc with the setup script, using `body={'contentRestrictions': [{'readOnly': False}]}`. Then trash `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`.
