@@ -3,8 +3,11 @@
 import io
 import json
 import os
+import threading
+from functools import partial
 from unittest.mock import MagicMock, patch
 
+import anyio
 import pytest
 from googleapiclient.errors import HttpError
 from PIL import Image as PILImage
@@ -1608,161 +1611,245 @@ class TestCreateDocImages:
         }
         return drive_svc, docs_svc
 
+    def _assert_file1_revoked(self, drive_svc):
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="file1", permissionId="perm1", supportsAllDrives=True
+        )
+
     async def test_share_revoked_when_content_batch_update_raises(self):
         # #789: a non-image batchUpdate failure used to skip the revoke, leaving
-        # the image anyone:reader with nothing reporting it.
+        # the image anyone:reader with nothing reporting it. The failure now
+        # comes back as an error result carrying the doc ID and image outcomes.
         drive_svc, docs_svc = self._shared_drive_image_services()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
             _other_403_error()
         )
         ctx = self._ctx(drive_svc, docs_svc)
-        with pytest.raises(HttpError):
-            await _docs_tools["create_doc"](
-                title="Doc",
-                content="Text\n\n![Alt](drive:file1)",
-                content_format="markdown",
-                ctx=ctx,
-            )
-        drive_svc.permissions.return_value.delete.assert_called_once_with(
-            fileId="file1", permissionId="perm1", supportsAllDrives=True
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="Text\n\n![Alt](drive:file1)",
+            content_format="markdown",
+            ctx=ctx,
         )
+        assert result["error"].startswith("doc edit failed: ")
+        assert result["docId"] == "doc123"
+        assert result["images"] == [{"src": "drive:file1", "fileId": "file1", "shared": False}]
+        self._assert_file1_revoked(drive_svc)
 
     async def test_share_revoked_when_retry_after_image_drop_raises(self):
         # The first attempt names a bad image (a different, https one) and is
         # retried without it; the retry then fails for a non-image reason.
         drive_svc, docs_svc = self._shared_drive_image_services()
         ctx = self._ctx(drive_svc, docs_svc)
-        content = "![Bad](https://example.com/bad.png) ![Alt](drive:file1)"
-        nodes = html_to_ast(_md_to_html(content))
-        reqs, _ = ast_to_requests(
-            nodes, start_index=1, image_uris={id(i): i.src for i in extract_images(nodes)}
+        bad_uri = "https://example.com/bad.png"
+        content = f"![Bad]({bad_uri}) ![Alt](drive:file1)"
+        fail_bad = self._fail_first_matching({bad_uri})
+        calls = []
+
+        def side_effect(documentId, body):
+            calls.append(body["requests"])
+            if len(calls) == 1:
+                return fail_bad(documentId, body)
+            m = MagicMock()
+            m.execute.side_effect = _other_403_error()
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
         )
-        bad_index = next(
-            i
-            for i, r in enumerate(reqs)
-            if r.get("insertInlineImage", {}).get("uri") == "https://example.com/bad.png"
-        )
-        image_error = HttpError(
-            resp=MagicMock(status=400),
-            content=json.dumps(
-                {
-                    "error": {
-                        "message": f"Invalid requests[{bad_index}].insertInlineImage: "
-                        "There was a problem retrieving the image."
-                    }
-                }
-            ).encode(),
-        )
-        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = [
-            image_error,
-            _other_403_error(),
-        ]
-        with pytest.raises(HttpError):
-            await _docs_tools["create_doc"](
-                title="Doc", content=content, content_format="markdown", ctx=ctx
-            )
-        assert docs_svc.documents.return_value.batchUpdate.return_value.execute.call_count == 2
-        drive_svc.permissions.return_value.delete.assert_called_once_with(
-            fileId="file1", permissionId="perm1", supportsAllDrives=True
-        )
+        assert len(calls) == 2
+        assert result["error"].startswith("doc edit failed: ")
+        outcomes = {o["src"]: o for o in result["images"]}
+        # The image dropped before the failure keeps its own error (#789 F4).
+        assert "There was a problem retrieving the image" in outcomes[bad_uri]["error"]
+        assert outcomes["drive:file1"] == {"src": "drive:file1", "fileId": "file1", "shared": False}
+        self._assert_file1_revoked(drive_svc)
 
     async def test_share_revoked_when_fill_tables_raises(self):
         drive_svc, docs_svc = self._shared_drive_image_services()
         ctx = self._ctx(drive_svc, docs_svc)
-        with (
-            patch.object(content_module, "fill_tables", side_effect=RuntimeError("fill boom")),
-            pytest.raises(RuntimeError, match="fill boom"),
-        ):
-            await _docs_tools["create_doc"](
+        with patch.object(content_module, "fill_tables", side_effect=RuntimeError("fill boom")):
+            result = await _docs_tools["create_doc"](
                 title="Doc",
                 content="![Alt](drive:file1)\n\n| a | b |\n|---|---|\n| 1 | 2 |",
                 content_format="markdown",
                 ctx=ctx,
             )
-        drive_svc.permissions.return_value.delete.assert_called_once_with(
-            fileId="file1", permissionId="perm1", supportsAllDrives=True
-        )
+        assert result["error"] == "doc edit failed: fill boom"
+        self._assert_file1_revoked(drive_svc)
 
     async def test_share_revoked_when_anchor_resolution_raises(self):
         drive_svc, docs_svc = self._shared_drive_image_services()
         ctx = self._ctx(drive_svc, docs_svc)
-        with (
-            patch.object(
-                content_module,
-                "_resolve_heading_anchors",
-                side_effect=RuntimeError("anchor boom"),
-            ),
-            pytest.raises(RuntimeError, match="anchor boom"),
+        with patch.object(
+            content_module, "_resolve_heading_anchors", side_effect=RuntimeError("anchor boom")
         ):
-            await _docs_tools["create_doc"](
+            result = await _docs_tools["create_doc"](
                 title="Doc",
                 content="# Intro\n\n![Alt](drive:file1)\n\n[back](#intro)",
                 content_format="markdown",
                 ctx=ctx,
             )
-        drive_svc.permissions.return_value.delete.assert_called_once_with(
-            fileId="file1", permissionId="perm1", supportsAllDrives=True
-        )
+        assert result["error"] == "doc edit failed: anchor boom"
+        self._assert_file1_revoked(drive_svc)
 
-    async def test_failed_edit_logs_touched_file_ids(self):
-        # The exception means no outcome list reaches the caller, so the file IDs
-        # go to a warning instead.
-        drive_svc, docs_svc = self._shared_drive_image_services()
-        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = RuntimeError(
-            "edit boom"
-        )
-        ctx = self._ctx(drive_svc, docs_svc)
-        with (
-            patch.object(content_module, "logger") as mock_logger,
-            pytest.raises(RuntimeError, match="edit boom"),
-        ):
-            await _docs_tools["create_doc"](
-                title="Doc",
-                content="![Alt](drive:file1)",
-                content_format="markdown",
-                ctx=ctx,
-            )
-        args = mock_logger.warning.call_args.args
-        assert args[1:] == ("doc123", "file1", "none")
-
-    async def test_failed_edit_with_revoke_sharing_false_keeps_share_and_logs_it(self):
-        drive_svc, docs_svc = self._shared_drive_image_services()
-        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = RuntimeError(
-            "edit boom"
-        )
-        ctx = self._ctx(drive_svc, docs_svc)
-        with (
-            patch.object(content_module, "logger") as mock_logger,
-            pytest.raises(RuntimeError, match="edit boom"),
-        ):
-            await _docs_tools["create_doc"](
-                title="Doc",
-                content="![Alt](drive:file1)",
-                content_format="markdown",
-                revoke_sharing=False,
-                ctx=ctx,
-            )
-        drive_svc.permissions.return_value.delete.assert_not_called()
-        assert mock_logger.warning.call_args.args[1:] == ("doc123", "file1", "file1")
-
-    async def test_failed_edit_without_shared_images_logs_nothing(self):
+    async def test_failed_edit_without_images_returns_error_result(self):
         drive_svc, docs_svc = self._make_services()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = RuntimeError(
             "edit boom"
         )
-        ctx = self._ctx(drive_svc, docs_svc)
-        with (
-            patch.object(content_module, "logger") as mock_logger,
-            pytest.raises(RuntimeError, match="edit boom"),
-        ):
-            await _docs_tools["create_doc"](
-                title="Doc",
-                content="![Alt](https://example.com/a.png)",
-                content_format="markdown",
-                ctx=ctx,
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        result = await _docs_tools["create_doc"](title="Doc", content="<p>Text</p>", ctx=ctx)
+        assert result == {"error": "doc edit failed: edit boom", "docId": "doc123"}
+        # The doc was created, so the folder listing changed either way.
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
+        )
+
+    async def test_write_doc_content_failed_edit_returns_error_result(self):
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": 2}]}
+        }
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = RuntimeError(
+            "edit boom"
+        )
+        ctx = _make_ctx(drive_service=drive_svc, docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc9", content="![Alt](drive:file1)", content_format="markdown", ctx=ctx
+        )
+        assert result == {
+            "error": "doc edit failed: edit boom",
+            "docId": "doc9",
+            "images": [{"src": "drive:file1", "fileId": "file1", "shared": False}],
+        }
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc9")
+        self._assert_file1_revoked(drive_svc)
+
+    async def _create_doc_with_failing_edit(self, drive_svc, docs_svc, content, **kwargs):
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = RuntimeError(
+            "edit boom"
+        )
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        with patch.object(content_module, "logger") as mock_logger:
+            result = await _docs_tools["create_doc"](
+                title="Doc", content=content, content_format="markdown", ctx=ctx, **kwargs
             )
+        assert result["error"] == "doc edit failed: edit boom"
+        return mock_logger
+
+    async def test_failed_edit_logs_pre_existing_drive_file_apart_from_created(self):
+        # PR #877 QA round 1 F2: a drive: source is the caller's own file, never an
+        # orphan this call created.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        mock_logger = await self._create_doc_with_failing_edit(
+            drive_svc, docs_svc, "![Alt](drive:file1)"
+        )
+        # (doc, created by this call, pre-existing, still link-shared by this call)
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
+
+    async def test_failed_edit_logs_local_upload_as_created(self, tmp_path):
+        img = tmp_path / "pixel.png"
+        img.write_bytes(_make_png_bytes(2, 2))
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = [
+            {"id": "doc123", "name": "Test", "parents": ["folder1"], "webViewLink": "x"},
+            {"id": "up1", "webContentLink": "https://drive.google.com/uc?id=up1"},
+        ]
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        mock_logger = await self._create_doc_with_failing_edit(
+            drive_svc, docs_svc, f"![Pixel]({img})"
+        )
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "up1", "none", "none")
+
+    async def test_failed_edit_already_shared_file_not_logged_as_still_shared(self):
+        # PR #877 QA round 1 F2: a link that predates the call isn't this call's leak.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "anyoneWithLink"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+            "permissionIds": ["owner1", "anyoneWithLink"],
+        }
+        mock_logger = await self._create_doc_with_failing_edit(
+            drive_svc, docs_svc, "![Alt](drive:file1)"
+        )
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
+        drive_svc.permissions.return_value.delete.assert_not_called()
+
+    async def test_failed_edit_with_revoke_sharing_false_keeps_share_and_logs_it(self):
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        mock_logger = await self._create_doc_with_failing_edit(
+            drive_svc, docs_svc, "![Alt](drive:file1)", revoke_sharing=False
+        )
+        drive_svc.permissions.return_value.delete.assert_not_called()
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "file1")
+
+    async def test_failed_edit_without_shared_images_logs_nothing(self):
+        drive_svc, docs_svc = self._make_services()
+        mock_logger = await self._create_doc_with_failing_edit(
+            drive_svc, docs_svc, "![Alt](https://example.com/a.png)"
+        )
         mock_logger.warning.assert_not_called()
         drive_svc.permissions.assert_not_called()
+
+    @staticmethod
+    def _blocking(started: threading.Event, release: threading.Event, value):
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            return value
+
+        return execute
+
+    async def _cancel_create_doc_once_started(self, ctx, started, release):
+        """Run create_doc in an anyio task group (mcp cancels a request through an
+        anyio cancel scope), cancel it once `started` fires, then let the blocked
+        worker thread finish."""
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _docs_tools["create_doc"],
+                    title="Doc",
+                    content="![Alt](drive:file1)",
+                    content_format="markdown",
+                    ctx=ctx,
+                )
+            )
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+            release.set()
+
+    async def test_share_revoked_when_cancelled_mid_edit(self):
+        # PR #877 QA round 1 F1: the revoke is shielded, so a cancellation doesn't
+        # also cancel the revoke it's waiting on, and the warning still fires.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        started, release = threading.Event(), threading.Event()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
+            self._blocking(started, release, {})
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        with patch.object(content_module, "logger") as mock_logger:
+            await self._cancel_create_doc_once_started(ctx, started, release)
+        self._assert_file1_revoked(drive_svc)
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
+
+    async def test_share_revoked_when_cancelled_mid_share(self):
+        # PR #877 QA round 1 F1: cancelled while the share is being granted, the
+        # resolution still finishes (shielded) so the new permission is recorded
+        # and revoked instead of being lost with the cancelled gather.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = self._blocking(
+            started, release, {"id": "perm1"}
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        await self._cancel_create_doc_once_started(ctx, started, release)
+        self._assert_file1_revoked(drive_svc)
 
     async def test_unresolvable_image_reported_as_error_doc_still_created(self, tmp_path):
         drive_svc, docs_svc = self._make_services()
@@ -2036,10 +2123,10 @@ class TestCreateDocImages:
         docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
         ctx = self._ctx(drive_svc, docs_svc)
 
-        with pytest.raises(HttpError):
-            await _docs_tools["create_doc"](
-                title="Doc", content=content, content_format="markdown", ctx=ctx
-            )
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+        assert result["error"].startswith("doc edit failed: ")
         assert len(calls) == 2
         # The failed retry still carried the text: no call ever sent it alone.
         assert any("insertText" in r for r in calls[1])
@@ -2047,11 +2134,13 @@ class TestCreateDocImages:
     async def test_non_image_error_after_prefix_commit_propagates(self):
         # The documented K>=2 partial-write window: once the prefix is committed,
         # a non-image tail failure must still surface, not loop or be swallowed.
-        drive_svc, docs_svc = self._make_services()
+        # PR #877 QA round 1 F5: the shared drive: image's share is still revoked
+        # and the warning still fires on this path.
+        drive_svc, docs_svc = self._shared_drive_image_services()
         bad_uris = {"https://example.com/bad1.png", "https://example.com/bad2.png"}
         content = (
             "Before\n\n![Bad1](https://example.com/bad1.png)\n\n"
-            "![Good](https://example.com/good.png)\n\n![Bad2](https://example.com/bad2.png)"
+            "![Good](drive:file1)\n\n![Bad2](https://example.com/bad2.png)"
         )
         fail_bad = self._fail_first_matching(bad_uris)
         calls = []
@@ -2067,12 +2156,18 @@ class TestCreateDocImages:
         docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
         ctx = self._ctx(drive_svc, docs_svc)
 
-        with pytest.raises(HttpError):
-            await _docs_tools["create_doc"](
+        with patch.object(content_module, "logger") as mock_logger:
+            result = await _docs_tools["create_doc"](
                 title="Doc", content=content, content_format="markdown", ctx=ctx
             )
+        assert result["error"].startswith("doc edit failed: ")
         assert len(calls) == 4
         assert not any("insertInlineImage" in r for r in calls[2])
+        outcomes = {o["src"]: o for o in result["images"]}
+        assert all("doc edit failed" in outcomes[uri]["error"] for uri in bad_uris)
+        assert outcomes["drive:file1"] == {"src": "drive:file1", "fileId": "file1", "shared": False}
+        self._assert_file1_revoked(drive_svc)
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
 
     async def test_image_outside_insert_tail_falls_back_to_whole_list_retries(self):
         # #510 QA round 1: the tail boundary is inferred from request kinds. If

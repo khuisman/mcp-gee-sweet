@@ -3821,7 +3821,7 @@ Tool call: `create_doc(title="TC-DOC201", content="![Big](/tmp/qa-oversized.png)
 
 ### TC-DOC202: A failed doc edit still revokes the image's temporary share (#789) ⚠️ destructive
 
-**Background:** `_apply_doc_content` shares each local-path/`drive:` image `anyone:reader` before the doc edit, and used to revoke those shares only after the edit succeeded. Any failure after the shares were made (the content `batchUpdate`, a retry, `fill_tables`, anchor resolution) left the image publicly readable with nothing reporting it. The revoke now runs whether or not the edit succeeds. The case forces a non-image failure by locking the target doc (`contentRestrictions.readOnly`), which makes the Docs API reject the `batchUpdate` with a 403. The doc is left empty so `write_doc_content` has nothing to clear and reaches the image step before the 403.
+**Background:** `_apply_doc_content` shares each local-path/`drive:` image `anyone:reader` before the doc edit, and used to revoke those shares only after the edit succeeded. Any failure after the shares were made (the content `batchUpdate`, a retry, `fill_tables`, anchor resolution) left the image publicly readable with nothing reporting it, and the raise lost every image file ID. The revoke now runs whether the edit succeeds, fails, or is cancelled, and a failed edit returns `{"error", "docId", "images"}` instead of raising (PR #877 round 2). The case forces a non-image failure by locking the target doc (`contentRestrictions.readOnly`), which makes the Docs API reject the `batchUpdate` with a 403. The doc is left empty so `write_doc_content` has nothing to clear and reaches the image step before the 403.
 
 **Setup:**
 1. `create_doc(title="TC-DOC202", folder_id={FOLDER_ID})` with no content. Record `docId` as `{LOCKED_DOC_ID}`.
@@ -3843,9 +3843,9 @@ d.files().update(fileId='{LOCKED_DOC_ID}', body={'contentRestrictions': [{'readO
 Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](drive:{PIXEL_FILE_ID})", content_format="markdown")`
 
 **Checks**
-- The call fails with a 403 "The caller does not have permission" error from the Docs `batchUpdate` (if it succeeds instead, the lock didn't take; the case proves nothing, so re-check setup step 3)
+- The call returns (doesn't raise) `{"error": "doc edit failed: ...", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`, and the error text includes the Docs `batchUpdate`'s 403 "The caller does not have permission". If the call succeeds instead, the lock didn't take and the case proves nothing; re-check setup step 3
 - `list_permissions(file_id={PIXEL_FILE_ID})` shows no `anyone` permission. Before the fix, an `anyone`/`reader` grant was left behind here (reproduced live by the Dev with a scratch script on 2026-10-03)
-- If the server under test writes a log file (`LOG_FILE`), it has a WARNING line naming `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`, with `still link-shared: none`
+- If the server under test writes a log file (`LOG_FILE`), it has a WARNING line naming `{LOCKED_DOC_ID}`, with `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none` (a `drive:` source is the caller's own file, never listed as created)
 
 **Cleanup:** unlock the doc with the setup script, using `body={'contentRestrictions': [{'readOnly': False}]}`. Then trash `{LOCKED_DOC_ID}` and `{PIXEL_FILE_ID}`.
 
