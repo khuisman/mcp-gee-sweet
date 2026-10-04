@@ -73,7 +73,7 @@ Add `scripts/qa_gmail_fixtures.py` (new), modeled on the TC-GM23 setup snippet: 
 |---|---|---|---|---|
 | `plain` | Sent | Single `text/plain` from the sender mailbox; lands `INBOX`+`UNREAD` | `TEST_MESSAGE_ID` | GM01, 03, 19 |
 | `alt-unicode` | Sent | `body` + `body_html`, non-ASCII subject and body, astral emoji | `TEST_GMAIL_UNICODE_ID` | GM27 |
-| `attachments` | Sent + Inserted | Sent: body + small PDF + CSV. Inserted: a `multipart/related` inline PNG with `Content-ID` and **no filename** (`send_message` can't build `related`) | `TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID` | GM28 |
+| `attachments` | Sent + Inserted | Sent: body + small PDF + CSV. Inserted: a `multipart/related` inline PNG with `Content-ID` and **no filename** (`send_message` can't build `related`) | `TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID` | GM28, 46 |
 | `thread` | Sent (both sides) | Sender sends; the QA mailbox replies; the sender replies again. A real two-party, 3-message thread with Gmail-generated `Message-ID`/`References` | `TEST_THREAD_ID` | GM05, 07, 33, 43 |
 | `reply-to` | Inserted | Foreign `From: noreply@example.invalid`, `Reply-To` = `+tc-gm23` (`send_message` has no `Reply-To` param) | `TEST_GMAIL_REPLYTO_ID` | GM23 (replaces its inline setup) |
 | `forwarded` | Sent | Outer body, then a forwarded message as a real `message/rfc822` part named `forwarded.eml` | `TEST_GMAIL_FWD_ID` | GM29 |

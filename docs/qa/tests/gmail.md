@@ -345,6 +345,8 @@ Record the printed ID as `{UTF16_ID}`.
 - `headers.subject` starts `[mcp-qa:`, `headers.from` contains `{SENDER}`, `headers.message_id` is non-empty
 - No `body_plain`, `body_html`, `attachments`, `body_decode_errors`, `body_fetch_errors`, or `error` key
 
+**Result** (2026-10-04, PR #885 round 1 at `47937d8`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. `id`, `thread_id`, `snippet` (`mcp-gee-sweet attachments fixture: a PDF and a CSV.`), `label_ids`, `internal_date` and `size_estimate` = 7893 present. `headers.subject` = `[mcp-qa:attachments] PDF + CSV`, `headers.from` = `{SENDER}`, `headers.message_id` non-empty. No body, attachment, error-list or `error` keys. The PR still went back to the Dev for code-review findings this case doesn't exercise; see the PR #885 comment.
+
 ---
 
 ## `list_threads`
@@ -410,6 +412,8 @@ Record the printed ID as `{UTF16_ID}`.
 - Step 2: no `error`. `id` is `{TEST_GMAIL_BIG_THREAD_ID}`, and `messages` has 3 entries, each with `id`, `thread_id`, `snippet`, `label_ids`, `size_estimate`, and `headers` (`headers.subject` contains `[mcp-qa:over-cap-thread]`)
 - Step 2: no message has a `body_plain`, `body_html`, or `attachments` key, and the whole response is a few KB, not ~1.2 MB
 - Step 3: succeeds, with a `body_plain` that starts `mcp-gee-sweet over-cap-thread message`
+
+**Result** (2026-10-04, PR #885 round 1 at `47937d8`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Step 1: `get_thread: the response is 1275124 characters, over the 1000000-character safety cap`, with the hint naming `include_body=False` then `get_message` on individual IDs; no partial thread, and the next call worked. Step 2: no `error`, 3 messages, each with `id`, `thread_id`, `snippet`, `label_ids`, `size_estimate` (~412 KB each) and `headers` (subjects contain `[mcp-qa:over-cap-thread]`; `in_reply_to`/`references` chain correctly), no body or attachment keys; the response was about 3 KB. Step 3: run with `local_path` to keep ~425 KB out of the QA session's context (424,899 bytes written); `body_plain` starts `mcp-gee-sweet over-cap-thread message 1.`. The thread-level `snippet` is `null`, the same as the full format (`threads.get` returns none).
 
 ---
 
