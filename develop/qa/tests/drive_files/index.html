@@ -2032,6 +2032,23 @@ delete_file('QA-Folder-Renamed', permanent=False) → <code>{fileId, action:"tra
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. No cache mutation (parents fetch fails before any mutation).</p>
 <hr />
+<h3 id="tc-d280-permanent-delete-without-permanent-delete-permission-clear-error-file-kept-issue-876-destructive">TC-D280: Permanent delete without permanent-delete permission — clear error, file kept (issue #876) ⚠️ destructive<a class="headerlink" href="#tc-d280-permanent-delete-without-permanent-delete-permission-clear-error-file-kept-issue-876-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Requires:</strong> an identity with the <strong>Content manager</strong> role (not Manager) on the <code>mcp-gee-sweet-shared</code> Shared Drive. The QA service account is added at exactly that role (<code>setup.md</code> Step 1), so run this on a service-account server (<code>mcp-gee-sweet-sa</code>, or the lane's own server relaunched with <code>AUTH_METHOD=service_account</code>). An OAuth identity that manages the Shared Drive gets <code>canDelete: true</code> and can't reproduce this.</p>
+<p><strong>Setup:</strong> <code>upload_file(name="QA-876-Delete-Denied.txt", content="x", folder_id={FOLDER_ID})</code> as the Content-manager identity. Note the returned file ID.</p>
+<p><strong>Steps</strong>
+1. <code>delete_file(file_id=&lt;id&gt;, permanent=True)</code>
+2. <code>get_file_metadata(file_id=&lt;id&gt;)</code>
+3. <code>delete_file(file_id=&lt;id&gt;, permanent=False)</code></p>
+<p><strong>Checks</strong>
+- Step 1 fails with a <code>ValueError</code> saying the identity lacks permanent-delete permission, noting that on a Shared Drive this usually requires the Manager role, and suggesting <code>permanent=False</code>. It is <strong>not</strong> Drive's <code>HttpError 404 "File not found"</code>.
+- Step 2 returns the file with <code>trashed: false</code>: nothing was deleted.
+- Step 3 returns <code>{"fileId": &lt;id&gt;, "action": "trashed"}</code>.</p>
+<p><strong>Cleanup:</strong> step 3 leaves the file in the Shared Drive's trash. Purge it with <code>delete_file(file_id=&lt;id&gt;, permanent=True)</code> from an identity with the Manager role (e.g. the lane's OAuth server), or leave it for a later <code>empty_trash(drive_id={SHARED_DRIVE_ID})</code> run.</p>
+<p><strong>Result (2026-10-04) ✅ PASS</strong>
+Run as the QA service account (Content manager) from a fresh interpreter in the kit worktree driving PR #888's <code>delete_file</code> (kit's server is OAuth/Manager). Pre-check: <code>capabilities={canDelete: false, canTrash: true}</code>, file on the Shared Drive. Step 1 raised <code>ValueError</code> naming missing permanent-delete permission + <code>permanent=False</code> hint; no <code>files().delete</code> sent. Step 2 <code>trashed: false</code>. Baseline: a raw <code>files().delete</code> as the same SA still returns Drive's <code>404 "File not found"</code>, so the pre-flight check is what fixes it. Step 3 <code>{"action": "trashed"}</code>, then <code>trashed: true</code>. Cleanup: <code>delete_file(permanent=True)</code> via kit's OAuth (Manager) server returned <code>{"action": "deleted"}</code>, which also covers the <code>canDelete: true</code> path live.</p>
+<p><strong>Result (2026-10-04, round 2) ✅ PASS</strong>
+Re-run the same way against <code>255512b</code> (Shared Drive note scoped to <code>driveId</code>). Step 1's <code>ValueError</code> now reads "...lacks permanent-delete permission on it. On a Shared Drive this usually requires the Manager role. Use permanent=False to move it to the trash instead." Steps 2–3 and the raw-delete 404 baseline as in round 1. Cleanup via kit's reconnected OAuth server: <code>{"action": "deleted"}</code>. The My Drive (no <code>driveId</code>) wording isn't live-tested: it needs a file owned by someone else, where a wrong result would be a real permanent delete. Unit test <code>test_delete_file_permanent_without_can_delete_on_my_drive_omits_shared_drive_note</code> covers it.</p>
+<hr />
 <h2 id="restore_file"><code>restore_file</code><a class="headerlink" href="#restore_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d269-restore-a-trashed-file-destructive">TC-D269: Restore a trashed file ⚠️ destructive<a class="headerlink" href="#tc-d269-restore-a-trashed-file-destructive" title="Permanent link">&para;</a></h3>
 <p><em>Formerly TC-D202, which collided with <code>star_file</code>'s own TC-D202 above; renumbered per #590.</em></p>
