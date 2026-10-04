@@ -2748,6 +2748,54 @@ Delete <code>report.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/
 - Side probe, a local <code>x\y.txt</code> (bidirectional, real run): <code>failed</code> held "name contains a path separator; not synced", and nothing was uploaded.
 - Local suite: 2078 passed, 3 skipped.</p>
 <hr />
+<h3 id="tc-d279-downloads-write-to-a-temp-file-and-rename-it-into-place-a-leftover-temp-file-is-never-uploaded-issue-844-local-filesystem-destructive">TC-D279: downloads write to a temp file and rename it into place; a leftover temp file is never uploaded (issue #844) ⚠️ local-filesystem ⚠️ destructive<a class="headerlink" href="#tc-d279-downloads-write-to-a-temp-file-and-rename-it-into-place-a-leftover-temp-file-is-never-uploaded-issue-844-local-filesystem-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>sync_folder</code>, <code>download_file</code>, and <code>download_folder</code> used to stream straight into the destination. A download that failed partway left a truncated file with a current mtime, so the next bidirectional sync read it as locally newer and uploaded it over the intact Drive copy. Every download now goes through <code>_write_atomically</code>: it writes a sibling <code>.gee-sweet-partial-&lt;16 hex&gt;</code> file, stamps <code>sync_folder</code>'s Drive mtime on it, and renames it onto the destination only when complete. A temp file survives only a hard kill mid-write, and <code>sync_folder</code> and <code>upload_local_folder</code> skip one. The failure path itself (a dropped connection mid-download) can't be triggered through the tool surface; it's unit-tested in <code>tests/drive/test_transfer.py::TestSyncFolderFailedDownloadLeavesNoPartial</code>, <code>TestDownloadToolsFailedDownloadLeavesNoPartial</code>, and <code>TestWriteAtomically</code>. This case checks the success path through the new write, the mode and mtime it leaves, and the leftover-temp-file skip.</p>
+<p><strong>Setup</strong></p>
+<blockquote>
+<ol>
+<li>Call <code>create_folder(name="qa-279", parent_folder_id="{FOLDER_ID}")</code>; call the returned ID <code>{F}</code>.</li>
+<li>Run <code>rm -rf /tmp/qa-279 &amp;&amp; mkdir -p /tmp/qa-279/src /tmp/qa-279/sync &amp;&amp; head -c 3000000 /dev/urandom &gt; /tmp/qa-279/src/big.bin</code>.</li>
+<li>Call <code>upload_local_file(local_path="/tmp/qa-279/src/big.bin", parent_folder_id="{F}")</code>; call the returned ID <code>{BIG}</code>. Call <code>get_file_metadata(file_id="{BIG}")</code> and note <code>modified_time</code> and <code>md5_checksum</code>.</li>
+<li>Plant a stale local copy and a leftover temp file: <code>printf 'stale' &gt; /tmp/qa-279/sync/big.bin &amp;&amp; chmod 640 /tmp/qa-279/sync/big.bin &amp;&amp; touch -t 202001010000 /tmp/qa-279/sync/big.bin &amp;&amp; printf 'half a file' &gt; /tmp/qa-279/sync/.gee-sweet-partial-0123456789abcdef</code>.</li>
+</ol>
+</blockquote>
+<p><strong>Steps</strong></p>
+<blockquote>
+<ol>
+<li><code>sync_folder(folder_id="{F}", local_path="/tmp/qa-279/sync/")</code> (real run, default <code>bidirectional</code>).</li>
+<li>Run <code>ls -la /tmp/qa-279/sync/ &amp;&amp; md5 -q /tmp/qa-279/sync/big.bin &amp;&amp; stat -f '%Sp %Sm' -t '%Y-%m-%dT%H:%M:%S' /tmp/qa-279/sync/big.bin</code> (Linux: <code>md5sum</code>, <code>stat -c '%A %y'</code>).</li>
+<li><code>list_files(folder_id="{F}")</code>.</li>
+<li><code>sync_folder(folder_id="{F}", local_path="/tmp/qa-279/sync/")</code> again.</li>
+<li><code>upload_local_folder(local_path="/tmp/qa-279/sync/", parent_folder_id="{F}", skip_if_exists=false)</code>, then <code>list_files(folder_id="{F}")</code>.</li>
+<li><code>download_file(file_id="{BIG}", local_path="/tmp/qa-279/sync/big.bin")</code>, then <code>ls -la /tmp/qa-279/sync/</code>.</li>
+<li><code>download_folder(folder_id="{F}", local_path="/tmp/qa-279/dl/", skip_if_exists=false)</code>, then <code>ls -la /tmp/qa-279/dl/</code>.</li>
+<li>Make a read-only local copy: <code>printf 'protected' &gt; /tmp/qa-279/ro.bin &amp;&amp; chmod 444 /tmp/qa-279/ro.bin &amp;&amp; chmod 4644 /tmp/qa-279/dl/big.bin</code>. Call <code>download_file(file_id="{BIG}", local_path="/tmp/qa-279/ro.bin")</code>. Then call <code>download_file(file_id="{BIG}", local_path="/tmp/qa-279/dl/big.bin")</code> and run <code>ls -la /tmp/qa-279/ /tmp/qa-279/dl/ &amp;&amp; cat /tmp/qa-279/ro.bin</code>. (Not as root: root can write a <code>0444</code> file.)</li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1: <code>downloaded</code> is <code>["big.bin"]</code>. <code>uploaded</code> is empty, and <code>.gee-sweet-partial-0123456789abcdef</code> appears in no result list. <code>failed</code> is empty.
+- Step 2: <code>big.bin</code> is 3000000 bytes, its md5 matches setup step 3's <code>md5_checksum</code>, its mode is still <code>-rw-r-----</code> (the replaced file's mode is kept), and its mtime matches setup step 3's <code>modified_time</code> to the second (local time vs UTC aside). The only <code>.gee-sweet-partial-*</code> file in the directory is the planted <code>…0123456789abcdef</code>; no new one was left behind.
+- Step 3: <code>{F}</code> holds exactly one file, <code>big.bin</code>. No <code>.gee-sweet-partial-*</code> file was uploaded.
+- Step 4: <code>big.bin</code> in <code>skipped</code>; <code>uploaded</code> and <code>downloaded</code> empty (the restamped mtime round-trips, as in #346).
+- Step 5: <code>uploaded</code> lists only <code>big.bin</code> (a second copy, since <code>skip_if_exists=false</code>); the planted temp file is not uploaded and not in <code>failed</code>. <code>list_files</code> shows two <code>big.bin</code> and no <code>.gee-sweet-partial-*</code>.
+- Step 6: succeeds with <code>size_bytes</code> 3000000. The directory still holds only <code>big.bin</code> and the planted temp file.
+- Step 7: <code>downloaded</code> is <code>["big.bin"]</code> and <code>failed</code> has one duplicate-filename entry for the second <code>big.bin</code> (PR #351). <code>/tmp/qa-279/dl/</code> holds only <code>big.bin</code>, 3000000 bytes, and no <code>.gee-sweet-partial-*</code> file.
+- Step 8 (PR #884 QA round 1): the first <code>download_file</code> fails with a permission error. <code>ro.bin</code> still reads <code>protected</code>, still <code>-r--r--r--</code>, and no <code>.gee-sweet-partial-*</code> file is in <code>/tmp/qa-279/</code>. The second call succeeds, and <code>dl/big.bin</code> is <code>-rw-r--r--</code>: the setuid bit is not carried onto the new content.</p>
+<p><strong>Teardown</strong>
+<code>delete_file</code> on <code>{F}</code> (takes its contents with it). <code>rm -rf /tmp/qa-279</code>.</p>
+<p><strong>Result (2026-10-04) ✅ PASS</strong> — Sky, PR #884 round 1 (<code>b74ec2b</code>), OAuth, throwaway <code>qa-279</code> folder under <code>TEST_FOLDER_ID</code>. Drive <code>big.bin</code>: 3000000 B, md5 <code>f606776b…2c1a</code>, <code>modified_time</code> <code>17:42:20Z</code>.
+- <strong>Step 1:</strong> <code>downloaded: ["big.bin"]</code>; <code>uploaded</code>, <code>conflicts</code>, <code>failed</code> empty; the planted temp file appears in no list.
+- <strong>Step 2:</strong> <code>big.bin</code> 3000000 B, md5 matches, mode <code>-rw-r-----</code> kept, mtime <code>10:42:20-0700</code> (= <code>17:42:20Z</code>). Only the planted <code>…0123456789abcdef</code> temp file present.
+- <strong>Step 3:</strong> one file, <code>big.bin</code>.
+- <strong>Step 4:</strong> <code>skipped: ["big.bin"]</code>, nothing transferred.
+- <strong>Step 5:</strong> <code>uploaded: ["big.bin"]</code> only; <code>list_files</code> shows two <code>big.bin</code>, no temp file.
+- <strong>Step 6:</strong> <code>size_bytes</code> 3000000; directory still holds only <code>big.bin</code> + the planted temp file.
+- <strong>Step 7:</strong> <code>downloaded: ["big.bin"]</code>, one duplicate-filename <code>failed</code> entry; <code>dl/</code> holds only <code>big.bin</code>, 3000000 B.</p>
+<p>The case passes, but the PR goes back for a regression this case doesn't cover: a read-only (<code>0444</code>) local destination is now silently replaced. Live, after this case: <code>printf protected &gt; big.bin &amp;&amp; chmod 444 big.bin</code>, then <code>download_file(file_id="{BIG}", local_path=".../big.bin")</code> returned success and left a 3000000 B <code>-r--r--r--</code> file. Before this PR the <code>open("wb")</code> raised <code>PermissionError</code> and left the file alone. See the PR comment.</p>
+<p><strong>Result (2026-10-04) ✅ PASS</strong> — Sky, PR #884 round 2 (<code>b4e7287</code>), step 8 only, after reconnecting to the fix. Steps 1–7 code paths are unchanged apart from the new up-front <code>os.access</code> check and the <code>0o777</code> mask. Fresh <code>qa-279</code> folder; setup plus step 7 (<code>download_folder</code> → <code>dl/big.bin</code>, 3000000 B) re-run first.
+- <strong>Step 8, <code>ro.bin</code>:</strong> <code>download_file</code> failed with <code>[Errno 13] Permission denied: '/tmp/qa-279/ro.bin'</code>. <code>ro.bin</code> still reads <code>protected</code>, still <code>-r--r--r--</code>, and there's no <code>.gee-sweet-partial-*</code> in <code>/tmp/qa-279/</code>.
+- <strong>Step 8, <code>dl/big.bin</code> (<code>chmod 4644</code> first):</strong> succeeded, <code>size_bytes</code> 3000000, and the file is now <code>-rw-r--r--</code>: setuid dropped.</p>
+<hr />
 <h2 id="list_revisions"><code>list_revisions</code><a class="headerlink" href="#list_revisions" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d146-list-revisions-for-a-spreadsheet">TC-D146: List revisions for a spreadsheet<a class="headerlink" href="#tc-d146-list-revisions-for-a-spreadsheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
