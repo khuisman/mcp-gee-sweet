@@ -2635,6 +2635,53 @@ Delete <code>report.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/
 - <strong>Extra check for round-1 finding 1 (concurrent hashing, cap 8)</strong>: 12 more files (<code>f01</code>–<code>f12</code>) uploaded to the same folder. Then <code>f07</code> got a same-size, mtime-preserving edit. A <code>use_checksum=true</code> real run gives <code>conflicts: ["f07.txt", "report.txt"]</code>, and the other 11 files are in <code>skipped</code>, so each hash result maps back to the right name with 13 files hashed concurrently. ✅</p>
 <p>Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verification: the fix diff matches round-1 findings 1–6 one for one, and the <code>_mtime_step</code> extraction was checked branch by branch against the removed code. Finding 7 (repo <code>CLAUDE.md</code>) goes through Bob's doc-PR gate separately, per team process.</p>
 <hr />
+<h3 id="tc-d278-drive-names-that-arent-a-single-filename-are-never-written-outside-local_path-local-filesystem-destructive">TC-D278: Drive names that aren't a single filename are never written outside <code>local_path</code> ⚠️ local-filesystem ⚠️ destructive<a class="headerlink" href="#tc-d278-drive-names-that-arent-a-single-filename-are-never-written-outside-local_path-local-filesystem-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>download_file</code>, <code>download_folder</code>, and <code>sync_folder</code> build each local path from a Drive name. Drive stores <code>/</code> and <code>..</code> in names unchanged, so every one of those names now goes through one check (<code>_safe_local_dest</code>), and a name that isn't one ordinary filename is refused. Unit-tested in <code>tests/drive/test_transfer.py::TestDriveNameUnsafeReason</code>, <code>TestDownloadFileUnsafeName</code>, <code>TestDownloadFolderUnsafeName</code>, and <code>TestSyncFolderUnsafeName</code>.</p>
+<p><strong>Setup</strong></p>
+<blockquote>
+<ol>
+<li>Call <code>create_folder(name="qa-278", parent_folder_id="{FOLDER_ID}")</code>; call the returned ID <code>{F}</code>.</li>
+<li>Call <code>upload_file(name="../../escaped-probe.txt", content="probe", folder_id="{F}")</code> and <code>upload_file(name="fine.txt", content="ok", folder_id="{F}")</code>.</li>
+<li>Call <code>create_folder(name="..", parent_folder_id="{F}")</code>; call the returned ID <code>{DOTDOT}</code>. Call <code>upload_file(name="payload.txt", content="payload", folder_id="{DOTDOT}")</code>.</li>
+<li>Run <code>rm -rf /tmp/qa-278 &amp;&amp; mkdir -p /tmp/qa-278/a/b &amp;&amp; echo secret &gt; /tmp/qa-278/a/secret.txt</code>.</li>
+</ol>
+</blockquote>
+<p><strong>Steps</strong></p>
+<blockquote>
+<ol>
+<li><code>download_file(file_id=&lt;ID of ../../escaped-probe.txt&gt;, local_path="/tmp/qa-278/a/b/")</code>.</li>
+<li><code>download_file(file_id=&lt;ID of ../../escaped-probe.txt&gt;, local_path="/tmp/qa-278/a/b/chosen.txt")</code>.</li>
+<li><code>download_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/")</code>.</li>
+<li><code>rm /tmp/qa-278/a/b/*</code>, then <code>sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, dry_run=true)</code>.</li>
+<li><code>sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true)</code> (real run, default <code>bidirectional</code>).</li>
+<li><code>sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, direction="upload")</code>.</li>
+<li>After each step, run <code>find /tmp/qa-278 | sort</code>.</li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1: the call fails with an error that the Drive file name can't be used as a local filename, naming the path separator. Nothing new under <code>/tmp/qa-278</code>.
+- Step 2: succeeds; <code>/tmp/qa-278/a/b/chosen.txt</code> contains <code>probe</code>. An explicit file path never uses the Drive name.
+- Step 3: <code>downloaded</code> contains <code>fine.txt</code>. <code>failed</code> has one entry, <code>../../escaped-probe.txt</code>, whose error names the path separator. <code>skipped</code> lists the <code>..</code> folder, as for any subfolder. No <code>escaped-probe.txt</code> anywhere under <code>/tmp/qa-278</code> except as step 2's <code>chosen.txt</code>.
+- Step 4: <code>actions</code> contains <code>../../escaped-probe.txt</code> with <code>action: "unsafe_name"</code> and <code>../</code> with <code>action: "unsafe_name"</code>; <code>fine.txt</code> is <code>download</code>. <code>failed</code> is empty. Nothing changed on disk.
+- Step 5: <code>downloaded</code> is <code>["fine.txt"]</code>. <code>failed</code> has <code>../../escaped-probe.txt</code> and <code>../</code> (reason: special path segment <code>'..'</code>). <code>/tmp/qa-278/a/</code> still holds only <code>b/</code> and <code>secret.txt</code>: no <code>payload.txt</code> there, and <code>list_files(folder_id="{DOTDOT}")</code> shows <code>secret.txt</code> wasn't uploaded.
+- Step 6: <code>failed</code> is empty. <code>skipped</code> contains <code>../../escaped-probe.txt</code> and <code>folders_skipped</code> contains <code>../</code> (Drive-only names the upload direction never touches). <code>fine.txt</code> is in <code>skipped</code> (in sync since step 5); <code>uploaded</code> is empty.</p>
+<p><strong>Teardown</strong>
+<code>delete_file</code> on <code>{F}</code> (takes its contents with it). <code>rm -rf /tmp/qa-278</code>.</p>
+<p><strong>Result</strong> (2026-10-03, Sky, fork PR #1 round 1 at <code>c69665c</code>, <code>mcp-gee-sweet-sky</code> reconnected after reset, OAuth, Shared Drive): ✅ <strong>PASS</strong>. The checks as written all pass. Nothing was written outside <code>/tmp/qa-278/a/b/</code> at any step: <code>/tmp/qa-278/escaped-probe.txt</code> and <code>/tmp/escaped-probe.txt</code> never existed. Side probes are below.
+- Step 1: raised "Drive file name '../../escaped-probe.txt' can't be used as a local filename: name contains a path separator. …". Nothing new on disk.
+- Step 2: wrote <code>/tmp/qa-278/a/b/chosen.txt</code> containing <code>probe</code>.
+- Step 3: <code>downloaded == ["fine.txt"]</code>, <code>skipped == [".."]</code>, and <code>failed</code> held one entry for <code>../../escaped-probe.txt</code> ("refusing Drive name …: name contains a path separator").
+- Step 4: <code>actions</code> held <code>../../escaped-probe.txt</code> and <code>../</code> as <code>unsafe_name</code>, and <code>fine.txt</code> as <code>download</code>. Every other list was empty, and the disk was unchanged.
+- Step 5: <code>downloaded == ["fine.txt"]</code>. <code>failed</code> held <code>../../escaped-probe.txt</code> and <code>../</code> ("name is the special path segment '..'; not synced"). <code>/tmp/qa-278/a/</code> held only <code>b/</code> and <code>secret.txt</code>, and <code>list_files</code> on <code>{DOTDOT}</code> showed only <code>payload.txt</code>.
+- Step 6: <code>failed</code> and <code>uploaded</code> were empty, <code>skipped == ["../../escaped-probe.txt", "fine.txt"]</code>, and <code>folders_skipped == ["../"]</code>.
+- Side probe, a local <code>x\y.txt</code> (upload, <code>dry_run</code>): planned as <code>unsafe_name</code> ("name contains a path separator; not synced"), as <code>known-limitations.md</code> documents.
+- Side probe, a second Drive file also named <code>../../escaped-probe.txt</code>: <code>sync_folder</code> reported <strong>one</strong> <code>failed</code> entry for the two files, while <code>download_folder</code> reported two. This reproduces code-review finding 2 and was sent back to the Dev.</p>
+<p><strong>Result</strong> (2026-10-03, Sky, fork PR #1 round 2 re-verification of <code>f199bb0</code>, <code>mcp-gee-sweet-sky</code> reconnected after reset, OAuth, Shared Drive): ✅ <strong>PASS</strong>. Fresh fixture. All six steps matched round 1 apart from the new error wording. Nothing was written outside <code>/tmp/qa-278/a/b/</code>, and <code>payload.txt</code> never reached <code>/tmp/qa-278/a/</code>.
+- Step 3: the <code>failed</code> error now quotes the Drive name: "'../../escaped-probe.txt' can't be used as a local filename: name contains a path separator".
+- Finding 2, a second Drive file named <code>../../escaped-probe.txt</code> plus a second <code>..</code> folder: a real recursive run gave one <code>failed</code> entry for each name, "name contains a path separator (2 Drive entries have this name); not synced" and "name is the special path segment '..' (2 Drive entries have this name); not synced". The <code>dry_run</code> <code>actions</code> carried the same reasons, with <code>failed</code> empty.
+- Side probe, a local <code>x\y.txt</code> (bidirectional, real run): <code>failed</code> held "name contains a path separator; not synced", and nothing was uploaded.
+- Local suite: 2078 passed, 3 skipped.</p>
+<hr />
 <h2 id="list_revisions"><code>list_revisions</code><a class="headerlink" href="#list_revisions" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d146-list-revisions-for-a-spreadsheet">TC-D146: List revisions for a spreadsheet<a class="headerlink" href="#tc-d146-list-revisions-for-a-spreadsheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>

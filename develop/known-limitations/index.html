@@ -1499,6 +1499,18 @@ newer, <code>sync_folder</code> can't tell a lagging timestamp from a real Drive
 the Doc's content in place, keeping its file ID, and stamps the properties. From then on, the
 Doc uses the new detection. If it <em>was</em> edited in Drive, carry those edits into the local file
 first, since the upload overwrites them.</p>
+<h3 id="downloads-and-sync_folder-skip-names-that-arent-a-single-filename">Downloads and <code>sync_folder</code> skip names that aren't a single filename<a class="headerlink" href="#downloads-and-sync_folder-skip-names-that-arent-a-single-filename" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Drive allows <code>/</code> in a file or folder name, and a name of <code>.</code> or <code>..</code>. <code>download_file</code>
+(with a directory as <code>local_path</code>), <code>download_folder</code>, and <code>sync_folder</code> refuse such a name
+instead of writing it, and report it under <code>failed</code> (<code>download_file</code> raises an error). A name
+containing <code>\</code> is refused too, on every OS. That includes a local file or folder whose name
+contains <code>\</code>, which macOS and Linux allow: <code>sync_folder</code> won't upload it.</p>
+<p><strong>Why:</strong> A Drive name is used as the local filename. One that isn't a single ordinary filename
+would land somewhere other than the requested folder. <code>\</code> is a separator on Windows, so it's
+refused everywhere, which means the same names are refused as path separators on every OS.
+(Other Windows filename rules, such as <code>:</code> or reserved names like <code>CON</code>, aren't checked here.)</p>
+<p><strong>Workaround:</strong> Rename the file or folder in Drive (or locally). For a single file,
+<code>download_file</code> with a full file path as <code>local_path</code> downloads it under that name.</p>
 
 
 
