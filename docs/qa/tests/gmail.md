@@ -333,6 +333,20 @@ Record the printed ID as `{UTF16_ID}`.
 
 ---
 
+### TC-GM46: `include_body: false` returns headers without body or attachments (issue #793)
+
+**Background:** `include_body: false` fetches with Gmail's `format='metadata'`, which returns headers but no payload parts (confirmed live 2026-10-04). So the result omits attachment metadata as well as the body.
+
+**Action**
+1. `get_message` with `message_id: "{TEST_GMAIL_ATTACH_ID}"`, `include_body: false`
+
+**Checks**
+- `id` is `{TEST_GMAIL_ATTACH_ID}`; `thread_id`, `snippet`, `label_ids`, `internal_date`, and a positive `size_estimate` are present
+- `headers.subject` starts `[mcp-qa:`, `headers.from` contains `{SENDER}`, `headers.message_id` is non-empty
+- No `body_plain`, `body_html`, `attachments`, `body_decode_errors`, `body_fetch_errors`, or `error` key
+
+---
+
 ## `list_threads`
 
 ### TC-GM05: List the fixture threads
@@ -381,18 +395,21 @@ Record the printed ID as `{UTF16_ID}`.
 
 ---
 
-### TC-GM31: An over-cap thread returns the size-cap error
+### TC-GM31: An over-cap thread returns the size-cap error, and `include_body: false` lists it (issue #793)
 
-**Background:** the `over-cap-thread` fixture is 3 messages of ~400 KB each, which is over the default `MAX_TOOL_RESPONSE_CHARS` in full format but under it per message. This is the failure #793 wants a lighter option for. Today the tool should refuse cleanly rather than drop the connection or truncate.
+**Background:** the `over-cap-thread` fixture is 3 messages of ~400 KB each, which is over the default `MAX_TOOL_RESPONSE_CHARS` in full format but under it per message. The full fetch should refuse cleanly rather than drop the connection or truncate. Since #793, `include_body: false` fetches only metadata, which is small enough to list the thread's message IDs.
 
 **Action**
 1. `get_thread` with `thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"`
-2. `list_messages` with `query: "label:mcp-qa-fixture subject:(mcp-qa over-cap-thread)"`, then `get_message` on any one returned ID
+2. `get_thread` with `thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"`, `include_body: false`
+3. `get_message` with `message_id` set to the first message ID from step 2
 
 **Checks**
-- Step 1: the tool call fails with an error containing `get_thread: the response is` and `safety cap`, and the error suggests `get_message` on individual IDs. The session stays connected: the next call works.
+- Step 1: the tool call fails with an error containing `get_thread: the response is` and `safety cap`. The error suggests `include_body=False` followed by `get_message` on individual IDs. The session stays connected: the next call works.
 - Step 1: no partial or truncated thread is returned
-- Step 2: 3 messages listed; `get_message` succeeds, with a `body_plain` that starts `mcp-gee-sweet over-cap-thread message`
+- Step 2: no `error`. `id` is `{TEST_GMAIL_BIG_THREAD_ID}`, and `messages` has 3 entries, each with `id`, `thread_id`, `snippet`, `label_ids`, `size_estimate`, and `headers` (`headers.subject` contains `[mcp-qa:over-cap-thread]`)
+- Step 2: no message has a `body_plain`, `body_html`, or `attachments` key, and the whole response is a few KB, not ~1.2 MB
+- Step 3: succeeds, with a `body_plain` that starts `mcp-gee-sweet over-cap-thread message`
 
 ---
 
