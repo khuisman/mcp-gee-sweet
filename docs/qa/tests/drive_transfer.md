@@ -1728,6 +1728,17 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 **Teardown**
 `delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-279`.
 
+**Result (2026-10-04) ✅ PASS** — Sky, PR #884 round 1 (`b74ec2b`), OAuth, throwaway `qa-279` folder under `TEST_FOLDER_ID`. Drive `big.bin`: 3000000 B, md5 `f606776b…2c1a`, `modified_time` `17:42:20Z`.
+- **Step 1:** `downloaded: ["big.bin"]`; `uploaded`, `conflicts`, `failed` empty; the planted temp file appears in no list.
+- **Step 2:** `big.bin` 3000000 B, md5 matches, mode `-rw-r-----` kept, mtime `10:42:20-0700` (= `17:42:20Z`). Only the planted `…0123456789abcdef` temp file present.
+- **Step 3:** one file, `big.bin`.
+- **Step 4:** `skipped: ["big.bin"]`, nothing transferred.
+- **Step 5:** `uploaded: ["big.bin"]` only; `list_files` shows two `big.bin`, no temp file.
+- **Step 6:** `size_bytes` 3000000; directory still holds only `big.bin` + the planted temp file.
+- **Step 7:** `downloaded: ["big.bin"]`, one duplicate-filename `failed` entry; `dl/` holds only `big.bin`, 3000000 B.
+
+The case passes, but the PR goes back for a regression this case doesn't cover: a read-only (`0444`) local destination is now silently replaced. Live, after this case: `printf protected > big.bin && chmod 444 big.bin`, then `download_file(file_id="{BIG}", local_path=".../big.bin")` returned success and left a 3000000 B `-r--r--r--` file. Before this PR the `open("wb")` raised `PermissionError` and left the file alone. See the PR comment.
+
 ---
 
 ## `list_revisions`
