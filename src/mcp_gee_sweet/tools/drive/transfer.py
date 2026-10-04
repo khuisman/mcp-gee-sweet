@@ -1,15 +1,19 @@
 import asyncio
 import base64
+import contextlib
 import hashlib
 import io
 import logging
 import mimetypes
 import os
-from collections.abc import Iterable
+import re
+import secrets
+import stat
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, BinaryIO, Literal
 
 import markdown as _md
 from googleapiclient.errors import HttpError
@@ -38,6 +42,15 @@ _EXPORT_MIME: dict[str, tuple[str, str]] = {
 }
 
 _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
+
+# Every download writes to a sibling temp file with this name and renames it
+# onto the destination only once complete (_write_atomically, #844). A temp
+# file only outlives its download when the process is killed mid-write;
+# sync_folder and upload_local_folder skip one so a leftover partial is never
+# uploaded. No part of the destination's name is embedded, so the temp name
+# can't exceed the filesystem's name-length limit.
+_PARTIAL_DOWNLOAD_PREFIX = ".gee-sweet-partial-"
+_PARTIAL_DOWNLOAD_RE = re.compile(r"\.gee-sweet-partial-[0-9a-f]{16}")
 
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
@@ -373,6 +386,46 @@ def _drive_time_str(dt: datetime) -> str:
     """`dt` in the RFC 3339 form Drive's modifiedTime field takes, truncated to
     whole seconds."""
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _is_partial_download(name: str) -> bool:
+    """Whether `name` is a temp file _write_atomically left behind."""
+    return _PARTIAL_DOWNLOAD_RE.fullmatch(name) is not None
+
+
+def _write_atomically(
+    dest: Path, write: Callable[[BinaryIO], object], mtime: float | None = None
+) -> None:
+    """Run `write` against a sibling temp file, then rename it onto `dest`.
+
+    `dest` only ever holds its previous content or the complete new content.
+    Writing straight into `dest` left a truncated file behind when a download
+    failed partway, with a current mtime that made sync_folder treat it as the
+    newer copy and upload it over the intact Drive file (#844). `mtime`, when
+    given, is stamped on the temp file before the rename, so a failed restamp
+    also leaves `dest` untouched. The temp file is removed on any failure.
+
+    A symlink at `dest` is written through, as the old `open("wb")` did: the
+    temp file goes next to the link's target and replaces the target. The new
+    file gets the mode a fresh `open("wb")` would (0o666 less the umask), or the
+    replaced file's mode when there was one. A hard link to the old file keeps
+    the old content, since the rename swaps in a new inode.
+    """
+    target = Path(os.path.realpath(dest)) if dest.is_symlink() else dest
+    tmp = target.with_name(_PARTIAL_DOWNLOAD_PREFIX + secrets.token_hex(8))
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            write(fh)
+        with contextlib.suppress(FileNotFoundError):
+            os.chmod(tmp, stat.S_IMODE(target.stat().st_mode))
+        if mtime is not None:
+            os.utime(tmp, (mtime, mtime))
+        os.replace(tmp, target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def _local_mtime_str(path: Path) -> str:
@@ -1328,6 +1381,8 @@ async def _sync_level(
                 continue
             if skip_system_files and p.name in _SYSTEM_FILES:
                 continue
+            if _is_partial_download(p.name):
+                continue
             # Only a backslash (a separator on Windows, legal in a POSIX name) can
             # fail this for a name the OS listed. Such a file would upload under
             # a name this check then refuses on the Drive side, so it'd never
@@ -1899,6 +1954,15 @@ async def _sync_level(
                 # The plan already routed unsafe names to 'unsafe_name'; this is
                 # the shared backstop, and a refusal lands as download_fail.
                 dest_file = _safe_local_dest(dest_dir, name, resolved_dest_dir)
+                # Mirror what the upload branch above does in reverse: set the
+                # local file's mtime to Drive's modifiedTime so the round trip
+                # stays within _SYNC_MTIME_TOLERANCE on the next sync. Without
+                # this the local mtime is "now" (write time), which is always
+                # later than Drive's original timestamp — the next sync sees the
+                # file as locally newer and re-uploads it, indefinitely (#346).
+                # _write_atomically stamps it before the rename, so a failed
+                # download never leaves a "newer" partial in place (#844).
+                drive_ts = _drive_mtime(entry).timestamp()
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
                     content = await execute_in_thread(
@@ -1907,7 +1971,9 @@ async def _sync_level(
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    await asyncio.to_thread(dest_file.write_bytes, content)
+                    await asyncio.to_thread(
+                        _write_atomically, dest_file, lambda fh, c=content: fh.write(c), drive_ts
+                    )
                 else:
 
                     def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
@@ -1915,21 +1981,16 @@ async def _sync_level(
                             fileId=fid, supportsAllDrives=True
                         )
                         request.http = thread_http(drive_service)
-                        with dest_file.open("wb") as fh:
+
+                        def _stream(fh: BinaryIO) -> None:
                             downloader = MediaIoBaseDownload(fh, request)
                             done = False
                             while not done:
                                 _, done = downloader.next_chunk()
 
+                        _write_atomically(dest_file, _stream, drive_ts)
+
                     await asyncio.to_thread(_download_to_completion)
-                # Mirror what the upload branch above does in reverse: set the
-                # local file's mtime to Drive's modifiedTime so the round trip
-                # stays within _SYNC_MTIME_TOLERANCE on the next sync. Without
-                # this the local mtime is "now" (write time), which is always
-                # later than Drive's original timestamp — the next sync sees the
-                # file as locally newer and re-uploads it, indefinitely (#346).
-                dtime = _drive_mtime(entry)
-                os.utime(dest_file, (dtime.timestamp(), dtime.timestamp()))
                 size = dest_file.stat().st_size
                 logger.debug("Synced (download) Drive → %s%s (%d bytes)", rel_prefix, name, size)
                 return {"kind": "download_ok", "name": name, "bytes": size}
@@ -2628,7 +2689,9 @@ def register(tool):
         if not folder.is_dir():
             raise ValueError(f"No directory found at {local_path!r}")
 
-        candidates = [p for p in folder.iterdir() if p.is_file()]
+        candidates = [
+            p for p in folder.iterdir() if p.is_file() and not _is_partial_download(p.name)
+        ]
         if skip_system_files:
             candidates = [p for p in candidates if p.name not in _SYSTEM_FILES]
 
@@ -2867,17 +2930,20 @@ def register(tool):
             )
             if not isinstance(content, bytes):
                 content = content.encode("utf-8")
-            await asyncio.to_thread(dest.write_bytes, content)
+            await asyncio.to_thread(_write_atomically, dest, lambda fh: fh.write(content))
         else:
 
             def _download_to_completion() -> None:
                 request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
                 request.http = thread_http(drive_service)
-                with dest.open("wb") as fh:
+
+                def _stream(fh: BinaryIO) -> None:
                     downloader = MediaIoBaseDownload(fh, request)
                     done = False
                     while not done:
                         _, done = downloader.next_chunk()
+
+                _write_atomically(dest, _stream)
 
             await asyncio.to_thread(_download_to_completion)
 
@@ -3086,7 +3152,9 @@ def register(tool):
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    await asyncio.to_thread(candidate.dest_file.write_bytes, content)
+                    await asyncio.to_thread(
+                        _write_atomically, candidate.dest_file, lambda fh: fh.write(content)
+                    )
                 else:
 
                     def _download_to_completion(
@@ -3096,11 +3164,14 @@ def register(tool):
                             fileId=fid, supportsAllDrives=True
                         )
                         request.http = thread_http(drive_service)
-                        with dest_file.open("wb") as fh:
+
+                        def _stream(fh: BinaryIO) -> None:
                             downloader = MediaIoBaseDownload(fh, request)
                             done = False
                             while not done:
                                 _, done = downloader.next_chunk()
+
+                        _write_atomically(dest_file, _stream)
 
                     await asyncio.to_thread(_download_to_completion)
 

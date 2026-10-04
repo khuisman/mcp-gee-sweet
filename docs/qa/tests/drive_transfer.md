@@ -1697,6 +1697,39 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 
 ---
 
+### TC-D279: downloads write to a temp file and rename it into place; a leftover temp file is never uploaded (issue #844) ⚠️ local-filesystem ⚠️ destructive
+
+**Background:** `sync_folder`, `download_file`, and `download_folder` used to stream straight into the destination. A download that failed partway left a truncated file with a current mtime, so the next bidirectional sync read it as locally newer and uploaded it over the intact Drive copy. Every download now goes through `_write_atomically`: it writes a sibling `.gee-sweet-partial-<16 hex>` file, stamps `sync_folder`'s Drive mtime on it, and renames it onto the destination only when complete. A temp file survives only a hard kill mid-write, and `sync_folder` and `upload_local_folder` skip one. The failure path itself (a dropped connection mid-download) can't be triggered through the tool surface; it's unit-tested in `tests/drive/test_transfer.py::TestSyncFolderFailedDownloadLeavesNoPartial`, `TestDownloadToolsFailedDownloadLeavesNoPartial`, and `TestWriteAtomically`. This case checks the success path through the new write, the mode and mtime it leaves, and the leftover-temp-file skip.
+
+**Setup**
+> 1. Call `create_folder(name="qa-279", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
+> 2. Run `rm -rf /tmp/qa-279 && mkdir -p /tmp/qa-279/src /tmp/qa-279/sync && head -c 3000000 /dev/urandom > /tmp/qa-279/src/big.bin`.
+> 3. Call `upload_local_file(local_path="/tmp/qa-279/src/big.bin", parent_folder_id="{F}")`; call the returned ID `{BIG}`. Call `get_file_metadata(file_id="{BIG}")` and note `modified_time` and `md5_checksum`.
+> 4. Plant a stale local copy and a leftover temp file: `printf 'stale' > /tmp/qa-279/sync/big.bin && chmod 640 /tmp/qa-279/sync/big.bin && touch -t 202001010000 /tmp/qa-279/sync/big.bin && printf 'half a file' > /tmp/qa-279/sync/.gee-sweet-partial-0123456789abcdef`.
+
+**Steps**
+> 1. `sync_folder(folder_id="{F}", local_path="/tmp/qa-279/sync/")` (real run, default `bidirectional`).
+> 2. Run `ls -la /tmp/qa-279/sync/ && md5 -q /tmp/qa-279/sync/big.bin && stat -f '%Sp %Sm' -t '%Y-%m-%dT%H:%M:%S' /tmp/qa-279/sync/big.bin` (Linux: `md5sum`, `stat -c '%A %y'`).
+> 3. `list_files(folder_id="{F}")`.
+> 4. `sync_folder(folder_id="{F}", local_path="/tmp/qa-279/sync/")` again.
+> 5. `upload_local_folder(local_path="/tmp/qa-279/sync/", parent_folder_id="{F}", skip_if_exists=false)`, then `list_files(folder_id="{F}")`.
+> 6. `download_file(file_id="{BIG}", local_path="/tmp/qa-279/sync/big.bin")`, then `ls -la /tmp/qa-279/sync/`.
+> 7. `download_folder(folder_id="{F}", local_path="/tmp/qa-279/dl/", skip_if_exists=false)`, then `ls -la /tmp/qa-279/dl/`.
+
+**Checks**
+- Step 1: `downloaded` is `["big.bin"]`. `uploaded` is empty, and `.gee-sweet-partial-0123456789abcdef` appears in no result list. `failed` is empty.
+- Step 2: `big.bin` is 3000000 bytes, its md5 matches setup step 3's `md5_checksum`, its mode is still `-rw-r-----` (the replaced file's mode is kept), and its mtime matches setup step 3's `modified_time` to the second (local time vs UTC aside). The only `.gee-sweet-partial-*` file in the directory is the planted `…0123456789abcdef`; no new one was left behind.
+- Step 3: `{F}` holds exactly one file, `big.bin`. No `.gee-sweet-partial-*` file was uploaded.
+- Step 4: `big.bin` in `skipped`; `uploaded` and `downloaded` empty (the restamped mtime round-trips, as in #346).
+- Step 5: `uploaded` lists only `big.bin` (a second copy, since `skip_if_exists=false`); the planted temp file is not uploaded and not in `failed`. `list_files` shows two `big.bin` and no `.gee-sweet-partial-*`.
+- Step 6: succeeds with `size_bytes` 3000000. The directory still holds only `big.bin` and the planted temp file.
+- Step 7: `downloaded` is `["big.bin"]` and `failed` has one duplicate-filename entry for the second `big.bin` (PR #351). `/tmp/qa-279/dl/` holds only `big.bin`, 3000000 bytes, and no `.gee-sweet-partial-*` file.
+
+**Teardown**
+`delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-279`.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet
