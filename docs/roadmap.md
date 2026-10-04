@@ -239,7 +239,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] `ast_to_markdown.py`: image-render duplication + falsy-based code-block buffer flush ([#600](https://github.com/khuisman/mcp-gee-sweet/issues/600))
 - [ ] `html_parser.py` `handle_data`: a SIM114 lint merge conflates two structurally distinct buffering triggers ([#638](https://github.com/khuisman/mcp-gee-sweet/issues/638))
 - [ ] Docs image-sharing failure paths: unrevocable `anyone:reader` grant + missing folder-cache invalidation in `_replace_doc_content` ([#666](https://github.com/khuisman/mcp-gee-sweet/issues/666))
-- [ ] `_apply_doc_content`: temporary `anyone:reader` image shares aren't revoked when the doc edit raises — revoke pass should run in a `finally`. Same share/revoke surface as #666 and #511 ([#789](https://github.com/khuisman/mcp-gee-sweet/issues/789))
+- [x] `_apply_doc_content`: temporary `anyone:reader` image shares aren't revoked when the doc edit raises — revoke pass should run in a `finally`. Same share/revoke surface as #666 and #511 ([#789](https://github.com/khuisman/mcp-gee-sweet/issues/789)) (PR #877)
 - [ ] Docstrings: `create_paragraph_bullets` carries internal API-quirk mechanics plus residual bare issue refs in `style.py` tool docstrings ([#683](https://github.com/khuisman/mcp-gee-sweet/issues/683))
 - [ ] `TestIsolatedDepthRunGlyph` asserts request shape, not rendered nesting outcome (PR #711) ([#715](https://github.com/khuisman/mcp-gee-sweet/issues/715))
 - [ ] `style_doc_range` has no `font_family` parameter — can't apply monospace to an existing range ([#720](https://github.com/khuisman/mcp-gee-sweet/issues/720))
