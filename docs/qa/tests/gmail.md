@@ -347,6 +347,8 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Result** (2026-10-04, PR #885 round 1 at `47937d8`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. `id`, `thread_id`, `snippet` (`mcp-gee-sweet attachments fixture: a PDF and a CSV.`), `label_ids`, `internal_date` and `size_estimate` = 7893 present. `headers.subject` = `[mcp-qa:attachments] PDF + CSV`, `headers.from` = `{SENDER}`, `headers.message_id` non-empty. No body, attachment, error-list or `error` keys. The PR still went back to the Dev for code-review findings this case doesn't exercise; see the PR #885 comment.
 
+**Result** (2026-10-04, PR #885 round 2 at `48bf23f`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS (regression)**. The output matches round 1 field for field. The fix's `metadataHeaders` filter can't be seen through shaping, so it was checked against the raw API instead (see TC-GM31's round 2 result).
+
 ---
 
 ## `list_threads`
@@ -414,6 +416,8 @@ Record the printed ID as `{UTF16_ID}`.
 - Step 3: succeeds, with a `body_plain` that starts `mcp-gee-sweet over-cap-thread message`
 
 **Result** (2026-10-04, PR #885 round 1 at `47937d8`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Step 1: `get_thread: the response is 1275124 characters, over the 1000000-character safety cap`, with the hint naming `include_body=False` then `get_message` on individual IDs; no partial thread, and the next call worked. Step 2: no `error`, 3 messages, each with `id`, `thread_id`, `snippet`, `label_ids`, `size_estimate` (~412 KB each) and `headers` (subjects contain `[mcp-qa:over-cap-thread]`; `in_reply_to`/`references` chain correctly), no body or attachment keys; the response was about 3 KB. Step 3: run with `local_path` to keep ~425 KB out of the QA session's context (424,899 bytes written); `body_plain` starts `mcp-gee-sweet over-cap-thread message 1.`. The thread-level `snippet` is `null`, the same as the full format (`threads.get` returns none).
+
+**Result** (2026-10-04, PR #885 round 2 at `48bf23f`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Steps 1–3 matched round 1 exactly (1,275,124-character cap error with the `include_body=False` hint; 3 metadata-only messages; step 3 via `local_path`, 424,899 bytes). The `metadataHeaders` filter was checked with a fresh-interpreter raw `threads.get` on the same thread using this slot's token. Plain `format=metadata` returned 24,591 bytes and 88 headers (ARC-*, DKIM-Signature, Received, X-Gm-*, and others). `_get_format_kwargs(False)` returned 3,003 bytes and 19 headers, all from the shaped set (Date, From, In-Reply-To, Message-ID, References, Subject, To).
 
 ---
 
