@@ -1278,7 +1278,7 @@ def register(tool):
             drive_service.files()
             .get(
                 fileId=file_id,
-                fields="parents,capabilities(canDelete,canTrash)",
+                fields="parents,driveId,capabilities(canDelete,canTrash)",
                 supportsAllDrives=True,
             )
             .execute,
@@ -1286,15 +1286,21 @@ def register(tool):
         )
         capabilities = existing.get("capabilities", {})
         if permanent and capabilities.get("canDelete") is False:
-            hint = (
+            # canDelete is also false for a non-owner editor of a My Drive
+            # file, so only mention Shared Drive roles when the file is on one.
+            shared_drive_note = (
+                " On a Shared Drive this usually requires the Manager role."
+                if existing.get("driveId")
+                else ""
+            )
+            trash_hint = (
                 " Use permanent=False to move it to the trash instead."
                 if capabilities.get("canTrash")
                 else ""
             )
             raise ValueError(
                 f"Cannot permanently delete file {file_id}: the authenticated identity "
-                "lacks permanent-delete permission on it (on a Shared Drive, only the "
-                f"Manager role can permanently delete).{hint}"
+                f"lacks permanent-delete permission on it.{shared_drive_note}{trash_hint}"
             )
         for parent in existing.get("parents", []):
             lc.drive_folder_cache.mark_dirty(parent)

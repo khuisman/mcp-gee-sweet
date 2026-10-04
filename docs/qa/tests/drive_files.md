@@ -887,7 +887,7 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 
 ---
 
-### TC-D271: Permanent delete without permanent-delete permission — clear error, file kept (issue #876) ⚠️ destructive
+### TC-D280: Permanent delete without permanent-delete permission — clear error, file kept (issue #876) ⚠️ destructive
 
 **Requires:** an identity with the **Content manager** role (not Manager) on the `mcp-gee-sweet-shared` Shared Drive. The QA service account is added at exactly that role (`setup.md` Step 1), so run this on a service-account server (`mcp-gee-sweet-sa`, or the lane's own server relaunched with `AUTH_METHOD=service_account`). An OAuth identity that manages the Shared Drive gets `canDelete: true` and can't reproduce this.
 
@@ -899,7 +899,7 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 3. `delete_file(file_id=<id>, permanent=False)`
 
 **Checks**
-- Step 1 fails with a `ValueError` saying the identity lacks permanent-delete permission and suggesting `permanent=False`. It is **not** Drive's `HttpError 404 "File not found"`.
+- Step 1 fails with a `ValueError` saying the identity lacks permanent-delete permission, noting that on a Shared Drive this usually requires the Manager role, and suggesting `permanent=False`. It is **not** Drive's `HttpError 404 "File not found"`.
 - Step 2 returns the file with `trashed: false`: nothing was deleted.
 - Step 3 returns `{"fileId": <id>, "action": "trashed"}`.
 

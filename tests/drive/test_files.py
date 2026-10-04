@@ -263,21 +263,41 @@ class TestFileMutations:
         await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         mock.files.return_value.get.assert_called_once()
         fields = mock.files.return_value.get.call_args.kwargs["fields"]
-        assert "capabilities(canDelete,canTrash)" in fields
+        assert "canDelete" in fields
+        assert "canTrash" in fields
+        assert "driveId" in fields
 
     async def test_delete_file_permanent_without_can_delete_raises_before_delete(self):
         """#876: Content manager on a Shared Drive gets a clear error, not Drive's 404."""
         mock = MagicMock()
         mock.files.return_value.get.return_value.execute.return_value = {
             "parents": ["par1"],
+            "driveId": "drive1",
             "capabilities": {"canDelete": False, "canTrash": True},
         }
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
-        with pytest.raises(ValueError, match="permanent=False"):
+        with pytest.raises(ValueError, match="permanent=False") as exc_info:
             await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        assert "Shared Drive" in str(exc_info.value)
         mock.files.return_value.delete.assert_not_called()
         folder_cache.mark_dirty.assert_not_called()
+
+    async def test_delete_file_permanent_without_can_delete_on_my_drive_omits_shared_drive_note(
+        self,
+    ):
+        """A non-owner editor of a My Drive file also lacks canDelete; no Shared Drive aside."""
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {
+            "parents": ["par1"],
+            "capabilities": {"canDelete": False, "canTrash": True},
+        }
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
+        with pytest.raises(ValueError) as exc_info:
+            await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        assert "Shared Drive" not in str(exc_info.value)
+        assert "permanent=False" in str(exc_info.value)
+        mock.files.return_value.delete.assert_not_called()
 
     async def test_delete_file_permanent_without_delete_or_trash_omits_trash_hint(self):
         mock = MagicMock()
