@@ -73,7 +73,7 @@ Add `scripts/qa_gmail_fixtures.py` (new), modeled on the TC-GM23 setup snippet: 
 |---|---|---|---|---|
 | `plain` | Sent | Single `text/plain` from the sender mailbox; lands `INBOX`+`UNREAD` | `TEST_MESSAGE_ID` | GM01, 03, 19 |
 | `alt-unicode` | Sent | `body` + `body_html`, non-ASCII subject and body, astral emoji | `TEST_GMAIL_UNICODE_ID` | GM27 |
-| `attachments` | Sent + Inserted | Sent: body + small PDF + CSV. Inserted: a `multipart/related` inline PNG with `Content-ID` and **no filename** (`send_message` can't build `related`) | `TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID` | GM28 |
+| `attachments` | Sent + Inserted | Sent: body + small PDF + CSV. Inserted: a `multipart/related` inline PNG with `Content-ID` and **no filename** (`send_message` can't build `related`) | `TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID` | GM28, 46 |
 | `thread` | Sent (both sides) | Sender sends; the QA mailbox replies; the sender replies again. A real two-party, 3-message thread with Gmail-generated `Message-ID`/`References` | `TEST_THREAD_ID` | GM05, 07, 33, 43 |
 | `reply-to` | Inserted | Foreign `From: noreply@example.invalid`, `Reply-To` = `+tc-gm23` (`send_message` has no `Reply-To` param) | `TEST_GMAIL_REPLYTO_ID` | GM23 (replaces its inline setup) |
 | `forwarded` | Sent | Outer body, then a forwarded message as a real `message/rfc822` part named `forwarded.eml` | `TEST_GMAIL_FWD_ID` | GM29 |
@@ -112,7 +112,7 @@ Keep the IDs and intent. Rewrite each to name the exact tool and params and to r
 | GM28 | `get_message` | Both attachments (PDF, CSV) listed with filename, MIME type, size, `attachment_id`. The inline PNG (`inline` fixture) is listed with `filename: null`; Gmail stores it by `attachmentId` (§5, P3: not a defect). | read |
 | GM29 | `get_message` | `body_plain` is the *outer* message's body; the `.eml` is listed as a `message/rfc822` attachment (§5, P2: not a defect with Gmail's real layout) | read |
 | GM30 | `get_message`, `get_thread` | `large-body` (Gmail delivers both 3 MB parts by `attachmentId`, #825). Without `local_path`: the size-cap error, naming `local_path`, since ~6 MB exceeds the default cap. With `local_path`: the written JSON has `body_plain` (3,000,002 chars) and `body_html` (3,037,987 chars) filled, `attachments: []`, no `body_fetch_errors`. Same for `get_thread` on its thread. Written in the #825 PR (#829). | read |
-| GM31 | `get_thread` | Over-cap thread returns the size-cap error, not a dropped connection or a truncated body. Captures #793's motivating failure live. | read |
+| GM31 | `get_thread` | Over-cap thread returns the size-cap error, not a dropped connection or a truncated body, and the error points at `include_body=False`. With `include_body=False` the same thread lists its 3 message IDs and headers with no bodies (#793). | read |
 | GM32 | `get_message` | Latin-1 body decodes correctly. A zero-setup regression companion to TC-GM26: #792 closed with the finding that Gmail transcodes every text part to UTF-8, so this is expected to **pass**. | read |
 | GM33 | `get_thread` | 3 messages in chronological order, each shaped like `get_message`, `in_reply_to`/`references` populated | read |
 | GM34 | `list_messages`, `list_threads` | `max_results=3` over the 7 `page` fixtures: `next_page_token` present, page 2 has no overlap with page 1, final page has no token. Also `max_results=0` and `9999` clamp without error. | read |
@@ -127,6 +127,7 @@ Keep the IDs and intent. Rewrite each to name the exact tool and params and to r
 | GM43 | `reply_to_message` | Reply into the 3-message `thread` from its middle message: `references` chains all prior IDs, reply lands in the same thread. M2 was sent by the QA mailbox, so the reply is delivered to the sender mailbox | write, cross-mailbox |
 | GM44 | `reply_to_message` (QA) → `list_messages` (sender) | End-to-end delivery. The QA mailbox replies to the `plain` fixture. On the sender side, `list_messages(query='subject:"[mcp-qa:plain]"')` shows the reply arrived in the **same thread** as the original. Proves `In-Reply-To`/`References` thread correctly in the recipient's mailbox, not just in ours. Plus-address cases can't show this. | write, cross-mailbox |
 | GM45 | `send_message` (QA) → `get_message` (sender) | QA sends to the sender mailbox with `cc` = a QA plus-address and `bcc` = another. On the sender side, `get_message` shows `cc` present and **no** `bcc` header. Bcc must be stripped from delivered copies; GM39 only sees the sender's copy. | write, cross-mailbox |
+| GM46 | `get_message` | `include_body=False` on the `attachments` fixture: headers, snippet, labels, and `size_estimate` present; no `body_plain`, `body_html`, or `attachments` key, since Gmail's `metadata` format returns no payload parts (#793) | read |
 
 Every write case uses a `+tc-gmNN` plus-address and an `[mcp-qa:tc-gmNN]` subject (so `reset` sweeps it), and ends with a **Cleanup** step.
 

@@ -49,6 +49,22 @@ def _raw_payload_from_send_call(gmail_svc) -> bytes:
 _gmail_tool, _gmail_tools = _make_tool_registry()
 gmail_module.register(_gmail_tool)
 
+# Every header a shaped message surfaces, which a body-less fetch requests via
+# metadataHeaders (#793). Spelled out rather than imported from gmail.py, so a
+# change to the filter has to be made here too.
+_SHAPED_HEADER_NAMES = [
+    "From",
+    "Reply-To",
+    "To",
+    "Cc",
+    "Bcc",
+    "Subject",
+    "Date",
+    "Message-ID",
+    "In-Reply-To",
+    "References",
+]
+
 
 class TestGmailNotAuthorized:
     """#790 / PR #807 QA round 1: when the OAuth token lacks only the Gmail scope,
@@ -188,6 +204,42 @@ class TestGetMessage:
         result = await _gmail_tools["get_message"](message_id="missing", ctx=ctx)
 
         assert "error" in result
+
+    async def test_include_body_false_fetches_metadata_only(self):
+        """#793: metadata format has no payload parts, so no body keys and no fetches."""
+        gmail_svc = MagicMock()
+        messages = gmail_svc.users.return_value.messages.return_value
+        messages.get.return_value.execute.return_value = {
+            "id": "m1",
+            "threadId": "t1",
+            "snippet": "Hello",
+            "labelIds": ["INBOX"],
+            "internalDate": "1700000000000",
+            "sizeEstimate": 162270,
+            "payload": {
+                "mimeType": "multipart/mixed",
+                "headers": [
+                    {"name": "From", "value": "a@example.com"},
+                    {"name": "Subject", "value": "Hi"},
+                ],
+            },
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", include_body=False, ctx=ctx)
+
+        messages.get.assert_called_once_with(
+            userId="me", id="m1", format="metadata", metadataHeaders=_SHAPED_HEADER_NAMES
+        )
+        assert result["id"] == "m1"
+        assert result["thread_id"] == "t1"
+        assert result["snippet"] == "Hello"
+        assert result["size_estimate"] == 162270
+        assert result["headers"]["from"] == "a@example.com"
+        assert result["headers"]["subject"] == "Hi"
+        for key in ("body_plain", "body_html", "attachments"):
+            assert key not in result
+        messages.attachments.return_value.get.assert_not_called()
 
 
 def _b64(raw: bytes, *, pad: bool = True) -> str:
@@ -837,8 +889,39 @@ class TestMessageSizeCap:
         }
         ctx = _make_ctx(gmail_service=gmail_svc)
 
-        with pytest.raises(ValueError, match=r"get_thread.*Pass local_path"):
+        with pytest.raises(ValueError, match=r"get_thread.*include_body=False.*Pass local_path"):
             await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+    async def test_get_message_body_less_over_cap_blames_headers_not_body(self, small_cap):
+        """#793 QA: no body is fetched with include_body=False, so the hint can't
+        call the body large."""
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {"headers": [{"name": "References", "value": "<r@x> " * 100}]},
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        with pytest.raises(ValueError, match=r"get_message.*headers are large") as exc:
+            await _gmail_tools["get_message"](message_id="m1", include_body=False, ctx=ctx)
+        assert "body" not in str(exc.value)
+
+    async def test_get_thread_body_less_over_cap_drops_include_body_hint(self, small_cap):
+        """#793: suggesting include_body=False to a call already using it is useless."""
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [
+                {"id": f"m{i}", "threadId": "t1", "snippet": "s" * 50, "payload": {}}
+                for i in range(5)
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        with pytest.raises(ValueError, match=r"get_thread.*Pass local_path") as exc:
+            await _gmail_tools["get_thread"](thread_id="t1", include_body=False, ctx=ctx)
+        assert "include_body" not in str(exc.value)
 
     async def test_get_thread_local_path_writes_full_thread(self, small_cap, tmp_path):
         gmail_svc = self._large()
@@ -969,6 +1052,50 @@ class TestGetThread:
         result = await _gmail_tools["get_thread"](thread_id="missing", ctx=ctx)
 
         assert "error" in result
+
+    async def test_default_fetches_full_format(self):
+        gmail_svc = MagicMock()
+        threads = gmail_svc.users.return_value.threads.return_value
+        threads.get.return_value.execute.return_value = {"id": "t1", "messages": []}
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+        threads.get.assert_called_once_with(userId="me", id="t1", format="full")
+
+    async def test_include_body_false_lists_ids_and_headers_only(self):
+        """#793: a thread too large to read whole can still be listed by message ID."""
+        gmail_svc = MagicMock()
+        threads = gmail_svc.users.return_value.threads.return_value
+        threads.get.return_value.execute.return_value = {
+            "id": "t1",
+            "historyId": "5",
+            "messages": [
+                {
+                    "id": f"m{i}",
+                    "threadId": "t1",
+                    "snippet": f"snippet {i}",
+                    "payload": {
+                        "mimeType": "multipart/mixed",
+                        "headers": [{"name": "Subject", "value": f"Re: {i}"}],
+                    },
+                }
+                for i in (1, 2)
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", include_body=False, ctx=ctx)
+
+        threads.get.assert_called_once_with(
+            userId="me", id="t1", format="metadata", metadataHeaders=_SHAPED_HEADER_NAMES
+        )
+        assert [m["id"] for m in result["messages"]] == ["m1", "m2"]
+        assert result["messages"][1]["headers"]["subject"] == "Re: 2"
+        for message in result["messages"]:
+            for key in ("body_plain", "body_html", "attachments"):
+                assert key not in message
+        gmail_svc.users.return_value.messages.return_value.attachments.assert_not_called()
 
 
 class TestListLabels:

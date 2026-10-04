@@ -398,6 +398,34 @@ class _PendingMessage:
     parts: _PayloadParts | None
 
 
+# The headers a shaped message surfaces, as (result key, header name). Also the
+# metadataHeaders filter for a body-less fetch, so it requests exactly these (#793).
+_SHAPED_HEADERS = (
+    ("from", "From"),
+    # Surfaced because reply_to_message prefers it over From when replying to
+    # someone else's message (#791).
+    ("reply_to", "Reply-To"),
+    ("to", "To"),
+    ("cc", "Cc"),
+    ("bcc", "Bcc"),
+    ("subject", "Subject"),
+    ("date", "Date"),
+    ("message_id", "Message-ID"),
+    ("in_reply_to", "In-Reply-To"),
+    ("references", "References"),
+)
+
+
+def _get_format_kwargs(include_body: bool) -> dict[str, Any]:
+    """The format kwargs for messages.get / threads.get. 'metadata' returns headers,
+    snippet, labels, and size but no payload parts, so no body or attachment data;
+    metadataHeaders keeps it from also returning every Received/ARC/DKIM header
+    that shaping would drop (#793)."""
+    if include_body:
+        return {"format": "full"}
+    return {"format": "metadata", "metadataHeaders": [name for _, name in _SHAPED_HEADERS]}
+
+
 def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _PendingMessage:
     payload = msg.get("payload") or {}
     headers = _header_map(payload.get("headers"))
@@ -408,20 +436,7 @@ def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _Pendin
         "label_ids": msg.get("labelIds") or [],
         "internal_date": msg.get("internalDate"),
         "size_estimate": msg.get("sizeEstimate"),
-        "headers": {
-            "from": headers.get("from"),
-            # Surfaced because reply_to_message prefers it over From when replying
-            # to someone else's message (#791).
-            "reply_to": headers.get("reply-to"),
-            "to": headers.get("to"),
-            "cc": headers.get("cc"),
-            "bcc": headers.get("bcc"),
-            "subject": headers.get("subject"),
-            "date": headers.get("date"),
-            "message_id": headers.get("message-id"),
-            "in_reply_to": headers.get("in-reply-to"),
-            "references": headers.get("references"),
-        },
+        "headers": {key: headers.get(name.lower()) for key, name in _SHAPED_HEADERS},
     }
     parts = _extract_bodies_and_attachments(payload) if include_body else None
     return _PendingMessage(shaped, parts)
@@ -653,7 +668,10 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="Get Message", readOnlyHint=True))
     async def get_message(
-        message_id: str, local_path: str | None = None, ctx: Context = None
+        message_id: str,
+        local_path: str | None = None,
+        include_body: bool = True,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Fetch a single message by ID, including headers, body, and attachment metadata.
@@ -663,6 +681,9 @@ def register(tool):
             local_path: Optional local filesystem path (file or directory) to write the
                         message JSON to instead of returning it inline. Bypasses the
                         response-size cap, for messages with very large bodies.
+            include_body: When False, fetch only metadata (Gmail's format='metadata'):
+                          no body is downloaded, and body_plain, body_html, and
+                          attachments are left out of the result.
 
         Returns:
             Message with id, thread_id, snippet, label_ids, headers (from/to/cc/bcc/
@@ -678,8 +699,9 @@ def register(tool):
             set; a separately delivered body already over the cap raises before
             being downloaded. If local_path is set, returns {local_path, message_id,
             bytes_written} instead, plus body_fetch_errors / body_decode_errors
-            (each entry with message_id) when present. On API failure,
-            {"error": "..."}.
+            (each entry with message_id) when present. With include_body=False, only
+            id, thread_id, snippet, label_ids, internal_date, size_estimate, and
+            headers. On API failure, {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
@@ -688,15 +710,16 @@ def register(tool):
             msg = await execute_in_thread(
                 lc.gmail_service.users()
                 .messages()
-                .get(userId=_USER, id=message_id, format="full")
+                .get(userId=_USER, id=message_id, **_get_format_kwargs(include_body))
                 .execute,
                 lc.gmail_service,
             )
         except Exception as e:
             return {"error": str(e)}
 
-        hint = "The message body is large. "
-        pending = [_start_shaping(msg, include_body=True)]
+        # No body is fetched with include_body=False, so only headers can be large.
+        hint = "The message body is large. " if include_body else "The message headers are large. "
+        pending = [_start_shaping(msg, include_body=include_body)]
         if not local_path:
             enforce_response_size_floor(
                 _deferred_body_bytes(pending), tool_name="get_message", hint=hint
@@ -784,7 +807,10 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="Get Thread", readOnlyHint=True))
     async def get_thread(
-        thread_id: str, local_path: str | None = None, ctx: Context = None
+        thread_id: str,
+        local_path: str | None = None,
+        include_body: bool = True,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Fetch all messages in a conversation thread.
@@ -794,9 +820,14 @@ def register(tool):
             local_path: Optional local filesystem path (file or directory) to write the
                         thread JSON to instead of returning it inline. Bypasses the
                         response-size cap, for threads with very large bodies.
+            include_body: When False, fetch only each message's metadata (Gmail's
+                          format='metadata'): no body is downloaded, and body_plain,
+                          body_html, and attachments are left out. Use it to list a
+                          thread too large to read whole, then get_message each ID.
 
         Returns:
-            Thread with id, snippet, history_id, and messages (same shape as get_message).
+            Thread with id, snippet, history_id, and messages (same shape as get_message,
+            including its include_body=False shape).
             Raises an error naming the size if the thread is over the response-size cap
             and local_path is not set. If local_path is set, returns {local_path,
             thread_id, message_count, bytes_written} instead, plus body_fetch_errors /
@@ -810,15 +841,20 @@ def register(tool):
             thread = await execute_in_thread(
                 lc.gmail_service.users()
                 .threads()
-                .get(userId=_USER, id=thread_id, format="full")
+                .get(userId=_USER, id=thread_id, **_get_format_kwargs(include_body))
                 .execute,
                 lc.gmail_service,
             )
         except Exception as e:
             return {"error": str(e)}
 
-        hint = "The thread is large; use get_message on individual IDs. "
-        pending = [_start_shaping(m, include_body=True) for m in thread.get("messages", [])]
+        hint = (
+            "The thread is large; call get_thread with include_body=False to list its "
+            "message IDs and headers, then get_message on individual IDs. "
+            if include_body
+            else "The thread has too many messages to list inline. "
+        )
+        pending = [_start_shaping(m, include_body=include_body) for m in thread.get("messages", [])]
         if not local_path:
             enforce_response_size_floor(
                 _deferred_body_bytes(pending), tool_name="get_thread", hint=hint
