@@ -3703,6 +3703,378 @@ class TestSyncFolderDownloadMtimeRoundTrip:
         assert second["uploaded"] == []
 
 
+def _partial_files(directory: Path) -> list[str]:
+    return [p.name for p in directory.iterdir() if transfer_module._is_partial_download(p.name)]
+
+
+class _FailingDownloader:
+    """Writes `written` bytes, then raises from the next chunk, like a dropped
+    connection partway through a large download."""
+
+    written = b"truncated"
+
+    def __init__(self, fh, request):
+        self._fh = fh
+        self._calls = 0
+
+    def next_chunk(self):
+        self._calls += 1
+        if self._calls == 1:
+            self._fh.write(self.written)
+            return None, False
+        raise ConnectionError("connection reset mid-download")
+
+
+class TestSyncFolderFailedDownloadLeavesNoPartial:
+    """#844: a download that failed partway left a truncated file at the
+    destination with a current mtime, which the next bidirectional sync read
+    as locally newer and uploaded over the intact Drive copy."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _fs(self) -> _FakeDriveFS:
+        return _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "big.bin",
+                        "fbig",
+                        mtime="2024-06-01T12:00:00.000Z",
+                        mime="application/octet-stream",
+                        size=50,
+                    )
+                ]
+            }
+        )
+
+    async def test_failed_download_keeps_existing_local_file_intact(self, tmp_path, monkeypatch):
+        local = tmp_path / "big.bin"
+        local.write_bytes(b"old local content")
+        old_mtime = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+        os.utime(local, (old_mtime, old_mtime))
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            ctx=self._ctx(fs),
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert local.read_bytes() == b"old local content"
+        assert local.stat().st_mtime == old_mtime
+        assert _partial_files(tmp_path) == []
+
+    async def test_failed_download_then_resync_does_not_upload(self, tmp_path, monkeypatch):
+        """The issue's scenario end to end: Drive-only file, download fails,
+        the next sync must not upload anything over the Drive copy."""
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
+        fs = self._fs()
+        ctx = self._ctx(fs)
+
+        first = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="bidirectional", ctx=ctx
+        )
+        assert [f["name"] for f in first["failed"]] == ["big.bin"]
+        assert not (tmp_path / "big.bin").exists()
+        assert _partial_files(tmp_path) == []
+
+        second = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="bidirectional", ctx=ctx
+        )
+        assert second["uploaded"] == []
+        assert fs.created_files == []
+        assert [u for u in fs.updated_files if "media_body" in u] == []
+
+    async def test_failed_mtime_restamp_leaves_destination_untouched(self, tmp_path, monkeypatch):
+        """The restamp runs before the rename, so a failure there can't leave a
+        complete file with a 'now' mtime either."""
+
+        class _OkDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"complete")
+                return None, True
+
+        def _utime_fails(*args, **kwargs):
+            raise PermissionError("utime denied")
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+        monkeypatch.setattr(transfer_module.os, "utime", _utime_fails)
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="bidirectional", ctx=self._ctx(fs)
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert not (tmp_path / "big.bin").exists()
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    async def test_read_only_local_file_is_a_download_fail_not_replaced(
+        self, tmp_path, monkeypatch
+    ):
+        """PR #884 QA round 1: sync_folder's download branch must refuse a
+        read-only local file the way the old in-place write did."""
+        local = tmp_path / "big.bin"
+        local.write_bytes(b"protected")
+        old_mtime = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+        os.utime(local, (old_mtime, old_mtime))
+        local.chmod(0o444)
+
+        class _OkDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"drive content")
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="download", ctx=self._ctx(fs)
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert result["downloaded"] == []
+        assert local.read_bytes() == b"protected"
+        assert _partial_files(tmp_path) == []
+
+    async def test_leftover_partial_is_never_uploaded(self, tmp_path):
+        """A temp file only survives a hard kill mid-download. sync_folder must
+        not treat it as a local-only file to upload."""
+        leftover = tmp_path / (transfer_module._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef")
+        leftover.write_bytes(b"half a file")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="bidirectional", ctx=self._ctx(fs)
+        )
+
+        assert result["uploaded"] == []
+        assert fs.created_files == []
+
+
+class TestWriteAtomically:
+    """#844: _write_atomically, the shared write path behind every download."""
+
+    def test_failure_leaves_existing_file_and_no_temp(self, tmp_path):
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"original")
+
+        def _write(fh):
+            fh.write(b"partial")
+            raise OSError("disk full")
+
+        with pytest.raises(OSError, match="disk full"):
+            transfer_module._write_atomically(dest, _write)
+        assert dest.read_bytes() == b"original"
+        assert _partial_files(tmp_path) == []
+
+    def test_success_replaces_content_and_stamps_mtime(self, tmp_path):
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"original")
+        stamp = datetime(2024, 6, 1, tzinfo=timezone.utc).timestamp()
+
+        transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"), stamp)
+
+        assert dest.read_bytes() == b"new"
+        assert dest.stat().st_mtime == stamp
+        assert _partial_files(tmp_path) == []
+
+    def test_existing_file_mode_is_kept(self, tmp_path):
+        dest = tmp_path / "f.sh"
+        dest.write_bytes(b"old")
+        dest.chmod(0o750)
+
+        transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.stat().st_mode & 0o777 == 0o750
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    def test_read_only_destination_is_refused_not_replaced(self, tmp_path):
+        """PR #884 QA round 1: a rename only needs directory write permission,
+        so a file the user made read-only was silently replaced. The old
+        open('wb') raised PermissionError; that refusal is kept."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"protected")
+        dest.chmod(0o444)
+
+        with pytest.raises(PermissionError):
+            transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.read_bytes() == b"protected"
+        assert dest.stat().st_mode & 0o777 == 0o444
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    def test_read_only_symlink_target_is_refused(self, tmp_path):
+        real = tmp_path / "real.bin"
+        real.write_bytes(b"protected")
+        real.chmod(0o444)
+        link = tmp_path / "link.bin"
+        link.symlink_to(real)
+
+        with pytest.raises(PermissionError):
+            transfer_module._write_atomically(link, lambda fh: fh.write(b"new"))
+
+        assert real.read_bytes() == b"protected"
+
+    def test_setuid_setgid_sticky_bits_are_not_carried_over(self, tmp_path):
+        """PR #884 QA round 1: an in-place write by a non-root process has the
+        kernel clear setuid/setgid, so the replacement mustn't copy them."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        dest.chmod(0o4755)
+
+        transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.stat().st_mode & 0o7777 == 0o755
+
+    def test_new_file_gets_umask_default_mode(self, tmp_path):
+        """Same mode a plain open('wb') would give, not mkstemp's 0o600."""
+        reference = tmp_path / "reference"
+        reference.write_bytes(b"")
+        dest = tmp_path / "f.bin"
+
+        transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.stat().st_mode & 0o777 == reference.stat().st_mode & 0o777
+
+    def test_symlink_destination_is_written_through(self, tmp_path):
+        """_safe_local_dest keeps a user's symlink inside the target directory
+        working; the rename must replace the link's target, not the link."""
+        real = tmp_path / "elsewhere" / "real.bin"
+        real.parent.mkdir()
+        real.write_bytes(b"old")
+        link = tmp_path / "link.bin"
+        link.symlink_to(real)
+
+        transfer_module._write_atomically(link, lambda fh: fh.write(b"new"))
+
+        assert link.is_symlink()
+        assert real.read_bytes() == b"new"
+        assert _partial_files(real.parent) == []
+
+    def test_partial_name_matcher_is_exact(self):
+        assert transfer_module._is_partial_download(".gee-sweet-partial-0123456789abcdef")
+        assert not transfer_module._is_partial_download("gee-sweet-partial-0123456789abcdef")
+        assert not transfer_module._is_partial_download(".gee-sweet-partial-0123456789abcdef.txt")
+        assert not transfer_module._is_partial_download("notes.txt")
+
+
+class TestDownloadToolsFailedDownloadLeavesNoPartial:
+    """#844's sibling sites: download_file and download_folder shared the same
+    write-straight-to-destination pattern as sync_folder."""
+
+    def _ctx(self, drive_svc):
+        ctx = _make_ctx(drive_service=drive_svc, drive_folder_cache=MagicMock())
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_download_file_failure_keeps_existing_file(self, tmp_path, monkeypatch):
+        dest = tmp_path / "big.bin"
+        dest.write_bytes(b"previous download")
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.bin",
+            "mimeType": "application/octet-stream",
+        }
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
+
+        with pytest.raises(ConnectionError):
+            await _transfer_tools["download_file"](
+                file_id="fbig", local_path=str(dest), ctx=self._ctx(svc)
+            )
+
+        assert dest.read_bytes() == b"previous download"
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    async def test_download_file_refuses_read_only_destination(self, tmp_path, monkeypatch):
+        """PR #884 QA round 1, the live repro: a read-only file was replaced by
+        the Drive content and the call reported success."""
+        dest = tmp_path / "big.bin"
+        dest.write_bytes(b"protected")
+        dest.chmod(0o444)
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.bin",
+            "mimeType": "application/octet-stream",
+        }
+
+        class _OkDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"drive content")
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+
+        with pytest.raises(PermissionError):
+            await _transfer_tools["download_file"](
+                file_id="fbig", local_path=str(dest), ctx=self._ctx(svc)
+            )
+
+        assert dest.read_bytes() == b"protected"
+        assert _partial_files(tmp_path) == []
+
+    async def test_download_folder_failure_leaves_no_file_for_skip_if_exists(
+        self, tmp_path, monkeypatch
+    ):
+        """With skip_if_exists=True (the default), a truncated file left by a
+        failed run would be skipped by every later run, so it never healed."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"id": "fbig", "name": "big.bin", "mimeType": "application/octet-stream"},
+            ]
+        }
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root", local_path=str(tmp_path), ctx=self._ctx(svc)
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert not (tmp_path / "big.bin").exists()
+        assert _partial_files(tmp_path) == []
+
+    async def test_upload_local_folder_skips_leftover_partial(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / (transfer_module._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef")).write_bytes(
+            b"half a file"
+        )
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "a.txt",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _transfer_tools["upload_local_folder"](
+            str(tmp_path), "folder1", ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == ["a.txt"]
+        assert result["failed"] == []
+
+
 class TestSyncFolderUseChecksum:
     """Issue #274: mtime alone can't distinguish real content drift from a
     non-content-changing mtime bump (or vice versa) — upload_local_file in
