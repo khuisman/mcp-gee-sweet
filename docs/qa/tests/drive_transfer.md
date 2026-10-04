@@ -1715,6 +1715,7 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 > 5. `upload_local_folder(local_path="/tmp/qa-279/sync/", parent_folder_id="{F}", skip_if_exists=false)`, then `list_files(folder_id="{F}")`.
 > 6. `download_file(file_id="{BIG}", local_path="/tmp/qa-279/sync/big.bin")`, then `ls -la /tmp/qa-279/sync/`.
 > 7. `download_folder(folder_id="{F}", local_path="/tmp/qa-279/dl/", skip_if_exists=false)`, then `ls -la /tmp/qa-279/dl/`.
+> 8. Make a read-only local copy: `printf 'protected' > /tmp/qa-279/ro.bin && chmod 444 /tmp/qa-279/ro.bin && chmod 4644 /tmp/qa-279/dl/big.bin`. Call `download_file(file_id="{BIG}", local_path="/tmp/qa-279/ro.bin")`. Then call `download_file(file_id="{BIG}", local_path="/tmp/qa-279/dl/big.bin")` and run `ls -la /tmp/qa-279/ /tmp/qa-279/dl/ && cat /tmp/qa-279/ro.bin`. (Not as root: root can write a `0444` file.)
 
 **Checks**
 - Step 1: `downloaded` is `["big.bin"]`. `uploaded` is empty, and `.gee-sweet-partial-0123456789abcdef` appears in no result list. `failed` is empty.
@@ -1724,6 +1725,7 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 - Step 5: `uploaded` lists only `big.bin` (a second copy, since `skip_if_exists=false`); the planted temp file is not uploaded and not in `failed`. `list_files` shows two `big.bin` and no `.gee-sweet-partial-*`.
 - Step 6: succeeds with `size_bytes` 3000000. The directory still holds only `big.bin` and the planted temp file.
 - Step 7: `downloaded` is `["big.bin"]` and `failed` has one duplicate-filename entry for the second `big.bin` (PR #351). `/tmp/qa-279/dl/` holds only `big.bin`, 3000000 bytes, and no `.gee-sweet-partial-*` file.
+- Step 8 (PR #884 QA round 1): the first `download_file` fails with a permission error. `ro.bin` still reads `protected`, still `-r--r--r--`, and no `.gee-sweet-partial-*` file is in `/tmp/qa-279/`. The second call succeeds, and `dl/big.bin` is `-rw-r--r--`: the setuid bit is not carried onto the new content.
 
 **Teardown**
 `delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-279`.

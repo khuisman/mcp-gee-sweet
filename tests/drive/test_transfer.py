@@ -3820,6 +3820,38 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
         assert not (tmp_path / "big.bin").exists()
         assert _partial_files(tmp_path) == []
 
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    async def test_read_only_local_file_is_a_download_fail_not_replaced(
+        self, tmp_path, monkeypatch
+    ):
+        """PR #884 QA round 1: sync_folder's download branch must refuse a
+        read-only local file the way the old in-place write did."""
+        local = tmp_path / "big.bin"
+        local.write_bytes(b"protected")
+        old_mtime = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+        os.utime(local, (old_mtime, old_mtime))
+        local.chmod(0o444)
+
+        class _OkDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"drive content")
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="download", ctx=self._ctx(fs)
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert result["downloaded"] == []
+        assert local.read_bytes() == b"protected"
+        assert _partial_files(tmp_path) == []
+
     async def test_leftover_partial_is_never_uploaded(self, tmp_path):
         """A temp file only survives a hard kill mid-download. sync_folder must
         not treat it as a local-only file to upload."""
@@ -3870,6 +3902,46 @@ class TestWriteAtomically:
         transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
 
         assert dest.stat().st_mode & 0o777 == 0o750
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    def test_read_only_destination_is_refused_not_replaced(self, tmp_path):
+        """PR #884 QA round 1: a rename only needs directory write permission,
+        so a file the user made read-only was silently replaced. The old
+        open('wb') raised PermissionError; that refusal is kept."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"protected")
+        dest.chmod(0o444)
+
+        with pytest.raises(PermissionError):
+            transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.read_bytes() == b"protected"
+        assert dest.stat().st_mode & 0o777 == 0o444
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    def test_read_only_symlink_target_is_refused(self, tmp_path):
+        real = tmp_path / "real.bin"
+        real.write_bytes(b"protected")
+        real.chmod(0o444)
+        link = tmp_path / "link.bin"
+        link.symlink_to(real)
+
+        with pytest.raises(PermissionError):
+            transfer_module._write_atomically(link, lambda fh: fh.write(b"new"))
+
+        assert real.read_bytes() == b"protected"
+
+    def test_setuid_setgid_sticky_bits_are_not_carried_over(self, tmp_path):
+        """PR #884 QA round 1: an in-place write by a non-root process has the
+        kernel clear setuid/setgid, so the replacement mustn't copy them."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        dest.chmod(0o4755)
+
+        transfer_module._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.stat().st_mode & 0o7777 == 0o755
 
     def test_new_file_gets_umask_default_mode(self, tmp_path):
         """Same mode a plain open('wb') would give, not mkstemp's 0o600."""
@@ -3928,6 +4000,37 @@ class TestDownloadToolsFailedDownloadLeavesNoPartial:
             )
 
         assert dest.read_bytes() == b"previous download"
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    async def test_download_file_refuses_read_only_destination(self, tmp_path, monkeypatch):
+        """PR #884 QA round 1, the live repro: a read-only file was replaced by
+        the Drive content and the call reported success."""
+        dest = tmp_path / "big.bin"
+        dest.write_bytes(b"protected")
+        dest.chmod(0o444)
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.bin",
+            "mimeType": "application/octet-stream",
+        }
+
+        class _OkDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"drive content")
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+
+        with pytest.raises(PermissionError):
+            await _transfer_tools["download_file"](
+                file_id="fbig", local_path=str(dest), ctx=self._ctx(svc)
+            )
+
+        assert dest.read_bytes() == b"protected"
         assert _partial_files(tmp_path) == []
 
     async def test_download_folder_failure_leaves_no_file_for_skip_if_exists(
