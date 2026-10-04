@@ -97,3 +97,19 @@ service account.
 use `write_doc_content` or `update_cells` to populate it. Alternatively, use OAuth authentication
 (`AUTH_METHOD=oauth`) which authenticates as the user and has full personal Drive access.
 Related: project memory `service_account_limit`.
+
+### Downloads and `sync_folder` skip names that aren't a single filename
+
+**What:** Drive allows `/` in a file or folder name, and a name of `.` or `..`. `download_file`
+(with a directory as `local_path`), `download_folder`, and `sync_folder` refuse such a name
+instead of writing it, and report it under `failed` (`download_file` raises an error). A name
+containing `\` is refused too, on every OS. That includes a local file or folder whose name
+contains `\`, which macOS and Linux allow: `sync_folder` won't upload it.
+
+**Why:** A Drive name is used as the local filename. One that isn't a single ordinary filename
+would land somewhere other than the requested folder. `\` is a separator on Windows, so it's
+refused everywhere, which means the same names are refused as path separators on every OS.
+(Other Windows filename rules, such as `:` or reserved names like `CON`, aren't checked here.)
+
+**Workaround:** Rename the file or folder in Drive (or locally). For a single file,
+`download_file` with a full file path as `local_path` downloads it under that name.

@@ -1461,6 +1461,38 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D278: Drive names that aren't a single filename are never written outside `local_path` ⚠️ local-filesystem ⚠️ destructive
+
+**Background:** `download_file`, `download_folder`, and `sync_folder` build each local path from a Drive name. Drive stores `/` and `..` in names unchanged, so every one of those names now goes through one check (`_safe_local_dest`), and a name that isn't one ordinary filename is refused. Unit-tested in `tests/drive/test_transfer.py::TestDriveNameUnsafeReason`, `TestDownloadFileUnsafeName`, `TestDownloadFolderUnsafeName`, and `TestSyncFolderUnsafeName`.
+
+**Setup**
+> 1. Call `create_folder(name="qa-278", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
+> 2. Call `upload_file(name="../../escaped-probe.txt", content="probe", folder_id="{F}")` and `upload_file(name="fine.txt", content="ok", folder_id="{F}")`.
+> 3. Call `create_folder(name="..", parent_folder_id="{F}")`; call the returned ID `{DOTDOT}`. Call `upload_file(name="payload.txt", content="payload", folder_id="{DOTDOT}")`.
+> 4. Run `rm -rf /tmp/qa-278 && mkdir -p /tmp/qa-278/a/b && echo secret > /tmp/qa-278/a/secret.txt`.
+
+**Steps**
+> 1. `download_file(file_id=<ID of ../../escaped-probe.txt>, local_path="/tmp/qa-278/a/b/")`.
+> 2. `download_file(file_id=<ID of ../../escaped-probe.txt>, local_path="/tmp/qa-278/a/b/chosen.txt")`.
+> 3. `download_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/")`.
+> 4. `rm /tmp/qa-278/a/b/*`, then `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, dry_run=true)`.
+> 5. `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true)` (real run, default `bidirectional`).
+> 6. `sync_folder(folder_id="{F}", local_path="/tmp/qa-278/a/b/", recursive=true, direction="upload")`.
+> 7. After each step, run `find /tmp/qa-278 | sort`.
+
+**Checks**
+- Step 1: the call fails with an error that the Drive file name can't be used as a local filename, naming the path separator. Nothing new under `/tmp/qa-278`.
+- Step 2: succeeds; `/tmp/qa-278/a/b/chosen.txt` contains `probe`. An explicit file path never uses the Drive name.
+- Step 3: `downloaded` contains `fine.txt`. `failed` has one entry, `../../escaped-probe.txt`, whose error names the path separator. `skipped` lists the `..` folder, as for any subfolder. No `escaped-probe.txt` anywhere under `/tmp/qa-278` except as step 2's `chosen.txt`.
+- Step 4: `actions` contains `../../escaped-probe.txt` with `action: "unsafe_name"` and `../` with `action: "unsafe_name"`; `fine.txt` is `download`. `failed` is empty. Nothing changed on disk.
+- Step 5: `downloaded` is `["fine.txt"]`. `failed` has `../../escaped-probe.txt` and `../` (reason: special path segment `'..'`). `/tmp/qa-278/a/` still holds only `b/` and `secret.txt`: no `payload.txt` there, and `list_files(folder_id="{DOTDOT}")` shows `secret.txt` wasn't uploaded.
+- Step 6: `failed` is empty. `skipped` contains `../../escaped-probe.txt` and `folders_skipped` contains `../` (Drive-only names the upload direction never touches). `fine.txt` is in `skipped` (in sync since step 5); `uploaded` is empty.
+
+**Teardown**
+`delete_file` on `{F}` (takes its contents with it). `rm -rf /tmp/qa-278`.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet
