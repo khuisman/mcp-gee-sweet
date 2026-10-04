@@ -546,6 +546,8 @@ download {DOC_ID} with no export_format: ValueError "export_format is required f
 **Result (2026-09-04) ✅ PASS**
 No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt": written to exactly that path (not a subdir), content "Hello from QA" intact, 13 bytes. Parent dir already existed.
 
+**Result (2026-10-03) ✅ PASS** — re-run after #855's destination preflight, via an isolated service-account sandbox. No PNG fixture — used a 25-byte `beta.bin` → `local_path=".../newparent/deeper/exact-name.bin"` (neither `newparent/` nor `deeper/` existing): written to exactly that path, content intact, both parent levels created. A second call to an existing regular file (`.../existing.bin`, content `old`) replaced it with the downloaded 15 bytes, as the preflight's docstring allows.
+
 ---
 
 ### TC-D254: `download_file` — a non-existent trailing-slash `local_path` is created as a directory, not written as a file (issue #690) ⚠️ local-filesystem
@@ -562,7 +564,7 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 **Checks**
 - Step 1: `/tmp/qa-d254/new/sub/` exists as a **directory**; the file is at `/tmp/qa-d254/new/sub/<drive_name>` with the real content; the returned `local_path` is that full file path. There is **no** plain file at `/tmp/qa-d254/new/sub`.
 - Step 2: both downloads are present as separate files inside `/tmp/qa-d254/new/sub/` (named after each Drive file) — the second did not overwrite the first, and `/tmp/qa-d254/new/sub` is still a directory, not a file.
-- Step 3: the call returns/raises a `ValueError` mentioning a non-directory already exists at that path; `/tmp/qa-d254/clash` still contains `x`, untouched.
+- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'` (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
 
 **Teardown**
 `rm -rf /tmp/qa-d254`.
@@ -573,6 +575,94 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 - **Step 3** (`printf x > .../clash`, then `download_file(alpha, local_path=".../clash/")`): raised `ValueError` `"local_path '…/clash/' ends in a path separator (implying a directory) but a non-directory already exists at '…/clash'"`; `.../clash` still contains `x`, untouched.
 
 Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (incl. the 3 new `test_trailing_slash_*` cases). `/code-review high origin/develop...HEAD` surfaced 3 non-blocking cleanups (fail-fast ordering of the clash `ValueError` vs. the `files().get()` call; a dead `os.altsep` clause in the `wants_dir` test; a raw `NotADirectoryError` when an *intermediate* parent is a regular file) — none blocking, filed as follow-up #724.
+
+**Result (2026-10-03) ✅ PASS** — regression re-run after #827 and #855, via an isolated service-account sandbox on a Shared Drive. Fixtures: `alpha.bin` (15 B) and `beta.bin` (25 B) uploaded to the sandbox drive root, removed at teardown.
+- **Step 1:** `.../new/sub/` created as a directory (both levels); returned `local_path` `/tmp/qa-d254/new/sub/alpha.bin`, 15 B, content intact.
+- **Step 2:** `beta.bin` (25 B) written next to `alpha.bin`, which was unchanged; `.../new/sub` still a directory.
+- **Step 3:** raised `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'`; `clash` still contains `x`.
+
+---
+
+### TC-D274: `download_file` — trailing-slash `local_path` over an existing regular file fails before any Drive request (#827, #855) ⚠️ local-filesystem
+
+**Background:** #827 moved the trailing-slash clash check ahead of the Drive metadata call, and #855 folded it into a single preflight (`_validate_local_destination`). A bad destination should now fail without spending a Drive request. A file ID that doesn't exist is the live stand-in for "no Drive request": if the call reaches Drive it gets a 404 `HttpError`, and if the preflight rejects it first the path error comes back.
+
+**Setup:** `rm -rf /tmp/qa-d274 && mkdir -p /tmp/qa-d274 && printf x > /tmp/qa-d274/clash`
+
+**Prompt**
+> 1. Control: `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d274/ok/")`
+> 2. `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d274/clash/")`
+
+**Checks**
+- Step 1 raises the Drive 404 `HttpError` ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. `/tmp/qa-d274/ok/` is **not** created, because mkdir runs after the metadata call.
+- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`.
+
+**Teardown**
+`rm -rf /tmp/qa-d274`.
+
+**Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855), with a job-scoped local directory standing in for `/tmp/qa-d274`. Step 1: `HttpError 404 … "File not found: pr855-bogus-file-id."`, and the `control/` directory was not created. Step 2: `ValueError` `local_path '…/clash/' has a non-directory path component at '…/clash'`, no 404, and `clash` still contained `x`.
+
+---
+
+### TC-D275: `download_file` — trailing-slash `local_path` whose intermediate parent is a regular file raises `ValueError`, not `NotADirectoryError` (#827, #855) ⚠️ local-filesystem
+
+**Background:** Before #827, `.../clash/sub/` with `clash` a regular file leaked a raw `NotADirectoryError` from `mkdir`. Uses the same bogus-ID approach as TC-D274.
+
+**Setup:** `rm -rf /tmp/qa-d275 && mkdir -p /tmp/qa-d275 && printf x > /tmp/qa-d275/clash`
+
+**Prompt**
+> `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d275/clash/sub/")`
+
+**Checks**
+- Raises `ValueError` `local_path '/tmp/qa-d275/clash/sub/' has a non-directory path component at '/tmp/qa-d275/clash'`. The message names the blocking file `clash`, not `sub`.
+- No `NotADirectoryError` and no Drive 404.
+- `/tmp/qa-d275/clash` still contains `x`.
+
+**Teardown**
+`rm -rf /tmp/qa-d275`.
+
+**Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855). Raised `ValueError` `local_path '…/clash/sub/' has a non-directory path component at '…/clash'`, with no `NotADirectoryError` and no 404. `clash` still contained `x`.
+
+---
+
+### TC-D276: `download_file` — plain file `local_path` whose intermediate parent is a regular file fails before any Drive request (#836, #855) ⚠️ local-filesystem
+
+**Background:** #836: without a trailing slash, the destination's *parent* chain gets checked. Before #855, `.../clash/sub/out.bin` spent a Drive metadata request and then leaked `NotADirectoryError` from the parent `mkdir`.
+
+**Setup:** `rm -rf /tmp/qa-d276 && mkdir -p /tmp/qa-d276 && printf x > /tmp/qa-d276/clash`
+
+**Prompt**
+> `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d276/clash/sub/out.bin")`
+
+**Checks**
+- Raises `ValueError` `local_path '/tmp/qa-d276/clash/sub/out.bin' has a non-directory path component at '/tmp/qa-d276/clash'`.
+- No Drive 404 and no `NotADirectoryError`.
+- `/tmp/qa-d276/clash` still contains `x`.
+
+**Teardown**
+`rm -rf /tmp/qa-d276`.
+
+**Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855). Raised `ValueError` `local_path '…/clash/sub/out.bin' has a non-directory path component at '…/clash'`, with no 404. `clash` still contained `x`.
+
+---
+
+### TC-D277: `download_file` — trailing-slash `local_path` that is a dangling symlink names the symlink and fails before any Drive request (#836, #855) ⚠️ local-filesystem
+
+**Background:** `Path.exists()` is false for a dangling symlink, but `mkdir` still trips over it. #855's preflight also checks `is_symlink()` so this case gets caught.
+
+**Setup:** `rm -rf /tmp/qa-d277 && mkdir -p /tmp/qa-d277 && ln -s /tmp/qa-d277/missing-target /tmp/qa-d277/dangling`
+
+**Prompt**
+> `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d277/dangling/")`
+
+**Checks**
+- Raises `ValueError` `local_path '/tmp/qa-d277/dangling/' has a non-directory path component at '/tmp/qa-d277/dangling'`, with no Drive 404.
+- The symlink is unchanged, and `/tmp/qa-d277/missing-target` was **not** created.
+
+**Teardown**
+`rm -rf /tmp/qa-d277`.
+
+**Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855). Raised `ValueError` `local_path '…/dangling/' has a non-directory path component at '…/dangling'`, with no 404. The symlink was intact and `missing-target` did not exist afterwards.
 
 ---
 
