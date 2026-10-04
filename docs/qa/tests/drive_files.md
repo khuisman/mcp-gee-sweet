@@ -908,6 +908,9 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 **Result (2026-10-04) ✅ PASS**
 Run as the QA service account (Content manager) from a fresh interpreter in the kit worktree driving PR #888's `delete_file` (kit's server is OAuth/Manager). Pre-check: `capabilities={canDelete: false, canTrash: true}`, file on the Shared Drive. Step 1 raised `ValueError` naming missing permanent-delete permission + `permanent=False` hint; no `files().delete` sent. Step 2 `trashed: false`. Baseline: a raw `files().delete` as the same SA still returns Drive's `404 "File not found"`, so the pre-flight check is what fixes it. Step 3 `{"action": "trashed"}`, then `trashed: true`. Cleanup: `delete_file(permanent=True)` via kit's OAuth (Manager) server returned `{"action": "deleted"}`, which also covers the `canDelete: true` path live.
 
+**Result (2026-10-04, round 2) ✅ PASS**
+Re-run the same way against `255512b` (Shared Drive note scoped to `driveId`). Step 1's `ValueError` now reads "...lacks permanent-delete permission on it. On a Shared Drive this usually requires the Manager role. Use permanent=False to move it to the trash instead." Steps 2–3 and the raw-delete 404 baseline as in round 1. Cleanup via kit's reconnected OAuth server: `{"action": "deleted"}`. The My Drive (no `driveId`) wording isn't live-tested: it needs a file owned by someone else, where a wrong result would be a real permanent delete. Unit test `test_delete_file_permanent_without_can_delete_on_my_drive_omits_shared_drive_note` covers it.
+
 ---
 
 ## `restore_file`
