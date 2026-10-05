@@ -1732,7 +1732,7 @@ class TestCreateDocImages:
             "edit boom"
         )
         ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
-        with patch.object(content_module, "logger") as mock_logger:
+        with patch.object(images_module, "logger") as mock_logger:
             result = await _docs_tools["create_doc"](
                 title="Doc", content=content, content_format="markdown", ctx=ctx, **kwargs
             )
@@ -1833,7 +1833,7 @@ class TestCreateDocImages:
             self._blocking(started, release, {})
         )
         ctx = self._ctx(drive_svc, docs_svc)
-        with patch.object(content_module, "logger") as mock_logger:
+        with patch.object(images_module, "logger") as mock_logger:
             await self._cancel_create_doc_once_started(ctx, started, release)
         self._assert_file1_revoked(drive_svc)
         assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
@@ -2156,7 +2156,7 @@ class TestCreateDocImages:
         docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
         ctx = self._ctx(drive_svc, docs_svc)
 
-        with patch.object(content_module, "logger") as mock_logger:
+        with patch.object(images_module, "logger") as mock_logger:
             result = await _docs_tools["create_doc"](
                 title="Doc", content=content, content_format="markdown", ctx=ctx
             )

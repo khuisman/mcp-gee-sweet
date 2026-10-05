@@ -3859,28 +3859,31 @@ Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](
 
 ### TC-DOC203: A cancelled `insert_local_images` still revokes the image's temporary share (#883) ⚠️ requires-oauth ⚠️ destructive
 
-**Background:** `insert_local_images` uploads each image, shares it `anyone:reader`, sends the doc `batchUpdate`, then revokes the share. The revoke used to run only after the `batchUpdate` returned, so a call cancelled during the upload/share gather or the `batchUpdate` left the uploaded image publicly readable, with nothing reporting it. Now the upload/share gather is shielded from cancellation, so every granted share is recorded, and a shielded revoke runs on every exit from the doc edit, including a cancelled one. A cancelled call returns nothing, so the uploaded file IDs are logged as a WARNING. A cancellation that arrives during the gather lands before the `batchUpdate` is sent, so the doc is left untouched. This is the same pattern `_apply_doc_content` got in PR #877 (TC-DOC202).
+**Background:** `insert_local_images` uploads each image, shares it `anyone:reader`, sends the doc `batchUpdate`, then revokes the share. The revoke used to run only after the `batchUpdate` returned, so a call cancelled during the upload/share gather or the `batchUpdate` left the uploaded image publicly readable, with nothing reporting it. Now the upload/share gather is shielded from cancellation, so every granted share is recorded, and a shielded revoke runs on every exit, including a cancelled one. A cancelled call returns nothing, so every file it uploaded is logged as a WARNING, on every exit path: before the edit, with nothing left to embed, while the `batchUpdate` runs, and during the post-edit revoke (PR #903 round 2). A cancellation that arrives during the gather lands before the `batchUpdate` is sent, so the doc is left untouched. One that arrives while the `batchUpdate` runs can't stop it: the edit is atomic, so the doc is either untouched or has the image embedded, and either way no public share is left. This is the same pattern `_apply_doc_content` got in PR #877 (TC-DOC202), and both log through the same helper.
 
-No MCP client can cancel a tool call at a chosen point, so this case uses `scripts/qa_cancel_insert_local_images.py`. The script runs the checkout's own `insert_local_images` against the real APIs inside an anyio task group and cancels it at `share` (while the permission is being granted) or at `edit` (just before the `batchUpdate`). Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`). It prints the tool's WARNING to stderr.
+No MCP client can cancel a tool call at a chosen point, so this case uses `scripts/qa_cancel_insert_local_images.py`. The script runs the checkout's own `insert_local_images` against the real APIs inside an anyio task group and cancels it at one point: `share` (while the permission is being granted), `share-fail` (the same, but the share then fails, leaving an unshared upload), `edit` (just before the `batchUpdate`), `inflight` (while the `batchUpdate` runs), or `revoke` (during the post-edit revoke). Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`). It prints the tool's WARNING to stderr.
 
 **Setup:**
-1. `create_doc(title="TC-DOC203", content="Before\n\nIMGMARKER883\n\nAfter", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
+1. `create_doc(title="TC-DOC203", content="Before\n\nIMGMARKER883\n\nINFLIGHT883\n\nREVOKE883\n\nAfter", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
 
 **Prompt**
 > (none — script-driven; the steps below are shell commands plus tool calls)
 
 **Steps**
 1. `uv run python scripts/qa_cancel_insert_local_images.py {DOC_ID} {FOLDER_ID} <repo-root>/docs/qa/fixtures/qa-fixture-pixel.png IMGMARKER883 share`. Record the file ID from the WARNING as `{SHARE_FILE_ID}`.
-2. The same command with `edit` in place of `share`. Record the WARNING's file ID as `{EDIT_FILE_ID}`.
-3. The same command with `edit --keep-shared`. Record the WARNING's file ID as `{KEPT_FILE_ID}`.
+2. The same command with `share-fail` in place of `share`. Record the WARNING's file ID as `{ORPHAN_FILE_ID}`.
+3. The same command with `edit`. Record the WARNING's file ID as `{EDIT_FILE_ID}`.
+4. The same command with `edit --keep-shared`. Record the WARNING's file ID as `{KEPT_FILE_ID}`.
+5. The same command with marker `INFLIGHT883` and point `inflight`. Record the WARNING's file ID as `{INFLIGHT_FILE_ID}`.
+6. The same command with marker `REVOKE883` and point `revoke`. Record the WARNING's file ID as `{REVOKE_FILE_ID}`.
 
 **Checks**
-- Each run prints `cancelled at '<point>'; the tool returned nothing` and a WARNING `insert_local_images cancelled at the doc edit for {DOC_ID}; files created by this call: <one file ID>; still link-shared by this call: ...`. That last field is `none` for steps 1 and 2, and the `{KEPT_FILE_ID}` itself for step 3
-- `list_permissions(file_id={SHARE_FILE_ID})` and `list_permissions(file_id={EDIT_FILE_ID})` show no `anyone` permission. Before the fix, the `edit` run left an `anyone`/`reader` grant and logged nothing (reproduced live by the Dev with this script on 2026-10-04)
+- Each run prints `cancelled at '<point>'; the tool returned nothing` and a WARNING `Doc edit for {DOC_ID} failed or was cancelled after its images were resolved; files created by this call: <one file ID>; pre-existing files: none; still link-shared by this call: ...`. That last field is the `{KEPT_FILE_ID}` itself for step 4, and `none` for every other step. Before round 2, steps 2 and 6 logged nothing
+- `list_permissions` on `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, and `{REVOKE_FILE_ID}` shows no `anyone` permission. Before the fix, the `edit` run left an `anyone`/`reader` grant and logged nothing (reproduced live by the Dev with this script on 2026-10-04)
 - `list_permissions(file_id={KEPT_FILE_ID})` does show the `anyone`/`reader` permission (`revoke_sharing=False` is respected on the cancel path)
-- `get_doc_content(file_id={DOC_ID})` still reads `Before`, `IMGMARKER883`, `After`: none of the three cancelled runs edited the doc
+- After `refresh_cache(doc_id={DOC_ID})`, `get_doc_content(file_id={DOC_ID})` still has `IMGMARKER883` (none of steps 1–4 edited the doc) and no longer has `REVOKE883` (step 6 cancels after the edit landed). `INFLIGHT883` may be either present or gone, since the in-flight edit can't be stopped; if it's gone, `get_doc_as_markdown` shows an image in its place
 
-**Cleanup:** trash `{SHARE_FILE_ID}`, `{EDIT_FILE_ID}`, `{KEPT_FILE_ID}`, and `{DOC_ID}`.
+**Cleanup:** trash `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{KEPT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, `{REVOKE_FILE_ID}`, and `{DOC_ID}`.
 
 **Result (2026-10-04) ✅ PASS (checks as written); 🔍 two probes beyond the case — Kit, PR #903 round 1 (`8a634db`).** All three steps ran from the kit worktree with its OAuth token, on a scratch doc in `{FOLDER_ID}`. Each step printed `cancelled at '<point>'; the tool returned nothing` and the expected WARNING. `still link-shared by this call` was `none` for `share` and `edit`, and listed `{KEPT_FILE_ID}` for `edit --keep-shared`. `list_permissions` showed no `anyone` grant on `{SHARE_FILE_ID}` or `{EDIT_FILE_ID}`, and showed `anyoneWithLink`/`reader` on `{KEPT_FILE_ID}`. `get_doc_content` still read `Before`, `IMGMARKER883`, `After`. That read came before any cache refresh, but the in-flight probe below then found the marker, so no step had edited the doc.
 
