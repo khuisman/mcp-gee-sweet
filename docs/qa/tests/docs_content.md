@@ -2779,6 +2779,10 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Result (2026-09-04) ✅ PASS**
 insert_local_images (default revoke_sharing) on scratch doc with "Marker: IMGMARKERONE": results[0] had fileId, index, shared:false, no revoke_error. list_permissions confirmed no anyone grant — new default-revoke behavior change from #332 confirmed. Doc+image trashed.
 
+**Result (2026-10-04) ✅ PASS — Kit, PR #903 round 1 (`8a634db`).** Regression check of the success path after the revoke moved into `_revoke_shares()`. Live `insert_local_images` with `folder_id` on a scratch doc holding `Marker: IMGMARKERONE` returned `results[0]` with `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` on the image showed no `anyone` grant. The visual check was done structurally, not with Playwright: `get_doc_as_markdown` showed `Marker: ![](…)`, an inline image where the marker was. The doc and image were trashed.
+
+**Result (2026-10-04) ✅ PASS — Kit, PR #903 round 2 (`4e392c3`).** Re-run after the round 2 restructure moved the success path into the new `try`, against the reconnected kit server. `results[0]` had `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` showed no `anyone` grant, and `get_doc_as_markdown` showed `Marker: ![](…)`. The doc and image were trashed.
+
 ---
 
 ### TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
@@ -3852,3 +3856,45 @@ Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](
 **Result (2026-10-03) ✅ PASS — Kit, PR #877 round 1 (`505e8a5`).** `write_doc_content` failed with the expected 403 "The caller does not have permission" from the Docs `batchUpdate`. A `list_permissions` call made after the failure showed no `anyone` grant on the pixel. `LOG_FILE` had `WARNING ... Doc edit failed for {LOCKED_DOC_ID} after its images were resolved; image file IDs: {PIXEL_FILE_ID}; still link-shared: none`. The case passes, but the log line lists `{PIXEL_FILE_ID}`, the caller's own pre-existing `drive:` file, under the IDs `_log_images_after_failed_edit`'s docstring calls now-orphaned files (finding F2 in the round 1 PR comment). The doc was unlocked, and both files were trashed.
 
 **Result (2026-10-03) ✅ PASS — Kit, PR #877 round 2 (`de95c80`).** `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. `LOG_FILE` had `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none`. Separately, a minimal anyio model of the new shielded resolve and revoke structure, cancelled both mid-resolution and mid-edit, ran every delete and logged the warning both times. The doc was unlocked, and both files were trashed.
+
+**Result (2026-10-04) ✅ PASS (log check not run) — Kit, PR #903 round 2 (`4e392c3`).** Re-run because the failed-edit log helper moved from `content.py` to `images.py` (`log_images_after_failed_edit`, shared with `insert_local_images`). `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. The kit server writes no `LOG_FILE`, so the WARNING line wasn't checked live. `tests/test_docs_content.py` asserts its arguments, now patched on `images_module.logger`. The doc was unlocked, and both files were trashed.
+
+---
+
+### TC-DOC203: A cancelled `insert_local_images` still revokes the image's temporary share (#883) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** `insert_local_images` uploads each image, shares it `anyone:reader`, sends the doc `batchUpdate`, then revokes the share. The revoke used to run only after the `batchUpdate` returned, so a call cancelled during the upload/share gather or the `batchUpdate` left the uploaded image publicly readable, with nothing reporting it. Now the upload/share gather is shielded from cancellation, so every granted share is recorded, and a shielded revoke runs on every exit, including a cancelled one. A cancelled call returns nothing, so every file it uploaded is logged as a WARNING, on every exit path: before the edit, with nothing left to embed, while the `batchUpdate` runs, and during the post-edit revoke (PR #903 round 2). A cancellation that arrives during the gather lands before the `batchUpdate` is sent, so the doc is left untouched. One that arrives while the `batchUpdate` runs can't stop it: the edit is atomic, so the doc is either untouched or has the image embedded, and either way no public share is left. This is the same pattern `_apply_doc_content` got in PR #877 (TC-DOC202), and both log through the same helper.
+
+No MCP client can cancel a tool call at a chosen point, so this case uses `scripts/qa_cancel_insert_local_images.py`. The script runs the checkout's own `insert_local_images` against the real APIs inside an anyio task group and cancels it at one point: `share` (while the permission is being granted), `share-fail` (the same, but the share then fails, leaving an unshared upload), `edit` (just before the `batchUpdate`), `inflight` (while the `batchUpdate` runs), or `revoke` (during the post-edit revoke). Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`). It prints the tool's WARNING to stderr.
+
+**Setup:**
+1. `create_doc(title="TC-DOC203", content="Before\n\nIMGMARKER883\n\nINFLIGHT883\n\nREVOKE883\n\nAfter", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_insert_local_images.py {DOC_ID} {FOLDER_ID} <repo-root>/docs/qa/fixtures/qa-fixture-pixel.png IMGMARKER883 share`. Record the file ID from the WARNING as `{SHARE_FILE_ID}`.
+2. The same command with `share-fail` in place of `share`. Record the WARNING's file ID as `{ORPHAN_FILE_ID}`.
+3. The same command with `edit`. Record the WARNING's file ID as `{EDIT_FILE_ID}`.
+4. The same command with `edit --keep-shared`. Record the WARNING's file ID as `{KEPT_FILE_ID}`.
+5. The same command with marker `INFLIGHT883` and point `inflight`. Record the WARNING's file ID as `{INFLIGHT_FILE_ID}`.
+6. The same command with marker `REVOKE883` and point `revoke`. Record the WARNING's file ID as `{REVOKE_FILE_ID}`.
+
+**Checks**
+- Each run prints `cancelled at '<point>'; the tool returned nothing` and a WARNING `Doc edit for {DOC_ID} failed or was cancelled after its images were resolved; files created by this call: <one file ID>; pre-existing files: none; still link-shared by this call: ...`. That last field is the `{KEPT_FILE_ID}` itself for step 4, and `none` for every other step. Before round 2, steps 2 and 6 logged nothing
+- `list_permissions` on `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, and `{REVOKE_FILE_ID}` shows no `anyone` permission. Before the fix, the `edit` run left an `anyone`/`reader` grant and logged nothing (reproduced live by the Dev with this script on 2026-10-04)
+- `list_permissions(file_id={KEPT_FILE_ID})` does show the `anyone`/`reader` permission (`revoke_sharing=False` is respected on the cancel path)
+- After `refresh_cache(doc_id={DOC_ID})`, `get_doc_content(file_id={DOC_ID})` still has `IMGMARKER883` (none of steps 1–4 edited the doc) and no longer has `REVOKE883` (step 6 cancels after the edit landed). `INFLIGHT883` may be either present or gone, since the in-flight edit can't be stopped; if it's gone, `get_doc_as_markdown` shows an image in its place
+
+**Cleanup:** trash `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{KEPT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, `{REVOKE_FILE_ID}`, and `{DOC_ID}`.
+
+**Result (2026-10-04) ✅ PASS (checks as written); 🔍 two probes beyond the case — Kit, PR #903 round 1 (`8a634db`).** All three steps ran from the kit worktree with its OAuth token, on a scratch doc in `{FOLDER_ID}`. Each step printed `cancelled at '<point>'; the tool returned nothing` and the expected WARNING. `still link-shared by this call` was `none` for `share` and `edit`, and listed `{KEPT_FILE_ID}` for `edit --keep-shared`. `list_permissions` showed no `anyone` grant on `{SHARE_FILE_ID}` or `{EDIT_FILE_ID}`, and showed `anyoneWithLink`/`reader` on `{KEPT_FILE_ID}`. `get_doc_content` still read `Before`, `IMGMARKER883`, `After`. That read came before any cache refresh, but the in-flight probe below then found the marker, so no step had edited the doc.
+
+Two extra probes ran from a scratch copy of the script (not committed):
+- **`share-fail`** (the gate holds the share, then raises instead of granting): the call uploaded a file, the share failed, the cancel arrived during the shielded gather, and **no WARNING was logged**. With every placement failed, the tool returns at `if not ready` before any unshielded await, so the cancellation is never seen there and the created orphan (#649) appears in no log. That breaks the docstring's new promise (finding 1 in the round 1 PR comment).
+- **`inflight`** (the gate hands the `batchUpdate` to its worker thread at once, and the cancel lands while the thread runs): the WARNING was logged and the share revoked, with no `anyone` grant afterward. The edit still landed after the cancel: after `refresh_cache`, `get_doc_as_markdown` showed the image embedded where the marker had been. Docs had fetched the image before the revoke. The batchUpdate is atomic (it either embeds with a successful fetch or fails whole), so neither ordering leaves a broken embed or a public share. The case's background says a cancel "during ... the `batchUpdate`" is covered, but the committed script only cancels before the send (finding 5).
+
+All files from both probes and the three steps, and the doc, were trashed.
+
+**Result (2026-10-04) ✅ PASS — Kit, PR #903 round 2 (`4e392c3`).** All six steps ran from the kit worktree with its OAuth token, on a fresh scratch doc in `{FOLDER_ID}`. Each step printed `cancelled at '<point>'; the tool returned nothing` and the WARNING `Doc edit for {DOC_ID} failed or was cancelled after its images were resolved; files created by this call: <one file ID>; pre-existing files: none; still link-shared by this call: ...`. That last field listed `{KEPT_FILE_ID}` for step 4 and was `none` for every other step. Steps 2 (`share-fail`, the orphan) and 6 (`revoke`), which logged nothing in round 1's probe, now log. `list_permissions` showed no `anyone` grant on `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, or `{REVOKE_FILE_ID}`, and showed `anyoneWithLink`/`reader` on `{KEPT_FILE_ID}`. After `refresh_cache`, `get_doc_as_markdown` read `Before`, `IMGMARKER883`, an image, an image, `After`. So steps 1–4 left `IMGMARKER883` untouched, step 6's edit landed before its cancel, and step 5's in-flight edit also landed (an image replaced `INFLIGHT883`). All six files and the doc were trashed.

@@ -25,6 +25,7 @@ from .html_parser import html_to_ast
 from .images import (
     check_drive_image_metadata,
     downscale_drive_file,
+    log_images_after_failed_edit,
     record_image_outcome,
     revoke_image_shares,
     rewrite_too_large_error,
@@ -375,36 +376,6 @@ def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
     return result
 
 
-def _log_images_after_failed_edit(
-    doc_id: str, image_outcomes: list[dict[str, Any]], created_file_ids: set[str]
-) -> None:
-    """Warn about the image files _apply_doc_content touched when its doc edit
-    failed or was cancelled (#789). A cancelled call returns nothing, so this log
-    is the only record there. Files this call created (a local upload, a resized
-    copy) are listed apart from the caller's own pre-existing drive: sources,
-    which are never orphans (PR #652 QA round 1). "still link-shared" names only
-    shares this call granted and didn't revoke (revoke_sharing=False, or a failed
-    revoke), not an already_shared link that predates the call."""
-    touched = [e["fileId"] for e in image_outcomes if e.get("fileId")]
-    if not touched:
-        return
-    created = [f for f in touched if f in created_file_ids]
-    pre_existing = [f for f in touched if f not in created_file_ids]
-    still_shared = [
-        e["fileId"]
-        for e in image_outcomes
-        if e.get("fileId") and e.get("shared") and not e.get("already_shared")
-    ]
-    logger.warning(
-        "Doc edit failed for %s after its images were resolved; files created by "
-        "this call: %s; pre-existing files: %s; still link-shared by this call: %s",
-        doc_id,
-        ", ".join(created) or "none",
-        ", ".join(pre_existing) or "none",
-        ", ".join(still_shared) or "none",
-    )
-
-
 async def _apply_doc_content(
     docs_service,
     drive_service,
@@ -534,7 +505,7 @@ async def _apply_doc_content(
                     await revoke_image_shares(drive_service, list(pending_revokes.values()))
             finally:
                 if failed:
-                    _log_images_after_failed_edit(doc_id, image_outcomes, created_file_ids)
+                    log_images_after_failed_edit(doc_id, image_outcomes, created_file_ids)
 
     # Everything from here to the revoke can raise (ast_to_requests, the content
     # batchUpdate, a non-image retry failure, fill_tables, anchor resolution) or be
