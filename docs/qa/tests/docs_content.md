@@ -3852,3 +3852,30 @@ Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](
 **Result (2026-10-03) ✅ PASS — Kit, PR #877 round 1 (`505e8a5`).** `write_doc_content` failed with the expected 403 "The caller does not have permission" from the Docs `batchUpdate`. A `list_permissions` call made after the failure showed no `anyone` grant on the pixel. `LOG_FILE` had `WARNING ... Doc edit failed for {LOCKED_DOC_ID} after its images were resolved; image file IDs: {PIXEL_FILE_ID}; still link-shared: none`. The case passes, but the log line lists `{PIXEL_FILE_ID}`, the caller's own pre-existing `drive:` file, under the IDs `_log_images_after_failed_edit`'s docstring calls now-orphaned files (finding F2 in the round 1 PR comment). The doc was unlocked, and both files were trashed.
 
 **Result (2026-10-03) ✅ PASS — Kit, PR #877 round 2 (`de95c80`).** `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. `LOG_FILE` had `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none`. Separately, a minimal anyio model of the new shielded resolve and revoke structure, cancelled both mid-resolution and mid-edit, ran every delete and logged the warning both times. The doc was unlocked, and both files were trashed.
+
+---
+
+### TC-DOC203: A cancelled `insert_local_images` still revokes the image's temporary share (#883) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** `insert_local_images` uploads each image, shares it `anyone:reader`, sends the doc `batchUpdate`, then revokes the share. The revoke used to run only after the `batchUpdate` returned, so a call cancelled during the upload/share gather or the `batchUpdate` left the uploaded image publicly readable, with nothing reporting it. Now the upload/share gather is shielded from cancellation, so every granted share is recorded, and a shielded revoke runs on every exit from the doc edit, including a cancelled one. A cancelled call returns nothing, so the uploaded file IDs are logged as a WARNING. A cancellation that arrives during the gather lands before the `batchUpdate` is sent, so the doc is left untouched. This is the same pattern `_apply_doc_content` got in PR #877 (TC-DOC202).
+
+No MCP client can cancel a tool call at a chosen point, so this case uses `scripts/qa_cancel_insert_local_images.py`. The script runs the checkout's own `insert_local_images` against the real APIs inside an anyio task group and cancels it at `share` (while the permission is being granted) or at `edit` (just before the `batchUpdate`). Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`). It prints the tool's WARNING to stderr.
+
+**Setup:**
+1. `create_doc(title="TC-DOC203", content="Before\n\nIMGMARKER883\n\nAfter", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_insert_local_images.py {DOC_ID} {FOLDER_ID} <repo-root>/docs/qa/fixtures/qa-fixture-pixel.png IMGMARKER883 share`. Record the file ID from the WARNING as `{SHARE_FILE_ID}`.
+2. The same command with `edit` in place of `share`. Record the WARNING's file ID as `{EDIT_FILE_ID}`.
+3. The same command with `edit --keep-shared`. Record the WARNING's file ID as `{KEPT_FILE_ID}`.
+
+**Checks**
+- Each run prints `cancelled at '<point>'; the tool returned nothing` and a WARNING `insert_local_images cancelled at the doc edit for {DOC_ID}; files created by this call: <one file ID>; still link-shared by this call: ...`. That last field is `none` for steps 1 and 2, and the `{KEPT_FILE_ID}` itself for step 3
+- `list_permissions(file_id={SHARE_FILE_ID})` and `list_permissions(file_id={EDIT_FILE_ID})` show no `anyone` permission. Before the fix, the `edit` run left an `anyone`/`reader` grant and logged nothing (reproduced live by the Dev with this script on 2026-10-04)
+- `list_permissions(file_id={KEPT_FILE_ID})` does show the `anyone`/`reader` permission (`revoke_sharing=False` is respected on the cancel path)
+- `get_doc_content(file_id={DOC_ID})` still reads `Before`, `IMGMARKER883`, `After`: none of the three cancelled runs edited the doc
+
+**Cleanup:** trash `{SHARE_FILE_ID}`, `{EDIT_FILE_ID}`, `{KEPT_FILE_ID}`, and `{DOC_ID}`.
