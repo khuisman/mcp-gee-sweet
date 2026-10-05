@@ -1099,6 +1099,9 @@ Call `get_storage_quota` with no arguments.
 
 **Cleanup:** delete the scratch files.
 
+**Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS**
+mcp 2.3.0. Startup refresh failed (`invalid_client`) and the server started degraded. `get_storage_quota` returned `is_error: True` with `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>' ...`, followed by the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` instructions naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`. Access line: `"TOOL get_storage_quota" 401`. Scratch files deleted.
+
 ---
 
 ### TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for `spreadsheet://{id}/info` (issue #872)
@@ -1116,3 +1119,6 @@ Call `get_storage_quota` with no arguments.
 - 2: the read fails with a protocol error whose message contains `Requested entity was not found.`, not only `Error creating resource from template spreadsheet://bogus-spreadsheet-id-872/info`
 
 **Cleanup:** none.
+
+**Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS**
+Live `mcp-gee-sweet-sky` server, OAuth, mcp 2.3.0. 1: `Error executing tool list_sheets: <HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?fields=... returned "Requested entity was not found.". ...>`. 2: the resource read failed with `<HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?alt=json returned "Requested entity was not found.". ...>`, not the bare template error.
