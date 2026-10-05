@@ -1069,3 +1069,62 @@ Step 1: `initialize` OK; the tool error is `The OAuth token at ... wasn't author
 
 **Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
 Step 1: missing-scopes tool error plus the `ERROR ... Starting without Google access` line; SIGTERM 0.23s. Step 2: 10 of 10 POSTs `202`, SIGTERM 0.50–0.60s. Step 3: same error, SIGTERM 0.18s. Stdio with the same token still exits with code 1.
+
+---
+
+### TC-I45: on mcp 2.3+, a degraded start's `mcp-gee-sweet auth` instructions reach the client (issue #872) ⚠️ local-filesystem
+
+**Background:** from mcp 2.3, `Tool.run` withholds the text of any exception that isn't a `ToolError`/`ResourceError`/`MCPError`. The client sees only `Error executing tool <name>`. The degraded-start `OAuthConsentRequiredError` (#811) is a `RuntimeError`, so a PyPI/`uvx` install (which resolved mcp 2.3.0 while `uv.lock` still pinned 2.0.0) hid the authorize instructions entirely. `_timed` now re-raises it as a `ToolError`. This is TC-I35's scenario with an expired token whose refresh fails, the way it was observed live.
+
+**Setup**
+- Confirm the server's environment has mcp 2.3 or later: `uv run python -c "import importlib.metadata as m; print(m.version('mcp'))"`.
+- A scratch OAuth client JSON (any `installed` client; bogus `client_id`/`client_secret` are fine).
+- A scratch token file whose `scopes` lists every scope in `auth.SCOPES` plus `GMAIL_SCOPES`, with a bogus `refresh_token` and an `expiry` in the past, so the startup refresh fails.
+
+**Action**
+Run the server under a real MCP stdio client (the `mcp` SDK's `stdio_client` + `ClientSession`) with:
+
+```
+AUTH_METHOD=oauth
+TOKEN_PATH=<scratch token>
+CREDENTIALS_PATH=<scratch client json>
+ENABLED_TOOLS=get_storage_quota
+```
+
+Call `get_storage_quota` with no arguments.
+
+**Checks**
+- The result has `is_error: true`, and its text is `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>' ...`, followed by the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` instructions naming the same `TOKEN_PATH` and `CREDENTIALS_PATH`
+- The text is not only `Error executing tool get_storage_quota`
+
+**Cleanup:** delete the scratch files.
+
+**Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS**
+mcp 2.3.0. Startup refresh failed (`invalid_client`) and the server started degraded. `get_storage_quota` returned `is_error: True` with `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>' ...`, followed by the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` instructions naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`. Access line: `"TOOL get_storage_quota" 401`. Scratch files deleted.
+
+**Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS**
+Same as round 1 after the degraded start began raising `ToolError` directly: `is_error: True`, identical `mcp-gee-sweet auth` text, access line `401`.
+
+---
+
+### TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for `spreadsheet://{id}/info` (issue #872)
+
+**Background:** most tools catch `HttpError` and return `{"error": ...}`, but some let it propagate (e.g. `list_sheets`, whose return type is a list). From mcp 2.3 that text was withheld, so a bad ID or a permission problem reached the client as a bare `Error executing tool list_sheets`. `_timed` now re-raises Google API, auth, network, `ValueError` and `OSError` failures as `ToolError` with their own text. `get_spreadsheet_info` does the same with `ResourceError`. Any other exception is still a crash: mcp withholds its text and logs the traceback.
+
+**Setup:** a server running this branch's code on mcp 2.3 or later, with working credentials (any auth method).
+
+**Action**
+1. Call `list_sheets` with `spreadsheet_id: "bogus-spreadsheet-id-872"`
+2. Read the resource `spreadsheet://bogus-spreadsheet-id-872/info`
+
+**Checks**
+- 1: an error result whose text starts `Error executing tool list_sheets: <HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872` and contains `Requested entity was not found.`
+- 2: the read fails with a protocol error whose message contains `Requested entity was not found.`, not only `Error creating resource from template spreadsheet://bogus-spreadsheet-id-872/info`
+
+**Cleanup:** none.
+
+**Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS**
+Live `mcp-gee-sweet-sky` server, OAuth, mcp 2.3.0. 1: `Error executing tool list_sheets: <HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?fields=... returned "Requested entity was not found.". ...>`. 2: the resource read failed with `<HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?alt=json returned "Requested entity was not found.". ...>`, not the bare template error.
+
+**Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS**
+Live `mcp-gee-sweet-sky` server, mcp 2.3.0: steps 1 and 2 return the same `HttpError 404 ... Requested entity was not found.` text as round 1. Extra check over a stdio subprocess with the same credentials (`DEBUG_LEVEL=INFO`): the server logs `WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...` with the full traceback through `execute_in_thread`, and the access line is `"TOOL list_sheets" 500`.
