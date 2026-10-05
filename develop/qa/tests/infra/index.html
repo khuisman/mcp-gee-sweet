@@ -1813,6 +1813,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i45-on-mcp-23-a-degraded-starts-mcp-gee-sweet-auth-instructions-reach-the-client-issue-872-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I45: on mcp 2.3+, a degraded start's mcp-gee-sweet auth instructions reach the client (issue #872) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i46-on-mcp-23-a-google-api-error-a-tool-raises-keeps-its-text-for-a-tool-and-for-spreadsheetidinfo-issue-872" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for spreadsheet://{id}/info (issue #872)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2811,6 +2833,44 @@ Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=o
 Step 1: <code>initialize</code> OK; the tool error is <code>The OAuth token at ... wasn't authorized for scope(s) the enabled tools require: ...</code>, and the stderr has the <code>ERROR mcp_gee_sweet.auth Starting without Google access: The OAuth token at</code> line. SIGTERM exit 0.23s. Step 2: 10 of 10 POSTs answered <code>202</code>, and SIGTERM exited in 0.49–0.56s every time. Control: the same raw-socket race against round 2's <code>a4c18c9</code> hung 3 of 3, so the case does exercise the bug. Step 3 (<code>AUTH_METHOD</code> unset): same missing-scopes error, SIGTERM exit 0.12s. Also checked: stdio with the same token still exits (code 1, missing-scopes error on stderr, empty stdout), per #790.</p>
 <p><strong>Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS</strong>
 Step 1: missing-scopes tool error plus the <code>ERROR ... Starting without Google access</code> line; SIGTERM 0.23s. Step 2: 10 of 10 POSTs <code>202</code>, SIGTERM 0.50–0.60s. Step 3: same error, SIGTERM 0.18s. Stdio with the same token still exits with code 1.</p>
+<hr />
+<h3 id="tc-i45-on-mcp-23-a-degraded-starts-mcp-gee-sweet-auth-instructions-reach-the-client-issue-872-local-filesystem">TC-I45: on mcp 2.3+, a degraded start's <code>mcp-gee-sweet auth</code> instructions reach the client (issue #872) ⚠️ local-filesystem<a class="headerlink" href="#tc-i45-on-mcp-23-a-degraded-starts-mcp-gee-sweet-auth-instructions-reach-the-client-issue-872-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> from mcp 2.3, <code>Tool.run</code> withholds the text of any exception that isn't a <code>ToolError</code>/<code>ResourceError</code>/<code>MCPError</code>. The client sees only <code>Error executing tool &lt;name&gt;</code>. The degraded-start <code>OAuthConsentRequiredError</code> (#811) is a <code>RuntimeError</code>, so a PyPI/<code>uvx</code> install (which resolved mcp 2.3.0 while <code>uv.lock</code> still pinned 2.0.0) hid the authorize instructions entirely. <code>_timed</code> now re-raises it as a <code>ToolError</code>. This is TC-I35's scenario with an expired token whose refresh fails, the way it was observed live.</p>
+<p><strong>Setup</strong>
+- Confirm the server's environment has mcp 2.3 or later: <code>uv run python -c "import importlib.metadata as m; print(m.version('mcp'))"</code>.
+- A scratch OAuth client JSON (any <code>installed</code> client; bogus <code>client_id</code>/<code>client_secret</code> are fine).
+- A scratch token file whose <code>scopes</code> lists every scope in <code>auth.SCOPES</code> plus <code>GMAIL_SCOPES</code>, with a bogus <code>refresh_token</code> and an <code>expiry</code> in the past, so the startup refresh fails.</p>
+<p><strong>Action</strong>
+Run the server under a real MCP stdio client (the <code>mcp</code> SDK's <code>stdio_client</code> + <code>ClientSession</code>) with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>AUTH_METHOD=oauth
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>TOKEN_PATH=&lt;scratch token&gt;
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>CREDENTIALS_PATH=&lt;scratch client json&gt;
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>ENABLED_TOOLS=get_storage_quota
+</code></pre></div>
+<p>Call <code>get_storage_quota</code> with no arguments.</p>
+<p><strong>Checks</strong>
+- The result has <code>is_error: true</code>, and its text is <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;' ...</code>, followed by the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> instructions naming the same <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>
+- The text is not only <code>Error executing tool get_storage_quota</code></p>
+<p><strong>Cleanup:</strong> delete the scratch files.</p>
+<p><strong>Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS</strong>
+mcp 2.3.0. Startup refresh failed (<code>invalid_client</code>) and the server started degraded. <code>get_storage_quota</code> returned <code>is_error: True</code> with <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;' ...</code>, followed by the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> instructions naming the scratch <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>. Access line: <code>"TOOL get_storage_quota" 401</code>. Scratch files deleted.</p>
+<p><strong>Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS</strong>
+Same as round 1 after the degraded start began raising <code>ToolError</code> directly: <code>is_error: True</code>, identical <code>mcp-gee-sweet auth</code> text, access line <code>401</code>.</p>
+<hr />
+<h3 id="tc-i46-on-mcp-23-a-google-api-error-a-tool-raises-keeps-its-text-for-a-tool-and-for-spreadsheetidinfo-issue-872">TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for <code>spreadsheet://{id}/info</code> (issue #872)<a class="headerlink" href="#tc-i46-on-mcp-23-a-google-api-error-a-tool-raises-keeps-its-text-for-a-tool-and-for-spreadsheetidinfo-issue-872" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> most tools catch <code>HttpError</code> and return <code>{"error": ...}</code>, but some let it propagate (e.g. <code>list_sheets</code>, whose return type is a list). From mcp 2.3 that text was withheld, so a bad ID or a permission problem reached the client as a bare <code>Error executing tool list_sheets</code>. <code>_timed</code> now re-raises Google API, auth, network, <code>ValueError</code> and <code>OSError</code> failures as <code>ToolError</code> with their own text. <code>get_spreadsheet_info</code> does the same with <code>ResourceError</code>. Any other exception is still a crash: mcp withholds its text and logs the traceback.</p>
+<p><strong>Setup:</strong> a server running this branch's code on mcp 2.3 or later, with working credentials (any auth method).</p>
+<p><strong>Action</strong>
+1. Call <code>list_sheets</code> with <code>spreadsheet_id: "bogus-spreadsheet-id-872"</code>
+2. Read the resource <code>spreadsheet://bogus-spreadsheet-id-872/info</code></p>
+<p><strong>Checks</strong>
+- 1: an error result whose text starts <code>Error executing tool list_sheets: &lt;HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872</code> and contains <code>Requested entity was not found.</code>
+- 2: the read fails with a protocol error whose message contains <code>Requested entity was not found.</code>, not only <code>Error creating resource from template spreadsheet://bogus-spreadsheet-id-872/info</code></p>
+<p><strong>Cleanup:</strong> none.</p>
+<p><strong>Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS</strong>
+Live <code>mcp-gee-sweet-sky</code> server, OAuth, mcp 2.3.0. 1: <code>Error executing tool list_sheets: &lt;HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?fields=... returned "Requested entity was not found.". ...&gt;</code>. 2: the resource read failed with <code>&lt;HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?alt=json returned "Requested entity was not found.". ...&gt;</code>, not the bare template error.</p>
+<p><strong>Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS</strong>
+Live <code>mcp-gee-sweet-sky</code> server, mcp 2.3.0: steps 1 and 2 return the same <code>HttpError 404 ... Requested entity was not found.</code> text as round 1. Extra check over a stdio subprocess with the same credentials (<code>DEBUG_LEVEL=INFO</code>): the server logs <code>WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...</code> with the full traceback through <code>execute_in_thread</code>, and the access line is <code>"TOOL list_sheets" 500</code>.</p>
 
 
 
