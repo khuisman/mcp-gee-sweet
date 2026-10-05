@@ -2779,6 +2779,8 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Result (2026-09-04) ✅ PASS**
 insert_local_images (default revoke_sharing) on scratch doc with "Marker: IMGMARKERONE": results[0] had fileId, index, shared:false, no revoke_error. list_permissions confirmed no anyone grant — new default-revoke behavior change from #332 confirmed. Doc+image trashed.
 
+**Result (2026-10-04) ✅ PASS — Kit, PR #903 round 1 (`8a634db`).** Regression check of the success path after the revoke moved into `_revoke_shares()`. Live `insert_local_images` with `folder_id` on a scratch doc holding `Marker: IMGMARKERONE` returned `results[0]` with `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` on the image showed no `anyone` grant. The visual check was done structurally, not with Playwright: `get_doc_as_markdown` showed `Marker: ![](…)`, an inline image where the marker was. The doc and image were trashed.
+
 ---
 
 ### TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
@@ -3879,3 +3881,11 @@ No MCP client can cancel a tool call at a chosen point, so this case uses `scrip
 - `get_doc_content(file_id={DOC_ID})` still reads `Before`, `IMGMARKER883`, `After`: none of the three cancelled runs edited the doc
 
 **Cleanup:** trash `{SHARE_FILE_ID}`, `{EDIT_FILE_ID}`, `{KEPT_FILE_ID}`, and `{DOC_ID}`.
+
+**Result (2026-10-04) ✅ PASS (checks as written); 🔍 two probes beyond the case — Kit, PR #903 round 1 (`8a634db`).** All three steps ran from the kit worktree with its OAuth token, on a scratch doc in `{FOLDER_ID}`. Each step printed `cancelled at '<point>'; the tool returned nothing` and the expected WARNING. `still link-shared by this call` was `none` for `share` and `edit`, and listed `{KEPT_FILE_ID}` for `edit --keep-shared`. `list_permissions` showed no `anyone` grant on `{SHARE_FILE_ID}` or `{EDIT_FILE_ID}`, and showed `anyoneWithLink`/`reader` on `{KEPT_FILE_ID}`. `get_doc_content` still read `Before`, `IMGMARKER883`, `After`. That read came before any cache refresh, but the in-flight probe below then found the marker, so no step had edited the doc.
+
+Two extra probes ran from a scratch copy of the script (not committed):
+- **`share-fail`** (the gate holds the share, then raises instead of granting): the call uploaded a file, the share failed, the cancel arrived during the shielded gather, and **no WARNING was logged**. With every placement failed, the tool returns at `if not ready` before any unshielded await, so the cancellation is never seen there and the created orphan (#649) appears in no log. That breaks the docstring's new promise (finding 1 in the round 1 PR comment).
+- **`inflight`** (the gate hands the `batchUpdate` to its worker thread at once, and the cancel lands while the thread runs): the WARNING was logged and the share revoked, with no `anyone` grant afterward. The edit still landed after the cancel: after `refresh_cache`, `get_doc_as_markdown` showed the image embedded where the marker had been. Docs had fetched the image before the revoke. The batchUpdate is atomic (it either embeds with a successful fetch or fails whole), so neither ordering leaves a broken embed or a public share. The case's background says a cancel "during ... the `batchUpdate`" is covered, but the committed script only cancels before the send (finding 5).
+
+All files from both probes and the three steps, and the doc, were trashed.
