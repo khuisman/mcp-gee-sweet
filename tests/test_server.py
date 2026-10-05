@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from google.auth.exceptions import RefreshError
+from googleapiclient import errors as googleapiclient_errors
 from googleapiclient.errors import HttpError
 from httplib2 import Response
 from mcp.server.mcpserver import Context, MCPServer
@@ -474,9 +475,8 @@ class TestTimed:
             return []
 
         # A ToolError, so mcp 2.3 shows the client its text (#872).
-        with pytest.raises(ToolError, match="mcp-gee-sweet auth") as exc:
+        with pytest.raises(ToolError, match="mcp-gee-sweet auth"):
             await list_files(ctx=ctx)
-        assert isinstance(exc.value.__cause__, auth_module.OAuthConsentRequiredError)
         body.assert_not_called()
         assert "401" in self._access_messages()[0]
 
@@ -526,18 +526,84 @@ class TestClientVisibleErrors:
             await self._raising(exc)(ctx=self._ctx())
         assert raised.value.__cause__ is exc
 
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            googleapiclient_errors.MediaUploadSizeError("Media larger than: 100"),
+            googleapiclient_errors.UnacceptableMimeTypeError("Mime type not allowed"),
+            googleapiclient_errors.UnknownFileType("/x/y.bin"),
+        ],
+    )
+    async def test_non_http_google_api_client_errors_keep_their_text(self, exc):
+        # Subclasses of googleapiclient.errors.Error that aren't HttpError.
+        with pytest.raises(ToolError, match=str(exc)):
+            await self._raising(exc)(ctx=self._ctx())
+
     async def test_oauth_refresh_failure_points_at_the_auth_command(self):
-        exc = RefreshError("invalid_grant: Token has been expired or revoked.")
+        # google-auth raises RefreshError(message, response_dict): the client gets the
+        # message, not the tuple's repr.
+        exc = RefreshError(
+            "invalid_grant: Token has been expired or revoked.",
+            {"error": "invalid_grant", "error_description": "Token has been expired or revoked."},
+        )
         with pytest.raises(ToolError) as raised:
             await self._raising(exc)(ctx=self._ctx("oauth"))
-        assert "invalid_grant" in str(raised.value)
+        assert str(raised.value).startswith(
+            "Google rejected the OAuth token refresh: "
+            "invalid_grant: Token has been expired or revoked. To authorize, run "
+        )
+        assert "{" not in str(raised.value)
         assert "mcp-gee-sweet auth" in str(raised.value)
 
     async def test_non_oauth_refresh_failure_keeps_only_its_own_text(self):
-        exc = RefreshError("invalid_grant: account not found")
+        exc = RefreshError("invalid_grant: account not found", {"error": "invalid_grant"})
         with pytest.raises(ToolError) as raised:
             await self._raising(exc)(ctx=self._ctx("service_account"))
         assert str(raised.value) == "invalid_grant: account not found"
+
+    @staticmethod
+    def _capture(logger_name):
+        records = []
+        handler = logging.Handler(level=logging.DEBUG)
+        handler.emit = records.append
+        target = logging.getLogger(logger_name)
+        target.addHandler(handler)
+        target.setLevel(logging.DEBUG)
+        return records, lambda: target.removeHandler(handler)
+
+    @pytest.mark.parametrize(
+        "exc, auth_method, status",
+        [
+            (RefreshError("invalid_grant", {}), "oauth", "401"),
+            (auth_module.MissingOAuthScopesError("missing gmail scope"), "oauth", "401"),
+            (RefreshError("invalid_grant", {}), "service_account", "500"),
+            (_http_error(404, "File not found: abc."), "oauth", "500"),
+            (ToolError("deliberate"), "oauth", "500"),
+            (KeyError("crash"), "oauth", "500"),
+        ],
+    )
+    async def test_access_log_status_separates_auth_failures(self, exc, auth_method, status):
+        records, remove = self._capture("mcp_gee_sweet.access")
+        try:
+            with pytest.raises(KeyError if isinstance(exc, KeyError) else ToolError):
+                await self._raising(exc)(ctx=self._ctx(auth_method))
+        finally:
+            remove()
+        assert f'"TOOL some_tool" {status} ' in records[0].getMessage()
+
+    async def test_translated_error_is_logged_with_its_traceback(self):
+        # mcp logs a ToolError without a traceback, and a translated error can still be
+        # our own bug (an HttpError 400 from a malformed request), so _timed logs it.
+        records, remove = self._capture("mcp_gee_sweet.server")
+        try:
+            exc = _http_error(400, "Invalid requests[0]: bad field")
+            with pytest.raises(ToolError):
+                await self._raising(exc)(ctx=self._ctx())
+        finally:
+            remove()
+        logged = [r for r in records if r.exc_info and r.exc_info[1] is exc]
+        assert len(logged) == 1
+        assert logged[0].levelno == logging.WARNING
 
     async def test_tool_error_passes_through_unchanged(self):
         exc = ToolError("already deliberate")

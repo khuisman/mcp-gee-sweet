@@ -23,13 +23,21 @@ Resources work the same way: a non-`ResourceError` becomes `UnexpectedResourceEr
 
 | Type | Why the caller needs the text |
 |---|---|
-| `OAuthConsentRequiredError`, `MissingOAuthScopesError` | the `mcp-gee-sweet auth` instructions |
-| `googleapiclient.errors.HttpError` | not found / permission denied / quota, with the request URL |
-| `google.auth.exceptions.GoogleAuthError` | credential refresh and transport failures. A `RefreshError` on an OAuth connection also gets `reauthorize_instructions()`, since a token revoked after startup needs the same fix as #811 |
+| `MissingOAuthScopesError` | the `mcp-gee-sweet auth` instructions |
+| `googleapiclient.errors.Error` | `HttpError` (not found / permission denied / quota, with the request URL), plus the client-side errors that aren't `HttpError`: `MediaUploadSizeError`, `UnacceptableMimeTypeError`, `UnknownFileType`, `InvalidChunkSizeError`, `InvalidJsonError`. The base class also admits programming-error subclasses such as `UnknownApiNameOrVersion`. Their text is harmless, and they're logged with a traceback (below) |
+| `google.auth.exceptions.GoogleAuthError` | credential refresh and transport failures. The client gets `args[0]`, not `str()`, since `RefreshError(message, response_dict)` stringifies as a tuple repr. A `RefreshError` on an OAuth connection also gets `reauthorize_instructions()`, since a token revoked after startup needs the same fix as #811 |
 | `httplib2.HttpLib2Error`, `OSError` | network failures, plus local-path errors in the transfer tools |
 | `ValueError` | every deliberate argument rejection in `tools/` raises one |
 
+The degraded start (#811) never runs the tool: `_timed` raises `ToolError(unauthorized_message)` directly.
+
 Anything else (`KeyError`, `TypeError`, an emitter `RuntimeError` invariant) stays a crash: mcp withholds its text and logs the traceback. A tool that wants a new kind of failure shown should raise `ToolError`, or one of the types above, rather than widening the list to `Exception`.
+
+**Logging.** mcp logs a `ToolError`/`ResourceError` at INFO with no traceback, and an allowlisted exception can still be our own bug (an `HttpError 400` from a malformed request the emitter built, a `JSONDecodeError`). So the translation logs the original at WARNING, with its traceback, on `mcp_gee_sweet.server`, before raising.
+
+**Access-log status.** 401 for the degraded start, `MissingOAuthScopesError`, and an OAuth `RefreshError` (the cases that get the re-authorize instructions). 500 for everything else, so the access log still separates auth problems from other failures.
+
+A token revoked mid-session still shows no re-authorize hint in tools that catch `Exception` and return `{"error": str(e)}`, since the hint lives in `_timed`. Moving it into `execute_in_thread` is #906.
 
 `get_spreadsheet_info` applies the same allowlist and raises `ResourceError`, since mcp handles resource errors through a separate path.
 
