@@ -73,10 +73,15 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
         _tool_access_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
         _tool_access_logger.addHandler(_tool_access_fh)
 
+from google.auth.exceptions import GoogleAuthError, RefreshError  # noqa: E402
+from googleapiclient.errors import HttpError  # noqa: E402
+from httplib2 import HttpLib2Error  # noqa: E402
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
 from .auth import (  # noqa: E402
+    MissingOAuthScopesError,
     OAuthConsentRequiredError,
     execute_in_thread,
     get_gmail_unauthorized_message,
@@ -135,6 +140,35 @@ def _unauthorized_message(ctx) -> str | None:
     return message if isinstance(message, str) else None
 
 
+# Failures a caller can act on: auth problems, Google API errors, network failures,
+# bad arguments a tool rejects with ValueError, and local file errors. From mcp 2.3,
+# only ToolError/ResourceError text reaches the client; any other exception becomes a
+# bare "Error executing tool <name>" (#872). So these are re-raised as ToolError (or
+# ResourceError, for a resource) with their own text. Anything else is a crash: mcp
+# withholds its text from the client and logs the traceback.
+_CLIENT_VISIBLE_ERRORS = (
+    OAuthConsentRequiredError,
+    MissingOAuthScopesError,
+    HttpError,
+    GoogleAuthError,
+    HttpLib2Error,
+    ValueError,
+    OSError,
+)
+
+
+def _client_error_message(exc: Exception, ctx) -> str | None:
+    """The text the client should see for `exc`, or None to leave it to mcp as a crash."""
+    if isinstance(exc, RefreshError):
+        lifespan = getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
+        if getattr(lifespan, "auth_method", None) == "oauth":
+            # A refresh token revoked or expired after startup: same fix as #811.
+            return f"Google rejected the OAuth token refresh: {exc}. {reauthorize_instructions()}"
+    if isinstance(exc, _CLIENT_VISIBLE_ERRORS):
+        return str(exc) or type(exc).__name__
+    return None
+
+
 def _timed(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -147,11 +181,13 @@ def _timed(func):
             if unauthorized := _unauthorized_message(kwargs.get("ctx")):
                 raise OAuthConsentRequiredError(unauthorized)
             return await func(*args, **kwargs)
-        except OAuthConsentRequiredError:
+        except OAuthConsentRequiredError as e:
             status = 401
-            raise
-        except Exception:
+            raise ToolError(str(e)) from e
+        except Exception as e:
             status = 500
+            if (message := _client_error_message(e, kwargs.get("ctx"))) is not None:
+                raise ToolError(message) from e
             raise
         finally:
             elapsed = time.perf_counter() - start
@@ -420,14 +456,20 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
         JSON string with spreadsheet information
     """
     if unauthorized := _unauthorized_message(ctx):
-        raise OAuthConsentRequiredError(unauthorized)
+        raise ResourceError(unauthorized)
     context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
 
-    spreadsheet = await execute_in_thread(
-        sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
-        sheets_service,
-    )
+    try:
+        spreadsheet = await execute_in_thread(
+            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
+            sheets_service,
+        )
+    except Exception as e:
+        # Same rule as _timed: mcp 2.3 withholds a non-ResourceError's text (#872).
+        if (message := _client_error_message(e, ctx)) is not None:
+            raise ResourceError(message) from e
+        raise
     info = {
         "title": spreadsheet.get("properties", {}).get("title", "Unknown"),
         "sheets": [

@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "mcp>=2.0.0",
+    "mcp>=2.3.0,<3",
     "anyio>=4.0.0",
     "google-auth>=2.57.0",
     "google-auth-oauthlib>=1.4.1",

@@ -9,6 +9,11 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from google.auth.exceptions import RefreshError
+from googleapiclient.errors import HttpError
+from httplib2 import Response
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError, UnexpectedToolError
 from pydantic import ValidationError
 
 from mcp_gee_sweet import auth as auth_module
@@ -24,6 +29,11 @@ from mcp_gee_sweet.server import (
     mcp,
     tool,
 )
+
+
+def _http_error(status: int, message: str) -> HttpError:
+    body = json.dumps({"error": {"code": status, "message": message}}).encode()
+    return HttpError(Response({"status": status}), body, uri="https://example.invalid/x")
 
 
 class TestAllToolsAreAsync:
@@ -317,8 +327,20 @@ class TestResourcesReadLifespanContext:
         fake_ctx = self._fake_context(
             sheets_service=None, unauthorized_message="run mcp-gee-sweet auth"
         )
-        with pytest.raises(auth_module.OAuthConsentRequiredError):
+        # A ResourceError, not the RuntimeError subclass: mcp 2.3 withholds any other
+        # exception's text from the client (#872).
+        with pytest.raises(ResourceError, match="run mcp-gee-sweet auth"):
             await get_spreadsheet_info("some-spreadsheet-id", fake_ctx)
+
+    async def test_get_spreadsheet_info_google_api_error_keeps_its_text(self):
+        sheets_service = MagicMock()
+        sheets_service.spreadsheets.return_value.get.return_value.execute.side_effect = _http_error(
+            404, "Requested entity was not found."
+        )
+        fake_ctx = self._fake_context(sheets_service=sheets_service)
+        with pytest.raises(ResourceError, match="Requested entity was not found") as exc:
+            await get_spreadsheet_info("some-spreadsheet-id", fake_ctx)
+        assert isinstance(exc.value.__cause__, HttpError)
 
     def test_get_auth_status_reports_degraded_start(self, monkeypatch):
         monkeypatch.setattr(
@@ -372,9 +394,9 @@ class TestTimed:
     async def test_reraises_exception(self):
         @_timed
         async def my_func(**_kwargs):
-            raise ValueError("boom")
+            raise KeyError("boom")
 
-        with pytest.raises(ValueError, match="boom"):
+        with pytest.raises(KeyError, match="boom"):
             await my_func()
 
     async def test_logs_success_access_line(self):
@@ -451,8 +473,10 @@ class TestTimed:
             body()
             return []
 
-        with pytest.raises(auth_module.OAuthConsentRequiredError, match="mcp-gee-sweet auth"):
+        # A ToolError, so mcp 2.3 shows the client its text (#872).
+        with pytest.raises(ToolError, match="mcp-gee-sweet auth") as exc:
             await list_files(ctx=ctx)
+        assert isinstance(exc.value.__cause__, auth_module.OAuthConsentRequiredError)
         body.assert_not_called()
         assert "401" in self._access_messages()[0]
 
@@ -465,6 +489,109 @@ class TestTimed:
             return ["ok"]
 
         assert await list_files(ctx=ctx) == ["ok"]
+
+
+class TestClientVisibleErrors:
+    """#872: from mcp 2.3, only a ToolError's text reaches the client; anything else
+    becomes a bare "Error executing tool <name>". _timed re-raises the failures a
+    caller can act on as ToolError and leaves real crashes to mcp."""
+
+    @staticmethod
+    def _ctx(auth_method="oauth"):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.unauthorized_message = None
+        ctx.request_context.lifespan_context.auth_method = auth_method
+        return ctx
+
+    @staticmethod
+    def _raising(exc):
+        @_timed
+        async def some_tool(**kwargs):
+            raise exc
+
+        return some_tool
+
+    @pytest.mark.parametrize(
+        "exc, text",
+        [
+            (_http_error(404, "File not found: abc."), "File not found: abc."),
+            (ValueError("Invalid A1 notation: empty string"), "Invalid A1 notation"),
+            (FileNotFoundError(2, "No such file or directory", "/x/y.csv"), "/x/y.csv"),
+            (auth_module.MissingOAuthScopesError("missing gmail scope"), "missing gmail"),
+            (TimeoutError(), "TimeoutError"),
+        ],
+    )
+    async def test_anticipated_failure_becomes_tool_error_with_its_text(self, exc, text):
+        with pytest.raises(ToolError, match=text) as raised:
+            await self._raising(exc)(ctx=self._ctx())
+        assert raised.value.__cause__ is exc
+
+    async def test_oauth_refresh_failure_points_at_the_auth_command(self):
+        exc = RefreshError("invalid_grant: Token has been expired or revoked.")
+        with pytest.raises(ToolError) as raised:
+            await self._raising(exc)(ctx=self._ctx("oauth"))
+        assert "invalid_grant" in str(raised.value)
+        assert "mcp-gee-sweet auth" in str(raised.value)
+
+    async def test_non_oauth_refresh_failure_keeps_only_its_own_text(self):
+        exc = RefreshError("invalid_grant: account not found")
+        with pytest.raises(ToolError) as raised:
+            await self._raising(exc)(ctx=self._ctx("service_account"))
+        assert str(raised.value) == "invalid_grant: account not found"
+
+    async def test_tool_error_passes_through_unchanged(self):
+        exc = ToolError("already deliberate")
+        with pytest.raises(ToolError) as raised:
+            await self._raising(exc)(ctx=self._ctx())
+        assert raised.value is exc
+
+    async def test_unexpected_crash_is_left_for_mcp_to_mask(self):
+        exc = KeyError("sheets")
+        with pytest.raises(KeyError) as raised:
+            await self._raising(exc)(ctx=self._ctx())
+        assert raised.value is exc
+
+    async def test_text_reaches_the_client_through_mcp_call_tool(self):
+        # End to end through the installed mcp's Tool.run, which is what changed in 2.3.
+        srv = MCPServer("t")
+
+        @_timed
+        async def get_storage_quota(ctx: Context) -> dict:
+            raise _http_error(403, "The caller does not have permission")
+
+        @_timed
+        async def crashing_tool(ctx: Context) -> dict:
+            raise KeyError("internal detail")
+
+        srv.add_tool(get_storage_quota)
+        srv.add_tool(crashing_tool)
+        healthy = SimpleNamespace(unauthorized_message=None, auth_method="oauth")
+        ctx = Context(request_context=SimpleNamespace(lifespan_context=healthy), mcp_server=srv)
+
+        with pytest.raises(ToolError) as raised:
+            await srv.call_tool("get_storage_quota", {}, ctx)
+        assert not isinstance(raised.value, UnexpectedToolError)
+        assert "The caller does not have permission" in str(raised.value)
+
+        with pytest.raises(UnexpectedToolError) as raised:
+            await srv.call_tool("crashing_tool", {}, ctx)
+        assert "internal detail" not in str(raised.value)
+
+    async def test_degraded_start_text_reaches_the_client_through_mcp_call_tool(self):
+        srv = MCPServer("t")
+
+        @_timed
+        async def get_storage_quota(ctx: Context) -> dict:
+            return {}
+
+        srv.add_tool(get_storage_quota)
+        degraded = SimpleNamespace(unauthorized_message="Run `mcp-gee-sweet auth`.")
+        ctx = Context(request_context=SimpleNamespace(lifespan_context=degraded), mcp_server=srv)
+
+        with pytest.raises(ToolError) as raised:
+            await srv.call_tool("get_storage_quota", {}, ctx)
+        assert not isinstance(raised.value, UnexpectedToolError)
+        assert "mcp-gee-sweet auth" in str(raised.value)
 
 
 class TestMainAuthAndTransport:
