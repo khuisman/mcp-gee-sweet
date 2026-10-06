@@ -22,6 +22,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
+from ..http_errors import http_error_has_reason
 from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
@@ -243,11 +244,7 @@ def _is_quota_error(exc: Exception) -> bool:
     """True for Drive's storageQuotaExceeded HttpError (403) — the "this identity
     has no personal storage" failure a service account hits on a non-Shared-Drive
     target, which the shared _SA_QUOTA_ERROR text explains."""
-    return (
-        isinstance(exc, HttpError)
-        and exc.resp.status == 403
-        and b"storageQuotaExceeded" in (exc.content or b"")
-    )
+    return http_error_has_reason(exc, 403, "storageQuotaExceeded")
 
 
 def _quota_error_detail(exc: Exception) -> str:

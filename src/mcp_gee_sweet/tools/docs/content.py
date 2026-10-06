@@ -17,6 +17,7 @@ from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _GOOGLE_DOC_MIME
+from ..http_errors import http_error_has_reason
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Run, Table
@@ -911,7 +912,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if http_error_has_reason(e, 403, "storageQuotaExceeded"):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 
@@ -1049,7 +1050,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if http_error_has_reason(e, 403, "storageQuotaExceeded"):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 

@@ -73,3 +73,11 @@ Issue and PR numbers are as they were at the move (2026-09-29). Later history be
 ## Procedural feedback → the governing command file, not memory
 
 **Procedural feedback → the governing command file, not memory.** If the human's feedback corrects or refines a repeatable team-workflow step that a `.claude/team-roles/*.md` or `.claude/commands/*.md` file already governs (or should) — as opposed to project context, an external-system pointer, or a one-off judgment call specific to the current conversation — that's a command decision (`.claude/commands/retro.md`'s disposition), not a memory entry: edit the file directly, through Bob's prompt-QA gate (`.claude/team-roles/bob.md`), rather than trusting memory to carry it. A memory-only fix is retrieved heuristically and competes with whatever the loaded prompt already says instead of reliably overriding it — confirmed the hard way on PR #456: two separate memory-only fixes for QA's `/mcp reconnect`+`/code-review` batching (`qa.md` step 2) each got silently re-broken by a later session before the rule was hard-coded into `qa-kickoff.md` instead. Memory is still the right home for what's genuinely outside the team's tracked process — it just isn't a substitute for a rule a command file is meant to enforce every time.
+
+## Shared Google HTTP reason checks
+
+`tools/http_errors.py` owns status-and-reason matching for Calendar errors and the
+seven Docs/Drive storage-quota paths (issue #916). Complete quoted names preserve
+Calendar matching and prevent another quota reason containing `storageQuotaExceeded`
+from receiving the service-account quota diagnostic. Structured JSON reason parsing
+remains a separate change.

@@ -50,6 +50,7 @@ from PIL import Image
 from ...auth import execute_in_thread, thread_http
 from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _upload_local_file
+from ..http_errors import http_error_has_reason
 from .indices import _collect_doc_paragraphs, utf16_len
 
 logger = logging.getLogger(__name__)
@@ -438,7 +439,7 @@ async def upload_and_share_image(
             drive_service,
         )
     except HttpError as e:
-        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+        if http_error_has_reason(e, 403, "storageQuotaExceeded"):
             return {"error": _SA_QUOTA_ERROR}
         return {"error": f"failed to upload resized image: {e}"}
     except Exception as e:

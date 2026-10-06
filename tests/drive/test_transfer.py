@@ -6039,3 +6039,15 @@ class TestSyncFolderUnsafeName:
         assert result["failed"] == []
         assert result["folders_skipped"] == ["../"]
         assert fs.list_calls == ["root"]
+
+
+@pytest.mark.parametrize("reason", ["storageQuotaExceededLater", "otherstorageQuotaExceeded"])
+def test_quota_error_rejects_other_reason_names(reason):
+    from mcp_gee_sweet.tools.drive.transfer import _is_quota_error
+
+    response = MagicMock()
+    response.status = 403
+    error = HttpError(
+        resp=response, content=json.dumps({"error": {"errors": [{"reason": reason}]}}).encode()
+    )
+    assert not _is_quota_error(error)

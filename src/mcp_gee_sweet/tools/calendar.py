@@ -5,11 +5,11 @@ import weakref
 from datetime import datetime, timezone
 from typing import Any
 
-from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread
+from .http_errors import http_error_has_reason as _http_error_has_reason
 from .pagination import iter_pages
 from .response_limits import clamp_max_results, enforce_response_size_cap
 
@@ -78,17 +78,6 @@ def _list_all_events_semaphore() -> asyncio.Semaphore:
         semaphore = asyncio.Semaphore(_LIST_ALL_EVENTS_MAX_CONCURRENCY)
         _fan_out_semaphores[loop] = semaphore
     return semaphore
-
-
-def _http_error_has_reason(e: BaseException, status: int, reason: str) -> bool:
-    """Whether `e` is an HttpError with this status whose body names this reason.
-    The reason is matched as a quoted JSON string, so one reason that's a prefix
-    of another (cannotChangeOwnAcl / cannotChangeOwnerAcl) can't false-match."""
-    return (
-        isinstance(e, HttpError)
-        and e.resp.status == status
-        and f'"{reason}"'.encode() in (e.content or b"")
-    )
 
 
 def _acl_error(e: Exception, *, removing: bool) -> dict[str, str]:
