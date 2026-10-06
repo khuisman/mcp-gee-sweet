@@ -2069,6 +2069,72 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-cal79-changing-or-removing-either-unchangeable-acl-rule-returns-an-actionable-error-issue-459-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL79: Changing or removing either unchangeable ACL rule returns an actionable error (issue #459) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal80-list_calendar_acl-returns-a-complete-list-with-no-partial-marker-on-a-normal-calendar-issue-615" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL80: list_calendar_acl returns a complete list with no partial marker on a normal calendar (issue #615)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal81-list_calendar_acl-partial-failure-page-bound-and-size-cap-issue-615-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL81: list_calendar_acl partial failure, page bound, and size cap (issue #615) (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal82-get_event-shape-unchanged-after-sharing-_shape_event-issue-627" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL82: get_event shape unchanged after sharing _shape_event (issue #627)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal83-_shape_event-null-guards-and-collision-guard-issue-627-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL83: _shape_event null guards and collision guard (issue #627) (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal84-list_all_events-fan-out-cap-is-process-wide-and-configurable-calendar-summaries-match-find_free_slots-issues-626-726-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL84: list_all_events fan-out cap is process-wide and configurable; calendar summaries match find_free_slots (issues #626, #726) (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2918,6 +2984,7 @@ remove_calendar_from_list invalid ID -&gt; {"error":"<HttpError 404 ... notFound
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - The error message is actionable and names <code>delete_calendar</code> as the correct tool — <code>remove_calendar_from_list</code> detects the <code>cannotUnsubscribeFromOwnedCalendar</code> reason specifically and substitutes a friendly message instead of passing through the raw <code>HttpError</code> repr</p>
 <p><strong>Result (2026-07-05) ✅</strong> — First pass (before the friendly-message special-case was added) returned the raw passthrough: <code>{"error": "&lt;HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...&gt;"}</code>. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got <code>{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}</code> — confirms the friendlier message is live and correctly names the fix.</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 2, Kit). Regression check after <code>remove_calendar_from_list</code> moved onto the shared <code>_http_error_has_reason</code>, which matches the quoted reason. On a freshly created owned calendar it still returns the <code>cannotUnsubscribeFromOwnedCalendar</code> message naming <code>delete_calendar</code>.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 remove_calendar_from_list on SA-owned MINCAL -&gt; {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.</p>
 <hr />
@@ -3402,6 +3469,77 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -&gt; busy merged to single {14
 - <code>tests/test_calendar.py::TestFindFreeSlots::test_summary_fetch_failure_does_not_break_find_free_slots</code> — a calendar-list fetch that itself raises still returns the error entry (id-fallback summary), proving the best-effort lookup can never turn a working <code>find_free_slots</code> call into a failing one.
 - <code>tests/test_calendar.py::TestFindFreeSlots::test_all_readable_path_never_fetches_the_calendar_list</code> — with every calendar readable, <code>calendar_cache.get_list</code> and <code>calendarList().list()</code> are both asserted not called — the happy path stays a single API call.</p>
 <p><strong>Result (2026-09-10) ✅ PASS</strong> — <code>tests/test_calendar.py -k TestFindFreeSlots</code> — 9 passed, including all 4 cited cases. <code>/code-review high origin/develop...HEAD</code> surfaced 2 non-blocking findings, neither exercised by these invariants: <code>summary_by_id</code>'s <code>c.get("summary") or c["id"]</code> (this fix) falls back to the id on a falsy <em>or empty-string</em> summary, while <code>list_all_events</code>' equivalent (<code>calendar.py:981</code>) only falls back on a <em>missing</em> key — a calendar with a genuinely empty-string <code>summary</code> would report differently between the two tools, contradicting the docstring's "same shape" claim for that edge case; and the id→summary lookup is duplicated rather than shared between the two tools. Neither affects correctness for a real (non-empty-string) summary. Filed as follow-up #726.</p>
+<hr />
+<h3 id="tc-cal79-changing-or-removing-either-unchangeable-acl-rule-returns-an-actionable-error-issue-459-destructive">TC-CAL79: Changing or removing either unchangeable ACL rule returns an actionable error (issue #459) ⚠️ destructive<a class="headerlink" href="#tc-cal79-changing-or-removing-either-unchangeable-acl-rule-returns-an-actionable-error-issue-459-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a secondary calendar's ACL holds two <code>owner</code> rules that no one can change. Any <code>acl().delete()</code> or <code>acl().insert()</code> touching them returns a 403, even a no-op re-grant of <code>owner</code>; both were confirmed live on 2026-10-05.
+- The primary-owner rule, <code>user:&lt;calendar_id&gt;</code>, returns <code>cannotChangeOwnerAcl</code> ("Cannot change the access level of calendars primary owner.").
+- The authenticated account's own rule, <code>user:&lt;account email&gt;</code>, returns <code>cannotChangeOwnAcl</code> ("Cannot change your own access level.").</p>
+<p>Before #459 both tools returned the raw <code>HttpError</code> string; they now return a message naming the restriction, like <code>remove_calendar_from_list</code>'s <code>cannotUnsubscribeFromOwnedCalendar</code> handling (TC-CAL59). Only <code>remove_calendar_acl</code>'s primary-owner message points at <code>delete_calendar</code>. An insert that tried to change a grant is never told to delete the calendar (PR #912 QA round 1).</p>
+<p><strong>Setup:</strong> create a disposable calendar with <code>create_calendar(summary="QA-OwnerAcl")</code>; call it <code>{OWNER_TEST_CAL}</code>. Call <code>list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")</code>. It shows two <code>role: "owner"</code>, <code>scope_type: "user"</code> rules:
+- <code>{PRIMARY_OWNER_RULE_ID}</code>: the one whose <code>scope_value</code> equals <code>{OWNER_TEST_CAL}</code>, so its id is <code>user:{OWNER_TEST_CAL}</code>.
+- <code>{ACCOUNT_RULE_ID}</code>: the one whose <code>scope_value</code> is the authenticated account. Call that <code>scope_value</code> <code>{ACCOUNT_EMAIL}</code>.</p>
+<p><strong>Checks: primary-owner rule (<code>cannotChangeOwnerAcl</code>)</strong>
+- <code>remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{PRIMARY_OWNER_RULE_ID}")</code> returns <code>{"error": "Google does not allow removing the access rule of a calendar's primary owner (reason: cannotChangeOwnerAcl). Use delete_calendar instead to permanently delete a calendar you own."}</code>, not a raw <code>&lt;HttpError 403 ...&gt;</code> string
+- <code>add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{OWNER_TEST_CAL}", send_notifications=false)</code> returns <code>{"error": "Google does not allow changing the access level of a calendar's primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'."}</code>, with no mention of <code>delete_calendar</code></p>
+<p><strong>Checks: account's own rule (<code>cannotChangeOwnAcl</code>)</strong>
+- <code>remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{ACCOUNT_RULE_ID}")</code> returns <code>{"error": "Google does not allow changing or removing your own access rule on a calendar (reason: cannotChangeOwnAcl)."}</code>
+- <code>add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{ACCOUNT_EMAIL}", send_notifications=false)</code> returns the same <code>cannotChangeOwnAcl</code> message</p>
+<p><strong>Checks: unchanged state and raw fallthrough</strong>
+- A follow-up <code>list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")</code> still shows both rules with <code>role: "owner"</code>
+- A different failure still passes through raw: <code>remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="totally-invalid-rule-id")</code> returns <code>{"error": "&lt;HttpError 400 ...&gt;"}</code> with neither message (same as TC-CAL68)</p>
+<p><strong>Cleanup:</strong> <code>delete_calendar(calendar_id="{OWNER_TEST_CAL}")</code>.</p>
+<p><strong>Result (2026-10-05) ❌ FAIL</strong> (PR #912 round 1, Kit). The setup's <code>{OWNER_RULE_ID}</code> (the authenticated account's <code>user:&lt;email&gt;</code> rule) isn't the primary owner on a secondary calendar. Removing it, or <code>add_calendar_acl(role="reader")</code> for that email, returns Google's raw <code>403 cannotChangeOwnAcl</code> ("Cannot change your own access level."), which the PR doesn't map. Both checks pass against the calendar's own-id rule (<code>user:&lt;calendar_id&gt;</code>): each returns the mapped <code>cannotChangeOwnerAcl</code> message, and a later <code>list_calendar_acl</code> still shows that rule as <code>owner</code>. The invalid-rule-id check passes (raw <code>HttpError 400</code>). Cleanup done.</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 2, Kit, against <code>9a85809</code> after a fresh reconnect). Every check passes against a fresh <code>QA-OwnerAcl</code> calendar, with exactly the strings documented:
+- Primary-owner rule: remove returns the <code>cannotChangeOwnerAcl</code> message, which names <code>delete_calendar</code>. Add returns the change message, without <code>delete_calendar</code>.
+- Account's own rule: both remove and add return the <code>cannotChangeOwnAcl</code> message.
+- A follow-up <code>list_calendar_acl</code> still shows both rules as <code>owner</code>.
+- An invalid rule id still passes through as raw <code>HttpError 400</code>.</p>
+<p>Cleanup done.</p>
+<hr />
+<h3 id="tc-cal80-list_calendar_acl-returns-a-complete-list-with-no-partial-marker-on-a-normal-calendar-issue-615">TC-CAL80: <code>list_calendar_acl</code> returns a complete list with no partial marker on a normal calendar (issue #615)<a class="headerlink" href="#tc-cal80-list_calendar_acl-returns-a-complete-list-with-no-partial-marker-on-a-normal-calendar-issue-615" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #615 moved <code>list_calendar_acl</code> onto the shared <code>iter_pages</code> helper (<code>tools/pagination.py</code>), with 250 rules per page, a 100-page bound, a <code>{"error": ..., "partial": true}</code> entry when a later page fails or the bound is hit, and the shared response-size cap. This is the live regression check that the normal path is unchanged.</p>
+<p><strong>Checks</strong>
+- Call <code>list_calendar_acl(calendar_id="{CALENDAR_ID}")</code>
+- Returns the same rules as TC-CAL60 (each with <code>id</code>, <code>role</code>, <code>scope_type</code>, <code>scope_value</code>)
+- No entry has an <code>error</code> or <code>partial</code> key</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 1, Kit). The fixture calendar returned its 2 rules (its own-id owner rule and the account's owner rule), each with <code>id</code>/<code>role</code>/<code>scope_type</code>/<code>scope_value</code>, and no <code>error</code> or <code>partial</code> key.</p>
+<hr />
+<h3 id="tc-cal81-list_calendar_acl-partial-failure-page-bound-and-size-cap-issue-615-unit-test">TC-CAL81: <code>list_calendar_acl</code> partial failure, page bound, and size cap (issue #615) (unit test)<a class="headerlink" href="#tc-cal81-list_calendar_acl-partial-failure-page-bound-and-size-cap-issue-615-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a page-2 failure, a never-ending <code>nextPageToken</code>, and a response over <code>MAX_TOOL_RESPONSE_CHARS</code> can't be forced against the live API (no fixture calendar has more than one page of rules; see TC-CAL76). Verified by unit test instead.</p>
+<p><strong>Checks (unit test)</strong>
+- <code>tests/test_calendar.py::TestListCalendarAcl::test_later_page_failure_keeps_earlier_rules_and_flags_partial</code>: page 1's rules are kept, followed by one <code>{"error": ..., "partial": True}</code> entry naming the page count, the rule count, and the API error.
+- <code>tests/test_calendar.py::TestListCalendarAcl::test_never_ending_page_token_is_bounded_and_flagged_partial</code>: the loop stops at the page bound and flags the list as partial instead of hanging.
+- <code>tests/test_calendar.py::TestListCalendarAcl::test_oversized_response_raises_size_cap_error</code>: an oversized result raises the shared <code>ValueError</code> naming <code>list_calendar_acl</code>.
+- <code>tests/test_calendar.py::TestListCalendarAcl::test_requests_the_max_page_size</code>: <code>maxResults=250</code> is sent.
+- <code>tests/test_calendar.py::TestListCalendarAcl::test_api_error_returns_error_list</code>: a first-page failure still returns plain <code>[{"error": ...}]</code>, with no <code>partial</code> key.
+- <code>tests/drive/test_files.py::TestListDrives::test_never_ending_page_token_is_bounded</code>: the same helper bounds <code>list_drives</code>.</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 1, Kit). Every named unit test passes.</p>
+<hr />
+<h3 id="tc-cal82-get_event-shape-unchanged-after-sharing-_shape_event-issue-627">TC-CAL82: <code>get_event</code> shape unchanged after sharing <code>_shape_event</code> (issue #627)<a class="headerlink" href="#tc-cal82-get_event-shape-unchanged-after-sharing-_shape_event-issue-627" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #627 made <code>get_event</code> call <code>_shape_event</code> (shared with <code>list_events</code>/<code>list_all_events</code>) instead of its own copy, and made the shared helper tolerate explicit <code>null</code> for <code>start</code>/<code>end</code>/<code>organizer</code>/<code>attendees</code>. This is the live regression check on the shape.</p>
+<p><strong>Setup:</strong> any event in <code>{CALENDAR_ID}</code>, e.g. from <code>list_events(calendar_id="{CALENDAR_ID}")</code>; call its <code>id</code> <code>{EVENT_ID}</code>.</p>
+<p><strong>Checks</strong>
+- Call <code>get_event(calendar_id="{CALENDAR_ID}", event_id="{EVENT_ID}")</code>
+- Returns exactly these keys: <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>location</code>, <code>description</code>, <code>organizer</code>, <code>attendees</code>, <code>recurrence</code>, <code>html_link</code>, <code>status</code>, <code>created</code>, <code>updated</code>
+- <code>created</code> and <code>updated</code> are RFC 3339 timestamps, not <code>null</code>
+- <code>start</code>/<code>end</code>/<code>organizer</code>/<code>attendees</code> match the same event's entry in <code>list_events(calendar_id="{CALENDAR_ID}")</code> (fields both tools return)</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 1, Kit). <code>get_event</code> on the <code>QA Test Event</code> fixture returned exactly the 13 listed keys, with <code>created</code>/<code>updated</code> as RFC 3339 timestamps. <code>start</code>/<code>end</code>/<code>organizer</code>/<code>attendees</code> match its <code>list_events</code> entry.</p>
+<hr />
+<h3 id="tc-cal83-_shape_event-null-guards-and-collision-guard-issue-627-unit-test">TC-CAL83: <code>_shape_event</code> null guards and collision guard (issue #627) (unit test)<a class="headerlink" href="#tc-cal83-_shape_event-null-guards-and-collision-guard-issue-627-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the Calendar API doesn't reliably produce an explicit <code>null</code> for these fields on demand, so the null handling is verified by unit test.</p>
+<p><strong>Checks (unit test)</strong>
+- <code>tests/test_calendar.py::TestShapeEvent::test_explicit_nulls_do_not_crash</code>: <code>start</code>/<code>end</code>/<code>organizer</code> set to <code>None</code> shape to <code>None</code>, and <code>attendees: None</code> shapes to <code>[]</code>, with no <code>AttributeError</code>.
+- <code>tests/test_calendar.py::TestShapeEvent::test_extra_key_colliding_with_a_shaped_field_raises</code>: an <code>extra</code> kwarg that collides with a shaped field raises <code>ValueError</code> instead of silently overwriting it.
+- <code>tests/test_calendar.py::TestGetEvent::test_null_organizer_does_not_crash</code> and <code>tests/test_calendar.py::TestCreateUpdateEventNullTimes</code>: <code>get_event</code>, <code>create_event</code>, and <code>update_event</code> all survive a <code>null</code> start or organizer.</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 1, Kit). Every named unit test passes.</p>
+<hr />
+<h3 id="tc-cal84-list_all_events-fan-out-cap-is-process-wide-and-configurable-calendar-summaries-match-find_free_slots-issues-626-726-unit-test">TC-CAL84: <code>list_all_events</code> fan-out cap is process-wide and configurable; calendar summaries match <code>find_free_slots</code> (issues #626, #726) (unit test)<a class="headerlink" href="#tc-cal84-list_all_events-fan-out-cap-is-process-wide-and-configurable-calendar-summaries-match-find_free_slots-issues-626-726-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> whether two overlapping calls share one concurrency budget isn't observable from a live response, and an empty-string calendar summary can't be set through the Calendar UI. Verified by unit test instead.</p>
+<p><strong>Checks (unit test)</strong>
+- <code>tests/test_calendar.py::TestListAllEvents::test_fan_out_cap_is_shared_across_concurrent_invocations</code>: two overlapping <code>list_all_events</code> calls never exceed one cap of in-flight <code>events().list()</code> calls in total. A per-call semaphore fails this test; that was confirmed with a mutation check before the PR was opened.
+- <code>tests/test_calendar.py::TestListAllEventsConcurrencyEnv</code>: <code>LIST_ALL_EVENTS_MAX_CONCURRENCY</code> defaults to 20, overrides the cap when set, and is floored at 1.
+- <code>tests/test_calendar.py::TestFindFreeSlots::test_empty_string_summary_matches_list_all_events</code>: a calendar whose <code>summary</code> is <code>""</code> reports <code>calendar_summary: ""</code> from both tools; only a calendar missing from the user's list falls back to its id.</p>
+<p><strong>Result (2026-10-05) ✅ PASS</strong> (PR #912 round 1, Kit). Every named unit test passes. Live spot check: <code>list_all_events</code> and <code>find_free_slots</code> over the fixture calendar plus a nonexistent id both report <code>calendar_summary: "mcp-gee-sweet-qa"</code> for the real calendar and fall back to the bare id for the missing one.</p>
 <hr />
 <h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>

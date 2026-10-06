@@ -2230,7 +2230,7 @@
 </tr>
 <tr>
 <td><code>list_calendar_acl</code></td>
-<td>List the access control rules (sharing entries) on a calendar.</td>
+<td>List the access control rules (sharing entries) on a calendar. Every page is fetched (250 rules each), up to a 100-page safety bound.</td>
 <td><code>calendar_id</code></td>
 </tr>
 <tr>
@@ -2275,7 +2275,7 @@
 </tr>
 <tr>
 <td><code>list_all_events</code></td>
-<td>List events across multiple calendars in one call, fanning out to each calendar in parallel instead of requiring one list_events call per calendar.</td>
+<td>List events across multiple calendars in one call, fanning out to each calendar in parallel instead of requiring one list_events call per calendar. At most LIST_ALL_EVENTS_MAX_CONCURRENCY (default 20) calendars are queried at once, shared across every concurrent list_all_events call on this server.</td>
 <td><code>time_min?</code>, <code>time_max?</code>, <code>query?</code>, <code>calendar_ids?</code>, <code>max_results_per_calendar?</code>, <code>expand_recurring?</code>, <code>group_by_calendar?</code></td>
 </tr>
 </tbody>
