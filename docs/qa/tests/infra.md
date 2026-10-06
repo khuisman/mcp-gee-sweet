@@ -1145,9 +1145,12 @@ Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free 
 4. Start a fresh server the same way; with the `mcp` SDK's `sse_client` + `ClientSession`, `initialize` and `list_tools`, close the session, then SIGTERM the server
 
 **Checks**
-- 2, 3: the log has no `Exception in ASGI application`, no `RuntimeError`, and no `ASGI callable returned without completing response`. With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Dropping a second response on /sse (#868)`
+- 2, 3: the log has no `Exception in ASGI application`, no `RuntimeError: Expected ASGI message`, and no `ASGI callable returned without completing response`. (The setup's nonexistent `CREDENTIALS_PATH` logs a `DEBUG ... Auth failure detail` traceback ending in `RuntimeError: '<path>' not found` at connection time; that's the expected degraded start, not a failure.) With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Dropping a second response on /sse (#868)`
 - 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
 - 2, 3: reading the SSE response to the end ends with a clean EOF, not an `IncompleteRead` (before this fix the chunked stream was never terminated)
-- 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no traceback
+- 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no traceback other than the expected `Auth failure detail` one
 
 **Cleanup:** SIGKILL any server still running (and record the case as failed).
+
+**Result (2026-10-05, PR #911 round 1 @ d6ba1ec, Sky) ✅ PASS**
+uvicorn 0.47.0, run through `uv run` (so the parent's exit code is uv's 143 after forwarding SIGTERM; `--reload` exits 0). Steps 2–3 (three plain runs plus one `--reload`): every log has the `Dropping a second response on /sse (#868)` line and none of the three error strings. The server exits 0.2–0.8s after SIGTERM, the SSE response reads to a clean EOF, and the port is free afterwards. Baseline: the same driver against an `origin/develop` export logs `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'`, and the client gets `IncompleteRead(64 bytes read)`. Step 4: `initialize` and `list_tools` (139 tools) succeed, with no ASGI error. But the log shows `Dropping a second response on /sse (#868)` right after the client closed its session, about 1s *before* SIGTERM. So the guard also handles mcp's late `Response()` after an ordinary client disconnect, not only at shutdown (see the round-1 PR comment). Side check: `--transport streamable-http` with an open `GET /mcp` stream still logs `ASGI callable returned without completing response.` on SIGTERM, and the client gets `IncompleteRead(0 bytes read)`. That transport isn't in this PR's scope; filed as #917.
