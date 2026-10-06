@@ -179,7 +179,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `delete_calendar` | Permanently delete a calendar. For calendars you own, this deletes the calendar entirely for all users it is shared with — use with caution. To only stop seeing a calendar in your own list, use remove_calendar_from_list instead. | `calendar_id` |
 | `add_calendar_to_list` | Subscribe the authenticated user (or service account) to a calendar, adding it to their calendar list so it appears in list_calendars. | `calendar_id`, `color_id?` |
 | `remove_calendar_from_list` | Unsubscribe from a calendar, removing it from the authenticated user's calendar list. The calendar itself is not deleted and is unaffected for any other user it's shared with — use delete_calendar to permanently delete a calendar you own. | `calendar_id` |
-| `list_calendar_acl` | List the access control rules (sharing entries) on a calendar. | `calendar_id` |
+| `list_calendar_acl` | List the access control rules (sharing entries) on a calendar. Every page is fetched (250 rules each), up to a 100-page safety bound. | `calendar_id` |
 | `add_calendar_acl` | Grant access to a calendar by adding an access control rule. | `calendar_id`, `role`, `scope_type?`, `scope_value?`, `send_notifications?` |
 | `remove_calendar_acl` | Revoke an access control rule from a calendar. | `calendar_id`, `rule_id` |
 | `list_events` | List events in a calendar. | `calendar_id`, `time_min?`, `time_max?`, `query?`, `max_results?`, `expand_recurring?` |
@@ -188,7 +188,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `update_event` | Update fields on an existing event using a partial update (patch semantics). Only the fields you provide are changed; omitted fields are left as-is. | `calendar_id`, `event_id`, `summary?`, `start?`, `end?`, `description?`, `location?`, `attendees?`, `timezone?`, `recurrence?` |
 | `delete_event` | Delete or cancel an event. | `calendar_id`, `event_id` |
 | `find_free_slots` | Query busy times for a list of calendars and return free slots within the window. | `calendar_ids`, `time_min`, `time_max`, `timezone?` |
-| `list_all_events` | List events across multiple calendars in one call, fanning out to each calendar in parallel instead of requiring one list_events call per calendar. | `time_min?`, `time_max?`, `query?`, `calendar_ids?`, `max_results_per_calendar?`, `expand_recurring?`, `group_by_calendar?` |
+| `list_all_events` | List events across multiple calendars in one call, fanning out to each calendar in parallel instead of requiring one list_events call per calendar. At most LIST_ALL_EVENTS_MAX_CONCURRENCY (default 20) calendars are queried at once, shared across every concurrent list_all_events call on this server. | `time_min?`, `time_max?`, `query?`, `calendar_ids?`, `max_results_per_calendar?`, `expand_recurring?`, `group_by_calendar?` |
 
 **Note:** when using service account auth, calendars must be explicitly shared with the service account. The service account must also subscribe to shared calendars via `calendarList().insert()` before they appear in `list_calendars`.
 

@@ -17,6 +17,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .ast_to_markdown import ast_to_markdown
 from .comments import _COMMENT_FIELDS, _map_comment
@@ -24,30 +25,27 @@ from .doc_to_ast import document_to_ast
 
 logger = logging.getLogger(__name__)
 
+# 1,000 pages of 100 comments: only a nextPageToken that never goes falsy reaches it.
+_COMMENTS_MAX_PAGES = 1000
+
 
 async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any]]:
     """Paginate through every non-deleted, non-resolved comment on doc_id,
     mapped via comments.py's own _map_comment for one shared shape with
     list_doc_comments' own output."""
     comments: list[dict[str, Any]] = []
-    page_token: str | None = None
-    while True:
-        response = await execute_in_thread(
-            drive_service.comments()
-            .list(
-                fileId=doc_id,
-                pageSize=100,
-                pageToken=page_token,
-                includeDeleted=False,
-                fields=f"comments({_COMMENT_FIELDS}),nextPageToken",
-            )
-            .execute,
-            drive_service,
-        )
+    async for response in iter_pages(
+        lambda token: drive_service.comments().list(
+            fileId=doc_id,
+            pageSize=100,
+            pageToken=token,
+            includeDeleted=False,
+            fields=f"comments({_COMMENT_FIELDS}),nextPageToken",
+        ),
+        drive_service,
+        max_pages=_COMMENTS_MAX_PAGES,
+    ):
         comments.extend(_map_comment(c) for c in response.get("comments", []))
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
     return [c for c in comments if not c["resolved"]]
 
 

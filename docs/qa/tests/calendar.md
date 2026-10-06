@@ -419,6 +419,8 @@ remove_calendar_from_list invalid ID -> {"error":"<HttpError 404 ... notFound ..
 
 **Result (2026-07-05) ✅** — First pass (before the friendly-message special-case was added) returned the raw passthrough: `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got `{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}` — confirms the friendlier message is live and correctly names the fix.
 
+**Result (2026-10-05) ✅ PASS** (PR #912 round 2, Kit). Regression check after `remove_calendar_from_list` moved onto the shared `_http_error_has_reason`, which matches the quoted reason. On a freshly created owned calendar it still returns the `cannotUnsubscribeFromOwnedCalendar` message naming `delete_calendar`.
+
 **Result (2026-09-04) ✅ PASS**
 remove_calendar_from_list on SA-owned MINCAL -> {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.
 
@@ -1055,6 +1057,115 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `tests/test_calendar.py::TestFindFreeSlots::test_all_readable_path_never_fetches_the_calendar_list` — with every calendar readable, `calendar_cache.get_list` and `calendarList().list()` are both asserted not called — the happy path stays a single API call.
 
 **Result (2026-09-10) ✅ PASS** — `tests/test_calendar.py -k TestFindFreeSlots` — 9 passed, including all 4 cited cases. `/code-review high origin/develop...HEAD` surfaced 2 non-blocking findings, neither exercised by these invariants: `summary_by_id`'s `c.get("summary") or c["id"]` (this fix) falls back to the id on a falsy *or empty-string* summary, while `list_all_events`' equivalent (`calendar.py:981`) only falls back on a *missing* key — a calendar with a genuinely empty-string `summary` would report differently between the two tools, contradicting the docstring's "same shape" claim for that edge case; and the id→summary lookup is duplicated rather than shared between the two tools. Neither affects correctness for a real (non-empty-string) summary. Filed as follow-up #726.
+
+---
+
+### TC-CAL79: Changing or removing either unchangeable ACL rule returns an actionable error (issue #459) ⚠️ destructive
+
+**Background:** a secondary calendar's ACL holds two `owner` rules that no one can change. Any `acl().delete()` or `acl().insert()` touching them returns a 403, even a no-op re-grant of `owner`; both were confirmed live on 2026-10-05.
+- The primary-owner rule, `user:<calendar_id>`, returns `cannotChangeOwnerAcl` ("Cannot change the access level of calendars primary owner.").
+- The authenticated account's own rule, `user:<account email>`, returns `cannotChangeOwnAcl` ("Cannot change your own access level.").
+
+Before #459 both tools returned the raw `HttpError` string; they now return a message naming the restriction, like `remove_calendar_from_list`'s `cannotUnsubscribeFromOwnedCalendar` handling (TC-CAL59). Only `remove_calendar_acl`'s primary-owner message points at `delete_calendar`. An insert that tried to change a grant is never told to delete the calendar (PR #912 QA round 1).
+
+**Setup:** create a disposable calendar with `create_calendar(summary="QA-OwnerAcl")`; call it `{OWNER_TEST_CAL}`. Call `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")`. It shows two `role: "owner"`, `scope_type: "user"` rules:
+- `{PRIMARY_OWNER_RULE_ID}`: the one whose `scope_value` equals `{OWNER_TEST_CAL}`, so its id is `user:{OWNER_TEST_CAL}`.
+- `{ACCOUNT_RULE_ID}`: the one whose `scope_value` is the authenticated account. Call that `scope_value` `{ACCOUNT_EMAIL}`.
+
+**Checks: primary-owner rule (`cannotChangeOwnerAcl`)**
+- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{PRIMARY_OWNER_RULE_ID}")` returns `{"error": "Google does not allow removing the access rule of a calendar's primary owner (reason: cannotChangeOwnerAcl). Use delete_calendar instead to permanently delete a calendar you own."}`, not a raw `<HttpError 403 ...>` string
+- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{OWNER_TEST_CAL}", send_notifications=false)` returns `{"error": "Google does not allow changing the access level of a calendar's primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'."}`, with no mention of `delete_calendar`
+
+**Checks: account's own rule (`cannotChangeOwnAcl`)**
+- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{ACCOUNT_RULE_ID}")` returns `{"error": "Google does not allow changing or removing your own access rule on a calendar (reason: cannotChangeOwnAcl)."}`
+- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{ACCOUNT_EMAIL}", send_notifications=false)` returns the same `cannotChangeOwnAcl` message
+
+**Checks: unchanged state and raw fallthrough**
+- A follow-up `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` still shows both rules with `role: "owner"`
+- A different failure still passes through raw: `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="totally-invalid-rule-id")` returns `{"error": "<HttpError 400 ...>"}` with neither message (same as TC-CAL68)
+
+**Cleanup:** `delete_calendar(calendar_id="{OWNER_TEST_CAL}")`.
+
+**Result (2026-10-05) ❌ FAIL** (PR #912 round 1, Kit). The setup's `{OWNER_RULE_ID}` (the authenticated account's `user:<email>` rule) isn't the primary owner on a secondary calendar. Removing it, or `add_calendar_acl(role="reader")` for that email, returns Google's raw `403 cannotChangeOwnAcl` ("Cannot change your own access level."), which the PR doesn't map. Both checks pass against the calendar's own-id rule (`user:<calendar_id>`): each returns the mapped `cannotChangeOwnerAcl` message, and a later `list_calendar_acl` still shows that rule as `owner`. The invalid-rule-id check passes (raw `HttpError 400`). Cleanup done.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 2, Kit, against `9a85809` after a fresh reconnect). Every check passes against a fresh `QA-OwnerAcl` calendar, with exactly the strings documented:
+- Primary-owner rule: remove returns the `cannotChangeOwnerAcl` message, which names `delete_calendar`. Add returns the change message, without `delete_calendar`.
+- Account's own rule: both remove and add return the `cannotChangeOwnAcl` message.
+- A follow-up `list_calendar_acl` still shows both rules as `owner`.
+- An invalid rule id still passes through as raw `HttpError 400`.
+
+Cleanup done.
+
+---
+
+### TC-CAL80: `list_calendar_acl` returns a complete list with no partial marker on a normal calendar (issue #615)
+
+**Background:** #615 moved `list_calendar_acl` onto the shared `iter_pages` helper (`tools/pagination.py`), with 250 rules per page, a 100-page bound, a `{"error": ..., "partial": true}` entry when a later page fails or the bound is hit, and the shared response-size cap. This is the live regression check that the normal path is unchanged.
+
+**Checks**
+- Call `list_calendar_acl(calendar_id="{CALENDAR_ID}")`
+- Returns the same rules as TC-CAL60 (each with `id`, `role`, `scope_type`, `scope_value`)
+- No entry has an `error` or `partial` key
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). The fixture calendar returned its 2 rules (its own-id owner rule and the account's owner rule), each with `id`/`role`/`scope_type`/`scope_value`, and no `error` or `partial` key.
+
+---
+
+### TC-CAL81: `list_calendar_acl` partial failure, page bound, and size cap (issue #615) (unit test)
+
+**Background:** a page-2 failure, a never-ending `nextPageToken`, and a response over `MAX_TOOL_RESPONSE_CHARS` can't be forced against the live API (no fixture calendar has more than one page of rules; see TC-CAL76). Verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestListCalendarAcl::test_later_page_failure_keeps_earlier_rules_and_flags_partial`: page 1's rules are kept, followed by one `{"error": ..., "partial": True}` entry naming the page count, the rule count, and the API error.
+- `tests/test_calendar.py::TestListCalendarAcl::test_never_ending_page_token_is_bounded_and_flagged_partial`: the loop stops at the page bound and flags the list as partial instead of hanging.
+- `tests/test_calendar.py::TestListCalendarAcl::test_oversized_response_raises_size_cap_error`: an oversized result raises the shared `ValueError` naming `list_calendar_acl`.
+- `tests/test_calendar.py::TestListCalendarAcl::test_requests_the_max_page_size`: `maxResults=250` is sent.
+- `tests/test_calendar.py::TestListCalendarAcl::test_api_error_returns_error_list`: a first-page failure still returns plain `[{"error": ...}]`, with no `partial` key.
+- `tests/drive/test_files.py::TestListDrives::test_never_ending_page_token_is_bounded`: the same helper bounds `list_drives`.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes.
+
+---
+
+### TC-CAL82: `get_event` shape unchanged after sharing `_shape_event` (issue #627)
+
+**Background:** #627 made `get_event` call `_shape_event` (shared with `list_events`/`list_all_events`) instead of its own copy, and made the shared helper tolerate explicit `null` for `start`/`end`/`organizer`/`attendees`. This is the live regression check on the shape.
+
+**Setup:** any event in `{CALENDAR_ID}`, e.g. from `list_events(calendar_id="{CALENDAR_ID}")`; call its `id` `{EVENT_ID}`.
+
+**Checks**
+- Call `get_event(calendar_id="{CALENDAR_ID}", event_id="{EVENT_ID}")`
+- Returns exactly these keys: `id`, `summary`, `start`, `end`, `location`, `description`, `organizer`, `attendees`, `recurrence`, `html_link`, `status`, `created`, `updated`
+- `created` and `updated` are RFC 3339 timestamps, not `null`
+- `start`/`end`/`organizer`/`attendees` match the same event's entry in `list_events(calendar_id="{CALENDAR_ID}")` (fields both tools return)
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). `get_event` on the `QA Test Event` fixture returned exactly the 13 listed keys, with `created`/`updated` as RFC 3339 timestamps. `start`/`end`/`organizer`/`attendees` match its `list_events` entry.
+
+---
+
+### TC-CAL83: `_shape_event` null guards and collision guard (issue #627) (unit test)
+
+**Background:** the Calendar API doesn't reliably produce an explicit `null` for these fields on demand, so the null handling is verified by unit test.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestShapeEvent::test_explicit_nulls_do_not_crash`: `start`/`end`/`organizer` set to `None` shape to `None`, and `attendees: None` shapes to `[]`, with no `AttributeError`.
+- `tests/test_calendar.py::TestShapeEvent::test_extra_key_colliding_with_a_shaped_field_raises`: an `extra` kwarg that collides with a shaped field raises `ValueError` instead of silently overwriting it.
+- `tests/test_calendar.py::TestGetEvent::test_null_organizer_does_not_crash` and `tests/test_calendar.py::TestCreateUpdateEventNullTimes`: `get_event`, `create_event`, and `update_event` all survive a `null` start or organizer.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes.
+
+---
+
+### TC-CAL84: `list_all_events` fan-out cap is process-wide and configurable; calendar summaries match `find_free_slots` (issues #626, #726) (unit test)
+
+**Background:** whether two overlapping calls share one concurrency budget isn't observable from a live response, and an empty-string calendar summary can't be set through the Calendar UI. Verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestListAllEvents::test_fan_out_cap_is_shared_across_concurrent_invocations`: two overlapping `list_all_events` calls never exceed one cap of in-flight `events().list()` calls in total. A per-call semaphore fails this test; that was confirmed with a mutation check before the PR was opened.
+- `tests/test_calendar.py::TestListAllEventsConcurrencyEnv`: `LIST_ALL_EVENTS_MAX_CONCURRENCY` defaults to 20, overrides the cap when set, and is floored at 1.
+- `tests/test_calendar.py::TestFindFreeSlots::test_empty_string_summary_matches_list_all_events`: a calendar whose `summary` is `""` reports `calendar_summary: ""` from both tools; only a calendar missing from the user's list falls back to its id.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes. Live spot check: `list_all_events` and `find_free_slots` over the fixture calendar plus a nonexistent id both report `calendar_summary: "mcp-gee-sweet-qa"` for the real calendar and fall back to the bare id for the missing one.
 
 ---
 
