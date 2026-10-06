@@ -1026,7 +1026,7 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 - 5: the stderr file has `Starting without Google access: ... the server shut down before the browser consent completed`
 - 5: `lsof -i :<port>` and `lsof -i :<cb>` are both empty afterward
 
-An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on `develop` before #833).
+An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case. Any SSE stream open at SIGTERM used to produce it, with or without a consent wait (pre-existing, seen on `develop` before #833). Fixed in #868, which TC-I47 covers.
 
 **Cleanup:** if the server is still running, SIGKILL its process group and record the case as failed.
 
@@ -1128,3 +1128,26 @@ Live `mcp-gee-sweet-sky` server, OAuth, mcp 2.3.0. 1: `Error executing tool list
 
 **Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS**
 Live `mcp-gee-sweet-sky` server, mcp 2.3.0: steps 1 and 2 return the same `HttpError 404 ... Requested entity was not found.` text as round 1. Extra check over a stdio subprocess with the same credentials (`DEBUG_LEVEL=INFO`): the server logs `WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...` with the full traceback through `execute_in_thread`, and the access line is `"TOOL list_sheets" 500`.
+
+---
+
+### TC-I47: SIGTERM with an SSE stream open shuts down without an ASGI traceback (issue #868) ⚠️ local-filesystem
+
+**Background:** on SIGTERM, sse_starlette cancels an open SSE stream without sending its closing chunk, and mcp's `/sse` endpoint then returns an empty `Response()` on the same connection. uvicorn rejected that second response with `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'` on every shutdown with a stream open, and the client saw a truncated chunked stream. `SingleResponseGuard` (`sse_shutdown.py`) now closes the cut-off stream and drops the late second response. `main()` serves the guarded app for plain `--transport sse` as well as `--reload`, since `mcp.run(transport="sse")` builds its own unguarded app.
+
+**Setup:** none beyond a checkout of this branch. No Google credentials are needed: the case only needs an idle, fully started SSE connection.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free port>`, `AUTH_METHOD=oauth`, `CREDENTIALS_PATH=<nonexistent>`, `TOKEN_PATH=<nonexistent>`, `DEBUG_LEVEL=DEBUG`, `PYTHONUNBUFFERED=1`, stdout and stderr to one file.
+1. Open `GET http://127.0.0.1:<port>/sse` (e.g. Python `urllib.request.urlopen`) and read the first line (`event: endpoint`). Wait 3 seconds
+2. Send the server process `SIGTERM` (not SIGKILL) and time its exit. Then read the rest of the SSE response to EOF
+3. Repeat steps 1–2 two more times against a fresh server, then once more with `--reload` added to the command line
+4. Start a fresh server the same way; with the `mcp` SDK's `sse_client` + `ClientSession`, `initialize` and `list_tools`, close the session, then SIGTERM the server
+
+**Checks**
+- 2, 3: the log has no `Exception in ASGI application`, no `RuntimeError`, and no `ASGI callable returned without completing response`. With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Dropping a second response on /sse (#868)`
+- 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
+- 2, 3: reading the SSE response to the end ends with a clean EOF, not an `IncompleteRead` (before this fix the chunked stream was never terminated)
+- 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no traceback
+
+**Cleanup:** SIGKILL any server still running (and record the case as failed).

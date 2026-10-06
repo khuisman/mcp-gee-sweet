@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+import uvicorn
 from google.auth.exceptions import RefreshError
 from googleapiclient import errors as googleapiclient_errors
 from googleapiclient.errors import HttpError
@@ -30,6 +31,7 @@ from mcp_gee_sweet.server import (
     mcp,
     tool,
 )
+from mcp_gee_sweet.sse_shutdown import SingleResponseGuard
 
 
 def _http_error(status: int, message: str) -> HttpError:
@@ -727,10 +729,21 @@ class TestMainAuthAndTransport:
 
     def test_sse_keeps_interactive_consent(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
-        monkeypatch.setattr(mcp, "run", MagicMock())
+        monkeypatch.setattr(uvicorn, "run", MagicMock())
         main()
         assert auth_module._interactive_consent is True
         assert auth_module._raise_auth_failures is False
+
+    def test_sse_serves_the_guarded_app(self, monkeypatch):
+        # #868: mcp.run(transport="sse") builds its own app without SingleResponseGuard.
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
+        mcp_run, uvicorn_run = MagicMock(), MagicMock()
+        monkeypatch.setattr(mcp, "run", mcp_run)
+        monkeypatch.setattr(uvicorn, "run", uvicorn_run)
+        main()
+        mcp_run.assert_not_called()
+        assert uvicorn_run.call_args.args == (server.app,)
+        assert isinstance(server.app, SingleResponseGuard)
 
 
 class TestMainLogsVersion:
