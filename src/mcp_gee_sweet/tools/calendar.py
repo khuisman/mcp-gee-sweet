@@ -80,6 +80,31 @@ def _list_all_events_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
+_pending_event_fetches: set[asyncio.Task[Any]] = set()
+
+
+async def _bounded_event_fetch(execute_fn: Any, service: Any, semaphore: asyncio.Semaphore) -> Any:
+    """Keep the permit with the HTTP worker even when its caller is cancelled."""
+    await semaphore.acquire()
+    try:
+        worker = asyncio.create_task(execute_in_thread(execute_fn, service))
+    except BaseException:
+        semaphore.release()
+        raise
+    _pending_event_fetches.add(worker)
+
+    def finished(task: asyncio.Task[Any]) -> None:
+        semaphore.release()
+        _pending_event_fetches.discard(task)
+        # If the caller was cancelled, no one remains to await a worker failure.
+        # Retrieving it also leaves the exception available to an active waiter.
+        if not task.cancelled():
+            task.exception()
+
+    worker.add_done_callback(finished)
+    return await asyncio.shield(worker)
+
+
 def _http_error_has_reason(e: BaseException, status: int, reason: str) -> bool:
     """Whether `e` is an HttpError with this status whose body names this reason.
     The reason is matched as a quoted JSON string, so one reason that's a prefix
@@ -1091,11 +1116,11 @@ def register(tool):
 
             calendar_summary = summary_by_id.get(calendar_id, calendar_id)
             try:
-                async with semaphore:
-                    result = await execute_in_thread(
-                        lc.calendar_service.events().list(**kwargs).execute,
-                        lc.calendar_service,
-                    )
+                result = await _bounded_event_fetch(
+                    lc.calendar_service.events().list(**kwargs).execute,
+                    lc.calendar_service,
+                    semaphore,
+                )
             except Exception as e:
                 return {
                     "calendar_id": calendar_id,

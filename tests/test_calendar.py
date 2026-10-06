@@ -2068,3 +2068,59 @@ class TestCreateUpdateEventNullTimes:
 
         assert result["start"] is None
         assert result["end"] == "2026-06-16"
+
+
+class TestCancelledCalendarFanOut:
+    async def test_cancelled_call_retains_budget_until_http_threads_finish(self, monkeypatch):
+        monkeypatch.setattr(calendar_module, "_LIST_ALL_EVENTS_MAX_CONCURRENCY", 2)
+        started = threading.Event()
+        resumed = threading.Event()
+        release = threading.Event()
+        lock = threading.Lock()
+        state = {"calls": 0, "active": 0, "peak": 0}
+
+        def execute(**kwargs):
+            with lock:
+                state["calls"] += 1
+                state["active"] += 1
+                state["peak"] = max(state["peak"], state["active"])
+                if state["calls"] == 2:
+                    started.set()
+                if state["calls"] > 2:
+                    resumed.set()
+            try:
+                assert release.wait(5), "test HTTP request timed out"
+                return {"items": []}
+            finally:
+                with lock:
+                    state["active"] -= 1
+
+        def build_request(**kwargs):
+            request = MagicMock()
+            request.execute.side_effect = execute
+            return request
+
+        service = MagicMock()
+        service.events.return_value.list.side_effect = build_request
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": f"cal-{i}"} for i in range(3)]
+        ctx = _make_ctx(calendar_service=service, calendar_cache=cache)
+        first = asyncio.create_task(_cal_tools["list_all_events"](ctx=ctx))
+        second = None
+        try:
+            assert await asyncio.to_thread(started.wait, 2)
+            first.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(first, timeout=1)
+            second = asyncio.create_task(_cal_tools["list_all_events"](ctx=ctx))
+            assert not await asyncio.to_thread(resumed.wait, 0.15)
+            assert state["calls"] == 2
+        finally:
+            release.set()
+            if second is not None:
+                await asyncio.wait_for(second, timeout=3)
+            if not first.done():
+                first.cancel()
+                await asyncio.gather(first, return_exceptions=True)
+        assert state["peak"] == 2
+        assert state["active"] == 0
