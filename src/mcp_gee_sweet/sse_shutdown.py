@@ -8,21 +8,23 @@ sends on the same connection, and uvicorn rejects that second
 ``http.response.start`` with "Exception in ASGI application". A client disconnect
 doesn't hit this, because uvicorn turns every send after a disconnect into a no-op.
 
-``SingleResponseGuard`` drops that late second response. If the first one is
-still open, it sends the missing closing body first, so the client gets a
-properly terminated stream instead of a truncated one. Any other message passes
-through untouched, so uvicorn still reports every other ASGI misuse.
+``SingleResponseGuard`` drops that late second response, but only once
+``AppStatus.should_exit`` is set. If the first one is still open, it sends the
+missing closing body first, so the client gets a properly terminated stream
+instead of a truncated one. Before shutdown every message passes through
+untouched, so uvicorn still reports a genuine double response (PR #911 QA round 1).
 """
 
 import logging
 
+from sse_starlette.sse import AppStatus
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
 
 class SingleResponseGuard:
-    """Drop a second ``http.response.start`` on a request that already started one."""
+    """During shutdown, drop a second ``http.response.start`` on a request that already started one."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -41,9 +43,11 @@ class SingleResponseGuard:
             if discarding:
                 return
             if message["type"] == "http.response.start":
-                if started:
+                if started and AppStatus.should_exit:
                     discarding = True
-                    logger.debug("Dropping a second response on %s (#868)", scope.get("path"))
+                    logger.debug(
+                        "Dropping a second response on %s during shutdown (#868)", scope.get("path")
+                    )
                     if not complete:
                         complete = True
                         await send({"type": "http.response.body", "body": b"", "more_body": False})

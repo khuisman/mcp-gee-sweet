@@ -1133,7 +1133,7 @@ Live `mcp-gee-sweet-sky` server, mcp 2.3.0: steps 1 and 2 return the same `HttpE
 
 ### TC-I47: SIGTERM with an SSE stream open shuts down without an ASGI traceback (issue #868) ⚠️ local-filesystem
 
-**Background:** on SIGTERM, sse_starlette cancels an open SSE stream without sending its closing chunk, and mcp's `/sse` endpoint then returns an empty `Response()` on the same connection. uvicorn rejected that second response with `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'` on every shutdown with a stream open, and the client saw a truncated chunked stream. `SingleResponseGuard` (`sse_shutdown.py`) now closes the cut-off stream and drops the late second response. `main()` serves the guarded app for plain `--transport sse` as well as `--reload`, since `mcp.run(transport="sse")` builds its own unguarded app.
+**Background:** on SIGTERM, sse_starlette cancels an open SSE stream without sending its closing chunk, and mcp's `/sse` endpoint then returns an empty `Response()` on the same connection. uvicorn rejected that second response with `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'` on every shutdown with a stream open, and the client saw a truncated chunked stream. `SingleResponseGuard` (`sse_shutdown.py`) now closes the cut-off stream and drops the late second response, but only once `AppStatus.should_exit` is set. Before shutdown it passes everything through, so uvicorn still reports a genuine double response, and after an ordinary client disconnect uvicorn no-ops mcp's late `Response()` itself. `main()` serves the guarded app for plain `--transport sse` as well as `--reload`, since `mcp.run(transport="sse")` builds its own unguarded app. It launches it the way mcp's `run_sse_async()` does (`anyio.run(uvicorn.Server(config).serve)`), not with `uvicorn.run()`, which would pick uvloop when installed.
 
 **Setup:** none beyond a checkout of this branch. No Google credentials are needed: the case only needs an idle, fully started SSE connection.
 
@@ -1149,6 +1149,7 @@ Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free 
 - 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
 - 2, 3: reading the SSE response to the end ends with a clean EOF, not an `IncompleteRead` (before this fix the chunked stream was never terminated)
 - 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no traceback other than the expected `Auth failure detail` one
+- 4: no `Dropping a second response` line appears before uvicorn's `Shutting down` line (the guard acts only during shutdown; round 1 found it acting on an ordinary client disconnect)
 
 **Cleanup:** SIGKILL any server still running (and record the case as failed).
 

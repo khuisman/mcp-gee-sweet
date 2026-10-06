@@ -602,12 +602,16 @@ def main():
         mcp.run(transport=transport)
     elif transport == "sse":
         # mcp.run(transport="sse") would build a second, unguarded sse_app, so serve
-        # the guarded module-level app the same way run_sse_async() does (#868).
+        # the guarded module-level app with run_sse_async()'s own launch (#868):
+        # anyio.run on the plain asyncio loop, which #833's auth handoff was built
+        # and QA'd on. uvicorn.run() would pick uvloop whenever it's installed.
+        import anyio
         import uvicorn
 
-        uvicorn.run(
+        config = uvicorn.Config(
             app, host=_resolved_host, port=_resolved_port, log_level=mcp.settings.log_level.lower()
         )
+        anyio.run(uvicorn.Server(config).serve)
     else:
         # mcp v2 moved host/port from the constructor to call-time kwargs (see the
         # mcp.sse_app() call above) — stdio's own overload doesn't accept them.

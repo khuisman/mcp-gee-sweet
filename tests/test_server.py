@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 import uvicorn
 from google.auth.exceptions import RefreshError
@@ -729,21 +730,32 @@ class TestMainAuthAndTransport:
 
     def test_sse_keeps_interactive_consent(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
-        monkeypatch.setattr(uvicorn, "run", MagicMock())
+        monkeypatch.setattr(anyio, "run", MagicMock())
         main()
         assert auth_module._interactive_consent is True
         assert auth_module._raise_auth_failures is False
 
-    def test_sse_serves_the_guarded_app(self, monkeypatch):
-        # #868: mcp.run(transport="sse") builds its own app without SingleResponseGuard.
+    def test_sse_serves_the_guarded_app_like_run_sse_async(self, monkeypatch):
+        # #868: mcp.run(transport="sse") builds its own app without SingleResponseGuard,
+        # so main() serves the guarded app with run_sse_async()'s own launch:
+        # anyio.run(uvicorn.Server(config).serve), not uvicorn.run (which picks uvloop).
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
-        mcp_run, uvicorn_run = MagicMock(), MagicMock()
+        monkeypatch.setattr(server, "_resolved_host", "127.0.0.9")
+        monkeypatch.setattr(server, "_resolved_port", 47123)
+        monkeypatch.setattr(mcp.settings, "log_level", "DEBUG")
+        mcp_run, uvicorn_run, anyio_run = MagicMock(), MagicMock(), MagicMock()
         monkeypatch.setattr(mcp, "run", mcp_run)
         monkeypatch.setattr(uvicorn, "run", uvicorn_run)
+        monkeypatch.setattr(anyio, "run", anyio_run)
         main()
         mcp_run.assert_not_called()
-        assert uvicorn_run.call_args.args == (server.app,)
+        uvicorn_run.assert_not_called()
+        (serve,) = anyio_run.call_args.args
+        assert serve.__func__ is uvicorn.Server.serve
+        config = serve.__self__.config
         assert isinstance(server.app, SingleResponseGuard)
+        assert config.app is server.app
+        assert (config.host, config.port, config.log_level) == ("127.0.0.9", 47123, "debug")
 
 
 class TestMainLogsVersion:

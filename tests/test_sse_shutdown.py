@@ -60,13 +60,37 @@ _END = {"type": "http.response.body", "body": b"", "more_body": False}
 
 
 class TestSingleResponseGuard:
-    async def test_a_single_response_passes_through_untouched(self):
+    @pytest.fixture
+    def shutting_down(self, monkeypatch):
+        monkeypatch.setattr(AppStatus, "should_exit", True)
+
+    @pytest.fixture(autouse=True)
+    def _not_shutting_down_by_default(self, monkeypatch):
+        monkeypatch.setattr(AppStatus, "should_exit", False)
+
+    @pytest.mark.parametrize("should_exit", [False, True])
+    async def test_a_single_response_passes_through_untouched(self, monkeypatch, should_exit):
+        monkeypatch.setattr(AppStatus, "should_exit", should_exit)
         send = _StrictSend()
         await SingleResponseGuard(_app_sending(_START, _CHUNK, _END))(
             _HTTP_SCOPE, _never_receive, send
         )
         assert send.messages == [_START, _CHUNK, _END]
 
+    @pytest.mark.parametrize(
+        "messages",
+        [(_START, _CHUNK, _START, _END), (_START, _END, _START, _END)],
+        ids=["open", "complete"],
+    )
+    async def test_before_shutdown_a_second_response_still_reaches_the_server(self, messages):
+        # PR #911 QA round 1: outside shutdown a double response is a real bug, so
+        # uvicorn must still see (and report) it, and an open stream isn't closed.
+        send = _StrictSend()
+        with pytest.raises(RuntimeError, match=r"'http\.response\.start'"):
+            await SingleResponseGuard(_app_sending(*messages))(_HTTP_SCOPE, _never_receive, send)
+        assert send.messages == list(messages[:2])
+
+    @pytest.mark.usefixtures("shutting_down")
     async def test_a_second_response_on_an_open_stream_closes_it_and_is_dropped(self):
         # The #868 shape: the stream is cut off without its closing body, then
         # mcp's empty Response() starts a second response on the same connection.
@@ -77,14 +101,17 @@ class TestSingleResponseGuard:
         assert send.messages == [_START, _CHUNK, _END]
         assert send.complete
 
+    @pytest.mark.usefixtures("shutting_down")
     async def test_a_second_response_after_a_complete_one_is_dropped(self):
         send = _StrictSend()
         app = _app_sending(_START, _END, _START, _END)
         await SingleResponseGuard(app)(_HTTP_SCOPE, _never_receive, send)
         assert send.messages == [_START, _END]
 
+    @pytest.mark.usefixtures("shutting_down")
     async def test_other_misuse_still_reaches_the_server(self):
-        # Only a duplicate start is absorbed; a body after completion still raises.
+        # Only a duplicate start is absorbed, even during shutdown; a body after
+        # completion still raises.
         send = _StrictSend()
         app = _app_sending(_START, _END, _CHUNK)
         with pytest.raises(RuntimeError, match="after response already completed"):
