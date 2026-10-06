@@ -2068,3 +2068,51 @@ class TestCreateUpdateEventNullTimes:
 
         assert result["start"] is None
         assert result["end"] == "2026-06-16"
+
+
+class TestCalendarListPagination:
+    async def test_follows_all_pages_before_caching(self):
+        service = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        service.calendarList.return_value.list.return_value.execute.side_effect = [
+            {"items": [{"id": "first", "summary": "First"}], "nextPageToken": "page-2"},
+            {"items": [{"id": "last", "summary": "Last"}]},
+        ]
+        ctx = _make_ctx(calendar_service=service, calendar_cache=cache)
+        result = await _cal_tools["list_calendars"](ctx=ctx)
+        assert [entry["id"] for entry in result] == ["first", "last"]
+        assert (
+            service.calendarList.return_value.list.call_args_list[1].kwargs["pageToken"] == "page-2"
+        )
+        cache.store_list.assert_called_once_with(result)
+
+    async def test_later_page_failure_never_caches_partial_list(self):
+        service = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        service.calendarList.return_value.list.return_value.execute.side_effect = [
+            {"items": [{"id": "first"}], "nextPageToken": "page-2"},
+            RuntimeError("later page failed"),
+        ]
+        ctx = _make_ctx(calendar_service=service, calendar_cache=cache)
+        with pytest.raises(RuntimeError, match="later page failed"):
+            await _cal_tools["list_calendars"](ctx=ctx)
+        cache.store_list.assert_not_called()
+
+    async def test_page_bound_never_caches_truncated_list(self, monkeypatch):
+        from mcp_gee_sweet.tools.pagination import PageLimitExceeded
+
+        monkeypatch.setattr(calendar_module, "_LIST_CALENDARS_MAX_PAGES", 2)
+        service = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        service.calendarList.return_value.list.return_value.execute.return_value = {
+            "items": [{"id": "first"}],
+            "nextPageToken": "repeat",
+        }
+        ctx = _make_ctx(calendar_service=service, calendar_cache=cache)
+        with pytest.raises(PageLimitExceeded):
+            await _cal_tools["list_calendars"](ctx=ctx)
+        assert service.calendarList.return_value.list.call_count == 2
+        cache.store_list.assert_not_called()

@@ -50,6 +50,7 @@ _CALENDAR_ACL_SCOPE_TYPES = ("default", "user", "group", "domain")
 # returning a nextPageToken rather than a genuinely huge ACL (#615).
 _ACL_PAGE_SIZE = 250
 _LIST_CALENDAR_ACL_MAX_PAGES = 100
+_LIST_CALENDARS_MAX_PAGES = 100
 
 # Caps how many events().list() calls list_all_events runs at once, across every
 # concurrent invocation in this process, not just within one call (#626).
@@ -136,11 +137,13 @@ async def _get_cached_calendar_list(lc) -> list[dict[str, Any]]:
     if cached is not None:
         return cached
 
-    result = await execute_in_thread(
-        lc.calendar_service.calendarList().list().execute,
+    calendars = []
+    async for page in iter_pages(
+        lambda token: lc.calendar_service.calendarList().list(pageToken=token),
         lc.calendar_service,
-    )
-    calendars = [_shape_calendar_list_entry(c) for c in result.get("items", [])]
+        max_pages=_LIST_CALENDARS_MAX_PAGES,
+    ):
+        calendars.extend(_shape_calendar_list_entry(c) for c in page.get("items", []))
     cache.store_list(calendars)
     return calendars
 
