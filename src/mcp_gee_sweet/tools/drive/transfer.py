@@ -22,6 +22,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
+from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 
@@ -1046,27 +1047,26 @@ def _converted_md_source_mtime(f: dict) -> datetime | None:
     return _parse_time((f.get("properties") or {}).get(_CONVERTED_MD_SOURCE_MTIME_PROP))
 
 
+# 100 pages of 1,000 revisions: only a nextPageToken that never goes falsy reaches it.
+_REVISIONS_MAX_PAGES = 100
+
+
 async def _list_revisions(drive_service, file_id: str) -> list[dict]:
     """Every revision of `file_id` as {id, modifiedTime}, oldest first, across
     all pages."""
     revisions: list[dict] = []
-    page_token: str | None = None
-    while True:
-        resp = await execute_in_thread(
-            drive_service.revisions()
-            .list(
-                fileId=file_id,
-                fields="nextPageToken, revisions(id, modifiedTime)",
-                pageSize=1000,
-                pageToken=page_token,
-            )
-            .execute,
-            drive_service,
-        )
+    async for resp in iter_pages(
+        lambda token: drive_service.revisions().list(
+            fileId=file_id,
+            fields="nextPageToken, revisions(id, modifiedTime)",
+            pageSize=1000,
+            pageToken=token,
+        ),
+        drive_service,
+        max_pages=_REVISIONS_MAX_PAGES,
+    ):
         revisions.extend(resp.get("revisions", []))
-        page_token = resp.get("nextPageToken")
-        if not page_token:
-            return revisions
+    return revisions
 
 
 _ConvertedMdDriveState = Literal["unchanged", "changed", "pending", "baseline_missing"]

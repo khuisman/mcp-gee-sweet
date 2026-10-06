@@ -631,7 +631,8 @@ class TestListDrives:
         first_kwargs, second_kwargs = (
             c.kwargs for c in svc.drives.return_value.list.call_args_list
         )
-        assert "pageToken" not in first_kwargs
+        # googleapiclient drops None-valued params, so None means "first page".
+        assert first_kwargs.get("pageToken") is None
         assert second_kwargs["pageToken"] == "page2"
         assert len(result) == 150
 
@@ -646,6 +647,35 @@ class TestListDrives:
 
         assert svc.drives.return_value.list.call_count == 1
         assert len(result) == 5
+
+    async def test_stops_once_max_results_reached_even_with_a_next_page_token(self):
+        """No extra call once max_results drives are in hand, token or not."""
+        svc = self._drive_service()
+        svc.drives.return_value.list.return_value.execute.side_effect = [
+            self._page(100, next_token="page2"),
+        ]
+        ctx = _make_ctx(drive_service=svc)
+
+        result = await _drive_tools["list_drives"](max_results=100, ctx=ctx)
+
+        assert svc.drives.return_value.list.call_count == 1
+        assert len(result) == 100
+
+    async def test_never_ending_page_token_is_bounded(self, monkeypatch):
+        """#615: empty pages that always carry a nextPageToken must not loop forever."""
+        from mcp_gee_sweet.tools.drive import files as files_module
+        from mcp_gee_sweet.tools.pagination import PageLimitExceeded
+
+        monkeypatch.setattr(files_module, "_LIST_DRIVES_MAX_PAGES", 3)
+        svc = self._drive_service()
+        svc.drives.return_value.list.return_value.execute.return_value = self._page(
+            0, next_token="again"
+        )
+        ctx = _make_ctx(drive_service=svc)
+
+        with pytest.raises(PageLimitExceeded):
+            await _drive_tools["list_drives"](max_results=100, ctx=ctx)
+        assert svc.drives.return_value.list.call_count == 3
 
 
 class TestListSharedWithMe:

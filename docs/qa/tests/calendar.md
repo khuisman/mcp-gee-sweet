@@ -1058,6 +1058,83 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 
 ---
 
+### TC-CAL79: Removing or downgrading the primary owner's ACL rule returns an actionable error (issue #459) ⚠️ destructive
+
+**Background:** Google returns `403 cannotChangeOwnerAcl` ("Cannot change the access level of calendars primary owner.") both for `acl().delete()` on the primary owner's rule and for an `acl().insert()` that would downgrade it. That was confirmed live on 2026-10-05 against a scratch calendar. Before #459 both tools returned the raw `HttpError` string; they now return a message naming the restriction, like `remove_calendar_from_list`'s `cannotUnsubscribeFromOwnedCalendar` handling (TC-CAL59).
+
+**Setup:** create a disposable calendar with `create_calendar(summary="QA-OwnerAcl")`; call it `{OWNER_TEST_CAL}`. Call `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` and note the `role: "owner"`, `scope_type: "user"` rule whose `scope_value` is the authenticated account; call its `id` `{OWNER_RULE_ID}` and its `scope_value` `{OWNER_EMAIL}`.
+
+**Checks**
+- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{OWNER_RULE_ID}")` returns `{"error": "Google does not allow changing or removing the access rule of a calendar's primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'. Use delete_calendar instead to permanently delete a calendar you own."}`, not a raw `<HttpError 403 ...>` string
+- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{OWNER_EMAIL}", send_notifications=false)` returns the same `{"error": ...}` message
+- A follow-up `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` still shows `{OWNER_RULE_ID}` with `role: "owner"`
+- A different failure still passes through raw: `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="totally-invalid-rule-id")` returns `{"error": "<HttpError 400 ...>"}` without the owner message (same as TC-CAL68)
+
+**Cleanup:** `delete_calendar(calendar_id="{OWNER_TEST_CAL}")`.
+
+---
+
+### TC-CAL80: `list_calendar_acl` returns a complete list with no partial marker on a normal calendar (issue #615)
+
+**Background:** #615 moved `list_calendar_acl` onto the shared `iter_pages` helper (`tools/pagination.py`), with 250 rules per page, a 100-page bound, a `{"error": ..., "partial": true}` entry when a later page fails or the bound is hit, and the shared response-size cap. This is the live regression check that the normal path is unchanged.
+
+**Checks**
+- Call `list_calendar_acl(calendar_id="{CALENDAR_ID}")`
+- Returns the same rules as TC-CAL60 (each with `id`, `role`, `scope_type`, `scope_value`)
+- No entry has an `error` or `partial` key
+
+---
+
+### TC-CAL81: `list_calendar_acl` partial failure, page bound, and size cap (issue #615) (unit test)
+
+**Background:** a page-2 failure, a never-ending `nextPageToken`, and a response over `MAX_TOOL_RESPONSE_CHARS` can't be forced against the live API (no fixture calendar has more than one page of rules; see TC-CAL76). Verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestListCalendarAcl::test_later_page_failure_keeps_earlier_rules_and_flags_partial`: page 1's rules are kept, followed by one `{"error": ..., "partial": True}` entry naming the page count, the rule count, and the API error.
+- `tests/test_calendar.py::TestListCalendarAcl::test_never_ending_page_token_is_bounded_and_flagged_partial`: the loop stops at the page bound and flags the list as partial instead of hanging.
+- `tests/test_calendar.py::TestListCalendarAcl::test_oversized_response_raises_size_cap_error`: an oversized result raises the shared `ValueError` naming `list_calendar_acl`.
+- `tests/test_calendar.py::TestListCalendarAcl::test_requests_the_max_page_size`: `maxResults=250` is sent.
+- `tests/test_calendar.py::TestListCalendarAcl::test_api_error_returns_error_list`: a first-page failure still returns plain `[{"error": ...}]`, with no `partial` key.
+- `tests/drive/test_files.py::TestListDrives::test_never_ending_page_token_is_bounded`: the same helper bounds `list_drives`.
+
+---
+
+### TC-CAL82: `get_event` shape unchanged after sharing `_shape_event` (issue #627)
+
+**Background:** #627 made `get_event` call `_shape_event` (shared with `list_events`/`list_all_events`) instead of its own copy, and made the shared helper tolerate explicit `null` for `start`/`end`/`organizer`/`attendees`. This is the live regression check on the shape.
+
+**Setup:** any event in `{CALENDAR_ID}`, e.g. from `list_events(calendar_id="{CALENDAR_ID}")`; call its `id` `{EVENT_ID}`.
+
+**Checks**
+- Call `get_event(calendar_id="{CALENDAR_ID}", event_id="{EVENT_ID}")`
+- Returns exactly these keys: `id`, `summary`, `start`, `end`, `location`, `description`, `organizer`, `attendees`, `recurrence`, `html_link`, `status`, `created`, `updated`
+- `created` and `updated` are RFC 3339 timestamps, not `null`
+- `start`/`end`/`organizer`/`attendees` match the same event's entry in `list_events(calendar_id="{CALENDAR_ID}")` (fields both tools return)
+
+---
+
+### TC-CAL83: `_shape_event` null guards and collision guard (issue #627) (unit test)
+
+**Background:** the Calendar API doesn't reliably produce an explicit `null` for these fields on demand, so the null handling is verified by unit test.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestShapeEvent::test_explicit_nulls_do_not_crash`: `start`/`end`/`organizer` set to `None` shape to `None`, and `attendees: None` shapes to `[]`, with no `AttributeError`.
+- `tests/test_calendar.py::TestShapeEvent::test_extra_key_colliding_with_a_shaped_field_raises`: an `extra` kwarg that collides with a shaped field raises `ValueError` instead of silently overwriting it.
+- `tests/test_calendar.py::TestGetEvent::test_null_organizer_does_not_crash` and `tests/test_calendar.py::TestCreateUpdateEventNullTimes`: `get_event`, `create_event`, and `update_event` all survive a `null` start or organizer.
+
+---
+
+### TC-CAL84: `list_all_events` fan-out cap is process-wide and configurable; calendar summaries match `find_free_slots` (issues #626, #726) (unit test)
+
+**Background:** whether two overlapping calls share one concurrency budget isn't observable from a live response, and an empty-string calendar summary can't be set through the Calendar UI. Verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestListAllEvents::test_fan_out_cap_is_shared_across_concurrent_invocations`: two overlapping `list_all_events` calls never exceed one cap of in-flight `events().list()` calls in total. A per-call semaphore fails this test; that was confirmed with a mutation check before the PR was opened.
+- `tests/test_calendar.py::TestListAllEventsConcurrencyEnv`: `LIST_ALL_EVENTS_MAX_CONCURRENCY` defaults to 20, overrides the cap when set, and is floored at 1.
+- `tests/test_calendar.py::TestFindFreeSlots::test_empty_string_summary_matches_list_all_events`: a calendar whose `summary` is `""` reports `calendar_summary: ""` from both tools; only a calendar missing from the user's list falls back to its id.
+
+---
+
 ## `create_event` — recurrence support
 
 ### TC-CAL36: Create a weekly recurring event ⚠️ destructive

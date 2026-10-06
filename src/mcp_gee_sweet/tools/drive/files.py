@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import logging
+from contextlib import aclosing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import gather_with_fallback, report_progress_safe
+from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
@@ -18,6 +20,10 @@ from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 logger = logging.getLogger(__name__)
 
 _CSV_IMPORT_CHUNK_ROWS = 5000
+
+# max_results caps list_drives at 200 drives (2 full pages); the page bound only
+# stops a nextPageToken that never goes falsy over empty pages (#615).
+_LIST_DRIVES_MAX_PAGES = 50
 
 
 async def _list_drive_files(
@@ -508,27 +514,26 @@ def register(tool):
         if query:
             kwargs["q"] = query
 
-        # Sequential by nature — each page's pageToken depends on the previous
-        # response, so this isn't a gather() candidate.
         drives: list[dict[str, Any]] = []
-        while len(drives) < max_results:
-            result = await execute_in_thread(
-                drive_service.drives().list(**kwargs).execute,
+        async with aclosing(
+            iter_pages(
+                lambda token: drive_service.drives().list(**kwargs, pageToken=token),
                 drive_service,
+                max_pages=_LIST_DRIVES_MAX_PAGES,
             )
-            for d in result.get("drives", []):
-                drives.append(
-                    {
-                        "id": d["id"],
-                        "name": d["name"],
-                        "created_time": d.get("createdTime"),
-                        "capabilities": d.get("capabilities", {}),
-                    }
-                )
-            next_token = result.get("nextPageToken")
-            if not next_token or len(drives) >= max_results:
-                break
-            kwargs["pageToken"] = next_token
+        ) as pages:
+            async for result in pages:
+                for d in result.get("drives", []):
+                    drives.append(
+                        {
+                            "id": d["id"],
+                            "name": d["name"],
+                            "created_time": d.get("createdTime"),
+                            "capabilities": d.get("capabilities", {}),
+                        }
+                    )
+                if len(drives) >= max_results:
+                    break
 
         logger.debug("Found %d shared drives", len(drives))
         return drives[:max_results]

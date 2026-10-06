@@ -1,9 +1,12 @@
 """Tests for tools/calendar.py (list_calendars, create_event, list_events, find_free_slots, etc.)."""
 
+import asyncio
+import importlib
 import threading
 import time
 from unittest.mock import MagicMock
 
+import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import calendar as calendar_module
@@ -15,6 +18,19 @@ def _cannot_unsubscribe_owned_error():
     return HttpError(
         resp=resp,
         content=b'{"error": {"errors": [{"reason": "cannotUnsubscribeFromOwnedCalendar"}]}}',
+    )
+
+
+def _cannot_change_owner_acl_error():
+    """The 403 Google returns for deleting or downgrading the primary owner's
+    ACL rule (body shape captured live 2026-10-05, #459)."""
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"domain": "calendar", "reason": "cannotChangeOwnerAcl", '
+        b'"message": "Cannot change the access level of calendars primary owner."}], '
+        b'"code": 403}}',
     )
 
 
@@ -487,6 +503,75 @@ class TestListCalendarAcl:
 
         assert result == [{"error": "Not Found"}]
 
+    def _rule_page(self, emails, next_token=None):
+        page = {
+            "items": [
+                {"id": f"user:{e}", "role": "reader", "scope": {"type": "user", "value": e}}
+                for e in emails
+            ]
+        }
+        if next_token:
+            page["nextPageToken"] = next_token
+        return page
+
+    async def test_requests_the_max_page_size(self):
+        """#615: 250 rules per page (the API max) keeps the page count down."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.list.return_value.execute.return_value = self._rule_page([])
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        await _cal_tools["list_calendar_acl"](calendar_id="cal-1", ctx=ctx)
+
+        assert cal_svc.acl.return_value.list.call_args.kwargs["maxResults"] == 250
+
+    async def test_later_page_failure_keeps_earlier_rules_and_flags_partial(self):
+        """#615: a page-2 failure must not discard page 1, and must say the list is incomplete."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.list.return_value.execute.side_effect = [
+            self._rule_page(["one@example.com", "two@example.com"], next_token="page2"),
+            Exception("Backend Error"),
+        ]
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["list_calendar_acl"](calendar_id="cal-1", ctx=ctx)
+
+        assert [r["id"] for r in result[:-1]] == ["user:one@example.com", "user:two@example.com"]
+        last = result[-1]
+        assert last["partial"] is True
+        assert "Backend Error" in last["error"]
+        assert "after 1 page" in last["error"]
+        assert "2 rule(s)" in last["error"]
+
+    async def test_never_ending_page_token_is_bounded_and_flagged_partial(self, monkeypatch):
+        """#615: a nextPageToken that never goes falsy must stop at the page bound, not hang."""
+        monkeypatch.setattr(calendar_module, "_LIST_CALENDAR_ACL_MAX_PAGES", 3)
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.list.return_value.execute.return_value = self._rule_page(
+            ["same@example.com"], next_token="again"
+        )
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["list_calendar_acl"](calendar_id="cal-1", ctx=ctx)
+
+        assert cal_svc.acl.return_value.list.call_count == 3
+        assert len(result) == 4
+        assert result[-1]["partial"] is True
+        assert "stopped after 3 pages" in result[-1]["error"]
+
+    async def test_oversized_response_raises_size_cap_error(self, monkeypatch):
+        """#615: the fetch-all loop's result goes through the shared response-size cap."""
+        from mcp_gee_sweet.tools import response_limits
+
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 50)
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.list.return_value.execute.return_value = self._rule_page(
+            ["one@example.com", "two@example.com"]
+        )
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        with pytest.raises(ValueError, match="list_calendar_acl"):
+            await _cal_tools["list_calendar_acl"](calendar_id="cal-1", ctx=ctx)
+
 
 class TestAddCalendarAcl:
     """add_calendar_acl validates role/scope_type before calling acl().insert()."""
@@ -640,6 +725,39 @@ class TestAddCalendarAcl:
         assert "error" in result
         cache.mark_dirty.assert_not_called()
 
+    async def test_owner_downgrade_returns_actionable_message(self):
+        """#459: Google's cannotChangeOwnerAcl 403 maps to a message naming the restriction."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.insert.return_value.execute.side_effect = (
+            _cannot_change_owner_acl_error()
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1", role="reader", scope_value="owner@example.com", ctx=ctx
+        )
+
+        assert result == {"error": calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR}
+        cache.mark_dirty.assert_not_called()
+
+    async def test_other_403_error_falls_back_to_raw_message(self):
+        """A 403 for a different reason must not be swallowed by the owner-rule special case."""
+        resp = MagicMock()
+        resp.status = 403
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.insert.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"errors": [{"reason": "forbidden"}]}}'
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1", role="reader", scope_value="a@example.com", ctx=ctx
+        )
+
+        assert result["error"] != calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR
+        assert "cannotChangeOwnerAcl" not in result["error"]
+
 
 class TestRemoveCalendarAcl:
     """remove_calendar_acl calls acl().delete() and returns a structured confirmation."""
@@ -676,6 +794,38 @@ class TestRemoveCalendarAcl:
 
         assert "error" in result
         cache.mark_dirty.assert_not_called()
+
+    async def test_removing_owner_rule_returns_actionable_message(self):
+        """#459: Google's cannotChangeOwnerAcl 403 maps to a message pointing at delete_calendar."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.delete.return_value.execute.side_effect = (
+            _cannot_change_owner_acl_error()
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["remove_calendar_acl"](
+            calendar_id="cal-1", rule_id="user:owner@example.com", ctx=ctx
+        )
+
+        assert result == {"error": calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR}
+        assert "delete_calendar" in result["error"]
+        cache.mark_dirty.assert_not_called()
+
+    async def test_other_http_error_falls_back_to_raw_message(self):
+        resp = MagicMock()
+        resp.status = 404
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.delete.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"errors": [{"reason": "notFound"}]}}'
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = await _cal_tools["remove_calendar_acl"](
+            calendar_id="cal-1", rule_id="rule-1", ctx=ctx
+        )
+
+        assert result["error"] != calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR
 
 
 class TestCreateEvent:
@@ -1139,6 +1289,26 @@ class TestFindFreeSlots:
         cache.get_list.assert_not_called()
         cal_svc.calendarList.return_value.list.assert_not_called()
 
+    async def test_empty_string_summary_matches_list_all_events(self):
+        """#726: a calendar whose summary is "" reports "" here, exactly as
+        list_all_events does, rather than substituting its id."""
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": "cal-2", "summary": ""}]
+        cal_svc = self._cal_svc_with_error([], "cal-2", [{"reason": "notFound"}])
+        cal_svc.events.return_value.list.return_value.execute.side_effect = Exception("notFound")
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        free = await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "cal-2"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+        all_events = await _cal_tools["list_all_events"](calendar_ids=["cal-2"], ctx=ctx)
+
+        assert free["busy"]["cal-2"][0]["calendar_summary"] == ""
+        assert all_events[0]["calendar_summary"] == ""
+
 
 class TestListAllEvents:
     """list_all_events fans events().list() out across calendars via asyncio.gather."""
@@ -1487,6 +1657,74 @@ class TestListAllEvents:
         assert state["peak"] <= cap
         assert state["peak"] >= 2  # sanity: genuinely concurrent, not serialized
 
+    async def test_fan_out_cap_is_shared_across_concurrent_invocations(self, monkeypatch):
+        """#626: two overlapping list_all_events calls share one budget instead of
+        each getting its own. Cap 3 sits below the thread pool's minimum size (see
+        the test above), so the semaphore is the binding constraint."""
+        cap = 3
+        monkeypatch.setattr(calendar_module, "_LIST_ALL_EVENTS_MAX_CONCURRENCY", cap)
+        lock = threading.Lock()
+        state = {"current": 0, "peak": 0}
+
+        def _execute(**kwargs):
+            with lock:
+                state["current"] += 1
+                state["peak"] = max(state["peak"], state["current"])
+            time.sleep(0.05)
+            with lock:
+                state["current"] -= 1
+            return {"items": []}
+
+        def _list(**kwargs):
+            resp = MagicMock()
+            resp.execute.side_effect = _execute
+            return resp
+
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.list.side_effect = _list
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": f"cal-{i}", "summary": f"Cal {i}"} for i in range(cap)
+        ]
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        # Each call alone fits within the cap; together they'd reach 2 * cap if
+        # each had its own semaphore.
+        await asyncio.gather(
+            _cal_tools["list_all_events"](ctx=ctx), _cal_tools["list_all_events"](ctx=ctx)
+        )
+
+        assert state["peak"] <= cap
+        assert state["peak"] >= 2
+
+
+class TestListAllEventsConcurrencyEnv:
+    """#626: LIST_ALL_EVENTS_MAX_CONCURRENCY overrides the fan-out cap."""
+
+    @pytest.fixture
+    def reload_calendar(self, monkeypatch):
+        def _reload(value):
+            if value is None:
+                monkeypatch.delenv("LIST_ALL_EVENTS_MAX_CONCURRENCY", raising=False)
+            else:
+                monkeypatch.setenv("LIST_ALL_EVENTS_MAX_CONCURRENCY", value)
+            importlib.reload(calendar_module)
+            return calendar_module._LIST_ALL_EVENTS_MAX_CONCURRENCY
+
+        yield _reload
+        monkeypatch.delenv("LIST_ALL_EVENTS_MAX_CONCURRENCY", raising=False)
+        importlib.reload(calendar_module)
+
+    def test_default_is_20(self, reload_calendar):
+        assert reload_calendar(None) == 20
+
+    def test_env_var_overrides_the_cap(self, reload_calendar):
+        assert reload_calendar("50") == 50
+
+    def test_values_below_one_are_floored_to_one(self, reload_calendar):
+        """A zero-width semaphore would hang every call."""
+        assert reload_calendar("0") == 1
+
 
 class TestUpdateEvent:
     """update_event uses patch semantics — only provided fields go in the API body."""
@@ -1627,3 +1865,119 @@ class TestDeleteEvent:
 
         assert "error" in result
         cache.mark_dirty.assert_not_called()
+
+
+class TestShapeEvent:
+    """#627: _shape_event's null guards and kwarg-collision guard."""
+
+    def test_explicit_nulls_do_not_crash(self):
+        """The API can return null for start/end/organizer/attendees, not just omit them."""
+        shaped = calendar_module._shape_event(
+            {"id": "evt-1", "start": None, "end": None, "organizer": None, "attendees": None}
+        )
+
+        assert shaped["start"] is None
+        assert shaped["end"] is None
+        assert shaped["organizer"] is None
+        assert shaped["attendees"] == []
+
+    def test_all_day_event_uses_date(self):
+        shaped = calendar_module._shape_event(
+            {"id": "evt-1", "start": {"date": "2026-06-15"}, "end": {"date": "2026-06-16"}}
+        )
+
+        assert shaped["start"] == "2026-06-15"
+        assert shaped["end"] == "2026-06-16"
+
+    def test_extra_fields_are_appended(self):
+        shaped = calendar_module._shape_event({"id": "evt-1"}, calendar_id="cal-1")
+
+        assert shaped["calendar_id"] == "cal-1"
+
+    def test_extra_key_colliding_with_a_shaped_field_raises(self):
+        """A colliding extra must fail loudly rather than overwrite the real value."""
+        with pytest.raises(ValueError, match="summary"):
+            calendar_module._shape_event({"id": "evt-1", "summary": "Real"}, summary="Oops")
+
+
+class TestGetEvent:
+    """get_event shapes through _shape_event (#627) plus created/updated."""
+
+    async def test_returns_shared_shape_plus_created_and_updated(self):
+        raw = {
+            "id": "evt-1",
+            "summary": "Standup",
+            "start": {"dateTime": "2026-06-15T10:00:00Z"},
+            "end": {"dateTime": "2026-06-15T10:15:00Z"},
+            "organizer": {"email": "boss@example.com"},
+            "attendees": [{"email": "a@example.com", "responseStatus": "accepted"}],
+            "created": "2026-06-01T00:00:00Z",
+            "updated": "2026-06-02T00:00:00Z",
+        }
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.get.return_value.execute.return_value = raw
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["get_event"](calendar_id="cal-1", event_id="evt-1", ctx=ctx)
+
+        assert result == {
+            **calendar_module._shape_event(raw),
+            "created": "2026-06-01T00:00:00Z",
+            "updated": "2026-06-02T00:00:00Z",
+        }
+        assert result["organizer"] == "boss@example.com"
+        assert result["attendees"] == [{"email": "a@example.com", "response": "accepted"}]
+
+    async def test_null_organizer_does_not_crash(self):
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.get.return_value.execute.return_value = {
+            "id": "evt-1",
+            "organizer": None,
+            "start": None,
+        }
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["get_event"](calendar_id="cal-1", event_id="evt-1", ctx=ctx)
+
+        assert result["organizer"] is None
+        assert result["start"] is None
+
+
+class TestCreateUpdateEventNullTimes:
+    """create_event/update_event share _event_time, so a null start/end doesn't crash (#627)."""
+
+    async def test_create_event_null_start_end(self):
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.insert.return_value.execute.return_value = {
+            "id": "evt-1",
+            "start": None,
+            "end": None,
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = await _cal_tools["create_event"](
+            calendar_id="cal-1",
+            summary="X",
+            start="2026-06-15T10:00:00Z",
+            end="2026-06-15T11:00:00Z",
+            ctx=ctx,
+        )
+
+        assert result["start"] is None
+        assert result["end"] is None
+
+    async def test_update_event_null_start_end(self):
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.patch.return_value.execute.return_value = {
+            "id": "evt-1",
+            "start": None,
+            "end": {"date": "2026-06-16"},
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = await _cal_tools["update_event"](
+            calendar_id="cal-1", event_id="evt-1", summary="Y", ctx=ctx
+        )
+
+        assert result["start"] is None
+        assert result["end"] == "2026-06-16"
