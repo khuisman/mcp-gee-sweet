@@ -39,6 +39,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import anyio
+import anyio.lowlevel
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.mcpserver import Context
@@ -369,6 +371,39 @@ async def revoke_image_shares(
     await asyncio.gather(
         *(_revoke(entry, fid, pid) for entry, fid, pid in shares if pid),
         return_exceptions=True,
+    )
+
+
+def log_images_after_failed_edit(
+    doc_id: str, image_outcomes: list[dict[str, Any]], created_file_ids: set[str]
+) -> None:
+    """Warn about the image files an image-embedding call touched when its doc edit
+    failed or the call was cancelled (#789, #883). A cancelled call returns nothing,
+    so this log is the only record there. Files the call created (a local upload, a
+    resized copy, a created-but-unshared orphan, #649) are listed apart from the
+    caller's own pre-existing drive: sources, which are never orphans (PR #652 QA
+    round 1). "still link-shared" names only shares the call granted and didn't
+    revoke (revoke_sharing=False, or a failed revoke), not an already_shared link
+    that predates the call. Shared by _apply_doc_content and insert_local_images, so
+    the two can't drift (PR #903 QA round 1)."""
+    touched = [e["fileId"] for e in image_outcomes if e.get("fileId")]
+    if not touched:
+        return
+    created = [f for f in touched if f in created_file_ids]
+    pre_existing = [f for f in touched if f not in created_file_ids]
+    still_shared = [
+        e["fileId"]
+        for e in image_outcomes
+        if e.get("fileId") and e.get("shared") and not e.get("already_shared")
+    ]
+    logger.warning(
+        "Doc edit for %s failed or was cancelled after its images were resolved; files "
+        "created by this call: %s; pre-existing files: %s; still link-shared by this "
+        "call: %s",
+        doc_id,
+        ", ".join(created) or "none",
+        ", ".join(pre_existing) or "none",
+        ", ".join(still_shared) or "none",
     )
 
 
@@ -708,7 +743,9 @@ def register(tool):
         text, then deletes the marker text. Once the image is actually embedded,
         that temporary share is revoked again by default (revoke_sharing=True) —
         revoking any earlier would break the embed, since Docs fetches the image at
-        insertion time, not upload time.
+        insertion time, not upload time. The revoke also runs if the document edit
+        fails or the call is cancelled; a cancelled call returns nothing, so the
+        uploaded file IDs are logged as a warning instead.
 
         All markers are located in a single pass over the document's current text
         before any edits are applied — markers are matched longest-first at each
@@ -758,10 +795,10 @@ def register(tool):
             error on failure (marker not found, marker not unique, local file
             missing, oversized with auto_downscale off, upload failure, sharing
             failure, or — rare, since uploads happen first — a failed document edit;
-            that last case never carries a fileId even though the upload itself
-            succeeded, since the image was never actually placed). A sharing failure
-            after the underlying Drive file was already created does carry fileId
-            (#649) — the upload itself succeeded even though the share didn't.
+            that last case keeps fileId and shared, with no index, since the upload
+            and share happened even though the image was never placed). A sharing
+            failure after the underlying Drive file was already created also carries
+            fileId (#649) — the upload itself succeeded even though the share didn't.
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
@@ -871,12 +908,20 @@ def register(tool):
             placement["uri"] = result["uri"]
 
         if placements:
+            # Shielded from cancellation (#883, same as _apply_doc_content after PR
+            # #877): mcp cancels a request through an anyio cancel scope, and an
+            # upload cancelled mid-gather can have already granted an anyone:reader
+            # share whose permission ID would then never be recorded, or revoked.
+            # Letting every upload finish means each granted share is known; the
+            # cancellation is re-delivered at the next unshielded await, below.
+            #
             # return_exceptions=True: _upload_and_share already catches its own
             # errors, but this also guards against anything unexpected escaping it
             # without one failed image's exception aborting every other upload.
-            gather_results = await asyncio.gather(
-                *(_upload_and_share(p) for p in placements), return_exceptions=True
-            )
+            with anyio.CancelScope(shield=True):
+                gather_results = await asyncio.gather(
+                    *(_upload_and_share(p) for p in placements), return_exceptions=True
+                )
             for placement, result in zip(placements, gather_results, strict=True):
                 if isinstance(result, BaseException):
                     placement["failed"] = True
@@ -890,76 +935,122 @@ def register(tool):
                 outcomes[placement["index"]] = placement["entry"]
 
         ready = [p for p in placements if not p.get("failed")]
-        if not ready:
-            return {"docId": doc_id, "results": outcomes}
 
-        # Highest marker_start first, so an earlier (lower-index) marker's position
-        # is never shifted by a later edit — same convention as insert_doc_text.
-        requests: list[dict[str, Any]] = []
-        for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
-            marker_start = placement["marker_start"]
-            image_request: dict[str, Any] = {
-                "insertInlineImage": {
-                    "location": {"index": marker_start},
-                    "uri": placement["uri"],
-                }
-            }
-            width, height = placement.get("width"), placement.get("height")
-            if width is not None or height is not None:
-                object_size: dict[str, Any] = {}
-                if width is not None:
-                    object_size["width"] = {"magnitude": width, "unit": "PT"}
-                if height is not None:
-                    object_size["height"] = {"magnitude": height, "unit": "PT"}
-                image_request["insertInlineImage"]["objectSize"] = object_size
-            requests.append(image_request)
-            requests.append(
-                {
-                    "deleteContentRange": {
-                        "range": {
-                            "startIndex": marker_start + 1,
-                            "endIndex": marker_start + 1 + placement["marker_len"],
-                        }
+        # fileId/shared are kept regardless of how the doc edit below ends: a failed
+        # or cancelled embed doesn't undo the upload+share that already succeeded,
+        # so the file is still genuinely world-readable and the caller needs fileId
+        # to trace it — silently dropping both would leave it orphaned with zero
+        # signal (PR #502 review round 1, finding #1).
+        for placement in ready:
+            placement["entry"]["shared"] = True
+
+        revoked = False
+
+        async def _revoke_shares() -> None:
+            # Runs on every exit from the doc edit — success, failure, or
+            # cancellation (#883) — since an image that failed to embed was still
+            # genuinely uploaded and shared. Shielded: a cancellation is re-delivered
+            # at every unshielded await, which would cancel the revokes before
+            # they're sent (PR #877 QA round 1). Runs at most once, since a
+            # cancellation caught after the normal-path revoke reaches it again.
+            nonlocal revoked
+            if revoked or not revoke_sharing:
+                return
+            revoked = True
+            with anyio.CancelScope(shield=True):
+                await revoke_image_shares(
+                    drive_service,
+                    [(p["entry"], p["file_id"], p["permission_id"]) for p in ready],
+                )
+
+        # Everything from the end of the shielded gather to the return sits in one
+        # try, so a cancellation (or anything unexpected) on any exit path is seen
+        # here: the shares are revoked and every touched file ID is logged, since a
+        # cancelled call returns nothing (PR #903 QA round 1). A shield holds a
+        # cancellation off without ever raising it, so each shielded step is
+        # followed by an explicit checkpoint where it lands.
+        edit_sent = False
+        try:
+            # Lands a cancellation from the shielded gather before the early return
+            # below (which may still leave a created-but-unshared orphan, #649) and
+            # before the batchUpdate is handed to a worker thread. Past that point
+            # asyncio.to_thread can't stop the thread, so the edit would still run.
+            await anyio.lowlevel.checkpoint()
+            if not ready:
+                return {"docId": doc_id, "results": outcomes}
+
+            # Highest marker_start first, so an earlier (lower-index) marker's
+            # position is never shifted by a later edit — same convention as
+            # insert_doc_text.
+            requests: list[dict[str, Any]] = []
+            for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
+                marker_start = placement["marker_start"]
+                image_request: dict[str, Any] = {
+                    "insertInlineImage": {
+                        "location": {"index": marker_start},
+                        "uri": placement["uri"],
                     }
                 }
-            )
+                width, height = placement.get("width"), placement.get("height")
+                if width is not None or height is not None:
+                    object_size: dict[str, Any] = {}
+                    if width is not None:
+                        object_size["width"] = {"magnitude": width, "unit": "PT"}
+                    if height is not None:
+                        object_size["height"] = {"magnitude": height, "unit": "PT"}
+                    image_request["insertInlineImage"]["objectSize"] = object_size
+                requests.append(image_request)
+                requests.append(
+                    {
+                        "deleteContentRange": {
+                            "range": {
+                                "startIndex": marker_start + 1,
+                                "endIndex": marker_start + 1 + placement["marker_len"],
+                            }
+                        }
+                    }
+                )
 
-        doc_edit_error: str | None = None
-        try:
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                docs_service,
-            )
-        except Exception as e:
-            doc_edit_error = rewrite_too_large_error(str(e))
+            doc_edit_error: str | None = None
+            edit_sent = True
+            try:
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    docs_service,
+                )
+            except Exception as e:
+                doc_edit_error = rewrite_too_large_error(str(e))
 
-        for placement in ready:
-            entry = placement["entry"]
-            # fileId/shared are kept regardless of doc_edit_error: a failed embed
-            # doesn't undo the upload+share that already succeeded, so the file is
-            # still genuinely world-readable and the caller needs fileId to trace
-            # it — silently dropping both here would leave it orphaned with zero
-            # signal (PR #502 review round 1, finding #1).
-            entry["shared"] = True
-            if doc_edit_error is not None:
-                entry["error"] = f"doc edit failed: {doc_edit_error}"
-            else:
-                entry["index"] = placement["marker_start"]
-            outcomes[placement["index"]] = entry
+            for placement in ready:
+                entry = placement["entry"]
+                if doc_edit_error is not None:
+                    entry["error"] = f"doc edit failed: {doc_edit_error}"
+                else:
+                    entry["index"] = placement["marker_start"]
+                outcomes[placement["index"]] = entry
 
-        if revoke_sharing:
-            # Runs regardless of doc_edit_error — an image that failed to embed was
-            # still genuinely uploaded and shared, so a failed embed must not skip
-            # cleanup of that real, temporary anyone:reader grant.
-            await revoke_image_shares(
-                drive_service,
-                [(p["entry"], p["file_id"], p["permission_id"]) for p in ready],
-            )
+            if doc_edit_error is None:
+                lc.doc_cache.mark_dirty(doc_id)
+            await _revoke_shares()
+            # Lands a cancellation the shielded revoke held off.
+            await anyio.lowlevel.checkpoint()
+        except BaseException:
+            if edit_sent:
+                # The edit may or may not have been applied, so the cached doc can't
+                # be trusted either way.
+                lc.doc_cache.mark_dirty(doc_id)
+            try:
+                await _revoke_shares()
+            finally:
+                # Every file here was uploaded by this call.
+                entries = [p["entry"] for p in placements]
+                log_images_after_failed_edit(
+                    doc_id, entries, {e["fileId"] for e in entries if e.get("fileId")}
+                )
+            raise
 
-        if doc_edit_error is None:
-            lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "insert_local_images: %d/%d images placed in doc %s",
             0 if doc_edit_error is not None else len(ready),

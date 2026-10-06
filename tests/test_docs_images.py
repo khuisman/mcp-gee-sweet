@@ -5,9 +5,12 @@ import io
 import json
 import os
 import struct
+import threading
 import zlib
+from functools import partial
 from unittest.mock import MagicMock, patch
 
+import anyio
 import pytest
 from googleapiclient.errors import HttpError
 from PIL import Image as PILImage
@@ -1900,3 +1903,159 @@ class TestInsertLocalImages:
         assert result["results"][0]["fileId"] == "resized1"
         docs_svc.documents.return_value.batchUpdate.assert_not_called()
         drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
+
+    # #883: cancellation, following test_share_revoked_when_cancelled_mid_edit /
+    # _mid_share in test_docs_content.py (PR #877).
+
+    @staticmethod
+    def _blocking(started: threading.Event, release: threading.Event, value):
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+        return execute
+
+    async def _cancel_once_started(self, ctx, img, started, release, **kwargs):
+        """Run insert_local_images in an anyio task group (mcp cancels a request
+        through an anyio cancel scope), cancel it once `started` fires, then let the
+        blocked worker thread finish."""
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _docs_tools["insert_local_images"],
+                    doc_id="doc1",
+                    images=[{"marker": "MARKER", "local_path": str(img)}],
+                    ctx=ctx,
+                    **kwargs,
+                )
+            )
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+            release.set()
+
+    def _cancel_fixture(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(file_id="img1")
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        return img, docs_svc, drive_svc, ctx
+
+    async def test_share_revoked_when_cancelled_mid_edit(self, tmp_path):
+        # The revoke is shielded, so the cancellation doesn't also cancel the revoke
+        # it's waiting on; the warning is the only record of the upload.
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        started, release = threading.Event(), threading.Event()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
+            self._blocking(started, release, {})
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release)
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
+        )
+        # (doc, created by this call, pre-existing, still link-shared by this call)
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
+        # The edit may have landed, so the cached doc is stale either way.
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_share_revoked_when_cancelled_mid_share(self, tmp_path):
+        # Cancelled while the share is being granted, the upload gather still
+        # finishes (shielded), so the new permission is recorded and revoked instead
+        # of being lost with the cancelled gather. The cancellation then lands
+        # before the doc edit is ever sent.
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = self._blocking(
+            started, release, {"id": "anyoneWithLink"}
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release)
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
+        )
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
+        )
+
+    async def test_cancelled_with_revoke_sharing_false_keeps_share_and_logs_it(self, tmp_path):
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        started, release = threading.Event(), threading.Event()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
+            self._blocking(started, release, {})
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release, revoke_sharing=False)
+        drive_svc.permissions.return_value.delete.assert_not_called()
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "img1")
+
+    async def test_cancelled_already_shared_upload_not_logged_as_still_shared(self, tmp_path):
+        # A link the upload inherited from its folder isn't this call's leak, and
+        # isn't revoked (PR #842 QA round 1).
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        drive_svc.files.return_value.create.return_value.execute.return_value["permissionIds"] = [
+            "owner1",
+            "anyoneWithLink",
+        ]
+        started, release = threading.Event(), threading.Event()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
+            self._blocking(started, release, {})
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release)
+        drive_svc.permissions.return_value.delete.assert_not_called()
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
+
+    async def test_cancelled_mid_share_with_failed_share_logs_orphan(self, tmp_path):
+        # PR #903 QA round 1 finding 1: every placement failed, so the tool used to
+        # return at `if not ready` before any unshielded await. The cancellation
+        # was never seen, and the created-but-unshared orphan (#649) went unlogged.
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = self._blocking(
+            started, release, RuntimeError("share failed")
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release)
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+        drive_svc.permissions.return_value.delete.assert_not_called()
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
+
+    @pytest.mark.parametrize("edit_fails", [False, True])
+    async def test_cancelled_mid_revoke_after_edit_is_logged(self, tmp_path, edit_fails):
+        # PR #903 QA round 1 finding 2: a cancellation that arrives during the
+        # post-edit revoke (success or doc-edit-failure path) was held off by the
+        # shield and never re-raised, so the call returned into a discarded
+        # response with nothing logged. It must still revoke exactly once.
+        img, docs_svc, drive_svc, ctx = self._cancel_fixture(tmp_path)
+        if edit_fails:
+            docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = (
+                RuntimeError("edit boom")
+            )
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.delete.return_value.execute.side_effect = self._blocking(
+            started, release, {}
+        )
+        with patch.object(images, "logger") as mock_logger:
+            await self._cancel_once_started(ctx, img, started, release)
+        drive_svc.permissions.return_value.delete.assert_called_once()
+        # Revoked, so not still shared.
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
+        doc_cache = ctx.request_context.lifespan_context.doc_cache
+        doc_cache.mark_dirty.assert_called_with("doc1")
+
+    async def test_completed_call_logs_nothing(self, tmp_path):
+        # The post-revoke checkpoint only logs when a cancellation actually lands.
+        img, _docs_svc, _drive_svc, ctx = self._cancel_fixture(tmp_path)
+        with patch.object(images, "logger") as mock_logger:
+            result = await _docs_tools["insert_local_images"](
+                doc_id="doc1", images=[{"marker": "MARKER", "local_path": str(img)}], ctx=ctx
+            )
+        assert result["results"][0]["shared"] is False
+        mock_logger.warning.assert_not_called()

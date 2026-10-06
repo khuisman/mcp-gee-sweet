@@ -73,11 +73,15 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
         _tool_access_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
         _tool_access_logger.addHandler(_tool_access_fh)
 
+from google.auth.exceptions import GoogleAuthError, RefreshError  # noqa: E402
+from googleapiclient.errors import Error as GoogleApiClientError  # noqa: E402
+from httplib2 import HttpLib2Error  # noqa: E402
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
 from .auth import (  # noqa: E402
-    OAuthConsentRequiredError,
+    MissingOAuthScopesError,
     execute_in_thread,
     get_gmail_unauthorized_message,
     get_lifespan_context,
@@ -127,12 +131,69 @@ app = mcp.sse_app(host=_resolved_host)
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 
+def _lifespan(ctx):
+    """This call's own lifespan context (per connection under SSE, #811), or None."""
+    return getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
+
+
 def _unauthorized_message(ctx) -> str | None:
     """The degraded-start message on this call's own lifespan context, if any. Per
     connection: under SSE each connection runs its own lifespan (#811)."""
-    lifespan = getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
-    message = getattr(lifespan, "unauthorized_message", None)
+    message = getattr(_lifespan(ctx), "unauthorized_message", None)
     return message if isinstance(message, str) else None
+
+
+# Failures a caller can act on: auth problems, Google API client errors, network
+# failures, bad arguments a tool rejects with ValueError, and local file errors. From
+# mcp 2.3, only ToolError/ResourceError text reaches the client; any other exception
+# becomes a bare "Error executing tool <name>" (#872). So these are re-raised as
+# ToolError (or ResourceError, for a resource) with their own text. Anything else is a
+# crash: mcp withholds its text from the client and logs the traceback.
+_CLIENT_VISIBLE_ERRORS = (
+    MissingOAuthScopesError,
+    GoogleApiClientError,
+    GoogleAuthError,
+    HttpLib2Error,
+    ValueError,
+    OSError,
+)
+
+
+def _client_error(exc: Exception, ctx) -> tuple[str, int] | None:
+    """The text the client should see for `exc` and the access-log status, or None to
+    leave it to mcp as a crash."""
+    if isinstance(exc, GoogleAuthError) and exc.args and isinstance(exc.args[0], str):
+        # google-auth raises e.g. RefreshError(message, response_dict), whose str()
+        # is the tuple's repr.
+        text = exc.args[0]
+    else:
+        text = str(exc) or type(exc).__name__
+    if isinstance(exc, RefreshError) and getattr(_lifespan(ctx), "auth_method", None) == "oauth":
+        # A refresh token revoked or expired after startup: same fix as #811.
+        return (
+            f"Google rejected the OAuth token refresh: {text.rstrip('.')}. "
+            f"{reauthorize_instructions()}",
+            401,
+        )
+    if isinstance(exc, MissingOAuthScopesError):
+        return text, 401
+    if isinstance(exc, _CLIENT_VISIBLE_ERRORS):
+        return text, 500
+    return None
+
+
+def _client_visible(
+    exc: Exception, ctx, error_cls: type[Exception]
+) -> tuple[Exception, int] | None:
+    """`exc` as `error_cls` (ToolError or ResourceError) plus its access-log status, or
+    None for a crash. mcp logs a ToolError/ResourceError without a traceback, and one of
+    these can still be our own bug (a malformed request's HttpError 400, a
+    JSONDecodeError), so the original is logged here with its traceback first."""
+    if (client_error := _client_error(exc, ctx)) is None:
+        return None
+    message, status = client_error
+    logger.warning("Reporting %s to the client: %s", type(exc).__name__, exc, exc_info=exc)
+    return error_cls(message), status
 
 
 def _timed(func):
@@ -143,16 +204,21 @@ def _timed(func):
         try:
             # Degraded start (#811): this connection has no Google services, so no
             # tool can run. Raised rather than returned so it works whatever the
-            # tool's return type.
+            # tool's return type, and as a ToolError so mcp shows the client its text.
             if unauthorized := _unauthorized_message(kwargs.get("ctx")):
-                raise OAuthConsentRequiredError(unauthorized)
+                status = 401
+                raise ToolError(unauthorized)
             return await func(*args, **kwargs)
-        except OAuthConsentRequiredError:
-            status = 401
+        except ToolError:
+            if status == 200:
+                status = 500
             raise
-        except Exception:
+        except Exception as e:
             status = 500
-            raise
+            if (visible := _client_visible(e, kwargs.get("ctx"), ToolError)) is None:
+                raise
+            error, status = visible
+            raise error from e
         finally:
             elapsed = time.perf_counter() - start
             ctx = kwargs.get("ctx")
@@ -173,9 +239,9 @@ def _enforce_strict_tool_args(tool_name: str) -> None:
     MCPServer's auto-generated per-tool pydantic arg model defaults to extra="ignore"
     (pydantic's own default) — neither func_metadata() nor Tool.from_function expose
     a public way to opt into extra="forbid". Verified absent in mcp 1.27.1 through
-    2.0.0 (confirmed live against mcp==2.0.0, issue #175 — the private
-    _tool_manager/fn_metadata/arg_model chain this function relies on is unchanged
-    from v1 to v2). This reaches into
+    2.3.0 (confirmed live against mcp==2.0.0, issue #175, and re-checked against the
+    locked mcp==2.3.0, #872 — the private _tool_manager/fn_metadata/arg_model chain
+    this function relies on is unchanged from v1 through 2.3). This reaches into
     private ToolManager/FuncMetadata internals to flip it after registration.
     model_rebuild(force=True) is REQUIRED: pydantic v2 bakes `extra` behavior into a
     compiled core schema at class-creation time, so mutating model_config alone is
@@ -420,14 +486,20 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
         JSON string with spreadsheet information
     """
     if unauthorized := _unauthorized_message(ctx):
-        raise OAuthConsentRequiredError(unauthorized)
+        raise ResourceError(unauthorized)
     context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
 
-    spreadsheet = await execute_in_thread(
-        sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
-        sheets_service,
-    )
+    try:
+        spreadsheet = await execute_in_thread(
+            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
+            sheets_service,
+        )
+    except Exception as e:
+        # Same rule as _timed: mcp 2.3 withholds a non-ResourceError's text (#872).
+        if (visible := _client_visible(e, ctx, ResourceError)) is None:
+            raise
+        raise visible[0] from e
     info = {
         "title": spreadsheet.get("properties", {}).get("title", "Unknown"),
         "sheets": [
