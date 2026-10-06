@@ -1026,7 +1026,7 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 - 5: the stderr file has `Starting without Google access: ... the server shut down before the browser consent completed`
 - 5: `lsof -i :<port>` and `lsof -i :<cb>` are both empty afterward
 
-An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on `develop` before #833).
+An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case. Any SSE stream open at SIGTERM used to produce it, with or without a consent wait (pre-existing, seen on `develop` before #833). Fixed in #868, which TC-I47 covers.
 
 **Cleanup:** if the server is still running, SIGKILL its process group and record the case as failed.
 
@@ -1128,3 +1128,33 @@ Live `mcp-gee-sweet-sky` server, OAuth, mcp 2.3.0. 1: `Error executing tool list
 
 **Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS**
 Live `mcp-gee-sweet-sky` server, mcp 2.3.0: steps 1 and 2 return the same `HttpError 404 ... Requested entity was not found.` text as round 1. Extra check over a stdio subprocess with the same credentials (`DEBUG_LEVEL=INFO`): the server logs `WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...` with the full traceback through `execute_in_thread`, and the access line is `"TOOL list_sheets" 500`.
+
+---
+
+### TC-I47: SIGTERM with an SSE stream open shuts down without an ASGI traceback (issue #868) ⚠️ local-filesystem
+
+**Background:** on SIGTERM, sse_starlette cancels an open SSE stream without sending its closing chunk, and mcp's `/sse` endpoint then returns an empty `Response()` on the same connection. uvicorn rejected that second response with `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'` on every shutdown with a stream open, and the client saw a truncated chunked stream. `SingleResponseGuard` (`sse_shutdown.py`) now closes the cut-off stream and drops the late second response, but only once `AppStatus.should_exit` is set. Before shutdown it passes everything through, so uvicorn still reports a genuine double response, and after an ordinary client disconnect uvicorn no-ops mcp's late `Response()` itself. `main()` serves the guarded app for plain `--transport sse` as well as `--reload`, since `mcp.run(transport="sse")` builds its own unguarded app. It launches it the way mcp's `run_sse_async()` does (`anyio.run(uvicorn.Server(config).serve)`), not with `uvicorn.run()`, which would pick uvloop when installed.
+
+**Setup:** none beyond a checkout of this branch. No Google credentials are needed: the case only needs an idle, fully started SSE connection.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free port>`, `AUTH_METHOD=oauth`, `CREDENTIALS_PATH=<nonexistent>`, `TOKEN_PATH=<nonexistent>`, `DEBUG_LEVEL=DEBUG`, `PYTHONUNBUFFERED=1`, stdout and stderr to one file.
+1. Open `GET http://127.0.0.1:<port>/sse` (e.g. Python `urllib.request.urlopen`) and read the first line (`event: endpoint`). Wait 3 seconds
+2. Send the server process `SIGTERM` (not SIGKILL) and time its exit. Then read the rest of the SSE response to EOF
+3. Repeat steps 1–2 two more times against a fresh server, then once more with `--reload` added to the command line
+4. Start a fresh server the same way; with the `mcp` SDK's `sse_client` + `ClientSession`, `initialize` and `list_tools`, close the session, then SIGTERM the server
+
+**Checks**
+- 2, 3: the log has no `Exception in ASGI application`, no `RuntimeError: Expected ASGI message`, and no `ASGI callable returned without completing response`. (The setup's nonexistent `CREDENTIALS_PATH` logs a `DEBUG ... Auth failure detail` traceback ending in `RuntimeError: '<path>' not found` at connection time; that's the expected degraded start, not a failure.) With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Dropping a second response on /sse during shutdown (#868)`
+- 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
+- 2, 3: reading the SSE response to the end ends with a clean EOF, not an `IncompleteRead` (before this fix the chunked stream was never terminated)
+- 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no traceback other than the expected `Auth failure detail` one
+- 4: the log has no `Dropping a second response` line at all. The session's stream closed before SIGTERM, so the guard has nothing to drop, and it acts only during shutdown (round 1 found it acting on an ordinary client disconnect). Don't check the line's order against uvicorn's `Shutting down` instead: in steps 2–3 the two are logged in either order during a real shutdown.
+
+**Cleanup:** SIGKILL any server still running (and record the case as failed).
+
+**Result (2026-10-05, PR #911 round 1 @ d6ba1ec, Sky) ✅ PASS**
+uvicorn 0.47.0, run through `uv run` (so the parent's exit code is uv's 143 after forwarding SIGTERM; `--reload` exits 0). Steps 2–3 (three plain runs plus one `--reload`): every log has the `Dropping a second response on /sse (#868)` line and none of the three error strings. The server exits 0.2–0.8s after SIGTERM, the SSE response reads to a clean EOF, and the port is free afterwards. Baseline: the same driver against an `origin/develop` export logs `Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'`, and the client gets `IncompleteRead(64 bytes read)`. Step 4: `initialize` and `list_tools` (139 tools) succeed, with no ASGI error. But the log shows `Dropping a second response on /sse (#868)` right after the client closed its session, about 1s *before* SIGTERM. So the guard also handles mcp's late `Response()` after an ordinary client disconnect, not only at shutdown (see the round-1 PR comment). Side check: `--transport streamable-http` with an open `GET /mcp` stream still logs `ASGI callable returned without completing response.` on SIGTERM, and the client gets `IncompleteRead(0 bytes read)`. That transport isn't in this PR's scope; filed as #917.
+
+**Result (2026-10-05, PR #911 round 2 @ 1f138a5, Sky) ✅ PASS**
+Same drivers as round 1. Steps 2–3 (three plain runs plus one `--reload`): each log has `Dropping a second response on /sse during shutdown (#868)` and none of the three error strings. The server exits 0.2–0.6s after SIGTERM, every SSE response reads to a clean EOF, and the ports are free. The drop line and uvicorn's `Shutting down` were logged in either order across these runs, so I changed step 4's check from an ordering check to an absence check. Step 4: `initialize` and `list_tools` (139 tools) succeed, and the log has no `Dropping` line and no ASGI error. So after an ordinary client disconnect, the late `Response()` now reaches uvicorn, which ignores it without error. Plain `--transport sse` now launches via `anyio.run(uvicorn.Server(config).serve)` and behaves the same as `--reload`.

@@ -60,7 +60,7 @@ Patching mcp's transport instead was rejected: it means carrying a copy of `conn
 | Stray callback request | | degrades in 0.08s (`MismatchingStateError`) |
 | Missing-scope token, client POSTs `initialize` on the endpoint event, then SIGTERM | n/a (no endpoint before the raise) | before §5: 25 of 25 hang. After: 0 of 25, POST `202`; a real `sse_client` initializes and gets the missing-scopes message as the tool error |
 
-An `Exception in ASGI application ... Expected ASGI message 'http.response.body'` traceback at shutdown appears on `develop` too, for any SSE stream open at SIGTERM, so it's unrelated to this change.
+An `Exception in ASGI application ... Expected ASGI message 'http.response.body'` traceback at shutdown appeared on `develop` too, for any SSE stream open at SIGTERM, so it was unrelated to this change. #868 fixed it with `SingleResponseGuard` (`sse_shutdown.py`).
 
 ## Not changed
 

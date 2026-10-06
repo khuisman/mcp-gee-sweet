@@ -92,6 +92,7 @@ from .auth import (  # noqa: E402
     set_raise_auth_failures,
     spreadsheet_lifespan,
 )
+from .sse_shutdown import SingleResponseGuard  # noqa: E402
 
 
 def _parse_enabled_tools() -> set | None:
@@ -124,8 +125,10 @@ mcp = MCPServer(
 )
 
 # mcp v2 moved host/port from the constructor to call-time kwargs on
-# sse_app()/run_sse_async()/run() itself (confirmed live against mcp==2.0.0, issue #175)
-app = mcp.sse_app(host=_resolved_host)
+# sse_app()/run_sse_async()/run() itself (confirmed live against mcp==2.0.0, issue #175).
+# SingleResponseGuard keeps a SIGTERM with an open SSE stream from logging an ASGI
+# traceback (#868); main() serves this app for every SSE launch so the guard applies.
+app = SingleResponseGuard(mcp.sse_app(host=_resolved_host))
 
 
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
@@ -597,6 +600,18 @@ def main():
         # the connection without Google access instead (PR #867).
         set_raise_auth_failures(True)
         mcp.run(transport=transport)
+    elif transport == "sse":
+        # mcp.run(transport="sse") would build a second, unguarded sse_app, so serve
+        # the guarded module-level app with run_sse_async()'s own launch (#868):
+        # anyio.run on the plain asyncio loop, which #833's auth handoff was built
+        # and QA'd on. uvicorn.run() would pick uvloop whenever it's installed.
+        import anyio
+        import uvicorn
+
+        config = uvicorn.Config(
+            app, host=_resolved_host, port=_resolved_port, log_level=mcp.settings.log_level.lower()
+        )
+        anyio.run(uvicorn.Server(config).serve)
     else:
         # mcp v2 moved host/port from the constructor to call-time kwargs (see the
         # mcp.sse_app() call above) — stdio's own overload doesn't accept them.
