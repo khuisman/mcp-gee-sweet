@@ -1835,6 +1835,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i47-sigterm-with-an-sse-stream-open-shuts-down-without-an-asgi-traceback-issue-868-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I47: SIGTERM with an SSE stream open shuts down without an ASGI traceback (issue #868) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2804,7 +2815,7 @@ Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=o
 - 5: the server exits within a few seconds (before #833: it kept running until the 120s timeout)
 - 5: the stderr file has <code>Starting without Google access: ... the server shut down before the browser consent completed</code>
 - 5: <code>lsof -i :&lt;port&gt;</code> and <code>lsof -i :&lt;cb&gt;</code> are both empty afterward</p>
-<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'</code> traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on <code>develop</code> before #833).</p>
+<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'</code> traceback during shutdown isn't a failure of this case. Any SSE stream open at SIGTERM used to produce it, with or without a consent wait (pre-existing, seen on <code>develop</code> before #833). Fixed in #868, which TC-I47 covers.</p>
 <p><strong>Cleanup:</strong> if the server is still running, SIGKILL its process group and record the case as failed.</p>
 <p><strong>Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS</strong>
 <code>mcp</code> SDK <code>sse_client</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=120</code>. Step 2: POST answered <code>404</code> in 0.016s. The case said <code>400</code>, but an unknown all-zero session id is 404; corrected above. Step 3: exactly 1 <code>Please visit</code>. Step 5: SIGTERM to the server pid exited in 4.6s; stderr has <code>...the server shut down before the browser consent completed</code>; <code>lsof</code> empty for both <code>&lt;port&gt;</code> and <code>&lt;cb&gt;</code>. A and B both ended with <code>Connection closed</code> (expected: the server exited). Probe outside the case (PR comment, finding 1): with <code>OAUTH_CONSENT_TIMEOUT_SECONDS=4</code> and a silent TCP connection held open on <code>&lt;cb&gt;</code>, A was still waiting after 20s and resolved only once the silent connection closed. SIGTERM still exits (0.56s) because the consent thread is a daemon.</p>
@@ -2871,6 +2882,27 @@ Same as round 1 after the degraded start began raising <code>ToolError</code> di
 Live <code>mcp-gee-sweet-sky</code> server, OAuth, mcp 2.3.0. 1: <code>Error executing tool list_sheets: &lt;HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?fields=... returned "Requested entity was not found.". ...&gt;</code>. 2: the resource read failed with <code>&lt;HttpError 404 when requesting https://sheets.googleapis.com/v4/spreadsheets/bogus-spreadsheet-id-872?alt=json returned "Requested entity was not found.". ...&gt;</code>, not the bare template error.</p>
 <p><strong>Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS</strong>
 Live <code>mcp-gee-sweet-sky</code> server, mcp 2.3.0: steps 1 and 2 return the same <code>HttpError 404 ... Requested entity was not found.</code> text as round 1. Extra check over a stdio subprocess with the same credentials (<code>DEBUG_LEVEL=INFO</code>): the server logs <code>WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...</code> with the full traceback through <code>execute_in_thread</code>, and the access line is <code>"TOOL list_sheets" 500</code>.</p>
+<hr />
+<h3 id="tc-i47-sigterm-with-an-sse-stream-open-shuts-down-without-an-asgi-traceback-issue-868-local-filesystem">TC-I47: SIGTERM with an SSE stream open shuts down without an ASGI traceback (issue #868) ⚠️ local-filesystem<a class="headerlink" href="#tc-i47-sigterm-with-an-sse-stream-open-shuts-down-without-an-asgi-traceback-issue-868-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> on SIGTERM, sse_starlette cancels an open SSE stream without sending its closing chunk, and mcp's <code>/sse</code> endpoint then returns an empty <code>Response()</code> on the same connection. uvicorn rejected that second response with <code>Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'</code> on every shutdown with a stream open, and the client saw a truncated chunked stream. <code>SingleResponseGuard</code> (<code>sse_shutdown.py</code>) now closes the cut-off stream and drops the late second response, but only once <code>AppStatus.should_exit</code> is set. Before shutdown it passes everything through, so uvicorn still reports a genuine double response, and after an ordinary client disconnect uvicorn no-ops mcp's late <code>Response()</code> itself. <code>main()</code> serves the guarded app for plain <code>--transport sse</code> as well as <code>--reload</code>, since <code>mcp.run(transport="sse")</code> builds its own unguarded app. It launches it the way mcp's <code>run_sse_async()</code> does (<code>anyio.run(uvicorn.Server(config).serve)</code>), not with <code>uvicorn.run()</code>, which would pick uvloop when installed.</p>
+<p><strong>Setup:</strong> none beyond a checkout of this branch. No Google credentials are needed: the case only needs an idle, fully started SSE connection.</p>
+<p><strong>Action</strong>
+Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>HOST=127.0.0.1</code>, <code>PORT=&lt;free port&gt;</code>, <code>AUTH_METHOD=oauth</code>, <code>CREDENTIALS_PATH=&lt;nonexistent&gt;</code>, <code>TOKEN_PATH=&lt;nonexistent&gt;</code>, <code>DEBUG_LEVEL=DEBUG</code>, <code>PYTHONUNBUFFERED=1</code>, stdout and stderr to one file.
+1. Open <code>GET http://127.0.0.1:&lt;port&gt;/sse</code> (e.g. Python <code>urllib.request.urlopen</code>) and read the first line (<code>event: endpoint</code>). Wait 3 seconds
+2. Send the server process <code>SIGTERM</code> (not SIGKILL) and time its exit. Then read the rest of the SSE response to EOF
+3. Repeat steps 1–2 two more times against a fresh server, then once more with <code>--reload</code> added to the command line
+4. Start a fresh server the same way; with the <code>mcp</code> SDK's <code>sse_client</code> + <code>ClientSession</code>, <code>initialize</code> and <code>list_tools</code>, close the session, then SIGTERM the server</p>
+<p><strong>Checks</strong>
+- 2, 3: the log has no <code>Exception in ASGI application</code>, no <code>RuntimeError: Expected ASGI message</code>, and no <code>ASGI callable returned without completing response</code>. (The setup's nonexistent <code>CREDENTIALS_PATH</code> logs a <code>DEBUG ... Auth failure detail</code> traceback ending in <code>RuntimeError: '&lt;path&gt;' not found</code> at connection time; that's the expected degraded start, not a failure.) With <code>DEBUG_LEVEL=DEBUG</code> it has <code>DEBUG mcp_gee_sweet.sse_shutdown Dropping a second response on /sse during shutdown (#868)</code>
+- 2, 3: the server exits within a few seconds of SIGTERM, and <code>lsof -i :&lt;port&gt;</code> is empty afterwards
+- 2, 3: reading the SSE response to the end ends with a clean EOF, not an <code>IncompleteRead</code> (before this fix the chunked stream was never terminated)
+- 4: <code>initialize</code> and <code>list_tools</code> succeed (the guard doesn't touch a normal session), and the log has no traceback other than the expected <code>Auth failure detail</code> one
+- 4: the log has no <code>Dropping a second response</code> line at all. The session's stream closed before SIGTERM, so the guard has nothing to drop, and it acts only during shutdown (round 1 found it acting on an ordinary client disconnect). Don't check the line's order against uvicorn's <code>Shutting down</code> instead: in steps 2–3 the two are logged in either order during a real shutdown.</p>
+<p><strong>Cleanup:</strong> SIGKILL any server still running (and record the case as failed).</p>
+<p><strong>Result (2026-10-05, PR #911 round 1 @ d6ba1ec, Sky) ✅ PASS</strong>
+uvicorn 0.47.0, run through <code>uv run</code> (so the parent's exit code is uv's 143 after forwarding SIGTERM; <code>--reload</code> exits 0). Steps 2–3 (three plain runs plus one <code>--reload</code>): every log has the <code>Dropping a second response on /sse (#868)</code> line and none of the three error strings. The server exits 0.2–0.8s after SIGTERM, the SSE response reads to a clean EOF, and the port is free afterwards. Baseline: the same driver against an <code>origin/develop</code> export logs <code>Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'</code>, and the client gets <code>IncompleteRead(64 bytes read)</code>. Step 4: <code>initialize</code> and <code>list_tools</code> (139 tools) succeed, with no ASGI error. But the log shows <code>Dropping a second response on /sse (#868)</code> right after the client closed its session, about 1s <em>before</em> SIGTERM. So the guard also handles mcp's late <code>Response()</code> after an ordinary client disconnect, not only at shutdown (see the round-1 PR comment). Side check: <code>--transport streamable-http</code> with an open <code>GET /mcp</code> stream still logs <code>ASGI callable returned without completing response.</code> on SIGTERM, and the client gets <code>IncompleteRead(0 bytes read)</code>. That transport isn't in this PR's scope; filed as #917.</p>
+<p><strong>Result (2026-10-05, PR #911 round 2 @ 1f138a5, Sky) ✅ PASS</strong>
+Same drivers as round 1. Steps 2–3 (three plain runs plus one <code>--reload</code>): each log has <code>Dropping a second response on /sse during shutdown (#868)</code> and none of the three error strings. The server exits 0.2–0.6s after SIGTERM, every SSE response reads to a clean EOF, and the ports are free. The drop line and uvicorn's <code>Shutting down</code> were logged in either order across these runs, so I changed step 4's check from an ordering check to an absence check. Step 4: <code>initialize</code> and <code>list_tools</code> (139 tools) succeed, and the log has no <code>Dropping</code> line and no ASGI error. So after an ordinary client disconnect, the late <code>Response()</code> now reaches uvicorn, which ignores it without error. Plain <code>--transport sse</code> now launches via <code>anyio.run(uvicorn.Server(config).serve)</code> and behaves the same as <code>--reload</code>.</p>
 
 
 

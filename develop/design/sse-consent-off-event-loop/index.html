@@ -1418,7 +1418,7 @@
 </tr>
 </tbody>
 </table>
-<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body'</code> traceback at shutdown appears on <code>develop</code> too, for any SSE stream open at SIGTERM, so it's unrelated to this change.</p>
+<p>An <code>Exception in ASGI application ... Expected ASGI message 'http.response.body'</code> traceback at shutdown appeared on <code>develop</code> too, for any SSE stream open at SIGTERM, so it was unrelated to this change. #868 fixed it with <code>SingleResponseGuard</code> (<code>sse_shutdown.py</code>).</p>
 <h2 id="not-changed">Not changed<a class="headerlink" href="#not-changed" title="Permanent link">&para;</a></h2>
 <p>The synchronous <code>_oauth_creds()</code> (no flag) still runs everything inline, for scratch scripts. <code>_server_shutting_down</code> reads only <code>AppStatus.should_exit</code>, not sse_starlette's fallback that introspects uvicorn's signal handler: its monkey-patch works in our launch path (TC-I43).</p>
 
