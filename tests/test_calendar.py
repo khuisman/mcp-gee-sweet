@@ -34,6 +34,18 @@ def _cannot_change_owner_acl_error():
     )
 
 
+def _cannot_change_own_acl_error():
+    """The 403 Google returns for deleting or changing the authenticated
+    account's own ACL rule (body shape captured live 2026-10-05, #890 QA round 1)."""
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"domain": "calendar", "reason": "cannotChangeOwnAcl", '
+        b'"message": "Cannot change your own access level."}], "code": 403}}',
+    )
+
+
 def _make_tool_registry():
     captured = {}
 
@@ -735,10 +747,43 @@ class TestAddCalendarAcl:
         ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
         result = await _cal_tools["add_calendar_acl"](
-            calendar_id="cal-1", role="reader", scope_value="owner@example.com", ctx=ctx
+            calendar_id="cal-1", role="reader", scope_value="cal-1", ctx=ctx
         )
 
         assert result == {"error": calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR}
+        cache.mark_dirty.assert_not_called()
+
+    async def test_owner_downgrade_message_does_not_suggest_delete_calendar(self):
+        """#890 QA round 1: an insert that tried to change a grant must not be pointed
+        at delete_calendar, which an LLM caller could follow and destroy the calendar."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.insert.return_value.execute.side_effect = (
+            _cannot_change_owner_acl_error()
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1", role="reader", scope_value="cal-1", ctx=ctx
+        )
+
+        assert "delete_calendar" not in result["error"]
+
+    async def test_own_rule_change_returns_actionable_message(self):
+        """#890 QA round 1: changing the authenticated account's own rule returns
+        cannotChangeOwnAcl, which gets its own message rather than passing through raw."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.insert.return_value.execute.side_effect = (
+            _cannot_change_own_acl_error()
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1", role="reader", scope_value="me@example.com", ctx=ctx
+        )
+
+        assert result == {"error": calendar_module._CANNOT_CHANGE_OWN_ACL_ERROR}
+        assert "delete_calendar" not in result["error"]
         cache.mark_dirty.assert_not_called()
 
     async def test_other_403_error_falls_back_to_raw_message(self):
@@ -805,11 +850,28 @@ class TestRemoveCalendarAcl:
         ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
         result = await _cal_tools["remove_calendar_acl"](
-            calendar_id="cal-1", rule_id="user:owner@example.com", ctx=ctx
+            calendar_id="cal-1", rule_id="user:cal-1", ctx=ctx
         )
 
-        assert result == {"error": calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR}
+        assert result == {"error": calendar_module._CANNOT_REMOVE_OWNER_ACL_ERROR}
         assert "delete_calendar" in result["error"]
+        cache.mark_dirty.assert_not_called()
+
+    async def test_removing_own_rule_returns_actionable_message(self):
+        """#890 QA round 1: removing the authenticated account's own rule returns
+        cannotChangeOwnAcl, which gets its own message rather than passing through raw."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.delete.return_value.execute.side_effect = (
+            _cannot_change_own_acl_error()
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["remove_calendar_acl"](
+            calendar_id="cal-1", rule_id="user:me@example.com", ctx=ctx
+        )
+
+        assert result == {"error": calendar_module._CANNOT_CHANGE_OWN_ACL_ERROR}
         cache.mark_dirty.assert_not_called()
 
     async def test_other_http_error_falls_back_to_raw_message(self):
@@ -825,7 +887,32 @@ class TestRemoveCalendarAcl:
             calendar_id="cal-1", rule_id="rule-1", ctx=ctx
         )
 
-        assert result["error"] != calendar_module._CANNOT_CHANGE_OWNER_ACL_ERROR
+        assert result["error"] != calendar_module._CANNOT_REMOVE_OWNER_ACL_ERROR
+        assert result["error"].startswith("<HttpError 404")
+
+
+class TestHttpErrorHasReason:
+    """The shared reason check behind every calendar 403 rewrite (#890 QA round 1)."""
+
+    def test_owner_reason_does_not_match_own_reason(self):
+        """cannotChangeOwnAcl and cannotChangeOwnerAcl must not cross-match."""
+        own = _cannot_change_own_acl_error()
+        owner = _cannot_change_owner_acl_error()
+
+        assert calendar_module._http_error_has_reason(own, 403, "cannotChangeOwnAcl")
+        assert not calendar_module._http_error_has_reason(own, 403, "cannotChangeOwnerAcl")
+        assert calendar_module._http_error_has_reason(owner, 403, "cannotChangeOwnerAcl")
+        assert not calendar_module._http_error_has_reason(owner, 403, "cannotChangeOwnAcl")
+
+    def test_status_must_match(self):
+        assert not calendar_module._http_error_has_reason(
+            _cannot_change_owner_acl_error(), 404, "cannotChangeOwnerAcl"
+        )
+
+    def test_non_http_error_never_matches(self):
+        assert not calendar_module._http_error_has_reason(
+            Exception('"cannotChangeOwnerAcl"'), 403, "cannotChangeOwnerAcl"
+        )
 
 
 class TestCreateEvent:

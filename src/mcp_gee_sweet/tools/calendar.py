@@ -21,13 +21,25 @@ _CANNOT_UNSUBSCRIBE_OWNED_ERROR = (
     "permanently delete it."
 )
 
-# Google returns 403 cannotChangeOwnerAcl for acl().delete() on the primary
-# owner's rule and for an acl().insert() that would downgrade it (confirmed
-# live 2026-10-05, #459).
+# A calendar's ACL has two rules no one can change, both confirmed live on a
+# secondary calendar (2026-10-05, #459). Any acl().delete() or acl().insert()
+# touching them, even a no-op re-grant of 'owner', returns a 403:
+# - the primary owner's rule (user:<calendar_id>): cannotChangeOwnerAcl
+# - the authenticated account's own rule: cannotChangeOwnAcl
+# The two owner-rule messages differ by tool on purpose: pointing an insert at
+# delete_calendar would invite deleting the calendar to fix a sharing change.
+_CANNOT_REMOVE_OWNER_ACL_ERROR = (
+    "Google does not allow removing the access rule of a calendar's primary owner "
+    "(reason: cannotChangeOwnerAcl). Use delete_calendar instead to permanently "
+    "delete a calendar you own."
+)
 _CANNOT_CHANGE_OWNER_ACL_ERROR = (
-    "Google does not allow changing or removing the access rule of a calendar's "
-    "primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'. "
-    "Use delete_calendar instead to permanently delete a calendar you own."
+    "Google does not allow changing the access level of a calendar's primary owner "
+    "(reason: cannotChangeOwnerAcl); that rule always stays 'owner'."
+)
+_CANNOT_CHANGE_OWN_ACL_ERROR = (
+    "Google does not allow changing or removing your own access rule on a calendar "
+    "(reason: cannotChangeOwnAcl)."
 )
 
 _CALENDAR_ACL_ROLES = ("reader", "writer", "owner", "freeBusyReader")
@@ -68,8 +80,28 @@ def _list_all_events_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
-def _is_cannot_change_owner_acl(e: HttpError) -> bool:
-    return e.resp.status == 403 and b"cannotChangeOwnerAcl" in (e.content or b"")
+def _http_error_has_reason(e: BaseException, status: int, reason: str) -> bool:
+    """Whether `e` is an HttpError with this status whose body names this reason.
+    The reason is matched as a quoted JSON string, so one reason that's a prefix
+    of another (cannotChangeOwnAcl / cannotChangeOwnerAcl) can't false-match."""
+    return (
+        isinstance(e, HttpError)
+        and e.resp.status == status
+        and f'"{reason}"'.encode() in (e.content or b"")
+    )
+
+
+def _acl_error(e: Exception, *, removing: bool) -> dict[str, str]:
+    """{"error": ...} for a failed add_calendar_acl (removing=False) or
+    remove_calendar_acl (removing=True) call, rewriting Google's two
+    unchangeable-rule 403s into messages naming the restriction (#459)."""
+    if _http_error_has_reason(e, 403, "cannotChangeOwnAcl"):
+        return {"error": _CANNOT_CHANGE_OWN_ACL_ERROR}
+    if _http_error_has_reason(e, 403, "cannotChangeOwnerAcl"):
+        return {
+            "error": _CANNOT_REMOVE_OWNER_ACL_ERROR if removing else _CANNOT_CHANGE_OWNER_ACL_ERROR
+        }
+    return {"error": str(e)}
 
 
 def _shape_acl_rule(r: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +189,20 @@ def _shape_event(e: dict[str, Any], **extra: Any) -> dict[str, Any]:
         )
     shaped.update(extra)
     return shaped
+
+
+def _shape_written_event(e: dict[str, Any]) -> dict[str, Any]:
+    """The shorter shape create_event and update_event return for the event the
+    API just wrote, shared so a shape fix lands in both (#890 QA round 1)."""
+    return {
+        "id": e["id"],
+        "summary": e.get("summary", ""),
+        "start": _event_time(e, "start"),
+        "end": _event_time(e, "end"),
+        "recurrence": e.get("recurrence"),
+        "html_link": e.get("htmlLink"),
+        "status": e.get("status"),
+    }
 
 
 def register(tool):
@@ -424,11 +470,9 @@ def register(tool):
                 lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute,
                 lc.calendar_service,
             )
-        except HttpError as e:
-            if e.resp.status == 403 and b"cannotUnsubscribeFromOwnedCalendar" in (e.content or b""):
-                return {"error": _CANNOT_UNSUBSCRIBE_OWNED_ERROR}
-            return {"error": str(e)}
         except Exception as e:
+            if _http_error_has_reason(e, 403, "cannotUnsubscribeFromOwnedCalendar"):
+                return {"error": _CANNOT_UNSUBSCRIBE_OWNED_ERROR}
             return {"error": str(e)}
 
         lc.calendar_cache.mark_dirty(calendar_id)
@@ -504,9 +548,9 @@ def register(tool):
                                  Defaults to True.
 
         Returns:
-            Created ACL rule: id, role, scope_type, scope_value. Google rejects a
-            rule that would downgrade the calendar's primary owner; that returns
-            an {"error": ...} saying so.
+            Created ACL rule: id, role, scope_type, scope_value. Google rejects any
+            change to the calendar's primary-owner rule or to the authenticated
+            account's own rule; that returns an {"error": ...} naming which one.
         """
         lc = ctx.request_context.lifespan_context
 
@@ -539,12 +583,8 @@ def register(tool):
                 .execute,
                 lc.calendar_service,
             )
-        except HttpError as e:
-            if _is_cannot_change_owner_acl(e):
-                return {"error": _CANNOT_CHANGE_OWNER_ACL_ERROR}
-            return {"error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return _acl_error(e, removing=False)
 
         lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Added ACL rule %s to calendar %s", r.get("id"), calendar_id)
@@ -563,8 +603,8 @@ def register(tool):
 
         Returns:
             Confirmation with calendar_id, rule_id, and action 'removed'. The
-            primary owner's own rule can't be removed; that returns an
-            {"error": ...} saying so.
+            calendar's primary-owner rule and the authenticated account's own
+            rule can't be removed; that returns an {"error": ...} naming which one.
         """
         lc = ctx.request_context.lifespan_context
         try:
@@ -572,12 +612,8 @@ def register(tool):
                 lc.calendar_service.acl().delete(calendarId=calendar_id, ruleId=rule_id).execute,
                 lc.calendar_service,
             )
-        except HttpError as e:
-            if _is_cannot_change_owner_acl(e):
-                return {"error": _CANNOT_CHANGE_OWNER_ACL_ERROR}
-            return {"error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return _acl_error(e, removing=True)
 
         lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Removed ACL rule %s from calendar %s", rule_id, calendar_id)
@@ -736,15 +772,7 @@ def register(tool):
 
         lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Created event %s in calendar %s", e["id"], calendar_id)
-        return {
-            "id": e["id"],
-            "summary": e.get("summary", ""),
-            "start": _event_time(e, "start"),
-            "end": _event_time(e, "end"),
-            "recurrence": e.get("recurrence"),
-            "html_link": e.get("htmlLink"),
-            "status": e.get("status"),
-        }
+        return _shape_written_event(e)
 
     @tool(annotations=ToolAnnotations(title="Update Event", destructiveHint=True))
     async def update_event(
@@ -832,15 +860,7 @@ def register(tool):
 
         lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Updated event %s in calendar %s", event_id, calendar_id)
-        return {
-            "id": e["id"],
-            "summary": e.get("summary", ""),
-            "start": _event_time(e, "start"),
-            "end": _event_time(e, "end"),
-            "recurrence": e.get("recurrence"),
-            "html_link": e.get("htmlLink"),
-            "status": e.get("status"),
-        }
+        return _shape_written_event(e)
 
     @tool(annotations=ToolAnnotations(title="Delete Event", destructiveHint=True))
     async def delete_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:

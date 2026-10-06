@@ -1058,17 +1058,29 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 
 ---
 
-### TC-CAL79: Removing or downgrading the primary owner's ACL rule returns an actionable error (issue #459) ⚠️ destructive
+### TC-CAL79: Changing or removing either unchangeable ACL rule returns an actionable error (issue #459) ⚠️ destructive
 
-**Background:** Google returns `403 cannotChangeOwnerAcl` ("Cannot change the access level of calendars primary owner.") both for `acl().delete()` on the primary owner's rule and for an `acl().insert()` that would downgrade it. That was confirmed live on 2026-10-05 against a scratch calendar. Before #459 both tools returned the raw `HttpError` string; they now return a message naming the restriction, like `remove_calendar_from_list`'s `cannotUnsubscribeFromOwnedCalendar` handling (TC-CAL59).
+**Background:** a secondary calendar's ACL holds two `owner` rules that no one can change. Any `acl().delete()` or `acl().insert()` touching them returns a 403, even a no-op re-grant of `owner`; both were confirmed live on 2026-10-05.
+- The primary-owner rule, `user:<calendar_id>`, returns `cannotChangeOwnerAcl` ("Cannot change the access level of calendars primary owner.").
+- The authenticated account's own rule, `user:<account email>`, returns `cannotChangeOwnAcl` ("Cannot change your own access level.").
 
-**Setup:** create a disposable calendar with `create_calendar(summary="QA-OwnerAcl")`; call it `{OWNER_TEST_CAL}`. Call `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` and note the `role: "owner"`, `scope_type: "user"` rule whose `scope_value` is the authenticated account; call its `id` `{OWNER_RULE_ID}` and its `scope_value` `{OWNER_EMAIL}`.
+Before #459 both tools returned the raw `HttpError` string; they now return a message naming the restriction, like `remove_calendar_from_list`'s `cannotUnsubscribeFromOwnedCalendar` handling (TC-CAL59). Only `remove_calendar_acl`'s primary-owner message points at `delete_calendar`. An insert that tried to change a grant is never told to delete the calendar (PR #912 QA round 1).
 
-**Checks**
-- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{OWNER_RULE_ID}")` returns `{"error": "Google does not allow changing or removing the access rule of a calendar's primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'. Use delete_calendar instead to permanently delete a calendar you own."}`, not a raw `<HttpError 403 ...>` string
-- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{OWNER_EMAIL}", send_notifications=false)` returns the same `{"error": ...}` message
-- A follow-up `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` still shows `{OWNER_RULE_ID}` with `role: "owner"`
-- A different failure still passes through raw: `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="totally-invalid-rule-id")` returns `{"error": "<HttpError 400 ...>"}` without the owner message (same as TC-CAL68)
+**Setup:** create a disposable calendar with `create_calendar(summary="QA-OwnerAcl")`; call it `{OWNER_TEST_CAL}`. Call `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")`. It shows two `role: "owner"`, `scope_type: "user"` rules:
+- `{PRIMARY_OWNER_RULE_ID}`: the one whose `scope_value` equals `{OWNER_TEST_CAL}`, so its id is `user:{OWNER_TEST_CAL}`.
+- `{ACCOUNT_RULE_ID}`: the one whose `scope_value` is the authenticated account. Call that `scope_value` `{ACCOUNT_EMAIL}`.
+
+**Checks: primary-owner rule (`cannotChangeOwnerAcl`)**
+- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{PRIMARY_OWNER_RULE_ID}")` returns `{"error": "Google does not allow removing the access rule of a calendar's primary owner (reason: cannotChangeOwnerAcl). Use delete_calendar instead to permanently delete a calendar you own."}`, not a raw `<HttpError 403 ...>` string
+- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{OWNER_TEST_CAL}", send_notifications=false)` returns `{"error": "Google does not allow changing the access level of a calendar's primary owner (reason: cannotChangeOwnerAcl); that rule always stays 'owner'."}`, with no mention of `delete_calendar`
+
+**Checks: account's own rule (`cannotChangeOwnAcl`)**
+- `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="{ACCOUNT_RULE_ID}")` returns `{"error": "Google does not allow changing or removing your own access rule on a calendar (reason: cannotChangeOwnAcl)."}`
+- `add_calendar_acl(calendar_id="{OWNER_TEST_CAL}", role="reader", scope_type="user", scope_value="{ACCOUNT_EMAIL}", send_notifications=false)` returns the same `cannotChangeOwnAcl` message
+
+**Checks: unchanged state and raw fallthrough**
+- A follow-up `list_calendar_acl(calendar_id="{OWNER_TEST_CAL}")` still shows both rules with `role: "owner"`
+- A different failure still passes through raw: `remove_calendar_acl(calendar_id="{OWNER_TEST_CAL}", rule_id="totally-invalid-rule-id")` returns `{"error": "<HttpError 400 ...>"}` with neither message (same as TC-CAL68)
 
 **Cleanup:** `delete_calendar(calendar_id="{OWNER_TEST_CAL}")`.
 
