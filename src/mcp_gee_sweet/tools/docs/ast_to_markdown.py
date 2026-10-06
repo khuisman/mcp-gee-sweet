@@ -175,11 +175,14 @@ def _render_run(run: Run) -> str:
     if run.text == "":
         return ""
     if run.font_family == "Courier New":
-        # Inline code / code-block runs (#103) — backtick-quoted, no further
-        # escaping (CommonMark treats a code span's content literally). A run
-        # whose own text contains a backtick isn't handled specially here —
-        # a documented, narrow gap rather than variable-fence tracking.
-        body = f"`{run.text}`"
+        # Use a delimiter longer than any literal backtick sequence in the
+        # content, and separate edge backticks from that delimiter.
+        ticks = max((len(match.group()) for match in re.finditer(r"`+", run.text)), default=0) + 1
+        fence = "`" * ticks
+        content = run.text
+        if content.startswith("`") or content.endswith("`"):
+            content = f" {content} "
+        body = f"{fence}{content}{fence}"
         return f"[{body}]({_md_link_dest(run.link_url)})" if run.link_url else body
 
     # CommonMark emphasis delimiters can't have whitespace on the inner side
