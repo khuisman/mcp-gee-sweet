@@ -419,6 +419,8 @@ remove_calendar_from_list invalid ID -> {"error":"<HttpError 404 ... notFound ..
 
 **Result (2026-07-05) ✅** — First pass (before the friendly-message special-case was added) returned the raw passthrough: `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got `{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}` — confirms the friendlier message is live and correctly names the fix.
 
+**Result (2026-10-05) ✅ PASS** (PR #912 round 2, Kit). Regression check after `remove_calendar_from_list` moved onto the shared `_http_error_has_reason`, which matches the quoted reason. On a freshly created owned calendar it still returns the `cannotUnsubscribeFromOwnedCalendar` message naming `delete_calendar`.
+
 **Result (2026-09-04) ✅ PASS**
 remove_calendar_from_list on SA-owned MINCAL -> {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.
 
@@ -1085,6 +1087,14 @@ Before #459 both tools returned the raw `HttpError` string; they now return a me
 **Cleanup:** `delete_calendar(calendar_id="{OWNER_TEST_CAL}")`.
 
 **Result (2026-10-05) ❌ FAIL** (PR #912 round 1, Kit). The setup's `{OWNER_RULE_ID}` (the authenticated account's `user:<email>` rule) isn't the primary owner on a secondary calendar. Removing it, or `add_calendar_acl(role="reader")` for that email, returns Google's raw `403 cannotChangeOwnAcl` ("Cannot change your own access level."), which the PR doesn't map. Both checks pass against the calendar's own-id rule (`user:<calendar_id>`): each returns the mapped `cannotChangeOwnerAcl` message, and a later `list_calendar_acl` still shows that rule as `owner`. The invalid-rule-id check passes (raw `HttpError 400`). Cleanup done.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 2, Kit, against `9a85809` after a fresh reconnect). Every check passes against a fresh `QA-OwnerAcl` calendar, with exactly the strings documented:
+- Primary-owner rule: remove returns the `cannotChangeOwnerAcl` message, which names `delete_calendar`. Add returns the change message, without `delete_calendar`.
+- Account's own rule: both remove and add return the `cannotChangeOwnAcl` message.
+- A follow-up `list_calendar_acl` still shows both rules as `owner`.
+- An invalid rule id still passes through as raw `HttpError 400`.
+
+Cleanup done.
 
 ---
 
