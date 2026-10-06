@@ -1072,6 +1072,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 
 **Cleanup:** `delete_calendar(calendar_id="{OWNER_TEST_CAL}")`.
 
+**Result (2026-10-05) ❌ FAIL** (PR #912 round 1, Kit). The setup's `{OWNER_RULE_ID}` (the authenticated account's `user:<email>` rule) isn't the primary owner on a secondary calendar. Removing it, or `add_calendar_acl(role="reader")` for that email, returns Google's raw `403 cannotChangeOwnAcl` ("Cannot change your own access level."), which the PR doesn't map. Both checks pass against the calendar's own-id rule (`user:<calendar_id>`): each returns the mapped `cannotChangeOwnerAcl` message, and a later `list_calendar_acl` still shows that rule as `owner`. The invalid-rule-id check passes (raw `HttpError 400`). Cleanup done.
+
 ---
 
 ### TC-CAL80: `list_calendar_acl` returns a complete list with no partial marker on a normal calendar (issue #615)
@@ -1082,6 +1084,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - Call `list_calendar_acl(calendar_id="{CALENDAR_ID}")`
 - Returns the same rules as TC-CAL60 (each with `id`, `role`, `scope_type`, `scope_value`)
 - No entry has an `error` or `partial` key
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). The fixture calendar returned its 2 rules (its own-id owner rule and the account's owner rule), each with `id`/`role`/`scope_type`/`scope_value`, and no `error` or `partial` key.
 
 ---
 
@@ -1097,6 +1101,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `tests/test_calendar.py::TestListCalendarAcl::test_api_error_returns_error_list`: a first-page failure still returns plain `[{"error": ...}]`, with no `partial` key.
 - `tests/drive/test_files.py::TestListDrives::test_never_ending_page_token_is_bounded`: the same helper bounds `list_drives`.
 
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes.
+
 ---
 
 ### TC-CAL82: `get_event` shape unchanged after sharing `_shape_event` (issue #627)
@@ -1111,6 +1117,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `created` and `updated` are RFC 3339 timestamps, not `null`
 - `start`/`end`/`organizer`/`attendees` match the same event's entry in `list_events(calendar_id="{CALENDAR_ID}")` (fields both tools return)
 
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). `get_event` on the `QA Test Event` fixture returned exactly the 13 listed keys, with `created`/`updated` as RFC 3339 timestamps. `start`/`end`/`organizer`/`attendees` match its `list_events` entry.
+
 ---
 
 ### TC-CAL83: `_shape_event` null guards and collision guard (issue #627) (unit test)
@@ -1122,6 +1130,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `tests/test_calendar.py::TestShapeEvent::test_extra_key_colliding_with_a_shaped_field_raises`: an `extra` kwarg that collides with a shaped field raises `ValueError` instead of silently overwriting it.
 - `tests/test_calendar.py::TestGetEvent::test_null_organizer_does_not_crash` and `tests/test_calendar.py::TestCreateUpdateEventNullTimes`: `get_event`, `create_event`, and `update_event` all survive a `null` start or organizer.
 
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes.
+
 ---
 
 ### TC-CAL84: `list_all_events` fan-out cap is process-wide and configurable; calendar summaries match `find_free_slots` (issues #626, #726) (unit test)
@@ -1132,6 +1142,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `tests/test_calendar.py::TestListAllEvents::test_fan_out_cap_is_shared_across_concurrent_invocations`: two overlapping `list_all_events` calls never exceed one cap of in-flight `events().list()` calls in total. A per-call semaphore fails this test; that was confirmed with a mutation check before the PR was opened.
 - `tests/test_calendar.py::TestListAllEventsConcurrencyEnv`: `LIST_ALL_EVENTS_MAX_CONCURRENCY` defaults to 20, overrides the cap when set, and is floored at 1.
 - `tests/test_calendar.py::TestFindFreeSlots::test_empty_string_summary_matches_list_all_events`: a calendar whose `summary` is `""` reports `calendar_summary: ""` from both tools; only a calendar missing from the user's list falls back to its id.
+
+**Result (2026-10-05) ✅ PASS** (PR #912 round 1, Kit). Every named unit test passes. Live spot check: `list_all_events` and `find_free_slots` over the fixture calendar plus a nonexistent id both report `calendar_summary: "mcp-gee-sweet-qa"` for the real calendar and fall back to the bare id for the missing one.
 
 ---
 
