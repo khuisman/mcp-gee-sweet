@@ -560,7 +560,7 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 ### TC-GM47: An attachment without `mime_type` gets its type from the filename extension (issue #802) ⚠️ destructive
 
-**Background:** an attachment passed without `mime_type` used to go out as `application/octet-stream` whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, as `upload_local_file` does. A compressed file (`.gz`) gets the compression type, not the type of what's inside it.
+**Background:** an attachment passed without `mime_type` used to go out as `application/octet-stream` whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, using Python's built-in table only, so the result doesn't depend on the server host's own MIME database. A compressed file (`.gz`) gets the compression type, not the type of what's inside it. PR #928 round 2 added two rules. A guessed `message/*` type (`.eml`, `.mht`) falls back to `application/octet-stream`, since base64, which every attachment uses, is forbidden on `message/rfc822`. A guessed `text/*` type gets `charset=utf-8` when its bytes are valid UTF-8, and falls back to `application/octet-stream` when they aren't. `get_message` doesn't show the charset, so that part is unit-tested only (`TestBuildRawMessageAttachments`).
 
 **Action**
 1. `send_message` with `to: "{QA+tc-gm47}"`, `subject: "[mcp-qa:tc-gm47] attachment mime guess"`, `body: "mcp-gee-sweet TC-GM47"`, and `attachments` (none has `mime_type`):
@@ -568,14 +568,18 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
    - `{"content_base64": "aGVsbG8=", "filename": "gm47.csv.gz"}`
    - `{"content_base64": "aGVsbG8=", "filename": "gm47.zzzunknown"}`
    - `{"content_base64": "aGVsbG8=", "filename": "gm47.png", "mime_type": "text/plain"}` (explicit type wins)
+   - `{"content_base64": "RnJvbTogYUBleGFtcGxlLmNvbQ0KU3ViamVjdDogVEMtR000NyBpbm5lcg0KDQpoaQ0K", "filename": "gm47.eml"}` (a small RFC 822 message)
+   - `{"content_base64": "aMOpbGxvCg==", "filename": "gm47.txt"}` (UTF-8 `héllo`)
 2. `get_message` with the `id` from step 1
 
 **Checks**
-- Step 2: `attachments` has exactly 4 entries, with `mime_type` by filename:
+- Step 2: `attachments` has exactly 6 entries, with `mime_type` by filename:
   - `gm47.pdf` → `application/pdf`
   - `gm47.csv.gz` → `application/gzip`
   - `gm47.zzzunknown` → `application/octet-stream`
   - `gm47.png` → `text/plain`
+  - `gm47.eml` → `application/octet-stream` (not `message/rfc822`)
+  - `gm47.txt` → `text/plain`
 - No `error` field
 
 **Cleanup:** `trash_message` the step-1 `id`.

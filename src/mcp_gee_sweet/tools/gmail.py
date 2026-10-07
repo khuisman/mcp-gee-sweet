@@ -8,9 +8,12 @@ import functools
 import logging
 import mimetypes
 import re
+import time
 from dataclasses import dataclass, field
+from email import encoders, message_from_bytes
 from email.message import Message
-from email.mime.application import MIMEApplication
+from email.mime.base import MIMEBase
+from email.mime.message import MIMEMessage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr, getaddresses
@@ -52,6 +55,15 @@ _ALIASES_UNRESOLVED = (
     "Couldn't list this mailbox's send-as aliases, so only its primary address was "
     "left off the recipients."
 )
+_ALIASES_EMPTY = (
+    "Gmail listed no send-as addresses for this mailbox, so only its primary address "
+    "was left off the recipients."
+)
+
+# How long a resolved own-address set is reused. Send-as aliases can be added or
+# removed while the server runs (PR #928 QA), so the cache expires instead of
+# living for the whole connection; refresh_cache also clears it.
+_OWN_ADDRESSES_TTL_SECONDS = 600
 
 
 async def _own_addresses(lc: Any) -> tuple[set[str], str | None]:
@@ -60,15 +72,16 @@ async def _own_addresses(lc: Any) -> tuple[set[str], str | None]:
 
     Reads the send-as aliases (users.settings.sendAs.list, which includes the primary
     address), falling back to just the primary address (users.getProfile) if the
-    alias list can't be read. Empty, with a warning, if neither call succeeds. A
-    complete answer is cached on the connection's lifespan context, since the
-    mailbox can't change within a connection; an incomplete one is retried next
-    call.
+    alias list can't be read or lists nothing. Empty, with a warning, if neither
+    works. A complete answer is cached on the connection's lifespan context for
+    _OWN_ADDRESSES_TTL_SECONDS (cleared by refresh_cache); an incomplete one isn't
+    cached, so the next call retries.
     """
     cached = getattr(lc, "gmail_own_addresses", None)
-    if isinstance(cached, frozenset):
-        return set(cached), None
+    if isinstance(cached, tuple) and time.monotonic() - cached[1] < _OWN_ADDRESSES_TTL_SECONDS:
+        return set(cached[0]), None
     gmail_service = lc.gmail_service
+    alias_warning = _ALIASES_UNRESOLVED
     try:
         result = await execute_in_thread(
             gmail_service.users().settings().sendAs().list(userId=_USER).execute,
@@ -80,8 +93,10 @@ async def _own_addresses(lc: Any) -> tuple[set[str], str | None]:
             if isinstance(a.get("sendAsEmail"), str) and a["sendAsEmail"].strip()
         }
         if aliases:
-            lc.gmail_own_addresses = frozenset(aliases)
+            lc.gmail_own_addresses = (frozenset(aliases), time.monotonic())
             return aliases, None
+        logger.warning("users.settings.sendAs.list returned no send-as addresses")
+        alias_warning = _ALIASES_EMPTY
     except Exception:
         logger.warning("Could not list send-as aliases", exc_info=True)
     try:
@@ -94,7 +109,8 @@ async def _own_addresses(lc: Any) -> tuple[set[str], str | None]:
         return set(), _OWN_ADDRESSES_UNRESOLVED
     email = (profile or {}).get("emailAddress")
     if isinstance(email, str) and email.strip():
-        return {email.strip().lower()}, _ALIASES_UNRESOLVED
+        return {email.strip().lower()}, alias_warning
+    logger.warning("users.getProfile returned no emailAddress")
     return set(), _OWN_ADDRESSES_UNRESOLVED
 
 
@@ -562,19 +578,39 @@ _ENCODING_MIME_TYPES = {
     "br": "application/x-brotli",
 }
 
+# Python's built-in extension table only. A bare MimeTypes() builds its table from
+# the module's built-in defaults; what mimetypes.init() reads from /etc/mime.types,
+# Apache's files, or the Windows registry goes only into the module-level database,
+# so a guess doesn't depend on the host (PR #928 QA: a Windows host with Excel maps
+# .csv to application/vnd.ms-excel).
+_MIME_TYPES = mimetypes.MimeTypes()
+
+_OCTET_STREAM = "application/octet-stream"
+
 
 def _guess_attachment_mime_type(filename: str) -> str:
-    """The attachment's MIME type from its filename extension (#802), as
-    drive/transfer.py does for uploads; application/octet-stream if unknown."""
-    mime_type, encoding = mimetypes.guess_type(filename)
+    """The attachment's MIME type from its filename extension (#802), or
+    application/octet-stream when unknown.
+
+    A compressed file gets its compression type, not the type of what's inside it.
+    A guessed message/* or multipart/* type (.eml, .mht) also falls back to
+    application/octet-stream: those types forbid the base64 encoding every
+    attachment is sent with (RFC 2046 §5.2.1), and re-parsing the file into a real
+    message/rfc822 part could alter bytes the caller never asked to change (PR #928
+    QA).
+    """
+    mime_type, encoding = _MIME_TYPES.guess_type(filename)
     if encoding:
-        return _ENCODING_MIME_TYPES.get(encoding, "application/octet-stream")
-    return mime_type or "application/octet-stream"
+        return _ENCODING_MIME_TYPES.get(encoding, _OCTET_STREAM)
+    if not mime_type or mime_type.partition("/")[0] in ("message", "multipart"):
+        return _OCTET_STREAM
+    return mime_type
 
 
-def _read_attachment_bytes(att: dict[str, Any]) -> tuple[str, str, bytes]:
-    """Resolve an attachment dict to (filename, mime_type, raw bytes). Reads
-    local_path from disk, so it runs off the event loop (via _compose_raw)."""
+def _read_attachment_bytes(att: dict[str, Any]) -> tuple[str, str | None, bytes]:
+    """Resolve an attachment dict to (filename, explicit mime_type or None, raw
+    bytes). Reads local_path from disk, so it runs off the event loop (via
+    _compose_raw)."""
     if att.get("local_path"):
         path = Path(att["local_path"])
         filename = att.get("filename") or path.name
@@ -587,7 +623,60 @@ def _read_attachment_bytes(att: dict[str, Any]) -> tuple[str, str, bytes]:
             "Each attachment needs either local_path or content_base64 "
             "(plus optional filename and mime_type)."
         )
-    return filename, att.get("mime_type") or _guess_attachment_mime_type(filename), data
+    return filename, att.get("mime_type") or None, data
+
+
+def _attachment_part(filename: str, explicit_mime_type: str | None, raw: bytes) -> Message:
+    """Build one attachment's MIME part.
+
+    An explicit mime_type is used as given, parameters included (e.g.
+    "text/plain; charset=iso-8859-1"); otherwise the type is guessed from the
+    filename. A text/* part without a charset gets charset=utf-8 when its bytes are
+    valid UTF-8, since a text part with no charset reads as US-ASCII (RFC 2046
+    §4.1.2) and non-ASCII text would show as mojibake when previewed inline (PR #928
+    QA). A guessed text/* type whose bytes aren't UTF-8 is sent as
+    application/octet-stream instead, as before #802; an explicit one is left
+    alone. An explicit message/rfc822 is attached as a real message part; any other
+    explicit message/* or multipart/* type raises ValueError, since it can't be
+    sent base64-encoded.
+    """
+    params: list[tuple[str, str]] = []
+    if explicit_mime_type:
+        if explicit_mime_type.partition(";")[0].strip().count("/") != 1:
+            raise ValueError(
+                f"Attachment mime_type {explicit_mime_type!r} isn't a type/subtype "
+                "such as 'application/pdf'."
+            )
+        header = Message()
+        header["Content-Type"] = explicit_mime_type
+        content_type = header.get_content_type()
+        params = [(k, v) for k, v in (header.get_params() or [])[1:] if isinstance(v, str)]
+    else:
+        content_type = _guess_attachment_mime_type(filename)
+    maintype, _, subtype = content_type.partition("/")
+
+    if content_type == "message/rfc822":
+        part: Message = MIMEMessage(message_from_bytes(raw))
+    elif maintype in ("message", "multipart"):
+        raise ValueError(
+            f"Attachment mime_type {content_type!r} can't be sent as an attachment. "
+            "Omit mime_type, or use application/octet-stream."
+        )
+    else:
+        if maintype == "text" and not any(k.lower() == "charset" for k, _ in params):
+            try:
+                raw.decode("utf-8")
+                params.append(("charset", "utf-8"))
+            except UnicodeDecodeError:
+                if not explicit_mime_type:
+                    maintype, subtype = "application", "octet-stream"
+        part = MIMEBase(maintype, subtype)
+        for key, value in params:
+            part.set_param(key, value)
+        part.set_payload(raw)
+        encoders.encode_base64(part)
+    part.add_header("Content-Disposition", "attachment", filename=filename)
+    return part
 
 
 def _build_raw_message(
@@ -618,13 +707,7 @@ def _build_raw_message(
         else:
             root.attach(MIMEText(body, "plain", "utf-8"))
         for att in attachments or []:
-            filename, mime_type, raw = _read_attachment_bytes(att)
-            maintype, _, subtype = mime_type.partition("/")
-            part = MIMEApplication(raw, _subtype=subtype or "octet-stream")
-            if maintype and maintype != "application":
-                part.set_type(mime_type)
-            part.add_header("Content-Disposition", "attachment", filename=filename)
-            root.attach(part)
+            root.attach(_attachment_part(*_read_attachment_bytes(att)))
         msg = root
     elif use_alternative:
         msg = MIMEMultipart("alternative")
@@ -1132,9 +1215,10 @@ def register(tool):
         aliases, are left off the recipients unless nobody else is on the message.
 
         Returns:
-            Sent message id, thread_id, and label_ids, plus a warning when your own
-            addresses couldn't be looked up (so you may be among the recipients).
-            On failure, {"error": "..."}.
+            Sent message id, thread_id, and label_ids. A reply_all, or a reply to
+            your own sent message, also has a warning when your own addresses
+            couldn't be fully looked up (so you may be among the recipients). On
+            failure, {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
@@ -1170,12 +1254,13 @@ def register(tool):
         # The mailbox's own addresses are needed for plain replies too: to drop them
         # from the recipients, and to recognize its own message when it lacks SENT.
         own, own_warning = await _own_addresses(lc)
+        sent_label = "SENT" in (original.get("labelIds") or [])
         to, cc = _reply_recipients(
             original_from=original_from,
             original_reply_to=headers.get("reply-to", ""),
             original_to=original_to,
             original_cc=original_cc,
-            sent_label="SENT" in (original.get("labelIds") or []),
+            sent_label=sent_label,
             reply_all=reply_all,
             own=own,
         )
@@ -1208,7 +1293,11 @@ def register(tool):
 
         logger.debug("Replied to message %s with %s", message_id, sent.get("id"))
         out = _message_summary(sent)
-        if own_warning:
+        # Only warn when the own-address set decided the recipients: reply_all, or a
+        # reply to the mailbox's own (SENT) message. A plain reply to someone else's
+        # message goes to their Reply-To/From either way (PR #928 QA). Not covered: a
+        # message sent from an unlisted alias via another client, without SENT.
+        if own_warning and (reply_all or sent_label):
             out["warning"] = own_warning
         return out
 

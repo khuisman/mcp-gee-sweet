@@ -1740,6 +1740,101 @@ class TestBuildRawMessageAttachments:
 
         assert part.get_content_type() == expected
 
+    @pytest.mark.parametrize("filename", ["fwd.eml", "page.mht", "page.mhtml"])
+    def test_guessed_message_types_fall_back_to_octet_stream(self, filename):
+        # PR #928 QA: message/rfc822 forbids base64 (RFC 2046 §5.2.1), so a guessed
+        # one went out unreadable; the bytes must round-trip unchanged.
+        raw = b"From: a@example.com\r\nSubject: inner\r\n\r\nhi\r\n"
+        part = self._attachment(content_base64=base64.b64encode(raw).decode(), filename=filename)
+
+        assert part.get_content_type() == "application/octet-stream"
+        assert part.get_payload(decode=True) == raw
+
+    def test_explicit_message_rfc822_is_attached_as_message_part(self):
+        raw = b"From: a@example.com\r\nSubject: inner\r\n\r\nhi\r\n"
+        part = self._attachment(
+            content_base64=base64.b64encode(raw).decode(),
+            filename="fwd.eml",
+            mime_type="message/rfc822",
+        )
+
+        assert part.get_content_type() == "message/rfc822"
+        assert part["Content-Transfer-Encoding"] is None
+        [inner] = part.get_payload()
+        assert inner["Subject"] == "inner"
+
+    @pytest.mark.parametrize("mime_type", ["multipart/mixed", "message/partial"])
+    def test_explicit_other_message_or_multipart_type_raises(self, mime_type):
+        with pytest.raises(ValueError, match="can't be sent as an attachment"):
+            self._attachment(
+                content_base64=base64.b64encode(b"x").decode(), filename="a", mime_type=mime_type
+            )
+
+    @pytest.mark.parametrize("mime_type", ["pdf", "a/b/c", ""])
+    def test_malformed_explicit_type_raises_or_guesses(self, mime_type):
+        if not mime_type:
+            # Empty means "not given": guessed from the filename.
+            part = self._attachment(
+                content_base64=base64.b64encode(b"x").decode(),
+                filename="a.pdf",
+                mime_type=mime_type,
+            )
+            assert part.get_content_type() == "application/pdf"
+            return
+        with pytest.raises(ValueError, match="type/subtype"):
+            self._attachment(
+                content_base64=base64.b64encode(b"x").decode(), filename="a", mime_type=mime_type
+            )
+
+    def test_guessed_text_with_utf8_bytes_gets_utf8_charset(self):
+        # PR #928 QA: a text part with no charset reads as US-ASCII.
+        raw = "héllo ✓\n".encode()
+        part = self._attachment(content_base64=base64.b64encode(raw).decode(), filename="notes.txt")
+
+        assert part.get_content_type() == "text/plain"
+        assert part.get_content_charset() == "utf-8"
+        assert part.get_payload(decode=True) == raw
+
+    def test_guessed_text_with_non_utf8_bytes_is_octet_stream(self):
+        raw = "héllo".encode("latin-1")
+        part = self._attachment(content_base64=base64.b64encode(raw).decode(), filename="notes.txt")
+
+        assert part.get_content_type() == "application/octet-stream"
+        assert part.get_payload(decode=True) == raw
+
+    def test_explicit_text_charset_is_kept(self):
+        raw = "héllo".encode("latin-1")
+        part = self._attachment(
+            content_base64=base64.b64encode(raw).decode(),
+            filename="notes.txt",
+            mime_type="text/plain; charset=iso-8859-1",
+        )
+
+        assert part.get_content_type() == "text/plain"
+        assert part.get_content_charset() == "iso-8859-1"
+        assert part.get_payload(decode=True) == raw
+
+    def test_explicit_text_without_charset_and_non_utf8_bytes_is_left_alone(self):
+        raw = "héllo".encode("latin-1")
+        part = self._attachment(
+            content_base64=base64.b64encode(raw).decode(),
+            filename="notes.txt",
+            mime_type="text/plain",
+        )
+
+        assert part.get_content_type() == "text/plain"
+        assert part.get_content_charset() is None
+
+    def test_guess_ignores_host_mimetypes_database(self, monkeypatch):
+        # PR #928 QA: e.g. a Windows host with Excel maps .csv to vnd.ms-excel.
+        import mimetypes
+
+        monkeypatch.setattr(
+            mimetypes, "guess_type", lambda *a, **k: ("application/vnd.ms-excel", None)
+        )
+
+        assert gmail_module._guess_attachment_mime_type("data.csv") == "text/csv"
+
     def test_content_base64_without_filename_is_named_attachment(self):
         part = self._attachment(content_base64=base64.b64encode(b"x").decode())
 
@@ -1994,9 +2089,71 @@ class TestOwnAddressResolution:
         second = await gmail_module._own_addresses(lc)
 
         assert first == second == ({"me@example.com", "me@work.example"}, None)
-        assert lc.gmail_own_addresses == frozenset({"me@example.com", "me@work.example"})
+        assert lc.gmail_own_addresses[0] == frozenset({"me@example.com", "me@work.example"})
         send_as_list = gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list
         assert send_as_list.call_count == 1
+
+    async def test_cache_expires_after_ttl(self, monkeypatch):
+        # PR #928 QA: aliases can change mid-process, so the cache can't be forever.
+        gmail_svc = self._gmail(send_as=["me@example.com"])
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+        now = [1000.0]
+        monkeypatch.setattr(gmail_module.time, "monotonic", lambda: now[0])
+
+        await gmail_module._own_addresses(lc)
+        now[0] += gmail_module._OWN_ADDRESSES_TTL_SECONDS - 1
+        await gmail_module._own_addresses(lc)
+        send_as_list = gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list
+        assert send_as_list.call_count == 1
+
+        now[0] += 2
+        await gmail_module._own_addresses(lc)
+        assert send_as_list.call_count == 2
+
+    async def test_refresh_cache_clears_own_addresses(self):
+        from mcp_gee_sweet.tools import cache as cache_tools
+
+        cache_tool, cache_registry = _make_tool_registry()
+        cache_tools.register(cache_tool)
+        ctx = _make_ctx(gmail_own_addresses=(frozenset({"me@example.com"}), 0.0))
+
+        await cache_registry["refresh_cache"](ctx=ctx)
+
+        assert ctx.request_context.lifespan_context.gmail_own_addresses is None
+
+    async def test_empty_send_as_list_logs_and_warns_accurately(self, caplog):
+        # PR #928 QA: a successful but empty sendAs.list isn't "couldn't list".
+        gmail_svc = self._gmail(send_as=[], profile="me@example.com")
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        with caplog.at_level("WARNING", logger=gmail_module.logger.name):
+            own, warning = await gmail_module._own_addresses(lc)
+
+        assert own == {"me@example.com"}
+        assert warning == gmail_module._ALIASES_EMPTY
+        assert any("no send-as addresses" in r.getMessage() for r in caplog.records)
+
+    async def test_plain_reply_to_someone_else_omits_warning(self):
+        # PR #928 QA: the recipient is their From either way, so a warning misleads.
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile_error=Exception("boom"))
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["id"] == "r1"
+        assert "warning" not in result
+
+    async def test_plain_reply_to_own_sent_message_keeps_warning(self):
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile_error=Exception("boom"))
+        get_exec = gmail_svc.users.return_value.messages.return_value.get.return_value.execute
+        get_exec.return_value = {**get_exec.return_value, "labelIds": ["SENT"]}
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["warning"] == gmail_module._OWN_ADDRESSES_UNRESOLVED
 
     async def test_cache_is_per_context(self):
         # Under SSE each connection has its own lifespan context (CLAUDE.md).
