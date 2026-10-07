@@ -166,6 +166,11 @@ class TestAuthStatusResource:
         assert "create_spreadsheet" in quota["tools"]
         assert "transfer_ownership" not in quota["tools"]
         assert "storage quota" in quota["reason"].lower()
+        # sync_folder is listed by exact name, with its direction caveat in the
+        # reason text (#516); guard the caveat against a reword dropping it (#526).
+        assert "sync_folder" in quota["tools"]
+        assert "sync_folder" in quota["reason"]
+        assert "upload and bidirectional" in quota["reason"]
         assert quota["alternatives"] is not None
 
     def test_service_account_transfer_ownership_limitation(self):
