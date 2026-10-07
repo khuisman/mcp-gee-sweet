@@ -1,7 +1,10 @@
 """Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
 
+import bz2
+import gzip
 import io
 import json
+import lzma
 import os
 import threading
 import time
@@ -13,6 +16,7 @@ import openpyxl
 import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.tools import mime_types as mime_types_module
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import (
@@ -20,6 +24,7 @@ from mcp_gee_sweet.tools.drive.transfer import (
     _upload_local_file,
     _xlsx_range_values,
 )
+from mcp_gee_sweet.tools.mime_types import guess_mime_type
 
 
 def _make_tool_registry():
@@ -106,6 +111,68 @@ class TestUploadFile:
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
+
+
+class TestCompressedUploadMimeType:
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("report.csv", "text/csv"),
+            ("report.unknown-extension", "application/octet-stream"),
+            ("report.tar.gz", "application/gzip"),
+            ("report.csv.Z", "application/x-compress"),
+            ("report.csv.br", "application/x-brotli"),
+        ],
+    )
+    def test_uncompressed_unknown_and_alias_names(self, filename, expected):
+        assert guess_mime_type(filename) == expected
+
+    def test_unknown_encoding_does_not_report_inner_type(self, monkeypatch):
+        monkeypatch.setattr(
+            mime_types_module.mimetypes, "guess_type", lambda _: ("text/csv", "unknown")
+        )
+        assert guess_mime_type("report.csv.encoded") == "application/octet-stream"
+
+    @pytest.mark.parametrize(
+        "tool_name", ["upload_local_file", "upload_local_folder", "sync_folder"]
+    )
+    @pytest.mark.parametrize(
+        ("extension", "compress", "mime_type"),
+        [
+            ("gz", gzip.compress, "application/gzip"),
+            ("bz2", bz2.compress, "application/x-bzip2"),
+            ("xz", lzma.compress, "application/x-xz"),
+        ],
+    )
+    async def test_compressed_bytes_keep_outer_mime_type(
+        self, tmp_path, tool_name, extension, compress, mime_type
+    ):
+        local_file = tmp_path / f"report.csv.{extension}"
+        payload = compress(b"item,value\n1,2\n")
+        local_file.write_bytes(payload)
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "compressed-file",
+            "name": local_file.name,
+        }
+        ctx = _make_ctx(drive_service=svc, drive_folder_cache=MagicMock())
+        ctx.report_progress = AsyncMock()
+        if tool_name == "sync_folder":
+            result = await _transfer_tools[tool_name](
+                folder_id="root", local_path=str(tmp_path), direction="upload", ctx=ctx
+            )
+        else:
+            result = await _transfer_tools[tool_name](
+                local_path=str(local_file if tool_name == "upload_local_file" else tmp_path),
+                parent_folder_id="root",
+                ctx=ctx,
+            )
+        assert "error" not in result
+        assert not result.get("failed")
+        media = svc.files.return_value.create.call_args.kwargs["media_body"]
+        assert media.mimetype() == mime_type
+        assert media.getbytes(0, len(payload)) == payload
 
 
 class TestShouldSkipExistingUpload:
