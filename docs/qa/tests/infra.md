@@ -792,7 +792,7 @@ Then call `list_spreadsheets` with `max_results: 1`, and read `server://auth-sta
 
 **Checks**
 - `initialize` completes within a few seconds, with no browser window and no `Please visit` text (the stdio stream stays valid JSON-RPC)
-- `list_spreadsheets` returns an error result whose text says there's no usable OAuth token at `<nonexistent path>`, and tells you to run `mcp-gee-sweet auth` (and `uvx mcp-gee-sweet auth` for a PyPI install) with the same `TOKEN_PATH`/`CREDENTIALS_PATH`/`ENABLED_TOOLS`, then restart
+- `list_spreadsheets` returns an error result whose text says there's no usable OAuth token at `<nonexistent path>`. Since #873 (a client with no elicitation callback, as here) the text then gives a `https://accounts.google.com/...` consent link, and the alternative of running `mcp-gee-sweet auth` (and `uvx mcp-gee-sweet auth` for a PyPI install) with the same `TOKEN_PATH`/`CREDENTIALS_PATH`/`ENABLED_TOOLS`, then retrying the call. It no longer says to restart.
 - `auth-status` reports `auth_method: "none"`, `limited_tools: ["*"]`, and one `oauth_not_authorized` limitation
 - `<tmp log>` has a `WARNING ... Starting without Google access:` line and a `"TOOL list_spreadsheets" 401` access line
 - `<nonexistent path>` still does not exist
@@ -1094,7 +1094,7 @@ ENABLED_TOOLS=get_storage_quota
 Call `get_storage_quota` with no arguments.
 
 **Checks**
-- The result has `is_error: true`, and its text is `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>' ...`, followed by the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` instructions naming the same `TOKEN_PATH` and `CREDENTIALS_PATH`
+- The result has `is_error: true`, and its text is `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>' ...`, followed by the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` instructions naming the same `TOKEN_PATH` and `CREDENTIALS_PATH`. Since #873 a consent link comes before those instructions (see TC-I48–TC-I52); this case only checks that the text reaches the client.
 - The text is not only `Error executing tool get_storage_quota`
 
 **Cleanup:** delete the scratch files.
@@ -1158,3 +1158,111 @@ uvicorn 0.47.0, run through `uv run` (so the parent's exit code is uv's 143 afte
 
 **Result (2026-10-05, PR #911 round 2 @ 1f138a5, Sky) ✅ PASS**
 Same drivers as round 1. Steps 2–3 (three plain runs plus one `--reload`): each log has `Dropping a second response on /sse during shutdown (#868)` and none of the three error strings. The server exits 0.2–0.6s after SIGTERM, every SSE response reads to a clean EOF, and the ports are free. The drop line and uvicorn's `Shutting down` were logged in either order across these runs, so I changed step 4's check from an ordering check to an absence check. Step 4: `initialize` and `list_tools` (139 tools) succeed, and the log has no `Dropping` line and no ASGI error. So after an ordinary client disconnect, the late `Response()` now reaches uvicorn, which ignores it without error. Plain `--transport sse` now launches via `anyio.run(uvicorn.Server(config).serve)` and behaves the same as `--reload`.
+
+---
+
+### TC-I48: a token revoked mid-session offers the consent link from tools that catch the error and from tools that raise it (issue #873/#906) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** most tools catch a `RefreshError` in their own `except Exception` and return `{"error": ...}`, so #905's re-authorize hint in `_timed` never reached them (#906). `thread_http`'s transport now records a rejected refresh on the call, and `_timed` replaces the tool's result with the re-authorization offer. A client with no URL-elicitation support gets the link in the `ToolError` text. The text uses the error's `args[0]`, not the `RefreshError` tuple's repr.
+
+**Setup**
+- A real OAuth client JSON (`CREDENTIALS_PATH`) and a working `token.json` for it.
+- A scratch copy of that token (mode `0600`) with `token` set to `ya29.invalid`, `refresh_token` set to `1//invalid`, and `expiry` one hour in the future. Startup then accepts the token without refreshing, and the first API call gets a 401, refreshes, and Google answers `invalid_grant`.
+- Run `refresh_cache` first, or use IDs not in the shared `/tmp/mcp_gee_sweet.db` cache: a cache hit makes no API call, so no refresh happens.
+
+**Action**
+Run the server under the `mcp` SDK's `stdio_client` + `ClientSession`, with **no** `elicitation_callback`, and with `DEBUG_LEVEL=INFO`, `LOG_FILE=<tmp log>`:
+
+```
+AUTH_METHOD=oauth
+TOKEN_PATH=<scratch token>
+CREDENTIALS_PATH=<oauth client json>
+OAUTH_CONSENT_TIMEOUT_SECONDS=120
+BROWSER=/usr/bin/false
+```
+
+1. Call `list_files` with `folder_id: "root"`, `max_results: 1` (catches the error itself)
+2. Call `list_sheets` with any real spreadsheet ID (lets the error propagate)
+
+**Checks**
+- 1 and 2: an error result whose text starts `Error executing tool <name>: Google rejected the OAuth token refresh: invalid_grant: ...`, then `To re-authorize, open this link in a browser and approve access within 120s, then retry the call: https://accounts.google.com/o/oauth2/auth?...`, then the `mcp-gee-sweet auth` alternative naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`
+- Neither text contains `{'error'` (the tuple repr) or `List files failed`
+- Both calls give the *same* link. Its `redirect_uri` is `http://localhost:<port>/`, and a TCP connect to that port succeeds (one listener, still open)
+- No browser opened, and no `Please visit this URL` line in stderr or the log
+- `<tmp log>` has `"TOOL list_files" 401` and `"TOOL list_sheets" 401`
+
+**Cleanup:** delete the scratch token and log.
+
+---
+
+### TC-I49: a client with URL elicitation gets a `-32042` error carrying the consent link (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** a client that declares `elicitation.url` gets `UrlElicitationRequiredError`, a JSON-RPC protocol error, not a tool result. The client shows the link and asks the user before opening it. Claude Code declares this capability (2.1.291).
+
+**Setup:** as TC-I48.
+
+**Action:** as TC-I48, but pass an `elicitation_callback` to `ClientSession`, which makes the SDK declare `elicitation: {form, url}`. Catch the `MCPError` each call raises.
+
+**Checks**
+- 1 and 2: the error's code is `-32042`. `UrlElicitationRequiredError.from_error(e.error).elicitations` has one entry, whose `url` is a `https://accounts.google.com/o/oauth2/auth?...` link and whose `message` starts `Google rejected the OAuth token refresh: invalid_grant: ...` and says to open the page and retry
+- Both calls carry the same `elicitation_id` and the same `url`
+- `<tmp log>` has `"TOOL list_files" 401` and `"TOOL list_sheets" 401`
+
+**Cleanup:** delete the scratch token and log.
+
+---
+
+### TC-I50: after `mcp-gee-sweet auth` (or any new token in `TOKEN_PATH`), the next call recovers without a restart (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** before #873, the CLI needed a server restart or reconnect afterwards. A failing call now re-reads `TOKEN_PATH` first, and adopts a usable token whose refresh token differs from the failing one.
+
+**Setup:** as TC-I48, plus a second scratch path that doesn't exist yet.
+
+**Action**
+1. Start the TC-I48 client with `TOKEN_PATH=<nonexistent second path>` (a degraded start). Call `list_files` (`folder_id: "root"`, `max_results: 1`): expect the consent-link error. Without stopping the server, copy the working `token.json` to `<second path>`. Call `list_files` and `list_sheets` again
+2. Start a fresh client with `TOKEN_PATH=<scratch token>` (revoked, as in TC-I48). Call `list_sheets`: expect the consent-link error. Copy the working `token.json` over `<scratch token>`. Call `list_sheets` twice more
+
+**Checks**
+- 1: after the copy, both calls succeed. The log has `INFO mcp_gee_sweet.auth OAuth credentials reloaded; this connection is authorized again` once, and `200` access lines
+- 2: the first call after the copy returns an error ending `The server has since loaded a newer OAuth token; retry the call.` (a mid-session failure doesn't re-run the tool), and the next call succeeds with `200`
+- Neither server was restarted
+
+**Cleanup:** delete the scratch tokens and logs.
+
+---
+
+### TC-I51: completing the offered consent in a browser saves the token and the retried call succeeds (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** the end-to-end path the issue asks for: the user opens the offered link, approves, and the callback saves the token. The token is written `0600`, and every connection adopts it on its next call. Needs a browser on the server's machine, signed in to the Google account (by hand, or Playwright under the `docs/qa/run.md` mutex).
+
+**Setup:** as TC-I48, with `OAUTH_CONSENT_TIMEOUT_SECONDS=300`.
+
+**Action**
+1. As TC-I48 step 1: get the consent link from `list_files`
+2. Open the link in the browser and approve every requested scope. The callback page reads `The authentication flow has completed. You may close this window.`
+3. Call `list_files` again, then `list_sheets`
+
+**Checks**
+- 3: both calls succeed
+- `<scratch token>` now has a different `refresh_token` from the bogus one and is mode `0600` (`stat -f %Lp` prints `600`)
+- The callback port from the link is closed after step 2
+- The server opened no browser itself at any point
+
+**Cleanup:** revoke the new grant at https://myaccount.google.com/permissions if it was made for a scratch account, and delete the scratch token and log.
+
+---
+
+### TC-I52: in Claude Code, a revoked token shows the consent prompt instead of an error (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** the client-side half of TC-I49, in the client the team uses. Needs an interactive Claude Code session (`claude -p` cancels URL elicitation on its own).
+
+**Setup:** register a stdio server in a scratch MCP config, using the TC-I48 scratch token and env, and start an interactive `claude --mcp-config <scratch config> --strict-mcp-config`.
+
+**Action:** ask Claude to call that server's `list_files` with `folder_id: "root"`, `max_results: 1`. When the URL prompt appears, accept it, approve the consent in the browser that opens, then ask Claude to retry the call.
+
+**Checks**
+- Claude Code shows a prompt with the `accounts.google.com` link and the elicitation message, before anything opens
+- After the consent, the retried call returns the file listing
+- Record whether Claude Code retried by itself after `notifications/elicitation/complete` or needed the explicit retry. Either is a pass; the behavior is the client's.
+
+**Cleanup:** delete the scratch config, token, and log.

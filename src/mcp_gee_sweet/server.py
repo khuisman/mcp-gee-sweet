@@ -76,10 +76,12 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
 from google.auth.exceptions import GoogleAuthError, RefreshError  # noqa: E402
 from googleapiclient.errors import Error as GoogleApiClientError  # noqa: E402
 from httplib2 import HttpLib2Error  # noqa: E402
+from mcp import UrlElicitationRequiredError  # noqa: E402
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
+from . import reauth  # noqa: E402
 from .auth import (  # noqa: E402
     MissingOAuthScopesError,
     execute_in_thread,
@@ -92,6 +94,7 @@ from .auth import (  # noqa: E402
     set_raise_auth_failures,
     spreadsheet_lifespan,
 )
+from .http_transport import track_refresh_failures  # noqa: E402
 from .sse_shutdown import SingleResponseGuard  # noqa: E402
 
 
@@ -199,22 +202,50 @@ def _client_visible(
     return error_cls(message), status
 
 
+async def _run_tracking_reauth(func, args, kwargs):
+    """Run the tool body, re-authorizing OAuth from this call when it needs it (#873).
+
+    A token refresh Google rejects is recorded by the HTTP transport as it happens, so
+    it's acted on even when the tool caught it and returned `{"error": ...}`, as most
+    tools do: the result is discarded in favor of the re-authorization offer."""
+    ctx = kwargs.get("ctx")
+    with track_refresh_failures() as call:
+        # Adopts a newer token, or on a connection degraded because OAuth needed
+        # consent, offers re-authorization (raises) instead of running the tool.
+        await reauth.before_call(ctx)
+        # Degraded start (#811) with nothing to offer: no Google services, so no
+        # tool can run. Raised rather than returned so it works whatever the
+        # tool's return type, and as a ToolError so mcp shows the client its text.
+        if unauthorized := _unauthorized_message(ctx):
+            raise reauth.ReauthorizationRequired(unauthorized)
+        try:
+            result = await func(*args, **kwargs)
+        except Exception:
+            if call.refresh_error is None:
+                raise
+            await reauth.after_refresh_failure(ctx, call.refresh_error)
+            raise
+        if call.refresh_error is not None:
+            await reauth.after_refresh_failure(ctx, call.refresh_error)
+        return result
+
+
 def _timed(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            # Degraded start (#811): this connection has no Google services, so no
-            # tool can run. Raised rather than returned so it works whatever the
-            # tool's return type, and as a ToolError so mcp shows the client its text.
-            if unauthorized := _unauthorized_message(kwargs.get("ctx")):
-                status = 401
-                raise ToolError(unauthorized)
-            return await func(*args, **kwargs)
+            return await _run_tracking_reauth(func, args, kwargs)
+        except UrlElicitationRequiredError:
+            # A protocol error, not a tool result: mcp sends it as-is (#873).
+            status = 401
+            raise
+        except reauth.ReauthorizationRequired:
+            status = 401
+            raise
         except ToolError:
-            if status == 200:
-                status = 500
+            status = 500
             raise
         except Exception as e:
             status = 500
@@ -414,7 +445,9 @@ def _auth_status_json(
                         "category": "oauth_not_authorized",
                         "tools": ["*"],
                         "reason": oauth_unauthorized,
-                        "alternatives": reauthorize_instructions(),
+                        # #873: the first tool call offers the consent URL itself.
+                        "alternatives": "Call any tool to get a Google re-authorization "
+                        f"link. {reauthorize_instructions()}",
                     }
                 ],
             },
