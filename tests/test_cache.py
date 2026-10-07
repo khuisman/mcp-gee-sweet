@@ -19,6 +19,8 @@ from mcp_gee_sweet.cache import (
 )
 from mcp_gee_sweet.tools.sheets.helpers import _get_sheet_id
 
+from .fakes import FakeSheetsService
+
 # All tests use an in-memory SQLite database.
 DB = ":memory:"
 
@@ -458,24 +460,10 @@ class TestCalendarCacheSetTtl:
         assert cache.get_ttl() == 5
 
 
-class _FakeSheetsService:
-    """Returns a spreadsheet with a single sheet named 'New', id 1."""
-
-    _http = SimpleNamespace(credentials=None)
-
-    class _Spreadsheets:
-        class _Request:
-            def execute(self, **kwargs):
-                return {
-                    "properties": {"title": "New Title"},
-                    "sheets": [{"properties": {"title": "New", "sheetId": 1}}],
-                }
-
-        def get(self, spreadsheetId, fields):
-            return self._Request()
-
-    def spreadsheets(self):
-        return self._Spreadsheets()
+_NEW_SHEET = {
+    "properties": {"title": "New Title"},
+    "sheets": [{"properties": {"title": "New", "sheetId": 1}}],
+}
 
 
 class _FakeDriveService:
@@ -500,7 +488,9 @@ class TestFetchSheetsModifiedTimeValidation:
         cache = SheetStructureCache(db_path=DB, ttl=1000)
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
-        result = await fetch_sheets(_FakeSheetsService(), "sid", cache, _FakeDriveService())
+        result = await fetch_sheets(
+            FakeSheetsService(result=_NEW_SHEET), "sid", cache, _FakeDriveService()
+        )
 
         assert len(result) == 1
         assert result[0].title == "New"
@@ -510,8 +500,8 @@ class TestFetchSheetsModifiedTimeValidation:
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
         # No drive_service passed → no modifiedTime check → TTL-valid cache hit,
-        # even though _FakeSheetsService would return a different sheet.
-        result = await fetch_sheets(_FakeSheetsService(), "sid", cache)
+        # even though the Sheets fake would return a different sheet.
+        result = await fetch_sheets(FakeSheetsService(result=_NEW_SHEET), "sid", cache)
 
         assert result[0].title == "Old"
 
@@ -533,7 +523,7 @@ class TestGetSheetIdModifiedTimePropagation:
         cache.mark_dirty("sid")  # force the next lookup to be a genuine miss
 
         sheet_id = await _get_sheet_id(
-            _FakeSheetsService(), "sid", "New", cache, _FakeDriveService()
+            FakeSheetsService(result=_NEW_SHEET), "sid", "New", cache, _FakeDriveService()
         )
 
         assert sheet_id == 1

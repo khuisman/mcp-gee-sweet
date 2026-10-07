@@ -34,6 +34,14 @@ _drive_tool, _drive_tools = _make_tool_registry()
 drive_files_module.register(_drive_tool)
 
 
+def _assert_error_list(result, underlying: str) -> None:
+    """The "error dict, not raised" contract: one {"error": ...} item carrying the
+    underlying exception's text. Doesn't pin the message's prefix wording (#574)."""
+    assert len(result) == 1
+    assert set(result[0]) == {"error"}
+    assert underlying in result[0]["error"]
+
+
 class TestSearchSpreadsheets:
     """Bug: single quotes in query were interpolated raw into the Drive query string."""
 
@@ -77,7 +85,7 @@ class TestSearchSpreadsheets:
         )
         ctx = _make_ctx(drive_service=drive_svc)
         result = await _drive_tools["search_spreadsheets"](query="budget 2024", ctx=ctx)
-        assert result == [{"error": "Search failed: simulated API failure"}]
+        _assert_error_list(result, "simulated API failure")
 
     async def test_requests_starred_field(self):
         """#388: search_spreadsheets shares search_files' starred exposure."""
@@ -184,7 +192,7 @@ class TestSearchFiles:
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
-        assert result == [{"error": "Search failed: simulated API failure"}]
+        _assert_error_list(result, "simulated API failure")
 
 
 class TestFileMutations:
@@ -721,7 +729,7 @@ class TestListSharedWithMe:
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["list_shared_with_me"](ctx=ctx)
-        assert result == [{"error": "List shared with me failed: simulated API failure"}]
+        _assert_error_list(result, "simulated API failure")
 
     async def test_max_results_capped_at_200(self):
         svc = self._drive_service()
@@ -806,7 +814,7 @@ class TestListRecentFiles:
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["list_recent_files"](ctx=ctx)
-        assert result == [{"error": "List recent files failed: simulated API failure"}]
+        _assert_error_list(result, "simulated API failure")
 
 
 class TestListFiles:
@@ -920,7 +928,7 @@ class TestListFiles:
         )
         ctx = self._ctx(svc)
         result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
-        assert result == [{"error": "List files failed: simulated API failure"}]
+        _assert_error_list(result, "simulated API failure")
 
     async def test_requests_next_page_token(self):
         """#698: nextPageToken's absence is what marks a listing exhaustive."""
