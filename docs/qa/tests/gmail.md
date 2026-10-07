@@ -63,6 +63,8 @@ The 7 `page-N` fixtures share the subject prefix `[mcp-qa:page]`, and each is it
 - Step 6: all 7 messages, no `next_page_token`, no `error` (clamped down to 500)
 - Don't check `result_size_estimate`. It's Gmail's estimate, not a count: live 2026-09-26, step 1 reported `201` for this 7-message query.
 
+**Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, #795's shared `_list_kwargs`/`_list_page`)**: via `mcp-gee-sweet-kit`. `list_messages` and `list_threads` both paged 3/3/1 with `next_page_token` on the first two pages only, and the 7 IDs were distinct. Thread items carry `id`, `snippet`, and `history_id`. `max_results: 0` returned exactly 1 message, and `9999` returned all 7 with no token.
+
 ---
 
 ### TC-GM35: Spam and trash are excluded unless asked for
@@ -522,6 +524,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` the step-1 `id`; delete `/tmp/mcp-qa-tc-gm38.csv`.
 
+**Result (2026-10-06, PR #928 round 1) ✅ PASS**: via `mcp-gee-sweet-kit`. Both bodies matched. There were 2 attachments: `mcp-qa-tc-gm38.csv` (`text/csv`, 18 bytes, read through `_compose_raw`'s off-loop thread) and `note.txt`, whose `mime_type` was `text/plain`, guessed. The message was trashed and the local file deleted.
+
 ---
 
 ### TC-GM39: `cc` and `bcc` as lists ⚠️ destructive
@@ -576,6 +580,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` the step-1 `id`.
 
+**Result (2026-10-06, PR #928 round 1) ✅ PASS (as written), with send-back findings out of scope for this case**: via `mcp-gee-sweet-kit`. The 4 attachments came back as `gm47.pdf` → `application/pdf`, `gm47.csv.gz` → `application/gzip`, `gm47.zzzunknown` → `application/octet-stream`, and `gm47.png` → `text/plain` (explicit wins), with no `error`. A probe in the same round showed two regressions the case's extensions don't reach. `fwd.eml` with no `mime_type` was guessed as `message/rfc822` but still built as a base64 `MIMEApplication`, which RFC 2046 §5.2.1 forbids. Python's parser decodes that payload to `None`. A UTF-8 `notes.txt` (`héllo`) was guessed as `text/plain` with no `charset`, so per RFC 2046 it reads as US-ASCII. Gmail accepted both. The part headers were confirmed by running the branch's `_build_raw_message` locally. Both messages were trashed.
+
 ---
 
 ## `create_draft`
@@ -602,6 +608,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Checks**
 - Returns `{"error": "..."}` that mentions `local_path` and `content_base64`, and no draft `id`
 
+**Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, error now raised inside `_compose_raw`'s thread)**: returned `{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}`, with no draft `id`.
+
 ---
 
 ### TC-GM41: Draft with HTML and an attachment survives `send_draft` ⚠️ destructive
@@ -619,6 +627,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 - Step 4: the attachment's `filename`, `mime_type`, and `size` equal step 2's
 
 **Cleanup:** `trash_message` the step-3 `id`.
+
+**Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, `create_draft`/`send_draft` via `_compose_raw` and `_message_summary`)**: step 2 had one attachment, `gm41.txt` (`text/plain`, 18 bytes), and `label_ids` `DRAFT`. `send_draft` returned `id`, `thread_id`, and `label_ids` (`SENT`, no `DRAFT`). Step 4's bodies and attachment `filename`/`mime_type`/`size` equal step 2's. Trashed.
 
 ---
 
@@ -670,6 +680,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 - Step 4: `headers.to` is `{QA+tc-gm17}` (a reply to your own sent message goes to its original `To`, per TC-GM24)
 
 **Cleanup:** `trash_message` `{GM17_ORIG}` and the step-3 `id`.
+
+**Result (2026-10-06, PR #928 round 1) ✅ PASS**: via `mcp-gee-sweet-kit`. Step 3's `thread_id` equals the original's, and there was no `warning` field. Step 4: `in_reply_to` and `references` are both the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original` (one `Re: `), and `to` is the `+tc-gm17` address. Both messages were trashed.
 
 ---
 
@@ -834,6 +846,8 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 - No `error` field in any response
 
 **Cleanup:** if step 1 showed `UNREAD`, add it back with `modify_labels` so the fixture ends as it started.
+
+**Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, `modify_labels` message branch via `_message_summary`)**: the message branch returned `id`, `thread_id`, and `label_ids`. `UNREAD` was added, then removed. On the thread, `STARRED` was added to every message, then removed from every message. There was no `error` in any response. The fixture started `UNREAD`, and `UNREAD` was restored.
 
 ---
 
