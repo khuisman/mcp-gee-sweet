@@ -214,6 +214,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] auth: under `--transport sse`, the OAuth consent wait runs synchronously on the event loop, stalling every other session and ignoring SIGTERM until consent or timeout. #811 follow-up, found in PR #828 ([#833](https://github.com/khuisman/mcp-gee-sweet/issues/833)) (PR #867)
 - [x] Tool errors are opaque on PyPI installs: `mcp` 2.3 (what `uvx` resolves; the lock pins 2.0.0) hides any non-`ToolError` exception text, so #811's "run `mcp-gee-sweet auth`" message and uncaught Google API errors reach the client as a bare `Error executing tool <name>`. Observed live. Urgent: lane-a, next after #844 ([#872](https://github.com/khuisman/mcp-gee-sweet/issues/872)) (PR #905)
 - [ ] auth: offer OAuth re-authorization from the failing tool call, via URL-mode elicitation with the consent URL in a `ToolError` as fallback, then rebuild services in place. Covers a refresh token revoked mid-session too. No unprompted browser. Lane-a, after #872 ([#873](https://github.com/khuisman/mcp-gee-sweet/issues/873))
+- [ ] sheets: an A1 range with a dangling colon (`A1:`, `A:`, `5:`, `:5`, `:B`, `:B5`) passes `_parse_a1_notation` and widens through `_grid_range` to the whole sheet or a bigger rectangle. Hits every `_grid_range_or_error` tool; for `sort_range`/`merge_cells` it changes data. Found reviewing community PR #922, which rejects only a bare `":"`. Start after #922 merges (same lines) ([#926](https://github.com/khuisman/mcp-gee-sweet/issues/926))
 
 **Sheets hardening** _(triaged out of `backlog` 2026-09-11 — see the "Backlog triage" note below)_
 - [x] `update_sheet_properties`/dimension-tool hardening + dedup follow-ups from PR #321's review ([#323](https://github.com/khuisman/mcp-gee-sweet/issues/323)) (PR #734)
@@ -272,7 +273,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 **Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
 
 **Testing** _(triaged out of `backlog` 2026-09-11)_
-- [ ] **Bundle:** test-suite tightening, one PR closing [#392](https://github.com/khuisman/mcp-gee-sweet/issues/392), [#526](https://github.com/khuisman/mcp-gee-sweet/issues/526), [#551](https://github.com/khuisman/mcp-gee-sweet/issues/551), [#561](https://github.com/khuisman/mcp-gee-sweet/issues/561), [#574](https://github.com/khuisman/mcp-gee-sweet/issues/574) — lane B ([#891](https://github.com/khuisman/mcp-gee-sweet/issues/891))
+- [x] **Bundle:** test-suite tightening, one PR closing [#392](https://github.com/khuisman/mcp-gee-sweet/issues/392), [#526](https://github.com/khuisman/mcp-gee-sweet/issues/526), [#551](https://github.com/khuisman/mcp-gee-sweet/issues/551), [#561](https://github.com/khuisman/mcp-gee-sweet/issues/561), [#574](https://github.com/khuisman/mcp-gee-sweet/issues/574) — lane B (PR #924) ([#891](https://github.com/khuisman/mcp-gee-sweet/issues/891))
 - [ ] `qa`: `search_files` has no unit test coverage for the error-dict path ([#573](https://github.com/khuisman/mcp-gee-sweet/issues/573))
 
 **Infrastructure**

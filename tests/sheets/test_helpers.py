@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from mcp_gee_sweet.cache import SheetInfo, SheetStructureCache
@@ -10,6 +8,8 @@ from mcp_gee_sweet.tools.sheets.helpers import (
     _letter_to_column_index,
     _parse_a1_notation,
 )
+
+from ..fakes import FakeSheetsService
 
 
 class TestColumnIndexToLetter:
@@ -138,31 +138,6 @@ class TestParseA1Notation:
             _parse_a1_notation("B1:A1")
 
 
-class _FakeSheetsService:
-    """A minimal spreadsheets().get(...).execute() stand-in. Give it either
-    `result` (returned by every execute() call) or `exception` (raised
-    instead) — covers the transient-failure, genuine-not-found, and
-    real-match fixture shapes that used to be three separate, near-identical
-    hand-rolled classes (PR #754 review)."""
-
-    _http = SimpleNamespace(credentials=None)
-
-    def __init__(self, *, result: dict | None = None, exception: Exception | None = None):
-        self._result = result
-        self._exception = exception
-
-    def spreadsheets(self):
-        return self
-
-    def get(self, spreadsheetId, fields):
-        return self
-
-    def execute(self, **kwargs):
-        if self._exception is not None:
-            raise self._exception
-        return self._result
-
-
 _ONE_OTHER_SHEET = {"sheets": [{"properties": {"title": "Other", "sheetId": 0}}]}
 _TWO_SHEETS = {
     "sheets": [
@@ -172,21 +147,21 @@ _TWO_SHEETS = {
 }
 
 
-def _raising_service() -> _FakeSheetsService:
+def _raising_service() -> FakeSheetsService:
     """Simulates a transient API failure (rate limit, timeout, auth hiccup)."""
-    return _FakeSheetsService(exception=TimeoutError("simulated transient API failure"))
+    return FakeSheetsService(exception=TimeoutError("simulated transient API failure"))
 
 
-def _empty_service() -> _FakeSheetsService:
+def _empty_service() -> FakeSheetsService:
     """A real API response where the sheet genuinely doesn't exist."""
-    return _FakeSheetsService(result=_ONE_OTHER_SHEET)
+    return FakeSheetsService(result=_ONE_OTHER_SHEET)
 
 
-def _matching_service() -> _FakeSheetsService:
+def _matching_service() -> FakeSheetsService:
     """A real API response with more than one sheet, so a happy-path lookup
     exercises picking the right match rather than trivially returning the
     only entry present."""
-    return _FakeSheetsService(result=_TWO_SHEETS)
+    return FakeSheetsService(result=_TWO_SHEETS)
 
 
 class TestGetSheetIdExceptionPropagation:
