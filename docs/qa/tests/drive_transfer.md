@@ -1545,10 +1545,24 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
 ### TC-D238: `use_checksum=true` skips a file whose content is identical despite a large modifiedTime gap (issue #274) ⚠️ local-filesystem
 
-**Background:** `upload_local_file` doesn't stamp Drive's `modifiedTime` to match the local file's mtime the way `sync_folder`'s own upload path does (same gap TC-D226 flagged for the `convert_markdown` case) — under plain mtime comparison, a file uploaded that way always reads as "Drive newer" on the next `sync_folder`, even when content is byte-identical, and gets needlessly re-downloaded. `use_checksum=true` adds a content check (local md5 vs. Drive's `md5Checksum`) ahead of the mtime comparison: a match is treated as in sync regardless of modifiedTime drift.
+**Background:** `upload_local_file` stamps Drive's `modifiedTime` from the source file's mtime. A later local regeneration or copy can change mtime without changing bytes, so plain mtime comparison may still plan a needless transfer. `use_checksum=true` compares local md5 with Drive's `md5Checksum`: a match is treated as in sync regardless of modifiedTime drift. This case deliberately sets a 60-second gap, well outside the 5-second tolerance, so a pass cannot come from mtime coincidence.
 
 **Setup**
-Create `/tmp/qa-238-src/dup.txt` locally with any content. Call `upload_local_file(local_path="/tmp/qa-238-src/dup.txt", parent_folder_id="{FOLDER_ID}")` — this Doc's Drive `modifiedTime` will be Drive's own creation timestamp, not stamped to match the local file. Create `/tmp/qa-238/dup.txt` with **identical** content (copy the source file) — its local mtime will differ from Drive's `modifiedTime` by more than 5s (ordinary tool-call latency is enough; no need to force it further).
+Create `/tmp/qa-238-src/dup.txt` locally with any content. Call `upload_local_file(local_path="/tmp/qa-238-src/dup.txt", parent_folder_id="{FOLDER_ID}")` — the binary file's Drive `modifiedTime` will match the source mtime. Prepare **identical** copies for the checksum run and its control, each with mtime exactly 60 seconds later than the source:
+
+```python
+import os
+import shutil
+from pathlib import Path
+
+source = Path("/tmp/qa-238-src/dup.txt")
+later_mtime = source.stat().st_mtime + 60
+for directory in ("/tmp/qa-238", "/tmp/qa-238b"):
+    target = Path(directory) / "dup.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    os.utime(target, (later_mtime, later_mtime))
+```
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-238/` using direction='bidirectional' and use_checksum=true"
@@ -1556,7 +1570,7 @@ Create `/tmp/qa-238-src/dup.txt` locally with any content. Call `upload_local_fi
 **Checks**
 - Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-238/", direction="bidirectional", use_checksum=true)`
 - `dup.txt` appears in `skipped`, not `downloaded` or `conflicts`
-- Repeat the identical call with `use_checksum` omitted (defaults to `false`) against a **fresh** empty local dir (`/tmp/qa-238b/`) containing the same-content `dup.txt` with the same mtime gap — `dup.txt` should **not** land in `skipped` this time (mtime alone can't tell the content is identical), confirming `use_checksum=true` is what changed the outcome, not something else about the fixture. The exact non-`skipped` bucket it lands in (`uploaded`, `downloaded`, or `conflicts`) depends on which side's mtime ends up later, which this setup doesn't pin down: the Setup step above uploads to Drive *first* and creates the local copy *after*, so the local file's mtime is ordinarily the later of the two — under `direction='bidirectional'` that reads as "local newer" and routes to `uploaded`, not `downloaded`/`conflicts` as an earlier version of this check assumed. Don't treat a specific bucket name as the pass criterion; treat "did not land in `skipped`" as the criterion.
+- Repeat the identical call with `use_checksum` omitted (defaults to `false`) against the independently prepared `/tmp/qa-238b/` control copy. `dup.txt` appears in `uploaded`, not `skipped`: its mtime is deliberately 60 seconds newer than Drive's. This confirms the checksum, rather than a within-tolerance mtime match, changed the first call's outcome.
 
 **Teardown**
 Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, `/tmp/qa-238b/`.

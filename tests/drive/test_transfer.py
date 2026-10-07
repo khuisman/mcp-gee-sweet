@@ -4077,10 +4077,10 @@ class TestDownloadToolsFailedDownloadLeavesNoPartial:
 
 class TestSyncFolderUseChecksum:
     """Issue #274: mtime alone can't distinguish real content drift from a
-    non-content-changing mtime bump (or vice versa) — upload_local_file in
-    particular doesn't stamp modifiedTime the way sync_folder's own upload does,
-    so identical content re-downloads forever under mtime-only comparison.
-    use_checksum=True adds a content check ahead of the mtime comparison for
+    non-content-changing mtime bump (or vice versa), such as a local regeneration
+    that changes mtime without changing bytes, or an overwrite preserving mtime.
+    upload_local_file already stamps the source file's mtime.
+    use_checksum=True adds a content check to the mtime-based plan for
     names present on both sides."""
 
     _CONTENT = b"hello world"
@@ -4103,8 +4103,8 @@ class TestSyncFolderUseChecksum:
 
     async def test_checksum_match_skips_despite_mtime_far_apart(self, tmp_path):
         # Drive's modifiedTime is far outside the 5s tolerance of the local file's
-        # mtime (mirrors upload_local_file's non-stamped modifiedTime), but the
-        # content is identical.
+        # mtime (as with local regeneration after uploading), but the content
+        # is identical.
         fs = _FakeDriveFS(
             {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
         )

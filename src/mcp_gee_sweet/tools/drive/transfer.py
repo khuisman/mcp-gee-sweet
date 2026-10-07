@@ -1262,11 +1262,10 @@ async def _sync_level(
     every such file, the reads run after the plan loop, concurrently, capped at
     _SYNC_HASH_CONCURRENCY. When it runs: if the
     local file's md5 hash matches Drive's own md5Checksum, the pair is treated as
-    in sync regardless of how far apart their modifiedTimes are — this is what
-    actually fixes upload_local_file's non-stamped modifiedTime causing a spurious
-    re-download, not just a same-mtime coincidence (also fixed at the root in
-    _upload_local_file itself, below — this remains useful for cases the root fix
-    doesn't cover, e.g. a local overwrite that happens to preserve mtime). Only
+    in sync regardless of how far apart their modifiedTimes are. This avoids
+    needless transfers when a local regeneration changes mtime but not bytes;
+    it also detects an overwrite that preserves mtime (see sync_folder's
+    use_checksum parameter). Only
     applies to non-Workspace files with a real md5Checksum (Docs/Sheets/Slides and
     convert_markdown Docs have none); those fall back to mtime-only comparison
     exactly as when use_checksum=False. A checksum mismatch on a pair whose
@@ -3436,7 +3435,10 @@ def register(tool):
                            whenever its local md5 hash matches Drive's md5Checksum,
                            regardless of modifiedTime drift, and report a
                            within-tolerance pair whose hashes differ as a conflict
-                           (see above). Reads every both-sides file with a Drive
+                           (see above). Useful when local regeneration changes mtime
+                           without changing bytes, or an overwrite preserves mtime.
+                           upload_local_file already stamps the source file's mtime.
+                           Reads every both-sides file with a Drive
                            md5Checksum. Default False (mtime + size comparison).
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
