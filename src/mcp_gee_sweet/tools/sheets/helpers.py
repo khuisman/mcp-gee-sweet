@@ -65,9 +65,9 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     if not range_str:
         raise ValueError("Invalid A1 notation: empty string")
 
-    match = re.match(r"^([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?$", range_str.upper())
+    match = re.fullmatch(r"([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?", range_str.upper())
 
-    if not match:
+    if not match or not any(match.groups()):
         raise ValueError(f"Invalid A1 notation: {range_str}")
 
     start_col, start_row, end_col, end_row = match.groups()
