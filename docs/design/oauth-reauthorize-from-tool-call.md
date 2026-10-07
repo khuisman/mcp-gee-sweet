@@ -40,20 +40,30 @@ A retryable `RefreshError` (the token endpoint's own 5xx) isn't recorded: it say
 Both entry points, `before_call` (degraded connection) and `after_refresh_failure` (mid-session), try in order:
 
 1. **Adopt a token this process already got.** `publish_oauth_credentials` bumps a process-wide generation. A context built from an older generation rebuilds its services in place (`apply_oauth_credentials`) on its next call. One `TOKEN_PATH` means one token for every connection.
-2. **Reload `TOKEN_PATH`** (`load_saved_token`, on a daemon thread like the rest of the auth code). This picks up a token `mcp-gee-sweet auth` wrote, so the CLI no longer needs a restart. In the mid-session case a reloaded token with the *same* refresh token as the failing one is rejected: it's the same revoked grant.
-3. **Offer consent.** Start or join the shared listener and raise the elicitation, or the `ToolError` with the URL.
+2. **Reload `TOKEN_PATH`** (`load_saved_token`, on a daemon thread like the rest of the auth code). This picks up a token `mcp-gee-sweet auth` wrote, so the CLI no longer needs a restart. In the mid-session case a reloaded token with the *same* refresh token as the failing one is rejected: it's the same revoked grant. Two guards (PR #925 QA round 1):
+   - **The reload doesn't touch the Gmail gate.** It runs `_oauth_creds(record_gmail=False)`, so the process-wide `_gmail_unauthorized_message` isn't reset and re-set by every connection's reload, whether or not anything gets adopted. `publish_oauth_credentials` sets the gate from the token actually adopted.
+   - **An unchanged file isn't reloaded again.** After a reload finds nothing to adopt, `TOKEN_PATH`'s `(mtime_ns, size)` is remembered, and the reload is skipped until the file changes. Without this, a revoked token on disk cost a failing refresh round-trip and a warning on every call. `mcp-gee-sweet auth` rewrites the file, so it's still picked up.
+3. **Offer consent.** Start or join the shared listener and raise the elicitation, or the `ToolError` with the URL. The offer states the time the link actually has left (`_ConsentAttempt.remaining_seconds`), not the full timeout. A tool call's own attempt with less than `min(60, timeout/2)` seconds left is replaced by a fresh one rather than handed out.
 
-When a degraded connection adopts a token, the tool body then runs normally. When a mid-session failure adopts one, the call ends with "a newer token was loaded; retry the call". The tool isn't re-run automatically, because a multi-request tool may already have made changes before the refresh failed.
+When a degraded connection adopts a token, the tool body then runs normally. When a mid-session failure adopts one, the call ends with "a newer token was loaded; retry the call". The tool isn't re-run automatically, because a multi-request tool may already have made changes before the refresh failed. So the offer carries what the tool itself reported (`describe_outcome`, truncated at 1,500 characters): "The call may have partly completed before the token was rejected; the tool reported: ...". The model then knows what may already have happened.
 
 ### One listener per process, shared with the lifespan
 
-`start_user_consent` reuses `_consent_attempt`, the slot #833 made process-wide. So a tool call that arrives during an SSE lifespan consent offers *that* consent's URL (`_serve_consent`'s new `on_url` callback records it), and a lifespan that needs consent while a tool-call attempt is pending waits on it. `_ConsentListener` splits binding the callback server and building the URL from the wait, so the URL exists before anything blocks.
+`start_user_consent` reuses `_consent_attempt`, the slot #833 made process-wide. So a tool call that arrives during an SSE lifespan consent offers *that* consent's URL (`_serve_consent`'s new `on_url` callback records it), and marks it `offered`: once a client holds the link, the last lifespan waiter leaving no longer stops the attempt and closes its port. `_ConsentListener` splits binding the callback server and building the URL from the wait, so the URL exists before anything blocks. The build runs on a daemon thread. If the call is cancelled during it, a done callback closes the listener once it's bound. That's a callback rather than an `await` in cleanup, so a cancel scope's re-delivered cancellation can't skip it.
+
+The reverse doesn't join. A lifespan that needs consent while a tool call's attempt is pending doesn't wait on it: nothing would be shown to anyone for that wait. It starts without access at once, raising `OAuthConsentRequiredError(disables_consent=False)` so degrading doesn't turn consent off, and the connection's first tool call offers the same link. In PR #925's first round the lifespan did join. QA reproduced the result over SSE: a connection waited out the whole timeout with no prompt, then turned server consent off for every later connection.
 
 A tool call's attempt (`user_started`) differs from a lifespan's in three ways:
 
 - It never opens a browser and prints no stderr prompt; the client shows the URL.
 - No waiter's departure stops it, since the call that started it has already returned. It runs to its timeout.
 - Its failure doesn't turn off `_interactive_consent`.
+
+### Restart wording
+
+`reauthorize_instructions(restart=False)` ends "then retry the call: the server picks up the new token without a restart". It's used everywhere the token is missing or rejected: the degraded-start messages, `server://auth-status`, and the offer's CLI alternative. `mcp-gee-sweet auth` prints the same. Only the missing-scope messages (#790, including Gmail's) still say to restart, since nothing reloads the token there.
+
+`_client_error` keeps its re-authorize hint for a non-retryable `RefreshError` that reaches it without going through the offer. A *retryable* one (the token endpoint's own 5xx) gets no hint, and it is reported as a plain error.
 
 ### The issue's open questions
 

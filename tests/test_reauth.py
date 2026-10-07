@@ -185,8 +185,15 @@ class TestRefreshFailureDuringCall:
         text = str(raised.value)
         assert _URL in text
         assert "retry the call" in text
-        assert "Token has been expired or revoked" in text
-        assert "{'error'" not in text
+        assert "restart" not in text.split("then retry the call: the server")[0]
+        offer, _, reported = text.partition(" The call may have partly completed")
+        assert "Token has been expired or revoked" in offer
+        assert "{'error'" not in offer  # args[0], not the RefreshError tuple's repr
+        if make_tool == "_catching_tool":
+            # The tool's own {"error": ...} goes along, in case it did part of its work.
+            assert "List files failed" in reported
+        else:
+            assert reported == ""
 
     async def test_newer_saved_token_is_adopted_and_the_call_asks_for_a_retry(self, no_build):
         context = _oauth_context(_creds("rt-old"))
@@ -398,15 +405,91 @@ class TestUserConsent:
         assert auth_module.adopt_published_credentials(context)
         assert context.credentials is self.flow.credentials
 
-    async def test_lifespan_waiter_leaving_doesnt_stop_a_tool_calls_attempt(self):
+    async def test_lifespan_doesnt_wait_on_a_tool_calls_attempt(self, monkeypatch):
+        # PR #925 QA round 1 #1: a lifespan joined a tool call's attempt, waited the
+        # whole timeout with no prompt shown, then turned server consent off.
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "oauth")
         attempt = await auth_module.start_user_consent()
-        waiter = asyncio.ensure_future(auth_module._await_server_consent(["s"]))
-        await self._until(lambda: attempt.waiters == 1)
-        waiter.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await waiter
+        with patch.object(
+            auth_module, "_oauth_creds", side_effect=auth_module._ConsentDeferred(["s"])
+        ):
+            context = await asyncio.wait_for(auth_module._build_context(), 5)
+        assert context.oauth_reauthorizable is True
+        assert "call any tool to get it" in context.unauthorized_message
+        assert "restart the server" not in context.unauthorized_message
+        assert auth_module._interactive_consent is True
+        assert attempt.waiters == 0
         assert not attempt.stop.is_set()
         attempt.stop.set()
+
+    async def test_tool_call_keeps_a_joined_lifespan_attempt_alive(self):
+        # QA round 1 #2: once a tool call offered a lifespan attempt's URL, the last
+        # lifespan waiter leaving mustn't close its callback port.
+        release = threading.Event()
+
+        def serve(flow, timeout_seconds, stop, on_url=None):
+            on_url("https://accounts.example/lifespan")
+            while not release.is_set() and not stop.is_set():
+                time.sleep(0.01)
+            raise auth_module._ConsentStopped()
+
+        with patch.object(auth_module, "_serve_consent", serve):
+            waiter = asyncio.ensure_future(auth_module._await_server_consent(["s"]))
+            await self._until(
+                lambda: (
+                    auth_module._consent_attempt is not None
+                    and auth_module._consent_attempt.auth_url is not None
+                )
+            )
+            attempt = await auth_module.start_user_consent()
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            assert not attempt.stop.is_set()
+            release.set()
+
+    async def test_offer_reports_the_time_left(self, monkeypatch):
+        # QA round 1 #3.
+        attempt = await auth_module.start_user_consent()
+        attempt.deadline = time.monotonic() + 200.5
+        assert await auth_module.start_user_consent() is attempt
+        assert attempt.remaining_seconds() == 200
+        attempt.stop.set()
+
+    async def test_nearly_expired_tool_call_attempt_is_replaced(self):
+        first = await auth_module.start_user_consent()
+        first.deadline = time.monotonic() + 5
+        second = await auth_module.start_user_consent()
+        assert second is not first
+        assert first.stop.is_set()
+        assert second.remaining_seconds() > 250
+        second.stop.set()
+
+    async def test_cancel_while_building_closes_the_listener(self):
+        # QA round 1 #6.
+        built = threading.Event()
+        release = threading.Event()
+        listeners = []
+
+        class _Slow(auth_module._ConsentListener):
+            def __init__(self, flow):
+                release.wait(5)
+                super().__init__(flow)
+                listeners.append(self)
+                built.set()
+
+        with patch.object(auth_module, "_ConsentListener", _Slow):
+            task = asyncio.ensure_future(auth_module.start_user_consent())
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            release.set()
+            await asyncio.to_thread(built.wait, 5)
+            await asyncio.sleep(0.1)
+        [listener] = listeners
+        assert listener.server.socket.fileno() == -1  # closed
+        assert auth_module._consent_attempt is None
 
     async def test_failed_attempt_leaves_lifespan_consent_on(self, monkeypatch):
         monkeypatch.setattr(auth_module, "_CONSENT_TIMEOUT_SECONDS", 0.1)
@@ -460,6 +543,100 @@ class TestLoadSavedToken:
         creds = _creds()
         with patch.object(auth_module, "_oauth_creds", return_value=creds):
             assert await auth_module.load_saved_token() is creds
+
+    async def test_reload_leaves_the_gmail_gate_alone(self, monkeypatch, tmp_path):
+        # QA round 1 #4: a reload reset the process-wide Gmail gate, then re-set it,
+        # whether or not anything was adopted.
+        token = tmp_path / "token.json"
+        token.write_text(
+            json.dumps(
+                {
+                    "token": "t",
+                    "refresh_token": "r",
+                    "client_id": "c",
+                    "client_secret": "s",
+                    "scopes": auth_module.BASE_SCOPES,
+                    "expiry": "2999-01-01T00:00:00Z",
+                }
+            )
+        )
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token))
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", "gated")
+        creds = await auth_module.load_saved_token()
+        assert creds is not None
+        assert auth_module._gmail_unauthorized_message == "gated"
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", None)
+        await auth_module.load_saved_token()
+        assert auth_module._gmail_unauthorized_message is None
+        # Adopting it is what sets the gate, from the adopted token's own scopes.
+        auth_module.publish_oauth_credentials(creds)
+        assert "gmail" in auth_module._gmail_unauthorized_message
+
+
+class TestReloadThrottle:
+    """QA round 1 #8: with a revoked token on disk, every call on a degraded connection
+    reloaded it: a failing refresh round-trip and a warning per call."""
+
+    async def test_unchanged_token_file_isnt_reloaded_again(self, offered, monkeypatch, tmp_path):
+        token = tmp_path / "token.json"
+        token.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token))
+
+        @_timed
+        async def list_files(**kwargs):
+            return ["ok"]
+
+        context = _degraded_context()
+        with patch.object(auth_module, "load_saved_token", AsyncMock(return_value=None)) as load:
+            for _ in range(3):
+                with pytest.raises(UrlElicitationRequiredError):
+                    await list_files(ctx=_ctx(context))
+            assert load.await_count == 1
+            token.write_text('{"changed": true}')  # e.g. `mcp-gee-sweet auth` ran
+            with pytest.raises(UrlElicitationRequiredError):
+                await list_files(ctx=_ctx(context))
+            assert load.await_count == 2
+
+    async def test_same_grant_rejection_is_remembered(self, offered, monkeypatch, tmp_path):
+        token = tmp_path / "token.json"
+        token.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token))
+        context = _oauth_context(_creds("rt-old"))
+        same = AsyncMock(return_value=_creds("rt-old"))
+        with patch.object(auth_module, "load_saved_token", same):
+            for _ in range(2):
+                with pytest.raises(UrlElicitationRequiredError):
+                    await TestRefreshFailureDuringCall._catching_tool()(ctx=_ctx(context))
+        assert same.await_count == 1
+
+
+class TestRetryableRefreshFailure:
+    async def test_gets_no_reauthorize_hint(self, offered):
+        # QA round 1 #10: the token endpoint's own 5xx says nothing about the token.
+        from mcp_gee_sweet.server import _client_error
+
+        ctx = _ctx(_oauth_context())
+        text, status = _client_error(RefreshError("server error", retryable=True), ctx)
+        assert status == 500
+        assert "mcp-gee-sweet auth" not in text
+
+        @_timed
+        async def list_sheets(**kwargs):
+            http_transport._note_refresh_failure(RefreshError("server error", retryable=True))
+            raise RefreshError("server error", retryable=True)
+
+        with pytest.raises(ToolError) as raised:
+            await list_sheets(ctx=ctx)
+        assert not isinstance(raised.value, reauth.ReauthorizationRequired)
+        offered.assert_not_called()
+
+
+def test_auth_command_says_the_next_call_picks_the_token_up(monkeypatch, capsys):
+    # QA round 1 #9.
+    monkeypatch.setattr(auth_module, "run_consent_flow", MagicMock())
+    assert auth_module.run_auth_command(open_browser=False) == 0
+    out = capsys.readouterr().out
+    assert "picks it up on its next tool call" in out
 
 
 class TestLifespanMarksReauthorizable:

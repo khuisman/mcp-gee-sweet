@@ -1191,8 +1191,10 @@ BROWSER=/usr/bin/false
 2. Call `list_sheets` with any real spreadsheet ID (lets the error propagate)
 
 **Checks**
-- 1 and 2: an error result whose text starts `Error executing tool <name>: Google rejected the OAuth token refresh: invalid_grant: ...`, then `To re-authorize, open this link in a browser and approve access within 120s, then retry the call: https://accounts.google.com/o/oauth2/auth?...`, then the `mcp-gee-sweet auth` alternative naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`
-- Neither text contains `{'error'` (the tuple repr) or `List files failed`
+- 1 and 2: an error result whose text starts `Error executing tool <name>: Google rejected the OAuth token refresh: invalid_grant: ...`, then `To re-authorize, open this link in a browser and approve access within <N>s, then retry the call: https://accounts.google.com/o/oauth2/auth?...` (`<N>` at most 120: the time the link has left), then the `mcp-gee-sweet auth` alternative naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`, ending `then retry the call: the server picks up the new token without a restart.`
+- The part of either text before `The call may have partly completed` has no `{'error'` (the tuple repr)
+- 1 only (round 2): the text ends `The call may have partly completed before the token was rejected; the tool reported: {"error": "List files failed: ..."}`, the tool's own result, which the offer replaced. 2 has no such sentence (the tool raised the refresh error itself)
+- Run step 1 three more times: the log has only one more `Token refresh failed` warning in total (the unchanged `TOKEN_PATH` isn't reloaded again), and no `Gmail tools disabled` line from these calls
 - Both calls give the *same* link. Its `redirect_uri` is `http://localhost:<port>/`, and a TCP connect to that port succeeds (one listener, still open)
 - No browser opened, and no `Please visit this URL` line in stderr or the log
 - `<tmp log>` has `"TOOL list_files" 401` and `"TOOL list_sheets" 401`
@@ -1287,3 +1289,27 @@ Step 1: the first `list_files` gave the consent-link error (`401`). After copyin
 
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ⏭️ NOT RUN**
 Needs a human driving an interactive Claude Code session; a lane QA session can't accept the client's URL prompt itself. TC-I49 covers the wire format (`-32042` with the elicitation). Pending a human-driven run.
+
+---
+
+### TC-I53: over SSE, a connection opening while a tool call's consent link is pending starts at once, offers the same link, and leaves server consent on (PR #925 QA round 1) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** in round 1, connection B's lifespan joined the consent a tool call on connection A had offered. B waited the whole `OAUTH_CONSENT_TIMEOUT_SECONDS` with no prompt shown anywhere. It then degraded through `_disable_consent_after_failure`, so connection C reported `an earlier browser consent in this server process didn't complete`. Now a lifespan that finds a tool call's consent pending starts without access straight away (`disables_consent=False`), and its first tool call offers the same link. Separately, a tool call that offers a *lifespan's* link marks it `offered`, so the last lifespan waiter leaving no longer closes its callback port.
+
+**Setup**
+- The TC-I48 scratch token (dead access token, bogus refresh token, expiry in the future), and a way to rewrite it with `expiry` one hour in the *past*.
+- A free port.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<scratch token>`, `CREDENTIALS_PATH=<oauth client json>`, `OAUTH_CONSENT_TIMEOUT_SECONDS=25`, `HOST=127.0.0.1`, `PORT=<port>`, `BROWSER=/usr/bin/false`, `DEBUG_LEVEL=INFO`, stdout and stderr to one log. With the `mcp` SDK's `sse_client` + `ClientSession` (no elicitation callback):
+1. Connection A: `initialize`, call `list_files` (`folder_id: "root"`, `max_results: 1`), read `server://auth-status`
+2. Rewrite the scratch token with an expired `expiry` (still the bogus refresh token)
+3. Connection B: as A. Then connection C: as A
+
+**Checks**
+- 1: the TC-I48 consent-link error
+- 3: B and C each finish `initialize` within a couple of seconds (not the 25s timeout), and their `list_files` error starts `No usable OAuth token at '<scratch token>'. To re-authorize, open this link ...` with the *same* link A got and a time left of at most 25s
+- No `auth-status` read has `restart the server` in its text
+- The log has 0 `Please visit` lines, 0 `earlier browser consent` lines, and two `Starting without Google access: ... a re-authorization link a tool call offered is still open` lines (B and C)
+
+**Cleanup:** SIGTERM the server; delete the scratch token and log.

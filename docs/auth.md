@@ -57,7 +57,7 @@ Authenticates as you — gives full access to your personal Drive. Requires a on
 - A client that supports MCP URL elicitation (Claude Code does) gets a prompt with the consent link. The server never opens a browser on its own: you choose to open the link.
 - Any other client gets an error whose text carries the link.
 
-Open the link, approve access, and retry the call. The server saves the token to `TOKEN_PATH` (mode `0600`) and the retried call uses it, on every connection. The link works for `OAUTH_CONSENT_TIMEOUT_SECONDS` (default 5 minutes). Calls that fail while it's open get the same link, and a call after it expires gets a new one. This works over stdio and SSE alike. It applies to OAuth only: a service account or ADC connection reports a rejected refresh as an ordinary error.
+Open the link, approve access, and retry the call. The server saves the token to `TOKEN_PATH` (mode `0600`) and the retried call uses it, on every connection. The link works for `OAUTH_CONSENT_TIMEOUT_SECONDS` (default 5 minutes). Calls that fail while it's open get the same link, along with how long it still works, and a call after it expires gets a new one. A call whose token is rejected partway through isn't re-run, since it may have already done part of its work: its error includes what the tool itself reported. This works over stdio and SSE alike. It applies to OAuth only: a service account or ADC connection reports a rejected refresh as an ordinary error.
 
 `mcp-gee-sweet auth` still works as the alternative, for example when the client can't show the link. Run it with the same settings as the server, then retry the call. The server re-reads `TOKEN_PATH` on the next call, so no restart is needed.
 

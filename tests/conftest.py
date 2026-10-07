@@ -1,6 +1,6 @@
 import pytest
 
-from mcp_gee_sweet import auth
+from mcp_gee_sweet import auth, reauth
 
 
 @pytest.fixture(autouse=True)
@@ -17,3 +17,4 @@ def _reset_auth_process_state(monkeypatch):
     monkeypatch.setattr(auth, "_oauth_generation", 0)
     monkeypatch.setattr(auth, "_oauth_latest_creds", None)
     monkeypatch.setattr(auth, "_gmail_unauthorized_message", None)
+    monkeypatch.setattr(reauth, "_rejected_token_stat", reauth._unchanged_token_marker)
