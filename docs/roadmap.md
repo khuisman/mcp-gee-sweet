@@ -273,7 +273,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 **Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
 
 **Testing** _(triaged out of `backlog` 2026-09-11)_
-- [ ] **Bundle:** test-suite tightening, one PR closing [#392](https://github.com/khuisman/mcp-gee-sweet/issues/392), [#526](https://github.com/khuisman/mcp-gee-sweet/issues/526), [#551](https://github.com/khuisman/mcp-gee-sweet/issues/551), [#561](https://github.com/khuisman/mcp-gee-sweet/issues/561), [#574](https://github.com/khuisman/mcp-gee-sweet/issues/574) — lane B ([#891](https://github.com/khuisman/mcp-gee-sweet/issues/891))
+- [x] **Bundle:** test-suite tightening, one PR closing [#392](https://github.com/khuisman/mcp-gee-sweet/issues/392), [#526](https://github.com/khuisman/mcp-gee-sweet/issues/526), [#551](https://github.com/khuisman/mcp-gee-sweet/issues/551), [#561](https://github.com/khuisman/mcp-gee-sweet/issues/561), [#574](https://github.com/khuisman/mcp-gee-sweet/issues/574) — lane B (PR #924) ([#891](https://github.com/khuisman/mcp-gee-sweet/issues/891))
 - [ ] `qa`: `search_files` has no unit test coverage for the error-dict path ([#573](https://github.com/khuisman/mcp-gee-sweet/issues/573))
 
 **Infrastructure**
