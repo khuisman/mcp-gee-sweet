@@ -3,6 +3,8 @@
 from itertools import groupby
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from mcp_gee_sweet.cache import SheetInfo
 from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
@@ -1260,6 +1262,19 @@ class TestResizeColumns:
 
 
 class TestFormatCells:
+    @pytest.mark.parametrize("range_str", [":", "A1\n"])
+    async def test_malformed_range_does_not_format_any_cells(self, range_str):
+        svc = self._sheets_service()
+        result = await _structure_tools["format_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range=range_str,
+            bold=True,
+            ctx=_make_ctx(sheets_service=svc, cache=None),
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
         mock.spreadsheets.return_value.get.return_value.execute.return_value = {

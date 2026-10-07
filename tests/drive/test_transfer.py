@@ -5115,41 +5115,22 @@ class TestDownloadFolder:
         assert result["downloaded"] == ["Doc One.pdf"]
         assert result["failed"] == []
 
-    async def test_skip_if_exists_true_skips_existing_and_does_not_redownload(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("skip_if_exists", "skipped", "downloaded", "export_calls", "final_bytes"),
+        [
+            (True, ["Doc One.pdf"], [], 0, b"already here"),
+            (False, [], ["Doc One.pdf"], 1, b"new content"),
+        ],
+        ids=["skip", "redownload"],
+    )
+    async def test_skip_if_exists_with_existing_destination(
+        self, tmp_path, skip_if_exists, skipped, downloaded, export_calls, final_bytes
+    ):
         """TC-D109 (v0.8.0 QA run, #227): skip_if_exists was live-SKIPped as
-        local-filesystem-dependent and had no unit coverage. A destination file
-        that already exists must be left untouched — the candidate never reaches
-        export()/get_media() at all."""
-        svc = MagicMock()
-        svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [
-                {
-                    "id": "doc1",
-                    "name": "Doc One",
-                    "mimeType": "application/vnd.google-apps.document",
-                },
-            ]
-        }
-        dest = tmp_path / "Doc One.pdf"
-        dest.write_bytes(b"already here")
-
-        result = await _transfer_tools["download_folder"](
-            folder_id="root",
-            local_path=str(tmp_path),
-            export_format="pdf",
-            skip_if_exists=True,
-            ctx=self._ctx(svc),
-        )
-        assert result["skipped"] == ["Doc One.pdf"]
-        assert result["downloaded"] == []
-        assert result["failed"] == []
-        svc.files.return_value.export.assert_not_called()
-        assert dest.read_bytes() == b"already here"
-
-    async def test_skip_if_exists_false_redownloads_existing_file(self, tmp_path):
-        """Companion to the skip_if_exists=True case above: with the flag off, an
-        existing destination file is not treated as a skip candidate and gets
-        overwritten by a fresh export."""
+        local-filesystem-dependent and had no unit coverage. With the flag on, an
+        existing destination file is left untouched and the candidate never
+        reaches export(); with it off, the file is overwritten by a fresh export.
+        One parametrized test so the shared mock can't drift between cases (#561)."""
         svc = MagicMock()
         svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
@@ -5162,19 +5143,20 @@ class TestDownloadFolder:
         }
         svc.files.return_value.export.return_value.execute.return_value = b"new content"
         dest = tmp_path / "Doc One.pdf"
-        dest.write_bytes(b"stale content")
+        dest.write_bytes(b"already here")
 
         result = await _transfer_tools["download_folder"](
             folder_id="root",
             local_path=str(tmp_path),
             export_format="pdf",
-            skip_if_exists=False,
+            skip_if_exists=skip_if_exists,
             ctx=self._ctx(svc),
         )
-        assert result["downloaded"] == ["Doc One.pdf"]
-        assert result["skipped"] == []
-        svc.files.return_value.export.assert_called_once()
-        assert dest.read_bytes() == b"new content"
+        assert result["skipped"] == skipped
+        assert result["downloaded"] == downloaded
+        assert result["failed"] == []
+        assert svc.files.return_value.export.call_count == export_calls
+        assert dest.read_bytes() == final_bytes
 
     async def test_mime_type_filter_appended_to_drive_query(self, tmp_path):
         """TC-D110 (v0.8.0 QA run, #227): mime_type_filter is delegated entirely to
@@ -5227,6 +5209,13 @@ class TestDownloadFile:
     def _metadata(self, name, mime_type):
         return {"name": name, "mimeType": mime_type}
 
+    def _assert_metadata_call(self, svc, file_id):
+        """#551: supportsAllDrives=True is what lets a shared-drive file
+        resolve, and `fields` must include both keys download_file reads."""
+        svc.files.return_value.get.assert_called_once_with(
+            fileId=file_id, fields="name, mimeType", supportsAllDrives=True
+        )
+
     async def test_google_doc_export(self, tmp_path):
         svc = MagicMock()
         svc.files.return_value.get.return_value.execute.return_value = self._metadata(
@@ -5244,6 +5233,7 @@ class TestDownloadFile:
         svc.files.return_value.export.assert_called_once_with(
             fileId="doc1", mimeType="application/pdf"
         )
+        self._assert_metadata_call(svc, "doc1")
         dest = tmp_path / "My Doc.pdf"
         assert result == {
             "local_path": str(dest),
@@ -5273,6 +5263,30 @@ class TestDownloadFile:
         dest = tmp_path / "My Sheet.xlsx"
         assert result["local_path"] == str(dest)
         assert dest.read_bytes() == b"xlsx bytes"
+
+    async def test_str_export_content_is_utf8_encoded(self, tmp_path):
+        """#551: googleapiclient can hand back a text export (csv/html/txt) as
+        str rather than bytes; download_file encodes it as UTF-8 before writing."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Sheet", "application/vnd.google-apps.spreadsheet"
+        )
+        text = "name,city\nZoë,Zürich\n"
+        svc.files.return_value.export.return_value.execute.return_value = text
+
+        result = await _transfer_tools["download_file"](
+            file_id="sheet1",
+            local_path=str(tmp_path),
+            export_format="csv",
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.export.assert_called_once_with(fileId="sheet1", mimeType="text/csv")
+        self._assert_metadata_call(svc, "sheet1")
+        dest = tmp_path / "My Sheet.csv"
+        expected = text.encode("utf-8")
+        assert dest.read_bytes() == expected
+        assert result["size_bytes"] == len(expected)
 
     async def test_explicit_local_path_overrides_drive_filename(self, tmp_path):
         """When local_path names an exact file (not a directory), that name is
@@ -5330,6 +5344,7 @@ class TestDownloadFile:
         svc.files.return_value.get_media.assert_called_once_with(
             fileId="bin1", supportsAllDrives=True
         )
+        self._assert_metadata_call(svc, "bin1")
         dest = tmp_path / "photo.png"
         assert result == {"local_path": str(dest), "name": "photo.png", "size_bytes": len(content)}
         assert dest.read_bytes() == content
