@@ -846,7 +846,7 @@ def register(tool):
         supported and are silently dropped. Per-image outcomes (including any resolution
         or sharing failure) are returned under "images" when the content had any.
 
-        A local-path or drive: image over Google Docs' ~25-megapixel inline-image limit
+        A local-path or drive: image over Google Docs' ~25-megapixel or ~50MB inline-image limit
         fails with a clear error naming the limit and its actual size, before any
         upload/share happens — set auto_downscale=True to resize it instead (see that
         arg's own docs). A public http(s) image can't be pre-validated this way; an
@@ -868,7 +868,8 @@ def register(tool):
                 image file that was already link-shared before the call keeps its
                 link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
-                failing it (default False). A drive: source gets a new " (resized)"
+                failing the ~25-megapixel or ~50MB limit (default False). A drive:
+                source gets a new " (resized)"
                 copy created alongside the original (left untouched); a local-path
                 source uploads the resized bytes directly instead of the original file.
                 No effect on a public http(s) image source (see above).
