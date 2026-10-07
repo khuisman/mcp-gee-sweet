@@ -12,6 +12,8 @@ import threading
 import time
 from email import message_from_bytes
 from email.utils import getaddresses
+from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -1478,7 +1480,7 @@ class TestReplyRecipients:
         assert to == {"bob@example.com"}
         assert cc == {"carol@example.com"}
 
-    async def test_send_as_failure_falls_back_to_profile(self):
+    async def test_send_as_failure_falls_back_to_profile_with_warning(self):
         gmail_svc = MagicMock()
         gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list.return_value.execute.side_effect = Exception(
             "forbidden"
@@ -1486,7 +1488,14 @@ class TestReplyRecipients:
         gmail_svc.users.return_value.getProfile.return_value.execute.return_value = {
             "emailAddress": "Me@Example.com",
         }
-        assert await gmail_module._own_addresses(gmail_svc) == {"me@example.com"}
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        own, warning = await gmail_module._own_addresses(lc)
+
+        assert own == {"me@example.com"}
+        assert warning == gmail_module._ALIASES_UNRESOLVED
+        # An incomplete answer isn't cached, so the next call retries sendAs.list.
+        assert lc.gmail_own_addresses is None
 
     async def test_reply_to_with_multiple_addresses_keeps_all(self):
         to, _, _ = await _reply_recipients_for(
@@ -1657,3 +1666,407 @@ class TestTrashMessage:
         result = await _gmail_tools["trash_message"](message_id="missing", ctx=ctx)
 
         assert "error" in result
+
+
+def _parse_raw(raw: str):
+    return message_from_bytes(base64.urlsafe_b64decode(raw.encode("utf-8")))
+
+
+class TestBuildRawMessageAttachments:
+    """#823 P4: attachment branches of _build_raw_message, plus #802's MIME guess."""
+
+    def _attachment(self, **att):
+        msg = _parse_raw(
+            gmail_module._build_raw_message(
+                to="a@example.com", subject="s", body="b", attachments=[att]
+            )
+        )
+        assert msg.get_content_type() == "multipart/mixed"
+        body, part = msg.get_payload()
+        assert body.get_content_type() == "text/plain"
+        return part
+
+    def test_local_path_uses_file_name_bytes_and_guessed_type(self, tmp_path):
+        path = tmp_path / "report.csv"
+        path.write_bytes(b"a,b\n1,2\n")
+
+        part = self._attachment(local_path=str(path))
+
+        assert part.get_filename() == "report.csv"
+        assert part.get_content_type() == "text/csv"
+        assert part.get_payload(decode=True) == b"a,b\n1,2\n"
+
+    def test_explicit_filename_overrides_local_path_name(self, tmp_path):
+        path = tmp_path / "tmp123"
+        path.write_bytes(b"%PDF")
+
+        part = self._attachment(local_path=str(path), filename="invoice.pdf")
+
+        assert part.get_filename() == "invoice.pdf"
+        assert part.get_content_type() == "application/pdf"
+
+    def test_content_base64_with_explicit_non_application_type(self):
+        part = self._attachment(
+            content_base64=base64.b64encode(b"\x89PNG").decode(),
+            filename="pic.dat",
+            mime_type="image/png",
+        )
+
+        assert part.get_filename() == "pic.dat"
+        assert part.get_content_type() == "image/png"
+        assert part.get_payload(decode=True) == b"\x89PNG"
+
+    def test_explicit_application_type_is_kept(self):
+        part = self._attachment(
+            content_base64=base64.b64encode(b"{}").decode(),
+            filename="data.bin",
+            mime_type="application/json",
+        )
+
+        assert part.get_content_type() == "application/json"
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("notes.txt", "text/plain"),
+            ("photo.JPG", "image/jpeg"),
+            ("archive.csv.gz", "application/gzip"),
+            ("attachment", "application/octet-stream"),
+            ("weird.zzzunknown", "application/octet-stream"),
+        ],
+    )
+    def test_missing_mime_type_is_guessed_from_filename(self, filename, expected):
+        part = self._attachment(content_base64=base64.b64encode(b"x").decode(), filename=filename)
+
+        assert part.get_content_type() == expected
+
+    def test_content_base64_without_filename_is_named_attachment(self):
+        part = self._attachment(content_base64=base64.b64encode(b"x").decode())
+
+        assert part.get_filename() == "attachment"
+        assert part.get_content_type() == "application/octet-stream"
+
+    def test_neither_source_raises_value_error(self):
+        with pytest.raises(ValueError, match="local_path or content_base64"):
+            gmail_module._build_raw_message(
+                to="a@example.com", subject="s", body="b", attachments=[{"filename": "x.txt"}]
+            )
+
+    async def test_missing_source_surfaces_as_tool_error(self):
+        gmail_svc = MagicMock()
+
+        result = await _gmail_tools["send_message"](
+            to="a@example.com",
+            subject="s",
+            body="b",
+            attachments=[{"filename": "x.txt"}],
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert "local_path or content_base64" in result["error"]
+        gmail_svc.users.return_value.messages.return_value.send.assert_not_called()
+
+
+class TestBuildRawMessageHtml:
+    """#823 P5: the multipart/alternative paths."""
+
+    def test_body_html_alone_is_alternative_of_plain_and_html(self):
+        msg = _parse_raw(
+            gmail_module._build_raw_message(
+                to="a@example.com", subject="s", body="plain", body_html="<b>html</b>"
+            )
+        )
+
+        assert msg.get_content_type() == "multipart/alternative"
+        plain, html = msg.get_payload()
+        assert plain.get_content_type() == "text/plain"
+        assert plain.get_payload(decode=True).decode() == "plain"
+        assert html.get_content_type() == "text/html"
+        assert html.get_payload(decode=True).decode() == "<b>html</b>"
+
+    def test_body_html_with_attachments_nests_alternative_in_mixed(self):
+        msg = _parse_raw(
+            gmail_module._build_raw_message(
+                to="a@example.com",
+                subject="s",
+                body="plain",
+                body_html="<b>html</b>",
+                attachments=[
+                    {"content_base64": base64.b64encode(b"x").decode(), "filename": "a.txt"}
+                ],
+            )
+        )
+
+        assert msg.get_content_type() == "multipart/mixed"
+        alt, att = msg.get_payload()
+        assert alt.get_content_type() == "multipart/alternative"
+        assert [p.get_content_type() for p in alt.get_payload()] == ["text/plain", "text/html"]
+        assert att.get_filename() == "a.txt"
+
+
+class TestComposeOffEventLoop:
+    """#802: building the message (attachment reads included) runs off the event loop."""
+
+    @pytest.mark.parametrize("tool", ["send_message", "create_draft"])
+    async def test_compose_runs_in_worker_thread(self, monkeypatch, tool):
+        threads = []
+        real = gmail_module._build_raw_message
+
+        def recording(**kwargs):
+            threads.append(threading.current_thread())
+            return real(**kwargs)
+
+        monkeypatch.setattr(gmail_module, "_build_raw_message", recording)
+
+        await _gmail_tools[tool](
+            to="a@example.com", subject="s", body="b", ctx=_make_ctx(gmail_service=MagicMock())
+        )
+
+        assert len(threads) == 1
+        assert threads[0] is not threading.main_thread()
+
+
+class TestSubjectHeaderInjection:
+    """#823 P6: a newline in subject is refused, not sent as an extra header."""
+
+    @pytest.mark.parametrize("subject", ["Hi\nBcc: evil@example.com", "Hi\nthere"])
+    @pytest.mark.parametrize("tool", ["send_message", "create_draft"])
+    async def test_newline_in_subject_returns_error_and_sends_nothing(self, tool, subject):
+        gmail_svc = MagicMock()
+
+        result = await _gmail_tools[tool](
+            to="a@example.com", subject=subject, body="b", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert "error" in result
+        gmail_svc.users.return_value.messages.return_value.send.assert_not_called()
+        gmail_svc.users.return_value.drafts.return_value.create.assert_not_called()
+
+
+class TestModifyLabelsValidation:
+    """#823 P7: the validation branches return before any API call."""
+
+    async def test_rejects_both_targets(self):
+        gmail_svc = MagicMock()
+
+        result = await _gmail_tools["modify_labels"](
+            message_id="m1",
+            thread_id="t1",
+            add_label_ids=["STARRED"],
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert "exactly one" in result["error"]
+        gmail_svc.users.assert_not_called()
+
+    @pytest.mark.parametrize("labels", [{}, {"add_label_ids": [], "remove_label_ids": []}])
+    async def test_rejects_no_labels(self, labels):
+        gmail_svc = MagicMock()
+
+        result = await _gmail_tools["modify_labels"](
+            message_id="m1", **labels, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert "at least one" in result["error"]
+        gmail_svc.users.assert_not_called()
+
+
+class TestReplySubject:
+    """#823 P8: reply subject normalization."""
+
+    @pytest.mark.parametrize(
+        ("original", "expected"),
+        [
+            (None, "Re:"),
+            ("", "Re:"),
+            ("Hello", "Re: Hello"),
+            ("Re: Hello", "Re: Hello"),
+            ("RE: Hello", "RE: Hello"),
+            ("re:Hello", "re:Hello"),
+            ("Fwd: Hello", "Re: Fwd: Hello"),
+        ],
+    )
+    async def test_subject(self, original, expected):
+        headers = {"From": "alice@example.com", "To": "me@example.com"}
+        if original is not None:
+            headers["Subject"] = original
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list.return_value.execute.return_value = {
+            "sendAs": [{"sendAsEmail": "me@example.com"}],
+        }
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {"headers": [{"name": k, "value": v} for k, v in headers.items()]},
+        }
+        gmail_svc.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+            "id": "r1"
+        }
+
+        await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert message_from_bytes(_raw_payload_from_send_call(gmail_svc))["Subject"] == expected
+
+
+class TestListClampingAndKwargs:
+    """#823 P9 (list side; the get_* cap is covered by TestMessageSizeCap) and #795."""
+
+    _RESOURCES: ClassVar[dict[str, str]] = {"list_messages": "messages", "list_threads": "threads"}
+
+    def _list_mock(self, gmail_svc, tool):
+        return getattr(gmail_svc.users.return_value, self._RESOURCES[tool]).return_value.list
+
+    @pytest.mark.parametrize("tool", ["list_messages", "list_threads"])
+    @pytest.mark.parametrize(("requested", "sent"), [(0, 1), (-5, 1), (500, 500), (10_000, 500)])
+    async def test_max_results_is_clamped(self, tool, requested, sent):
+        gmail_svc = MagicMock()
+        self._list_mock(gmail_svc, tool).return_value.execute.return_value = {}
+
+        await _gmail_tools[tool](max_results=requested, ctx=_make_ctx(gmail_service=gmail_svc))
+
+        assert self._list_mock(gmail_svc, tool).call_args.kwargs["maxResults"] == sent
+
+    @pytest.mark.parametrize("tool", ["list_messages", "list_threads"])
+    async def test_unset_filters_are_omitted(self, tool):
+        gmail_svc = MagicMock()
+        self._list_mock(gmail_svc, tool).return_value.execute.return_value = {}
+
+        result = await _gmail_tools[tool](ctx=_make_ctx(gmail_service=gmail_svc))
+
+        assert self._list_mock(gmail_svc, tool).call_args.kwargs == {
+            "userId": "me",
+            "maxResults": 50,
+            "includeSpamTrash": False,
+        }
+        assert result == {self._RESOURCES[tool]: [], "result_size_estimate": None}
+
+    @pytest.mark.parametrize("tool", ["list_messages", "list_threads"])
+    async def test_over_cap_raises_naming_pagination(self, monkeypatch, tool):
+        from mcp_gee_sweet.tools import response_limits
+
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 200)
+        gmail_svc = MagicMock()
+        self._list_mock(gmail_svc, tool).return_value.execute.return_value = {
+            self._RESOURCES[tool]: [{"id": f"id-{i}", "threadId": "t"} for i in range(50)],
+        }
+
+        with pytest.raises(ValueError, match=rf"{tool}.*next_page_token"):
+            await _gmail_tools[tool](ctx=_make_ctx(gmail_service=gmail_svc))
+
+
+class TestOwnAddressResolution:
+    """#802: own-address lookup failures are surfaced, and a full answer is cached."""
+
+    def _gmail(self, *, send_as=None, send_as_error=None, profile=None, profile_error=None):
+        gmail_svc = MagicMock()
+        send_as_exec = gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list.return_value.execute
+        if send_as_error:
+            send_as_exec.side_effect = send_as_error
+        else:
+            send_as_exec.return_value = {"sendAs": [{"sendAsEmail": a} for a in send_as or []]}
+        profile_exec = gmail_svc.users.return_value.getProfile.return_value.execute
+        if profile_error:
+            profile_exec.side_effect = profile_error
+        else:
+            profile_exec.return_value = {"emailAddress": profile} if profile else {}
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "alice@example.com"},
+                    {"name": "To", "value": "me@example.com, bob@example.com"},
+                ]
+            },
+        }
+        gmail_svc.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+            "id": "r1"
+        }
+        return gmail_svc
+
+    async def test_full_answer_is_cached_on_lifespan_context(self):
+        gmail_svc = self._gmail(send_as=["me@example.com", "me@work.example"])
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        first = await gmail_module._own_addresses(lc)
+        second = await gmail_module._own_addresses(lc)
+
+        assert first == second == ({"me@example.com", "me@work.example"}, None)
+        assert lc.gmail_own_addresses == frozenset({"me@example.com", "me@work.example"})
+        send_as_list = gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list
+        assert send_as_list.call_count == 1
+
+    async def test_cache_is_per_context(self):
+        # Under SSE each connection has its own lifespan context (CLAUDE.md).
+        a = SimpleNamespace(
+            gmail_service=self._gmail(send_as=["a@example.com"]), gmail_own_addresses=None
+        )
+        b = SimpleNamespace(
+            gmail_service=self._gmail(send_as=["b@example.com"]), gmail_own_addresses=None
+        )
+
+        assert (await gmail_module._own_addresses(a))[0] == {"a@example.com"}
+        assert (await gmail_module._own_addresses(b))[0] == {"b@example.com"}
+
+    async def test_both_lookups_failing_returns_warning_and_is_not_cached(self):
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile_error=Exception("boom"))
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        own, warning = await gmail_module._own_addresses(lc)
+
+        assert own == set()
+        assert warning == gmail_module._OWN_ADDRESSES_UNRESOLVED
+        assert lc.gmail_own_addresses is None
+
+    async def test_failure_is_logged_at_warning(self, caplog):
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile_error=Exception("boom"))
+        lc = SimpleNamespace(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        with caplog.at_level("WARNING", logger=gmail_module.logger.name):
+            await gmail_module._own_addresses(lc)
+
+        assert any("getProfile" in r.getMessage() for r in caplog.records)
+
+    async def test_reply_all_surfaces_warning_when_lookup_fails(self):
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile_error=Exception("boom"))
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", reply_all=True, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        # Still sent, but the caller is told it may have included the mailbox.
+        assert result["id"] == "r1"
+        assert result["warning"] == gmail_module._OWN_ADDRESSES_UNRESOLVED
+
+    async def test_alias_failure_surfaces_alias_warning(self):
+        gmail_svc = self._gmail(send_as_error=Exception("boom"), profile="me@example.com")
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", reply_all=True, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["warning"] == gmail_module._ALIASES_UNRESOLVED
+        parsed = message_from_bytes(_raw_payload_from_send_call(gmail_svc))
+        to = {a.lower() for _, a in getaddresses([parsed["To"] or ""]) if a}
+        assert to == {"alice@example.com", "bob@example.com"}
+
+    async def test_successful_lookup_adds_no_warning(self):
+        gmail_svc = self._gmail(send_as=["me@example.com"])
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", reply_all=True, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert "warning" not in result
+
+    async def test_second_reply_reuses_cached_addresses(self):
+        gmail_svc = self._gmail(send_as=["me@example.com"])
+        ctx = _make_ctx(gmail_service=gmail_svc, gmail_own_addresses=None)
+
+        await _gmail_tools["reply_to_message"](message_id="m1", body="ok", ctx=ctx)
+        await _gmail_tools["reply_to_message"](message_id="m1", body="ok", ctx=ctx)
+
+        send_as_list = gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list
+        assert send_as_list.call_count == 1

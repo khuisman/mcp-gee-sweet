@@ -518,7 +518,7 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Checks**
 - Step 2: `body_plain` is `mcp-gee-sweet TC-GM38 plain`; `body_html` contains `<b>TC-GM38</b>`
 - Step 2: `attachments` has exactly 2 entries: `filename: "mcp-qa-tc-gm38.csv"` (the file's own name, since no `filename` was passed) with `mime_type: "text/csv"`, and `filename: "note.txt"`
-- **Record** `note.txt`'s `mime_type`. Expected today: `application/octet-stream`, since the tool doesn't infer a type from the filename (#802 item 3; local probe 2026-09-26). This is an observation for #802, not a FAIL.
+- Step 2: `note.txt`'s `mime_type` is `text/plain`, guessed from its extension since no `mime_type` was passed (#802; it was `application/octet-stream` before #896). TC-GM47 covers more extensions.
 
 **Cleanup:** `trash_message` the step-1 `id`; delete `/tmp/mcp-qa-tc-gm38.csv`.
 
@@ -551,6 +551,30 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 - Step 3: `messages` is empty, so nothing was sent
 
 **Cleanup:** none expected. If step 3 finds anything, record FAIL and trash it.
+
+---
+
+### TC-GM47: An attachment without `mime_type` gets its type from the filename extension (issue #802) ⚠️ destructive
+
+**Background:** an attachment passed without `mime_type` used to go out as `application/octet-stream` whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, as `upload_local_file` does. A compressed file (`.gz`) gets the compression type, not the type of what's inside it.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm47}"`, `subject: "[mcp-qa:tc-gm47] attachment mime guess"`, `body: "mcp-gee-sweet TC-GM47"`, and `attachments` (none has `mime_type`):
+   - `{"content_base64": "JVBERi0xLjQK", "filename": "gm47.pdf"}`
+   - `{"content_base64": "aGVsbG8=", "filename": "gm47.csv.gz"}`
+   - `{"content_base64": "aGVsbG8=", "filename": "gm47.zzzunknown"}`
+   - `{"content_base64": "aGVsbG8=", "filename": "gm47.png", "mime_type": "text/plain"}` (explicit type wins)
+2. `get_message` with the `id` from step 1
+
+**Checks**
+- Step 2: `attachments` has exactly 4 entries, with `mime_type` by filename:
+  - `gm47.pdf` → `application/pdf`
+  - `gm47.csv.gz` → `application/gzip`
+  - `gm47.zzzunknown` → `application/octet-stream`
+  - `gm47.png` → `text/plain`
+- No `error` field
+
+**Cleanup:** `trash_message` the step-1 `id`.
 
 ---
 
@@ -640,6 +664,7 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Checks**
 - Step 3: `thread_id` equals `{GM17_ORIG}`'s `thread_id`
+- Step 3: no `warning` field. One appears only when the mailbox's own addresses couldn't be looked up (#802), which a healthy token never hits; the failure path is unit-tested only.
 - Step 4: `headers.in_reply_to` equals `{GM17_MID}`, and `headers.references` ends with `{GM17_MID}`
 - Step 4: `headers.subject` is exactly `Re: [mcp-qa:tc-gm17] reply original` (one `Re: `)
 - Step 4: `headers.to` is `{QA+tc-gm17}` (a reply to your own sent message goes to its original `To`, per TC-GM24)

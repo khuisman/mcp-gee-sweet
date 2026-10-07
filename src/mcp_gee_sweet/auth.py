@@ -189,6 +189,9 @@ class SpreadsheetContext:
     # wrapper raises this message instead of running any tool. Per context, not
     # process-wide: under SSE each connection runs its own lifespan.
     unauthorized_message: str | None = None
+    # The mailbox's own addresses (primary + send-as aliases), cached by
+    # gmail._own_addresses once fully resolved (#802). Per connection, like the rest.
+    gmail_own_addresses: frozenset[str] | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)

@@ -4,7 +4,9 @@ import asyncio
 import base64
 import binascii
 import codecs
+import functools
 import logging
+import mimetypes
 import re
 from dataclasses import dataclass, field
 from email.message import Message
@@ -42,11 +44,31 @@ def _format_address_header(value: str | list[str] | None) -> str | None:
     return ", ".join(formatted) if formatted else None
 
 
-async def _own_addresses(gmail_service: Any) -> set[str]:
-    """Every address the authenticated mailbox sends as, lowercased: its send-as
-    aliases (users.settings.sendAs.list, which includes the primary address), or
-    just the primary address (users.getProfile) if the alias list can't be read.
-    Empty if neither call succeeds."""
+_OWN_ADDRESSES_UNRESOLVED = (
+    "Couldn't look up this mailbox's own address, so it may be among the recipients, "
+    "and a reply to your own message may have gone back to you."
+)
+_ALIASES_UNRESOLVED = (
+    "Couldn't list this mailbox's send-as aliases, so only its primary address was "
+    "left off the recipients."
+)
+
+
+async def _own_addresses(lc: Any) -> tuple[set[str], str | None]:
+    """Every address the authenticated mailbox sends as, lowercased, plus a warning
+    when that set is incomplete (#802).
+
+    Reads the send-as aliases (users.settings.sendAs.list, which includes the primary
+    address), falling back to just the primary address (users.getProfile) if the
+    alias list can't be read. Empty, with a warning, if neither call succeeds. A
+    complete answer is cached on the connection's lifespan context, since the
+    mailbox can't change within a connection; an incomplete one is retried next
+    call.
+    """
+    cached = getattr(lc, "gmail_own_addresses", None)
+    if isinstance(cached, frozenset):
+        return set(cached), None
+    gmail_service = lc.gmail_service
     try:
         result = await execute_in_thread(
             gmail_service.users().settings().sendAs().list(userId=_USER).execute,
@@ -58,19 +80,22 @@ async def _own_addresses(gmail_service: Any) -> set[str]:
             if isinstance(a.get("sendAsEmail"), str) and a["sendAsEmail"].strip()
         }
         if aliases:
-            return aliases
+            lc.gmail_own_addresses = frozenset(aliases)
+            return aliases, None
     except Exception:
-        logger.debug("Could not list send-as aliases", exc_info=True)
+        logger.warning("Could not list send-as aliases", exc_info=True)
     try:
         profile = await execute_in_thread(
             gmail_service.users().getProfile(userId=_USER).execute,
             gmail_service,
         )
     except Exception:
-        logger.debug("Could not resolve mailbox email via getProfile", exc_info=True)
-        return set()
+        logger.warning("Could not resolve mailbox email via getProfile", exc_info=True)
+        return set(), _OWN_ADDRESSES_UNRESOLVED
     email = (profile or {}).get("emailAddress")
-    return {email.strip().lower()} if isinstance(email, str) and email.strip() else set()
+    if isinstance(email, str) and email.strip():
+        return {email.strip().lower()}, _ALIASES_UNRESOLVED
+    return set(), _OWN_ADDRESSES_UNRESOLVED
 
 
 def _reply_recipients(
@@ -527,19 +552,42 @@ def _shape_label(label: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# What a compressed file's guess_type() encoding means as a MIME type. guess_type
+# reports "x.csv.gz" as ("text/csv", "gzip"), and the bytes are gzip, not CSV.
+_ENCODING_MIME_TYPES = {
+    "gzip": "application/gzip",
+    "bzip2": "application/x-bzip2",
+    "xz": "application/x-xz",
+    "compress": "application/x-compress",
+    "br": "application/x-brotli",
+}
+
+
+def _guess_attachment_mime_type(filename: str) -> str:
+    """The attachment's MIME type from its filename extension (#802), as
+    drive/transfer.py does for uploads; application/octet-stream if unknown."""
+    mime_type, encoding = mimetypes.guess_type(filename)
+    if encoding:
+        return _ENCODING_MIME_TYPES.get(encoding, "application/octet-stream")
+    return mime_type or "application/octet-stream"
+
+
 def _read_attachment_bytes(att: dict[str, Any]) -> tuple[str, str, bytes]:
-    """Resolve an attachment dict to (filename, mime_type, raw bytes)."""
-    filename = att.get("filename") or "attachment"
-    mime_type = att.get("mime_type") or "application/octet-stream"
+    """Resolve an attachment dict to (filename, mime_type, raw bytes). Reads
+    local_path from disk, so it runs off the event loop (via _compose_raw)."""
     if att.get("local_path"):
         path = Path(att["local_path"])
-        return filename if att.get("filename") else path.name, mime_type, path.read_bytes()
-    if att.get("content_base64"):
-        return filename, mime_type, base64.b64decode(att["content_base64"])
-    raise ValueError(
-        "Each attachment needs either local_path or content_base64 "
-        "(plus optional filename and mime_type)."
-    )
+        filename = att.get("filename") or path.name
+        data = path.read_bytes()
+    elif att.get("content_base64"):
+        filename = att.get("filename") or "attachment"
+        data = base64.b64decode(att["content_base64"])
+    else:
+        raise ValueError(
+            "Each attachment needs either local_path or content_base64 "
+            "(plus optional filename and mime_type)."
+        )
+    return filename, att.get("mime_type") or _guess_attachment_mime_type(filename), data
 
 
 def _build_raw_message(
@@ -599,6 +647,61 @@ def _build_raw_message(
     return base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
 
 
+async def _compose_raw(**kwargs: Any) -> str:
+    """_build_raw_message off the event loop: it reads attachment files from disk and
+    base64-encodes them, which would stall concurrent tool calls (#802)."""
+    return await asyncio.to_thread(functools.partial(_build_raw_message, **kwargs))
+
+
+def _list_kwargs(
+    *,
+    query: str | None,
+    label_ids: list[str] | None,
+    max_results: int,
+    page_token: str | None,
+    include_spam_trash: bool,
+) -> dict[str, Any]:
+    """The messages.list / threads.list kwargs shared by list_messages and list_threads."""
+    kwargs: dict[str, Any] = {
+        "userId": _USER,
+        "maxResults": clamp_max_results(max_results, _GMAIL_LIST_MAX),
+        "includeSpamTrash": include_spam_trash,
+    }
+    if query:
+        kwargs["q"] = query
+    if label_ids:
+        kwargs["labelIds"] = label_ids
+    if page_token:
+        kwargs["pageToken"] = page_token
+    return kwargs
+
+
+def _list_page(
+    result: dict[str, Any], key: str, items: list[dict[str, Any]], tool_name: str
+) -> dict[str, Any]:
+    """Shape one list page: the items under `key`, result_size_estimate, and
+    next_page_token when there is one, checked against the response-size cap."""
+    out: dict[str, Any] = {key: items, "result_size_estimate": result.get("resultSizeEstimate")}
+    if npt := result.get("nextPageToken"):
+        out["next_page_token"] = npt
+    enforce_response_size_cap(
+        out,
+        tool_name=tool_name,
+        hint="Lower max_results and paginate via next_page_token, or ",
+        local_path_available=False,
+    )
+    return out
+
+
+def _message_summary(msg: dict[str, Any]) -> dict[str, Any]:
+    """The id / thread_id / label_ids shape every message-returning write tool uses."""
+    return {
+        "id": msg["id"],
+        "thread_id": msg.get("threadId"),
+        "label_ids": msg.get("labelIds") or [],
+    }
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Messages", readOnlyHint=True))
     async def list_messages(
@@ -628,19 +731,13 @@ def register(tool):
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
-        max_results = clamp_max_results(max_results, _GMAIL_LIST_MAX)
-        kwargs: dict[str, Any] = {
-            "userId": _USER,
-            "maxResults": max_results,
-            "includeSpamTrash": include_spam_trash,
-        }
-        if query:
-            kwargs["q"] = query
-        if label_ids:
-            kwargs["labelIds"] = label_ids
-        if page_token:
-            kwargs["pageToken"] = page_token
-
+        kwargs = _list_kwargs(
+            query=query,
+            label_ids=label_ids,
+            max_results=max_results,
+            page_token=page_token,
+            include_spam_trash=include_spam_trash,
+        )
         try:
             result = await execute_in_thread(
                 lc.gmail_service.users().messages().list(**kwargs).execute,
@@ -652,19 +749,7 @@ def register(tool):
         messages = [
             {"id": m["id"], "thread_id": m.get("threadId")} for m in result.get("messages", [])
         ]
-        out: dict[str, Any] = {
-            "messages": messages,
-            "result_size_estimate": result.get("resultSizeEstimate"),
-        }
-        if npt := result.get("nextPageToken"):
-            out["next_page_token"] = npt
-        enforce_response_size_cap(
-            out,
-            tool_name="list_messages",
-            hint="Lower max_results and paginate via next_page_token, or ",
-            local_path_available=False,
-        )
-        return out
+        return _list_page(result, "messages", messages, "list_messages")
 
     @tool(annotations=ToolAnnotations(title="Get Message", readOnlyHint=True))
     async def get_message(
@@ -762,19 +847,13 @@ def register(tool):
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
-        max_results = clamp_max_results(max_results, _GMAIL_LIST_MAX)
-        kwargs: dict[str, Any] = {
-            "userId": _USER,
-            "maxResults": max_results,
-            "includeSpamTrash": include_spam_trash,
-        }
-        if query:
-            kwargs["q"] = query
-        if label_ids:
-            kwargs["labelIds"] = label_ids
-        if page_token:
-            kwargs["pageToken"] = page_token
-
+        kwargs = _list_kwargs(
+            query=query,
+            label_ids=label_ids,
+            max_results=max_results,
+            page_token=page_token,
+            include_spam_trash=include_spam_trash,
+        )
         try:
             result = await execute_in_thread(
                 lc.gmail_service.users().threads().list(**kwargs).execute,
@@ -784,26 +863,10 @@ def register(tool):
             return {"error": str(e)}
 
         threads = [
-            {
-                "id": t["id"],
-                "snippet": t.get("snippet"),
-                "history_id": t.get("historyId"),
-            }
+            {"id": t["id"], "snippet": t.get("snippet"), "history_id": t.get("historyId")}
             for t in result.get("threads", [])
         ]
-        out: dict[str, Any] = {
-            "threads": threads,
-            "result_size_estimate": result.get("resultSizeEstimate"),
-        }
-        if npt := result.get("nextPageToken"):
-            out["next_page_token"] = npt
-        enforce_response_size_cap(
-            out,
-            tool_name="list_threads",
-            hint="Lower max_results and paginate via next_page_token, or ",
-            local_path_available=False,
-        )
-        return out
+        return _list_page(result, "threads", threads, "list_threads")
 
     @tool(annotations=ToolAnnotations(title="Get Thread", readOnlyHint=True))
     async def get_thread(
@@ -924,7 +987,8 @@ def register(tool):
             body_html: Optional HTML body (sent alongside the plain-text body).
             attachments: Optional list of attachment dicts. Each needs either
                          local_path or content_base64, plus optional filename and
-                         mime_type (default application/octet-stream).
+                         mime_type (guessed from the filename's extension when
+                         omitted, else application/octet-stream).
 
         Returns:
             Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
@@ -933,7 +997,7 @@ def register(tool):
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
-            raw = _build_raw_message(
+            raw = await _compose_raw(
                 to=to,
                 subject=subject,
                 body=body,
@@ -950,11 +1014,7 @@ def register(tool):
             return {"error": str(e)}
 
         logger.debug("Sent message %s", sent.get("id"))
-        return {
-            "id": sent["id"],
-            "thread_id": sent.get("threadId"),
-            "label_ids": sent.get("labelIds") or [],
-        }
+        return _message_summary(sent)
 
     @tool(annotations=ToolAnnotations(title="Create Draft", destructiveHint=True))
     async def create_draft(
@@ -979,7 +1039,8 @@ def register(tool):
             body_html: Optional HTML body (sent alongside the plain-text body).
             attachments: Optional list of attachment dicts. Each needs either
                          local_path or content_base64, plus optional filename and
-                         mime_type.
+                         mime_type (guessed from the filename's extension when
+                         omitted, else application/octet-stream).
 
         Returns:
             Draft id and nested message id/thread_id. On failure, {"error": "..."}.
@@ -988,7 +1049,7 @@ def register(tool):
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
-            raw = _build_raw_message(
+            raw = await _compose_raw(
                 to=to,
                 subject=subject,
                 body=body,
@@ -1041,11 +1102,7 @@ def register(tool):
             return {"error": str(e)}
 
         logger.debug("Sent draft %s as message %s", draft_id, sent.get("id"))
-        return {
-            "id": sent["id"],
-            "thread_id": sent.get("threadId"),
-            "label_ids": sent.get("labelIds") or [],
-        }
+        return _message_summary(sent)
 
     @tool(annotations=ToolAnnotations(title="Reply to Message", destructiveHint=True))
     async def reply_to_message(
@@ -1075,7 +1132,9 @@ def register(tool):
         aliases, are left off the recipients unless nobody else is on the message.
 
         Returns:
-            Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
+            Sent message id, thread_id, and label_ids, plus a warning when your own
+            addresses couldn't be looked up (so you may be among the recipients).
+            On failure, {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
@@ -1110,6 +1169,7 @@ def register(tool):
 
         # The mailbox's own addresses are needed for plain replies too: to drop them
         # from the recipients, and to recognize its own message when it lacks SENT.
+        own, own_warning = await _own_addresses(lc)
         to, cc = _reply_recipients(
             original_from=original_from,
             original_reply_to=headers.get("reply-to", ""),
@@ -1117,14 +1177,14 @@ def register(tool):
             original_cc=original_cc,
             sent_label="SENT" in (original.get("labelIds") or []),
             reply_all=reply_all,
-            own=await _own_addresses(lc.gmail_service),
+            own=own,
         )
 
         if not to:
             return {"error": "Original message has no From header to reply to."}
 
         try:
-            raw = _build_raw_message(
+            raw = await _compose_raw(
                 to=to,
                 subject=subject,
                 body=body,
@@ -1147,11 +1207,10 @@ def register(tool):
             return {"error": str(e)}
 
         logger.debug("Replied to message %s with %s", message_id, sent.get("id"))
-        return {
-            "id": sent["id"],
-            "thread_id": sent.get("threadId"),
-            "label_ids": sent.get("labelIds") or [],
-        }
+        out = _message_summary(sent)
+        if own_warning:
+            out["warning"] = own_warning
+        return out
 
     @tool(annotations=ToolAnnotations(title="Modify Labels", destructiveHint=True))
     async def modify_labels(
@@ -1205,11 +1264,7 @@ def register(tool):
                     .execute,
                     lc.gmail_service,
                 )
-                return {
-                    "id": result["id"],
-                    "thread_id": result.get("threadId"),
-                    "label_ids": result.get("labelIds") or [],
-                }
+                return _message_summary(result)
 
             result = await execute_in_thread(
                 lc.gmail_service.users()
