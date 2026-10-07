@@ -808,6 +808,9 @@ Same as round 1: `initialize` 1.8s, error result with the instructions (now endi
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 `initialize` 1.9s, 0 `Please visit` in the log. `list_spreadsheets` error text: `No usable OAuth token at '<nonexistent>'. To re-authorize, open this link in a browser and approve access within <N>s, then retry the call: https://accounts.google.com/o/oauth2/auth?...`, then `Or run \`mcp-gee-sweet auth\` ... (\`uvx mcp-gee-sweet auth\` ...) ... then retry the call: the server picks up the new token without a restart.` No restart instruction in the tool text. `auth-status`: `none`, `["*"]`, one `oauth_not_authorized`. The log has `Starting without Google access:` and `"TOOL list_spreadsheets" 401`. The token path still doesn't exist. (`auth-status`'s own `reason`/`alternatives` still say `then restart the server or reconnect to it`, which is review finding 9, not this case's check.)
 
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+`initialize` 1.7s, 0 `Please visit`. `list_spreadsheets`: `No usable OAuth token at '<nonexistent>'.`, then the link, then the CLI alternative ending `then retry the call: the server picks up the new token without a restart.`. No restart wording. `auth-status` `none` / `["*"]` / one `oauth_not_authorized`. The log has `Starting without Google access:` and `"TOOL list_spreadsheets" 401`. The token path still doesn't exist.
+
 ---
 
 ### TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem
@@ -1111,6 +1114,9 @@ Same as round 1 after the degraded start began raising `ToolError` directly: `is
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 mcp 2.3.0, bogus scratch client JSON, expired token with a bogus refresh token. `get_storage_quota`: `is_error: True`, text starts `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>'.`, then the consent link (built from the bogus client ID), then the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` alternative naming the scratch `TOKEN_PATH` and `CREDENTIALS_PATH`. Not the bare `Error executing tool get_storage_quota`.
 
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+mcp 2.3.0. Same as round 1: `is_error: True`, starts `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>'.`, with the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` alternative naming the scratch paths. Not the bare text.
+
 ---
 
 ### TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for `spreadsheet://{id}/info` (issue #872)
@@ -1204,6 +1210,9 @@ BROWSER=/usr/bin/false
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 `stdio_client` + `ClientSession`, no elicitation callback, `CACHE_DB_PATH` pointed at a scratch file. Both `list_files` and `list_sheets`: `is_error: true`, text `Error executing tool <name>: Google rejected the OAuth token refresh: invalid_grant: Bad Request. To re-authorize, open this link in a browser and approve access within 120s, then retry the call: https://accounts.google.com/o/oauth2/auth?...`, then the `mcp-gee-sweet auth` alternative naming the scratch `TOKEN_PATH`/`CREDENTIALS_PATH`. No `{'error'` and no `List files failed`. Same link for both, `redirect_uri=http://localhost:60833/`, and a TCP connect to it succeeded. 0 `Please visit`. Log: `"TOOL list_files" 401 0.242s`, `"TOOL list_sheets" 401 7.408s`. Side observation: every token reload re-logs `WARNING ... Gmail tools disabled` (this token lacks `gmail.modify`), so each reload rewrites the process-wide Gmail gate (review finding 4).
 
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+Both texts as specified, with time left `119s` and `118s` (not the full 120). The CLI alternative ends `... without a restart.`. 1 (`list_files`) ends `The call may have partly completed before the token was rejected; the tool reported: [{"error": "List files failed: ('invalid_grant: Bad Request', {...})"}]`. The tuple repr appears only inside that reported result, never before it. 2 (`list_sheets`) has no such sentence. Same link for both, and its port is open. Step 1 three more times: each `401` in 0.09s, 0 `Token refresh failed` lines in total (this token isn't expired, so the reload never refreshes, and the unchanged file is skipped), and only the startup `Gmail tools disabled` line (1 in the log, against one per reload in round 1). 0 `Please visit`.
+
 ---
 
 ### TC-I49: a client with URL elicitation gets a `-32042` error carrying the consent link (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1223,6 +1232,9 @@ BROWSER=/usr/bin/false
 
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 With an `elicitation_callback` (returns cancel; never invoked, since the server raises rather than sending an in-call request). Both calls raised `MCPError` code `-32042`. `from_error(...).elicitations` had one entry each, with `url` `https://accounts.google.com/o/oauth2/auth?...` and `message` `Google rejected the OAuth token refresh: invalid_grant: Bad Request. Open this Google sign-in page to re-authorize mcp-gee-sweet (the link works for 120s), then retry.` Same `elicitation_id` and same `url` for both, and the callback port was open. Log: `"TOOL list_files" 401`, `"TOOL list_sheets" 401`.
+
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+Same as round 1: both calls `-32042`, the same `elicitation_id` and `url`, port open, `401` access lines, 0 `Please visit`.
 
 ---
 
@@ -1245,6 +1257,9 @@ With an `elicitation_callback` (returns cancel; never invoked, since the server 
 
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 Step 1: the first `list_files` gave the consent-link error (`401`). After copying the working token in, `list_files` and `list_sheets` (`Sales Notes & Misc Empty`) both returned `200`, with one `INFO mcp_gee_sweet.auth OAuth credentials reloaded; this connection is authorized again`. Step 2: `list_sheets` gave the consent-link error. After the copy, the next call returned `... The server has since loaded a newer OAuth token; retry the call.` (`401`, one `reloaded` line), and the call after that returned `200`. Same server process throughout.
+
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+Step 1: `401` with the link, then after the copy `OAuth credentials reloaded ...` once, `list_files` `200` and `list_sheets` `200`. Step 2: `401` with the link, then after the copy `... The server has since loaded a newer OAuth token; retry the call.` (`401`), then `200`. Side observation on step 2's first post-copy call: it now ends `The call may have partly completed ...; the tool reported: ["Sales", "Notes & Misc", "Empty"]`. `list_sheets` actually succeeded from the structure cache (the cache's `modifiedTime` check is where the revoked refresh failed and was recorded), and `_timed` replaced that success with the retry message. That's the design (a recorded failure replaces the result, now carried in the text), not a defect.
 
 ---
 
@@ -1270,6 +1285,9 @@ Step 1: the first `list_files` gave the consent-link error (`401`). After copyin
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS**
 `OAUTH_CONSENT_TIMEOUT_SECONDS=300`, a stdio session held open, and a fresh `CACHE_DB_PATH` (a cache shared with an earlier run served `list_files` with no API call, so no refresh happened: use a fresh cache for this case). The first `list_files` gave the link (`401`). Playwright, under the mutex, after the fixture-doc sign-in check: the account chooser, the Workspace account, then **Allow** led to `http://localhost:<port>/?state=...&code=...`, which read `The authentication flow has completed. You may close this window.` The scratch token's `refresh_token` changed and its mode is `0o600`. A TCP connect to the callback port then failed (closed). Log: `OAuth credentials reloaded ...`, then `list_files` `200` and `list_sheets` `200`. 0 `Please visit`, and no browser opened by the server (`BROWSER=/usr/bin/false`). The grant was on the fixture-owning Workspace account for the team's existing OAuth client, so nothing to revoke.
 
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+Same flow as round 1 (Playwright under the mutex, Workspace account, **Allow**): the callback page completed, the scratch token's `refresh_token` changed with mode `0o600`, the callback port then closed, and `OAuth credentials reloaded ...` was followed by `list_files` `200` and `list_sheets` `200`. 0 `Please visit`.
+
 ---
 
 ### TC-I52: in Claude Code, a revoked token shows the consent prompt instead of an error (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1290,6 +1308,9 @@ Step 1: the first `list_files` gave the consent-link error (`401`). After copyin
 **Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ⏭️ NOT RUN**
 Needs a human driving an interactive Claude Code session; a lane QA session can't accept the client's URL prompt itself. TC-I49 covers the wire format (`-32042` with the elicitation). Pending a human-driven run.
 
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ⏭️ NOT RUN**
+Same reason as round 1: needs a human in an interactive Claude Code session.
+
 ---
 
 ### TC-I53: over SSE, a connection opening while a tool call's consent link is pending starts at once, offers the same link, and leaves server consent on (PR #925 QA round 1) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1309,7 +1330,10 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 **Checks**
 - 1: the TC-I48 consent-link error
 - 3: B and C each finish `initialize` within a couple of seconds (not the 25s timeout), and their `list_files` error starts `No usable OAuth token at '<scratch token>'. To re-authorize, open this link ...` with the *same* link A got and a time left of at most 25s
-- No `auth-status` read has `restart the server` in its text
+- No `auth-status` read's `oauth_not_authorized` limitation has `restart the server` in its text (a `gmail_not_authorized` one still says to restart, by design, if the token lacks `gmail.modify`)
 - The log has 0 `Please visit` lines, 0 `earlier browser consent` lines, and two `Starting without Google access: ... a re-authorization link a tool call offered is still open` lines (B and C)
 
 **Cleanup:** SIGTERM the server; delete the scratch token and log.
+
+**Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
+SSE on `127.0.0.1:8937`, `OAUTH_CONSENT_TIMEOUT_SECONDS=25`. A: `initialize` 0.2s, then the TC-I48 link with `within 24s`. After expiring the token: B and C each `initialize` in 0.1s (not 25s), and each `list_files` starts `No usable OAuth token at '<scratch token>'. To re-authorize, open this link ... within 24s` with the *same* link A got. The log has 0 `Please visit`, 0 `earlier browser consent`, and 2 `Starting without Google access: ... a re-authorization link a tool call offered is still open` lines. SIGTERM exited cleanly. B's and C's `auth-status` have no `restart the server`. A's does, from its `gmail_not_authorized` limitation: the team token lacks `gmail.modify`, and a missing scope still needs a restart by design. So I narrowed that check's wording to the `oauth_not_authorized` limitation.
