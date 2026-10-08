@@ -48,6 +48,11 @@ class TestLetterToColumnIndex:
 
 
 class TestParseA1Notation:
+    @pytest.mark.parametrize("range_str", [":", "A1\n", "1:2\n", "B:D\n"])
+    def test_incomplete_or_trailing_newline_range_raises(self, range_str):
+        with pytest.raises(ValueError, match="Invalid A1 notation"):
+            _parse_a1_notation(range_str)
+
     def test_single_cell(self):
         result = _parse_a1_notation("A1")
         assert result["startColumnIndex"] == 0
