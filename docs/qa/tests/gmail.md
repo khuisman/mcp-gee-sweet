@@ -590,6 +590,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-07, PR #928 round 2) ✅ PASS (as written), with a send-back finding out of scope for this case**: via `mcp-gee-sweet-kit`, after reconnecting to `1d3c7cf`. All 6 attachments came back as expected: `gm47.pdf` → `application/pdf`, `gm47.csv.gz` → `application/gzip`, `gm47.zzzunknown` → `application/octet-stream`, `gm47.png` → `text/plain` (explicit wins), `gm47.eml` → `application/octet-stream`, `gm47.txt` → `text/plain`. No `error`. A probe in the same round sent an explicit `mime_type` with one empty half: `"application/"` and `"/pdf"` passed `_attachment_part`'s malformed-type check, and Gmail stored them verbatim as the attachments' `mime_type` (`application/`, `/pdf`). Before #896 these became `application/octet-stream` and `application/pdf`. An explicit `message/rfc822` `fwd.eml` with an 8-bit UTF-8 body came back as `message/rfc822` (115 bytes). Both messages were trashed.
 
+**Result (2026-10-07, PR #928 round 3) ✅ PASS**: via `mcp-gee-sweet-kit`, after reconnecting to `542f548`. All 6 attachments came back with the same `mime_type`s as round 2, with no `error`. Re-running round 2's probe, `send_message` with an explicit `mime_type` of `"application/"` and then `"/pdf"` each returned `{"error": "Attachment mime_type '...' isn't a type/subtype such as 'application/pdf'."}` and no `id`. A `list_messages` search with `include_spam_trash: true` found nothing sent. The TC-GM47 message was trashed.
+
 ---
 
 ## `create_draft`
