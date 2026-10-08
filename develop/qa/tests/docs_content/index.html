@@ -4521,6 +4521,8 @@ Blockquote nesting export: markdown contains "> a quoted line" and "> > double q
 **Result (2026-09-04) ✅ PASS**
 Inline code vs fenced block: markdown = "See \`x\` inline.\n\n\`\`\`\nfull code block\n\`\`\`\n\n" — exact match.
 
+**Result (2026-10-07) ✅ PASS — regression check for PR #923 (`2b8da7a`).** Run against an isolated service-account sandbox on a Shared Drive, on a doc created with this case's setup content. `markdown` returned `"See \`x\` inline.\n\n\`\`\`\nfull code block\n\`\`\`\n\n"`, an exact match. Backtick-free inline code still gets a single-backtick fence.
+
 ---
 
 ### TC-DOC177: Table with a merged (colspan) header cell
@@ -4743,6 +4745,41 @@ Mid-cell blank spacer (double <br>): markdown = "| Line 1<br><br>Line 2 |\n| ---
 
 **Result (2026-09-04) ✅ PASS**
 Edge spacers (single <br> each): markdown = "| Trailing test<br> |\n| --- |\n| <br>Leading test |\n\n" — both leading/trailing spacers survive exactly.
+
+---
+
+### TC-DOC204: Inline code containing backticks gets a longer fence and renders back to its original text (#936)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p>see <code>call(`value`)</code></p><p>see <code>`leading</code></p><p>see <code>trailing`</code></p><p>see <code>``nested``</code></p><p>see <code>plain</code></p>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `` see ``call(`value`)`` ``, a two-backtick fence around content with a one-backtick run
+- `markdown` contains ``` see `` `leading `` ``` and ``` see `` trailing` `` ```. The content has a backtick at the edge, so it's padded with one space on each side
+- `markdown` contains ```` see ``` ``nested`` ``` ````, a three-backtick fence around a two-backtick run, padded
+- `markdown` contains `` see `plain` `` (regression: backtick-free code is unchanged)
+- Rendering each paragraph with a CommonMark renderer (e.g. Python `markdown`) gives a `<code>` element whose text is exactly the original: `` call(`value`) ``, `` `leading ``, `` trailing` ``, ``` ``nested`` ```, `plain`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-07) ✅ PASS — run live against PR #923 (`2b8da7a`).** Run against an isolated service-account sandbox on a Shared Drive, on a doc written with the setup HTML (combined in one write with TC-DOC205's paragraphs). The relevant paragraphs of `markdown` were `"see ``call(`value`)``\n\nsee `` `leading ``\n\nsee `` trailing` ``\n\nsee ``` ``nested`` ```\n\n…see `plain`\n\n"`, matching each check. Each paragraph rendered with Python `markdown` gave a `<code>` element with exactly the original text.
+
+---
+
+### TC-DOC205: A link on an inline code run containing backticks wraps the code span and keeps its destination (#936)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content=...)` with one paragraph per TC-DOC204 input, each code run wrapped in a link: `<p>see <a href="https://example.com/code"><code>call(`value`)</code></a></p>`, and likewise for `` `leading ``, `` trailing` ``, ``` ``nested`` ```
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- Each paragraph renders as `see [<span>](https://example.com/code)`, where `<span>` is the same fenced code span TC-DOC204 expects for that input
+- Rendering each paragraph with a CommonMark renderer gives an `<a href="https://example.com/code">` containing a `<code>` element whose text is exactly the original
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-07) ✅ PASS — run live against PR #923 (`2b8da7a`).** Same doc and environment as TC-DOC204. `markdown` returned `"see [``call(`value`)``](https://example.com/code)\n\nsee [`` `leading ``](https://example.com/code)\n\nsee [`` trailing` ``](https://example.com/code)\n\nsee [``` ``nested`` ```](https://example.com/code)"`. Rendered with Python `markdown`, each paragraph had an `<a>` with `href="https://example.com/code"` wrapping a `<code>` with exactly the original text.
 
 ---
 
