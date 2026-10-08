@@ -1360,3 +1360,7 @@ Start a stdio session against `uv run mcp-gee-sweet` with `AUTH_METHOD=oauth`, `
 - The log has 0 `Please visit` lines
 
 **Cleanup:** end the session; delete the scratch token and log.
+
+**Result (2026-10-08, PR #925 round 3 @ e5f6fed, Sky) ✅ PASS**
+mcp 2.3.0, stdio, fresh `CACHE_DB_PATH`. Step 1: `Google rejected the OAuth token refresh: invalid_grant ...`, link 1 `within 24s`, port 63319. Step 2 at +16.1s: a different link, port 63322, `within 24s`. Step 3 at +18.1s: both ports open (round 2 had link 1 closed by now). Step 4 at +26.0s (link 1's deadline +24s): link 1 refused, link 2 open. 0 `Please visit`.
+Extra check (the fix's "either link completes" claim, TC-I51-style): `OAUTH_CONSENT_TIMEOUT_SECONDS=120` (threshold 60s). Link 1 `within 119s`. At +61.6s a second `list_files` gave link 2 (a different port), with both ports open. Playwright, under the mutex, after the fixture-doc sign-in check, then completed consent through **link 1** (the replaced one): account chooser, the Workspace account, **Allow**, and the callback page on link 1's port read `The authentication flow has completed. You may close this window.` The scratch token's `refresh_token` changed and its mode is `0o600`. Link 1's port then closed, and the retried `list_files` succeeded. Link 2's port stayed open after the consent completed, as designed: it listens until its own deadline. 0 `Please visit`. Scratch files deleted.
