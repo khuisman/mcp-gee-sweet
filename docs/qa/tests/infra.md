@@ -1337,3 +1337,26 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 SSE on `127.0.0.1:8937`, `OAUTH_CONSENT_TIMEOUT_SECONDS=25`. A: `initialize` 0.2s, then the TC-I48 link with `within 24s`. After expiring the token: B and C each `initialize` in 0.1s (not 25s), and each `list_files` starts `No usable OAuth token at '<scratch token>'. To re-authorize, open this link ... within 24s` with the *same* link A got. The log has 0 `Please visit`, 0 `earlier browser consent`, and 2 `Starting without Google access: ... a re-authorization link a tool call offered is still open` lines. SIGTERM exited cleanly. B's and C's `auth-status` have no `restart the server`. A's does, from its `gmail_not_authorized` limitation: the team token lacks `gmail.modify`, and a missing scope still needs a restart by design. So I narrowed that check's wording to the `oauth_not_authorized` limitation.
+
+### TC-I54: replacing a nearly expired tool-call link leaves the old link working until its stated deadline (PR #925 QA round 2) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** a tool call's own consent attempt with less than `min(60, timeout/2)` seconds left isn't offered again; the next failing call gets a fresh link. In round 2 that replacement also stopped the old attempt, so link 1's callback port closed while its offer still promised it several more seconds, and a user on link 1's consent page landed on a dead localhost redirect. Now the old attempt keeps listening until its own deadline. The two attempts share a group: whichever completes publishes the token and sends `elicitation/complete` to both attempts' clients (unit-tested in `tests/test_reauth.py::TestUserConsent::test_either_link_completes_and_notifies_both_clients`).
+
+**Setup**
+- The TC-I48 scratch token (dead access token, bogus refresh token).
+
+**Action**
+Start a stdio session against `uv run mcp-gee-sweet` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<scratch token>`, `CREDENTIALS_PATH=<oauth client json>`, `OAUTH_CONSENT_TIMEOUT_SECONDS=25` (replacement threshold 12s), `BROWSER=/usr/bin/false`, `DEBUG_LEVEL=INFO`, `LOG_FILE=<tmp log>`, using the `mcp` SDK's `stdio_client` + `ClientSession` (no elicitation callback):
+1. Call `list_files` (`folder_id: "root"`, `max_results: 1`). Note the link (link 1), its `within <N>s`, and the time of the call; link 1's deadline is that time plus `<N>`
+2. 16s after step 1, call `list_files` again. Note its link (link 2)
+3. 2s after step 2, TCP-connect to link 1's and link 2's `redirect_uri` ports
+4. 2s after link 1's deadline, TCP-connect to both ports again
+
+**Checks**
+- 1: the TC-I48 consent-link error, `within 24s` or `within 25s`
+- 2: a *different* link, with a different `redirect_uri` port, and a time left of at least 23s
+- 3: both connects succeed (link 1 still open, with time left on its stated deadline)
+- 4: link 1's connect is refused (closed at its own deadline), and link 2's still succeeds
+- The log has 0 `Please visit` lines
+
+**Cleanup:** end the session; delete the scratch token and log.

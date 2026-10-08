@@ -372,8 +372,8 @@ class TestUserConsent:
             assert time.monotonic() < deadline
             await asyncio.sleep(0.02)
 
-    async def _callback(self):
-        redirect = self.flow.redirect_uri
+    async def _callback(self, redirect=None):
+        redirect = redirect or self.flow.redirect_uri
 
         def hit():
             with urllib.request.urlopen(f"{redirect}?code=c&state=st", timeout=5) as resp:
@@ -461,9 +461,44 @@ class TestUserConsent:
         first.deadline = time.monotonic() + 5
         second = await auth_module.start_user_consent()
         assert second is not first
-        assert first.stop.is_set()
         assert second.remaining_seconds() > 250
+        # PR #925 QA round 2: a client holds first's link and was told it works until
+        # its deadline, so it keeps listening.
+        assert first.usable_on(asyncio.get_running_loop())
+        assert second.group is first.group == [first, second]
+        first.stop.set()
         second.stop.set()
+
+    @pytest.mark.parametrize("completed", ["replaced", "replacement"])
+    async def test_either_link_completes_and_notifies_both_clients(self, no_build, completed):
+        first = await auth_module.start_user_consent()
+        first_redirect = self.flow.redirect_uri
+        first.deadline = time.monotonic() + 5
+        second = await auth_module.start_user_consent()
+        second_redirect = self.flow.redirect_uri
+        assert second_redirect != first_redirect
+        first_session = SimpleNamespace(send_elicit_complete=AsyncMock())
+        second_session = SimpleNamespace(send_elicit_complete=AsyncMock())
+        first.notify_on_completion(first_session)
+        second.notify_on_completion(second_session)
+        done, other = (first, second) if completed == "replaced" else (second, first)
+        redirect = first_redirect if completed == "replaced" else second_redirect
+        assert b"completed" in await self._callback(redirect)
+        await asyncio.wait_for(asyncio.shield(done.future), 5)
+        await self._until(
+            lambda: (
+                first_session.send_elicit_complete.await_count == 1
+                and second_session.send_elicit_complete.await_count == 1
+            )
+        )
+        first_session.send_elicit_complete.assert_awaited_once_with(first.elicitation_id)
+        second_session.send_elicit_complete.assert_awaited_once_with(second.elicitation_id)
+        assert auth_module._oauth_generation == 1
+        assert done not in other.group
+        other.stop.set()
+        with pytest.raises(auth_module._ConsentStopped):
+            await asyncio.wait_for(asyncio.shield(other.future), 5)
+        assert other.group == []
 
     async def test_cancel_while_building_closes_the_listener(self):
         # QA round 1 #6.

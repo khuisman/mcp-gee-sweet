@@ -659,6 +659,9 @@ class _ConsentAttempt:
         self.elicitation_id = uuid.uuid4().hex
         # (session, elicitation_id) pairs to tell when the consent completes.
         self.notify_sessions: list[Any] = []
+        # This attempt and any tool-call attempt it replaced while that one was still
+        # listening. Shared list: whichever completes tells every member's clients.
+        self.group: list[_ConsentAttempt] = [self]
         self.future = _run_in_daemon_thread(
             loop,
             lambda: _run_server_consent(scopes, self.stop, listener, self._set_auth_url),
@@ -682,17 +685,27 @@ class _ConsentAttempt:
         if session is not None and all(s is not session for s in self.notify_sessions):
             self.notify_sessions.append(session)
 
+    def join_group_of(self, replaced: "_ConsentAttempt") -> None:
+        """Share `replaced`'s group: it keeps listening to its own deadline, and a
+        consent through either link notifies both attempts' clients (PR #925 QA
+        round 2)."""
+        self.group = replaced.group
+        self.group.append(self)
+
     def _on_done(self, future: asyncio.Future) -> None:
         if future.cancelled() or future.exception() is not None:
+            self.group.remove(self)
             return
         # Every connection on this process adopts the new token on its next call.
         publish_oauth_credentials(future.result())
-        for session in self.notify_sessions:
-            task = asyncio.ensure_future(_send_elicit_complete(session, self.elicitation_id))
-            # Held until done: the loop keeps only a weak reference to a task.
-            _notify_tasks.add(task)
-            task.add_done_callback(_notify_tasks.discard)
-        self.notify_sessions.clear()
+        for attempt in self.group:
+            for session in attempt.notify_sessions:
+                task = asyncio.ensure_future(_send_elicit_complete(session, attempt.elicitation_id))
+                # Held until done: the loop keeps only a weak reference to a task.
+                _notify_tasks.add(task)
+                task.add_done_callback(_notify_tasks.discard)
+            attempt.notify_sessions.clear()
+        self.group.remove(self)
 
     def usable_on(self, loop: asyncio.AbstractEventLoop) -> bool:
         return not self.future.done() and not self.stop.is_set() and self.future.get_loop() is loop
@@ -775,8 +788,9 @@ async def _await_server_consent(scopes: list[str]) -> Credentials:
 
 async def start_user_consent() -> _ConsentAttempt:
     """The consent a tool call offers the user (#873): the pending attempt if there is
-    one, so every failing call gets the same URL and only one callback port is open per
-    process, else a new one. Never opens a browser. Raises if the consent can't start
+    one, so every failing call gets the same URL and one callback port serves them all,
+    else a new one. A nearly expired tool-call attempt is replaced but keeps listening
+    until its own deadline, so up to two ports overlap briefly. Never opens a browser. Raises if the consent can't start
     (no client secrets, an unwritable TOKEN_PATH).
 
     Not gated on `_interactive_consent`: that keeps the *server* from starting a consent
@@ -806,9 +820,13 @@ async def start_user_consent() -> _ConsentAttempt:
         # Another call started one while this listener was being built.
         listener.close()
         return attempt
-    if _consent_attempt is not None and _consent_attempt.user_started:
-        _consent_attempt.stop.set()  # the nearly expired one _joinable_attempt passed over
+    replaced = _consent_attempt
     _consent_attempt = _ConsentAttempt(loop, scopes, listener)
+    if replaced is not None and replaced.user_started and replaced.usable_on(loop):
+        # The nearly expired one _joinable_attempt passed over. Not stopped: a client
+        # holds its link and was told it works until its deadline, so both listen
+        # until then, for at most _min_offer_seconds() (PR #925 QA round 2).
+        _consent_attempt.join_group_of(replaced)
     return _consent_attempt
 
 
