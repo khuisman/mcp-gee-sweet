@@ -3,6 +3,10 @@ API -> AST walker, ast_to_markdown.py's AST -> Markdown serializer, and the
 get_doc_as_markdown tool wiring them together."""
 
 from unittest.mock import MagicMock
+from xml.etree import ElementTree
+
+import markdown
+import pytest
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
@@ -921,3 +925,19 @@ class TestGetDocAsMarkdownTool:
         )
         assert result["local_path"] == str(dest)
         assert dest.exists()
+
+
+@pytest.mark.parametrize("text", ["call(`value`)", "`leading", "trailing`", "``nested``"])
+@pytest.mark.parametrize("link_url", [None, "https://example.com/code"])
+def test_inline_code_backticks_survive_markdown_rendering(text, link_url):
+    nodes = [
+        Paragraph(
+            runs=[Run(text="see "), Run(text=text, font_family="Courier New", link_url=link_url)]
+        )
+    ]
+    rendered = ElementTree.fromstring(markdown.markdown(ast_to_markdown(nodes)))
+    code = rendered.find(".//code")
+    assert code is not None
+    assert code.text == text
+    if link_url:
+        assert rendered.find("a").attrib["href"] == link_url

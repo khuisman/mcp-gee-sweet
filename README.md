@@ -83,7 +83,7 @@ export TOKEN_PATH="/path/to/token.json"
 mcp-gee-sweet auth   # one-time browser login; `uvx mcp-gee-sweet auth` for a PyPI install
 ```
 
-Pass the same `CREDENTIALS_PATH` and `TOKEN_PATH` in your MCP client's `env`. A stdio server with no token doesn't open a browser itself; its tools return an error telling you to run `mcp-gee-sweet auth`.
+Pass the same `CREDENTIALS_PATH` and `TOKEN_PATH` in your MCP client's `env`. A stdio server with no token doesn't open a browser itself. Instead its first tool call offers you the Google consent link (or you run `mcp-gee-sweet auth`), and you retry the call. A token revoked mid-session is handled the same way, with no restart.
 
 Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
 
