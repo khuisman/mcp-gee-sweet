@@ -592,6 +592,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-07, PR #928 round 3) ✅ PASS**: via `mcp-gee-sweet-kit`, after reconnecting to `542f548`. All 6 attachments came back with the same `mime_type`s as round 2, with no `error`. Re-running round 2's probe, `send_message` with an explicit `mime_type` of `"application/"` and then `"/pdf"` each returned `{"error": "Attachment mime_type '...' isn't a type/subtype such as 'application/pdf'."}` and no `id`. A `list_messages` search with `include_spam_trash: true` found nothing sent. The TC-GM47 message was trashed.
 
+**Result (2026-10-07, PR #928 after the `develop` merge `548e691`) ✅ PASS**: via `mcp-gee-sweet-kit`, after reconnecting to the merge, which brought in #925's OAuth re-authorization. All 6 attachments came back with the same `mime_type`s as before, with no `error`. The message was trashed.
+
 ---
 
 ## `create_draft`
@@ -694,6 +696,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS**: via `mcp-gee-sweet-kit`. Step 3's `thread_id` equals the original's, and there was no `warning` field. Step 4: `in_reply_to` and `references` are both the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original` (one `Re: `), and `to` is the `+tc-gm17` address. Both messages were trashed.
 
 **Result (2026-10-07, PR #928 round 2) ✅ PASS**: via `mcp-gee-sweet-kit` at `1d3c7cf`, run right after `refresh_cache()` with no arguments (which now also clears the cached own-address set), so the reply re-read the send-as aliases. `refresh_cache` returned `{"invalidated": "all"}`. Step 3's `thread_id` equals the original's, and there was no `warning` field. Step 4: `in_reply_to` and `references` are the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original`, and `to` is the `+tc-gm17` address. Both messages were trashed.
+
+**Result (2026-10-07, PR #928 after the `develop` merge `548e691`) ✅ PASS**: via `mcp-gee-sweet-kit`, run right after `refresh_cache()` (`{"invalidated": "all"}`) on the merged code. The reply has the original's `thread_id` and no `warning`. `in_reply_to` and `references` are the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original`, and `to` is the `+tc-gm17` address. Both messages were trashed.
 
 ---
 
