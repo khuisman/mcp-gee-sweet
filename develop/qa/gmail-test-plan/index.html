@@ -1691,6 +1691,12 @@
 <td><code>include_body=False</code> on the <code>attachments</code> fixture: headers, snippet, labels, and <code>size_estimate</code> present; no <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code> key, since Gmail's <code>metadata</code> format returns no payload parts (#793)</td>
 <td>read</td>
 </tr>
+<tr>
+<td>GM47</td>
+<td><code>send_message</code> → <code>get_message</code></td>
+<td>Attachments with no <code>mime_type</code> get a type guessed from the filename extension (<code>.pdf</code>, <code>.csv.gz</code> → <code>application/gzip</code>, unknown or <code>.eml</code> → <code>application/octet-stream</code>); an explicit <code>mime_type</code> still wins (#802)</td>
+<td>write</td>
+</tr>
 </tbody>
 </table>
 <p>Every write case uses a <code>+tc-gmNN</code> plus-address and an <code>[mcp-qa:tc-gmNN]</code> subject (so <code>reset</code> sweeps it), and ends with a <strong>Cleanup</strong> step.</p>
@@ -1773,6 +1779,7 @@
 - <strong>P2 doesn't reproduce.</strong> Gmail puts the outer body first and the <code>message/rfc822</code> part after it.
 - <strong>P3 doesn't reproduce.</strong> Gmail stores the nameless inline image by <code>attachmentId</code>, so it's listed.</p>
 <p>P2 and P3 remain possible only for hand-built MIME, so they're unit-test material at most. P4–P9 are hardening tests. They can land together as one ticket.</p>
+<p><strong>P4–P9 covered (#823, via #896):</strong> <code>tests/test_gmail.py</code> now has unit tests for each. P9's <code>get_*</code> size-cap half had already landed with #825 (<code>TestMessageSizeCap</code>).</p>
 <hr />
 <h2 id="6-execution-order">6. Execution order<a class="headerlink" href="#6-execution-order" title="Permanent link">&para;</a></h2>
 <ol>

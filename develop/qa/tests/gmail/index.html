@@ -1598,6 +1598,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM47: An attachment without mime_type gets its type from the filename extension (issue #802) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2176,6 +2187,7 @@
 - Step 5: exactly 1 message (clamped up to 1), no <code>error</code>
 - Step 6: all 7 messages, no <code>next_page_token</code>, no <code>error</code> (clamped down to 500)
 - Don't check <code>result_size_estimate</code>. It's Gmail's estimate, not a count: live 2026-09-26, step 1 reported <code>201</code> for this 7-message query.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, #795's shared <code>_list_kwargs</code>/<code>_list_page</code>)</strong>: via <code>mcp-gee-sweet-kit</code>. <code>list_messages</code> and <code>list_threads</code> both paged 3/3/1 with <code>next_page_token</code> on the first two pages only, and the 7 IDs were distinct. Thread items carry <code>id</code>, <code>snippet</code>, and <code>history_id</code>. <code>max_results: 0</code> returned exactly 1 message, and <code>9999</code> returned all 7 with no token.</p>
 <hr />
 <h3 id="tc-gm35-spam-and-trash-are-excluded-unless-asked-for">TC-GM35: Spam and trash are excluded unless asked for<a class="headerlink" href="#tc-gm35-spam-and-trash-are-excluded-unless-asked-for" title="Permanent link">&para;</a></h3>
 <p>The <code>spam</code> and <code>trash</code> fixtures are inserted already labeled <code>SPAM</code> / <code>TRASH</code>.</p>
@@ -2499,8 +2511,10 @@
 <p><strong>Checks</strong>
 - Step 2: <code>body_plain</code> is <code>mcp-gee-sweet TC-GM38 plain</code>; <code>body_html</code> contains <code>&lt;b&gt;TC-GM38&lt;/b&gt;</code>
 - Step 2: <code>attachments</code> has exactly 2 entries: <code>filename: "mcp-qa-tc-gm38.csv"</code> (the file's own name, since no <code>filename</code> was passed) with <code>mime_type: "text/csv"</code>, and <code>filename: "note.txt"</code>
-- <strong>Record</strong> <code>note.txt</code>'s <code>mime_type</code>. Expected today: <code>application/octet-stream</code>, since the tool doesn't infer a type from the filename (#802 item 3; local probe 2026-09-26). This is an observation for #802, not a FAIL.</p>
+- Step 2: <code>note.txt</code>'s <code>mime_type</code> is <code>text/plain</code>, guessed from its extension since no <code>mime_type</code> was passed (#802; it was <code>application/octet-stream</code> before #896). TC-GM47 covers more extensions.</p>
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>; delete <code>/tmp/mcp-qa-tc-gm38.csv</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>. Both bodies matched. There were 2 attachments: <code>mcp-qa-tc-gm38.csv</code> (<code>text/csv</code>, 18 bytes, read through <code>_compose_raw</code>'s off-loop thread) and <code>note.txt</code>, whose <code>mime_type</code> was <code>text/plain</code>, guessed. The message was trashed and the local file deleted.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code> at <code>1d3c7cf</code>. Both bodies matched. There were 2 attachments: <code>mcp-qa-tc-gm38.csv</code> (<code>text/csv</code>, 18 bytes) and <code>note.txt</code> (<code>text/plain</code>, guessed, 18 bytes). The message was trashed and the local file deleted.</p>
 <hr />
 <h3 id="tc-gm39-cc-and-bcc-as-lists-destructive">TC-GM39: <code>cc</code> and <code>bcc</code> as lists ⚠️ destructive<a class="headerlink" href="#tc-gm39-cc-and-bcc-as-lists-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2522,6 +2536,32 @@
 - Step 3: <code>messages</code> is empty, so nothing was sent</p>
 <p><strong>Cleanup:</strong> none expected. If step 3 finds anything, record FAIL and trash it.</p>
 <hr />
+<h3 id="tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive">TC-GM47: An attachment without <code>mime_type</code> gets its type from the filename extension (issue #802) ⚠️ destructive<a class="headerlink" href="#tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> an attachment passed without <code>mime_type</code> used to go out as <code>application/octet-stream</code> whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, using Python's built-in table only, so the result doesn't depend on the server host's own MIME database. A compressed file (<code>.gz</code>) gets the compression type, not the type of what's inside it. PR #928 round 2 added two rules. A guessed <code>message/*</code> type (<code>.eml</code>, <code>.mht</code>) falls back to <code>application/octet-stream</code>, since base64, which every attachment uses, is forbidden on <code>message/rfc822</code>. A guessed <code>text/*</code> type gets <code>charset=utf-8</code> when its bytes are valid UTF-8, and falls back to <code>application/octet-stream</code> when they aren't. <code>get_message</code> doesn't show the charset, so that part is unit-tested only (<code>TestBuildRawMessageAttachments</code>).</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm47}"</code>, <code>subject: "[mcp-qa:tc-gm47] attachment mime guess"</code>, <code>body: "mcp-gee-sweet TC-GM47"</code>, and <code>attachments</code> (none has <code>mime_type</code>):
+   - <code>{"content_base64": "JVBERi0xLjQK", "filename": "gm47.pdf"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.csv.gz"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.zzzunknown"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.png", "mime_type": "text/plain"}</code> (explicit type wins)
+   - <code>{"content_base64": "RnJvbTogYUBleGFtcGxlLmNvbQ0KU3ViamVjdDogVEMtR000NyBpbm5lcg0KDQpoaQ0K", "filename": "gm47.eml"}</code> (a small RFC 822 message)
+   - <code>{"content_base64": "aMOpbGxvCg==", "filename": "gm47.txt"}</code> (UTF-8 <code>héllo</code>)
+2. <code>get_message</code> with the <code>id</code> from step 1</p>
+<p><strong>Checks</strong>
+- Step 2: <code>attachments</code> has exactly 6 entries, with <code>mime_type</code> by filename:
+  - <code>gm47.pdf</code> → <code>application/pdf</code>
+  - <code>gm47.csv.gz</code> → <code>application/gzip</code>
+  - <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>
+  - <code>gm47.png</code> → <code>text/plain</code>
+  - <code>gm47.eml</code> → <code>application/octet-stream</code> (not <code>message/rfc822</code>)
+  - <code>gm47.txt</code> → <code>text/plain</code>
+- No <code>error</code> field</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (as written), with send-back findings out of scope for this case</strong>: via <code>mcp-gee-sweet-kit</code>. The 4 attachments came back as <code>gm47.pdf</code> → <code>application/pdf</code>, <code>gm47.csv.gz</code> → <code>application/gzip</code>, <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>, and <code>gm47.png</code> → <code>text/plain</code> (explicit wins), with no <code>error</code>. A probe in the same round showed two regressions the case's extensions don't reach. <code>fwd.eml</code> with no <code>mime_type</code> was guessed as <code>message/rfc822</code> but still built as a base64 <code>MIMEApplication</code>, which RFC 2046 §5.2.1 forbids. Python's parser decodes that payload to <code>None</code>. A UTF-8 <code>notes.txt</code> (<code>héllo</code>) was guessed as <code>text/plain</code> with no <code>charset</code>, so per RFC 2046 it reads as US-ASCII. Gmail accepted both. The part headers were confirmed by running the branch's <code>_build_raw_message</code> locally. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS (as written), with a send-back finding out of scope for this case</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to <code>1d3c7cf</code>. All 6 attachments came back as expected: <code>gm47.pdf</code> → <code>application/pdf</code>, <code>gm47.csv.gz</code> → <code>application/gzip</code>, <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>, <code>gm47.png</code> → <code>text/plain</code> (explicit wins), <code>gm47.eml</code> → <code>application/octet-stream</code>, <code>gm47.txt</code> → <code>text/plain</code>. No <code>error</code>. A probe in the same round sent an explicit <code>mime_type</code> with one empty half: <code>"application/"</code> and <code>"/pdf"</code> passed <code>_attachment_part</code>'s malformed-type check, and Gmail stored them verbatim as the attachments' <code>mime_type</code> (<code>application/</code>, <code>/pdf</code>). Before #896 these became <code>application/octet-stream</code> and <code>application/pdf</code>. An explicit <code>message/rfc822</code> <code>fwd.eml</code> with an 8-bit UTF-8 body came back as <code>message/rfc822</code> (115 bytes). Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 3) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to <code>542f548</code>. All 6 attachments came back with the same <code>mime_type</code>s as round 2, with no <code>error</code>. Re-running round 2's probe, <code>send_message</code> with an explicit <code>mime_type</code> of <code>"application/"</code> and then <code>"/pdf"</code> each returned <code>{"error": "Attachment mime_type '...' isn't a type/subtype such as 'application/pdf'."}</code> and no <code>id</code>. A <code>list_messages</code> search with <code>include_spam_trash: true</code> found nothing sent. The TC-GM47 message was trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to the merge, which brought in #925's OAuth re-authorization. All 6 attachments came back with the same <code>mime_type</code>s as before, with no <code>error</code>. The message was trashed.</p>
+<hr />
 <h2 id="create_draft"><code>create_draft</code><a class="headerlink" href="#create_draft" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm13-create-a-draft-destructive">TC-GM13: Create a draft ⚠️ destructive<a class="headerlink" href="#tc-gm13-create-a-draft-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2537,6 +2577,7 @@
 1. <code>create_draft</code> with <code>to: "{QA+tc-gm14}"</code>, <code>subject: "[mcp-qa:tc-gm14] bad attachment"</code>, <code>body: "x"</code>, <code>attachments: [{}]</code></p>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> that mentions <code>local_path</code> and <code>content_base64</code>, and no draft <code>id</code></p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, error now raised inside <code>_compose_raw</code>'s thread)</strong>: returned <code>{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}</code>, with no draft <code>id</code>.</p>
 <hr />
 <h3 id="tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive">TC-GM41: Draft with HTML and an attachment survives <code>send_draft</code> ⚠️ destructive<a class="headerlink" href="#tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2550,6 +2591,7 @@
 - Step 4: <code>body_plain</code> and <code>body_html</code> match step 2's
 - Step 4: the attachment's <code>filename</code>, <code>mime_type</code>, and <code>size</code> equal step 2's</p>
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-3 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>create_draft</code>/<code>send_draft</code> via <code>_compose_raw</code> and <code>_message_summary</code>)</strong>: step 2 had one attachment, <code>gm41.txt</code> (<code>text/plain</code>, 18 bytes), and <code>label_ids</code> <code>DRAFT</code>. <code>send_draft</code> returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code> (<code>SENT</code>, no <code>DRAFT</code>). Step 4's bodies and attachment <code>filename</code>/<code>mime_type</code>/<code>size</code> equal step 2's. Trashed.</p>
 <hr />
 <h2 id="send_draft"><code>send_draft</code><a class="headerlink" href="#send_draft" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm15-send-an-existing-draft-destructive">TC-GM15: Send an existing draft ⚠️ destructive<a class="headerlink" href="#tc-gm15-send-an-existing-draft-destructive" title="Permanent link">&para;</a></h3>
@@ -2579,10 +2621,14 @@
 4. <code>get_message</code> with the <code>id</code> from step 3</p>
 <p><strong>Checks</strong>
 - Step 3: <code>thread_id</code> equals <code>{GM17_ORIG}</code>'s <code>thread_id</code>
+- Step 3: no <code>warning</code> field. One appears only when the mailbox's own addresses couldn't be looked up (#802), which a healthy token never hits; the failure path is unit-tested only.
 - Step 4: <code>headers.in_reply_to</code> equals <code>{GM17_MID}</code>, and <code>headers.references</code> ends with <code>{GM17_MID}</code>
 - Step 4: <code>headers.subject</code> is exactly <code>Re: [mcp-qa:tc-gm17] reply original</code> (one <code>Re:</code>)
 - Step 4: <code>headers.to</code> is <code>{QA+tc-gm17}</code> (a reply to your own sent message goes to its original <code>To</code>, per TC-GM24)</p>
 <p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM17_ORIG}</code> and the step-3 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>. Step 3's <code>thread_id</code> equals the original's, and there was no <code>warning</code> field. Step 4: <code>in_reply_to</code> and <code>references</code> are both the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code> (one <code>Re:</code>), and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code> at <code>1d3c7cf</code>, run right after <code>refresh_cache()</code> with no arguments (which now also clears the cached own-address set), so the reply re-read the send-as aliases. <code>refresh_cache</code> returned <code>{"invalidated": "all"}</code>. Step 3's <code>thread_id</code> equals the original's, and there was no <code>warning</code> field. Step 4: <code>in_reply_to</code> and <code>references</code> are the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code>, and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, run right after <code>refresh_cache()</code> (<code>{"invalidated": "all"}</code>) on the merged code. The reply has the original's <code>thread_id</code> and no <code>warning</code>. <code>in_reply_to</code> and <code>references</code> are the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code>, and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
 <hr />
 <h3 id="tc-gm18-reply-to-non-existent-message">TC-GM18: Reply to non-existent message<a class="headerlink" href="#tc-gm18-reply-to-non-existent-message" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2697,6 +2743,7 @@
 - Step 5: <strong>no</strong> entry in <code>messages</code> has <code>STARRED</code>
 - No <code>error</code> field in any response</p>
 <p><strong>Cleanup:</strong> if step 1 showed <code>UNREAD</code>, add it back with <code>modify_labels</code> so the fixture ends as it started.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>modify_labels</code> message branch via <code>_message_summary</code>)</strong>: the message branch returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code>. <code>UNREAD</code> was added, then removed. On the thread, <code>STARRED</code> was added to every message, then removed from every message. There was no <code>error</code> in any response. The fixture started <code>UNREAD</code>, and <code>UNREAD</code> was restored.</p>
 <hr />
 <h3 id="tc-gm20-validation-errors">TC-GM20: Validation errors<a class="headerlink" href="#tc-gm20-validation-errors" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
