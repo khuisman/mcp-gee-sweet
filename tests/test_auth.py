@@ -855,7 +855,9 @@ def _blocking_serve(release: threading.Event, result, started: threading.Event |
     """A stand-in for auth._serve_consent that waits like the real one: until
     `release`, or until `stop` is set."""
 
-    def serve(flow, timeout_seconds, stop):
+    def serve(flow, timeout_seconds, stop, on_url=None):
+        if on_url is not None:
+            on_url("https://accounts.example/consent")
         if started is not None:
             started.set()
         while not release.is_set():
@@ -1039,7 +1041,7 @@ class TestConsentOffEventLoop:
         # flaky in CI (PR #867).
         release = threading.Event()
 
-        def _fail_when_released(flow, timeout_seconds, stop):
+        def _fail_when_released(flow, timeout_seconds, stop, on_url=None):
             release.wait(5)
             raise auth_module.WSGITimeoutError("timed out")
 

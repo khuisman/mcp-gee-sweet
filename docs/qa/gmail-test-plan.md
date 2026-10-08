@@ -128,6 +128,7 @@ Keep the IDs and intent. Rewrite each to name the exact tool and params and to r
 | GM44 | `reply_to_message` (QA) → `list_messages` (sender) | End-to-end delivery. The QA mailbox replies to the `plain` fixture. On the sender side, `list_messages(query='subject:"[mcp-qa:plain]"')` shows the reply arrived in the **same thread** as the original. Proves `In-Reply-To`/`References` thread correctly in the recipient's mailbox, not just in ours. Plus-address cases can't show this. | write, cross-mailbox |
 | GM45 | `send_message` (QA) → `get_message` (sender) | QA sends to the sender mailbox with `cc` = a QA plus-address and `bcc` = another. On the sender side, `get_message` shows `cc` present and **no** `bcc` header. Bcc must be stripped from delivered copies; GM39 only sees the sender's copy. | write, cross-mailbox |
 | GM46 | `get_message` | `include_body=False` on the `attachments` fixture: headers, snippet, labels, and `size_estimate` present; no `body_plain`, `body_html`, or `attachments` key, since Gmail's `metadata` format returns no payload parts (#793) | read |
+| GM47 | `send_message` → `get_message` | Attachments with no `mime_type` get a type guessed from the filename extension (`.pdf`, `.csv.gz` → `application/gzip`, unknown or `.eml` → `application/octet-stream`); an explicit `mime_type` still wins (#802) | write |
 
 Every write case uses a `+tc-gmNN` plus-address and an `[mcp-qa:tc-gmNN]` subject (so `reset` sweeps it), and ends with a **Cleanup** step.
 
@@ -171,6 +172,8 @@ Found by reading `test_gmail.py` against `gmail.py` and running the helpers dire
 - **P3 doesn't reproduce.** Gmail stores the nameless inline image by `attachmentId`, so it's listed.
 
 P2 and P3 remain possible only for hand-built MIME, so they're unit-test material at most. P4–P9 are hardening tests. They can land together as one ticket.
+
+**P4–P9 covered (#823, via #896):** `tests/test_gmail.py` now has unit tests for each. P9's `get_*` size-cap half had already landed with #825 (`TestMessageSizeCap`).
 
 ---
 
