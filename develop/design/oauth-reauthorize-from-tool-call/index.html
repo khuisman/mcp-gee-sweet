@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/oauth-reauthorize-from-tool-call/">
       
       
-        <link rel="prev" href="./">
-      
-      
-        <link rel="next" href="docs-ast-pipeline/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Design Docs - mcp-gee-sweet</title>
+        <title>Re-authorizing OAuth from the Failing Tool Call - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#design-documents" class="md-skip">
+        <a href="#re-authorizing-oauth-from-the-failing-tool-call" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Design Docs
+              Re-authorizing OAuth from the Failing Tool Call
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -345,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -373,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auth/" class="md-nav__link">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -401,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -429,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -461,8 +457,6 @@
       
   
   
-    
-  
   
   
     
@@ -475,11 +469,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
@@ -500,7 +494,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -518,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -543,19 +537,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -571,7 +556,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -584,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="docs-ast-pipeline/" class="md-nav__link">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -671,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../../decisions/" class="md-nav__link">
         
   
   
@@ -699,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-fork/" class="md-nav__link">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
         
   
   
@@ -727,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -755,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-testing/" class="md-nav__link">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
         
   
   
@@ -783,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-publishing/" class="md-nav__link">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
         
   
   
@@ -818,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -897,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -925,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -953,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -981,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1058,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1086,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs.md" class="md-nav__link">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
         
   
   
@@ -1114,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive.md" class="md-nav__link">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
         
   
   
@@ -1142,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/gmail/" class="md-nav__link">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
         
   
   
@@ -1170,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1198,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1226,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1254,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1282,7 +1266,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1318,7 +1302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1366,60 +1350,62 @@
   
 
 
-<h1 id="design-documents">Design Documents<a class="headerlink" href="#design-documents" title="Permanent link">&para;</a></h1>
-<p>Detailed implementation design docs — file layouts, data models, algorithm choices, and trade-offs as they were understood when each piece of work was planned.</p>
-<p>These are more granular than the <a href="../decisions/">decision records</a>, which capture <em>why</em> a direction was chosen. Design docs capture <em>how</em> something is built.</p>
-<table>
-<thead>
-<tr>
-<th>Doc</th>
-<th>Date</th>
-<th>Scope</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="docs-ast-pipeline/">Docs AST Pipeline</a></td>
-<td>2026-06-17</td>
-<td>Phase 2 HTML→AST→Docs API pipeline — AST node design, file layout, emitter algorithm, test plan</td>
-</tr>
-<tr>
-<td><a href="heading-anchor-resolution/">Heading-Anchor Resolution</a></td>
-<td>2026-07-28</td>
-<td>Resolving GitHub/GitLab <code>#slug</code> heading-anchor links to working Docs jump links — multi-scheme slugifier, strip-if-unmatched policy, opinionated-layer-over-primitive rationale</td>
-</tr>
-<tr>
-<td><a href="image-conversion/">Native Markdown/HTML Image Support</a></td>
-<td>2026-08-02</td>
-<td><code>Image</code> as a zero-width AST node vs. a marker-based alternative, the combined table+image descending-position insertion pass, three-source-kind resolution + share/revoke lifecycle, the retry-on-image-failure fix, and the deliberate table-cell-image gap</td>
-</tr>
-<tr>
-<td><a href="borderless-table-columns/">Borderless-Table Columns</a></td>
-<td>2026-08-02</td>
-<td>Form-style column alignment via a zero-padding table, once <code>tabStops</code> was found read-only (#404) — border-suppression step flagged unverified pending live check</td>
-</tr>
-<tr>
-<td><a href="blockquote-representation/">Blockquote Representation</a></td>
-<td>2026-08-06</td>
-<td>Flat <code>blockquote_depth</code> field (mirroring <code>BulletItem.depth</code>) vs. a wrapper node; left border + scaled indent via <code>paragraphStyle.borderLeft</code>, live-verified writable before implementing</td>
-</tr>
-<tr>
-<td><a href="module-history/">Module Implementation History</a></td>
-<td>2026-09-29</td>
-<td>Per-PR history behind root <code>CLAUDE.md</code>'s module and workflow rules, moved there verbatim by #849 so <code>CLAUDE.md</code> keeps only lasting rules and invariants</td>
-</tr>
-<tr>
-<td><a href="sse-consent-off-event-loop/">SSE OAuth Consent Off the Event Loop</a></td>
-<td>2026-10-01</td>
-<td>#833: the SSE consent wait on a daemon thread with a stoppable callback server, shared across connections, ended by sse_starlette's shutdown flag on SIGTERM</td>
-</tr>
-<tr>
-<td><a href="oauth-reauthorize-from-tool-call/">Re-authorizing OAuth from the Failing Tool Call</a></td>
-<td>2026-10-06</td>
-<td>#873/#906: a revoked or missing token offers the consent link from the failing call (URL elicitation, or the link in the <code>ToolError</code>), detected at <code>thread_http</code>'s transport so tools that catch errors are covered, adopted in place on every connection</td>
-</tr>
-</tbody>
-</table>
+<h1 id="re-authorizing-oauth-from-the-failing-tool-call">Re-authorizing OAuth from the Failing Tool Call<a class="headerlink" href="#re-authorizing-oauth-from-the-failing-tool-call" title="Permanent link">&para;</a></h1>
+<p><strong>Issue:</strong> #873 (folds in #906) · <strong>Date:</strong> 2026-10-06 · <strong>Status:</strong> implemented</p>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p>Before this change, an OAuth server with no usable token stayed broken until someone ran a terminal command and restarted it:</p>
+<ul>
+<li><strong>Degraded start (#811).</strong> With no usable token at startup, a stdio server starts without Google access. Every tool returned "run <code>mcp-gee-sweet auth</code>, then restart the server or reconnect".</li>
+<li><strong>Mid-session refresh failure.</strong> The token was revoked or expired after a good start. #811 didn't cover this. PR #905 added a re-authorize hint in <code>_timed</code>, but most tools catch the <code>RefreshError</code> in their own <code>except Exception</code> and return <code>{"error": ...}</code> before <code>_timed</code> sees it (#906). So <code>list_files</code> showed a raw tuple repr with no hint, while <code>list_sheets</code>, which lets the error propagate, showed the hint.</li>
+</ul>
+<p>The goal is to recover in place, without the server opening a browser unprompted (one of #811's complaints), and without the model having to know about a separate tool.</p>
+<h2 id="client-support-checked-first-as-the-issue-asked">Client support (checked first, as the issue asked)<a class="headerlink" href="#client-support-checked-first-as-the-issue-asked" title="Permanent link">&para;</a></h2>
+<p>A probe server logged the <code>initialize</code> capabilities of Claude Code 2.1.291 as <code>{"elicitation": {"form": {}, "url": {}}, "roots": {...}}</code>, protocol <code>2026-07-28</code>. So URL-mode elicitation is the main path, and the <code>ToolError</code> text is the fallback for other clients.</p>
+<p>Under <code>claude -p</code> (no human), a tool raising <code>UrlElicitationRequiredError</code> came back to the model as "URL elicitation was canceled by the user". A headless client never shows the link. That's the client's behavior, and the CLI alternative still covers it.</p>
+<h2 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h2>
+<h3 id="mechanism-urlelicitationrequirederror-not-an-in-call-ctxelicit_url">Mechanism: <code>UrlElicitationRequiredError</code>, not an in-call <code>ctx.elicit_url</code><a class="headerlink" href="#mechanism-urlelicitationrequirederror-not-an-in-call-ctxelicit_url" title="Permanent link">&para;</a></h3>
+<p>The tool call raises <code>UrlElicitationRequiredError</code> (JSON-RPC <code>-32042</code>). mcp's <code>Tool.run</code> re-raises an <code>MCPError</code> as a protocol error instead of wrapping it as a tool result.</p>
+<p>The in-call alternative, <code>ctx.elicit_url()</code>, sends a server-to-client request and keeps the call open while the user decides. It would hold the call for up to <code>OAUTH_CONSENT_TIMEOUT_SECONDS</code>, and it needs a back-channel, which a 2026-07-28 request context may lack (<code>NoBackChannelError</code>). The error form returns immediately, and the consent runs on independently of any call.</p>
+<p>When the consent completes, the server sends <code>notifications/elicitation/complete</code> to every session it offered the URL to. This is best effort: a gone session or a missing channel is logged at debug level and ignored.</p>
+<h3 id="noticing-a-rejected-refresh-in-every-tool">Noticing a rejected refresh in every tool<a class="headerlink" href="#noticing-a-rejected-refresh-in-every-tool" title="Permanent link">&para;</a></h3>
+<p>The issue comment pointed at <code>execute_in_thread</code> as the single choke point. It isn't quite one: media downloads (<code>MediaIoBaseDownload.next_chunk</code>) set <code>request.http = thread_http(service)</code> and never go through <code>execute_in_thread</code>. Every Google request does go through <code>thread_http</code>'s transport, so that's where the hook sits. <code>_RefreshTrackingHttp</code> (an <code>AuthorizedHttp</code> subclass) records a non-retryable <code>RefreshError</code> on a per-call <code>CallAuthState</code> before re-raising it.</p>
+<p><code>_timed</code> opens the state with <code>track_refresh_failures()</code>, a <code>ContextVar</code> holding a mutable object. Gathered tasks and <code>asyncio.to_thread</code> workers copy the context, and the copy points at the same object, so a failure on any of them is seen. After the tool body returns or raises, a recorded failure replaces whatever the tool produced (including an <code>{"error": ...}</code> dict) with the re-authorization offer. The 86 tool-level <code>except</code> blocks stay untouched.</p>
+<p>A retryable <code>RefreshError</code> (the token endpoint's own 5xx) isn't recorded: it says nothing about the token.</p>
+<h3 id="recovery-order-reauthpy">Recovery order (<code>reauth.py</code>)<a class="headerlink" href="#recovery-order-reauthpy" title="Permanent link">&para;</a></h3>
+<p>Both entry points, <code>before_call</code> (degraded connection) and <code>after_refresh_failure</code> (mid-session), try in order:</p>
+<ol>
+<li><strong>Adopt a token this process already got.</strong> <code>publish_oauth_credentials</code> bumps a process-wide generation. A context built from an older generation rebuilds its services in place (<code>apply_oauth_credentials</code>) on its next call. One <code>TOKEN_PATH</code> means one token for every connection.</li>
+<li><strong>Reload <code>TOKEN_PATH</code></strong> (<code>load_saved_token</code>, on a daemon thread like the rest of the auth code). This picks up a token <code>mcp-gee-sweet auth</code> wrote, so the CLI no longer needs a restart. In the mid-session case a reloaded token with the <em>same</em> refresh token as the failing one is rejected: it's the same revoked grant. Two guards (PR #925 QA round 1):</li>
+<li><strong>The reload doesn't touch the Gmail gate.</strong> It runs <code>_oauth_creds(record_gmail=False)</code>, so the process-wide <code>_gmail_unauthorized_message</code> isn't reset and re-set by every connection's reload, whether or not anything gets adopted. <code>publish_oauth_credentials</code> sets the gate from the token actually adopted.</li>
+<li><strong>An unchanged file isn't reloaded again.</strong> After a reload finds nothing to adopt, <code>TOKEN_PATH</code>'s <code>(mtime_ns, size)</code> is remembered, and the reload is skipped until the file changes. Without this, a revoked token on disk cost a failing refresh round-trip and a warning on every call. <code>mcp-gee-sweet auth</code> rewrites the file, so it's still picked up.</li>
+<li><strong>Offer consent.</strong> Start or join the shared listener and raise the elicitation, or the <code>ToolError</code> with the URL. The offer states the time the link actually has left (<code>_ConsentAttempt.remaining_seconds</code>), not the full timeout. A tool call's own attempt with less than <code>min(60, timeout/2)</code> seconds left is replaced by a fresh one rather than handed out. The replaced attempt isn't stopped: a client already holds its link, and its offer promised that link until its deadline. In PR #925's second round it was stopped, and QA reproduced a link dying with 7.9s of its stated time left. So two listeners can overlap, for at most <code>min(60, timeout/2)</code> seconds. The two attempts share a <code>group</code>, and whichever completes publishes the token and sends <code>elicitation/complete</code> to both attempts' clients.</li>
+</ol>
+<p>When a degraded connection adopts a token, the tool body then runs normally. When a mid-session failure adopts one, the call ends with "a newer token was loaded; retry the call". The tool isn't re-run automatically, because a multi-request tool may already have made changes before the refresh failed. So the offer carries what the tool itself reported (<code>describe_outcome</code>, truncated at 1,500 characters): "The call may have partly completed before the token was rejected; the tool reported: ...". The model then knows what may already have happened.</p>
+<h3 id="one-listener-per-process-shared-with-the-lifespan">One listener per process, shared with the lifespan<a class="headerlink" href="#one-listener-per-process-shared-with-the-lifespan" title="Permanent link">&para;</a></h3>
+<p><code>start_user_consent</code> reuses <code>_consent_attempt</code>, the slot #833 made process-wide. So a tool call that arrives during an SSE lifespan consent offers <em>that</em> consent's URL (<code>_serve_consent</code>'s new <code>on_url</code> callback records it), and marks it <code>offered</code>: once a client holds the link, the last lifespan waiter leaving no longer stops the attempt and closes its port. <code>_ConsentListener</code> splits binding the callback server and building the URL from the wait, so the URL exists before anything blocks. The build runs on a daemon thread. If the call is cancelled during it, a done callback closes the listener once it's bound. That's a callback rather than an <code>await</code> in cleanup, so a cancel scope's re-delivered cancellation can't skip it.</p>
+<p>The reverse doesn't join. A lifespan that needs consent while a tool call's attempt is pending doesn't wait on it: nothing would be shown to anyone for that wait. It starts without access at once, raising <code>OAuthConsentRequiredError(disables_consent=False)</code> so degrading doesn't turn consent off, and the connection's first tool call offers the same link. In PR #925's first round the lifespan did join. QA reproduced the result over SSE: a connection waited out the whole timeout with no prompt, then turned server consent off for every later connection.</p>
+<p>A tool call's attempt (<code>user_started</code>) differs from a lifespan's in three ways:</p>
+<ul>
+<li>It never opens a browser and prints no stderr prompt; the client shows the URL.</li>
+<li>No waiter's departure stops it, since the call that started it has already returned. It runs to its timeout.</li>
+<li>Its failure doesn't turn off <code>_interactive_consent</code>.</li>
+</ul>
+<h3 id="restart-wording">Restart wording<a class="headerlink" href="#restart-wording" title="Permanent link">&para;</a></h3>
+<p><code>reauthorize_instructions(restart=False)</code> ends "then retry the call: the server picks up the new token without a restart". It's used everywhere the token is missing or rejected: the degraded-start messages, <code>server://auth-status</code>, and the offer's CLI alternative. <code>mcp-gee-sweet auth</code> prints the same. Only the missing-scope messages (#790, including Gmail's) still say to restart, since nothing reloads the token there.</p>
+<p><code>_client_error</code> keeps its re-authorize hint for a non-retryable <code>RefreshError</code> that reaches it without going through the offer. A <em>retryable</em> one (the token endpoint's own 5xx) gets no hint, and it is reported as a plain error.</p>
+<h3 id="the-issues-open-questions">The issue's open questions<a class="headerlink" href="#the-issues-open-questions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>SSE's "consent is never retried" rule.</strong> It still governs the server's <em>own</em> consent in the lifespan, which an unattended server shouldn't keep restarting for every connection. A tool-call consent is started by a user, from a client, one at a time. Its failure only means the next failing call offers a fresh URL. <code>start_user_consent</code> deliberately ignores <code>_interactive_consent</code>, which is also what lets it run under stdio.</li>
+<li><strong><code>mcp-gee-sweet auth</code>'s role.</strong> It becomes the secondary path. It's still documented in <code>docs/auth.md</code> and still named in every offer, for clients that can't show the link. It's still the only fix for a missing-scope token (below).</li>
+</ul>
+<h3 id="thread_http-cache"><code>thread_http</code> cache<a class="headerlink" href="#thread_http-cache" title="Permanent link">&para;</a></h3>
+<p>Rebuilding the services makes new service objects, and CPython can reuse a freed object's <code>id()</code>. The per-thread transport cache was keyed on <code>id(service)</code> alone, so a rebuilt service could get a stale transport holding the revoked credentials. A cached transport is now reused only while <code>http.credentials is service._http.credentials</code>.</p>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Missing scopes aren't offered.</strong> A token lacking a base scope still stops a stdio server at startup (#790), and a Gmail-only shortfall still degrades only the Gmail tools. Both still need <code>mcp-gee-sweet auth</code> and a restart.</li>
+<li><strong>The callback listens on <code>localhost</code>.</strong> The browser that completes the consent must run on the server's machine. This already applied to the lifespan's own SSE consent; it matters more now that a remote SSE client can be shown the link.</li>
+<li><strong>A headless client cancels the elicitation.</strong> The user never sees the link (see above).</li>
+</ul>
 
 
 
@@ -1475,10 +1461,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

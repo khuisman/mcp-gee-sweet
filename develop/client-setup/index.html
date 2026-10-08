@@ -1498,7 +1498,7 @@
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">}</span>
 </code></pre></div>
 <p>Replace <code>/path/to/mcp-gee-sweet</code> with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the <code>env</code> block for a different auth method — see <a href="../auth/">Authentication</a>.</p>
-<p>Before the first connection, log in once from a terminal with the same paths: <code>CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth</code>. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its tools return an error telling you to run this command.</p>
+<p>Before the first connection, log in once from a terminal with the same paths: <code>CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth</code>. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its first tool call offers you the Google consent link, or you can run this command and retry (see <a href="../auth/#method-b-oauth-20-personal-use--local-dev">Re-authorizing from the client</a>).</p>
 <h3 id="sse-docker">SSE — Docker<a class="headerlink" href="#sse-docker" title="Permanent link">&para;</a></h3>
 <p>Start the server first (<code>make start</code>), then point Claude Desktop at the SSE endpoint:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>

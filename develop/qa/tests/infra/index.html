@@ -1846,6 +1846,83 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i48-a-token-revoked-mid-session-offers-the-consent-link-from-tools-that-catch-the-error-and-from-tools-that-raise-it-issue-873906-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I48: a token revoked mid-session offers the consent link from tools that catch the error and from tools that raise it (issue #873/#906) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i49-a-client-with-url-elicitation-gets-a-32042-error-carrying-the-consent-link-issue-873-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I49: a client with URL elicitation gets a -32042 error carrying the consent link (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i50-after-mcp-gee-sweet-auth-or-any-new-token-in-token_path-the-next-call-recovers-without-a-restart-issue-873-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I50: after mcp-gee-sweet auth (or any new token in TOKEN_PATH), the next call recovers without a restart (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i51-completing-the-offered-consent-in-a-browser-saves-the-token-and-the-retried-call-succeeds-issue-873-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I51: completing the offered consent in a browser saves the token and the retried call succeeds (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i52-in-claude-code-a-revoked-token-shows-the-consent-prompt-instead-of-an-error-issue-873-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I52: in Claude Code, a revoked token shows the consent prompt instead of an error (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i53-over-sse-a-connection-opening-while-a-tool-calls-consent-link-is-pending-starts-at-once-offers-the-same-link-and-leaves-server-consent-on-pr-925-qa-round-1-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I53: over SSE, a connection opening while a tool call's consent link is pending starts at once, offers the same link, and leaves server consent on (PR #925 QA round 1) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i54-replacing-a-nearly-expired-tool-call-link-leaves-the-old-link-working-until-its-stated-deadline-pr-925-qa-round-2-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I54: replacing a nearly expired tool-call link leaves the old link working until its stated deadline (PR #925 QA round 2) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2658,7 +2735,7 @@ Run the server under a real MCP stdio client (e.g. the <code>mcp</code> SDK's <c
 <p>Then call <code>list_spreadsheets</code> with <code>max_results: 1</code>, and read <code>server://auth-status</code>.</p>
 <p><strong>Checks</strong>
 - <code>initialize</code> completes within a few seconds, with no browser window and no <code>Please visit</code> text (the stdio stream stays valid JSON-RPC)
-- <code>list_spreadsheets</code> returns an error result whose text says there's no usable OAuth token at <code>&lt;nonexistent path&gt;</code>, and tells you to run <code>mcp-gee-sweet auth</code> (and <code>uvx mcp-gee-sweet auth</code> for a PyPI install) with the same <code>TOKEN_PATH</code>/<code>CREDENTIALS_PATH</code>/<code>ENABLED_TOOLS</code>, then restart
+- <code>list_spreadsheets</code> returns an error result whose text says there's no usable OAuth token at <code>&lt;nonexistent path&gt;</code>. Since #873 (a client with no elicitation callback, as here) the text then gives a <code>https://accounts.google.com/...</code> consent link, and the alternative of running <code>mcp-gee-sweet auth</code> (and <code>uvx mcp-gee-sweet auth</code> for a PyPI install) with the same <code>TOKEN_PATH</code>/<code>CREDENTIALS_PATH</code>/<code>ENABLED_TOOLS</code>, then retrying the call. It no longer says to restart.
 - <code>auth-status</code> reports <code>auth_method: "none"</code>, <code>limited_tools: ["*"]</code>, and one <code>oauth_not_authorized</code> limitation
 - <code>&lt;tmp log&gt;</code> has a <code>WARNING ... Starting without Google access:</code> line and a <code>"TOOL list_spreadsheets" 401</code> access line
 - <code>&lt;nonexistent path&gt;</code> still does not exist</p>
@@ -2667,6 +2744,10 @@ Run the server under a real MCP stdio client (e.g. the <code>mcp</code> SDK's <c
 Real <code>mcp</code> SDK <code>stdio_client</code> + <code>ClientSession</code>. <code>initialize</code> OK in 1.9s, 0 <code>Please visit</code> in stderr or LOG_FILE. <code>list_spreadsheets</code> returned an error result: <code>No usable OAuth token at '&lt;nonexistent&gt;', and this server can't ask for consent itself over the stdio transport. To authorize, run \</code>mcp-gee-sweet auth` in a terminal (`uvx mcp-gee-sweet auth` for a PyPI install) with the same TOKEN_PATH (...), CREDENTIALS_PATH (...) and ENABLED_TOOLS as this server, then restart the server.<code></code>auth-status<code>:</code>auth_method: "none"<code>,</code>limited_tools: ["*"]<code>, one</code>oauth_not_authorized<code>limitation. LOG_FILE has</code>WARNING mcp_gee_sweet.auth Starting without Google access: ...<code>and</code>"TOOL list_spreadsheets" 401`. The token path's parent dir was never created.</p>
 <p><strong>Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS</strong>
 Same as round 1: <code>initialize</code> 1.8s, error result with the instructions (now ending <code>then restart the server or reconnect to it.</code>), <code>auth-status</code> <code>none</code> / <code>oauth_not_authorized</code>, <code>"TOOL list_spreadsheets" 401</code>, 0 <code>Please visit</code>. Gate now reads the connection's own <code>lifespan_context.unauthorized_message</code>.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+<code>initialize</code> 1.9s, 0 <code>Please visit</code> in the log. <code>list_spreadsheets</code> error text: <code>No usable OAuth token at '&lt;nonexistent&gt;'. To re-authorize, open this link in a browser and approve access within &lt;N&gt;s, then retry the call: https://accounts.google.com/o/oauth2/auth?...</code>, then <code>Or run \</code>mcp-gee-sweet auth` ... (`uvx mcp-gee-sweet auth` ...) ... then retry the call: the server picks up the new token without a restart.<code>No restart instruction in the tool text.</code>auth-status<code>:</code>none<code>,</code>["*"]<code>, one</code>oauth_not_authorized<code>. The log has</code>Starting without Google access:<code>and</code>"TOOL list_spreadsheets" 401<code>. The token path still doesn't exist. (</code>auth-status<code>'s own</code>reason<code>/</code>alternatives<code>still say</code>then restart the server or reconnect to it`, which is review finding 9, not this case's check.)</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+<code>initialize</code> 1.7s, 0 <code>Please visit</code>. <code>list_spreadsheets</code>: <code>No usable OAuth token at '&lt;nonexistent&gt;'.</code>, then the link, then the CLI alternative ending <code>then retry the call: the server picks up the new token without a restart.</code>. No restart wording. <code>auth-status</code> <code>none</code> / <code>["*"]</code> / one <code>oauth_not_authorized</code>. The log has <code>Starting without Google access:</code> and <code>"TOOL list_spreadsheets" 401</code>. The token path still doesn't exist.</p>
 <hr />
 <h3 id="tc-i36-stdio-waterfall-with-no-token-falls-through-to-a-service-account-and-starts-without-access-only-if-nothing-else-works-issue-811-local-filesystem">TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem<a class="headerlink" href="#tc-i36-stdio-waterfall-with-no-token-falls-through-to-a-service-account-and-starts-without-access-only-if-nothing-else-works-issue-811-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> in the waterfall, OAuth needing consent is a reason to try the service account and ADC, not to fail. If neither is available, the OAuth client JSON on disk shows OAuth was the intended method, so the server starts without access and reports the OAuth instructions, rather than failing with "All authentication methods failed" (which a stdio client would only see as <code>Connection closed</code>).</p>
@@ -2860,13 +2941,17 @@ Run the server under a real MCP stdio client (the <code>mcp</code> SDK's <code>s
 </code></pre></div>
 <p>Call <code>get_storage_quota</code> with no arguments.</p>
 <p><strong>Checks</strong>
-- The result has <code>is_error: true</code>, and its text is <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;' ...</code>, followed by the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> instructions naming the same <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>
+- The result has <code>is_error: true</code>, and its text is <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;' ...</code>, followed by the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> instructions naming the same <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>. Since #873 a consent link comes before those instructions (see TC-I48–TC-I52); this case only checks that the text reaches the client.
 - The text is not only <code>Error executing tool get_storage_quota</code></p>
 <p><strong>Cleanup:</strong> delete the scratch files.</p>
 <p><strong>Result (2026-10-04, PR #905 round 1 @ da73f20, Sky) ✅ PASS</strong>
 mcp 2.3.0. Startup refresh failed (<code>invalid_client</code>) and the server started degraded. <code>get_storage_quota</code> returned <code>is_error: True</code> with <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;' ...</code>, followed by the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> instructions naming the scratch <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>. Access line: <code>"TOOL get_storage_quota" 401</code>. Scratch files deleted.</p>
 <p><strong>Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS</strong>
 Same as round 1 after the degraded start began raising <code>ToolError</code> directly: <code>is_error: True</code>, identical <code>mcp-gee-sweet auth</code> text, access line <code>401</code>.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+mcp 2.3.0, bogus scratch client JSON, expired token with a bogus refresh token. <code>get_storage_quota</code>: <code>is_error: True</code>, text starts <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;'.</code>, then the consent link (built from the bogus client ID), then the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> alternative naming the scratch <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>. Not the bare <code>Error executing tool get_storage_quota</code>.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+mcp 2.3.0. Same as round 1: <code>is_error: True</code>, starts <code>Error executing tool get_storage_quota: No usable OAuth token at '&lt;scratch token&gt;'.</code>, with the <code>mcp-gee-sweet auth</code> / <code>uvx mcp-gee-sweet auth</code> alternative naming the scratch paths. Not the bare text.</p>
 <hr />
 <h3 id="tc-i46-on-mcp-23-a-google-api-error-a-tool-raises-keeps-its-text-for-a-tool-and-for-spreadsheetidinfo-issue-872">TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for <code>spreadsheet://{id}/info</code> (issue #872)<a class="headerlink" href="#tc-i46-on-mcp-23-a-google-api-error-a-tool-raises-keeps-its-text-for-a-tool-and-for-spreadsheetidinfo-issue-872" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> most tools catch <code>HttpError</code> and return <code>{"error": ...}</code>, but some let it propagate (e.g. <code>list_sheets</code>, whose return type is a list). From mcp 2.3 that text was withheld, so a bad ID or a permission problem reached the client as a bare <code>Error executing tool list_sheets</code>. <code>_timed</code> now re-raises Google API, auth, network, <code>ValueError</code> and <code>OSError</code> failures as <code>ToolError</code> with their own text. <code>get_spreadsheet_info</code> does the same with <code>ResourceError</code>. Any other exception is still a crash: mcp withholds its text and logs the traceback.</p>
@@ -2903,6 +2988,139 @@ Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>HOST=127.0.0.
 uvicorn 0.47.0, run through <code>uv run</code> (so the parent's exit code is uv's 143 after forwarding SIGTERM; <code>--reload</code> exits 0). Steps 2–3 (three plain runs plus one <code>--reload</code>): every log has the <code>Dropping a second response on /sse (#868)</code> line and none of the three error strings. The server exits 0.2–0.8s after SIGTERM, the SSE response reads to a clean EOF, and the port is free afterwards. Baseline: the same driver against an <code>origin/develop</code> export logs <code>Exception in ASGI application ... RuntimeError: Expected ASGI message 'http.response.body', but got 'http.response.start'</code>, and the client gets <code>IncompleteRead(64 bytes read)</code>. Step 4: <code>initialize</code> and <code>list_tools</code> (139 tools) succeed, with no ASGI error. But the log shows <code>Dropping a second response on /sse (#868)</code> right after the client closed its session, about 1s <em>before</em> SIGTERM. So the guard also handles mcp's late <code>Response()</code> after an ordinary client disconnect, not only at shutdown (see the round-1 PR comment). Side check: <code>--transport streamable-http</code> with an open <code>GET /mcp</code> stream still logs <code>ASGI callable returned without completing response.</code> on SIGTERM, and the client gets <code>IncompleteRead(0 bytes read)</code>. That transport isn't in this PR's scope; filed as #917.</p>
 <p><strong>Result (2026-10-05, PR #911 round 2 @ 1f138a5, Sky) ✅ PASS</strong>
 Same drivers as round 1. Steps 2–3 (three plain runs plus one <code>--reload</code>): each log has <code>Dropping a second response on /sse during shutdown (#868)</code> and none of the three error strings. The server exits 0.2–0.6s after SIGTERM, every SSE response reads to a clean EOF, and the ports are free. The drop line and uvicorn's <code>Shutting down</code> were logged in either order across these runs, so I changed step 4's check from an ordering check to an absence check. Step 4: <code>initialize</code> and <code>list_tools</code> (139 tools) succeed, and the log has no <code>Dropping</code> line and no ASGI error. So after an ordinary client disconnect, the late <code>Response()</code> now reaches uvicorn, which ignores it without error. Plain <code>--transport sse</code> now launches via <code>anyio.run(uvicorn.Server(config).serve)</code> and behaves the same as <code>--reload</code>.</p>
+<hr />
+<h3 id="tc-i48-a-token-revoked-mid-session-offers-the-consent-link-from-tools-that-catch-the-error-and-from-tools-that-raise-it-issue-873906-requires-oauth-local-filesystem">TC-I48: a token revoked mid-session offers the consent link from tools that catch the error and from tools that raise it (issue #873/#906) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i48-a-token-revoked-mid-session-offers-the-consent-link-from-tools-that-catch-the-error-and-from-tools-that-raise-it-issue-873906-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> most tools catch a <code>RefreshError</code> in their own <code>except Exception</code> and return <code>{"error": ...}</code>, so #905's re-authorize hint in <code>_timed</code> never reached them (#906). <code>thread_http</code>'s transport now records a rejected refresh on the call, and <code>_timed</code> replaces the tool's result with the re-authorization offer. A client with no URL-elicitation support gets the link in the <code>ToolError</code> text. The text uses the error's <code>args[0]</code>, not the <code>RefreshError</code> tuple's repr.</p>
+<p><strong>Setup</strong>
+- A real OAuth client JSON (<code>CREDENTIALS_PATH</code>) and a working <code>token.json</code> for it.
+- A scratch copy of that token (mode <code>0600</code>) with <code>token</code> set to <code>ya29.invalid</code>, <code>refresh_token</code> set to <code>1//invalid</code>, and <code>expiry</code> one hour in the future. Startup then accepts the token without refreshing, and the first API call gets a 401, refreshes, and Google answers <code>invalid_grant</code>.
+- Run <code>refresh_cache</code> first, or use IDs not in the shared <code>/tmp/mcp_gee_sweet.db</code> cache: a cache hit makes no API call, so no refresh happens.</p>
+<p><strong>Action</strong>
+Run the server under the <code>mcp</code> SDK's <code>stdio_client</code> + <code>ClientSession</code>, with <strong>no</strong> <code>elicitation_callback</code>, and with <code>DEBUG_LEVEL=INFO</code>, <code>LOG_FILE=&lt;tmp log&gt;</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>AUTH_METHOD=oauth
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>TOKEN_PATH=&lt;scratch token&gt;
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>CREDENTIALS_PATH=&lt;oauth client json&gt;
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>OAUTH_CONSENT_TIMEOUT_SECONDS=120
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>BROWSER=/usr/bin/false
+</code></pre></div>
+<ol>
+<li>Call <code>list_files</code> with <code>folder_id: "root"</code>, <code>max_results: 1</code> (catches the error itself)</li>
+<li>Call <code>list_sheets</code> with any real spreadsheet ID (lets the error propagate)</li>
+</ol>
+<p><strong>Checks</strong>
+- 1 and 2: an error result whose text starts <code>Error executing tool &lt;name&gt;: Google rejected the OAuth token refresh: invalid_grant: ...</code>, then <code>To re-authorize, open this link in a browser and approve access within &lt;N&gt;s, then retry the call: https://accounts.google.com/o/oauth2/auth?...</code> (<code>&lt;N&gt;</code> at most 120: the time the link has left), then the <code>mcp-gee-sweet auth</code> alternative naming the scratch <code>TOKEN_PATH</code> and <code>CREDENTIALS_PATH</code>, ending <code>then retry the call: the server picks up the new token without a restart.</code>
+- The part of either text before <code>The call may have partly completed</code> has no <code>{'error'</code> (the tuple repr)
+- 1 only (round 2): the text ends <code>The call may have partly completed before the token was rejected; the tool reported: {"error": "List files failed: ..."}</code>, the tool's own result, which the offer replaced. 2 has no such sentence (the tool raised the refresh error itself)
+- Run step 1 three more times: the log has only one more <code>Token refresh failed</code> warning in total (the unchanged <code>TOKEN_PATH</code> isn't reloaded again), and no <code>Gmail tools disabled</code> line from these calls
+- Both calls give the <em>same</em> link. Its <code>redirect_uri</code> is <code>http://localhost:&lt;port&gt;/</code>, and a TCP connect to that port succeeds (one listener, still open)
+- No browser opened, and no <code>Please visit this URL</code> line in stderr or the log
+- <code>&lt;tmp log&gt;</code> has <code>"TOOL list_files" 401</code> and <code>"TOOL list_sheets" 401</code></p>
+<p><strong>Cleanup:</strong> delete the scratch token and log.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+<code>stdio_client</code> + <code>ClientSession</code>, no elicitation callback, <code>CACHE_DB_PATH</code> pointed at a scratch file. Both <code>list_files</code> and <code>list_sheets</code>: <code>is_error: true</code>, text <code>Error executing tool &lt;name&gt;: Google rejected the OAuth token refresh: invalid_grant: Bad Request. To re-authorize, open this link in a browser and approve access within 120s, then retry the call: https://accounts.google.com/o/oauth2/auth?...</code>, then the <code>mcp-gee-sweet auth</code> alternative naming the scratch <code>TOKEN_PATH</code>/<code>CREDENTIALS_PATH</code>. No <code>{'error'</code> and no <code>List files failed</code>. Same link for both, <code>redirect_uri=http://localhost:60833/</code>, and a TCP connect to it succeeded. 0 <code>Please visit</code>. Log: <code>"TOOL list_files" 401 0.242s</code>, <code>"TOOL list_sheets" 401 7.408s</code>. Side observation: every token reload re-logs <code>WARNING ... Gmail tools disabled</code> (this token lacks <code>gmail.modify</code>), so each reload rewrites the process-wide Gmail gate (review finding 4).</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+Both texts as specified, with time left <code>119s</code> and <code>118s</code> (not the full 120). The CLI alternative ends <code>... without a restart.</code>. 1 (<code>list_files</code>) ends <code>The call may have partly completed before the token was rejected; the tool reported: [{"error": "List files failed: ('invalid_grant: Bad Request', {...})"}]</code>. The tuple repr appears only inside that reported result, never before it. 2 (<code>list_sheets</code>) has no such sentence. Same link for both, and its port is open. Step 1 three more times: each <code>401</code> in 0.09s, 0 <code>Token refresh failed</code> lines in total (this token isn't expired, so the reload never refreshes, and the unchanged file is skipped), and only the startup <code>Gmail tools disabled</code> line (1 in the log, against one per reload in round 1). 0 <code>Please visit</code>.</p>
+<hr />
+<h3 id="tc-i49-a-client-with-url-elicitation-gets-a-32042-error-carrying-the-consent-link-issue-873-requires-oauth-local-filesystem">TC-I49: a client with URL elicitation gets a <code>-32042</code> error carrying the consent link (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i49-a-client-with-url-elicitation-gets-a-32042-error-carrying-the-consent-link-issue-873-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a client that declares <code>elicitation.url</code> gets <code>UrlElicitationRequiredError</code>, a JSON-RPC protocol error, not a tool result. The client shows the link and asks the user before opening it. Claude Code declares this capability (2.1.291).</p>
+<p><strong>Setup:</strong> as TC-I48.</p>
+<p><strong>Action:</strong> as TC-I48, but pass an <code>elicitation_callback</code> to <code>ClientSession</code>, which makes the SDK declare <code>elicitation: {form, url}</code>. Catch the <code>MCPError</code> each call raises.</p>
+<p><strong>Checks</strong>
+- 1 and 2: the error's code is <code>-32042</code>. <code>UrlElicitationRequiredError.from_error(e.error).elicitations</code> has one entry, whose <code>url</code> is a <code>https://accounts.google.com/o/oauth2/auth?...</code> link and whose <code>message</code> starts <code>Google rejected the OAuth token refresh: invalid_grant: ...</code> and says to open the page and retry
+- Both calls carry the same <code>elicitation_id</code> and the same <code>url</code>
+- <code>&lt;tmp log&gt;</code> has <code>"TOOL list_files" 401</code> and <code>"TOOL list_sheets" 401</code></p>
+<p><strong>Cleanup:</strong> delete the scratch token and log.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+With an <code>elicitation_callback</code> (returns cancel; never invoked, since the server raises rather than sending an in-call request). Both calls raised <code>MCPError</code> code <code>-32042</code>. <code>from_error(...).elicitations</code> had one entry each, with <code>url</code> <code>https://accounts.google.com/o/oauth2/auth?...</code> and <code>message</code> <code>Google rejected the OAuth token refresh: invalid_grant: Bad Request. Open this Google sign-in page to re-authorize mcp-gee-sweet (the link works for 120s), then retry.</code> Same <code>elicitation_id</code> and same <code>url</code> for both, and the callback port was open. Log: <code>"TOOL list_files" 401</code>, <code>"TOOL list_sheets" 401</code>.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+Same as round 1: both calls <code>-32042</code>, the same <code>elicitation_id</code> and <code>url</code>, port open, <code>401</code> access lines, 0 <code>Please visit</code>.</p>
+<hr />
+<h3 id="tc-i50-after-mcp-gee-sweet-auth-or-any-new-token-in-token_path-the-next-call-recovers-without-a-restart-issue-873-requires-oauth-local-filesystem">TC-I50: after <code>mcp-gee-sweet auth</code> (or any new token in <code>TOKEN_PATH</code>), the next call recovers without a restart (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i50-after-mcp-gee-sweet-auth-or-any-new-token-in-token_path-the-next-call-recovers-without-a-restart-issue-873-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> before #873, the CLI needed a server restart or reconnect afterwards. A failing call now re-reads <code>TOKEN_PATH</code> first, and adopts a usable token whose refresh token differs from the failing one.</p>
+<p><strong>Setup:</strong> as TC-I48, plus a second scratch path that doesn't exist yet.</p>
+<p><strong>Action</strong>
+1. Start the TC-I48 client with <code>TOKEN_PATH=&lt;nonexistent second path&gt;</code> (a degraded start). Call <code>list_files</code> (<code>folder_id: "root"</code>, <code>max_results: 1</code>): expect the consent-link error. Without stopping the server, copy the working <code>token.json</code> to <code>&lt;second path&gt;</code>. Call <code>list_files</code> and <code>list_sheets</code> again
+2. Start a fresh client with <code>TOKEN_PATH=&lt;scratch token&gt;</code> (revoked, as in TC-I48). Call <code>list_sheets</code>: expect the consent-link error. Copy the working <code>token.json</code> over <code>&lt;scratch token&gt;</code>. Call <code>list_sheets</code> twice more</p>
+<p><strong>Checks</strong>
+- 1: after the copy, both calls succeed. The log has <code>INFO mcp_gee_sweet.auth OAuth credentials reloaded; this connection is authorized again</code> once, and <code>200</code> access lines
+- 2: the first call after the copy returns an error ending <code>The server has since loaded a newer OAuth token; retry the call.</code> (a mid-session failure doesn't re-run the tool), and the next call succeeds with <code>200</code>
+- Neither server was restarted</p>
+<p><strong>Cleanup:</strong> delete the scratch tokens and logs.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+Step 1: the first <code>list_files</code> gave the consent-link error (<code>401</code>). After copying the working token in, <code>list_files</code> and <code>list_sheets</code> (<code>Sales Notes &amp; Misc Empty</code>) both returned <code>200</code>, with one <code>INFO mcp_gee_sweet.auth OAuth credentials reloaded; this connection is authorized again</code>. Step 2: <code>list_sheets</code> gave the consent-link error. After the copy, the next call returned <code>... The server has since loaded a newer OAuth token; retry the call.</code> (<code>401</code>, one <code>reloaded</code> line), and the call after that returned <code>200</code>. Same server process throughout.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+Step 1: <code>401</code> with the link, then after the copy <code>OAuth credentials reloaded ...</code> once, <code>list_files</code> <code>200</code> and <code>list_sheets</code> <code>200</code>. Step 2: <code>401</code> with the link, then after the copy <code>... The server has since loaded a newer OAuth token; retry the call.</code> (<code>401</code>), then <code>200</code>. Side observation on step 2's first post-copy call: it now ends <code>The call may have partly completed ...; the tool reported: ["Sales", "Notes &amp; Misc", "Empty"]</code>. <code>list_sheets</code> actually succeeded from the structure cache (the cache's <code>modifiedTime</code> check is where the revoked refresh failed and was recorded), and <code>_timed</code> replaced that success with the retry message. That's the design (a recorded failure replaces the result, now carried in the text), not a defect.</p>
+<hr />
+<h3 id="tc-i51-completing-the-offered-consent-in-a-browser-saves-the-token-and-the-retried-call-succeeds-issue-873-requires-oauth-local-filesystem">TC-I51: completing the offered consent in a browser saves the token and the retried call succeeds (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i51-completing-the-offered-consent-in-a-browser-saves-the-token-and-the-retried-call-succeeds-issue-873-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the end-to-end path the issue asks for: the user opens the offered link, approves, and the callback saves the token. The token is written <code>0600</code>, and every connection adopts it on its next call. Needs a browser on the server's machine, signed in to the Google account (by hand, or Playwright under the <code>docs/qa/run.md</code> mutex).</p>
+<p><strong>Setup:</strong> as TC-I48, with <code>OAUTH_CONSENT_TIMEOUT_SECONDS=300</code>.</p>
+<p><strong>Action</strong>
+1. As TC-I48 step 1: get the consent link from <code>list_files</code>
+2. Open the link in the browser and approve every requested scope. The callback page reads <code>The authentication flow has completed. You may close this window.</code>
+3. Call <code>list_files</code> again, then <code>list_sheets</code></p>
+<p><strong>Checks</strong>
+- 3: both calls succeed
+- <code>&lt;scratch token&gt;</code> now has a different <code>refresh_token</code> from the bogus one and is mode <code>0600</code> (<code>stat -f %Lp</code> prints <code>600</code>)
+- The callback port from the link is closed after step 2
+- The server opened no browser itself at any point</p>
+<p><strong>Cleanup:</strong> revoke the new grant at https://myaccount.google.com/permissions if it was made for a scratch account, and delete the scratch token and log.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ✅ PASS</strong>
+<code>OAUTH_CONSENT_TIMEOUT_SECONDS=300</code>, a stdio session held open, and a fresh <code>CACHE_DB_PATH</code> (a cache shared with an earlier run served <code>list_files</code> with no API call, so no refresh happened: use a fresh cache for this case). The first <code>list_files</code> gave the link (<code>401</code>). Playwright, under the mutex, after the fixture-doc sign-in check: the account chooser, the Workspace account, then <strong>Allow</strong> led to <code>http://localhost:&lt;port&gt;/?state=...&amp;code=...</code>, which read <code>The authentication flow has completed. You may close this window.</code> The scratch token's <code>refresh_token</code> changed and its mode is <code>0o600</code>. A TCP connect to the callback port then failed (closed). Log: <code>OAuth credentials reloaded ...</code>, then <code>list_files</code> <code>200</code> and <code>list_sheets</code> <code>200</code>. 0 <code>Please visit</code>, and no browser opened by the server (<code>BROWSER=/usr/bin/false</code>). The grant was on the fixture-owning Workspace account for the team's existing OAuth client, so nothing to revoke.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+Same flow as round 1 (Playwright under the mutex, Workspace account, <strong>Allow</strong>): the callback page completed, the scratch token's <code>refresh_token</code> changed with mode <code>0o600</code>, the callback port then closed, and <code>OAuth credentials reloaded ...</code> was followed by <code>list_files</code> <code>200</code> and <code>list_sheets</code> <code>200</code>. 0 <code>Please visit</code>.</p>
+<hr />
+<h3 id="tc-i52-in-claude-code-a-revoked-token-shows-the-consent-prompt-instead-of-an-error-issue-873-requires-oauth-local-filesystem">TC-I52: in Claude Code, a revoked token shows the consent prompt instead of an error (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i52-in-claude-code-a-revoked-token-shows-the-consent-prompt-instead-of-an-error-issue-873-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the client-side half of TC-I49, in the client the team uses. Needs an interactive Claude Code session (<code>claude -p</code> cancels URL elicitation on its own).</p>
+<p><strong>Setup:</strong> register a stdio server in a scratch MCP config, using the TC-I48 scratch token and env, and start an interactive <code>claude --mcp-config &lt;scratch config&gt; --strict-mcp-config</code>.</p>
+<p><strong>Action:</strong> ask Claude to call that server's <code>list_files</code> with <code>folder_id: "root"</code>, <code>max_results: 1</code>. When the URL prompt appears, accept it, approve the consent in the browser that opens, then ask Claude to retry the call.</p>
+<p><strong>Checks</strong>
+- Claude Code shows a prompt with the <code>accounts.google.com</code> link and the elicitation message, before anything opens
+- After the consent, the retried call returns the file listing
+- Record whether Claude Code retried by itself after <code>notifications/elicitation/complete</code> or needed the explicit retry. Either is a pass; the behavior is the client's.</p>
+<p><strong>Cleanup:</strong> delete the scratch config, token, and log.</p>
+<p><strong>Result (2026-10-06, PR #925 round 1 @ db4f13d, Sky) ⏭️ NOT RUN</strong>
+Needs a human driving an interactive Claude Code session; a lane QA session can't accept the client's URL prompt itself. TC-I49 covers the wire format (<code>-32042</code> with the elicitation). Pending a human-driven run.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ⏭️ NOT RUN</strong>
+Same reason as round 1: needs a human in an interactive Claude Code session.</p>
+<hr />
+<h3 id="tc-i53-over-sse-a-connection-opening-while-a-tool-calls-consent-link-is-pending-starts-at-once-offers-the-same-link-and-leaves-server-consent-on-pr-925-qa-round-1-requires-oauth-local-filesystem">TC-I53: over SSE, a connection opening while a tool call's consent link is pending starts at once, offers the same link, and leaves server consent on (PR #925 QA round 1) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i53-over-sse-a-connection-opening-while-a-tool-calls-consent-link-is-pending-starts-at-once-offers-the-same-link-and-leaves-server-consent-on-pr-925-qa-round-1-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> in round 1, connection B's lifespan joined the consent a tool call on connection A had offered. B waited the whole <code>OAUTH_CONSENT_TIMEOUT_SECONDS</code> with no prompt shown anywhere. It then degraded through <code>_disable_consent_after_failure</code>, so connection C reported <code>an earlier browser consent in this server process didn't complete</code>. Now a lifespan that finds a tool call's consent pending starts without access straight away (<code>disables_consent=False</code>), and its first tool call offers the same link. Separately, a tool call that offers a <em>lifespan's</em> link marks it <code>offered</code>, so the last lifespan waiter leaving no longer closes its callback port.</p>
+<p><strong>Setup</strong>
+- The TC-I48 scratch token (dead access token, bogus refresh token, expiry in the future), and a way to rewrite it with <code>expiry</code> one hour in the <em>past</em>.
+- A free port.</p>
+<p><strong>Action</strong>
+Start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;scratch token&gt;</code>, <code>CREDENTIALS_PATH=&lt;oauth client json&gt;</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=25</code>, <code>HOST=127.0.0.1</code>, <code>PORT=&lt;port&gt;</code>, <code>BROWSER=/usr/bin/false</code>, <code>DEBUG_LEVEL=INFO</code>, stdout and stderr to one log. With the <code>mcp</code> SDK's <code>sse_client</code> + <code>ClientSession</code> (no elicitation callback):
+1. Connection A: <code>initialize</code>, call <code>list_files</code> (<code>folder_id: "root"</code>, <code>max_results: 1</code>), read <code>server://auth-status</code>
+2. Rewrite the scratch token with an expired <code>expiry</code> (still the bogus refresh token)
+3. Connection B: as A. Then connection C: as A</p>
+<p><strong>Checks</strong>
+- 1: the TC-I48 consent-link error
+- 3: B and C each finish <code>initialize</code> within a couple of seconds (not the 25s timeout), and their <code>list_files</code> error starts <code>No usable OAuth token at '&lt;scratch token&gt;'. To re-authorize, open this link ...</code> with the <em>same</em> link A got and a time left of at most 25s
+- No <code>auth-status</code> read's <code>oauth_not_authorized</code> limitation has <code>restart the server</code> in its text (a <code>gmail_not_authorized</code> one still says to restart, by design, if the token lacks <code>gmail.modify</code>)
+- The log has 0 <code>Please visit</code> lines, 0 <code>earlier browser consent</code> lines, and two <code>Starting without Google access: ... a re-authorization link a tool call offered is still open</code> lines (B and C)</p>
+<p><strong>Cleanup:</strong> SIGTERM the server; delete the scratch token and log.</p>
+<p><strong>Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS</strong>
+SSE on <code>127.0.0.1:8937</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=25</code>. A: <code>initialize</code> 0.2s, then the TC-I48 link with <code>within 24s</code>. After expiring the token: B and C each <code>initialize</code> in 0.1s (not 25s), and each <code>list_files</code> starts <code>No usable OAuth token at '&lt;scratch token&gt;'. To re-authorize, open this link ... within 24s</code> with the <em>same</em> link A got. The log has 0 <code>Please visit</code>, 0 <code>earlier browser consent</code>, and 2 <code>Starting without Google access: ... a re-authorization link a tool call offered is still open</code> lines. SIGTERM exited cleanly. B's and C's <code>auth-status</code> have no <code>restart the server</code>. A's does, from its <code>gmail_not_authorized</code> limitation: the team token lacks <code>gmail.modify</code>, and a missing scope still needs a restart by design. So I narrowed that check's wording to the <code>oauth_not_authorized</code> limitation.</p>
+<h3 id="tc-i54-replacing-a-nearly-expired-tool-call-link-leaves-the-old-link-working-until-its-stated-deadline-pr-925-qa-round-2-requires-oauth-local-filesystem">TC-I54: replacing a nearly expired tool-call link leaves the old link working until its stated deadline (PR #925 QA round 2) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i54-replacing-a-nearly-expired-tool-call-link-leaves-the-old-link-working-until-its-stated-deadline-pr-925-qa-round-2-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a tool call's own consent attempt with less than <code>min(60, timeout/2)</code> seconds left isn't offered again; the next failing call gets a fresh link. In round 2 that replacement also stopped the old attempt, so link 1's callback port closed while its offer still promised it several more seconds, and a user on link 1's consent page landed on a dead localhost redirect. Now the old attempt keeps listening until its own deadline. The two attempts share a group: whichever completes publishes the token and sends <code>elicitation/complete</code> to both attempts' clients (unit-tested in <code>tests/test_reauth.py::TestUserConsent::test_either_link_completes_and_notifies_both_clients</code>).</p>
+<p><strong>Setup</strong>
+- The TC-I48 scratch token (dead access token, bogus refresh token).</p>
+<p><strong>Action</strong>
+Start a stdio session against <code>uv run mcp-gee-sweet</code> with <code>AUTH_METHOD=oauth</code>, <code>TOKEN_PATH=&lt;scratch token&gt;</code>, <code>CREDENTIALS_PATH=&lt;oauth client json&gt;</code>, <code>OAUTH_CONSENT_TIMEOUT_SECONDS=25</code> (replacement threshold 12s), <code>BROWSER=/usr/bin/false</code>, <code>DEBUG_LEVEL=INFO</code>, <code>LOG_FILE=&lt;tmp log&gt;</code>, using the <code>mcp</code> SDK's <code>stdio_client</code> + <code>ClientSession</code> (no elicitation callback):
+1. Call <code>list_files</code> (<code>folder_id: "root"</code>, <code>max_results: 1</code>). Note the link (link 1), its <code>within &lt;N&gt;s</code>, and the time of the call; link 1's deadline is that time plus <code>&lt;N&gt;</code>
+2. 16s after step 1, call <code>list_files</code> again. Note its link (link 2)
+3. 2s after step 2, TCP-connect to link 1's and link 2's <code>redirect_uri</code> ports
+4. 2s after link 1's deadline, TCP-connect to both ports again</p>
+<p><strong>Checks</strong>
+- 1: the TC-I48 consent-link error, <code>within 24s</code> or <code>within 25s</code>
+- 2: a <em>different</em> link, with a different <code>redirect_uri</code> port, and a time left of at least 23s
+- 3: both connects succeed (link 1 still open, with time left on its stated deadline)
+- 4: link 1's connect is refused (closed at its own deadline), and link 2's still succeeds
+- The log has 0 <code>Please visit</code> lines</p>
+<p><strong>Cleanup:</strong> end the session; delete the scratch token and log.</p>
+<p><strong>Result (2026-10-08, PR #925 round 3 @ e5f6fed, Sky) ✅ PASS</strong>
+mcp 2.3.0, stdio, fresh <code>CACHE_DB_PATH</code>. Step 1: <code>Google rejected the OAuth token refresh: invalid_grant ...</code>, link 1 <code>within 24s</code>, port 63319. Step 2 at +16.1s: a different link, port 63322, <code>within 24s</code>. Step 3 at +18.1s: both ports open (round 2 had link 1 closed by now). Step 4 at +26.0s (link 1's deadline +24s): link 1 refused, link 2 open. 0 <code>Please visit</code>.
+Extra check (the fix's "either link completes" claim, TC-I51-style): <code>OAUTH_CONSENT_TIMEOUT_SECONDS=120</code> (threshold 60s). Link 1 <code>within 119s</code>. At +61.6s a second <code>list_files</code> gave link 2 (a different port), with both ports open. Playwright, under the mutex, after the fixture-doc sign-in check, then completed consent through <strong>link 1</strong> (the replaced one): account chooser, the Workspace account, <strong>Allow</strong>, and the callback page on link 1's port read <code>The authentication flow has completed. You may close this window.</code> The scratch token's <code>refresh_token</code> changed and its mode is <code>0o600</code>. Link 1's port then closed, and the retried <code>list_files</code> succeeded. Link 2's port stayed open after the consent completed, as designed: it listens until its own deadline. 0 <code>Please visit</code>. Scratch files deleted.</p>
 
 
 
