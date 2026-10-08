@@ -1770,7 +1770,9 @@ class TestBuildRawMessageAttachments:
                 content_base64=base64.b64encode(b"x").decode(), filename="a", mime_type=mime_type
             )
 
-    @pytest.mark.parametrize("mime_type", ["pdf", "a/b/c", ""])
+    @pytest.mark.parametrize(
+        "mime_type", ["pdf", "a/b/c", "", "application/", "/pdf", "text/", "text /plain"]
+    )
     def test_malformed_explicit_type_raises_or_guesses(self, mime_type):
         if not mime_type:
             # Empty means "not given": guessed from the filename.

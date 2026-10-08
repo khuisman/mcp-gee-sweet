@@ -587,6 +587,10 @@ _MIME_TYPES = mimetypes.MimeTypes()
 
 _OCTET_STREAM = "application/octet-stream"
 
+# A type/subtype with both halves non-empty. "application/" or "/pdf" would
+# otherwise go out verbatim as a broken Content-Type (PR #928 QA round 2).
+_MIME_TYPE_RE = re.compile(r"[^/\s;]+/[^/\s;]+\Z")
+
 
 def _guess_attachment_mime_type(filename: str) -> str:
     """The attachment's MIME type from its filename extension (#802), or
@@ -642,7 +646,7 @@ def _attachment_part(filename: str, explicit_mime_type: str | None, raw: bytes) 
     """
     params: list[tuple[str, str]] = []
     if explicit_mime_type:
-        if explicit_mime_type.partition(";")[0].strip().count("/") != 1:
+        if not _MIME_TYPE_RE.match(explicit_mime_type.partition(";")[0].strip()):
             raise ValueError(
                 f"Attachment mime_type {explicit_mime_type!r} isn't a type/subtype "
                 "such as 'application/pdf'."
