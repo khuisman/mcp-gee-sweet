@@ -347,6 +347,15 @@ class TestDegradedConnection:
         offered.assert_not_called()
 
 
+def test_new_credentials_clear_the_cached_own_addresses(no_build):
+    # The new token may be a different account, so the cached send-as set (#802)
+    # mustn't outlive it, unlike the Google-data caches.
+    context = _oauth_context(_creds("rt-old"))
+    context.gmail_own_addresses = (frozenset({"old@example.com"}), 0.0)
+    auth_module.apply_oauth_credentials(context, _creds("rt-new"), 1)
+    assert context.gmail_own_addresses is None
+
+
 class TestUserConsent:
     """auth.start_user_consent and the attempt it runs, with a real callback server."""
 

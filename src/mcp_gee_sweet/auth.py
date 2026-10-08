@@ -204,6 +204,10 @@ class SpreadsheetContext:
     # generation they are (see auth.publish_oauth_credentials).
     credentials: Any = None
     oauth_generation: int = 0
+    # The mailbox's own addresses (primary + send-as aliases) and when they were
+    # read (time.monotonic()), cached by gmail._own_addresses once fully resolved
+    # (#802) and cleared by refresh_cache and by apply_oauth_credentials. Per connection, like the rest.
+    gmail_own_addresses: tuple[frozenset[str], float] | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
@@ -910,7 +914,9 @@ def adopt_published_credentials(context: SpreadsheetContext) -> bool:
 
 def apply_oauth_credentials(context: SpreadsheetContext, creds: Credentials, generation: int):
     """Swap `context` onto `creds` in place, so the connection recovers without a restart
-    or reconnect. The caches stay: they hold Google data, not credentials."""
+    or reconnect. The caches stay: they hold Google data, not credentials. The
+    mailbox's own addresses are the exception, since the new token may be a different
+    account."""
     services = _build_services(creds)
     context.sheets_service = services["sheets"]
     context.drive_service = services["drive"]
@@ -923,6 +929,7 @@ def apply_oauth_credentials(context: SpreadsheetContext, creds: Credentials, gen
     context.is_service_account_identity = False
     context.unauthorized_message = None
     context.oauth_generation = generation
+    context.gmail_own_addresses = None
     logger.info("OAuth credentials reloaded; this connection is authorized again")
 
 
