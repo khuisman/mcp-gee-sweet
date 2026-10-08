@@ -77,7 +77,7 @@ def register(tool):
             folder_id: Invalidate Drive folder listing cache for this folder ID.
             calendar_id: Invalidate calendar metadata cache for this calendar ID.
             If none are provided, invalidates all caches (sheets, data, folders,
-            docs, and calendars).
+            docs, calendars, and the Gmail mailbox's own send-as addresses).
 
         Returns:
             Confirmation of what was invalidated
@@ -106,4 +106,5 @@ def register(tool):
             lc.drive_folder_cache.mark_all_dirty()
             lc.doc_cache.mark_all_dirty()
             lc.calendar_cache.mark_all_dirty()
+            lc.gmail_own_addresses = None
             return {"invalidated": "all"}
