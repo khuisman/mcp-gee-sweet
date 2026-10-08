@@ -526,6 +526,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS**: via `mcp-gee-sweet-kit`. Both bodies matched. There were 2 attachments: `mcp-qa-tc-gm38.csv` (`text/csv`, 18 bytes, read through `_compose_raw`'s off-loop thread) and `note.txt`, whose `mime_type` was `text/plain`, guessed. The message was trashed and the local file deleted.
 
+**Result (2026-10-07, PR #928 round 2) ✅ PASS**: via `mcp-gee-sweet-kit` at `1d3c7cf`. Both bodies matched. There were 2 attachments: `mcp-qa-tc-gm38.csv` (`text/csv`, 18 bytes) and `note.txt` (`text/plain`, guessed, 18 bytes). The message was trashed and the local file deleted.
+
 ---
 
 ### TC-GM39: `cc` and `bcc` as lists ⚠️ destructive
@@ -585,6 +587,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Cleanup:** `trash_message` the step-1 `id`.
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS (as written), with send-back findings out of scope for this case**: via `mcp-gee-sweet-kit`. The 4 attachments came back as `gm47.pdf` → `application/pdf`, `gm47.csv.gz` → `application/gzip`, `gm47.zzzunknown` → `application/octet-stream`, and `gm47.png` → `text/plain` (explicit wins), with no `error`. A probe in the same round showed two regressions the case's extensions don't reach. `fwd.eml` with no `mime_type` was guessed as `message/rfc822` but still built as a base64 `MIMEApplication`, which RFC 2046 §5.2.1 forbids. Python's parser decodes that payload to `None`. A UTF-8 `notes.txt` (`héllo`) was guessed as `text/plain` with no `charset`, so per RFC 2046 it reads as US-ASCII. Gmail accepted both. The part headers were confirmed by running the branch's `_build_raw_message` locally. Both messages were trashed.
+
+**Result (2026-10-07, PR #928 round 2) ✅ PASS (as written), with a send-back finding out of scope for this case**: via `mcp-gee-sweet-kit`, after reconnecting to `1d3c7cf`. All 6 attachments came back as expected: `gm47.pdf` → `application/pdf`, `gm47.csv.gz` → `application/gzip`, `gm47.zzzunknown` → `application/octet-stream`, `gm47.png` → `text/plain` (explicit wins), `gm47.eml` → `application/octet-stream`, `gm47.txt` → `text/plain`. No `error`. A probe in the same round sent an explicit `mime_type` with one empty half: `"application/"` and `"/pdf"` passed `_attachment_part`'s malformed-type check, and Gmail stored them verbatim as the attachments' `mime_type` (`application/`, `/pdf`). Before #896 these became `application/octet-stream` and `application/pdf`. An explicit `message/rfc822` `fwd.eml` with an 8-bit UTF-8 body came back as `message/rfc822` (115 bytes). Both messages were trashed.
 
 ---
 
@@ -686,6 +690,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Cleanup:** `trash_message` `{GM17_ORIG}` and the step-3 `id`.
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS**: via `mcp-gee-sweet-kit`. Step 3's `thread_id` equals the original's, and there was no `warning` field. Step 4: `in_reply_to` and `references` are both the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original` (one `Re: `), and `to` is the `+tc-gm17` address. Both messages were trashed.
+
+**Result (2026-10-07, PR #928 round 2) ✅ PASS**: via `mcp-gee-sweet-kit` at `1d3c7cf`, run right after `refresh_cache()` with no arguments (which now also clears the cached own-address set), so the reply re-read the send-as aliases. `refresh_cache` returned `{"invalidated": "all"}`. Step 3's `thread_id` equals the original's, and there was no `warning` field. Step 4: `in_reply_to` and `references` are the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original`, and `to` is the `+tc-gm17` address. Both messages were trashed.
 
 ---
 
