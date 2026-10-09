@@ -76,10 +76,12 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
 from google.auth.exceptions import GoogleAuthError, RefreshError  # noqa: E402
 from googleapiclient.errors import Error as GoogleApiClientError  # noqa: E402
 from httplib2 import HttpLib2Error  # noqa: E402
+from mcp import UrlElicitationRequiredError  # noqa: E402
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
+from . import reauth  # noqa: E402
 from .auth import (  # noqa: E402
     MissingOAuthScopesError,
     execute_in_thread,
@@ -92,6 +94,7 @@ from .auth import (  # noqa: E402
     set_raise_auth_failures,
     spreadsheet_lifespan,
 )
+from .http_transport import track_refresh_failures  # noqa: E402
 from .sse_shutdown import SingleResponseGuard  # noqa: E402
 
 
@@ -134,15 +137,10 @@ app = SingleResponseGuard(mcp.sse_app(host=_resolved_host))
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 
-def _lifespan(ctx):
-    """This call's own lifespan context (per connection under SSE, #811), or None."""
-    return getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
-
-
 def _unauthorized_message(ctx) -> str | None:
     """The degraded-start message on this call's own lifespan context, if any. Per
     connection: under SSE each connection runs its own lifespan (#811)."""
-    message = getattr(_lifespan(ctx), "unauthorized_message", None)
+    message = getattr(reauth.lifespan_context(ctx), "unauthorized_message", None)
     return message if isinstance(message, str) else None
 
 
@@ -165,17 +163,19 @@ _CLIENT_VISIBLE_ERRORS = (
 def _client_error(exc: Exception, ctx) -> tuple[str, int] | None:
     """The text the client should see for `exc` and the access-log status, or None to
     leave it to mcp as a crash."""
-    if isinstance(exc, GoogleAuthError) and exc.args and isinstance(exc.args[0], str):
-        # google-auth raises e.g. RefreshError(message, response_dict), whose str()
-        # is the tuple's repr.
-        text = exc.args[0]
-    else:
-        text = str(exc) or type(exc).__name__
-    if isinstance(exc, RefreshError) and getattr(_lifespan(ctx), "auth_method", None) == "oauth":
-        # A refresh token revoked or expired after startup: same fix as #811.
+    text = reauth.exception_text(exc)
+    if (
+        isinstance(exc, RefreshError)
+        and not exc.retryable
+        and getattr(reauth.lifespan_context(ctx), "auth_method", None) == "oauth"
+    ):
+        # A refresh token revoked or expired after startup: same fix as #811. Normally
+        # _timed's re-authorization offer (#873) handles this first. A retryable one
+        # (the token endpoint's own 5xx) says nothing about the token, so it gets no
+        # hint and falls through to a plain 500.
         return (
             f"Google rejected the OAuth token refresh: {text.rstrip('.')}. "
-            f"{reauthorize_instructions()}",
+            f"{reauthorize_instructions(restart=False)}",
             401,
         )
     if isinstance(exc, MissingOAuthScopesError):
@@ -199,22 +199,56 @@ def _client_visible(
     return error_cls(message), status
 
 
+async def _run_tracking_reauth(func, args, kwargs):
+    """Run the tool body, re-authorizing OAuth from this call when it needs it (#873).
+
+    A token refresh Google rejects is recorded by the HTTP transport as it happens, so
+    it's acted on even when the tool caught it and returned `{"error": ...}`, as most
+    tools do: the result is discarded in favor of the re-authorization offer."""
+    ctx = kwargs.get("ctx")
+    with track_refresh_failures() as call:
+        # Adopts a newer token, or on a connection degraded because OAuth needed
+        # consent, offers re-authorization (raises) instead of running the tool.
+        await reauth.before_call(ctx)
+        # Degraded start (#811) with nothing to offer: no Google services, so no
+        # tool can run. Raised rather than returned so it works whatever the
+        # tool's return type, and as a ToolError so mcp shows the client its text.
+        if unauthorized := _unauthorized_message(ctx):
+            raise reauth.ReauthorizationRequired(unauthorized)
+        try:
+            result = await func(*args, **kwargs)
+        except Exception as e:
+            if call.refresh_error is None:
+                raise
+            await reauth.after_refresh_failure(
+                ctx, call.refresh_error, reauth.describe_outcome(error=e)
+            )
+            raise
+        if call.refresh_error is not None:
+            # The tool's own result goes along with the offer: it may report work it
+            # finished before the refresh failed, and the call isn't re-run.
+            await reauth.after_refresh_failure(
+                ctx, call.refresh_error, reauth.describe_outcome(result=result)
+            )
+        return result
+
+
 def _timed(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            # Degraded start (#811): this connection has no Google services, so no
-            # tool can run. Raised rather than returned so it works whatever the
-            # tool's return type, and as a ToolError so mcp shows the client its text.
-            if unauthorized := _unauthorized_message(kwargs.get("ctx")):
-                status = 401
-                raise ToolError(unauthorized)
-            return await func(*args, **kwargs)
+            return await _run_tracking_reauth(func, args, kwargs)
+        except UrlElicitationRequiredError:
+            # A protocol error, not a tool result: mcp sends it as-is (#873).
+            status = 401
+            raise
+        except reauth.ReauthorizationRequired:
+            status = 401
+            raise
         except ToolError:
-            if status == 200:
-                status = 500
+            status = 500
             raise
         except Exception as e:
             status = 500
@@ -414,7 +448,9 @@ def _auth_status_json(
                         "category": "oauth_not_authorized",
                         "tools": ["*"],
                         "reason": oauth_unauthorized,
-                        "alternatives": reauthorize_instructions(),
+                        # #873: the first tool call offers the consent URL itself.
+                        "alternatives": "Call any tool to get a Google re-authorization "
+                        f"link. {reauthorize_instructions(restart=False, lead='Or run')}",
                     }
                 ],
             },
