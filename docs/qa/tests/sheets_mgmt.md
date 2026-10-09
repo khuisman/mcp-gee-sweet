@@ -1255,6 +1255,9 @@ format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-06) ✅ PASS**
 Scratch spreadsheet with values in A1:E5, no formatting. Both calls returned the expected error. A grid-data read of A1:E5 (`include_grid_data=True`) taken before and after the two calls was byte-identical, with no bold cells. `format_cells` resolves the sheet ID before it parses the range, so a nonexistent spreadsheet ID would 404 at the sheet lookup for valid and invalid ranges alike; the unchanged grid is the live evidence that no write was sent. Tested in an isolated service-account sandbox on a Shared Drive.
 
+**Result (2026-10-08, PR #929 QA re-run) ✅ PASS**
+Fresh scratch spreadsheet (`create_spreadsheet`, then `update_cells` A1:E5 with `a1`…`e5`), via `mcp-gee-sweet-kit` running code that includes #922 (`6dd5e6a`). `range=":"` → `{"error":"Invalid A1 notation: :"}`; `range="A1\n"` → `{"error":"Invalid A1 notation: A1\n"}`. No `format_cells` call preceded these two, and `update_cells` writes values only, so the new sheet started with no bold; a grid-data read of A1:F8 (`include_grid_data=True`) afterward showed no bold cells. No separate "before" read was taken, so this rests on the fresh sheet's default formatting rather than a byte-identical before/after comparison.
+
 ---
 
 ### TC-S132: format_cells — bounded and open-ended ranges still format exactly their target (PR #922 regression) ⚠️ destructive
@@ -1272,6 +1275,9 @@ Scratch spreadsheet with values in A1:E5, no formatting. Both calls returned the
 
 **Result (2026-10-06) ✅ PASS**
 Values in A1:E5, so a read window wider than the data shows whether open-ended forms extend past it. Read A1:E5 for `A1` and `A1:B2`, and A1:F8 for the rest. Bold cells after each call: `A1` → [A1]; `A1:B2` → [A1, B1, A2, B2]; `A:A` → [A1–A8]; `1:2` → [A1–F1, A2–F2]; `B2:D` → [B2–D8]. All calls returned `replies: [{}]`. Tested in an isolated service-account sandbox on a Shared Drive.
+
+**Result (2026-10-08, PR #929 QA re-run) ✅ PASS**
+Same scratch spreadsheet as TC-S131's re-run (values in A1:E5), read A1:F8 after every call, reset with `format_cells(range="A:F", bold=False)` between ranges. Bold cells: `A1` → [A1]; `A1:B2` → [A1, B1, A2, B2]; `A:A` → [A1–A8]; `1:2` → [A1–F1, A2–F2]; `B2:D` → [B2–D8]. Every call returned `replies: [{}]`. The `A:F` reset doesn't clear the bold `1:2` applied from column G onward, and the A1:F8 window can't see past column F, so "no cell outside the target is bold" was confirmed only within A1:F8 (the 2026-10-06 run used the same window). Scratch spreadsheet trashed after both test cases.
 
 ---
 
