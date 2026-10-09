@@ -291,7 +291,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] Context-size backstop hook for lane sessions, plus a warning before a cold `--resume` — code half of #843; lane-b after #850 ([#847](https://github.com/khuisman/mcp-gee-sweet/issues/847)) (PR #866)
 - [ ] Cut `CLAUDE.md` and the role files down to lasting rules + pointers, moving per-PR history to `docs/design/`/`docs/decisions/` — Amy writes it (user-assigned), Bob reviews each PR under the prompt-QA gate; can land as one PR per file ([#849](https://github.com/khuisman/mcp-gee-sweet/issues/849))
 - [x] `merge-pr.md` step 6: guard the team-slot reset against in-flight work on another ticket, mirroring #837's receiving-side guard in `dev.md` — Bob's track ([#838](https://github.com/khuisman/mcp-gee-sweet/issues/838)) (PR #853)
-- [ ] Kai applies `community` at intake to outside-contributor PRs/issues, plus `needs-ticket` (PR with no linked issue) and `verify-content` (unreproduced contributor issue), and its prompt says how to resolve a community PR colliding with a lane ticket — Bob's track ([#942](https://github.com/khuisman/mcp-gee-sweet/issues/942))
+- [x] Kai applies `community` at intake to outside-contributor PRs/issues, plus `needs-ticket` (PR with no linked issue) and `verify-content` (unreproduced contributor issue), and its prompt says how to resolve a community PR colliding with a lane ticket — Bob's track (PR #943) ([#942](https://github.com/khuisman/mcp-gee-sweet/issues/942))
 
 **Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, merged 2026-09-25)_
 - [x] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
