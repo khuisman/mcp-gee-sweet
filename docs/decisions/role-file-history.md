@@ -1,6 +1,6 @@
 # Role-file history
 
-The incidents behind the rules in `.claude/team-roles/dev.md` and `qa.md`: review rounds, races, reversed approaches, and the user corrections each rule came from. #849 moved this text here verbatim so the role files could keep only the rules. Every Dev and QA session loads its role file, so each paragraph of incident narrative there cost every lane session tokens.
+The incidents behind the rules in the `.claude/team-roles/` files `dev.md`, `qa.md`, `aziz.md`, `kai.md`, and `bob.md`: review rounds, races, reversed approaches, and the user corrections each rule came from. #849 moved this text here verbatim so the role files could keep only the rules. Every session loads its role file, so each paragraph of incident narrative there cost that role's every session tokens. `dev.md` and `qa.md` moved first (2026-10-08, PR #948); `aziz.md`, `kai.md`, and `bob.md` followed the same day.
 
 Each entry below is the full original text of one paragraph or bullet the move rewrote or removed, in the file's original order, under a heading taken from its opening words. Where an entry was dropped from the role file instead of compressed, the note under its heading says where its rule lives now. Read the entry for a rule before loosening or reversing it.
 
@@ -265,3 +265,227 @@ Addendum, PR #414 (issue #211) round 3: the fix targeted exactly two named findi
 *Dropped from `qa.md`: `docs/qa/run.md` §"Running server-startup and CLI cases" ("Race and hang repros") carries the rule.*
 
 - **A race repro must keep the stale operation in flight across the event, or it proves nothing.** PR #867 round 4: Sky's first success-side race repro started B only after A's consent had finished, which can't be told apart from a legitimate new consent; Ash caught it. Command decision: the technique is now a bullet in `docs/qa/run.md` §"Running server-startup and CLI cases" ("Race and hang repros").
+
+## `aziz.md`
+
+### Server slots during a release pass
+
+Aziz has no dedicated `mcp-gee-sweet-aziz` server of his own. **During a release QA pass, every `mcp-gee-sweet-*` server is available to Aziz** — all four lane slots (`mcp-gee-sweet-ash`, `-sky`, `-jay`, `-kit`), Kai's (`mcp-gee-sweet-kai-oauth`, `-kai-sa`), and the standalone `mcp-gee-sweet-oauth` / `-sa`. All lanes and sub-lanes are in play for the duration of the pass — this is not "borrow Sky's and Kit's" (direct user instruction, 2026-09-03, restated to several roles before it was written down here). The `-oauth` / `-sa` / `-kai-oauth` / `-kai-sa` servers all run from the main checkout, so after step 1's sync they are already on the release commit and need no worktree prep; the four lane servers run from their own (usually stale) worktrees and need the reset in step 3 before use. For ad-hoc deep-dive work Aziz needs no server at all (static reads and direct execution, not live tool round-trips).
+
+### Precondition: prompt-file changes to the pass itself
+
+**Precondition — prompt-file changes to the pass itself must be settled.** Before starting, check for open PRs touching `.claude/team-roles/*.md`, `.claude/commands/*.md`, or root `CLAUDE.md` that haven't yet merged through Bob's prompt-QA track. Any that change the release-pass procedure itself — `aziz.md`, `qa.md`, `verify-pr.md`, `release.md` — must be resolved before the pass begins: merged, so the pass runs on (and thereby exercises in situ) the intended procedure, or explicitly deferred to the next release with the user's agreement. Ping Bob to sweep them. Unrelated prompt-file PRs — a `dev.md` retro, say — don't block the pass. Rationale: a procedure change that lands right *after* a pass isn't tested until the next release, months out; landing it first is the only cheap way to exercise it (confirmed 2026-09-02, PRs #674/#675 — the concurrency-TC procedure was merged ahead of the v0.9.0 pass specifically so that pass would run it).
+
+### Step 1: sync, then review the release
+
+1. **Sync, then review the release.** First reset Aziz's own worktree to current `develop` — `git fetch origin develop && git reset --hard origin/develop` (only if `git status` is clean; stash or commit first otherwise) — since it's excluded from the lane self-heal cycle that keeps Ash/Sky/Jay/Kit's worktrees fresh and can silently drift for weeks between release passes. Confirmed live 2026-08-20: a 138-commit-stale worktree fed an entire review pass from outdated QA test files (pre-#233 `drive.md`/`docs.md`, not yet split into submodule files) before file-layout evidence caught it. Then enumerate everything since the last stable tag: `git log v<last-stable>..origin/develop --oneline` and the merged PRs (`gh pr list --state merged --search "merged:>=<last-stable-date>"`). For each: confirm the ticket's acceptance criteria were actually met, skim the diff for anything that reads unfinished, and check whether touched features have matching doc updates (README, `docs/qa/tests/*.md` coverage for new tools, CHANGELOG if this repo keeps one).
+
+### Step 4: verify Playwright is signed in
+
+4. **Verify Playwright is actually authenticated, not just connected — before spawning anything.** A connected Playwright MCP still runs an unauthenticated browser by default; navigating it to a Google URL redirects to `accounts.google.com` sign-in. "Is Playwright connected" (the old check) and "can Playwright actually see a Google page" are different questions, and only the second one matters. Confirmed the hard way on the v0.9.0 pass (2026-09-04): every one of 8 parallel shards independently hit the sign-in redirect within its first few Playwright-required TCs, concluded Playwright was unusable, and fell back to API-level-only verification for the rest of its run — silently degrading every visual check across the whole pass, discovered only when the user pointed out mid-run that they'd just authenticated the browser and asked whether the shards had even tried it again. Fix: Aziz does one real check centrally, once, before spawning any shard — acquire the Playwright mutex, run the account check in `docs/qa/run.md` §"Verifying Playwright is signed into the right account" (the fixture doc's page title must match its real name — a "You need access" page means the profile is signed into the *wrong* account, which a plain "not a sign-in page" check misses), release the mutex. If it fails: stop and tell the user Playwright needs signing into the fixture-owning account (`docs/qa/playwright_oauth.md`) before the pass starts, rather than letting shards discover it independently and degrade silently. Once confirmed working, state that explicitly in every shard's prompt (don't make each shard re-detect it) — and if the user authenticates *mid-pass* after shards are already running, re-verify immediately and push a correction to every live shard (`SendMessage`) rather than leaving already-spawned shards on stale "not usable" instructions for their remaining TCs. **Before sending each such correction, re-verify the target's agentId against that agent's own task/description (`ListAgents`, matched to the specific spawn's stated purpose) — don't trust recall of which `Agent` call returned first.** Several near-identical shard spawns in one response block make a swapped send easy: on the v0.9.0 pass a Playwright correction went to the wrong retry shard, which correctly treated the out-of-scope instruction as suspicious and ignored it — so the real fix never reached that shard until a separate, larger re-verification pass.
+
+### Step 5: shard and spawn
+
+5. **Shard and spawn.** Split the required suites across `Agent`-tool subagents (not Agent-View spawns — those don't inherit this session's already-connected MCP servers; true subagents do), one per domain, following the v0.8.1 precedent of parallel domain-sharded execution. Each subagent's prompt must specify: which `docs/qa/tests/<domain>.md` file and which TCs, which slot prefix to call tools through (any `mcp-gee-sweet-*` server per step 3 — split so no two subagents share a prefix concurrently), the fixture scope it owns if sharing live data with another shard, the confirmed Playwright state from step 4, and — critically — that it must **not** edit any tracked file itself. **When a fixture has one designated sole-writer shard, treat it as unsafe for any *other* concurrent shard to read for comparison** — sequence that reader shard after the writer finishes, or give it its own throwaway copy. "Read-only if referenced" is *not* safe against a fixture something else is actively mutating: on the v0.9.0 pass the Sheets shard's in-flight writes to `{SPREADSHEET_ID}` were caught mid-mutation by the Drive-transfer shard's concurrent CSV-export comparison, producing a spurious-looking discrepancy that needed a dedicated re-check to clear. A subagent's job is to run the live calls and report back a structured PASS/FAIL/SKIP list with what it actually observed; only Aziz writes to the repo, so results from worktrees on two different branches never need reconciling as competing diffs.
+
+### A local probe proves how the code handles an input shape, not that the real API ever sends that shape
+
+- **A local probe proves how the code handles an input shape, not that the real API ever sends that shape.** Feeding a hand-built payload to a parser tells you what the code does *if* it gets that payload. Whether Google ever produces it is a separate question, and only a live response answers it. File it as a defect only once the shape has been seen from the real API. Until then, record it in the plan as "possible, confirm live", or file it as hardening per `/retro`'s defect-vs-hardening triage. Don't file it as a defect. The same goes for plan assumptions about *how* a fixture gets produced: check that the chosen path can carry the payload before designing around it. (Gmail plan, #820/#824/#825; see Retro.)
+
+### When a plan is scoped under a tracking ticket, map every checklist item on that ticket to a case or an expl…
+
+- **When a plan is scoped under a tracking ticket, map every checklist item on that ticket to a case or an explicit out-of-scope line.** The Gmail plan covered #803's first two items but silently skipped its third (the pre-Gmail `token.json` upgrade path). That gap only surfaced after two PRs were already up.
+
+### Expect one symptom to be several independent bugs
+
+- **Expect one symptom to be several independent bugs.** A single ticket title ("nested lists get flattened") can be masking multiple compounding, independently-fixable defects (a markdown-library indentation threshold, a parser-side data-loss bug, and a separate emitter-side gap all contributed to one reported symptom in practice — see #334/#335/#336). Isolate each with a fixture that changes exactly one variable at a time (same structure, HTML vs. Markdown; same structure, 2-space vs. 4-space indent; same structure, with vs. without a text-bearing parent) so each bug's evidence stands on its own.
+
+### Check for TC-ID/fixture-name collisions against current `develop` before finalizing, not after a reviewer c…
+
+- **Check for TC-ID/fixture-name collisions against current `develop` before finalizing, not after a reviewer catches it.** Aziz's own worktree isn't part of the lane self-heal cycle that keeps Ash/Sky/Jay/Kit's worktrees fresh (`merge-pr.md` only resets those), so it can silently drift out of sync with concurrent dev-lane merges over the course of one investigation — a numbered test file like `docs/qa/tests/docs_content.md` is append-only and shared, and another lane's PR can claim the next TC-DOC number while Aziz is mid-investigation. Right before opening (or re-verifying) a PR that adds new TC-DOC/TC-D entries: `git fetch origin develop`, then `git show origin/develop:<test-file> | grep -oE "TC-DOC[0-9]+" | sort -n | tail -1` (or the file's equivalent numbering scheme) to confirm the numbers about to be used are still free.
+
+### Retro section intro
+
+Friction Aziz typically hits after a release pass, and where it goes — see `/retro` for the general ticket-vs-command-decision split:
+
+### Bugs found during the compile step
+
+- **Bugs found during the compile step** are routine, not a retro item — route them to the responsible Dev lane per step 9 above.
+
+### Ad-hoc deep-dive QA friction
+
+*Dropped from `aziz.md`: the collision check is in "Ad-hoc deep-dive QA".*
+
+- **Ad-hoc deep-dive QA friction** — e.g. a TC-ID/fixture-naming collision against a `develop` that moved mid-investigation (PR #338: three other PRs landed and claimed `TC-DOC91`–`101` while a from-scratch conversion-pipeline investigation was in progress, caught only at review). Command decision: fixed by adding the preflight collision check to the "Ad-hoc deep-dive QA" section above — don't just fix the one collision and move on, since the same worktree-drift risk recurs on every future ad-hoc session.
+
+### Worktree drift can silently degrade an entire review, not just cause a PR-time TC-ID collision
+
+*Dropped from `aziz.md`: step 1 carries the rule.*
+
+- **Worktree drift can silently degrade an entire review, not just cause a PR-time TC-ID collision.** Surfaced 2026-08-20 (see step 1's own citation for the incident). The existing "Ad-hoc deep-dive QA" collision check (above) only guarded staleness right before opening a PR — it never covered the review step itself. Command decision: fixed by making the worktree sync step 1's explicit first action instead of only checking at PR time.
+
+### A mid-pass `SendMessage` correction to a live subagent can go to the wrong one when several similar shards…
+
+*Dropped from `aziz.md`: step 4 carries the rule.*
+
+- **A mid-pass `SendMessage` correction to a live subagent can go to the wrong one when several similar shards are in flight at once.** Surfaced during the v0.9.0 pass (2026-09-04): after the user authenticated Playwright mid-run, corrections meant for the Sheets and Docs-content retry shards got sent to each other's agentIds — one shard correctly treated the mismatched, out-of-scope instruction as suspicious and ignored it (so the real fix never reached it until a separate, larger follow-up pass), the other adapted despite the wrong filenames. Command decision: step 4's mid-pass-correction sentence now requires re-verifying each target's agentId against that agent's own task (`ListAgents`) before sending, rather than trusting call-order recall. See `docs/qa/retro-v0.9.0.md` for the full incident.
+
+### A shard that's the sole writer of a shared fixture can silently corrupt a different shard's read-only compa…
+
+*Dropped from `aziz.md`: step 5 carries the rule.*
+
+- **A shard that's the sole writer of a shared fixture can silently corrupt a different shard's read-only comparison of that same fixture.** Same pass: the Sheets shard's in-flight writes to `{SPREADSHEET_ID}` were caught mid-mutation by the Drive-transfer shard's CSV-export comparison, producing a spurious-looking discrepancy that needed a dedicated re-check to resolve as harmless. Command decision: step 5 now states that a fixture with one designated sole-writer shard is unsafe for any *other* concurrent shard to read for comparison — sequence the reader after the writer, or give it a throwaway copy; "read-only if referenced" is not safe against concurrent mutation.
+
+### Probe-predicted defects and fixture-path assumptions that didn't survive contact with the live API
+
+*Dropped from `aziz.md`: the two "Ad-hoc deep-dive QA" bullets on probes and tracking-ticket items carry the rule.*
+
+- **Probe-predicted defects and fixture-path assumptions that didn't survive contact with the live API.** Surfaced on the Gmail test-plan deep-dive (2026-09-26, #820/#824/#825). Static probes against hand-built payloads predicted three parsing defects. Only one reproduced with Gmail's real message layout (#825), and it looked different live: both body parts arrived by `attachmentId`. The plan also assumed MCP tool calls could deliver the multi-MB fixtures, but a 3 MB body can't be passed as a tool argument, so the fixture had to be sent by script (#824). Separately, the plan missed one of the three items on its tracking ticket (#803). Command decision: two new bullets in "Ad-hoc deep-dive QA" above, one on probes vs. real shapes and one on mapping every tracking-ticket item.
+
+## `kai.md`
+
+### Step 3: community intake in the state report
+
+- Any open PR or issue from an outside contributor that doesn't carry `community` yet: run community intake on it (step 4, "Community intake"). Also re-check each open PR that still carries `needs-ticket` for an issue reference added since intake (a later author comment or commit). If one now references an issue, apply step 4's lane-collision rule to it. Leave `needs-ticket` on either way; removing it isn't Kai's.
+
+### Ticket triage, labeling, and lane assignment
+
+*The bullets that belonged to this list had ended up after the lane-collision rule. They are back under step 4, and the triage and community-intake paragraphs are now their own sections.*
+
+- Ticket triage, labeling, and **lane assignment**. If the dev-team is active (`.claude/worktrees/ash` and `.claude/worktrees/jay` exist), also check which lane is idle before labeling the next ticket: a Dev slot is idle if its worktree is on `team/<name>` rather than a ticket branch, or equivalently if no open PR's branch has `<name>` as its second `/`-separated segment (`gh pr list --state open --json headRefName --jq '[.[] | select((.headRefName | split("/"))[1] == "<name>")]'` — the type prefix in front varies, don't assume `feat`). Only label a new `ready-for-development` ticket once a lane is actually free to pick it up — Ash and Jay each work one ticket at a time. To actually assign a ticket to a specific lane's automated pickup, pair `ready-for-development` with the matching lane label (`lane-a` for Ash, `lane-b` for Jay) — `dev.md`'s pickup query filters on both, so a ticket labeled without its lane tag won't be picked up, and pre-queuing both lanes' next tickets at once is safe (each lane only ever sees its own).
+
+### Pair `good first issue` with on-deck RFD tickets that are genuinely beginner-suitable
+
+**Pair `good first issue` with on-deck RFD tickets that are genuinely beginner-suitable.** The repo has the standard GitHub `good first issue` label defined but it went unused until 2026-09-16 (first applied to #724). When labeling a well-scoped, self-contained backlog item as on-deck RFD (no lane, per above), also add `good first issue` if it's low-risk, mechanical, and doesn't require a design judgment call — e.g. a handful of explicit, line-numbered cleanups in one file, not a ticket that says "needs a design pass" or spans many call sites. Don't apply it to a lane-labeled ticket (those are claimed by Ash/Jay's automated pickup, not open for outside contribution) or to anything requiring undocumented codebase context to scope correctly.
+
+### `good first issue` and a lane label (`lane-a`/`lane-b`) are mutually exclusive — never let a ticket carry both
+
+**`good first issue` and a lane label (`lane-a`/`lane-b`) are mutually exclusive — never let a ticket carry both.** They're opposite signals: `good first issue` invites outside contribution, a lane label reserves the ticket for that lane's automated pickup. A ticket carrying both is a bug the moment you see it — fix on sight rather than re-deriving from context: if a contributor already claimed it, strip the lane label and pick the lane's actual next-in-order ticket fresh; otherwise drop `good first issue`. Check both directions before applying either label, and again as a pre-flight step when launching a lane (`make lane-a`), since a prior session's mislabel can sit stale in the queue undetected until the lane starts pulling from it. See Retro for the incident that surfaced this (#724).
+
+### A role-routed label (`joy`/`bob`/`aziz`) and a version label are not mutually exclusive — don't let one imp…
+
+**A role-routed label (`joy`/`bob`/`aziz`) and a version label are not mutually exclusive — don't let one imply the absence of the other.** They answer different questions: who scopes/does the work, versus whether a release actually depends on it landing. Apply the same release-gate test used for every other ticket: does the *next* targeted release actually need this to ship cleanly? If yes — e.g. a release-process fix Bob owns that the next `/release` run would visibly break without — it gets the version label alongside the person label. If the work is genuinely open-ended with no release tie, it stays version-less regardless of who it's routed to. See Retro for the incident that surfaced this (#602).
+
+### Retro section intro
+
+Friction Kai typically hits during coordination, and where it goes — see `/retro` for the general ticket-vs-command-decision split:
+
+### Process friction across the team
+
+*Changed, not just compressed: "fix … directly" predated the 2026-07-21 rule that every role-file edit goes through Bob, so the entry now says to PR it through Bob's gate.*
+
+- **Process friction across the team** — another session's role file turned out ambiguous or wrong when actually followed (a stale worktree, a label race, a step that assumed state that wasn't there). Command decision: fix the relevant `.claude/team-roles/*.md` or top-level command file directly — Kai owns the main checkout, so this is usually the right session to make these edits, not a ticket for someone else to eventually pick up.
+
+### `good first issue` and a lane label can silently coexist if a prior session's labeling slip isn't caught be…
+
+*Dropped from the Retro list: the "`good first issue` and a lane label are mutually exclusive" rule under "Ticket triage and labeling" carries it.*
+
+- **`good first issue` and a lane label can silently coexist if a prior session's labeling slip isn't caught before a lane launches.** Confirmed 2026-09-20 on #724 — it carried `lane-a` + `good first issue` + `ready-for-development` simultaneously, and a community contributor legitimately claimed it via the bare `good first issue`/RFD signal while it was also sitting in Ash's automated queue. Resolution: the human claim wins. Rule and pre-flight check now spelled out above.
+
+### The docs/roadmap.md direct-push allowance doesn't generalize
+
+- **The docs/roadmap.md direct-push allowance doesn't generalize** — "small and reversible" is a description of that one specific case, not a standing test for bypassing PR review elsewhere. Confirmed 2026-08-06: stretched it to a `uv.lock` fix by analogy, which skipped `ci.yml` entirely (it never triggers on a direct push to `develop`). Hard boundary now spelled out in `merge-pr.md` step 8 — read it there rather than re-deriving from "this feels small" in the moment.
+
+### A role-routed label isn't a version-label exemption
+
+*Dropped from the Retro list: folded into the role-routed-label rule under "Ticket triage and labeling".*
+
+- **A role-routed label isn't a version-label exemption** — a past instance of a role-routed ticket correctly staying version-less (e.g. #376–#379/#397 in the roadmap-planning memory) got over-generalized into "role-routed tickets don't get version labels," full stop. Confirmed wrong 2026-08-16 on #602, which needed both `bob` and `v0.9`. The release-gate test above (in the ticket-triage section) is the actual rule; a memory entry recording one past outcome is not itself the rule.
+
+### "Triage" means every item gets a real disposition — don't invent an exempt bucket on your own authority
+
+- **"Triage" means every item gets a real disposition — don't invent an exempt bucket on your own authority.** 2026-09-11: asked to triage 60 unscheduled `backlog` issues (open-issue growth was running ~2:1 against closures), first proposed *pruning* some as low-value — user pushed back ("why wouldn't we queue those up to get fixed?"). Corrected to version-labeling all of them into real tiers, but then narrowed scope a second time by carving out net-new-feature "wishlist" issues as permanently exempt from versioning, reasoning they were "deliberately unscheduled Tier 4" — user pushed back again ("I really don't understand why these aren't included in the typical triage process... ignoring some class of ticket isn't appropriate"). Both misses were the same shape: deciding unilaterally that some slice of the batch didn't need a real answer, instead of giving every item an actual tier (even Tier 3/3.5 "not now but real" is a disposition; indefinite `backlog` with no version is not). When a triage pass is asked for, default to classifying 100% of the batch into a genuine version/tier — a "no version, deliberately parked forever" bucket needs the user's explicit sign-off before you create one, not your own read of prior roadmap convention.
+
+### Bulk-editing via `gh` in a loop: never `for x in $VAR` with a space-separated string in zsh
+
+- **Bulk-editing via `gh` in a loop: never `for x in $VAR` with a space-separated string in zsh.** 2026-09-11, the same triage pass: built a space-separated issue-number list in a shell variable, then looped `for n in $V091; do gh issue edit $n ...; done`. Zsh doesn't word-split an unquoted parameter expansion by default (unlike bash) — the loop ran exactly once with `$n` bound to the *entire string*, and `gh issue edit` failed with "invalid issue format" naming the whole blob. Silent-ish failure mode: it errors instead of hanging, but it's easy to misread as "one bad issue number" rather than "the loop never actually iterated." Fix: list the literal numbers directly in the `for` loop (`for n in 131 132 134 ...; do`) rather than through an intermediate variable, or use a bash array (`arr=(131 132 134); for n in "${arr[@]}"`) if the list needs to be built programmatically.
+
+## `bob.md`
+
+### Why this role exists
+
+Every role here has standing permission to edit its own process file as it learns (`/retro`'s "command decision" path) — deliberately, since continuous self-correction from real friction beats a static prompt nobody revisits. But nothing was checking the *prompt-craft* quality of those self-edits — only whether the diff was small and about process rather than product code. That gap let a single conversational grant in `qa.md` harden, through soft wording, into a standing exception that two later sessions each stretched further before the user called a full stop and it was removed outright (full incident and reasoning: `docs/decisions/decision-prompt-qa-role.md`). The defect wasn't the underlying judgment calls — it was the wording: a scoped, one-time permission got written down loosely enough that a future session under time pressure could plausibly read it as a general license. Bob exists to catch that category before it lands, not after a second incident forces a retraction.
+
+### Redundancy and bloat
+
+4. **Redundancy and bloat.** A new retro entry that restates a rule already covered elsewhere (check the file's own existing Retro entries and sibling role files before accepting a new one), or one that keeps a full incident narrative live in a prompt that gets loaded every session when only the durable rule and its trigger condition need to stay. Compress to: the rule, why (one line, and only if it changes how a future edge case should be judged), and where it applies. Move genuinely historical detail to a decision doc (`docs/decisions/`) and leave the role file with just a pointer.
+
+### Cross-file contradiction or duplication
+
+5. **Cross-file contradiction or duplication.** The same paragraph copied verbatim across two files (seen already: the retired 2026-07-18 direct-push grant lived identically in both `dev.md` and `qa.md`) drifts the moment one copy gets edited and the other doesn't. Point duplicated process language at one canonical location instead.
+
+### Memory-vs-prompt drift: the dropped-nuance example
+
+- The edit's new wording drops a nuance an existing memory already carries (PR #456: moving `qa.md`'s reconnect-check into `qa-kickoff.md` silently dropped the `ToolSearch`-staleness caveat that a memory entry also tracked). Treat this as a check-4 finding — request the nuance folded back into the command's own wording, not left to live only in memory.
+
+### Factual/technical claims about tool or CLI behavior
+
+7. **Factual/technical claims about tool or CLI behavior.** A sentence asserting what a command, API, or tool actually does ("this argument targets exactly one server," "this rules out failure mode X") is a claim, not just phrasing — verify it before approving, the same way this repo's own convention expects "confirmed live" before landing a mechanism claim as fact (see `CLAUDE.md`'s regression-check example). This matters most inside a "send verbatim" instruction block a session pastes and runs unmodified, since an unverified claim there ships as an operational command real users execute, not just documentation. If the claim can't be verified from existing repo precedent, official docs, or a cited live test, ask the author — or the user directly — to confirm it live before merging, rather than trusting the PR description's own reasoning.
+
+### Tool docstrings: scope (#397)
+
+Resolved 2026-07-26, issue #397: tool docstrings and parameter descriptions are prompts too — the calling LLM reads them to decide whether and how to invoke a tool, same category as the files above, so they're in scope for the same checks. But the review *mechanics* differ from team-process files: it's an async sweep, not a merge gate. A PR touching `docs/tools.md` merges normally on `qa-approved` alone; Bob sweeps merged history touching that file and files a fix ticket for anything that needs correcting. In scope: any docstring/parameter-description edit, new or existing tool — not just new tool sections. Rationale for the async-not-blocking split: `docs/decisions/decision-prompt-qa-role.md`.
+
+### Sweep cadence: release-anchored
+
+**Cadence: release-anchored, not a fixed interval.** Run the sweep right before or alongside Aziz's release QA pass, using the same git-log-since-last-tag pattern `aziz.md` step 1 already uses: `git log v<last-stable>..origin/develop --oneline -- docs/tools.md` to enumerate every commit touching the file since the last stable tag, then review those. Chosen over a calendar interval (e.g. "every two weeks") because a release tag is a checkpoint that already exists and gets hit regardless of whether anyone remembers to schedule Bob separately — a time-based cadence has no such anchor and is the kind of thing that silently stops happening once the post-launch momentum of whatever prompted it passes.
+
+### Sweep log: start from the last recorded SHA
+
+**Record where each sweep ends, and start the next one from there — not from the tag.** A release cycle can span several sweeps (the trigger is "before each release QA pass," and `develop` accumulates many pass-prep cycles between stable tags). `v<last-stable>..origin/develop` over-scopes the moment a sweep has already run mid-cycle: it re-surfaces every commit the previous sweep already cleared, with no recorded boundary to subtract, so the next session re-derives that boundary by hand from ticket-filing dates (the 2026-09-03 sweep had to). Fix: each sweep appends an entry to the log below — date, last commit SHA reviewed, tickets filed. The next sweep's range is `<that SHA>..origin/develop` unless a stable release shipped in between (which advances the tag and makes tag and last-SHA equivalent again).
+
+### Process step 1: the authoring role initiates
+
+1. **The authoring role initiates.** Same session, same moment it would previously have pushed directly: commit the edit on a short-lived branch off `develop` (`doc/<role>/retro-<date>`, matching the pattern already in use — see `doc/joy/retro-2026-07-19`, PR #383), open a PR. This preserves the property the user wants most: each participant commits what it learned, in its own words, right when it's fresh — Bob's review doesn't block that capture, only the merge.
+
+### Process step 2: no fast path
+
+2. **Every edit needs `prompt-qa-approved`, no fast path.** An earlier version of this process exempted mechanical fixes (typos, stale references, renumbering) from review. Retired 2026-07-21, per direct user instruction: from here on, *any* change to `.claude/team-roles/*.md`, `.claude/commands/*.md`, or root `CLAUDE.md` goes through Bob before merge, including edits with no permission/scope content at all. This trades a small amount of latency on trivial fixes for a simpler, unconditional rule — "did Bob look at it" is a boolean anyone can check on any PR, where "is this edit mechanical enough to skip review" was itself a judgment call that could be gotten wrong the same way the original QA-inline-fix exception was.
+
+### Process step 3: Bob reviews when next invoked
+
+3. **Bob reviews when next invoked** — ad hoc, or at whatever cadence Kai sets (e.g. sweeping open `doc/*/retro-*` PRs during normal orchestration, the way Aziz sweeps merged PRs at release time). One point in the cycle where the sweep is not optional: **before a release QA pass starts**, per `aziz.md`'s "prompt-file changes to the pass itself must be settled" precondition. A change to the pass's own procedure (`aziz.md`, `qa.md`, `verify-pr.md`, `release.md`) has to land *before* the pass so that pass runs on it and exercises it in situ — merged right after, it sits untested until the next release. This is deliberately not real-time otherwise: it's the release valve — a session that hits friction mid-work isn't blocked waiting on a live Bob review, the commit just sits as an open PR until someone gets to it. Apply the checks above; either add the `prompt-qa-approved` label or comment on the PR with the specific rewrite requested (not just "too loose" — propose the tightened wording). Applying the label must come with a PR comment naming which checks were applied and what was found — a bare label with no accompanying comment is itself a signal to distrust, not evidence of review, since GitHub's attribution can't prove who actually applied it (see Retro). If Bob is the edit's own author, he doesn't self-apply the label — there's no sixth role positioned to check Bob's own prompt-craft calls the way Bob checks everyone else's. Instead, Bob posts the same self-assessment comment he'd write for anyone else's PR — applying the checks above to his own edit, in writing — and the user reviews that comment and applies `prompt-qa-approved` themselves. This isn't asking for sign-off in live conversation: the user can't practically re-derive Bob's review process turn by turn on demand, so what actually gets reviewed is the same durable, checkable artifact every other approved PR now requires — not a conversational nod that would otherwise get reported as more independently verified than it actually was.
+
+### Process step 4: Bob merges
+
+4. **Bob merges once he's applied `prompt-qa-approved`** — a separate track from product PRs, not the split originally described in decision 2 of `decision-prompt-qa-role.md`. Kai's merge authority stays scoped to `qa-approved` agent/product-code PRs, tested via the main checkout's live MCP access — team-process/prompt files never needed that, so there was no structural reason to route their merge through Kai either. Bob uses the same `/merge-pr` mechanics already documented there (`--admin` squash-merge, worktree cleanup) — nothing in that skill is Kai-specific; its cleanup step already handles Bob's own persistent worktree slot by name. Per direct user instruction, 2026-07-21.
+
+### Retirement of the direct-push grant
+
+This retires the 2026-07-18 direct-push-to-`develop` grant previously in `dev.md`/`qa.md` — that path let team-process edits skip review entirely, which is the same class of gap that let the QA inline-fix exception harden unreviewed. The PR/label/merge machinery already exists for product code; this reuses it rather than inventing something new.
+
+### Bob has no peer reviewer for his own self-authored edits — the self-improvement process assumed the author…
+
+*Dropped from the Retro list: process step 3's self-authored-edit sub-bullet carries the rule.*
+
+- **Bob has no peer reviewer for his own self-authored edits — the self-improvement process assumed the author and Bob were always different roles.** Surfaced by the user directly on Bob's first PR (#394, 2026-07-21): the fix itself was genuinely mechanical (branch-naming spelling, a stale pointer) and correctly used the fast path, but the general question — what happens when Bob authors a *non-mechanical* edit — was unaddressed, and self-applying `prompt-qa-approved` to his own PR would be exactly the self-review defect this whole gate exists to prevent. Fixed in "The self-improvement process" step 3 above: Bob doesn't self-label a self-authored edit — he posts a self-assessment comment against the checks above instead, and the user reviews it and applies the label. (Refined 2026-07-21, same day: the user flagged that asking for conversational sign-off wasn't something they could practically replicate as an independent check each time it happened, so the artifact under review is now the same self-assessment comment every other PR requires — not a live back-and-forth that would get reported as more independently verified than it actually was.)
+
+### A pre-existing label on a PR isn't proof it was reviewed — Bob almost trusted the git actor field as evidence
+
+*Dropped from the Retro list: process step 3's label-comment sub-bullet carries the rule.*
+
+- **A pre-existing label on a PR isn't proof it was reviewed — Bob almost trusted the git actor field as evidence.** While reviewing PR #393 (2026-07-21), Bob found it already carried `prompt-qa-approved` and initially reported, as a confirmed fact, that the label reflected the authoring session self-applying it rather than a real review, based on the GitHub timeline showing `labeled by khuisman` — that field can't distinguish the user from any session acting under the user's own credentials, and the actual origin was only known because the user said so directly, not because Bob verified it. Full writeup: `decision-prompt-qa-role.md`'s label-attribution addendum. Fixed going forward: applying `prompt-qa-approved` now requires a PR comment naming what was checked (step 3 above) — a label's mere presence is never sufficient grounds for Bob, or anyone, to treat a PR as already reviewed.
+
+### Squash-merging one PR in a stacked-branch chain makes the next PR in the stack show `CONFLICTING`, even whe…
+
+- **Squash-merging one PR in a stacked-branch chain makes the next PR in the stack show `CONFLICTING`, even when the actual content is identical.** Merging #394 flipped #395's `mergeable` from clean to `CONFLICTING` against the same content: the squash commit landing on `develop` has a different history than the original commit already sitting in #395's branch, and this repo's paragraphs are single unwrapped lines, so any two edits anywhere in the same conceptual paragraph collide as the same git line regardless of how far apart the actual wording changes are. A plain `git rebase origin/develop` doesn't fix it — it tries to replay the already-landed commit's diff again and hits the same collision. Fix: `git rebase --onto origin/develop <tip-of-the-now-merged-branch> <next-branch-in-the-stack>`, which excludes the already-squashed commits from the replay entirely and only reapplies the next branch's own new commits. Confirmed live merging #394 → #395 → #396, 2026-07-21.
+
+### Bob merged PRs directly tonight (#394–#396), first recorded here as a one-off exception — corrected minutes…
+
+- **Bob merged PRs directly tonight (#394–#396), first recorded here as a one-off exception — corrected minutes later when the user confirmed it should be standing instead.** The user clarified they want a permanent, separate merge track: Bob owns review, label, and merge for team-process/prompt files; Kai's merge authority stays scoped to agent/product-code PRs (see step 4 above, `kai.md`, and `decision-prompt-qa-role.md`'s merge-authority addendum). Left in as its own lesson: describing something as a one-off exception is itself a judgment call that can be wrong just as easily as an over-broad permission grant — the fix wasn't reverting the merge, it was writing the actual boundary down explicitly instead of leaving it as "Bob asked, user said yes" each time.
+
+### Holding a PR for live verification of an unconfirmed technical claim is correct even when the claim turns o…
+
+*Dropped from the Retro list: folded into check 7.*
+
+- **Holding a PR for live verification of an unconfirmed technical claim is correct even when the claim turns out true — confirmed on PR #468, 2026-07-30.** The PR changed `qa-kickoff.md`'s reconnect command to `/mcp reconnect mcp-gee-sweet-<name>` and asserted this "rules out" the old wrong-server-reconnect bug; nothing in the repo's history used that argument form before, and neither official Claude Code docs nor `claude mcp --help` (a separate CLI namespace) could confirm it. Held the PR rather than approving on the strength of the description's own reasoning; the user then confirmed live that `/mcp reconnect mcp-gee-sweet-<name>` is exactly what they run for Sky's lane — the claim was right, but that was only known after asking, not before. Formalized as check 7 above.
+
+### "At his own cadence" meant no cadence — the docstring sweep ran once, then silently stopped
+
+*Dropped from the Retro list: the docstring-sweep cadence paragraph carries the rule.*
+
+- **"At his own cadence" meant no cadence — the docstring sweep ran once, then silently stopped.** The user asked directly on 2026-08-10 when the last `docs/tools.md` sweep happened and what the cadence should be; the answer was 2026-07-27 (issues #436/#437, filed the same day the async-sweep process itself landed) and nothing since — an undefined cadence quietly defaulted to "whenever the thing that prompted it is still fresh in mind," which stops holding the moment that fades. Fixed by anchoring the sweep to release cadence instead of a calendar interval, reusing the git-log-since-last-tag checkpoint `aziz.md` step 1 already has — see the "Tool docstrings" section above.
+
+### Memory-only fixes don't reliably stick for repeatable workflow steps — PR #456 needed a command file, not a…
+
+- **Memory-only fixes don't reliably stick for repeatable workflow steps — PR #456 needed a command file, not a second memory entry.** The user pointed out directly that the underlying friction behind #456/#461/#463 was the same shape each time: QA's `/mcp reconnect`+`/code-review` batching had already been "fixed" twice via memory alone, and each time a later session reverted to the old, wrong behavior anyway — memory is retrieved heuristically and doesn't reliably override whatever the loaded prompt file already says, so a memory-only fix for something a command file governs is a fix that can silently stop holding. Two changes followed: check 6 above (memory-vs-prompt drift, so Bob catches it when a command edit and an existing memory disagree or duplicate), and a new `CLAUDE.md` note ("Procedural feedback → the governing command file, not memory") instructing every role to route a repeatable-workflow correction into the command file it's about, not into memory, the moment the feedback lands — not deferred to a `/retro` pass. `retro.md` cross-references the same note so the distinction isn't `/retro`-exclusive.
