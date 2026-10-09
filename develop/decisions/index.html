@@ -1534,6 +1534,12 @@
 <td>decided</td>
 <td>mcp 2.3 withholds any non-<code>ToolError</code> exception text; <code>_timed</code> re-raises an allowlist (auth, <code>HttpError</code>, <code>GoogleAuthError</code>, network, <code>ValueError</code>, <code>OSError</code>) as <code>ToolError</code> and leaves real crashes masked; same for <code>spreadsheet://{id}/info</code> via <code>ResourceError</code>; <code>mcp&gt;=2.3.0,&lt;3</code> with the lock bumped so CI matches PyPI installs (#872)</td>
 </tr>
+<tr>
+<td><a href="role-file-history/">Role-File History</a></td>
+<td>2026-10-08</td>
+<td>record</td>
+<td>Incident history behind <code>dev.md</code>'s and <code>qa.md</code>'s rules, moved there verbatim by #849 so the role files every lane session loads keep only the rules</td>
+</tr>
 </tbody>
 </table>
 

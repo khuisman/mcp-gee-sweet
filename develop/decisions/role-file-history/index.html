@@ -1,0 +1,1652 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/role-file-history/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Role-file history - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#role-file-history" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Role-file history
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="role-file-history">Role-file history<a class="headerlink" href="#role-file-history" title="Permanent link">&para;</a></h1>
+<p>The incidents behind the rules in <code>.claude/team-roles/dev.md</code> and <code>qa.md</code>: review rounds, races, reversed approaches, and the user corrections each rule came from. #849 moved this text here verbatim so the role files could keep only the rules. Every Dev and QA session loads its role file, so each paragraph of incident narrative there cost every lane session tokens.</p>
+<p>Each entry below is the full original text of one paragraph or bullet the move rewrote or removed, in the file's original order, under a heading taken from its opening words. Where an entry was dropped from the role file instead of compressed, the note under its heading says where its rule lives now. Read the entry for a rule before loosening or reversing it.</p>
+<p>Issue and PR numbers, step numbers, and cross-references inside the quoted text are as they were at the move (2026-10-08), so a "step 2" or "above" refers to the old file. Later history belongs in a decision doc of its own, not appended here.</p>
+<h2 id="devmd"><code>dev.md</code><a class="headerlink" href="#devmd" title="Permanent link">&para;</a></h2>
+<h3 id="team-process-changes-go-through-bobs-prompt-qa-gate-not-a-direct-push-every-edit-no-exceptions">Team-process changes go through Bob's prompt-QA gate, not a direct push — every edit, no exceptions<a class="headerlink" href="#team-process-changes-go-through-bobs-prompt-qa-gate-not-a-direct-push-every-edit-no-exceptions" title="Permanent link">&para;</a></h3>
+<p><strong>Team-process changes go through Bob's prompt-QA gate, not a direct push — every edit, no exceptions.</strong> Retro-driven or ad-hoc edits to team-process/instruction files — <code>CLAUDE.md</code>, <code>.claude/team-roles/*.md</code>, <code>.claude/commands/*.md</code>, <code>docs/qa/run.md</code>/<code>setup.md</code> process content — get committed to a short branch off <code>develop</code> (<code>doc/&lt;name&gt;/retro-&lt;date&gt;</code>) and opened as a PR, same as any other work, and need a <code>prompt-qa-approved</code> label from Bob (<code>/team-member Bob</code>) before Bob merges it — a separate track from Kai's product-PR merges — no fast path for small or mechanical-looking edits, per direct user instruction 2026-07-21. Full flow in <code>.claude/team-roles/bob.md</code>. (This replaces a 2026-07-18 grant that allowed direct-to-<code>develop</code> pushes for these files with no review step at all — retired because that no-review gap is exactly what let the QA inline-fix exception below harden without anyone checking its wording; see <code>qa.md</code>'s Retro.) This does <strong>not</strong> extend to product code (<code>src/</code>, <code>tests/</code>, generated docs like <code>docs/tools.md</code>) or QA test-case content (<code>docs/qa/tests/*.md</code>) — those always go through the normal PR flow below.</p>
+<h3 id="on-teamname-idle">On <code>team/&lt;name&gt;</code> (idle)<a class="headerlink" href="#on-teamname-idle" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>On <code>team/&lt;name&gt;</code> (idle):</strong> this slot is free. This slot's lane label is <code>lane-a</code> for Ash, <code>lane-b</code> for Jay. Get the queue, filtered to that label: <code>gh issue list --repo khuisman/mcp-gee-sweet --label "ready-for-development,&lt;lane-label&gt;" --state open --json number,title,body,labels</code>. Filter out any issue number already claimed by an <em>open</em> PR anywhere in the repo (so Ash and Jay never grab the same ticket, though the lane label should already prevent that): <code>gh pr list --state open --json headRefName --jq '[.[].headRefName]'</code> and drop any issue whose number appears in one of those branch names. Take the lowest-numbered remaining issue — check its comment thread, not just its body, before treating the body as the current scope: a maintainer triage comment can re-scope or split an issue after filing without editing the original text (e.g. #316 was narrowed to just its concurrency bug and had its progress-notification ask split into a separate backlog issue, #319, entirely via a comment — a session that only reads the issue body and implements straight through will silently redo work that's already been descoped or moved elsewhere). Scope can also go stale with <em>no</em> comment at all: if the body cross-references a sibling issue (a "Related" section, "see also #N"), check whether that sibling has already merged — its shipped shape may have generalized past what this issue's own body still literally proposes (#211 proposed a <code>convert_markdown</code> param mirroring #188's <em>original</em>, narrower proposal on <code>upload_local_file</code>; #188 shipped first with a broader <code>convert: bool</code> covering CSV/XLSX/DOCX/MD/HTML/PPTX, so implementing #211 exactly as filed would have bolted on a redundant second markdown-conversion switch instead of just wiring <code>sync_folder</code> into the mechanism #188 already built). <strong>Stop here and name that issue to the user; don't create a branch or edit files until the user tells you, in this session, to start that ticket.</strong> Bootstrapping via <code>/team-member</code>, a peer's <code>SendMessage</code> wake, a just-merged PR, or a finished <code>/retro</code> is not that instruction: on 2026-09-27 a session bootstrapped only to review open PRs started #511 on its own, leaving uncommitted work nobody had asked for. Once told, then:</li>
+</ul>
+<h3 id="step-1-create-the-ticket-branch">Step 1: create the ticket branch<a class="headerlink" href="#step-1-create-the-ticket-branch" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Pick <code>&lt;type&gt;</code> to match the ticket (feature vs. fix vs. chore/docs), then <code>git fetch origin develop &amp;&amp; git checkout --no-track -b &lt;type&gt;/&lt;name&gt;/issue-&lt;n&gt; origin/develop</code>. Keep <code>--no-track</code>: without it the ticket branch's upstream is <code>origin/develop</code>, so a bare <code>git pull</code> merges <code>develop</code> in and a push under a non-default <code>push.default</code> can land WIP on <code>develop</code> (found 2026-09-27 on <code>chore/jay/issue-511</code>). Push with <code>git push -u origin &lt;branch&gt;</code> at step 6 to set the right upstream.</li>
+</ol>
+<h3 id="step-2-work-through-the-issue-fully">Step 2: work through the issue fully<a class="headerlink" href="#step-2-work-through-the-issue-fully" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Work through the issue fully — code, tests, doc changes. When adding a tool to a file with existing siblings that share a parameter (e.g. every <code>sheet</code>-taking tool in <code>structure.py</code> calls <code>_get_sheet_id</code> first and returns a clean <code>{"error": ...}</code> for a bad name), grep for that shared pattern across <em>every</em> sibling in the file before finishing, not just the one or two tools used as an implementation reference — <code>get_data_validation</code> shipped without the check despite ~22 sibling tools having it, caught by QA instead of before opening the PR (PR #361, TC-S100). Separately: converting a sequential loop to concurrent <code>asyncio.gather</code> fan-out can silently break implicit ordering-based safety the sequential version had for free (e.g. an existence/dedup check computed once against a snapshot of pre-batch state, safe when items were handled one at a time, unsafe once they all race against that same stale snapshot at once) — audit a sequential block for order-dependent assumptions before parallelizing it, don't just port the body into a gather (PR #351, TC-D200: <code>download_folder</code>'s new concurrent fan-out let two same-named Drive files race to write the same local path, something the old sequential loop was accidentally safe against). Scope is every problem the issue body and its triage comments describe, not just the one its "Suggested fix" covers. PR #877: #789 described a leaked share <em>and</em> a caller left with no file IDs. The suggested <code>finally</code> fixed only the first, and QA sent the second back. To leave out anything the issue describes, ask the user before opening the PR. A note in the PR body doesn't count as asking.</li>
+</ol>
+<h3 id="step-5-re-check-tc-id-numbering-before-pushing">Step 5: re-check TC-ID numbering before pushing<a class="headerlink" href="#step-5-re-check-tc-id-numbering-before-pushing" title="Permanent link">&para;</a></h3>
+<ol>
+<li>If the ticket added new <code>TC-DOC</code>/<code>TC-D</code>-style entries to a shared <code>docs/qa/tests/*.md</code> file, re-check numbering isn't stale before pushing: <code>git fetch origin develop</code>, then <code>git show origin/develop:&lt;test-file&gt; | grep -oE "^### &lt;PREFIX&gt;[0-9]+" | sort -V | tail -1</code> (<code>&lt;PREFIX&gt;</code> is the file's ID scheme, e.g. <code>TC-DOC</code>, <code>TC-GM</code>; <code>sort -V</code>, not <code>sort -n</code>, which falls back to text order on a <code>TC-</code> prefix and reports <code>TC-DOC99</code> over <code>TC-DOC198</code>; the <code>^###</code> anchor matches only definitions, not cross-references) to confirm the numbers just used are still free. <code>develop</code> alone isn't enough: also check every <em>open</em> PR that touches the same file, since a PR can reserve IDs long before it merges — <code>gh pr list --state open --json number,headRefName,files --jq '.[] | select(any(.files[]; .path == "&lt;test-file&gt;")) | "\(.number) \(.headRefName)"'</code>, then for each such branch, <code>git fetch origin &lt;branch&gt; &amp;&amp; git show origin/&lt;branch&gt;:&lt;test-file&gt; | grep -oE "^### &lt;PREFIX&gt;[0-9]+" | sort -V | tail -1</code> (PR #829: its TC-GM29 was already claimed by the open #830, which had renumbered the Gmail test plan; caught only by chance). If an open PR reserved the ID for the <em>same</em> case you're writing (e.g. a known-defect placeholder your fix supersedes), take its number rather than a fresh one, and say in your PR which version should win when the second one merges. These files are append-only and shared across both lanes — another PR can claim the same next number while this ticket is in progress, and a collision usually isn't visible until a reviewer's <code>gh pr view</code> shows <code>mergeable: CONFLICTING</code> (see PR #337). If a collision is later caught by a reviewer instead of here: rebase onto <code>origin/develop</code>, resolve by hand rather than blindly taking one side, renumber/rename consistently across every cross-reference in the file, force-push with <code>--force-with-lease</code>, and reply on the PR stating exactly what changed — the full playbook (written after the same friction hit Aziz on PR #338) lives in <code>.claude/team-roles/aziz.md</code>'s "Ad-hoc deep-dive QA" section.</li>
+</ol>
+<h3 id="when-a-peer-bob-kai-says-a-pr-merged-and-asks-you-to-reset-teamname">When a peer (Bob, Kai) says a PR merged and asks you to reset <code>team/&lt;name&gt;</code><a class="headerlink" href="#when-a-peer-bob-kai-says-a-pr-merged-and-asks-you-to-reset-teamname" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>When a peer (Bob, Kai) says a PR merged and asks you to reset <code>team/&lt;name&gt;</code>:</strong> run <code>git branch --show-current</code> and <code>git status --short</code> first. If this worktree is on a different, still-open ticket branch, don't check out <code>team/&lt;name&gt;</code> or <code>reset --hard</code>: that throws away the in-flight ticket's uncommitted work. Move the ref without checking it out (<code>git fetch origin develop &amp;&amp; git branch -f team/&lt;name&gt; origin/develop</code>) and delete the merged branch with <code>git branch -D</code>. The peer can't see your worktree, so its instructions assume the slot is idle (2026-09-27: Bob's merge notice for #831 arrived while #511 was uncommitted here). After an idle-slot reset, don't pick up the next ticket here — see "One ticket per session" above.</li>
+</ul>
+<h3 id="if-the-open-pr-falls-behind-develop">If the open PR falls behind <code>develop</code><a class="headerlink" href="#if-the-open-pr-falls-behind-develop" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>If the open PR falls behind <code>develop</code></strong> (e.g. GitHub reports it out of date): <code>git fetch origin &lt;branch&gt;</code> first, <em>then</em> <code>git merge origin/develop --no-edit</code> — QA can push commits directly to an open PR's branch (Result entries, fix confirmations), and merging <code>origin/develop</code> onto a stale local HEAD before pulling those creates an avoidable divergent local merge commit that then has to be discarded (<code>git reset --hard origin/&lt;branch&gt;</code>) and redone on top of the QA-updated tip instead of just pushed (confirmed 2026-07-18, PR #357).</li>
+</ul>
+<h3 id="if-git-push-itself-is-rejected-non-fast-forward-on-this-same-branch">If <code>git push</code> itself is rejected non-fast-forward on this same branch<a class="headerlink" href="#if-git-push-itself-is-rejected-non-fast-forward-on-this-same-branch" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>If <code>git push</code> itself is rejected non-fast-forward on this same branch</strong> (not <code>develop</code> falling behind — the remote copy of <em>this</em> branch has commits this local HEAD doesn't): same root cause as above, QA pushed a Result-entry commit directly while a fix round was still in flight locally. <code>git fetch origin &lt;branch&gt;</code>, then <code>git merge origin/&lt;branch&gt; --no-edit</code> (never rebase — QA's commit is already on the shared remote and possibly already reviewed against). When the conflict lands in a shared <code>docs/qa/tests/*.md</code> file, it's almost always the same shape: QA's <code>**Result (...)**</code> entry for a test case you both touched needs to end up immediately after that test case's own <code>**Cleanup:**</code> line, <em>before</em> any new test cases you're adding later in the same file — don't take either side of the conflict wholesale, splice QA's Result block back into its own test case first. Confirmed twice in one PR (#369, both QA review rounds).</li>
+</ul>
+<h3 id="a-merged-entry-exists">A <code>MERGED</code> entry exists<a class="headerlink" href="#a-merged-entry-exists" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A <code>MERGED</code> entry exists:</strong> this ticket already shipped and this slot was never reset (e.g. Kai's merge-time cleanup didn't run, or targeted a different branch) — self-heal: <code>git fetch origin develop</code>, <code>git checkout team/&lt;name&gt;</code>, <code>git reset --hard origin/develop</code>, <code>git branch -D &lt;branch&gt;</code>. Then treat this slot as idle and fall through to the idle-branch flow above to pick up the next ticket.</li>
+</ul>
+<h3 id="no-merged-entry-but-the-underlying-issue-is-already-closed">No <code>MERGED</code> entry, but the underlying issue is already closed<a class="headerlink" href="#no-merged-entry-but-the-underlying-issue-is-already-closed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>No <code>MERGED</code> entry, but the underlying issue is already closed:</strong> pull the issue number <code>&lt;n&gt;</code> out of the branch name (<code>&lt;type&gt;/&lt;name&gt;/issue-&lt;n&gt;</code>) and check <code>gh issue view &lt;n&gt; --json state,stateReason</code> — <code>CLOSED</code>/<code>completed</code> with no <code>MERGED</code> PR of this branch's own means a sibling lane raced the same ticket and shipped it first, and since this branch never became a PR, nothing else would ever catch that (this replaces Kai's old post-merge sibling-worktree sweep — see [[feedback_worktree_self_heal]] — with a signal this lane checks for itself instead of Kai reaching in externally). A closed-for-another-reason issue (e.g. <code>stateReason: "NOT_PLANNED"</code>) isn't the same thing — confirm with the user before resetting either way, since this branch's own work might still be worth keeping under a different name. If confirmed a genuine lost-race duplicate, self-heal the same way as the <code>MERGED</code>-entry case above.</li>
+</ul>
+<h3 id="retro-section-intro">Retro section intro<a class="headerlink" href="#retro-section-intro" title="Permanent link">&para;</a></h3>
+<p>Friction Dev (Ash/Jay) typically hits after finishing a ticket, and where it goes — see <code>/retro</code> for the general ticket-vs-command-decision split:</p>
+<h3 id="designarchitecture-surprises">Design/architecture surprises<a class="headerlink" href="#designarchitecture-surprises" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Design/architecture surprises</strong> — an existing pattern didn't generalize the way expected mid-implementation (a sibling function skipped a step this one needed, a helper needed restructuring to fit a new case). If it's about how future Devs should approach similar work, that's a command decision: add a note to <code>CLAUDE.md</code> or a <code>docs/design/</code> snapshot. If it's legitimate follow-up scope not worth doing in the current PR, it goes through step 6's follow-up triage, not straight to a ticket.</li>
+</ul>
+<h3 id="qa-sends-a-fix-back-with-an-explicit-root-cause-diagnosis-not-just-a-symptom-list">QA sends a fix back with an explicit root-cause diagnosis (not just a symptom list)<a class="headerlink" href="#qa-sends-a-fix-back-with-an-explicit-root-cause-diagnosis-not-just-a-symptom-list" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>QA sends a fix back with an explicit root-cause diagnosis (not just a symptom list)</strong> — e.g. "X is a scalar, not a stack" alongside the reported gaps. Take the generalized fix implied by that diagnosis immediately, even though it's more work than patching the specific cases QA listed. A narrower patch that only covers the reported cases tends to leave the same defect class reachable one level up, costing a full extra QA round-trip to rediscover — confirmed on PR #369 (issue #335): round 1 fixed only <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> interrupting a <code>&lt;li&gt;</code>; round 2 found <code>&lt;pre&gt;</code>/<code>&lt;table&gt;</code>/<code>&lt;p&gt;</code> had the identical bug; the fix generalized to "any block tag interrupting a <code>&lt;li&gt;</code>" but stayed keyed on <code>_block_tag == "li"</code> specifically; round 3 found <em>any</em> open block (headings, paragraphs) had the same bug one level up again, plus a correctness bug in the interim stack itself. Three rounds to reach the fix round 2's own diagnosis ("<code>_block_tag</code> is a scalar, not a stack") already pointed at.</li>
+</ul>
+<h3 id="qas-root-cause-diagnosis-can-be-correct-while-its-suggested-code-is-still-wrong-verify-before-adopting">QA's root-cause diagnosis can be correct while its suggested code is still wrong — verify before adopting,…<a class="headerlink" href="#qas-root-cause-diagnosis-can-be-correct-while-its-suggested-code-is-still-wrong-verify-before-adopting" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>QA's root-cause diagnosis can be correct while its suggested code is still wrong — verify before adopting, don't paste it in as-is.</strong> Distinct from the PR #369 entry above: that one is about not narrowing a correct diagnosis's <em>scope</em>; this is about not trusting a correct diagnosis's <em>literal suggested fix</em> without checking it against the actual invariant. PR #406 (issue #401 follow-up) hit this twice in one PR: a reused flag that pattern-matched the fix used at sibling call sites didn't actually distinguish the two cases the diagnosis conflated, and a second, unrelated sibling check nearby had the same gap with no test covering it at all — so "run the full suite," round 1's own fix, wouldn't have caught round 2 either. Fix: when a change touches a state flag that gates multiple conditions (<code>_tag_depth</code>, <code>_table_depth</code>, <code>_block_tag</code>, or equivalents elsewhere), grep every read-site of that flag and diff the conditions against each other by hand before opening the PR — a search-and-compare step, not a "run tests and trust it" one.</li>
+</ul>
+<h3 id="stale-or-missing-claudemd-guidance">Stale or missing <code>CLAUDE.md</code> guidance<a class="headerlink" href="#stale-or-missing-claudemd-guidance" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Stale or missing <code>CLAUDE.md</code> guidance</strong> — instructions that were wrong or absent for a pattern just hit. Command decision: fix <code>CLAUDE.md</code> — but route it through the Bob-gate paragraph above (a short <code>doc/&lt;name&gt;/retro-&lt;date&gt;</code> branch + PR) like any other process-file edit, not a direct push. This bullet's own "fix <code>CLAUDE.md</code> directly" wording predates the 2026-07-21 gate (see that paragraph's note on the retired 2026-07-18 grant) and was itself stale until this edit — a reminder that a Retro bullet describing <em>how</em> to make a command decision can go stale the same way the guidance it's fixing did.</li>
+</ul>
+<h3 id="tc-id-collision-against-develop">TC-ID collision against <code>develop</code><a class="headerlink" href="#tc-id-collision-against-develop" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>dev.md</code>: step 5 covers the collision check and the reviewer-caught case.</em></p>
+<ul>
+<li><strong>TC-ID collision against <code>develop</code></strong> — a reviewer's <code>gh pr view --json mergeable</code> comes back <code>CONFLICTING</code> (not just the transient <code>UNKNOWN</code>) and the conflict turns out to be in a shared <code>docs/qa/tests/*.md</code> file, not the code. Already a command decision, handled by step 5 above and the playbook in <code>.claude/team-roles/aziz.md</code>'s "Ad-hoc deep-dive QA" section — nothing further to do here unless that playbook itself turns out to be missing a case.</li>
+</ul>
+<h3 id="a-new-exclusiontracking-mechanism-over-an-open-tagelement-category-only-covers-the-one-instance-already-i">A new exclusion/tracking mechanism over an open tag/element category only covers the one instance already i…<a class="headerlink" href="#a-new-exclusiontracking-mechanism-over-an-open-tagelement-category-only-covers-the-one-instance-already-i" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A new exclusion/tracking mechanism over an open tag/element category only covers the one instance already in view, not the true formal category</strong> — PR #385 (issue #343): the fix added a <code>_tag_depth</code> counter that needed to skip HTML void elements (tags with no matching close tag), but only excluded <code>&lt;br&gt;</code> — the one void tag already present in the file's existing tag vocabulary — instead of the full HTML5 void-element set (<code>&lt;img&gt;</code>, <code>&lt;hr&gt;</code>, <code>&lt;input&gt;</code>, <code>&lt;meta&gt;</code>, <code>&lt;link&gt;</code>, <code>&lt;area&gt;</code>, <code>&lt;base&gt;</code>, <code>&lt;embed&gt;</code>, <code>&lt;source&gt;</code>, <code>&lt;track&gt;</code>, <code>&lt;wbr&gt;</code>). Any of those written without a self-closing slash would have silently reopened the exact bug being fixed. Caught in code review, not by the unit tests (which only exercised <code>&lt;br&gt;</code>). When a new piece of state-tracking logic needs to special-case "elements with property X," audit against the actual formal/complete set with that property, not just the one instance the surrounding code already happens to mention — a test suite that only covers the instance you thought of won't catch the ones you didn't. See <code>.claude/team-roles/qa.md</code>'s parallel entry for this same incident (the process side: why this went back to QA-fixed-inline instead of back to the Dev, and the fix-inline exception's retirement that followed from it).</li>
+</ul>
+<h3 id="same-class-for-a-claimed-invariant-rather-than-an-exclusion-list">Same class, for a claimed invariant rather than an exclusion list<a class="headerlink" href="#same-class-for-a-claimed-invariant-rather-than-an-exclusion-list" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Same class, for a claimed invariant rather than an exclusion list.</strong> PR #829 (issue #825), round 2 added a pre-fetch size check resting on "a body's byte size is a lower bound on its serialized size" — reasoned out for UTF-8 and single-byte charsets only, then applied to every charset. QA's next round showed UTF-16/32 and iso-2022-jp break it (a false refusal, confirmed live), costing a full round. Before shipping logic that relies on a property holding over an open input category (charsets, codecs, MIME types, locales), check it against the category's full member list — for codecs, every <code>codecs.lookup()</code> name in <code>encodings.aliases</code> — not just the members you reasoned about. And don't trust random inputs alone for that check: a random-bytes probe passed <code>hz</code> and <code>iso2022_kr</code>, whose shift sequences only break the property when repeated. Pair the probe with adversarial inputs, and gate on an explicit allowlist rather than whatever the probe happened to pass.</li>
+</ul>
+<h3 id="a-clean-no-conflict-merge-of-a-qa-pushed-result-entry-commit-can-still-misattribute-content-if-your-own">A clean (no-conflict) merge of a QA-pushed Result-entry commit can still misattribute content, if your own…<a class="headerlink" href="#a-clean-no-conflict-merge-of-a-qa-pushed-result-entry-commit-can-still-misattribute-content-if-your-own" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A clean (no-conflict) merge of a QA-pushed Result-entry commit can still misattribute content, if your own concurrent fix restructured the same <code>docs/qa/tests/*.md</code> section</strong> — distinct from step 19's case above, where <code>git merge</code> reports an actual conflict and you're prompted to look. Here there's no conflict at all: confirmed 2026-07-21, PR #386 — QA's review round split <code>empty_trash</code> into a design finding, and the fix split one test case (the old single <code>TC-D204</code>) into two (<code>TC-D204</code> redesigned + a new <code>TC-D205</code>). QA had concurrently pushed a commit adding a <code>**Result (...) held, not run**</code> note after the <em>old</em> <code>TC-D204</code>'s Checks block. <code>git merge origin/&lt;branch&gt; --no-edit</code> applied that addition via ordinary context-line matching — cleanly, no conflict markers — but because a new heading (<code>TC-D205</code>) now sat between the old context lines and where the diff's insertion point landed, the Result note ended up attached under <code>TC-D205</code> instead of the case it was actually about. Nothing in the merge output signaled this; it only surfaced by manually re-reading the merged section. Whenever your own fix commit adds, removes, or reorders test-case headings in a shared QA doc file in the same push that also pulls in a QA-authored commit touching that file, re-read the merged section by hand afterward — a clean merge is not proof the content landed in the right place.</li>
+</ul>
+<h3 id="this-sessions-own-pr-gets-merged-mid-retro">This session's own PR gets merged mid-retro<a class="headerlink" href="#this-sessions-own-pr-gets-merged-mid-retro" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>This session's own PR gets merged mid-retro</strong> — in a fast-moving team session, Kai can merge this PR (and self-heal this worktree back onto <code>develop</code>) while this session is still running the retro pass on it. A "quick direct fix" commit (e.g. a <code>CLAUDE.md</code> command-decision edit) made without re-checking branch state first lands as an orphan on top of the post-merge <code>develop</code>, and a plain <code>git push</code> of it can even resurrect the just-deleted branch name as a disconnected new branch (confirmed 2026-07-17, PR #353: <code>git push</code> reported <code>[new branch]</code> for a branch that had a merged, deleted PR moments earlier). Before any direct-commit command decision during retro, run <code>git log --oneline -3</code> first — if the ticket's merge commit is already an ancestor, the fix needs <code>git cherry-pick &lt;stray-sha&gt;</code> onto a fresh branch cut from current <code>origin/develop</code> per <code>merge-pr.md</code>'s stray-commit rescue guidance, not a plain commit-and-push on the (now stale) working branch. An empty cherry-pick there means the content already landed through another path (e.g. Kai incorporated it directly) — nothing further to do, just clean up the stray branch (<code>git branch -D</code>, <code>git push origin --delete &lt;name&gt;</code> if it was pushed) and reset this worktree to <code>team/&lt;name&gt;</code>.</li>
+</ul>
+<h3 id="uv-lock-rewriting-markers-on-packages-you-didnt-touch-means-your-local-uv-differs-from-the-one-that-wr"><code>uv lock</code> rewriting markers on packages you didn't touch means your local <code>uv</code> differs from the one that wr…<a class="headerlink" href="#uv-lock-rewriting-markers-on-packages-you-didnt-touch-means-your-local-uv-differs-from-the-one-that-wr" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>uv lock</code> rewriting markers on packages you didn't touch means your local <code>uv</code> differs from the one that wrote the lock.</strong> PR #877: adding one dependency with local <code>uv</code> 0.11.8 also rewrote markers on <code>exceptiongroup</code>, <code>httpcore2</code>, and <code>uvicorn</code>. Don't commit that. Re-lock with the current release without changing the installed one: <code>uvx --from uv@latest uv lock</code>. That may bump the lockfile's <code>revision =</code> header (3 → 5 with 0.12.23, checked 2026-10-04). That's expected, and older <code>uv</code> still reads it. Only marker changes on unrelated packages are the problem. If that isn't possible, revert <code>uv.lock</code>, add only the project's own lines (its <code>dependencies</code> and <code>requires-dist</code> entries) by hand, and confirm with <code>uv lock --check</code>.</li>
+</ul>
+<h3 id="ticket-pickup-scope-can-go-stale-via-a-merged-sibling-issue-with-no-comment-on-the-issue-itself">Ticket-pickup scope can go stale via a merged sibling issue with no comment on the issue itself<a class="headerlink" href="#ticket-pickup-scope-can-go-stale-via-a-merged-sibling-issue-with-no-comment-on-the-issue-itself" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>dev.md</code>: its rule was already in the idle-flow pickup guidance. The sub-bullet that followed it is folded into the "Before any retro commit" entry.</em></p>
+<ul>
+<li><strong>Ticket-pickup scope can go stale via a merged sibling issue with no comment on the issue itself.</strong> Folded into step 9's queue-pickup guidance above (2026-07-25, #211/#188) — no separate incident detail needed here.</li>
+</ul>
+<h3 id="a-sharper-variant-the-branch-switch-happens-mid-command-not-just-pre-stale">A sharper variant: the branch switch happens mid-command, not just pre-stale<a class="headerlink" href="#a-sharper-variant-the-branch-switch-happens-mid-command-not-just-pre-stale" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A sharper variant: the branch switch happens mid-command, not just pre-stale.</strong> Confirmed 2026-07-19, issue #363/PR #368: a scratch branch was checked out (<code>git checkout -b tmp-.../ origin/develop</code>) for a second command-decision doc edit, a file was read and edited, and by the time <code>git add &amp;&amp; git commit</code> ran, <code>git branch --show-current</code> had silently become <code>team/ash</code> instead — something else had run this exact worktree's self-heal sequence (<code>git checkout team/&lt;name&gt;</code> + <code>git reset --hard origin/develop</code>) <em>inside this same worktree directory</em> while the edit was in flight, most plausibly a second live session bootstrapped into the same slot after seeing the PR merged (this worktree's shared stash-stack warning already establishes that concurrent sessions can touch the same repo; this shows they can touch the <em>same worktree's checked-out branch</em> too). There was no error, no conflict — the commit just landed silently on the wrong branch. The same cherry-pick recovery above still applies (it doesn't care which branch the stray commit ended up on), but the lesson is upstream of that: during a retro pass with more than one scratch-branch checkout in flight, re-run <code>git branch --show-current</code> immediately before every <code>git add</code>/<code>git commit</code>, not just before the first one — don't assume HEAD is still where the last <code>git checkout</code> left it once real wall-clock time (a file read, an edit) has passed.</li>
+</ul>
+<h3 id="a-newly-introduced-cross-cutting-mechanism-must-be-audited-against-every-code-path-a-docstring-claims-share">A newly-introduced cross-cutting mechanism must be audited against every code path a docstring claims share…<a class="headerlink" href="#a-newly-introduced-cross-cutting-mechanism-must-be-audited-against-every-code-path-a-docstring-claims-share" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A newly-introduced cross-cutting mechanism must be audited against every code path a docstring claims shares it — the claim itself isn't proof it's kept in sync.</strong> PR #414 (issue #211), round 2: the fix for round 1's matching bug added a Drive <code>properties</code> marker stamped by <code>sync_folder</code>'s own conversion <code>create()</code> call. <code>upload_local_file</code>'s <code>convert=True</code> path creates the exact same kind of converted Doc, and its own docstring calls this "the same mechanism" — but the marker-stamping fix only touched <code>sync_folder</code>'s call site, leaving <code>upload_local_file</code>'s converted Docs invisible to <code>sync_folder</code>'s matching and silently duplicated on the next sync. Caught by QA, not before opening the PR. When a fix introduces a new marker, flag, or stamped property to make one code path recognize an artifact, grep for every other function whose docstring or comments assert equivalence ("same mechanism as X", "same as Y's Z param") and verify each one independently — don't take the shared docstring's word for it.</li>
+</ul>
+<h3 id="dont-gate-recognizing-an-artifact-this-tool-already-created-on-the-same-per-call-flag-that-gates-creati">Don't gate <em>recognizing</em> an artifact this tool already created on the same per-call flag that gates *creati…<a class="headerlink" href="#dont-gate-recognizing-an-artifact-this-tool-already-created-on-the-same-per-call-flag-that-gates-creati" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Don't gate <em>recognizing</em> an artifact this tool already created on the same per-call flag that gates <em>creating</em> a new one.</strong> PR #414 (issue #211), round 2: matching an already-converted Doc back to its local file was implemented as <code>convert_markdown and &lt;has the marker&gt;</code> — conflating "should this call convert a new local-only file" with "does this Drive entry represent something already converted." A resync that simply omitted <code>convert_markdown=True</code> (the flag not being repeated, not any local edit) made the already-converted Doc invisible to matching, so the local file looked "local only" and was silently uploaded again as a second, unconverted duplicate. Recognition of an existing artifact must survive on every later call regardless of whether that call repeats the flag that first created it; only the decision to create a <em>new</em> one should require the explicit flag. When adding a match/exists-already check for something a tool previously created, ask whether it should depend on this call's config at all, or only on the artifact's own persisted state.</li>
+</ul>
+<h3 id="a-tickets-ask-can-rest-on-an-unverified-assumption-about-an-external-apis-capabilities">A ticket's ask can rest on an unverified assumption about an external API's capabilities<a class="headerlink" href="#a-tickets-ask-can-rest-on-an-unverified-assumption-about-an-external-apis-capabilities" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>dev.md</code>: the rule is root <code>CLAUDE.md</code>'s "Verify a ticket's API premise live before implementing, not after."</em></p>
+<ul>
+<li><strong>A ticket's ask can rest on an unverified assumption about an external API's capabilities.</strong> Issue #404/PR #471: <code>tab_stops</code> on <code>style_doc_range</code> shipped fully before QA's live round caught <code>HttpError 400 "Unallowed field: tabStops"</code> — the field was read-only per its own discovery-schema description. See <code>CLAUDE.md</code>'s "Verify a ticket's API premise live before implementing, not after" note for the operative rule — no separate incident detail needed here.</li>
+</ul>
+<h2 id="qamd"><code>qa.md</code><a class="headerlink" href="#qamd" title="Permanent link">&para;</a></h2>
+<h3 id="opening-paragraph-dedicated-server-and-reconnect">Opening paragraph: dedicated server and reconnect<a class="headerlink" href="#opening-paragraph-dedicated-server-and-reconnect" title="Permanent link">&para;</a></h3>
+<p>Sky and Kit each have their own dedicated server — <code>mcp-gee-sweet-sky</code> / <code>mcp-gee-sweet-kit</code> — registered in <code>.claude/mcp-configs/&lt;name&gt;.mcp.json</code>, which <code>make team-&lt;name&gt;</code> loads with <code>--strict-mcp-config</code> (an Agent View spawn loads the repo root's <code>.mcp.json</code> instead, with every team server); every live tool call in this role goes through <code>mcp__mcp-gee-sweet-&lt;name&gt;__</code> for that name specifically (see <code>team-member.md</code> §2), and a stale connection is reconnected by name: <code>/mcp reconnect mcp-gee-sweet-&lt;name&gt;</code>, not a bare <code>/mcp reconnect</code> — see <code>qa-kickoff.md</code> and the Retro entry below on why naming it matters.</p>
+<h3 id="team-process-changes-go-through-bobs-prompt-qa-gate-not-a-direct-push-every-edit-no-exceptions_1">Team-process changes go through Bob's prompt-QA gate, not a direct push — every edit, no exceptions<a class="headerlink" href="#team-process-changes-go-through-bobs-prompt-qa-gate-not-a-direct-push-every-edit-no-exceptions_1" title="Permanent link">&para;</a></h3>
+<p><strong>Team-process changes go through Bob's prompt-QA gate, not a direct push — every edit, no exceptions.</strong> Retro-driven or ad-hoc edits to team-process/instruction files — <code>CLAUDE.md</code>, <code>.claude/team-roles/*.md</code>, <code>.claude/commands/*.md</code>, <code>docs/qa/run.md</code>/<code>setup.md</code> process content — get committed to a short branch off <code>develop</code> (<code>doc/&lt;name&gt;/retro-&lt;date&gt;</code>) and opened as a PR, same as any other work, and need a <code>prompt-qa-approved</code> label from Bob (<code>/team-member Bob</code>) before Bob merges it — a separate track from Kai's product-PR merges — no fast path for small or mechanical-looking edits, per direct user instruction 2026-07-21. Full flow in <code>.claude/team-roles/bob.md</code>. (This replaces a 2026-07-18 grant that allowed direct-to-<code>develop</code> pushes for these files with no review step at all — retired because that no-review gap is exactly what let the inline-fix exception below harden without anyone checking its wording.) This does <strong>not</strong> extend to product code (<code>src/</code>, <code>tests/</code>, generated docs like <code>docs/tools.md</code>) or QA test-case content (<code>docs/qa/tests/*.md</code>) — those always go through the normal PR flow.</p>
+<h3 id="finding-the-partner-devs-open-pr">Finding the partner Dev's open PR<a class="headerlink" href="#finding-the-partner-devs-open-pr" title="Permanent link">&para;</a></h3>
+<p>Find the partner Dev's open PR by matching the branch's second <code>/</code>-separated segment against the partner's lowercase name — not a <code>feat/</code>-specific prefix, since the Dev's branch type varies: <code>gh pr list --state open --json number,headRefName,url --jq '[.[] | select((.headRefName | split("/"))[1] == "&lt;partner&gt;")]'</code>. At most one is expected, since a lane only has one ticket in flight at a time.</p>
+<h3 id="one-found">One found<a class="headerlink" href="#one-found" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>One found:</strong> <strong>a <code>/notify-partner</code> wake from the partner Dev naming this PR is the go-ahead — go straight to step 1, no second ask.</strong> The Dev only sends it after the user approved its push and PR (<code>dev.md</code> steps 6 and 8), so the hand-off to QA is already human-approved, and asking again just stalls the lane (user direction, 2026-09-30). The user can still stop or redirect the pass at any point. <strong>Without such a wake</strong> — found while bootstrapping via <code>/team-member</code>, or after a finished <code>/retro</code> — <strong>stop here and name the PR to the user; don't reset this worktree or start the pass until the user tells you, in this session, to verify it</strong> (same rule as <code>dev.md</code>'s ticket pickup, added 2026-09-27 after sessions bootstrapped only to review open PRs started work on their own). Either go-ahead covers the PR's whole QA cycle, not just one round: a later <code>/notify-partner</code> wake saying the Dev pushed a fix on the <em>same</em> PR is a re-verification round, so go straight to step 1 and <code>/qa-kickoff</code> without asking again. A new session still needs its own go-ahead, a wake or the user's instruction (PR #842, 2026-09-28); a different PR number needs a new session — see "One PR per session" above. Once you have the go-ahead, this is now essentially <code>/verify-pr</code>'s steps 4 onward, but simpler — this worktree already IS a dedicated review space, so skip <code>/verify-pr</code>'s steps 1–3 (the main-checkout precondition and the <code>review/&lt;branch&gt;</code> fetch trick don't apply here):</li>
+</ul>
+<h3 id="step-1-stale-qa-approved-label-then-reset">Step 1: stale <code>qa-approved</code> label, then reset<a class="headerlink" href="#step-1-stale-qa-approved-label-then-reset" title="Permanent link">&para;</a></h3>
+<ol>
+<li>If the PR already carries <code>qa-approved</code> (the Dev pushed after this role approved it, e.g. a CI-flake fix), that label now vouches for code nobody has verified. Run <code>gh pr view &lt;number&gt; --json state,mergedAt</code>. If it's still open, <code>gh pr edit &lt;number&gt; --remove-label qa-approved</code>: that alone stops Kai's merge, and step 8 re-adds it. Also tell Kai the same way <code>/notify-kai</code> would, if Kai is reachable. If it's already merged, stop and tell the user which commit reached <code>develop</code> unverified. Then <code>git fetch origin &lt;headRefName&gt; &amp;&amp; git reset --hard origin/&lt;headRefName&gt;</code> in this worktree, staying on <code>team/&lt;name&gt;</code> (never create a branch named after the PR here — this slot's identity is <code>team/&lt;name&gt;</code>, permanently).</li>
+</ol>
+<h3 id="step-2-run-qa-kickoff">Step 2: run <code>/qa-kickoff</code><a class="headerlink" href="#step-2-run-qa-kickoff" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Run <code>/qa-kickoff</code> (<code>.claude/commands/qa-kickoff.md</code>). It contains the exact, hard-coded message to send the user for this round — first-pass vs re-verification wording included — so there's nothing to compose or remember here (see [[feedback_batch_independent_user_commands]] and [[feedback_no_silent_fix_downgrade]]: this exact ask broke the batching rule three times before it was moved into a scripted command instead of left as prose to interpret).</li>
+</ol>
+<h3 id="step-4-scope-and-run-live-qa">Step 4: scope and run live QA<a class="headerlink" href="#step-4-scope-and-run-live-qa" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Scope and run the live QA steps from <code>/verify-pr</code> (its steps 6–8: find touched <code>docs/qa/tests/</code> cases, cross-check tool coverage, run them live using this worktree's own <code>mcp-gee-sweet-&lt;name&gt;</code>-prefixed tools). Before the first <code>**Playwright: required**</code> case, run <code>docs/qa/run.md</code> §"Verifying Playwright is signed into the right account" — this slot's browser profile is its own and can be signed into the wrong Google account; on a fail, stop and ask the user to sign it in, don't silently verify via API only.</li>
+</ol>
+<h3 id="retro-section-intro_1">Retro section intro<a class="headerlink" href="#retro-section-intro_1" title="Permanent link">&para;</a></h3>
+<p>Friction QA (Sky/Kit) typically hits after a pass, and where it goes — see <code>/retro</code> for the general ticket-vs-command-decision split:</p>
+<h3 id="fixture-driftpollution">Fixture drift/pollution<a class="headerlink" href="#fixture-driftpollution" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Fixture drift/pollution</strong> — the shared spreadsheet/doc/Drive folder accumulates stray objects (charts, temp sheets/rows, leftover permissions, orphaned Drive files/folders) from earlier test runs, breaking <code>docs/qa/setup.md</code>'s "Known fixture state" assumptions or blocking visual verification. If a specific test category is the source (e.g. a creation test with no teardown), check whether it's already covered by an open ticket before filing a new one (step 3's search-before-filing step; <code>#304</code> tracks Drive/Calendar-wide pollution + a dedicated QA account) — add a comment with concrete evidence instead of duplicating. If it's a workaround you need <em>right now</em> to finish this pass, that's a command decision — document it in <code>docs/qa/run.md</code> so the next pass doesn't rediscover it (see the "Chart-covered grid" entry, added 2026-07-15, and the "Drive fixture-folder pollution" section, added 2026-07-17, for the pattern).</li>
+</ul>
+<h3 id="concurrent-worker-push-during-a-live-qa-pass">Concurrent worker push during a live QA pass<a class="headerlink" href="#concurrent-worker-push-during-a-live-qa-pass" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from the Retro list: step 6 carries the rule.</em></p>
+<ul>
+<li><strong>Concurrent worker push during a live QA pass</strong> — the Dev partner can push a new commit to the same PR branch while this QA pass is still running (observed live on PR #328: a docs-only commit landed mid-pass). The results push (step 6 above) then gets rejected as non-fast-forward. Command decision: fetch + rebase before every results push, never force-push — now built into step 6 directly rather than left as something to rediscover under pressure.</li>
+</ul>
+<h3 id="qa-never-unilaterally-decides-to-edit-product-code-src-tests-retired-2026-07-21-refined-same-day">QA never unilaterally decides to edit product code (<code>src/</code>, <code>tests/</code>) — retired 2026-07-21, refined same day<a class="headerlink" href="#qa-never-unilaterally-decides-to-edit-product-code-src-tests-retired-2026-07-21-refined-same-day" title="Permanent link">&para;</a></h3>
+<p><em>Moved to the top of <code>qa.md</code> as a standalone rule, since it's a hard constraint (Bob's check 2).</em></p>
+<ul>
+<li><strong>QA never unilaterally decides to edit product code (<code>src/</code>, <code>tests/</code>) — retired 2026-07-21, refined same day.</strong> PR #353 (2026-07-18) carved out an "inline fix for narrow, low-risk findings" exception here; PR #385 (2026-07-20) narrowed it once (findings needing new design reasoning still go back to the Dev); PR #386 (2026-07-21, Sky) and PR #385's own second round (Kit, same day) both independently leaned on the surviving exception to justify further inline fixes, and the user called a full stop on both: "both of you are stepping out of line." The exception clause itself was removed, not narrowed further.
+Refined later the same day, still on PR #385: the failure mode wasn't that QA's fixes were <em>wrong</em> — a fix independently verified (a standalone reproduction, a deterministic unit test, and a live API test) doesn't need a rubber-stamp Dev re-review to establish correctness, and reflexively bouncing already-verified work back for one is pure latency with no new signal. The actual failure mode was QA repeatedly <em>self-authorizing</em> Dev-shaped work without asking — deciding on its own, session after session, that a given finding was "narrow enough" to just go implement, each time rationalizing a little more scope than the last. So the operative rule is not "QA may never touch product code under any circumstance," it's <strong>"QA never writes or pushes a product-code change without first asking and getting an explicit, finding-specific go-ahead."</strong> Default action for any code-level finding is still: describe it, propose a fix if one is obvious, comment on the PR, hand it to the Dev. Implementing it directly requires asking first — every time, not a standing permission earned by a prior "yes" on some other finding. QA's own process content is unaffected by any of this — <code>docs/qa/tests/*.md</code> test-case text and QA results entries are still fine to edit directly, per this file's other retro entries and [[feedback_sky_direct_develop_doc_commits]].</li>
+</ul>
+<h3 id="re-check-a-prs-live-state-immediately-before-mutating-its-labels-dont-trust-state-from-earlier-in-the-s">Re-check a PR's live state immediately before mutating its labels — don't trust state from earlier in the s…<a class="headerlink" href="#re-check-a-prs-live-state-immediately-before-mutating-its-labels-dont-trust-state-from-earlier-in-the-s" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Re-check a PR's live state immediately before mutating its labels — don't trust state from earlier in the same session.</strong> PR #385 (2026-07-20/21): after <code>qa-approved</code> was added, Kai merged the PR in the background while the QA session was still mid-conversation about the finding above. The session then removed and re-added the <code>qa-approved</code> label twice more in response to the user's follow-up asks, with no functional effect either time, because it never re-checked whether #385 was still open — it was already merged and closed. The confusion only surfaced when the user pasted a screenshot of the actual open-PR list and #385 wasn't on it. Command decision: any <code>gh pr edit</code>/label/status mutation must be preceded by a fresh <code>gh pr view &lt;n&gt; --json state,mergedAt,closedAt</code> in the same turn, not an assumption carried from a <code>gh pr view</code> call several turns earlier — a PR's state is shared, mutable state another session (typically Kai, mid-merge) can change at any time, the same category of race as [[project_concurrent_develop_ref_race]] but for PR/issue state instead of a git ref.</li>
+</ul>
+<h3 id="lanepartner-misidentification">Lane/partner misidentification<a class="headerlink" href="#lanepartner-misidentification" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Lane/partner misidentification</strong> — presenting the user a choice between PRs, or reviewing a PR, before confirming its branch's second segment actually matches this role's partner (this file's own <code>jq select</code> query above). If this happens, the fix is a command decision in this file or <code>verify-pr.md</code> (tighten the wording so the partner-match check runs <em>before</em> any PR is surfaced to the user), not a ticket — it's a process-following gap, not a product one.</li>
+</ul>
+<h3 id="ci-rollup-false-positives">CI rollup false positives<a class="headerlink" href="#ci-rollup-false-positives" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>CI rollup false positives</strong> — <code>statusCheckRollup</code> can omit a required check entirely (absent, not failing) while other checks (e.g. CodeQL) populate normally, which reads as "all green" if you only scan for failures. Command decision → <code>merge-pr.md</code> step 2 (already tightened once, 2026-07-16 — re-tighten if a new variant of this shows up rather than re-discovering it).</li>
+</ul>
+<h3 id="coverage-gaps-in-the-pr-itself">Coverage gaps in the PR itself<a class="headerlink" href="#coverage-gaps-in-the-pr-itself" title="Permanent link">&para;</a></h3>
+<p><em>Moved into step 4.</em></p>
+<ul>
+<li><strong>Coverage gaps in the PR itself</strong> (a changed tool with no QA test case at all) are not a retro item — that blocks the pass and is handled inline per this file's step 4 / <code>verify-pr.md</code> step 6, not deferred here.</li>
+</ul>
+<h3 id="mcp-reconnect-can-reconnect-the-wrong-roles-server"><code>/mcp reconnect</code> can reconnect the wrong role's server<a class="headerlink" href="#mcp-reconnect-can-reconnect-the-wrong-roles-server" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: <code>.claude/commands/qa-kickoff.md</code> carries the rule. <code>qa.md</code>'s opening paragraph keeps a one-clause reason for naming the server.</em></p>
+<ul>
+<li><strong><code>/mcp reconnect</code> can reconnect the wrong role's server</strong> — observed live twice in the same session, 2026-07-17/18 on PRs #351 and #361: the first <code>/mcp reconnect</code> after a step-1 reset printed a confirmation naming a <em>different</em> role's <code>mcp-gee-sweet-&lt;other&gt;</code> server, and subsequent tool calls kept running the pre-reset code (caught both times by noticing a docstring or observed behavior that didn't match the just-fixed source — not by the confirmation message itself, which looked fine on its face). Command decision (content moved to <code>qa-kickoff.md</code> by PR #456): step 2 was tightened to check the confirmation names this role's own server, and not to trust <code>ToolSearch</code>'s cached tool description as a substitute freshness check — that instruction now lives in <code>.claude/commands/qa-kickoff.md</code>, not inline here.</li>
+</ul>
+<h3 id="this-worktrees-own-reset-step-silently-destroys-out-of-scope-edits">This worktree's own reset step silently destroys out-of-scope edits<a class="headerlink" href="#this-worktrees-own-reset-step-silently-destroys-out-of-scope-edits" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>This worktree's own reset step silently destroys out-of-scope edits</strong> — step 1's <code>git reset --hard origin/&lt;headRefName&gt;</code> runs every time this worktree resyncs to the partner Dev's latest push (e.g. a second QA round after a fix), and it discards <em>any</em> uncommitted change in the worktree, not just stale copies of old PR content. Confirmed live 2026-07-18 on PR #353: a retro-driven fix to <code>.claude/commands/team-member.md</code> (a shared file, unrelated to the PR) made between two QA rounds was silently wiped by the second round's reset — no warning, no error. If a retro or ad-hoc fix touches something outside the current PR's own scope while sitting in this worktree, either commit it to a location step 1 won't touch, or save its content outside the worktree (e.g. <code>$CLAUDE_JOB_DIR/tmp</code>) immediately, before doing anything that could trigger another reset — this worktree's branch identity (<code>team/&lt;name&gt;</code>) isn't a stable home for shared-infra commits either. Follow the process in the note above — commit it to its own <code>doc/&lt;name&gt;/retro-&lt;date&gt;</code> branch and open a PR — rather than flagging it for Kai; no need to route a team-process-only fix through the orchestrator.</li>
+</ul>
+<h3 id="code-review-cant-be-invoked-via-the-skill-tool"><code>/code-review</code> can't be invoked via the Skill tool<a class="headerlink" href="#code-review-cant-be-invoked-via-the-skill-tool" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: <code>qa-kickoff.md</code> has the user run <code>/code-review</code> themselves.</em></p>
+<ul>
+<li><strong><code>/code-review</code> can't be invoked via the Skill tool</strong> — it has <code>disable-model-invocation</code> set, so a direct Skill-tool call errors out instead of running. Command decision (content moved to <code>qa-kickoff.md</code> by PR #456): step 3 was tightened to tell the user to run <code>/code-review high origin/develop...HEAD</code> directly as a standalone slash command, same pattern as step 2's <code>/mcp reconnect</code> ask — that ask now lives in <code>.claude/commands/qa-kickoff.md</code>, not inline here. Confirmed live 2026-07-19 on PR #368.</li>
+</ul>
+<h3 id="code-review-finder-false-positive-on-pre-existing-stale-docs">Code-review finder false positive on pre-existing stale docs<a class="headerlink" href="#code-review-finder-false-positive-on-pre-existing-stale-docs" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Code-review finder false positive on pre-existing stale docs</strong> — a finder subagent flagged <code>docs/qa-checklist.md</code>'s stale <code>mcp.get_lifespan_context()</code> reference as though PR #368 caused it, when the file actually predates that PR by weeks and is already stale in unrelated ways (references pre-#64 flat module names like <code>read.py</code>/<code>write.py</code>/<code>sheets.py</code>). Before accepting a "removed-behavior not re-established" finding as PR-caused, check the file's own git history / staleness independent of the diff — a file that's been abandoned since before the PR touched anything nearby isn't this PR's regression. Filed as a ticket (#370) instead of a review-blocking finding, since it's real drift but not caused by or scoped to this PR.</li>
+</ul>
+<h3 id="docsqaenv-doesnt-exist-in-a-role-worktree"><code>docs/qa/.env</code> doesn't exist in a role worktree<a class="headerlink" href="#docsqaenv-doesnt-exist-in-a-role-worktree" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: <code>docs/qa/run.md</code> documents the fixture-ID lookup.</em></p>
+<ul>
+<li><strong><code>docs/qa/.env</code> doesn't exist in a role worktree</strong> — it's gitignored, so a freshly-provisioned <code>.claude/worktrees/&lt;name&gt;</code> slot has no fixture IDs at all (confirmed empty/absent across every worktree and the main checkout, 2026-07-19). A scoped step-4 pass only needs one or two fixture IDs, not the full set — command decision: <code>run.md</code> now documents finding the doc/spreadsheet fixture ID by its fixed, documented name (<code>search_files(query="mcp-gee-sweet-qa-fixtures-doc", ...)</code>) instead of blocking on a missing <code>.env</code>. Confirmed live on PR #369's 3-round QA pass.</li>
+</ul>
+<h3 id="a-fix-can-close-the-reported-bug-and-reopen-the-same-class-one-level-up-repeatedly">A fix can close the reported bug and reopen the same class one level up, repeatedly<a class="headerlink" href="#a-fix-can-close-the-reported-bug-and-reopen-the-same-class-one-level-up-repeatedly" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A fix can close the reported bug and reopen the same class one level up, repeatedly</strong> — PR #369 (issue #335) took three review rounds: round 1's fix only covered <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> interrupting an open <code>&lt;li&gt;</code>; round 2 generalized to any <code>_BLOCK_TAGS</code> tag but the actual runtime gate was still <code>_block_tag == "li"</code> specifically, so <code>&lt;p&gt;</code>/headings interrupted the same way still lost (or, worse, spliced into the wrong node) their own text, and the new tracking stack desynced on malformed HTML. Only round 3's real block-context stack (matching pops by tag identity, not just position) closed the whole class. Not a command decision to file anywhere new — the existing "confirm the exact runtime gate, not just the docstring's claimed scope" habit (already how these three rounds' findings were caught) is the mitigation, and it worked. Noted here as a confirmed pattern worth recognizing early in future multi-round passes: a "generalized" fix whose own gate condition is unchanged from the narrow version is not actually generalized yet.</li>
+</ul>
+<h3 id="a-code-review-finding-can-require-new-design-reasoning-even-when-the-resulting-diff-is-small">A code-review finding can require new design reasoning even when the resulting diff is small<a class="headerlink" href="#a-code-review-finding-can-require-new-design-reasoning-even-when-the-resulting-diff-is-small" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: the example now sits with the product-code rule's history above.</em></p>
+<ul>
+<li><strong>A code-review finding can require new design reasoning even when the resulting diff is small</strong> — PR #385 (issue #343): the fix's <code>_tag_depth</code> counter only excluded <code>&lt;br&gt;</code> from tracking, when every other HTML void element (<code>&lt;img&gt;</code>, <code>&lt;hr&gt;</code>, <code>&lt;input&gt;</code>, etc.) has the identical problem and reopens the exact bug the PR was fixing. The patch was ~15 lines in the same function already under review — small by line count, but it decided a design question (enumerating a whole tag class, <code>HTMLParser</code>'s lack of HTML5 void-element awareness) the author's own fix should have already closed. Folded into the retired-exception entry above: this is the concrete example of why "narrow" was never really a line-count question.</li>
+</ul>
+<h3 id="a-live-mcp-reconnect-can-be-stale-relative-to-a-commit-pushed-after-it-even-when-it-names-the-right-server">A live MCP reconnect can be stale relative to a commit pushed after it, even when it names the right server<a class="headerlink" href="#a-live-mcp-reconnect-can-be-stale-relative-to-a-commit-pushed-after-it-even-when-it-names-the-right-server" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A live MCP reconnect can be stale relative to a commit pushed after it, even when it names the right server</strong> — same PR #385 round: step 2's reconnect (after syncing to the Dev's original commit) was correct and named <code>mcp-gee-sweet-kit</code>, but QA then pushed a follow-up fix commit to the same branch and tried to live-verify <em>that</em> commit without reconnecting again — the live tool call reproduced the pre-fix bug even though the local unit test for the identical input already passed, because the running server process was still serving the pre-follow-up code. Command decision: any commit pushed to the branch mid-pass (including QA's own fix-inline commits, not just a Dev's concurrent push) requires its own <code>/mcp reconnect</code> before the next live tool call is trusted — the reconnect step isn't a one-time pass precondition, it's owed after every code change this session makes to the branch, same as the existing "MCP restart cycle" rule for local dev work.</li>
+</ul>
+<h3 id="on-a-re-verification-round-dev-pushed-a-fix-for-a-prior-send-back-dont-re-run-the-full-code-review">On a re-verification round (Dev pushed a fix for a prior send-back), don't re-run the full <code>/code-review</code> —…<a class="headerlink" href="#on-a-re-verification-round-dev-pushed-a-fix-for-a-prior-send-back-dont-re-run-the-full-code-review" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>On a re-verification round (Dev pushed a fix for a prior send-back), don't re-run the full <code>/code-review</code> — read the fix commit's own diff and live-verify against it directly.</strong> PR #406 (issue #401), rounds 2 and 3: round 1's full <code>/code-review high</code> took ~9.5 minutes (two finder subagents plus verification) to surface findings, several of which round 1 itself had to cross-check against the file's own history to avoid false-positiving on pre-existing state. Once a specific finding is already named (in a PR comment, a QA test-case's own <code>**Result**</code> note, or both) and the Dev pushes a fix for exactly that finding, the fast path is <code>git show &lt;fix-sha&gt;</code> on the new commit plus live-testing its own newly-added QA test case (Devs on this PR added one each round) — not a second full-repo review pass across the whole <code>origin/develop...HEAD</code> diff, most of which was already reviewed and approved in round 1. Re-run the full <code>/code-review</code> again only if the fix's own diff looks larger or more structurally different than the finding described, or if enough unrelated commits (e.g. a <code>develop</code> merge) landed in between that something outside the fix's own scope plausibly needs a fresh look.
+Addendum, PR #414 (issue #211) round 3: the fix targeted exactly two named findings in a diff smaller than round 2's own (which had legitimately earned the full-review exception, addressing 7 findings across ~155 lines) — a case the fast path above was written for — but a full <code>/code-review</code> was requested anyway, out of habit rather than a deliberate exception call. That round's review took ~6 hours of real elapsed time against ~7.5 minutes for round 2's own full review of a larger diff, with no visible cause for the gap and not enough evidence here to say full reviews are reliably slower — but it's a second, larger data point in favor of defaulting to the fast path whenever a fix's own diff already matches a named finding closely, since the fast path has no dependency on that variance at all.</li>
+</ul>
+<h3 id="an-identitytagging-mechanism-must-be-checked-against-every-codepath-that-can-produce-the-tagged-object-no">An identity/tagging mechanism must be checked against every codepath that can produce the tagged object, no…<a class="headerlink" href="#an-identitytagging-mechanism-must-be-checked-against-every-codepath-that-can-produce-the-tagged-object-no" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>An identity/tagging mechanism must be checked against every codepath that can produce the tagged object, not just the one the PR's own tests exercise.</strong> PR #414 (issue #211), <code>convert_markdown</code>'s Drive <code>properties</code> marker: round 1's naive name+mimeType matching was unsafe (could overwrite an unrelated Doc); round 2's fix (a stamped property) closed that but only recognized the marker when <em>that same call</em> also passed <code>convert_markdown=True</code>, and only for Docs <code>sync_folder</code> itself created — a resync with the flag merely omitted, or a Doc created via the sibling <code>upload_local_file(convert=True)</code> tool (documented as "the same mechanism"), both bypassed the new check and silently duplicated the file. Both confirmed live in round 3, three review rounds after the mechanism was first introduced. When a PR's core mechanism is "how do we recognize an object as ours," enumerate every path that could produce that object — this tool's other parameter combinations, and any sibling tool documented as sharing the mechanism — and probe each one specifically, rather than waiting for code review to notice the gap by chance.</li>
+</ul>
+<h3 id="a-live-test-result-that-contradicts-the-cases-stated-expectation-might-be-a-real-defect-not-an-artifact-o">A live-test result that contradicts the case's stated expectation might be a real defect, not an artifact o…<a class="headerlink" href="#a-live-test-result-that-contradicts-the-cases-stated-expectation-might-be-a-real-defect-not-an-artifact-o" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A live-test result that contradicts the case's stated expectation might be a real defect, not an artifact of test setup — verify against the code before writing it off.</strong> PR #414 round 3, TC-D226: a <code>sync_folder</code> call right after <code>upload_local_file(convert=True)</code> landed in <code>conflicts</code> instead of the case's stated <code>skipped</code>; the first pass attributed the ~11s mtime gap to ordinary delay between creating the local fixture and the tool call actually landing, and moved on without checking the source. The same round's <code>/code-review</code> (finding #3, traced to <code>_upload_local_file</code> never stamping <code>modifiedTime</code> on a converted Doc) revealed the gap was structural, not incidental — it recurs on very close to every real invocation of this cross-tool pattern, not occasionally. Caught only because the review happened to flag the same file; corrected the test's own <code>**Result**</code> entry once the real cause was confirmed rather than leaving the "session latency" explanation standing. A QA pass without that second look would have recorded a false PASS on a case that only worked because the local mtime was artificially forced to match Drive's.</li>
+</ul>
+<h3 id="a-bare-sleep-is-blocked-for-a-genuine-one-off-live-timing-check-too-not-just-for-polling-loops-interle">A bare <code>sleep</code> is blocked for a genuine one-off live-timing check too, not just for polling loops — interle…<a class="headerlink" href="#a-bare-sleep-is-blocked-for-a-genuine-one-off-live-timing-check-too-not-just-for-polling-loops-interle" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A bare <code>sleep</code> is blocked for a genuine one-off live-timing check too, not just for polling loops — interleave other real verification work instead.</strong> PR #414 round 3: a code-review finding theorized Drive's import-conversion might asynchronously overwrite the TC-D218 fix's <code>modifiedTime</code> re-stamp <em>after</em> the tool call returns, needing a wait past the observed ~15s conversion latency before re-checking to rule it out. <code>sleep 30</code> was blocked by the harness's anti-polling guard even though this wasn't a poll — a single deliberate wait for a live-API-timing claim. Doing genuinely useful adjacent verification (checking two other findings, one via code inspection and one via a fresh live reproduction) in the meantime accumulated the needed real elapsed time for free; a <code>get_file_metadata</code> check plus a fresh resync afterward gave a clean, evidence-based refutation of the theorized race. No <code>ScheduleWakeup</code> or workaround loop needed — a same-turn wait like this is naturally satisfied by whatever other real work the round already has queued up.</li>
+</ul>
+<h3 id="relocating-step-content-into-a-separate-commandskill-file-can-silently-drop-a-second-independently-bundle">Relocating step content into a separate command/skill file can silently drop a second, independently-bundle…<a class="headerlink" href="#relocating-step-content-into-a-separate-commandskill-file-can-silently-drop-a-second-independently-bundle" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Relocating step content into a separate command/skill file can silently drop a second, independently-bundled rule, and leaves this file's own Retro log making false present-tense claims about the old location.</strong> PR #456: moving the post-reconnect check out of step 2 into the new <code>qa-kickoff.md</code> dropped the "don't trust <code>ToolSearch</code>'s cached docstring" caveat that had been bundled with the "check the confirmation names this role's own server" rule — two separately-earned incidents (PRs #351/#361's wrong-server case vs. the general <code>ToolSearch</code>-staleness note), collapsed into one during the move. The same PR also left two Retro bullets elsewhere in this file claiming "step 2 above now says..." / "step 3 now tells the user..." after step 2/3's actual content had already moved to <code>qa-kickoff.md</code>. Neither was self-caught — both were caught by Bob's prompt-QA review. Command decision: when moving instructional content out of this file into another file, (1) diff the full old content against the new location line-by-line rather than skimming for the one rule that prompted the move, and (2) grep this file's own Retro section for any bullet referencing the relocated step's old wording or step number, updating each to point at the new location, in the same commit.</li>
+</ul>
+<h3 id="the-worktree-isolation-guard-refuses-read-only-and-scratch-only-commands-too">The worktree-isolation guard refuses read-only and scratch-only commands too<a class="headerlink" href="#the-worktree-isolation-guard-refuses-read-only-and-scratch-only-commands-too" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: <code>docs/qa/run.md</code>'s "Worktree-isolation guard" bullet and <code>team-member.md</code> §1 carry the rule.</em></p>
+<ul>
+<li><strong>The worktree-isolation guard refuses read-only and scratch-only commands too</strong> (PR #866, 2026-10-01). Command decision: the workarounds are in <code>docs/qa/run.md</code>'s "Worktree-isolation guard" bullet, with a one-sentence summary in <code>team-member.md</code> §1, since the guard hits every role.</li>
+</ul>
+<h3 id="a-dev-push-after-qa-approved-left-the-label-vouching-for-unverified-code">A Dev push after <code>qa-approved</code> left the label vouching for unverified code<a class="headerlink" href="#a-dev-push-after-qa-approved-left-the-label-vouching-for-unverified-code" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from the Retro list: step 1 carries the rule.</em></p>
+<ul>
+<li><strong>A Dev push after <code>qa-approved</code> left the label vouching for unverified code.</strong> PR #867: after the round-3 approval and <code>/notify-kai</code>, Ash pushed <code>18c839e</code> (a CI-flake fix in <code>auth.py</code>) and sent a re-verification wake. Nothing in this file said what happens to the label. Kai could have merged code no QA round had seen. Sky removed the label and asked Kai to hold by hand. Command decision: step 1 now does that.</li>
+</ul>
+<h3 id="a-race-repro-must-keep-the-stale-operation-in-flight-across-the-event-or-it-proves-nothing">A race repro must keep the stale operation in flight across the event, or it proves nothing<a class="headerlink" href="#a-race-repro-must-keep-the-stale-operation-in-flight-across-the-event-or-it-proves-nothing" title="Permanent link">&para;</a></h3>
+<p><em>Dropped from <code>qa.md</code>: <code>docs/qa/run.md</code> §"Running server-startup and CLI cases" ("Race and hang repros") carries the rule.</em></p>
+<ul>
+<li><strong>A race repro must keep the stale operation in flight across the event, or it proves nothing.</strong> PR #867 round 4: Sky's first success-side race repro started B only after A's consent had finished, which can't be told apart from a legitimate new consent; Ash caught it. Command decision: the technique is now a bullet in <code>docs/qa/run.md</code> §"Running server-startup and CLI cases" ("Race and hang repros").</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
