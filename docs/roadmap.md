@@ -282,7 +282,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 **Testing** _(triaged out of `backlog` 2026-09-11)_
 - [x] **Bundle:** test-suite tightening, one PR closing [#392](https://github.com/khuisman/mcp-gee-sweet/issues/392), [#526](https://github.com/khuisman/mcp-gee-sweet/issues/526), [#551](https://github.com/khuisman/mcp-gee-sweet/issues/551), [#561](https://github.com/khuisman/mcp-gee-sweet/issues/561), [#574](https://github.com/khuisman/mcp-gee-sweet/issues/574) — lane B (PR #924) ([#891](https://github.com/khuisman/mcp-gee-sweet/issues/891))
 - [ ] `qa`: `search_files` has no unit test coverage for the error-dict path ([#573](https://github.com/khuisman/mcp-gee-sweet/issues/573))
-- [ ] Live verification for PR #922 (reject unbounded A1 ranges); coverage in PR #929 ([#927](https://github.com/khuisman/mcp-gee-sweet/issues/927))
+- [x] Live verification for PR #922 (reject unbounded A1 ranges); coverage in PR #929 (PR #929) ([#927](https://github.com/khuisman/mcp-gee-sweet/issues/927))
 
 **Infrastructure**
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
