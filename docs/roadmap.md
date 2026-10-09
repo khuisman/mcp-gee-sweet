@@ -329,7 +329,7 @@ Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` sc
 
 **QA & docs** _(moved out of v0.9.0 2026-09-02 so they don't gate the release; see [#629](https://github.com/khuisman/mcp-gee-sweet/issues/629), closed)_
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
-- [ ] `CONTRIBUTING.md`: say how a ticketless PR is handled — a bug fix gets a maintainer-filed issue, a feature needs an issue explaining its reasoning first — Amy ([#941](https://github.com/khuisman/mcp-gee-sweet/issues/941))
+- [x] `CONTRIBUTING.md`: say how a ticketless PR is handled — a bug fix gets a maintainer-filed issue, a feature needs an issue explaining its reasoning first — Amy ([#941](https://github.com/khuisman/mcp-gee-sweet/issues/941)) (PR #944)
 - [ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
 - [ ] Several `drive_files.md` cases assume My-Drive semantics now that fixtures live in a Shared Drive (TC-D58/D61/D03/D59/D27/D04/D175); TC-D27 overlaps #689's `list_folders` gap — Aziz reviews during Full Regression prep ([#680](https://github.com/khuisman/mcp-gee-sweet/issues/680))
 - [ ] TC-DOC80 can no longer trip the response-size cap post-#519 — large-doc fixture is under the raised default; needs a per-case low-cap override — Aziz ([#678](https://github.com/khuisman/mcp-gee-sweet/issues/678))
