@@ -1,5 +1,6 @@
 """Tests for docs content tools and HTML/Markdown pipeline."""
 
+import inspect
 import io
 import json
 import os
@@ -2403,6 +2404,23 @@ class TestCreateDocFromFile:
         # create_doc_from_file has no content_format parameter to suggest (#567).
         assert "content_format" not in result["error"]
 
+    @pytest.mark.parametrize("kind", ["directory", "latin1"])
+    async def test_unreadable_source_returns_error(self, tmp_path, kind):
+        # PR #961 QA round 1: a path that exists but isn't a readable UTF-8 file
+        # returns {"error": ...} instead of raising, and creates nothing.
+        if kind == "directory":
+            src = tmp_path / "dir.md"
+            src.mkdir()
+        else:
+            src = tmp_path / "latin1.html"
+            src.write_bytes("<p>caf\xe9</p>".encode("latin-1"))
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc_from_file"](local_path=str(src), ctx=ctx)
+        assert "error" in result
+        assert str(src) in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
 
 class TestUpdateDocFromFile:
     """update_doc_from_file (#341) combines create_doc_from_file's server-side file
@@ -2515,6 +2533,41 @@ class TestUpdateDocFromFile:
         assert "pass content_format explicitly" in result["error"]
         docs_svc.documents.return_value.get.assert_not_called()
 
+    @pytest.mark.parametrize("kind", ["directory", "latin1"])
+    async def test_unreadable_source_returns_error(self, tmp_path, kind):
+        # PR #961 QA round 1: same as create_doc_from_file; the doc is never touched.
+        if kind == "directory":
+            src = tmp_path / "dir.md"
+            src.mkdir()
+        else:
+            src = tmp_path / "latin1.html"
+            src.write_bytes("<p>caf\xe9</p>".encode("latin-1"))
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(src), ctx=ctx
+        )
+        assert "error" in result
+        assert str(src) in result["error"]
+        docs_svc.documents.return_value.get.assert_not_called()
+
+    def test_doc_content_flags_are_keyword_only(self):
+        # #567 / PR #961 QA round 1: positional bools could be swapped at a call site
+        # and still type-check, in both shared helpers.
+        for fn, names in (
+            (
+                content_module._replace_doc_content,
+                ("autolink_urls", "revoke_sharing", "auto_downscale"),
+            ),
+            (
+                content_module._apply_doc_content,
+                ("autolink_urls", "target_folder_id", "revoke_sharing", "auto_downscale"),
+            ),
+        ):
+            params = inspect.signature(fn).parameters
+            for name in names:
+                assert params[name].kind is inspect.Parameter.KEYWORD_ONLY, (fn.__name__, name)
+
     @pytest.mark.parametrize(
         "flags",
         [
@@ -2529,17 +2582,15 @@ class TestUpdateDocFromFile:
         md_file.write_text("text\n")
         drive_svc, docs_svc = self._make_services(end_index=2)
         ctx = self._ctx(drive_svc, docs_svc)
+        real_apply = content_module._apply_doc_content
         with patch.object(content_module, "_apply_doc_content", return_value=None) as apply:
             await _docs_tools["update_doc_from_file"](
                 doc_id="doc1", local_path=str(md_file), ctx=ctx, **flags
             )
-        args = apply.call_args.args
-        # (docs, drive, doc_id, content, format, autolink, folder, revoke, downscale)
-        assert (args[5], args[7], args[8]) == (
-            flags["autolink_urls"],
-            flags["revoke_sharing"],
-            flags["auto_downscale"],
-        )
+        # Bind against the real signature so the assertion holds however the call
+        # site passes them, and fails if the call wouldn't bind at all.
+        bound = inspect.signature(real_apply).bind(*apply.call_args.args, **apply.call_args.kwargs)
+        assert {k: bound.arguments[k] for k in flags} == flags
 
     async def test_clears_trailing_mark_style_before_deleting_in_its_own_batch(self, tmp_path):
         # Same clear-then-insert mechanism as write_doc_content (#255) — verified here

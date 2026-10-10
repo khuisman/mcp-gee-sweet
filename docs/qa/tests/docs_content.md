@@ -3965,3 +3965,26 @@ Two extra probes ran from a scratch copy of the script (not committed):
 All files from both probes and the three steps, and the doc, were trashed.
 
 **Result (2026-10-04) ✅ PASS — Kit, PR #903 round 2 (`4e392c3`).** All six steps ran from the kit worktree with its OAuth token, on a fresh scratch doc in `{FOLDER_ID}`. Each step printed `cancelled at '<point>'; the tool returned nothing` and the WARNING `Doc edit for {DOC_ID} failed or was cancelled after its images were resolved; files created by this call: <one file ID>; pre-existing files: none; still link-shared by this call: ...`. That last field listed `{KEPT_FILE_ID}` for step 4 and was `none` for every other step. Steps 2 (`share-fail`, the orphan) and 6 (`revoke`), which logged nothing in round 1's probe, now log. `list_permissions` showed no `anyone` grant on `{SHARE_FILE_ID}`, `{ORPHAN_FILE_ID}`, `{EDIT_FILE_ID}`, `{INFLIGHT_FILE_ID}`, or `{REVOKE_FILE_ID}`, and showed `anyoneWithLink`/`reader` on `{KEPT_FILE_ID}`. After `refresh_cache`, `get_doc_as_markdown` read `Before`, `IMGMARKER883`, an image, an image, `After`. So steps 1–4 left `IMGMARKER883` untouched, step 6's edit landed before its cancel, and step 5's in-flight edit also landed (an image replaced `INFLIGHT883`). All six files and the doc were trashed.
+
+## Unreadable source file returns an error — `create_doc_from_file` / `update_doc_from_file` (PR #961)
+
+Both tools read the local file through the shared `_read_doc_source_file` helper. Before PR #961's round 2, a path that existed but wasn't a readable UTF-8 regular file raised out of the tool (`[Errno 21] Is a directory`, `'utf-8' codec can't decode byte 0xe9 ...`) instead of returning `{"error": ...}`.
+
+### TC-DOC208: A directory or non-UTF-8 source file returns `{"error": ...}`, and nothing is created or edited
+**Setup:**
+- `mkdir -p /tmp/tc-doc208/dir.md`
+- `python3 -c "open('/tmp/tc-doc208/latin1.html','wb').write('<p>caf\xe9</p>'.encode('latin-1'))"`
+- `get_doc_content(file_id={DOC_ID})`, note the content for comparison afterward
+
+**Steps**
+1. `create_doc_from_file(local_path="/tmp/tc-doc208/dir.md", folder_id={FOLDER_ID})`
+2. `create_doc_from_file(local_path="/tmp/tc-doc208/latin1.html", folder_id={FOLDER_ID})`
+3. `update_doc_from_file(doc_id={DOC_ID}, local_path="/tmp/tc-doc208/dir.md")`
+4. `update_doc_from_file(doc_id={DOC_ID}, local_path="/tmp/tc-doc208/latin1.html")`
+
+**Checks**
+- Each call returns a dict with an `error` key naming the path (any wording). None comes back as `Error executing tool ...`
+- `list_files(folder_id={FOLDER_ID})` shows no new Doc named `dir.md` or `latin1.html` (steps 1–2 fail before the Drive `create`)
+- `get_doc_content(file_id={DOC_ID})` matches the Setup snapshot (steps 3–4 fail before any Docs API call)
+
+**Cleanup:** `rm -rf /tmp/tc-doc208`

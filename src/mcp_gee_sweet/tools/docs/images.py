@@ -257,12 +257,16 @@ def check_drive_image_metadata(metadata: dict[str, Any]) -> dict[str, Any] | Non
     _resolve_image_source). Dimensions are checked first, matching
     downscale_image_bytes's own resize-by-pixels-first behavior. Returns the first
     violation found, or None if within both limits or the metadata doesn't report
-    enough to check (e.g. a non-image binary with no imageMediaMetadata, or a `size`
-    that isn't a number). Never raises: both call sites call it outside their
-    try/except (#581)."""
+    enough to check (e.g. a non-image binary with no imageMediaMetadata, or a
+    width/height/`size` that isn't a number). Never raises: both call sites call it
+    outside their try/except (#581)."""
     img_meta = metadata.get("imageMediaMetadata") or {}
-    width, height = img_meta.get("width"), img_meta.get("height")
-    if width and height:
+    try:
+        width, height = int(img_meta["width"]), int(img_meta["height"])
+    except (KeyError, TypeError, ValueError):
+        # Missing or malformed dimensions mean unknown; fall through to the size check.
+        width = height = 0
+    if width > 0 and height > 0:
         error = check_dimensions(width, height)
         if error is not None:
             return error

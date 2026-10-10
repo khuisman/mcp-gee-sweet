@@ -326,6 +326,25 @@ class TestDownscaleImageBytes:
 
 
 class TestCheckDriveImageMetadata:
+    @pytest.mark.parametrize(
+        "img_meta",
+        [
+            {"width": "wide", "height": 100},
+            {"width": None, "height": 100},
+            {"width": [1], "height": 2},
+        ],
+    )
+    def test_malformed_dimensions_never_raise(self, img_meta):
+        # PR #961 QA round 1: "Never raises" covers width/height too, not just size.
+        metadata = {"imageMediaMetadata": img_meta, "size": "1000"}
+        assert images.check_drive_image_metadata(metadata) is None
+
+    def test_numeric_string_dimensions_still_checked(self):
+        metadata = {"imageMediaMetadata": {"width": "14609", "height": "2434"}}
+        result = images.check_drive_image_metadata(metadata)
+        assert result is not None
+        assert "35.6 megapixels" in result["error"]
+
     def test_within_both_limits_returns_none(self):
         metadata = {"imageMediaMetadata": {"width": 100, "height": 100}, "size": "1000"}
         assert images.check_drive_image_metadata(metadata) is None

@@ -273,13 +273,16 @@ def _read_doc_source_file(
     local_path: str, content_format: str | None, *, format_overridable: bool
 ) -> tuple[str, str] | dict[str, Any]:
     """Shared file reading for create_doc_from_file / update_doc_from_file (#567):
-    returns (content, content_format), or {"error": ...} for a missing file or an
-    extension with no inferable format. content_format=None infers it from the
-    extension. format_overridable says whether the calling tool takes a
-    content_format parameter, so the error only suggests one when it exists."""
+    returns (content, content_format), or {"error": ...} for a missing file, a path
+    that isn't a regular file, an unreadable or non-UTF-8 file, or an extension with
+    no inferable format. content_format=None infers it from the extension.
+    format_overridable says whether the calling tool takes a content_format
+    parameter, so the error only suggests one when it exists."""
     path = Path(local_path)
     if not path.exists():
         return {"error": f"File not found: {local_path}"}
+    if not path.is_file():
+        return {"error": f"Not a regular file: {local_path}"}
     if content_format is None:
         ext = path.suffix.lower()
         inferred = _SOURCE_FILE_FORMATS.get(ext)
@@ -287,7 +290,13 @@ def _read_doc_source_file(
             hint = ", or pass content_format explicitly." if format_overridable else ""
             return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm{hint}"}
         content_format = inferred
-    return path.read_text(encoding="utf-8"), content_format
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        return {"error": f"File is not valid UTF-8: {local_path} ({e.reason} at byte {e.start})"}
+    except OSError as e:
+        return {"error": f"Could not read file {local_path}: {e.strerror or e}"}
+    return content, content_format
 
 
 async def _replace_doc_content(
@@ -306,8 +315,9 @@ async def _replace_doc_content(
     style-inheritance quirk below) has exactly one implementation instead of two
     copies that could drift out of sync.
 
-    The three flags are keyword-only (#567): as positional bools, swapping two at a
-    call site would type-check and silently do the wrong thing.
+    The three flags are keyword-only (#567), here and in _apply_doc_content: as
+    positional bools, swapping two at a call site would type-check and silently do
+    the wrong thing.
     """
     docs_service = lc.docs_service
     drive_service = lc.drive_service
@@ -358,10 +368,10 @@ async def _replace_doc_content(
             doc_id,
             content,
             content_format,
-            autolink_urls,
-            lc.folder_id,
-            revoke_sharing,
-            auto_downscale,
+            autolink_urls=autolink_urls,
+            target_folder_id=lc.folder_id,
+            revoke_sharing=revoke_sharing,
+            auto_downscale=auto_downscale,
         )
     except DocEditError as e:
         # The clear above already committed, so the doc changed either way.
@@ -410,6 +420,7 @@ async def _apply_doc_content(
     doc_id: str,
     content: str,
     content_format: str,
+    *,
     autolink_urls: bool,
     target_folder_id: str | None,
     revoke_sharing: bool,
@@ -960,10 +971,10 @@ def register(tool):
                     doc_id,
                     content,
                     content_format,
-                    autolink_urls,
-                    target_folder_id,
-                    revoke_sharing,
-                    auto_downscale,
+                    autolink_urls=autolink_urls,
+                    target_folder_id=target_folder_id,
+                    revoke_sharing=revoke_sharing,
+                    auto_downscale=auto_downscale,
                 )
             except DocEditError as e:
                 if target_folder_id:
@@ -1085,10 +1096,10 @@ def register(tool):
                     doc_id,
                     content,
                     content_format,
-                    autolink_urls,
-                    target_folder_id,
-                    revoke_sharing,
-                    auto_downscale,
+                    autolink_urls=autolink_urls,
+                    target_folder_id=target_folder_id,
+                    revoke_sharing=revoke_sharing,
+                    auto_downscale=auto_downscale,
                 )
             except DocEditError as e:
                 if target_folder_id:
