@@ -1016,6 +1016,9 @@ Markdown pipe table. 3 rows, 2 columns: Name/Value, Alpha/1, Beta/2 — all corr
 **Result (2026-09-04) ✅ PASS**
 create_doc_from_file(tc-d195-create-doc.md): docId+web_link, no error. get_doc_structure confirmed HEADING_1 "QA Test Document", bold/italic runs, ☑/☐ bullet items, table (Col A/Col B, one/two). Trashed.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+create_doc_from_file(tc-d195-create-doc.md): docId+web_link, no error. get_doc_structure: HEADING_1 "QA Test Document", bold/italic runs, ☑/☐/Plain item bullets, Col A/Col B table. Playwright (account check passed): heading, bold/italic, checkbox glyphs, and table render correctly. Trashed.
+
 ---
 
 ### TC-DOC45: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
@@ -1036,6 +1039,9 @@ create_doc_from_file(tc-d195-create-doc.md): docId+web_link, no error. get_doc_s
 **Result (2026-09-04) ✅ PASS**
 create_doc_from_file(tc-d196-create-doc.html): docId+web_link, no error. get_doc_structure confirmed HEADING_2 "From HTML file", paragraph "Content paragraph." Trashed.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+create_doc_from_file(tc-d196-create-doc.html): docId+web_link, no error. get_doc_structure: HEADING_2 "From HTML file", paragraph "Content paragraph." Trashed.
+
 ---
 
 ### TC-DOC46: `create_doc_from_file` file not found
@@ -1050,6 +1056,9 @@ create_doc_from_file(tc-d196-create-doc.html): docId+web_link, no error. get_doc
 
 **Result (2026-09-04) ✅ PASS**
 create_doc_from_file('~/does-not-exist.md') returned {"error": "File not found: ~/does-not-exist.md"}, no exception.
+
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+create_doc_from_file('~/does-not-exist.md') returned {"error": "File not found: ~/does-not-exist.md"}, no exception. Unsupported .txt also still returns the no-hint message "Use .md or .html/.htm" (shared helper, format_overridable=False).
 
 ---
 
@@ -2804,6 +2813,9 @@ insert_local_images (default revoke_sharing) on scratch doc with "Marker: IMGMAR
 **Result (2026-09-04) ✅ PASS**
 create_doc HTML table with image in a cell: no error. get_doc_structure: cell 0 "Before", cell 2 "After", cell 1 (image) empty (""). No images key in response (image dropped at parse time, table-cell images still out of scope). No timeout/hang. Trashed.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+create_doc HTML table with an image in a cell: returned at once, no error, no `images` key. get_doc_structure: cell 0 "Before", cell 1 "", cell 2 "After". No hang. Trashed.
+
 ---
 
 ### TC-DOC154: A `<pre>` block resumed after a nested table doesn't leave a spurious trailing whitespace-only paragraph ⚠️ requires-oauth ⚠️ destructive
@@ -3107,6 +3119,9 @@ Generated real ~76MB 4800x5000 (24.0MP, under 25MP pre-check) noise PNG. Main ca
 **Result (2026-09-04) ✅ PASS**
 update_doc_from_file(tc-d195-create-doc.md) on DOC_ID: returned docId matching DOC_ID, no error. get_doc_structure matches TC-DOC44's create_doc_from_file output exactly (HEADING_1, bold/italic runs, ☑/☐ items, Col A/Col B table). get_file_metadata before/after identical name/parents/webViewLink — doc identity/location preserved.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+update_doc_from_file(tc-d195-create-doc.md) on DOC_ID: docId matched, web_link present, no error. get_doc_structure matches TC-DOC44's output (HEADING_1, bold/italic, ☑/☐ items, Col A/Col B table). get_file_metadata before/after: same name/parents/webViewLink.
+
 ### TC-DOC169: `update_doc_from_file` with a local .html file ⚠️ destructive
 **Prompt**
 > "Update Google Doc {DOC_ID} from the file <repo-root>/docs/qa/fixtures/tc-d196-create-doc.html"
@@ -3123,6 +3138,9 @@ update_doc_from_file(tc-d195-create-doc.md) on DOC_ID: returned docId matching D
 **Result (2026-09-04) ✅ PASS**
 update_doc_from_file(tc-d196-create-doc.html): docId matched, no error. get_doc_structure: HEADING_2 "From HTML file", paragraph "Content paragraph." — matches TC-DOC45.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+update_doc_from_file(tc-d196-create-doc.html): docId matched, no error. get_doc_structure: HEADING_2 "From HTML file", paragraph "Content paragraph."
+
 ### TC-DOC170: `update_doc_from_file` file not found
 **Prompt**
 > "Update Google Doc {DOC_ID} from the file ~/does-not-exist.md"
@@ -3136,6 +3154,9 @@ update_doc_from_file(tc-d196-create-doc.html): docId matched, no error. get_doc_
 
 **Result (2026-09-04) ✅ PASS**
 update_doc_from_file('~/does-not-exist.md') returned {"error":"File not found: ~/does-not-exist.md"}, no exception. get_doc_content confirmed doc unchanged (still HEADING_2/paragraph from DOC169).
+
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+update_doc_from_file('~/does-not-exist.md') returned {"error": "File not found: ~/does-not-exist.md"}, no exception. get_doc_content unchanged.
 
 ### TC-DOC171: `update_doc_from_file` unsupported extension with no override returns an error, doc untouched
 **Setup:** create a local file `qa-update.txt` with arbitrary plain text
@@ -3155,6 +3176,9 @@ update_doc_from_file('~/does-not-exist.md') returned {"error":"File not found: ~
 **Result (2026-09-04) ✅ PASS**
 update_doc_from_file(qa-update.txt, no override) returned {"error":"Unsupported file extension '.txt'. Use .md or .html/.htm, or pass content_format explicitly."}. get_doc_content confirmed doc untouched — no Docs API call made.
 
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+update_doc_from_file(qa-update.txt) returned {"error": "Unsupported file extension '.txt'. Use .md or .html/.htm, or pass content_format explicitly."}. get_doc_content unchanged.
+
 ### TC-DOC172: `update_doc_from_file` `content_format` explicitly overrides an unrecognized extension ⚠️ destructive
 **Setup:** create a local file `qa-update-override.txt` containing `# Overridden Heading\n\nParagraph text.\n`
 
@@ -3170,6 +3194,9 @@ update_doc_from_file(qa-update.txt, no override) returned {"error":"Unsupported 
 
 **Result (2026-09-04) ✅ PASS**
 update_doc_from_file(qa-update-override.txt, content_format='markdown') succeeded, no error. get_doc_structure: HEADING_1 "Overridden Heading", paragraph "Paragraph text." Fixture restored after.
+
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+update_doc_from_file(qa-update-override.txt, content_format='markdown'): no error. get_doc_structure: HEADING_1 "Overridden Heading", paragraph "Paragraph text." Fixture restored to setup.md's seed HTML via write_doc_content afterward.
 
 ---
 
@@ -3752,6 +3779,9 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBO
 **Cleanup:** trash the doc; `rm /tmp/qa-bomb.png`
 
 **Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** Both checks matched exactly, and nothing was uploaded. (Round 1 reproduced the pre-fix behavior locally: `check_image_file` returned `None` for this file.) Doc trashed.
+
+**Result (2026-10-10) ✅ PASS — PR #961 (Sky)**
+insert_local_images with the 14000x13000 PNG: results[0] no fileId, error names "14000x13000 (182.0 megapixels)" and "25 megapixels". With auto_downscale=True: error ends with "Could not auto-downscale it (unreadable or corrupt image, animated, too large to decode safely, or still over the file-size limit after shrinking)." No qa-bomb.png in FOLDER_ID; marker text unchanged. Doc trashed.
 
 ---
 
