@@ -3529,6 +3529,8 @@ Edge spacers (single <br> each): markdown = "| Trailing test<br> |\n| --- |\n| <
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #968 round 1 (`d2449f7`).** `get_doc_as_markdown` returned ``pad `  both ends  ` end\n\nadj ```x``y``` end``. markdown-it-py 4.2.0's `commonmark` preset rendered `<code> both ends </code>` and `<code>x``y</code>`. Fixture content was written back.
 
+**Result (2026-10-10) ✅ PASS — Kit, PR #968 round 2 (`759362a`).** Re-run because the fix changed `_render_run`. Output was identical to round 1. Fixture content was written back.
+
 ---
 
 ### TC-DOC207: Inline code in a table cell keeps a literal `|` and puts line breaks outside the code (#938)
@@ -3547,6 +3549,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
 **Result (2026-10-10) ✅ PASS (checks as written); ❌ probe beyond the case — Kit, PR #968 round 1 (`d2449f7`).** `get_doc_as_markdown` returned both expected rows exactly: `| pipe <code>a&#124;b</code> and a\|b |` and `` | `x`<br><code>y&#124;z</code> | ``. markdown-it-py's `commonmark` preset with `table` enabled rendered a one-column table with `<code>a|b</code>` and `<code>x</code><br><code>y|z</code>`, and no backslash. Probe: a cell with code `a|*b* _c_` exported as `<code>a&#124;*b* _c_</code>`, which renders `<em>` inside the `<code>`. A cell with code `C:\|x` exported as `<code>C:\&#124;x</code>`, which renders as `C:&amp;#124;x`. Both are sent back on the PR. Fixture content was written back.
+
+**Result (2026-10-10) ✅ PASS — Kit, PR #968 round 2 (`759362a`).** Re-run because the fix changed the table-cell `<code>` path. Both expected rows came back exactly, and the render was the same as round 1. The round 1 probe is now TC-DOC208, which passes. Fixture content was written back.
 
 ---
 
@@ -3568,6 +3572,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 - Rendering `markdown` with `markdown-it-py`'s `commonmark` preset with `table` enabled gives cells `<code>a|*b* _c_</code>`, `<code>C:\|x</code>`, and `<code>x</code><br><a href="https://example.com/b"><code>b</code></a>`, with no `<em>` inside any `<code>`, and the paragraph renders as literal text (no line break, no `|`, no strikethrough)
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-10) ✅ PASS — Kit, PR #968 round 2 (`759362a`).** `get_doc_as_markdown` returned all four expected lines exactly. markdown-it-py 4.2.0 (`commonmark` + `table` + `strikethrough`) rendered the cells `<code>a|*b* _c_</code>`, `<code>C:\|x</code>`, and `<code>x</code><br><a href="https://example.com/b"><code>b</code></a>`, and the paragraph `Use &lt;br&gt; or &amp;#124; and ~~old~~, AT&amp;T a &lt; b`, with no `<em>`, `<del>`, or line break. Fixture content was written back.
 
 ---
 
