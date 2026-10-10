@@ -1364,3 +1364,27 @@ Start a stdio session against `uv run mcp-gee-sweet` with `AUTH_METHOD=oauth`, `
 **Result (2026-10-08, PR #925 round 3 @ e5f6fed, Sky) ✅ PASS**
 mcp 2.3.0, stdio, fresh `CACHE_DB_PATH`. Step 1: `Google rejected the OAuth token refresh: invalid_grant ...`, link 1 `within 24s`, port 63319. Step 2 at +16.1s: a different link, port 63322, `within 24s`. Step 3 at +18.1s: both ports open (round 2 had link 1 closed by now). Step 4 at +26.0s (link 1's deadline +24s): link 1 refused, link 2 open. 0 `Please visit`.
 Extra check (the fix's "either link completes" claim, TC-I51-style): `OAUTH_CONSENT_TIMEOUT_SECONDS=120` (threshold 60s). Link 1 `within 119s`. At +61.6s a second `list_files` gave link 2 (a different port), with both ports open. Playwright, under the mutex, after the fixture-doc sign-in check, then completed consent through **link 1** (the replaced one): account chooser, the Workspace account, **Allow**, and the callback page on link 1's port read `The authentication flow has completed. You may close this window.` The scratch token's `refresh_token` changed and its mode is `0o600`. Link 1's port then closed, and the retried `list_files` succeeded. Link 2's port stayed open after the consent completed, as designed: it listens until its own deadline. 0 `Please visit`. Scratch files deleted.
+
+---
+
+### TC-I55: SIGTERM with a streamable-http `GET /mcp` stream open closes the stream cleanly (issue #917) ⚠️ local-filesystem
+
+**Background:** TC-I47's sibling on the other HTTP transport. On SIGTERM, sse_starlette cancels the open `GET /mcp` event stream without its closing chunk, and mcp's handler then simply returns. Nothing follows the cut-off body, so uvicorn logged `ASGI callable returned without completing response.` and the client got a chunked body that never terminated (`IncompleteRead(0 bytes read)`). `SingleResponseGuard` (`sse_shutdown.py`) now sends the missing closing body when the app returns during shutdown with a started, unfinished response. Outside shutdown it leaves that alone, so uvicorn still reports a genuine incomplete response. `main()` serves `--transport streamable-http` through the guard with the same launch as `--transport sse` (`anyio.run(uvicorn.Server(config).serve)`), instead of `mcp.run(transport="streamable-http")`, which builds its own unguarded app.
+
+**Setup:** none beyond a checkout of this branch. No Google credentials are needed: the case only needs an initialized session with its GET stream open.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport streamable-http` with `HOST=127.0.0.1`, `PORT=<free port>`, `AUTH_METHOD=oauth`, `CREDENTIALS_PATH=<nonexistent>`, `TOKEN_PATH=<nonexistent>`, `DEBUG_LEVEL=DEBUG`, `PYTHONUNBUFFERED=1`, stdout and stderr to one file.
+1. With Python `http.client`: `POST /mcp` a JSON-RPC `initialize` (`Content-Type: application/json`, `Accept: application/json, text/event-stream`) and keep the returned `mcp-session-id` header. `POST /mcp` `notifications/initialized` with that session ID (expect `202`). Then, on a separate connection, open `GET /mcp` with `Accept: text/event-stream` and the session ID, and read the response status (expect `200`). Wait 2 seconds
+2. Send the server process `SIGTERM` (not SIGKILL) and time its exit. Then read the GET response to EOF
+3. Repeat steps 1–2 two more times against a fresh server
+4. Start a fresh server the same way; with the `mcp` SDK's `streamable_http_client` + `ClientSession`, `initialize` and `list_tools`, close the session, then SIGTERM the server
+
+**Checks**
+- 2, 3: reading the GET response to the end ends with a clean EOF (an empty body), not an `IncompleteRead`
+- 2, 3: the log has no `ASGI callable returned without completing response`, no `Exception in ASGI application`, and no `RuntimeError: Expected ASGI message`. (The nonexistent `CREDENTIALS_PATH` logs the expected `Auth failure detail` traceback ending in `RuntimeError: '<path>' not found`, as in TC-I47.) With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Closing a response cut off on /mcp during shutdown (#917)`
+- 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
+- 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no ASGI error and no `Closing a response cut off` line
+- Re-run TC-I47's steps 1–2 once: `--transport sse` still passes, since it shares the guard and the launch helper
+
+**Cleanup:** SIGKILL any server still running (and record the case as failed).

@@ -596,6 +596,24 @@ def _auth_main(argv: list[str]) -> int:
     return run_auth_command(open_browser=not args.no_browser)
 
 
+def _serve_guarded(guarded_app: SingleResponseGuard) -> None:
+    """Serve an HTTP transport's guarded app the way mcp's run_*_async() launches do.
+
+    anyio.run on the plain asyncio loop, which #833's auth handoff was built and
+    QA'd on; uvicorn.run() would pick uvloop whenever it's installed.
+    """
+    import anyio
+    import uvicorn
+
+    config = uvicorn.Config(
+        guarded_app,
+        host=_resolved_host,
+        port=_resolved_port,
+        log_level=mcp.settings.log_level.lower(),
+    )
+    anyio.run(uvicorn.Server(config).serve)
+
+
 def main():
     if _is_auth_command(sys.argv[1:]):
         sys.exit(_auth_main(sys.argv[1:]))
@@ -638,16 +656,13 @@ def main():
         mcp.run(transport=transport)
     elif transport == "sse":
         # mcp.run(transport="sse") would build a second, unguarded sse_app, so serve
-        # the guarded module-level app with run_sse_async()'s own launch (#868):
-        # anyio.run on the plain asyncio loop, which #833's auth handoff was built
-        # and QA'd on. uvicorn.run() would pick uvloop whenever it's installed.
-        import anyio
-        import uvicorn
-
-        config = uvicorn.Config(
-            app, host=_resolved_host, port=_resolved_port, log_level=mcp.settings.log_level.lower()
-        )
-        anyio.run(uvicorn.Server(config).serve)
+        # the guarded module-level app instead (#868).
+        _serve_guarded(app)
+    elif transport == "streamable-http":
+        # Same for mcp.run(transport="streamable-http"), whose own app leaves an open
+        # GET /mcp stream unterminated at SIGTERM (#917). Built here rather than at
+        # import, since streamable_http_app() installs the server's session manager.
+        _serve_guarded(SingleResponseGuard(mcp.streamable_http_app(host=_resolved_host)))
     else:
         # mcp v2 moved host/port from the constructor to call-time kwargs (see the
         # mcp.sse_app() call above) — stdio's own overload doesn't accept them.

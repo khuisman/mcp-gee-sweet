@@ -1,5 +1,6 @@
-"""Tests for SingleResponseGuard: a SIGTERM with an open SSE stream (#868)."""
+"""Tests for SingleResponseGuard: a SIGTERM with an open SSE stream (#868, #917)."""
 
+import json
 import threading
 
 import anyio
@@ -117,6 +118,40 @@ class TestSingleResponseGuard:
         with pytest.raises(RuntimeError, match="after response already completed"):
             await SingleResponseGuard(app)(_HTTP_SCOPE, _never_receive, send)
 
+    @pytest.mark.usefixtures("shutting_down")
+    async def test_a_response_cut_off_with_nothing_after_it_is_closed(self):
+        # The #917 shape: streamable-http's handler just returns after the cut.
+        send = _StrictSend()
+        await SingleResponseGuard(_app_sending(_START, _CHUNK))(_HTTP_SCOPE, _never_receive, send)
+        assert send.messages == [_START, _CHUNK, _END]
+        assert send.complete
+
+    async def test_before_shutdown_an_unfinished_response_is_left_for_the_server(self):
+        # Outside shutdown it's a genuine bug, so uvicorn should still report it.
+        send = _StrictSend()
+        await SingleResponseGuard(_app_sending(_START, _CHUNK))(_HTTP_SCOPE, _never_receive, send)
+        assert send.messages == [_START, _CHUNK]
+        assert not send.complete
+
+    @pytest.mark.usefixtures("shutting_down")
+    async def test_an_app_that_never_started_a_response_gets_no_body(self):
+        send = _StrictSend()
+        await SingleResponseGuard(_app_sending())(_HTTP_SCOPE, _never_receive, send)
+        assert send.messages == []
+
+    @pytest.mark.usefixtures("shutting_down")
+    async def test_an_app_that_raises_mid_stream_is_not_closed_over(self):
+        # A crash is uvicorn's to report; the guard only finishes a normal return.
+        async def app(scope, receive, send):
+            await send(_START)
+            await send(_CHUNK)
+            raise ValueError("boom")
+
+        send = _StrictSend()
+        with pytest.raises(ValueError, match="boom"):
+            await SingleResponseGuard(app)(_HTTP_SCOPE, _never_receive, send)
+        assert send.messages == [_START, _CHUNK]
+
     async def test_non_http_scopes_pass_straight_through(self):
         seen = []
 
@@ -185,5 +220,111 @@ class TestShutdownWithOpenSseStream:
         assert errors == []
         starts = [m for m in send.messages if m["type"] == "http.response.start"]
         assert len(starts) == 1
+        assert send.messages[-1] == _END
+        assert send.complete
+
+
+def _http_scope(method, path, headers):
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [(b"host", b"127.0.0.1:8000"), *headers],
+        "client": ("127.0.0.1", 50000),
+        "server": ("127.0.0.1", 8000),
+    }
+
+
+class TestShutdownWithOpenStreamableHttpGetStream:
+    """mcp's real streamable_http_app with an open ``GET /mcp`` stream at shutdown (#917)."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_shutdown_state(self, monkeypatch):
+        monkeypatch.setattr(AppStatus, "should_exit", False)
+        monkeypatch.setattr(sse_starlette_sse, "_thread_state", threading.local())
+
+    @staticmethod
+    def _receive_body(payload):
+        # The transport reads the request body first, even for a GET, so deliver
+        # it (empty for a GET, as uvicorn does), then block like an open connection.
+        delivered = False
+
+        async def receive():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": payload, "more_body": False}
+            await anyio.sleep_forever()
+
+        return receive
+
+    async def _post(self, app, body, session_id=None):
+        headers = [
+            (b"content-type", b"application/json"),
+            (b"accept", b"application/json, text/event-stream"),
+        ]
+        if session_id:
+            headers.append((b"mcp-session-id", session_id.encode()))
+        send = _StrictSend()
+        await app(
+            _http_scope("POST", "/mcp", headers),
+            self._receive_body(json.dumps(body).encode()),
+            send,
+        )
+        return dict(send.messages[0]["headers"]).get(b"mcp-session-id", b"").decode()
+
+    async def _serve_get_then_shut_down(self, app, starlette_app):
+        initialize = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "0"},
+            },
+        }
+        send = _StrictSend()
+        errors = []
+        async with starlette_app.router.lifespan_context(starlette_app):
+            session_id = await self._post(app, initialize)
+            assert session_id
+            await self._post(
+                app, {"jsonrpc": "2.0", "method": "notifications/initialized"}, session_id
+            )
+            headers = [(b"accept", b"text/event-stream"), (b"mcp-session-id", session_id.encode())]
+
+            async def serve():
+                try:
+                    await app(_http_scope("GET", "/mcp", headers), self._receive_body(b""), send)
+                except Exception as exc:  # what uvicorn logs as "Exception in ASGI application"
+                    errors.append(exc)
+
+            with anyio.fail_after(10):
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(serve)
+                    while not send.messages:  # the stream is open once its headers are out
+                        await anyio.sleep(0.01)
+                    AppStatus.should_exit = True
+        return send, errors
+
+    async def test_unguarded_app_leaves_the_stream_unfinished(self):
+        # Pins the premise: uvicorn's "ASGI callable returned without completing response".
+        starlette_app = MCPServer("t").streamable_http_app(host="0.0.0.0")
+        send, errors = await self._serve_get_then_shut_down(starlette_app, starlette_app)
+        assert errors == []
+        assert send.started and not send.complete
+
+    async def test_guarded_app_closes_the_stream(self):
+        starlette_app = MCPServer("t").streamable_http_app(host="0.0.0.0")
+        guarded = SingleResponseGuard(starlette_app)
+        send, errors = await self._serve_get_then_shut_down(guarded, starlette_app)
+        assert errors == []
         assert send.messages[-1] == _END
         assert send.complete

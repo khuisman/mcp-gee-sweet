@@ -762,6 +762,33 @@ class TestMainAuthAndTransport:
         assert config.app is server.app
         assert (config.host, config.port, config.log_level) == ("127.0.0.9", 47123, "debug")
 
+    def test_streamable_http_serves_a_guarded_app_like_run_streamable_http_async(self, monkeypatch):
+        # #917: mcp.run(transport="streamable-http") builds its own unguarded app, so
+        # main() wraps mcp's streamable_http_app and launches it the same way as SSE.
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "streamable-http"])
+        monkeypatch.setattr(server, "_resolved_host", "127.0.0.9")
+        monkeypatch.setattr(server, "_resolved_port", 47123)
+        monkeypatch.setattr(mcp.settings, "log_level", "DEBUG")
+        built = MagicMock(name="streamable_http_app")
+        build = MagicMock(return_value=built)
+        mcp_run, uvicorn_run, anyio_run = MagicMock(), MagicMock(), MagicMock()
+        monkeypatch.setattr(mcp, "streamable_http_app", build)
+        monkeypatch.setattr(mcp, "run", mcp_run)
+        monkeypatch.setattr(uvicorn, "run", uvicorn_run)
+        monkeypatch.setattr(anyio, "run", anyio_run)
+        main()
+        mcp_run.assert_not_called()
+        uvicorn_run.assert_not_called()
+        build.assert_called_once_with(host="127.0.0.9")
+        (serve,) = anyio_run.call_args.args
+        assert serve.__func__ is uvicorn.Server.serve
+        config = serve.__self__.config
+        assert isinstance(config.app, SingleResponseGuard)
+        assert config.app.app is built
+        assert (config.host, config.port, config.log_level) == ("127.0.0.9", 47123, "debug")
+        assert auth_module._interactive_consent is True
+        assert auth_module._raise_auth_failures is False
+
 
 class TestMainLogsVersion:
     """Issue #356: main() logs the running package version at startup so a

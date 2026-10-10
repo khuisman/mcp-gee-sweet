@@ -1,4 +1,4 @@
-"""ASGI guard for the SSE stream a server shutdown cuts off (#868).
+"""ASGI guard for the SSE stream a server shutdown cuts off (#868, #917).
 
 On SIGTERM, sse_starlette's ``EventSourceResponse`` sees ``AppStatus.should_exit``
 and cancels its own task group, so its closing ``http.response.body``
@@ -13,6 +13,13 @@ doesn't hit this, because uvicorn turns every send after a disconnect into a no-
 missing closing body first, so the client gets a properly terminated stream
 instead of a truncated one. Before shutdown every message passes through
 untouched, so uvicorn still reports a genuine double response (PR #911 QA round 1).
+
+Under streamable-http nothing follows the cut-off stream: mcp's ``GET /mcp``
+handler (and its SSE-mode POST and replay responses) simply returns, and uvicorn
+logs "ASGI callable returned without completing response" while the client gets
+a chunked body that never terminates (#917). So when the app returns during
+shutdown with a started, unfinished response, the guard sends the missing
+closing body itself. Outside shutdown it doesn't, for the same reason as above.
 """
 
 import logging
@@ -24,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class SingleResponseGuard:
-    """During shutdown, drop a second ``http.response.start`` on a request that already started one."""
+    """During shutdown, close a cut-off response and drop a second ``http.response.start``."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -58,3 +65,8 @@ class SingleResponseGuard:
             await send(message)
 
         await self.app(scope, receive, guarded_send)
+        if started and not complete and AppStatus.should_exit:
+            logger.debug(
+                "Closing a response cut off on %s during shutdown (#917)", scope.get("path")
+            )
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
