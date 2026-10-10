@@ -1262,11 +1262,10 @@ async def _sync_level(
     every such file, the reads run after the plan loop, concurrently, capped at
     _SYNC_HASH_CONCURRENCY. When it runs: if the
     local file's md5 hash matches Drive's own md5Checksum, the pair is treated as
-    in sync regardless of how far apart their modifiedTimes are — this is what
-    actually fixes upload_local_file's non-stamped modifiedTime causing a spurious
-    re-download, not just a same-mtime coincidence (also fixed at the root in
-    _upload_local_file itself, below — this remains useful for cases the root fix
-    doesn't cover, e.g. a local overwrite that happens to preserve mtime). Only
+    in sync regardless of how far apart their modifiedTimes are, so identical
+    content whose mtimes drifted (a local regeneration that rewrites the same
+    bytes, a copy that didn't preserve mtime, an upload_file-created file whose
+    modifiedTime is just its upload time) isn't transferred needlessly. Only
     applies to non-Workspace files with a real md5Checksum (Docs/Sheets/Slides and
     convert_markdown Docs have none); those fall back to mtime-only comparison
     exactly as when use_checksum=False. A checksum mismatch on a pair whose
@@ -3334,12 +3333,12 @@ def register(tool):
         every sync (run concurrently, a few files at a time). Skipped during
         dry_run, so this never turns a cheap preview into a full read of every
         file — an affected step's reason then ends in "(checksum not verified in
-        dry_run)", since the real run may decide differently. This catches cases mtime alone gets wrong: content uploaded via
-        upload_local_file reading as "Drive newer" and getting needlessly
-        re-downloaded (upload_local_file now also stamps modifiedTime to match the
-        local file directly, so this mainly helps for other causes of drift, e.g. a
-        local overwrite that happens to preserve mtime), or a local regeneration
-        that changes mtime without changing bytes reading as "local newer." A local
+        dry_run)", since the real run may decide differently. This catches the
+        cases mtime alone gets wrong. A local overwrite that preserves mtime
+        hides a real change. A local regeneration that rewrites the same bytes
+        reads as "local newer." A file created by upload_file (inline content, no
+        local mtime to stamp) carries its upload time as modifiedTime, so a
+        same-content local copy reads as changed. A local
         read failure for one file (deleted, permission-denied, etc.) reports that
         name under 'failed' rather than aborting the whole call. Only
         applies to files with a real md5Checksum — Google Workspace files (Docs,

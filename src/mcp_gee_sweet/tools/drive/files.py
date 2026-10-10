@@ -565,9 +565,10 @@ def register(tool):
             starred status, and md5_checksum. md5_checksum is only present for
             binary files — Google Workspace files (Docs, Sheets, Slides, etc.) have
             no fixed byte content and the Drive API omits the field for them, so
-            it's None for those. Use it to detect real content drift (for example,
-            a local overwrite that preserves mtime) instead of inferring change
-            from modifiedTime alone.
+            it's None for those. Compare it to a local file's md5 to detect real
+            content drift instead of inferring change from modifiedTime alone;
+            sync_folder(use_checksum=True) does that comparison itself (see its
+            docstring for the cases where modifiedTime misleads).
             Results are cached; call refresh_cache(folder_id=folder_id) to invalidate,
             or refresh_cache() to clear all caches.
         """
@@ -777,9 +778,10 @@ def register(tool):
             owners, webViewLink, trashed status, starred status, and md5_checksum.
             md5_checksum (like size) is only present for binary files — Google
             Workspace files have no fixed byte content and the Drive API omits it
-            for them. Use it to detect real content drift instead of inferring
-            change from modifiedTime alone (for example, a local overwrite that
-            preserves mtime). starred reflects star_file/unstar_file's own effect
+            for them. Compare it to a local file's md5 to detect real content
+            drift instead of inferring change from modifiedTime alone;
+            sync_folder(use_checksum=True) does that comparison itself (see its
+            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect
             (#388) — previously there was no way to read a file's starred state
             independently of calling one of those two mutating tools.
         """
