@@ -63,3 +63,7 @@ The only lever is the final message itself. End every turn with one plain closin
 If a command file scripts your message verbatim (e.g. `qa-kickoff.md`'s block), send the scripted block unchanged and put the closing line after it, outside its code fence.
 
 Don't end an idle turn with wording that sounds like you're still working, even if you expect to be woken soon: a `working` label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky got `done` while Kit, who ended with "awaiting Jay's PR or /notify-partner", got `working`. The mislabeling itself is a harness issue, reported to Claude Code separately.
+
+## 5. Sign every PR and issue comment
+
+Every persona posts through the same GitHub account, so a comment's author can't be told apart from its text. **Every comment this session posts on a PR or an issue (`gh pr comment`, `gh issue comment`, `gh pr review` with a body, or an edit to one of those) ends with a last line of exactly `— <Name>`**, using this session's name from the Roles table (e.g. `— Sky`). Nothing goes after it. When a command file prescribes a comment's first line or layout (e.g. `qa.md` steps 7–8), follow that format and add the signature as the final line. PR and issue bodies are out of scope: they end with the Claude Code attribution line instead (#963).
