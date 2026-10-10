@@ -910,12 +910,16 @@ async def _fill_children_recursive(
                     table_inserts.append((t, r, c, occurrence, child))
                 new_cursor = cursor + 1
             else:
+                # Consume every non-Table child up to the next Table. An Image is
+                # skipped, as _build_fill_requests does for a cell with no nested
+                # table: table-cell images aren't supported (#509). Stopping only at
+                # a Table guarantees j > cursor, so the cell can't stay pending forever.
                 j = cursor
                 run_group: list[Run] = []
-                while j < len(children) and isinstance(children[j], Run):
-                    next_run = children[j]
-                    assert isinstance(next_run, Run)
-                    run_group.append(next_run)
+                while j < len(children) and not isinstance(children[j], Table):
+                    next_child = children[j]
+                    if isinstance(next_child, Run):
+                        run_group.append(next_child)
                     j += 1
                 reqs = _run_group_fill_requests(run_group, para_start)
                 if reqs:

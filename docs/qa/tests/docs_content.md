@@ -3747,7 +3747,7 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBO
 **Checks**
 - `results[0]` has no `fileId` and an `error` containing "14000x13000 (182.0 megapixels)" and "25 megapixels"
 - No `qa-bomb.png` appears in `{FOLDER_ID}`, and the marker text is unchanged
-- Re-run with `auto_downscale=True`: `results[0]` still has no `fileId`, and its `error` ends with "Could not auto-downscale it (unreadable or corrupt image, animated, or too large to decode safely)."
+- Re-run with `auto_downscale=True`: `results[0]` still has no `fileId`, and its `error` ends with "Could not auto-downscale it (unreadable or corrupt image, animated, too large to decode safely, or still over the file-size limit after shrinking)." (the last reason was added by #894/#581)
 
 **Cleanup:** trash the doc; `rm /tmp/qa-bomb.png`
 

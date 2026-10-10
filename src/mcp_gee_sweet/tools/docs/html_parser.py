@@ -917,9 +917,12 @@ class _AstParser(HTMLParser):
                 self._code_depth = max(0, self._code_depth - 1)
 
     def handle_data(self, data):
-        if (
-            self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
-        ) or self._block_tag:
+        # Table-cell text and open-block text are independent triggers that happen
+        # to be buffered the same way today; kept as separate branches so either
+        # can diverge without first untangling a merged condition (#638).
+        if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:  # noqa: SIM114
+            self._run_buf.append(data)
+        elif self._block_tag:
             self._run_buf.append(data)
         elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
             # Genuinely bare text — no wrapping block tag, no enclosing tag of

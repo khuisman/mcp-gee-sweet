@@ -70,8 +70,12 @@ _FORMAT_MIME = {"PNG": "image/png", "JPEG": "image/jpeg", "GIF": "image/gif"}
 
 # Every reason downscale_image_bytes can decline for an image already known to be
 # oversized. "Too large to decode safely": Pillow's decompression-bomb guard refuses a
-# full decode above ~179 megapixels, and downscaling needs one.
-_CANNOT_DOWNSCALE_REASONS = "unreadable or corrupt image, animated, or too large to decode safely"
+# full decode above ~179 megapixels, and downscaling needs one. "Still over the size
+# limit": the bounded shrink loop ran out of attempts (#581).
+_CANNOT_DOWNSCALE_REASONS = (
+    "unreadable or corrupt image, animated, too large to decode safely, "
+    "or still over the file-size limit after shrinking"
+)
 
 
 def _decode(data: bytes) -> Image.Image | None:
@@ -187,9 +191,11 @@ def downscale_image_bytes(data: bytes) -> tuple[bytes, str] | None:
     """Resize image `data` to fit both the megapixel and file-size limits, preserving
     aspect ratio and format. Returns (resized_bytes, mime_type), or None if: the image
     can't be decoded; it's already within both limits (nothing to do — caller should
-    keep using the original bytes/upload path); or it's animated (Pillow's resize only
+    keep using the original bytes/upload path); it's animated (Pillow's resize only
     touches the current frame, which would silently drop every other frame of an
-    animated GIF — declining is safer than corrupting it).
+    animated GIF — declining is safer than corrupting it); or the bounded shrink loop
+    below still can't get it under the file-size limit (#581), so a caller never
+    embeds still-oversized bytes as if the resize had worked.
 
     The byte-size limit can't be hit exactly on the first resize the way the
     megapixel one can: encoded size depends on compression, not just pixel count, so a
@@ -236,6 +242,8 @@ def downscale_image_bytes(data: bytes) -> tuple[bytes, str] | None:
         encoded = _encode(resized)
         attempts += 1
 
+    if len(encoded) > MAX_INLINE_IMAGE_BYTES:
+        return None
     return encoded, _FORMAT_MIME.get(fmt, "application/octet-stream")
 
 
@@ -249,17 +257,22 @@ def check_drive_image_metadata(metadata: dict[str, Any]) -> dict[str, Any] | Non
     _resolve_image_source). Dimensions are checked first, matching
     downscale_image_bytes's own resize-by-pixels-first behavior. Returns the first
     violation found, or None if within both limits or the metadata doesn't report
-    enough to check (e.g. a non-image binary with no imageMediaMetadata)."""
+    enough to check (e.g. a non-image binary with no imageMediaMetadata, or a `size`
+    that isn't a number). Never raises: both call sites call it outside their
+    try/except (#581)."""
     img_meta = metadata.get("imageMediaMetadata") or {}
     width, height = img_meta.get("width"), img_meta.get("height")
     if width and height:
         error = check_dimensions(width, height)
         if error is not None:
             return error
-    size = metadata.get("size")
-    if size is not None:
-        return check_file_size(int(size))
-    return None
+    try:
+        size_bytes = int(metadata["size"])
+    except (KeyError, TypeError, ValueError):
+        # Drive sends `size` as a decimal string. Missing or malformed means unknown,
+        # the same as missing dimensions: let the embed call be the judge.
+        return None
+    return check_file_size(size_bytes)
 
 
 def rewrite_too_large_error(message: str) -> str:

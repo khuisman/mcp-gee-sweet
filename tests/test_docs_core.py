@@ -1269,6 +1269,66 @@ class TestBulletDepthEdgeCases:
         assert bullet.depth == 0
 
 
+def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
+    """Apply the text and bullet requests in `requests` to an empty doc and return
+    each paragraph's (text, nestingLevel), nestingLevel None for a non-bullet.
+
+    Models the two API behaviors the isolated-run anchor wrap depends on (#715),
+    both confirmed live by TC-DOC190: createParagraphBullets sets each paragraph's
+    nestingLevel to its leading-tab count minus the minimum across the call's range,
+    then removes those tabs; and a paragraph's properties live on its trailing
+    newline, so deleting an empty anchor paragraph leaves the next one's level
+    intact. Other request types don't change text or levels and are ignored."""
+    # One entry per character from index 1; a "\n" entry carries its paragraph's level.
+    chars: list[list] = [["\n", None]]  # an empty doc is one empty paragraph
+
+    def paragraphs() -> list[tuple[int, int]]:
+        """(start, end) list positions of each paragraph, end inclusive of its newline."""
+        out, start = [], 0
+        for i, (ch, _) in enumerate(chars):
+            if ch == "\n":
+                out.append((start, i))
+                start = i + 1
+        return out
+
+    for req in requests:
+        if "insertText" in req:
+            pos = req["insertText"]["location"]["index"] - 1
+            chars[pos:pos] = [[ch, None] for ch in req["insertText"]["text"]]
+        elif "deleteContentRange" in req:
+            rng = req["deleteContentRange"]["range"]
+            del chars[rng["startIndex"] - 1 : rng["endIndex"] - 1]
+        elif "createParagraphBullets" in req:
+            rng = req["createParagraphBullets"]["range"]
+            lo, hi = rng["startIndex"] - 1, rng["endIndex"] - 1
+            covered = [(a, b) for a, b in paragraphs() if a < hi and b >= lo]
+            tabs = []
+            for a, b in covered:
+                n = 0
+                while a + n < b and chars[a + n][0] == "\t":
+                    n += 1
+                tabs.append(n)
+            base = min(tabs)
+            # Latest-first, so stripping one paragraph's tabs doesn't shift the next.
+            for (a, b), n in reversed(list(zip(covered, tabs, strict=True))):
+                chars[b][1] = n - base
+                del chars[a : a + n]
+
+    return [("".join(ch for ch, _ in chars[a:b]), chars[b][1]) for a, b in paragraphs()[:-1]]
+
+
+class TestRenderBulletLevelsModel:
+    """Pins the fake above to the API behavior that caused #439, so the outcome
+    tests below can't pass against a model that never had the bug."""
+
+    def test_run_with_no_zero_tab_paragraph_collapses_to_level_0(self):
+        requests = [
+            {"insertText": {"location": {"index": 1}, "text": "\tC1\n\tC2\n"}},
+            {"createParagraphBullets": {"range": {"startIndex": 1, "endIndex": 9}}},
+        ]
+        assert _render_bullet_levels(requests) == [("C1", 0), ("C2", 0)]
+
+
 class TestIsolatedDepthRunGlyph:
     """#439: a contiguous createParagraphBullets run whose every item is at depth > 0
     (no depth-0 sibling in the same call) rendered the depth-0 glyph (disc) instead of
@@ -1276,47 +1336,33 @@ class TestIsolatedDepthRunGlyph:
     the *minimum* leading-tab count in the range, so a run with no 0-tab paragraph
     collapses to level 0. Fixed by wrapping such a run with a throwaway 0-tab anchor
     paragraph (insert -> bullet extended range -> delete) so the real items land at
-    their true nesting level and glyph. The anchor insert (+1) and delete (-1) cancel."""
+    their true nesting level and glyph. The anchor insert (+1) and delete (-1) cancel.
 
-    def _bullet_call(self, requests):
-        return next(r for r in requests if "createParagraphBullets" in r)
+    These assert the rendered levels through _render_bullet_levels rather than the
+    request literals (#715), so a refactor of the request sequence that keeps the
+    outcome doesn't have to touch them. TC-DOC190 covers the glyph itself live."""
 
-    def test_isolated_depth1_run_wrapped_with_anchor(self):
+    def test_isolated_depth1_run_renders_at_level_1(self):
         nodes = [
             BulletItem(runs=[Run("C1")], depth=1),
             BulletItem(runs=[Run("C2")], depth=1),
         ]
         requests, _ = ast_to_requests(nodes)
-        # main text insert is "\tC1\n\tC2\n" (8 chars) at index 1 -> run is [1, 9)
-        main_insert = next(r for r in requests if "insertText" in r)
-        assert main_insert["insertText"]["text"] == "\tC1\n\tC2\n"
-        # Trailing three requests: anchor insert, bullets over the extended range, delete.
-        anchor_insert, bullets, delete = requests[-3:]
-        assert anchor_insert == {"insertText": {"location": {"index": 1}, "text": "\n"}}
-        assert bullets["createParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 10}
-        assert delete == {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": 2}}}
+        assert _render_bullet_levels(requests) == [("C1", 1), ("C2", 1)]
 
-    def test_single_isolated_item_wrapped_with_anchor(self):
+    def test_single_isolated_item_renders_at_its_depth(self):
         requests, _ = ast_to_requests([BulletItem(runs=[Run("only")], depth=2)])
-        anchor_insert, bullets, delete = requests[-3:]
-        assert anchor_insert["insertText"] == {"location": {"index": 1}, "text": "\n"}
-        # "\t\tonly\n" is 7 chars -> run [1, 8); extended by the anchor -> endIndex 9
-        assert bullets["createParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 9}
-        assert delete["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
+        assert _render_bullet_levels(requests) == [("only", 2)]
 
-    def test_run_with_depth0_anchor_item_is_not_wrapped(self):
+    def test_run_with_depth0_item_renders_levels_without_anchor(self):
         nodes = [
             BulletItem(runs=[Run("Parent")], depth=0),
             BulletItem(runs=[Run("Child")], depth=1),
         ]
         requests, _ = ast_to_requests(nodes)
+        assert _render_bullet_levels(requests) == [("Parent", 0), ("Child", 1)]
+        # A run that already has a level-0 item needs no anchor.
         assert not any("deleteContentRange" in r for r in requests)
-        # exactly one insertText (the main body text), no anchor insert
-        assert sum(1 for r in requests if "insertText" in r) == 1
-        assert self._bullet_call(requests)["createParagraphBullets"]["range"] == {
-            "startIndex": 1,
-            "endIndex": 15,
-        }
 
     def test_anchor_wrap_is_position_neutral_for_a_following_table(self):
         # The anchor insert/delete cancel, so a table after an isolated run sits exactly
@@ -1333,33 +1379,21 @@ class TestIsolatedDepthRunGlyph:
         # the 2 leading tabs are consumed ahead of it -> real pos 7.
         assert table_req["insertTable"]["location"]["index"] == 7
 
-    def test_two_isolated_runs_applied_latest_position_first(self):
+    def test_two_isolated_runs_both_render_at_level_1(self):
         nodes = [
             BulletItem(runs=[Run("A")], depth=1),
             Paragraph(runs=[Run("Interrupter")]),
             BulletItem(runs=[Run("B")], depth=1),
         ]
         requests, _ = ast_to_requests(nodes)
-        bullet_calls = [
-            r["createParagraphBullets"]["range"]["startIndex"]
-            for r in requests
-            if "createParagraphBullets" in r
-        ]
-        assert len(bullet_calls) == 2
-        assert bullet_calls == sorted(bullet_calls, reverse=True)
-        # Each isolated run still carries its own anchor delete.
-        assert sum(1 for r in requests if "deleteContentRange" in r) == 2
+        assert _render_bullet_levels(requests) == [("A", 1), ("Interrupter", None), ("B", 1)]
 
-    def test_end_to_end_bare_parent_nested_list_wrapped(self):
+    def test_end_to_end_bare_parent_nested_list_renders_at_level_1(self):
         # #439's own repro shape: a bare <li> with no text, only a nested <ul>. The
         # parent <li> is dropped (empty), leaving an isolated depth-1 run.
         html = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
         requests, _ = _to_doc_requests(html)
-        assert any("deleteContentRange" in r for r in requests)
-        anchor_inserts = [
-            r for r in requests if "insertText" in r and r["insertText"]["text"] == "\n"
-        ]
-        assert len(anchor_inserts) == 1
+        assert _render_bullet_levels(requests) == [("C1", 1), ("C2", 1)]
 
 
 class TestBuildBlankParaBeforeTableCollapses:

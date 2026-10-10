@@ -1,5 +1,6 @@
 """Tests for docs table tools and nested table emitter."""
 
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
+    Image,
     Row,
     Run,
     Table,
@@ -808,6 +810,17 @@ class TestFillNestedCellContent:
         degenerate = Table(rows=[Row(cells=[])])
         doc = await self._run(Cell(children=[degenerate, Run("After")]))
         assert doc.describe_cell(0, 0, 0) == ["Para:After"]
+
+    async def test_image_child_is_skipped_not_looped_on(self):
+        # #509: a cell with a nested table and an Image used to stay pending
+        # forever, since the run-group loop stopped at the Image without advancing.
+        # The Image is dropped, as _build_fill_requests drops it in a plain cell.
+        inner = _table(_row(_cell("inner")))
+        img = Image(src="drive:abc")
+        doc = await asyncio.wait_for(
+            self._run(Cell(children=[img, Run("A"), img, Run("B"), inner, img])), timeout=5
+        )
+        assert doc.describe_cell(0, 0, 0) == ["Para:AB", "Table"]
 
 
 # ---------------------------------------------------------------------------

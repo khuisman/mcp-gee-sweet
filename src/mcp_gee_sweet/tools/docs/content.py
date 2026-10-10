@@ -13,7 +13,7 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread
+from ...auth import SpreadsheetContext, execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _GOOGLE_DOC_MIME
@@ -266,14 +266,36 @@ async def _resolve_image_source(
         )
 
 
+_SOURCE_FILE_FORMATS = {".md": "markdown", ".html": "html", ".htm": "html"}
+
+
+def _read_doc_source_file(
+    local_path: str, content_format: str | None, *, format_overridable: bool
+) -> tuple[str, str] | dict[str, Any]:
+    """Shared file reading for create_doc_from_file / update_doc_from_file (#567):
+    returns (content, content_format), or {"error": ...} for a missing file or an
+    extension with no inferable format. content_format=None infers it from the
+    extension. format_overridable says whether the calling tool takes a
+    content_format parameter, so the error only suggests one when it exists."""
+    path = Path(local_path)
+    if not path.exists():
+        return {"error": f"File not found: {local_path}"}
+    if content_format is None:
+        ext = path.suffix.lower()
+        inferred = _SOURCE_FILE_FORMATS.get(ext)
+        if inferred is None:
+            hint = ", or pass content_format explicitly." if format_overridable else ""
+            return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm{hint}"}
+        content_format = inferred
+    return path.read_text(encoding="utf-8"), content_format
+
+
 async def _replace_doc_content(
-    docs_service,
-    drive_service,
-    doc_cache,
-    folder_id: str | None,
+    lc: SpreadsheetContext,
     doc_id: str,
     content: str,
     content_format: str,
+    *,
     autolink_urls: bool,
     revoke_sharing: bool,
     auto_downscale: bool,
@@ -283,7 +305,13 @@ async def _replace_doc_content(
     the clear-then-insert mechanism (including the same-batch insertText
     style-inheritance quirk below) has exactly one implementation instead of two
     copies that could drift out of sync.
+
+    The three flags are keyword-only (#567): as positional bools, swapping two at a
+    call site would type-check and silently do the wrong thing.
     """
+    docs_service = lc.docs_service
+    drive_service = lc.drive_service
+    doc_cache = lc.doc_cache
     doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
@@ -331,7 +359,7 @@ async def _replace_doc_content(
             content,
             content_format,
             autolink_urls,
-            folder_id,
+            lc.folder_id,
             revoke_sharing,
             auto_downscale,
         )
@@ -1010,20 +1038,11 @@ def register(tool):
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
             Drive (no storage quota). Check server://auth-status for your current auth method.
         """
-        path = Path(local_path)
-        if not path.exists():
-            return {"error": f"File not found: {local_path}"}
-
-        ext = path.suffix.lower()
-        if ext == ".md":
-            content_format = "markdown"
-        elif ext in (".html", ".htm"):
-            content_format = "html"
-        else:
-            return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm"}
-
-        content = path.read_text(encoding="utf-8")
-        doc_title = title or path.stem
+        source = _read_doc_source_file(local_path, None, format_overridable=False)
+        if isinstance(source, dict):
+            return source
+        content, content_format = source
+        doc_title = title or Path(local_path).stem
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -1222,16 +1241,13 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
-            lc.docs_service,
-            lc.drive_service,
-            lc.doc_cache,
-            lc.folder_id,
+            lc,
             doc_id,
             content,
             content_format,
-            autolink_urls,
-            revoke_sharing,
-            auto_downscale,
+            autolink_urls=autolink_urls,
+            revoke_sharing=revoke_sharing,
+            auto_downscale=auto_downscale,
         )
 
     @tool(annotations=ToolAnnotations(title="Update Document from File", destructiveHint=True))
@@ -1284,38 +1300,20 @@ def register(tool):
             instead, with any temporary image share already revoked. The old content
             was cleared first, so the doc may be empty or partly written.
         """
-        path = Path(local_path)
-        if not path.exists():
-            return {"error": f"File not found: {local_path}"}
-
-        if content_format is None:
-            ext = path.suffix.lower()
-            if ext == ".md":
-                content_format = "markdown"
-            elif ext in (".html", ".htm"):
-                content_format = "html"
-            else:
-                return {
-                    "error": (
-                        f"Unsupported file extension '{ext}'. Use .md or .html/.htm, "
-                        "or pass content_format explicitly."
-                    )
-                }
-
-        content = path.read_text(encoding="utf-8")
+        source = _read_doc_source_file(local_path, content_format, format_overridable=True)
+        if isinstance(source, dict):
+            return source
+        content, content_format = source
 
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
-            lc.docs_service,
-            lc.drive_service,
-            lc.doc_cache,
-            lc.folder_id,
+            lc,
             doc_id,
             content,
             content_format,
-            autolink_urls,
-            revoke_sharing,
-            auto_downscale,
+            autolink_urls=autolink_urls,
+            revoke_sharing=revoke_sharing,
+            auto_downscale=auto_downscale,
         )
 
     @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))

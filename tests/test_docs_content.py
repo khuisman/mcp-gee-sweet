@@ -2400,6 +2400,8 @@ class TestCreateDocFromFile:
         result = await _docs_tools["create_doc_from_file"](local_path=str(txt_file), ctx=ctx)
         assert "error" in result
         assert ".txt" in result["error"]
+        # create_doc_from_file has no content_format parameter to suggest (#567).
+        assert "content_format" not in result["error"]
 
 
 class TestUpdateDocFromFile:
@@ -2510,7 +2512,34 @@ class TestUpdateDocFromFile:
         )
         assert "error" in result
         assert ".txt" in result["error"]
+        assert "pass content_format explicitly" in result["error"]
         docs_svc.documents.return_value.get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "flags",
+        [
+            {"autolink_urls": False, "revoke_sharing": True, "auto_downscale": True},
+            {"autolink_urls": True, "revoke_sharing": False, "auto_downscale": False},
+        ],
+    )
+    async def test_flags_reach_apply_doc_content_unswapped(self, tmp_path, flags):
+        # #567: _replace_doc_content's three bools are keyword-only, so each tool
+        # flag must land in its own _apply_doc_content slot.
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("text\n")
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        with patch.object(content_module, "_apply_doc_content", return_value=None) as apply:
+            await _docs_tools["update_doc_from_file"](
+                doc_id="doc1", local_path=str(md_file), ctx=ctx, **flags
+            )
+        args = apply.call_args.args
+        # (docs, drive, doc_id, content, format, autolink, folder, revoke, downscale)
+        assert (args[5], args[7], args[8]) == (
+            flags["autolink_urls"],
+            flags["revoke_sharing"],
+            flags["auto_downscale"],
+        )
 
     async def test_clears_trailing_mark_style_before_deleting_in_its_own_batch(self, tmp_path):
         # Same clear-then-insert mechanism as write_doc_content (#255) — verified here

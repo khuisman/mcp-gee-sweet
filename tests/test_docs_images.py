@@ -317,6 +317,13 @@ class TestDownscaleImageBytes:
     def test_within_both_limits_returns_none(self):
         assert images.downscale_image_bytes(_png_bytes(100, 100)) is None
 
+    def test_still_over_byte_limit_after_shrink_loop_returns_none(self, monkeypatch):
+        # #581: if the bounded shrink loop runs out of attempts while still over the
+        # byte limit, decline instead of returning still-oversized bytes as a success.
+        # No 80x80 PNG encodes under 50 bytes, so no number of attempts can get there.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 50)
+        assert images.downscale_image_bytes(_noise_png_bytes(80, 80)) is None
+
 
 class TestCheckDriveImageMetadata:
     def test_within_both_limits_returns_none(self):
@@ -351,6 +358,19 @@ class TestCheckDriveImageMetadata:
             "imageMediaMetadata": {"width": 14609, "height": 2434},
             "size": str(images.MAX_INLINE_IMAGE_BYTES + 1),
         }
+        result = images.check_drive_image_metadata(metadata)
+        assert result is not None
+        assert "megapixels" in result["error"]
+
+    @pytest.mark.parametrize("size", ["not-a-number", None, ["1"]])
+    def test_malformed_size_is_treated_as_unknown_not_raised(self, size):
+        # #581: both call sites call this outside their try/except, so a malformed
+        # `size` must not raise. It counts as unknown, like a missing one.
+        metadata = {"imageMediaMetadata": {"width": 100, "height": 100}, "size": size}
+        assert images.check_drive_image_metadata(metadata) is None
+
+    def test_malformed_size_still_reports_dimension_violation(self):
+        metadata = {"imageMediaMetadata": {"width": 14609, "height": 2434}, "size": "garbage"}
         result = images.check_drive_image_metadata(metadata)
         assert result is not None
         assert "megapixels" in result["error"]
