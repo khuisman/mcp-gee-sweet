@@ -182,9 +182,16 @@ Active tasks, defects, product decisions, and QA gaps are tracked in [GitHub Iss
 
 ## Pull requests
 
-This project has an opinionated roadmap and is maintained by one person. The direct path to a merged PR is a **bug fix with a clear reproduction**, or an **issue already labeled `ready-for-development`** (only maintainers can apply labels, so this is always a deliberate go-ahead, not a self-service queue). Broader feature ideas are welcome as issue discussions — they may get folded into the roadmap over time, but implementation is planned rather than crowd-sourced. If you're not sure which category your change falls into, open an issue first rather than a PR.
+This project has an opinionated roadmap and is maintained by one person. The direct path to a merged PR is a **bug fix with a clear reproduction**, or an **issue already labeled `ready-for-development`** (only maintainers can apply labels, so this is always a deliberate go-ahead, not a self-service queue). If your PR doesn't have an issue yet:
 
-- One issue per PR — keep scope matched to what the issue actually asks for.
+- **Bug fix:** go ahead and open the PR. A bug fix with a clear reproduction doesn't need an issue first; if there isn't one, a maintainer opens one and links it, so there's nothing more you need to do.
+- **Feature, or anything else that isn't a bug fix:** open an issue first that explains the use case and the reasoning behind your approach. Whether it fits the roadmap gets settled there, before anyone puts review time into a PR. Good ideas may get folded into the roadmap over time, but implementation is planned rather than crowd-sourced.
+
+If you're not sure which category your change falls into, open an issue first rather than a PR.
+
+For every PR:
+
+- One issue per PR (or one bug, for a bug fix without an issue) — keep scope matched to what the issue actually asks for.
 - Open a feature branch before pushing (`feat/`, `fix/`, `docs/` prefixes).
 - Fill out the PR template: what changed and why, the issue it closes, and what testing confirms it. Testing bar by change type:
   - **Bug fix** — a unit test that reproduces the bug and confirms the fix. A live `docs/qa/tests/*.md` test case (see [QA operations](#qa-operations)) is welcome too if you have QA fixtures configured, but it's not required to merge — we'll add live QA coverage as a follow-up before the fix ships in a release.

@@ -2336,6 +2336,18 @@ class TestUpdateSheetProperties:
 
 
 class TestSortRange:
+    @pytest.mark.parametrize(
+        "range_str", ["A1:", "A:", "5:", ":5", ":B", ":B5", "1:B", "ß1", "A\u0661"]
+    )
+    async def test_malformed_bounds_return_error_without_write(self, range_str):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1", sheet="Sheet1", range=range_str, ctx=ctx
+        )
+        assert "Invalid A1 notation" in result["error"]
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
         mock.spreadsheets.return_value.get.return_value.execute.return_value = {
