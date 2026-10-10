@@ -1,13 +1,15 @@
 ## What changed and why
 
-<!-- Brief description. Link the issue this closes: -->
+<!-- Brief description. Link the issue this closes (a bug fix without an issue can
+leave this blank; a maintainer will open one and link it): -->
 
 Closes #
 
 <!-- This project has an opinionated roadmap — see CONTRIBUTING.md's "Pull requests"
 section. The most direct path to a merge is a bug fix with a clear reproduction, or
-an issue already labeled `ready-for-development`. If neither applies, open an issue
-first so the approach can be discussed before you put in the work. -->
+an issue already labeled `ready-for-development`. For a feature or anything else that
+isn't a bug fix, open an issue first explaining the use case and your approach, so
+roadmap fit is settled before you put in the work. -->
 
 ## Testing done
 
