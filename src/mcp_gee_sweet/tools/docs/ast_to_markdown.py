@@ -20,13 +20,22 @@ Known, deliberate gaps (documented rather than silently dropped):
 
 from __future__ import annotations
 
-import html
 import re
+import string
 
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Run, Table
 from .emitter import _build_phantom_set
 
-_MD_ESCAPE = re.compile(r"([\\`*_\[\]])")
+# Characters in plain text that Markdown would otherwise read as syntax. "~" is
+# GFM strikethrough. "<" only when it could open an HTML tag or autolink, and
+# "&" only when it starts an entity reference, so ordinary prose ("a < b",
+# "AT&T") stays readable. Exported text must not be mistaken for the <br> and
+# <code> HTML the exporter writes itself (#938).
+_MD_ESCAPE = re.compile(
+    r"[\\`*_\[\]~]"
+    r"|<(?=[A-Za-z/!?])"
+    r"|&(?=#[0-9]{1,7};|#[xX][0-9a-fA-F]{1,6};|[A-Za-z][A-Za-z0-9]*;)"
+)
 _BACKTICK_RUN = re.compile(r"`+")
 
 # A paragraph whose rendered text starts with one of these (unescaped) would be
@@ -203,15 +212,33 @@ def _coalesce_code_runs(items: list) -> list:
 
 
 def _render_run(run: Run, in_table: bool = False) -> str:
+    """Markdown for one run. `in_table` makes the result safe inside a
+    pipe-table cell (see `_table_safe`)."""
     if run.text == "":
         return ""
     if run.font_family == "Courier New":
-        body = _render_code_run_text(run.text, in_table)
-        if not run.link_url:
-            return body
-        dest = _md_link_dest(run.link_url)
-        return f"[{body}]({_table_safe(dest) if in_table else dest})"
+        return _render_code_run(run, in_table)
+    body = _render_plain_run(run)
+    return _table_safe(body) if in_table else body
 
+
+def _render_code_run(run: Run, in_table: bool) -> str:
+    # Line breaks at either end go outside the link, so a cell's paragraph
+    # break (a leading "\n" from doc_to_ast) or a trailing soft break doesn't
+    # render as a <br> inside the <a>.
+    inner = run.text.strip("\n")
+    if not inner:
+        return "<br>" * len(run.text)
+    lead = "<br>" * (len(run.text) - len(run.text.lstrip("\n")))
+    trail = "<br>" * (len(run.text) - len(run.text.rstrip("\n")))
+    body = _render_code_run_text(inner, in_table)
+    if run.link_url:
+        dest = _md_link_dest(run.link_url)
+        body = f"[{body}]({_table_safe(dest) if in_table else dest})"
+    return f"{lead}{body}{trail}"
+
+
+def _render_plain_run(run: Run) -> str:
     # CommonMark emphasis delimiters can't have whitespace on the inner side
     # (e.g. "**Bold **" doesn't close — the space right before "**" means it
     # renders as literal asterisks, not bold). Keep leading/trailing
@@ -237,7 +264,7 @@ def _render_run(run: Run, in_table: bool = False) -> str:
 
 
 def _escape(text: str) -> str:
-    return _MD_ESCAPE.sub(r"\\\1", text)
+    return _MD_ESCAPE.sub(lambda m: "\\" + m.group(), text)
 
 
 def _longest_backtick_run(text: str) -> int:
@@ -281,14 +308,16 @@ def _render_code_run_text(text: str, in_table: bool) -> str:
     In a table cell, a "|" splits the cell before inline parsing, and the
     GFM `\\|` escape inside a code span shows its backslash in renderers
     that don't implement that rule. A line holding a "|" is written as raw
-    HTML <code> with the pipe as an entity instead, which no table parser
-    splits on."""
+    HTML <code> instead, which no table parser splits on. Text inside raw
+    HTML is still parsed as Markdown, so every ASCII punctuation character
+    becomes a numeric entity: an entity is never Markdown syntax, and a
+    backslash can't escape the "&" that starts one."""
     spans: list[str] = []
     for line in text.split("\n"):
         if not line:
             spans.append("")
         elif in_table and "|" in line:
-            escaped = html.escape(line, quote=False).replace("|", "&#124;")
+            escaped = "".join(f"&#{ord(c)};" if c in string.punctuation else c for c in line)
             spans.append(f"<code>{escaped}</code>")
         else:
             spans.append(_code_span(line))
@@ -326,31 +355,32 @@ def _render_cell(cell: Cell) -> str:
             parts.append(_NESTED_TABLE_PLACEHOLDER)
         elif isinstance(child, Image):
             parts.append(_table_safe(f"![{_escape(child.alt or '')}]({_md_link_dest(child.src)})"))
-        elif _is_code_run(child):
-            # Already table-safe: _render_code_run_text handles its own
-            # newlines and pipes, and escaping its output again would put a
-            # literal backslash inside the code (#938).
-            parts.append(_render_run(child, in_table=True))
         else:
-            parts.append(_table_safe(_render_run(child)))
-    # Pipe-table cells are single-line: a literal newline (from a multi-
-    # paragraph cell, see doc_to_ast.py's _cell_content_to_children) would
-    # break the table's row structure, so it becomes a <br> instead. "|" is
-    # escaped for the same structural reason.
-    #
-    # \n -> <br> conversion must happen BEFORE strip(), not after (#594 QA
-    # round 2): a spacer paragraph at the very start or end of a cell (as
-    # opposed to one sandwiched between two real lines) shows up here as a
-    # leading/trailing "\n" on the joined text — stripping first, as an
-    # earlier version of this function did, silently ate exactly that
-    # newline, making an edge spacer indistinguishable from a cell with no
-    # spacer at all. "<br>" is not whitespace, so converting first means
-    # strip() only removes genuine incidental whitespace, never a spacer
-    # that's already been turned into a <br> marker.
+            parts.append(_render_run(child, in_table=True))
+    # Every part is already table-safe, with its newlines turned into <br>,
+    # so strip() here only removes incidental whitespace, never an edge
+    # spacer paragraph (#594 QA round 2; see _table_safe).
     return "".join(parts).strip()
 
 
 def _table_safe(text: str) -> str:
+    """Make rendered non-code Markdown safe inside a pipe-table cell.
+
+    Pipe-table cells are single-line: a literal newline (from a multi-
+    paragraph cell, see doc_to_ast.py's _cell_content_to_children) would
+    break the table's row structure, so it becomes a <br> instead. "|" is
+    escaped for the same structural reason.
+
+    This runs per part, before _render_cell's strip(), not on the joined
+    cell text after it (#594 QA round 2): a spacer paragraph at the very
+    start or end of a cell shows up as a leading/trailing "\\n", and
+    stripping first silently ate exactly that newline. "<br>" is not
+    whitespace, so converting first keeps the spacer.
+
+    Code runs never go through this: _render_code_run_text writes its own
+    <br> and table-safe <code>, and escaping its output again would put a
+    literal backslash inside the code (#938). Only a code link's
+    destination is passed through here."""
     return text.replace("\n", "<br>").replace("|", "\\|")
 
 

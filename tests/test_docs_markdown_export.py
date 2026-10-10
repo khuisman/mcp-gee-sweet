@@ -1091,3 +1091,48 @@ class TestTableCellCodeCommonMark:
         rendered, cell = self._render_cell([_code("c", link_url="https://e.example/a|b")])
         assert rendered.splitlines()[2].count("|") - rendered.splitlines()[2].count("\\|") == 2
         assert cell == '<a href="https://e.example/a%7Cb"><code>c</code></a>'
+
+    def test_pipe_code_keeps_markdown_punctuation_literal(self):
+        # Text inside raw <code> is still parsed as Markdown (PR #968 QA round 1).
+        text = "a|*b* _c_ [x](y) ~~d~~ `e` <i> &amp;"
+        rendered, cell = self._render_cell([_code(text)])
+        assert cell == "<code>a|*b* _c_ [x](y) ~~d~~ `e` &lt;i&gt; &amp;amp;</code>"
+
+    def test_backslash_before_pipe_in_code_survives(self):
+        _, cell = self._render_cell([_code("C:\\|x")])
+        assert cell == "<code>C:\\|x</code>"
+
+    def test_linked_code_paragraph_break_lands_outside_the_link(self):
+        url = "https://e.example"
+        _, cell = self._render_cell([_code("x"), _code("\nb", link_url=url)])
+        assert cell == f'<code>x</code><br><a href="{url}"><code>b</code></a>'
+
+    def test_plain_run_rendered_in_table_is_table_safe(self):
+        from mcp_gee_sweet.tools.docs.ast_to_markdown import _render_run
+
+        assert _render_run(Run(text="a|b\nc"), in_table=True) == "a\\|b<br>c"
+
+
+class TestPlainTextEscapingCommonMark:
+    """PR #968 QA round 1: plain text that looks like HTML, an entity, or GFM
+    strikethrough must export as literal text."""
+
+    def test_html_entity_and_tilde_render_literally(self):
+        text = "Use <br> or &#124; and &amp; and ~~old~~ </p> <!-- x -->"
+        rendered = ast_to_markdown([Paragraph(runs=[Run(text=text)])])
+        inline = next(t for t in _COMMONMARK.parse(rendered) if t.type == "inline")
+        assert [t.type for t in inline.children] == ["text"]
+        assert inline.children[0].content == text
+
+    def test_prose_ampersand_and_less_than_stay_unescaped(self):
+        rendered = ast_to_markdown([Paragraph(runs=[Run(text="AT&T: a < b & c")])])
+        assert rendered == "AT&T: a < b & c\n"
+
+    def test_linked_code_trailing_soft_break_lands_outside_the_link(self):
+        url = "https://e.example"
+        nodes = [Paragraph(runs=[Run(text="a "), _code("x\n", link_url=url), Run(text="b")])]
+        rendered = ast_to_markdown(nodes)
+        assert rendered == f"a [`x`]({url})<br>b\n"
+        assert _COMMONMARK.render(rendered) == (
+            f'<p>a <a href="{url}"><code>x</code></a><br>b</p>\n'
+        )

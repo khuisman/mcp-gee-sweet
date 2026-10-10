@@ -3550,6 +3550,27 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 ---
 
+### TC-DOC208: Markdown punctuation inside table-cell `<code>`, linked code after a cell break, and HTML-like plain text all export literally (#938)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content=...)` with this content. The `\` in `C:\|x` is one literal backslash character.
+
+```html
+<table><tr><td>Head</td></tr><tr><td><code>a|*b* _c_</code></td></tr><tr><td><code>C:\|x</code></td></tr><tr><td><code>x</code><br><a href="https://example.com/b"><code>b</code></a></td></tr></table><p>Use &lt;br&gt; or &amp;#124; and ~~old~~, AT&amp;T a &lt; b</p>
+```
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains the row `| <code>a&#124;&#42;b&#42; &#95;c&#95;</code> |`: every punctuation character inside raw `<code>` is a numeric entity
+- `markdown` contains the row `| <code>C&#58;&#92;&#124;x</code> |`: the backslash is an entity too, so it can't escape the pipe's `&`
+- `markdown` contains the row `` | `x`<br>[`b`](https://example.com/b) | ``: the `<br>` from the cell's paragraph break is outside the link
+- `markdown` contains the paragraph `Use \<br> or \&#124; and \~\~old\~\~, AT&T a < b`: `<` before a tag, `&` starting an entity, and `~` are escaped; `AT&T` and `a < b` are not
+- Rendering `markdown` with `markdown-it-py`'s `commonmark` preset with `table` enabled gives cells `<code>a|*b* _c_</code>`, `<code>C:\|x</code>`, and `<code>x</code><br><a href="https://example.com/b"><code>b</code></a>`, with no `<em>` inside any `<code>`, and the paragraph renders as literal text (no line break, no `|`, no strikethrough)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
 ## Orphan fileId on inline-image sharing failure (#649)
 
 Mirrors #420's fix in `drive/transfer.py` (see TC-D249/TC-D250 in `docs/qa/tests/drive_transfer.md`) applied to the same create()-succeeds-but-follow-up-fails shape in `docs/images.py`'s `upload_and_share_image` and `docs/content.py`'s `_resolve_image_source`: a transient failure in the `permissions().create()`/`files().get()` sharing step, after `files().create()` (or an already-uploaded `_upload_local_file`) had already succeeded, previously returned a bare `{"error": ...}` with no way to find the Drive file that now genuinely exists. Not reliably reproducible live (would require forcing a transient API failure in the exact window between create and share); verified by unit test instead, matching TC-D249/TC-D250's own convention.

@@ -128,8 +128,13 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   case). Adjacent code runs sharing a link merge into one span, since two spans side by side
   would read as one. An inline code run's line breaks become `<br>` between separate spans: a
   span can't hold a line break, and a raw newline could start a new block. In a table cell, a
-  code line containing `|` renders as raw HTML `<code>` with the pipe as `&#124;`, because the
-  GFM `\|` escape shows its backslash in renderers that don't implement it. The export tests
+  code line containing `|` renders as raw HTML `<code>`, because the GFM `\|` escape shows its
+  backslash in renderers that don't implement it. Text inside raw HTML is still parsed as
+  Markdown, so every ASCII punctuation character in that line becomes a numeric entity
+  (`&#124;`, `&#42;`, `&#92;`, ...). Line breaks at either end of a linked code run go outside the
+  link. Because the exporter writes its own `<br>`/`<code>` HTML, plain text escapes `~`, a `<`
+  that could open a tag, and an `&` that starts an entity, so typed markup can't pass for
+  exporter markup. The export tests
   check these against a strict CommonMark parser (`markdown-it-py`), since Python-Markdown
   strips whitespace in code spans and closes a fence only on an exact-length match.
 - **Tight vs. loose lists**: consecutive `BulletItem` nodes are joined with a single `"\n"`
