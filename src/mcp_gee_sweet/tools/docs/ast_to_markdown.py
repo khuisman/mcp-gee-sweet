@@ -26,6 +26,7 @@ from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragrap
 from .emitter import _build_phantom_set
 
 _MD_ESCAPE = re.compile(r"([\\`*_\[\]])")
+_BACKTICK_RUN = re.compile(r"`+")
 
 # A paragraph whose rendered text starts with one of these (unescaped) would be
 # misread by any CommonMark parser as a different block type entirely — an ATX
@@ -92,16 +93,23 @@ def _render_code_block(node: Paragraph) -> str:
     Run text did."""
     segments: list[str] = []
     buffer = ""
+
+    def fenced(text: str) -> str:
+        # Literal fences in the content must never close the surrounding block.
+        ticks = max((len(match.group()) for match in _BACKTICK_RUN.finditer(text)), default=0)
+        fence = "`" * max(3, ticks + 1)
+        return f"{fence}\n{text}\n{fence}"
+
     for item in node.runs:
         if isinstance(item, Run):
             buffer += item.text
         else:
             if buffer:
-                segments.append(f"```\n{buffer}\n```")
+                segments.append(fenced(buffer))
                 buffer = ""
             segments.append(f"![{_escape(item.alt or '')}]({_md_link_dest(item.src)})")
     if buffer:
-        segments.append(f"```\n{buffer}\n```")
+        segments.append(fenced(buffer))
     return "\n\n".join(segments)
 
 
@@ -177,7 +185,9 @@ def _render_run(run: Run) -> str:
     if run.font_family == "Courier New":
         # Use a delimiter longer than any literal backtick sequence in the
         # content, and separate edge backticks from that delimiter.
-        ticks = max((len(match.group()) for match in re.finditer(r"`+", run.text)), default=0) + 1
+        ticks = (
+            max((len(match.group()) for match in _BACKTICK_RUN.finditer(run.text)), default=0) + 1
+        )
         fence = "`" * ticks
         content = run.text
         if content.startswith("`") or content.endswith("`"):
