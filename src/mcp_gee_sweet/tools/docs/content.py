@@ -846,10 +846,10 @@ def register(tool):
         supported and are silently dropped. Per-image outcomes (including any resolution
         or sharing failure) are returned under "images" when the content had any.
 
-        A local-path or drive: image over Google Docs' ~25-megapixel inline-image limit
-        fails with a clear error naming the limit and its actual size, before any
-        upload/share happens — set auto_downscale=True to resize it instead (see that
-        arg's own docs). A public http(s) image can't be pre-validated this way; an
+        A local-path or drive: image over Google Docs' ~25-megapixel or ~50MB
+        inline-image limit fails with a clear error naming the limit it exceeds and
+        its actual dimensions or file size, before any upload/share happens — set
+        auto_downscale=True to resize it instead (see that arg's own docs). A public http(s) image can't be pre-validated this way; an
         oversized one instead fails at the embed step with a rewritten error explaining
         the likely cause.
 
