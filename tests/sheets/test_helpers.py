@@ -48,6 +48,40 @@ class TestLetterToColumnIndex:
 
 
 class TestParseA1Notation:
+    @pytest.mark.parametrize(
+        "range_str",
+        [
+            "A1:",
+            "A:",
+            "5:",
+            ":5",
+            ":B",
+            ":B5",
+            "1:B",
+            "A:5",
+            "A:B5",
+            "ß1",
+            "ﬀ1",
+            "A\u0661",
+            "\u212a1",
+        ],
+    )
+    def test_missing_incompatible_or_non_ascii_bounds_raise(self, range_str):
+        with pytest.raises(ValueError, match="Invalid A1 notation"):
+            _parse_a1_notation(range_str)
+
+    def test_invalid_newline_is_visible_in_error(self):
+        with pytest.raises(ValueError) as exc:
+            _parse_a1_notation("A1\n")
+        assert str(exc.value) == "Invalid A1 notation: 'A1\\n'"
+
+    def test_cell_to_row_range(self):
+        assert _parse_a1_notation("b2:5") == {
+            "startColumnIndex": 1,
+            "startRowIndex": 1,
+            "endRowIndex": 5,
+        }
+
     @pytest.mark.parametrize("range_str", [":", "A1\n", "1:2\n", "B:D\n"])
     def test_incomplete_or_trailing_newline_range_raises(self, range_str):
         with pytest.raises(ValueError, match="Invalid A1 notation"):

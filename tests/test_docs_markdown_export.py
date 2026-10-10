@@ -22,6 +22,22 @@ from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
 
 
+@pytest.mark.parametrize("ticks", [3, 4, 6])
+@pytest.mark.parametrize("interleaved_image", [False, True])
+def test_code_block_preserves_literal_backtick_fences(ticks, interleaved_image):
+    content = f"before\n{'`' * ticks}\nafter"
+    runs = [Run(text=content, font_family="Courier New")]
+    if interleaved_image:
+        runs += [Image(src="https://example.com/image.png"), *runs]
+    rendered = ast_to_markdown([Paragraph(runs=runs)])
+    html = markdown.markdown(rendered, extensions=["fenced_code"])
+    root = ElementTree.fromstring(f"<root>{html}</root>")
+    blocks = root.findall("pre/code")
+    expected = [content + "\n"] * (2 if interleaved_image else 1)
+    assert [block.text for block in blocks] == expected
+    assert len(root.findall("p/img")) == int(interleaved_image)
+
+
 def _para(text, style=None, bullet=None, para_style=None):
     elem = {"paragraph": {"elements": [{"textRun": {"content": text, "textStyle": style or {}}}]}}
     if bullet:
