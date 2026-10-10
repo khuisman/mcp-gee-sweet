@@ -303,6 +303,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] Kai applies `community` at intake to outside-contributor PRs/issues, plus `needs-ticket` (PR with no linked issue) and `verify-content` (unreproduced contributor issue), and its prompt says how to resolve a community PR colliding with a lane ticket — Bob's track (PR #943) ([#942](https://github.com/khuisman/mcp-gee-sweet/issues/942))
 - [x] Kai intake follow-up: find a PR's issue references in comments and commit messages too, and report (don't act on) an unreferenced PR that likely duplicates a lane issue — Bob's track (PR #946) ([#945](https://github.com/khuisman/mcp-gee-sweet/issues/945))
 - [x] Team launch: pin each role's model and effort explicitly in the Makefile instead of inheriting the client default — Bob's track (PR #949) ([#947](https://github.com/khuisman/mcp-gee-sweet/issues/947))
+- [ ] `qa.md` steps 7–8: every QA round comment starts with the fixed line `## QA round <N> (<Name>) @ <short-sha>: <sent back|approved>`, so round counts and verdicts are machine-readable — Bob's track ([#960](https://github.com/khuisman/mcp-gee-sweet/issues/960))
 
 **Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, merged 2026-09-25)_
 - [x] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
