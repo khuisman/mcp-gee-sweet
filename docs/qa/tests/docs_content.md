@@ -3527,6 +3527,8 @@ Edge spacers (single <br> each): markdown = "| Trailing test<br> |\n| --- |\n| <
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-10-10) ✅ PASS — Kit, PR #968 round 1 (`d2449f7`).** `get_doc_as_markdown` returned ``pad `  both ends  ` end\n\nadj ```x``y``` end``. markdown-it-py 4.2.0's `commonmark` preset rendered `<code> both ends </code>` and `<code>x``y</code>`. Fixture content was written back.
+
 ---
 
 ### TC-DOC207: Inline code in a table cell keeps a literal `|` and puts line breaks outside the code (#938)
@@ -3543,6 +3545,8 @@ Edge spacers (single <br> each): markdown = "| Trailing test<br> |\n| --- |\n| <
 Not covered live: a soft break (Shift+Enter) inside an inline code run in a paragraph that also has plain text. No tool can build one (`style_doc_range` doesn't set a font), so unit tests cover it (`TestInlineCodeCommonMark::test_newline_in_inline_code_does_not_start_a_new_block`).
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-10) ✅ PASS (checks as written); ❌ probe beyond the case — Kit, PR #968 round 1 (`d2449f7`).** `get_doc_as_markdown` returned both expected rows exactly: `| pipe <code>a&#124;b</code> and a\|b |` and `` | `x`<br><code>y&#124;z</code> | ``. markdown-it-py's `commonmark` preset with `table` enabled rendered a one-column table with `<code>a|b</code>` and `<code>x</code><br><code>y|z</code>`, and no backslash. Probe: a cell with code `a|*b* _c_` exported as `<code>a&#124;*b* _c_</code>`, which renders `<em>` inside the `<code>`. A cell with code `C:\|x` exported as `<code>C:\&#124;x</code>`, which renders as `C:&amp;#124;x`. Both are sent back on the PR. Fixture content was written back.
 
 ---
 
