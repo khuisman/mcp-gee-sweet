@@ -50,13 +50,18 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     """
     Parse A1 notation range to row/column indices.
 
+    Accept a cell (A1), column (A), or row (1); cell-to-cell (A1:B2),
+    column-to-column (A:B), row-to-row (1:2), and cell-to-column/row
+    (B2:D or B2:5) ranges. Letters and digits must be ASCII; letters
+    are case-insensitive. Both bounds are required when a colon is present.
+
     Returns a dict with applicable keys: startRowIndex, endRowIndex,
     startColumnIndex, endColumnIndex. Not all keys present for all formats.
     Open-ended ranges (e.g. "B2:D") omit endRowIndex so the API treats them
     as extending to the last row of the sheet.
 
     Raises ValueError for empty/malformed strings, a row number below 1
-    (matched by the regex's bare \\d+ but not a valid 1-based A1 row, e.g.
+    (matched by the regex's [0-9]+ but not a valid 1-based A1 row, e.g.
     "A0"), or an end bound at or before its start bound (e.g. "A5:A2" or
     "A5:A4") — otherwise these reach the Sheets API as a raw HttpError
     instead of the local {"error": ...} every call site returns on a
@@ -65,16 +70,23 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     if not range_str:
         raise ValueError("Invalid A1 notation: empty string")
 
-    match = re.fullmatch(r"([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?", range_str.upper())
+    # Validate compatible shapes before extracting their common four bounds.
+    flags = re.ASCII | re.IGNORECASE
+    valid_shape = re.fullmatch(
+        r"(?:[A-Z]+[0-9]+(?::(?:[A-Z]+[0-9]*|[0-9]+))?"
+        r"|[A-Z]+(?::[A-Z]+)?|[0-9]+(?::[0-9]+)?)",
+        range_str,
+        flags,
+    )
+    if not valid_shape:
+        raise ValueError(f"Invalid A1 notation: {range_str!r}")
 
-    if not match or not any(match.groups()):
-        raise ValueError(f"Invalid A1 notation: {range_str}")
-
+    match = re.fullmatch(r"([A-Z]+)?([0-9]+)?(?::([A-Z]+)?([0-9]+)?)?", range_str, flags)
     start_col, start_row, end_col, end_row = match.groups()
     has_colon = ":" in range_str
 
     if (start_row is not None and int(start_row) < 1) or (end_row is not None and int(end_row) < 1):
-        raise ValueError(f"Invalid A1 notation: row must be 1 or greater: {range_str}")
+        raise ValueError(f"Invalid A1 notation: row must be 1 or greater: {range_str!r}")
 
     result = {}
 
@@ -94,9 +106,9 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
         result["endRowIndex"] = result["startRowIndex"] + 1
 
     if "endRowIndex" in result and result["endRowIndex"] <= result.get("startRowIndex", 0):
-        raise ValueError(f"Invalid A1 notation: end row precedes start row: {range_str}")
+        raise ValueError(f"Invalid A1 notation: end row precedes start row: {range_str!r}")
     if "endColumnIndex" in result and result["endColumnIndex"] <= result.get("startColumnIndex", 0):
-        raise ValueError(f"Invalid A1 notation: end column precedes start column: {range_str}")
+        raise ValueError(f"Invalid A1 notation: end column precedes start column: {range_str!r}")
 
     return result
 
