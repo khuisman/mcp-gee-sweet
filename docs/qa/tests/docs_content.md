@@ -3514,6 +3514,38 @@ Edge spacers (single <br> each): markdown = "| Trailing test<br> |\n| --- |\n| <
 
 ---
 
+### TC-DOC206: Inline code keeps a space at both ends, and adjacent code runs export as one span (#938)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p>pad <code> both ends </code> end</p><p>adj <code>x`</code><b><code>`y</code></b> end</p>")`. The bold change splits the second paragraph's code into two Courier New runs.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains ``pad `  both ends  ` end``: one extra space a side, since CommonMark strips one space from each end when both ends have one
+- `markdown` contains ```` adj ```x``y``` end ````: the two runs merge into one span, with a three-backtick delimiter around the two-backtick run
+- Rendering `markdown` with a strict CommonMark renderer (e.g. `markdown-it-py`'s `commonmark` preset, not Python `markdown`, which strips code-span whitespace) gives `<code> both ends </code>` and `<code>x``y</code>`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC207: Inline code in a table cell keeps a literal `|` and puts line breaks outside the code (#938)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Head</td></tr><tr><td>pipe <code>a|b</code> and a|b</td></tr><tr><td><code>x</code><br><code>y|z</code></td></tr></table>")`. The last cell has two code-styled paragraphs.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains the row `| pipe <code>a&#124;b</code> and a\|b |`: the code's pipe is an HTML entity inside raw `<code>`, with no backslash, and the plain-text pipe is still escaped
+- `markdown` contains the row `` | `x`<br><code>y&#124;z</code> | ``: the cell's paragraph break is a `<br>` between two code elements, not inside one
+- Rendering `markdown` with a GFM-table renderer (e.g. `markdown-it-py`'s `commonmark` preset with `table` enabled) gives a one-column table whose cells contain `<code>a|b</code>` and `<code>x</code><br><code>y|z</code>`. No cell shows a backslash
+
+Not covered live: a soft break (Shift+Enter) inside an inline code run in a paragraph that also has plain text. No tool can build one (`style_doc_range` doesn't set a font), so unit tests cover it (`TestInlineCodeCommonMark::test_newline_in_inline_code_does_not_start_a_new_block`).
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
 ## Orphan fileId on inline-image sharing failure (#649)
 
 Mirrors #420's fix in `drive/transfer.py` (see TC-D249/TC-D250 in `docs/qa/tests/drive_transfer.md`) applied to the same create()-succeeds-but-follow-up-fails shape in `docs/images.py`'s `upload_and_share_image` and `docs/content.py`'s `_resolve_image_source`: a transient failure in the `permissions().create()`/`files().get()` sharing step, after `files().create()` (or an already-uploaded `_upload_local_file`) had already succeeded, previously returned a bare `{"error": ...}` with no way to find the Drive file that now genuinely exists. Not reliably reproducible live (would require forcing a transient API failure in the exact window between create and share); verified by unit test instead, matching TC-D249/TC-D250's own convention.

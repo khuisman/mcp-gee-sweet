@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 import markdown
 import pytest
+from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
@@ -21,6 +22,16 @@ from mcp_gee_sweet.tools.docs.ast import (
 from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
 
+# Strict CommonMark, plus GFM pipe tables. Python-Markdown (used by some older
+# tests below) strips whitespace inside code spans and closes a fence only on an
+# exact-length match, so it can't catch padding or fence-length regressions
+# (#938).
+_COMMONMARK = MarkdownIt("commonmark").enable("table")
+
+
+def _code(text, **kwargs):
+    return Run(text=text, font_family="Courier New", **kwargs)
+
 
 @pytest.mark.parametrize("ticks", [3, 4, 6])
 @pytest.mark.parametrize("interleaved_image", [False, True])
@@ -30,12 +41,14 @@ def test_code_block_preserves_literal_backtick_fences(ticks, interleaved_image):
     if interleaved_image:
         runs += [Image(src="https://example.com/image.png"), *runs]
     rendered = ast_to_markdown([Paragraph(runs=runs)])
-    html = markdown.markdown(rendered, extensions=["fenced_code"])
-    root = ElementTree.fromstring(f"<root>{html}</root>")
-    blocks = root.findall("pre/code")
+    assert rendered.startswith("`" * (ticks + 1) + "\nbefore\n")
+    tokens = _COMMONMARK.parse(rendered)
+    blocks = [t.content for t in tokens if t.type == "fence"]
     expected = [content + "\n"] * (2 if interleaved_image else 1)
-    assert [block.text for block in blocks] == expected
-    assert len(root.findall("p/img")) == int(interleaved_image)
+    assert blocks == expected
+    assert sum(t.type == "image" for t in tokens for t in (t.children or [])) == int(
+        interleaved_image
+    )
 
 
 def _para(text, style=None, bullet=None, para_style=None):
@@ -957,3 +970,124 @@ def test_inline_code_backticks_survive_markdown_rendering(text, link_url):
     assert code.text == text
     if link_url:
         assert rendered.find("a").attrib["href"] == link_url
+
+
+def _inline_code(markdown_text):
+    """Each code span's content in the first paragraph, as strict CommonMark parses it."""
+    inline = next(t for t in _COMMONMARK.parse(markdown_text) if t.type == "inline")
+    return [t.content for t in inline.children if t.type == "code_inline"]
+
+
+class TestInlineCodeCommonMark:
+    """#938: code-span edge cases checked against a strict CommonMark parser."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "call(`value`)",
+            "`leading",
+            "trailing`",
+            "``nested``",
+            " both ends ",
+            " leading only",
+            "trailing only ",
+            "  ",
+            " `x` ",
+            "  double  ",
+        ],
+    )
+    @pytest.mark.parametrize("link_url", [None, "https://example.com/code"])
+    def test_code_span_content_survives_exactly(self, text, link_url):
+        nodes = [Paragraph(runs=[Run(text="see "), _code(text, link_url=link_url), Run(text=".")])]
+        assert _inline_code(ast_to_markdown(nodes)) == [text]
+
+    def test_adjacent_code_runs_merge_into_one_span(self):
+        # Docs splits a run at a style change; Markdown can't show bold code.
+        nodes = [Paragraph(runs=[Run(text="a "), _code("x`"), _code("`y", bold=True)])]
+        assert _inline_code(ast_to_markdown(nodes)) == ["x``y"]
+
+    def test_adjacent_code_runs_with_same_link_merge(self):
+        url = "https://example.com"
+        nodes = [
+            Paragraph(runs=[Run(text="a "), _code("x", link_url=url), _code("y", link_url=url)])
+        ]
+        assert ast_to_markdown(nodes) == f"a [`xy`]({url})\n"
+
+    def test_adjacent_code_runs_with_different_links_stay_separate(self):
+        nodes = [
+            Paragraph(
+                runs=[
+                    Run(text="a "),
+                    _code("x", link_url="https://a.example"),
+                    _code("y", link_url="https://b.example"),
+                    _code("z"),
+                ]
+            )
+        ]
+        assert _inline_code(ast_to_markdown(nodes)) == ["x", "y", "z"]
+
+    def test_code_run_merge_does_not_mutate_input(self):
+        first, second = _code("x"), _code("y")
+        ast_to_markdown([Paragraph(runs=[Run(text="a "), first, second])])
+        assert (first.text, second.text) == ("x", "y")
+
+    def test_newline_in_inline_code_does_not_start_a_new_block(self):
+        nodes = [Paragraph(runs=[Run(text="a "), _code("x\n# y\n- z\n\nw"), Run(text=" b")])]
+        rendered = ast_to_markdown(nodes)
+        tokens = _COMMONMARK.parse(rendered)
+        assert [t.type for t in tokens] == ["paragraph_open", "inline", "paragraph_close"]
+        assert _inline_code(rendered) == ["x", "# y", "- z", "w"]
+        assert rendered == "a `x`<br>`# y`<br>`- z`<br><br>`w` b\n"
+
+    def test_newline_in_inline_code_inside_blockquote_stays_one_line(self):
+        nodes = [Paragraph(runs=[Run(text="a "), _code("x\ny")], blockquote_depth=1)]
+        assert ast_to_markdown(nodes) == "> a `x`<br>`y`\n"
+
+
+class TestTableCellCodeCommonMark:
+    """#938: inline code inside a GFM pipe-table cell."""
+
+    def _render_cell(self, children):
+        from mcp_gee_sweet.tools.docs.ast import Cell, Row
+
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text="h")])]),
+                Row(cells=[Cell(children=children)]),
+            ]
+        )
+        rendered = ast_to_markdown([table])
+        html = _COMMONMARK.render(rendered)
+        return rendered, html[html.index("<td>") + 4 : html.index("</td>")]
+
+    def test_pipe_in_code_has_no_backslash(self):
+        rendered, cell = self._render_cell([_code("a|b")])
+        assert "\\" not in rendered
+        assert cell == "<code>a|b</code>"
+
+    def test_pipe_code_escapes_html_special_characters(self):
+        _, cell = self._render_cell([_code("<a> & b|c")])
+        assert cell == "<code>&lt;a&gt; &amp; b|c</code>"
+
+    def test_code_without_pipe_stays_a_code_span(self):
+        rendered, cell = self._render_cell([_code(" `x` ")])
+        assert "| ``  `x`  `` |" in rendered
+        assert cell == "<code> `x` </code>"
+
+    def test_newline_in_code_becomes_br_outside_the_code(self):
+        _, cell = self._render_cell([Run(text="t "), _code("x\ny")])
+        assert cell == "t <code>x</code><br><code>y</code>"
+
+    def test_code_paragraphs_in_one_cell_join_with_br(self):
+        # doc_to_ast prefixes the second paragraph's first run with "\n".
+        _, cell = self._render_cell([_code("x"), _code("\ny|z")])
+        assert cell == "<code>x</code><br><code>y|z</code>"
+
+    def test_plain_pipe_next_to_code_is_still_escaped(self):
+        _, cell = self._render_cell([Run(text="a|b "), _code("c")])
+        assert cell == "a|b <code>c</code>"
+
+    def test_linked_code_with_pipe_in_url_stays_in_one_cell(self):
+        rendered, cell = self._render_cell([_code("c", link_url="https://e.example/a|b")])
+        assert rendered.splitlines()[2].count("|") - rendered.splitlines()[2].count("\\|") == 2
+        assert cell == '<a href="https://e.example/a%7Cb"><code>c</code></a>'

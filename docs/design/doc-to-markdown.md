@@ -120,6 +120,18 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   next to ordinary text in the same paragraph — the one case it can't resolve (a paragraph
   containing *only* a single inline code span, nothing else) is the genuinely ambiguous case
   documented above, not a bug in the heuristic.
+- **Code delimiters** (#923, #940, #938): a code span's content is literal, so the serializer
+  can only pick a delimiter and padding. A fenced block's fence and an inline span's delimiter
+  are one backtick longer than the longest backtick run in the content (fences at least 3).
+  An inline span is padded with one space a side when its content starts or ends with a
+  backtick, or starts *and* ends with a space (CommonMark strips one space from each end in that
+  case). Adjacent code runs sharing a link merge into one span, since two spans side by side
+  would read as one. An inline code run's line breaks become `<br>` between separate spans: a
+  span can't hold a line break, and a raw newline could start a new block. In a table cell, a
+  code line containing `|` renders as raw HTML `<code>` with the pipe as `&#124;`, because the
+  GFM `\|` escape shows its backslash in renderers that don't implement it. The export tests
+  check these against a strict CommonMark parser (`markdown-it-py`), since Python-Markdown
+  strips whitespace in code spans and closes a fence only on an exact-length match.
 - **Tight vs. loose lists**: consecutive `BulletItem` nodes are joined with a single `"\n"`
   rather than the `"\n\n"` used between other block types — CommonMark still parses a
   blank-line-separated run of list items as one list either way (just "loose", wrapped in `<p>`
