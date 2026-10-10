@@ -1095,7 +1095,7 @@ class TestTableCellCodeCommonMark:
     def test_pipe_code_keeps_markdown_punctuation_literal(self):
         # Text inside raw <code> is still parsed as Markdown (PR #968 QA round 1).
         text = "a|*b* _c_ [x](y) ~~d~~ `e` <i> &amp;"
-        rendered, cell = self._render_cell([_code(text)])
+        _, cell = self._render_cell([_code(text)])
         assert cell == "<code>a|*b* _c_ [x](y) ~~d~~ `e` &lt;i&gt; &amp;amp;</code>"
 
     def test_backslash_before_pipe_in_code_survives(self):
