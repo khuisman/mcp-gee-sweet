@@ -14,6 +14,9 @@ Cut a stable release: merge `develop` → `main`, tag, publish to PyPI via a Git
    - Merge with `gh pr merge <number> --admin --merge` — a real merge commit, **not** `--squash`. This repo's existing `main` history is a chain of "Merge pull request #NNN from khuisman/develop" merge commits (see `git log origin/main`), not squashed releases; squashing here would collapse that convention. `--admin` is required the same way it is in `/merge-pr`: `main` requires 1 approving review that will never come from a solo maintainer, and `enforce_admins` is `false` specifically so this bypass is allowed — it must never be used to skip the "Lint and test" check itself.
 4. **Tag the merge commit.**
    - `git fetch origin main`
+   - **Check that every README image URL is absolute, before tagging.** `README.md` becomes the PyPI project page, which doesn't resolve repo-relative image paths the way GitHub does. A relative `src` renders as a broken image there, and a published release's README can't be changed afterward (#706; v0.9.1 shipped with the same broken logo). Run:
+     `git show origin/main:README.md | python3 -c 'import re,sys; d=sys.stdin.read(); s=[a or b for a,b in re.findall(r"<img[^>]*\ssrc=\"([^\"]+)\"|!\[[^\]]*\]\(([^)\s]+)", d)]; bad=[x for x in s if not x.startswith("https://")]; print("images:", s); sys.exit("not absolute: %s" % bad if bad else 0)'`
+     It must exit 0. On a nonzero exit, stop: don't tag. Report the listed URLs to the user, since fixing them takes a PR to `develop` and a new `develop` → `main` merge.
    - `git tag vX.Y.Z origin/main`
    - `git push origin vX.Y.Z`
 5. **Create the GitHub Release from that tag** — `gh release create vX.Y.Z --title vX.Y.Z --generate-notes` (target `main`). This is what fires `.github/workflows/release.yml`'s `pypi-publish` job.

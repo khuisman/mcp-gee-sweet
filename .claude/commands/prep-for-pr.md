@@ -32,6 +32,7 @@ Review the current branch against this checklist and report the status of each i
 
 - [ ] **Design doc** — if the work involved an architectural decision or a non-obvious design choice, is it captured in `docs/design/`?
 - [ ] **CLAUDE.md** — if a new tool was added or the architecture changed, does `CLAUDE.md` reflect it?
+- [ ] **README image URLs** — if `README.md` changed, every image (`<img src>` or `![](...)`) uses an absolute `https://` URL. The README becomes the PyPI project page, where a repo-relative path renders as a broken image (#706).
 - [ ] **`docs/auth.md` — Required Google APIs** — if the change adds a new Google API client or OAuth scope, is the API listed under "Required Google APIs" in `docs/auth.md`? Is the scope added to the `gcloud` ADC login command? Is there a re-auth note if an existing scope was added?
 
 ## 5. PR hygiene
