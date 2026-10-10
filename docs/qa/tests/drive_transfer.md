@@ -1563,6 +1563,8 @@ Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, 
 
 **Result (2026-07-31) ✅ PASS** — `use_checksum=true` call: `dup.txt` in `skipped`. Control call (`use_checksum` omitted): `dup.txt` in `uploaded`, not `skipped` — confirms the flag changed the outcome. Reproduces this PR's own code-review finding: the control call's actual bucket is `uploaded`, not the doc's originally-stated `downloaded`/`conflicts`, because this Setup's upload-then-copy ordering makes local mtime the later one; wording above corrected to describe the mechanism instead of a specific bucket name.
 
+**Result (2026-10-10) ✅ PASS** — reworked Setup (#913, backdated local copies). Ran in a throwaway child folder under `{FOLDER_ID}`. After `upload_local_file`, Drive `modifiedTime` equaled the source file's local mtime and differed from `createdTime`, confirming the Background's corrected premise. Both local copies were backdated to `2020-01-01 00:00` with md5 matching Drive's `md5Checksum`. `use_checksum=true` call: `dup.txt` in `skipped`, local mtime unchanged. Control call (`use_checksum` omitted): `dup.txt` in `downloaded`, the bucket the Check now names. Re-backdated both copies and repeated both calls: identical outcome.
+
 ---
 
 ### TC-D239: `use_checksum=true` has no effect on Google Workspace files (no md5Checksum to compare) (issue #274) ⚠️ local-filesystem
