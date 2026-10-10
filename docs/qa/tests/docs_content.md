@@ -3984,7 +3984,9 @@ Both tools read the local file through the shared `_read_doc_source_file` helper
 
 **Checks**
 - Each call returns a dict with an `error` key naming the path (any wording). None comes back as `Error executing tool ...`
-- `list_files(folder_id={FOLDER_ID})` shows no new Doc named `dir.md` or `latin1.html` (steps 1–2 fail before the Drive `create`)
+- `list_files(folder_id={FOLDER_ID})` shows no new Doc named `dir` or `latin1` (the filename stem `create_doc_from_file` uses as the default title; steps 1–2 fail before the Drive `create`)
 - `get_doc_content(file_id={DOC_ID})` matches the Setup snapshot (steps 3–4 fail before any Docs API call)
 
 **Cleanup:** `rm -rf /tmp/tc-doc208`
+
+**Result (2026-10-10) ✅ PASS — Sky, PR #961 round 2 (`849f0bb`).** Ran with the fixtures under this job's scratch dir instead of `/tmp/tc-doc208`. Steps 1 and 3 returned `{"error": "Not a regular file: <path>/dir.md"}`; steps 2 and 4 returned `{"error": "File is not valid UTF-8: <path>/latin1.html (invalid continuation byte at byte 6)"}`. No call surfaced as `Error executing tool`. `list_files({FOLDER_ID})` showed only the three standing fixtures. After `refresh_cache`, `get_doc_content({DOC_ID})` matched the Setup snapshot. Round 1 reproduced both raises on the pre-fix code (`075ce99`).
