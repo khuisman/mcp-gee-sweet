@@ -1240,6 +1240,57 @@ format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S131: format_cells — unbounded or trailing-newline range is rejected without formatting anything (PR #922) ⚠️ destructive
+
+**Background:** `_parse_a1_notation` used to accept a bare `:` (every group optional, so the regex matched with no bounds) and any range with a trailing newline (`$` matches before a final `\n`). For `format_cells`, `range=":"` produced a GridRange with only a `sheetId`, so `repeatCell` formatted the entire sheet. PR #922 switched to `re.fullmatch` and requires at least one row or column bound. Partial-bound forms (`A1:`, `A:`, `:B5`, `1:B`) are tracked separately in #926.
+
+Destructive because a regressed build formats the whole sheet. Never run it against a shared fixture; use the scratch spreadsheet from Setup.
+
+**Setup:** `create_spreadsheet(title="qa-tc-s131-scratch")`, then `update_cells(spreadsheet_id=<new id>, sheet="Sheet1", range="A1:E5", data=<5×5 of any text values>)`. Keep the ID; TC-S132 reuses this spreadsheet.
+
+**Prompt**
+> "Read `get_sheet_data(spreadsheet_id=<scratch id>, sheet=\"Sheet1\", range=\"A1:F8\", include_grid_data=True)`. Then call `format_cells(spreadsheet_id=<scratch id>, sheet=\"Sheet1\", range=\":\", bold=True)`, then `format_cells(..., range=\"A1\\n\", bold=True)` (a real trailing newline). Then read A1:F8 the same way again."
+
+**Checks**
+- `range=":"` → `{"error": "Invalid A1 notation: :"}`
+- `range="A1\n"` → `{"error": "Invalid A1 notation: A1\n"}`
+- The before and after A1:F8 reads are identical, with no bold cell (no `batchUpdate` reached the API)
+
+**Teardown:** none if TC-S132 runs next (it deletes the spreadsheet); otherwise `delete_file(file_id=<scratch id>)`.
+
+**Result (2026-10-06) ✅ PASS**
+Scratch spreadsheet with values in A1:E5, no formatting. Both calls returned the expected error. A grid-data read of A1:E5 (`include_grid_data=True`) taken before and after the two calls was byte-identical, with no bold cells. `format_cells` resolves the sheet ID before it parses the range, so a nonexistent spreadsheet ID would 404 at the sheet lookup for valid and invalid ranges alike; the unchanged grid is the live evidence that no write was sent. Tested in an isolated service-account sandbox on a Shared Drive.
+
+**Result (2026-10-08, PR #929 QA re-run) ✅ PASS**
+Fresh scratch spreadsheet (`create_spreadsheet`, then `update_cells` A1:E5 with `a1`…`e5`), via `mcp-gee-sweet-kit` running code that includes #922 (`6dd5e6a`). `range=":"` → `{"error":"Invalid A1 notation: :"}`; `range="A1\n"` → `{"error":"Invalid A1 notation: A1\n"}`. No `format_cells` call preceded these two, and `update_cells` writes values only, so the new sheet started with no bold; a grid-data read of A1:F8 (`include_grid_data=True`) afterward showed no bold cells. No separate "before" read was taken, so this rests on the fresh sheet's default formatting rather than a byte-identical before/after comparison.
+
+---
+
+### TC-S132: format_cells — bounded and open-ended ranges still format exactly their target (PR #922 regression) ⚠️ destructive
+
+**Setup:** TC-S131's scratch spreadsheet (values in A1:E5, no formatting). If TC-S131 didn't run, create one the same way. Data stops at row 5 and column E, so the A1:F8 read window shows whether an open-ended range extends past the data.
+
+**Prompt**
+> "For each of `A1`, `A1:B2`, `A:A`, `1:2`, `B2:D` in turn: call `format_cells(spreadsheet_id=<scratch id>, sheet=\"Sheet1\", range=<range>, bold=True)`, read `get_sheet_data(..., range=\"A1:F8\", include_grid_data=True)` and list the bold cells, then reset with `format_cells(..., range=\"A:Z\", bold=False)` (all 26 columns of a new sheet, so `1:2`'s bold past column F is cleared too)."
+
+**Checks**
+- `A1` → only A1 is bold
+- `A1:B2` → A1, B1, A2, B2 only
+- `A:A` → all of column A, including rows past the data
+- `1:2` → all of rows 1–2, including columns past the data
+- `B2:D` → columns B–D from row 2 down, including rows past the data
+- No cell outside the target is bold, and every call returns `replies: [{}]` with no error
+
+**Teardown:** `delete_file(file_id=<scratch id>)`.
+
+**Result (2026-10-06) ✅ PASS**
+Values in A1:E5, so a read window wider than the data shows whether open-ended forms extend past it. Read A1:E5 for `A1` and `A1:B2`, and A1:F8 for the rest. Bold cells after each call: `A1` → [A1]; `A1:B2` → [A1, B1, A2, B2]; `A:A` → [A1–A8]; `1:2` → [A1–F1, A2–F2]; `B2:D` → [B2–D8]. All calls returned `replies: [{}]`. Tested in an isolated service-account sandbox on a Shared Drive.
+
+**Result (2026-10-08, PR #929 QA re-run) ✅ PASS**
+Same scratch spreadsheet as TC-S131's re-run (values in A1:E5), read A1:F8 after every call, reset with `format_cells(range="A:F", bold=False)` between ranges. Bold cells: `A1` → [A1]; `A1:B2` → [A1, B1, A2, B2]; `A:A` → [A1–A8]; `1:2` → [A1–F1, A2–F2]; `B2:D` → [B2–D8]. Every call returned `replies: [{}]`. The `A:F` reset doesn't clear the bold `1:2` applied from column G onward, and the A1:F8 window can't see past column F, so "no cell outside the target is bold" was confirmed only within A1:F8 (the 2026-10-06 run used the same window). Scratch spreadsheet trashed after both test cases.
+
+---
+
 ## `merge_cells` / `unmerge_cells`
 
 ### TC-S38: Merge a header row range ⚠️ destructive
