@@ -3624,6 +3624,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-10-10) ✅ PASS — Kit, PR #976 round 1 (`3dbd257`).** Ran on a scratch doc (created with `create_doc`, trashed afterwards) instead of `{DOC_ID}`, to stay off the shared fixture. Images landed at indices 10 and 12. `get_doc_as_markdown` returned `` [`pkg`](https://pypi.org/project/pkg/) ``, a ```` ``` ```` fence holding `x = 1`, then `[![](<contentUri>)](https://example.com/in-code)` and `[![](<contentUri>)](https://example.com/plain)` as separate paragraphs. markdown-it-py `commonmark` rendered `<a href="https://pypi.org/project/pkg/"><code>pkg</code></a>`, one `<pre><code>x = 1`, and two `<a>` elements each wrapping an `<img>` with the expected hrefs. Off-script probe on the same doc: a fenced two-line block (`a`, `b`) with only its soft break linked (`style_doc_range` over that one index) exported as `` `a`<br>`b` ``, with no fence and no link (sent back in round 1).
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
