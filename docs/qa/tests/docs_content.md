@@ -3772,6 +3772,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-11) ✅ PASS — Sky, PR #992 round 2 (`3a506f4`).** Re-ran step 3 (the retry, now pairing each image with its link by identity) and the new step 5. Step 4: the only image was `[![](<contentUri>)](https://example.com/good)` between `x` and `y`, and no text carried `b1`'s or `b2`'s link. Step 6: the first paragraph was the top-level image alone, as `[![](<contentUri>)](https://example.com/top)`. The second paragraph was `x `, `…(https://example.com/first)`, `…(https://example.com/second)`, an unlinked image, then ` y`. Playwright: in the step 5 doc's editor the three inline images got wider left to right, and the top image's link chip showed `https://example.com/…`. Steps 1–2 weren't re-run: the fix commit doesn't change that path beyond the sort, which step 5 covers.
 
+**Result (2026-10-11) ✅ PASS — Sky, PR #992 round 3 (`9271dfe`).** Ran the new step 7. Step 8: the first paragraph was `[![](<contentUri>)](https://example.com/bare)`, and the second was `[tail](https://example.com/block)`, then `[![](<contentUri>)](https://example.com/block)`, then an unlinked ` after`. The fix commit only touches `html_parser.py`'s anchor handling, so steps 1–6 weren't re-run.
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
