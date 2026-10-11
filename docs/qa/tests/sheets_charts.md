@@ -206,3 +206,30 @@ add_chart(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found in sp
 **Result (2026-09-04) ✅ PASS**
 add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 1652849479, overlayPosition={offsetXPixels:100,offsetYPixels:200,widthPixels:400,heightPixels:300} — confirms values are pixels (field names say so directly). Deleted after
 
+---
+
+### TC-C13: Range with no end column is rejected (#954)
+
+**Tool calls**
+1. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="COLUMN", data_range="B2:5")`
+2. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="COLUMN", data_range="1:5")`
+
+**Checks**
+- Each call returns `{"error": ...}` naming its `data_range` and saying it has no end column
+- Neither call creates a chart (previously both succeeded and silently charted a single column with no real series)
+
+---
+
+### TC-C14: Column-only range still charts every column (#954)
+
+**Playwright: required**
+
+**Tool calls**
+1. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="COLUMN", data_range="A:D")`
+
+**Checks**
+- Response includes a `chartId` (an open row end is fine; only an open column end is rejected)
+- `basicChart.domains` has one source (column A) and `basicChart.series` has three (columns B, C, D)
+
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
+

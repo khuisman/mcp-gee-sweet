@@ -347,11 +347,15 @@ def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
     The Sheets addChart API requires each entry in a ChartSourceRange.sources
     list to span exactly one row or one column.  Passing a multi-column
     rectangle as a single source produces a 400 error.
+
+    The caller must ensure `indices` has an explicit `endColumnIndex`
+    (`_chart_column_bounds_error`); there's no safe default for a range
+    with an open column end (#954).
     """
     row_start = indices.get("startRowIndex", 0)
     row_end = indices.get("endRowIndex")
     col_start = indices.get("startColumnIndex", 0)
-    col_end = indices.get("endColumnIndex", col_start + 1)
+    col_end = indices["endColumnIndex"]
 
     base = {"sheetId": sheet_id, "startRowIndex": row_start, "startColumnIndex": 0}
     if row_end is not None:
@@ -361,6 +365,25 @@ def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
         {**base, "startColumnIndex": col, "endColumnIndex": col + 1}
         for col in range(col_start, col_end)
     ]
+
+
+def _chart_column_bounds_error(data_range: str, indices: dict) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if a chart range has no explicit end column.
+
+    `_parse_a1_notation` accepts a cell-to-row range (`B2:5`) and a row-only
+    range (`1:5`), neither of which names an end column. Expanding to the
+    sheet's full width would chart every empty trailing column as a series,
+    and assuming one column builds a domain with no real series (#954), so
+    `add_chart` asks for explicit column bounds instead.
+    """
+    if "endColumnIndex" not in indices:
+        return {
+            "error": (
+                f"data_range '{data_range}' has no end column; add_chart needs explicit "
+                "column bounds (e.g. 'A1:C10' or 'A:C')"
+            )
+        }
+    return None
 
 
 def _range_order_error(
@@ -2067,6 +2090,8 @@ def register(tool):
                        - HISTOGRAM: Histogram
             data_range: A1 notation range for chart data (e.g., 'A1:C10').
                        The first row is typically treated as headers.
+                       Must name an end column: a cell-to-row ('B2:5') or
+                       row-only ('1:5') range returns an error.
             title: Optional title for the chart
             x_axis_label: Optional label for the X axis (bottom axis)
             y_axis_label: Optional label for the Y axis (left axis)
@@ -2107,15 +2132,18 @@ def register(tool):
             return error
         chart_type = chart_type.upper()
 
+        error, range_indices = _parse_a1_notation_or_error(data_range)
+        if error:
+            return error
+        error = _chart_column_bounds_error(data_range, range_indices)
+        if error:
+            return error
+
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found in spreadsheet"}
-
-        error, range_indices = _parse_a1_notation_or_error(data_range)
-        if error:
-            return error
 
         col_ranges = _per_column_ranges(sheet_id, range_indices)
         domain_col = col_ranges[0]

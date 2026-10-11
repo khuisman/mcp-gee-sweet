@@ -110,6 +110,35 @@ class TestAddChart:
         result = await self._call(svc, "LINE", "B1:B10")
         assert "error" not in result
 
+    # #954 — a range with no end column must error, not chart one column
+
+    @pytest.mark.parametrize("data_range", ["B2:5", "1:5", "2:2"])
+    async def test_range_without_end_column_returns_error_without_api_call(self, data_range):
+        svc = self._sheets_service()
+        result = await self._call(svc, "COLUMN", data_range)
+        assert "error" in result
+        assert data_range in result["error"]
+        assert "end column" in result["error"]
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+        # Cheap param check runs before the sheet-name lookup (#330 convention).
+        assert not svc.spreadsheets.return_value.get.called
+
+    async def test_column_only_range_succeeds(self):
+        """'A:C' names its end column, so it isn't caught by the #954 check."""
+        svc = self._sheets_service()
+        result = await self._call(svc, "COLUMN", "A:C")
+        assert "error" not in result
+        spec = self._chart_spec(svc)
+        assert len(spec["basicChart"]["series"]) == 2
+
+    async def test_open_ended_row_range_succeeds(self):
+        """'B2:D' has no end row but does name its end column."""
+        svc = self._sheets_service()
+        result = await self._call(svc, "LINE", "B2:D")
+        assert "error" not in result
+        spec = self._chart_spec(svc)
+        assert len(spec["basicChart"]["series"]) == 2
+
     # BUG-2 — HISTOGRAM spec
 
     async def test_histogram_uses_histogram_chart_spec(self):
