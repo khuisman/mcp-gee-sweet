@@ -1952,6 +1952,8 @@ type one word on its first slide in the Slides UI (Playwright) so it has a revis
 
 The 2026-09-04 Result below predates #959 and tested a Google Doc.
 
+**Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). The Slides file was created blank by a scratch-script `files().create(mimeType=presentation)` rather than through the Slides UI; `list_revisions` still listed revision 1. `export_revision` raised exactly "No XLSX or DOCX export available for revision 1. export_revision supports Google Sheets and Google Docs files only." Slides file trashed.
+
 **Result (2026-09-04) ✅ PASS**
 export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.
 
@@ -2020,6 +2022,8 @@ revision separate (#814), so the diff below uses one.
 
 **Teardown:** `delete_file` on both `<rev-id>` and `<diff-id>`.
 
+**Result (2026-10-11, PR #988 round 1, `8b223c5`) ❌ FAIL (sent back)** — Ran via `mcp-gee-sweet-kit` (OAuth). `qa-959-rev` listed revisions 1 and 5; R=5. `qa-959-diff.md` listed revisions 1 and 2 about 10 seconds after the edit (no wait needed). Call 1's `markdown` had every listed construct and the image as `![](image:sha256-9237fdb37f9592f6)`. Call 2's `markdown` matched it byte for byte except the image line. Calls 3 and 4 differed in exactly one line, `Intro with` → `Intro EDITED with`. Call 5 returned `[]`. **Failed check:** the `images[0].url` from call 1 returned **HTTP 404** both to an anonymous `curl` and to an OAuth-authenticated `AuthorizedSession.get`, while the live Doc's own image URL from call 2 returned 200 `image/png` anonymously. A repeat export, fetched within seconds of the call returning, also returned 404. The temporary Doc's `contentUri` stops serving once that Doc is deleted, so every `images` URL is already dead when the tool returns (contradicts `docs/design/doc-revision-export.md`'s "the URL still serves after the temporary Doc is deleted"). Both Docs trashed.
+
 ---
 
 ### TC-D281: Doc revision heading links render as `#slug` and stay stable (issue #959) ⚠️ requires-oauth
@@ -2045,11 +2049,15 @@ revision separate (#814), so the diff below uses one.
 
 **Teardown:** `delete_file(file_id="<id>")`.
 
+**Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Revision 4: both calls returned `[Jump](#setup) here and [back](#setup-1) here.` with no `docs.google.com` URL, byte-identical. **Extra probe (sent back as a review finding):** a second Doc with the first `## Setup` turned into a bulleted list item (`createParagraphBullets`) and the same two links exported as `- Setup\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.` The bulleted heading renders as a list item, not a heading, but still takes a slug. `#setup` now names the wrong heading and `#setup-1` names none. Both Docs trashed.
+
 ---
 
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
 
-**Setup:** `create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
+**Setup:** `mkdir -p /tmp/qa-959` (the directory must exist: a `local_path` naming a missing
+directory, even with a trailing `/`, is written as a file of that name).
+`create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
 `list_revisions` on it and on `TEST_SPREADSHEET_ID`, taking each one's last `revisionId`.
 
 **Tool calls**
@@ -2069,6 +2077,8 @@ revision separate (#814), so the diff below uses one.
 - Call 5 raises "Revision 999999 of <doc-id> not found…call list_revisions again…".
 
 **Teardown:** remove `/tmp/qa-959/`; `delete_file(file_id="<doc-id>")`.
+
+**Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). The first attempt at call 1 ran without `/tmp/qa-959` existing and wrote a 15-byte *file* named `/tmp/qa-959` (`local_path: "/tmp/qa-959"`); that comes from the shared `write_capped_result_to_disk`, which this PR doesn't touch, so it's ticketed separately and the setup now creates the directory. Rerun with the directory present: call 1 returned `local_path` `/tmp/qa-959/<doc-id>-r3.md`, `bytes_written: 15`, `revisionId`, `modifiedTime`, `images: []`, no `markdown`; the file held `Saved to disk\n\n`, raw Markdown. Calls 2, 3, and 5 raised the expected messages. Call 4 returned `sheet: "Sales"`, `range: "A1:B2"`, `values: [["Product", null], ["Widget", 100]]`. **Extra probe (sent back as a review finding):** `file_id="<doc-id>_WRONG"` raised the same "Revision 3 of … not found. Drive merges a recent revision…" message, misdiagnosing a bad file ID as a merged revision.
 
 ---
 
@@ -2091,6 +2101,8 @@ is the Shared Drive.
   Shared Drive's trash.
 
 **Teardown:** `delete_file(file_id="<id>")` on the SA server.
+
+**Result (2026-10-11, PR #988 round 1, `8b223c5`) ⏭️ SKIP** — Not run: a lane QA session may call only its own `mcp-gee-sweet-kit` server, and the case needs `mcp-gee-sweet-sa`. Pending for a release pass (Aziz may use the `-sa` slot). The trash branch is unit-tested only so far.
 
 ---
 
