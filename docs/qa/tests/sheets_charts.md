@@ -237,3 +237,29 @@ add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; 
 **Result (2026-10-11) ✅ PASS** (PR #983 @ 5b85357)
 add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domains = 1 source (col 0), series = 3 sources (cols 1, 2, 3), rows 0–996 (open row end accepted). Deleted after
 
+
+---
+
+### TC-C15: PIE range without exactly 2 columns is rejected (PR #983)
+
+**Tool calls**
+1. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="PIE", data_range="A1:D5")`
+2. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="PIE", data_range="B1:B5")`
+
+**Checks**
+- Call 1 returns `{"error": ...}` saying `'A1:D5'` spans 4 column(s) and a PIE chart needs exactly 2; call 2 says `'B1:B5'` spans 1 column(s)
+- Neither response carries a `chartId` or `result`: the error is returned before any API call. Previously call 1 succeeded and charted only column B, silently dropping C and D
+
+---
+
+### TC-C16: Single-column range for a domain-based chart is rejected; HISTOGRAM still accepts one (PR #983)
+
+**Tool calls**
+1. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="COLUMN", data_range="B2:B5")`
+2. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="HISTOGRAM", data_range="B2:B5")`
+
+**Checks**
+- Call 1 returns `{"error": ...}` saying `'B2:B5'` spans 1 column and a COLUMN chart needs at least 2, with no `chartId` or `result`. Previously it succeeded with column B as both the domain and the only series
+- Call 2 returns a `chartId`, and `result.replies[0].addChart.chart.spec` has a `histogramChart` key with one series (column B)
+
+**Cleanup:** delete call 2's chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
