@@ -3684,6 +3684,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-10-10) ✅ PASS — Kit, PR #981 round 1 (`307e47c`).** Ran on a scratch doc (created with `create_doc` from the setup HTML, trashed afterwards) instead of `{DOC_ID}`. `get_doc_as_markdown` returned `wow\![x](https://example.com/a)`, `` hey\![`y`](https://example.com/b) ``, `fine! plain`, and the cell `cell\![z](https://example.com/c)`. markdown-it-py `commonmark` + `table` rendered `wow!<a href="https://example.com/a">x</a>`, `hey!<a href="https://example.com/b"><code>y</code></a>`, `fine! plain`, and `cell!<a href="https://example.com/c">z</a>`, with no `<img>`. Off-script probe on the same doc: `a <b> text` and `AT&amp;T` written as one run each, with `style_doc_range` setting `foreground_color` on `b> text` and `amp;T` to split each into two runs. Export was `a <b> text` (a raw HTML tag in CommonMark) and `AT&amp;T` (renders `AT&T`). As single runs, the same text exports escaped (`a \<b> text`, `AT\&amp;T`). Sent back in round 1.
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
