@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-10 · **Issue:** [#796](https://github.com/khuisman/mcp-gee-sweet/issues/796) · **Modules:** new `src/mcp_gee_sweet/local_files.py`; `server.py`; the local-I/O sites under `tools/`
 
-This doc is the implementation design for the policy approved on #796 (2026-10-04). It doesn't revisit the decision. Where carrying the decision out raised a question it doesn't answer, the question is listed under [Open questions](#open-questions) for the maintainer, not settled here.
+This doc is the implementation design for the policy approved on #796 (2026-10-04). It doesn't revisit the decision. Where carrying the decision out raised a question it didn't answer, the maintainer settled it on 2026-10-10; see [Questions resolved during scoping](#questions-resolved-during-scoping).
 
 ## The decision, restated
 
@@ -76,18 +76,31 @@ check_read(path) / check_write(path):
 
 **Containment is a string test on resolved paths, and it fails closed.** On a case-insensitive filesystem (macOS APFS default), `realpath` keeps the caller's spelling of components that exist. Confirmed: `realpath("dir/TOKEN.json") != realpath("dir/token.json")` for one file. So a differently-cased path can fail the `is_relative_to` test for a file that really is inside a root (a false refusal), but it can never pass the test for a file outside one.
 
-**The deny-list compares file identity, not strings.** For the same reason, a string compare would let `TOKEN.json` through on macOS. A hardlink to the token would also slip past it, inside a root or not. At import, resolve each deny-listed path (`CREDENTIALS_PATH`, `TOKEN_PATH`, `SERVICE_ACCOUNT_PATH`, `Path(mcp_gee_sweet.__file__).parent / ".env"`) with `realpath`. Relative defaults like `token.json` resolve against the startup cwd, which is what `auth.py` reads. Then a target is refused if:
+**What's on the deny-list.** The decision's four entries, plus the process-level files the maintainer added on 2026-10-10 (open question 2 below):
+
+| Entry | Why |
+|---|---|
+| `CREDENTIALS_PATH`, `TOKEN_PATH`, `SERVICE_ACCOUNT_PATH` | the server's own credentials (decision) |
+| `Path(mcp_gee_sweet.__file__).parent / ".env"` | runtime config, may hold `CREDENTIALS_CONFIG` (decision) |
+| `GOOGLE_APPLICATION_CREDENTIALS`, when set | an ADC key file: the same class of secret as `SERVICE_ACCOUNT_PATH` |
+| gcloud's default ADC file: `$CLOUDSDK_CONFIG/application_default_credentials.json`, else `~/.config/gcloud/…` (POSIX) or `%APPDATA%\gcloud\…` (Windows) | ADC's fallback when `GOOGLE_APPLICATION_CREDENTIALS` is unset; a user refresh token |
+| `CACHE_DB_PATH` and its SQLite WAL sidecars (`-wal`, `-shm`; `cache.py` sets `journal_mode=WAL`) | reading exposes cached Drive/Sheets/Docs data; overwriting corrupts the cache |
+| `LOG_FILE`, `ACCESS_LOG_FILE`, when set | a download could overwrite or truncate them (plain `FileHandler`, no rotated copies to cover) |
+
+Entries are included whether or not the file exists yet; an unset optional entry is skipped.
+
+**The deny-list compares file identity, not strings.** For the same reason, a string compare would let `TOKEN.json` through on macOS. A hardlink to the token would also slip past it, inside a root or not. At import, resolve each deny-listed path with `realpath`. Relative defaults like `token.json` resolve against the startup cwd, which is what `auth.py` reads. Then a target is refused if:
 
 - it exists and `os.path.samefile(p, entry)` holds for an entry that exists (this catches case variants, hardlinks and bind mounts), or
 - it doesn't exist and its `realpath` equals an entry's `realpath` under `os.path.normcase` and `casefold()`. This is the write case. A download to a `TOKEN_PATH` that hasn't been written yet would otherwise plant a token the server then loads.
 
 The deny-list applies in `full` mode too. There it guards a local user against an LLM-composed `send_message(attachments=[{local_path: "token.json"}])` or a `sync_folder` run over the config directory, not against a hostile caller.
 
-**Refusal messages** name the setting, never the configured values:
+**Refusal messages** name the setting. The only configured values they carry are the roots, so a caller can pick a valid path on the next try (§9):
 
 - `off`: `"local file access is disabled on this server (LOCAL_FILE_ACCESS=off)"`
-- `roots`: `"<path> is outside this server's LOCAL_FILE_ROOTS"`
-- deny-list: `"<path> is one of this server's credential files and can't be read or written by a tool"`
+- `roots`: `"<path> is outside this server's LOCAL_FILE_ROOTS. Allowed directories: <root>, <root>"`. Each root is listed by its configured spelling, the one the containment test matches (§3).
+- deny-list: `"<path> is one of this server's own credential, config, cache, or log files and can't be read or written by a tool"`
 - tripwire: `"local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly"`
 
 Don't interpolate `TOKEN_PATH`'s value or other secret-named values into log lines (CodeQL `py/clear-text-logging-sensitive-data`; see root `CLAUDE.md`). Echoing the caller's own `path` back is fine.
@@ -139,7 +152,7 @@ Add a `local_only: bool = False` keyword to `server.tool()`. Mark the tools at t
 
 `tool()` skips registration when `local_only and not local_files.registers_local_only_tools()`, the same way it skips a tool missing from `ENABLED_TOOLS`. If `ENABLED_TOOLS` names a tool that `off` mode drops, log one `WARNING` at startup listing the dropped names, so an operator who asked for `sync_folder` learns why it's missing.
 
-The decision lists seven local-only tools: `sync_folder`, `upload_local_file`, `upload_local_folder`, `download_folder`, `insert_local_images`, `create_doc_from_file`, `update_doc_from_file`. Two more tools also take a **required** `local_path`: `download_file` and `import_csv_to_sheet`. They see the same treatment as the seven under the decision's own rule, but they aren't on its list. See [Open questions](#open-questions).
+Nine tools are local-only: the decision's seven (`sync_folder`, `upload_local_file`, `upload_local_folder`, `download_folder`, `insert_local_images`, `create_doc_from_file`, `update_doc_from_file`), plus `download_file` and `import_csv_to_sheet`, which take a **required** `local_path` and were added by the maintainer on 2026-10-10 (open question 1 below).
 
 Every other tool with local I/O stays registered and reaches the check at call time:
 
@@ -153,7 +166,32 @@ Each local-only tool's docstring gains one sentence, "Not available when the ser
 
 `_read_doc_source_file` keeps its signature. Both callers wrap it as `await asyncio.to_thread(_read_doc_source_file, ...)`. The policy check runs inside it, at the top, so it runs on the worker thread with the read. Nothing else under `tools/` reads file contents on the loop (`grep -rn "read_text\|read_bytes" src/mcp_gee_sweet/tools`). The cheap `stat` calls that remain on the loop (the check's `realpath`/`samefile`, `is_dir()`) are in the same cost class as the `is_file()` pre-checks that already run there, so they don't move.
 
-### 9. Docs and release notes
+### 9. Reporting the policy to callers
+
+A model working in `roots` mode otherwise has to guess paths until one passes. The MCP reference filesystem server addresses the same problem with a `list_allowed_directories` tool. Here the information goes in two places that already exist, so no new tool is added:
+
+- **The `roots` refusal message** lists the allowed directories (§3). It reaches the model exactly when it hits the boundary, including in clients that never surface resources.
+- **`server://auth-status`** gains a top-level `local_file_access` object, set identically in all three of `_auth_status_json`'s return branches (unauthorized, service account, full access):
+
+  ```json
+  "local_file_access": {
+    "mode": "roots",
+    "explicit": true,
+    "roots": ["/data", "/srv/exports"],
+    "unregistered_tools": []
+  }
+  ```
+
+  - `mode`: the resolved mode.
+  - `explicit`: whether `LOCAL_FILE_ACCESS` was set (§2). A defaulted `full` over HTTP is refused per call by the tripwire. The resource is static and can't see the reading request's transport, so `explicit: false` with `mode: "full"` is the signal a client gets.
+  - `roots`: the configured roots in `roots` mode; an empty list otherwise.
+  - `unregistered_tools`: in `off` mode, the local-only tools this policy kept from registering, i.e. those `ENABLED_TOOLS` would otherwise have allowed. Empty otherwise. This is separate from `limited_tools`/`limitations`, which describe registered tools that fail for auth reasons.
+
+  The resource's docstring gains a sentence describing the field.
+
+Publishing the roots discloses directory paths, which can hint at the host's layout, but only paths the caller is already allowed to read and write. There's no setting to hide them. One can be added if an operator asks.
+
+### 10. Docs and release notes
 
 - `docs/configuration.md`: `LOCAL_FILE_ACCESS` and `LOCAL_FILE_ROOTS` in the environment-variable table, plus a short section with the transport defaults, the always-blocked list, and a Docker bind-mount example (`LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=/data`).
 - `src/mcp_gee_sweet/.env.template`: both settings, commented out.
@@ -162,7 +200,7 @@ Each local-only tool's docstring gains one sentence, "Not available when the ser
 - Root `CLAUDE.md`: a one-paragraph invariant entry ("every local read/write goes through `local_files.check_read`/`check_write`; local-only tools take `@tool(local_only=True)`"), since a future tool that forgets the check is the regression this design is most exposed to.
 - `docker-compose.yml` needs no change. It mounts no data directory, so `off` is the right default for it, and its service-account key is deny-listed anyway.
 
-### 10. Tests
+### 11. Tests
 
 Unit tests only for the policy itself; it has no Google API surface.
 
@@ -170,10 +208,11 @@ Unit tests only for the policy itself; it has no Google API surface.
   - The mode matrix: `LOCAL_FILE_ACCESS` unset/each value × `--transport` absent/`stdio`/`sse`/`streamable-http`.
   - Validation exits (§4).
   - `roots` containment with `tmp_path`: inside, outside, `..` traversal, a symlink inside a root pointing outside, a symlink outside pointing inside.
-  - The deny-list: a case variant (skip unless the filesystem is case-insensitive), a hardlink, a non-existent `TOKEN_PATH` as a write target, `.env`.
+  - The deny-list: a case variant (skip unless the filesystem is case-insensitive), a hardlink, a non-existent `TOKEN_PATH` as a write target, `.env`, the cache's `-wal` sidecar, `CLOUDSDK_CONFIG` overriding the ADC default, an unset `LOG_FILE` adding no entry.
   - The tripwire: defaulted `full` + HTTP request refuses; explicit `full` + HTTP request allows; stdio allows.
-  - Identical refusal text for existing vs. missing paths outside a root.
-- `tests/test_server.py`: in `off` mode the seven (or nine) tools aren't registered and the rest are; the `ENABLED_TOOLS` warning. Follow the existing `ENABLED_TOOLS` tests' `monkeypatch` of `sys.argv` and the module attribute rather than re-importing `server`.
+  - Identical refusal text for existing vs. missing paths outside a root, listing the configured roots.
+- `tests/test_server.py`, `server://auth-status`: `local_file_access` is present in all three `_auth_status_json` branches, with `roots` filled only in `roots` mode and `unregistered_tools` only in `off` mode (and narrowed by `ENABLED_TOOLS`). Extend `TestResourcesReadLifespanContext`'s pattern; `docs/qa/tests/infra.md` gets a TC next to TC-I27 for a live resource read.
+- `tests/test_server.py`: in `off` mode the nine tools aren't registered and the rest are; the `ENABLED_TOOLS` warning. Follow the existing `ENABLED_TOOLS` tests' `monkeypatch` of `sys.argv` and the module attribute rather than re-importing `server`.
 - One test per §5 choke point: in `off` mode the tool returns the refusal and the filesystem is untouched (no file created, no `mkdir`, no Drive call made).
 - `sync_folder` / `upload_local_folder` / `download_folder`: a walked directory with one symlink escaping the root. The other files transfer, and the escaping one is a `failed` / `local_read_fail` entry, under `dry_run` as well.
 - A guard test: every `@tool` function with a parameter named `local_path` or `result_local_path`, or `attachments`/`images`, appears in an explicit allowlist of tools whose checks are covered above. A new local-path tool then fails CI until someone decides where its check goes.
@@ -184,18 +223,12 @@ Live QA: the policy makes no Google API calls of its own, so live QA is limited 
 
 - **Check-then-use race.** A symlink swapped between the check and the `open` defeats `roots`. A remote caller can't create symlinks through any tool (downloads write regular files and `sync_folder` never creates links), so exploiting it needs a local actor with write access inside a root. Closing it fully would mean `openat`-style descriptor-relative I/O through every site, which is out of proportion here.
 - **`roots` false refusals on case-insensitive filesystems** when the caller's spelling of a directory differs from the root's (§3). This fails closed. Callers should use the root's spelling.
-- **Deny-list scope.** Only the server's own credential files are protected. Another secret inside an allowed root, or anywhere in `full` mode, is readable by design. `roots` is the tool for limiting that.
+- **Deny-list scope.** Only the server's own files (§3's table) are protected. Another secret inside an allowed root, or anywhere in `full` mode, is readable by design. `roots` is the tool for limiting that.
 
-## Open questions
+## Questions resolved during scoping
 
-These come out of carrying the decision through, and each is the maintainer's call. They're listed here, not decided.
+These came out of carrying the decision through. The maintainer answered all three on 2026-10-10.
 
-1. **`download_file` and `import_csv_to_sheet` in `off` mode.** Each takes a required `local_path`, so each is unusable in `off` mode exactly like the seven listed tools, but neither is on the approved list. Registered, each would only ever return the refusal. Should they be unregistered too?
-2. **More deny-list candidates.** The approved list has four entries. Other process-level files a tool could read or overwrite:
-   - `GOOGLE_APPLICATION_CREDENTIALS` (an ADC key file, the same class of secret as `SERVICE_ACCOUNT_PATH`)
-   - gcloud's default ADC file (`~/.config/gcloud/application_default_credentials.json`)
-   - `CACHE_DB_PATH` (overwriting it corrupts the cache; reading it exposes cached Drive/Sheets data)
-   - `LOG_FILE` / `ACCESS_LOG_FILE` (overwrite or truncate)
-
-   Should any of them join the list?
-3. **Telling callers about the policy.** In `roots` mode, a caller has no way to learn the allowed roots: the refusal names the setting, not the directories. Should the mode (and, in `roots` mode, the roots) appear in `server://auth-status`, or would publishing the roots disclose more than an operator wants?
+1. ~~**`download_file` and `import_csv_to_sheet` in `off` mode.**~~ **Resolved 2026-10-10: unregistered.** Each takes a required `local_path`, so registered it could only ever return the refusal. Folded into §7.
+2. ~~**More deny-list candidates.**~~ **Resolved 2026-10-10: all added.** `GOOGLE_APPLICATION_CREDENTIALS`, gcloud's default ADC file, `CACHE_DB_PATH` (with its WAL sidecars), `LOG_FILE`, `ACCESS_LOG_FILE`. Folded into §3.
+3. ~~**Telling callers about the policy.**~~ **Resolved 2026-10-10: report it.** The mode is always shown in `server://auth-status`, and in `roots` mode the roots are shown both there and in the refusal message. No hide setting. See §9.
