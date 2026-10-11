@@ -1,6 +1,6 @@
 # Chart Tools — QA Test Cases
 
-Source: `src/mcp_gee_sweet/tools/charts.py`
+Source: `src/mcp_gee_sweet/tools/sheets/structure.py` (`add_chart`)
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}` from `fixtures.local.md`.
 
@@ -216,20 +216,24 @@ add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 
 
 **Checks**
 - Each call returns `{"error": ...}` naming its `data_range` and saying it has no end column
-- Neither call creates a chart (previously both succeeded and silently charted a single column with no real series)
+- Neither call creates a chart: the error is returned before any API call (the range is validated ahead of the sheet lookup), so neither response carries a `chartId` or `result`. Previously both succeeded and silently charted a single column with no real series
+
+**Result (2026-10-11) ✅ PASS** (PR #983 @ 5b85357)
+add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; add_chart needs explicit column bounds (e.g. 'A1:C10' or 'A:C')"}; add_chart(data_range="1:5") → same error naming '1:5'. Neither response carries a chartId
 
 ---
 
 ### TC-C14: Column-only range still charts every column (#954)
-
-**Playwright: required**
 
 **Tool calls**
 1. `add_chart(spreadsheet_id="{SPREADSHEET_ID}", sheet="Sales", chart_type="COLUMN", data_range="A:D")`
 
 **Checks**
 - Response includes a `chartId` (an open row end is fine; only an open column end is rejected)
-- `basicChart.domains` has one source (column A) and `basicChart.series` has three (columns B, C, D)
+- In the response's `result.replies[0].addChart.chart.spec`, `basicChart.domains` has one source (column A) and `basicChart.series` has three (columns B, C, D)
 
 **Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
+
+**Result (2026-10-11) ✅ PASS** (PR #983 @ 5b85357)
+add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domains = 1 source (col 0), series = 3 sources (cols 1, 2, 3), rows 0–996 (open row end accepted). Deleted after
 
