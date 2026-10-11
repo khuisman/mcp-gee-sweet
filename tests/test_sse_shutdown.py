@@ -166,32 +166,38 @@ class TestSingleResponseGuard:
         assert seen == [(scope, send)]
 
 
+def _http_scope(method, path, headers):
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [(b"host", b"127.0.0.1:8000"), *headers],
+        "client": ("127.0.0.1", 50000),
+        "server": ("127.0.0.1", 8000),
+    }
+
+
+@pytest.fixture
+def fresh_shutdown_state(monkeypatch):
+    monkeypatch.setattr(AppStatus, "should_exit", False)
+    # sse_starlette's shutdown watcher is per thread; don't inherit another test's.
+    monkeypatch.setattr(sse_starlette_sse, "_thread_state", threading.local())
+
+
+@pytest.mark.usefixtures("fresh_shutdown_state")
 class TestShutdownWithOpenSseStream:
     """mcp's real sse_app, shut down the way uvicorn's SIGTERM handler does."""
-
-    @pytest.fixture(autouse=True)
-    def _fresh_shutdown_state(self, monkeypatch):
-        monkeypatch.setattr(AppStatus, "should_exit", False)
-        # sse_starlette's shutdown watcher is per thread; don't inherit another test's.
-        monkeypatch.setattr(sse_starlette_sse, "_thread_state", threading.local())
 
     @staticmethod
     async def _serve_then_shut_down(app):
         send = _StrictSend()
-        scope = {
-            "type": "http",
-            "asgi": {"version": "3.0"},
-            "http_version": "1.1",
-            "method": "GET",
-            "scheme": "http",
-            "path": "/sse",
-            "raw_path": b"/sse",
-            "root_path": "",
-            "query_string": b"",
-            "headers": [(b"host", b"127.0.0.1:8000"), (b"accept", b"text/event-stream")],
-            "client": ("127.0.0.1", 50000),
-            "server": ("127.0.0.1", 8000),
-        }
+        scope = _http_scope("GET", "/sse", [(b"accept", b"text/event-stream")])
         errors = []
 
         async def serve():
@@ -224,30 +230,9 @@ class TestShutdownWithOpenSseStream:
         assert send.complete
 
 
-def _http_scope(method, path, headers):
-    return {
-        "type": "http",
-        "asgi": {"version": "3.0"},
-        "http_version": "1.1",
-        "method": method,
-        "scheme": "http",
-        "path": path,
-        "raw_path": path.encode(),
-        "root_path": "",
-        "query_string": b"",
-        "headers": [(b"host", b"127.0.0.1:8000"), *headers],
-        "client": ("127.0.0.1", 50000),
-        "server": ("127.0.0.1", 8000),
-    }
-
-
+@pytest.mark.usefixtures("fresh_shutdown_state")
 class TestShutdownWithOpenStreamableHttpGetStream:
     """mcp's real streamable_http_app with an open ``GET /mcp`` stream at shutdown (#917)."""
-
-    @pytest.fixture(autouse=True)
-    def _fresh_shutdown_state(self, monkeypatch):
-        monkeypatch.setattr(AppStatus, "should_exit", False)
-        monkeypatch.setattr(sse_starlette_sse, "_thread_state", threading.local())
 
     @staticmethod
     def _receive_body(payload):

@@ -1377,14 +1377,17 @@ Extra check (the fix's "either link completes" claim, TC-I51-style): `OAUTH_CONS
 Start `uv run mcp-gee-sweet --transport streamable-http` with `HOST=127.0.0.1`, `PORT=<free port>`, `AUTH_METHOD=oauth`, `CREDENTIALS_PATH=<nonexistent>`, `TOKEN_PATH=<nonexistent>`, `DEBUG_LEVEL=DEBUG`, `PYTHONUNBUFFERED=1`, stdout and stderr to one file.
 1. With Python `http.client`: `POST /mcp` a JSON-RPC `initialize` (`Content-Type: application/json`, `Accept: application/json, text/event-stream`) and keep the returned `mcp-session-id` header. `POST /mcp` `notifications/initialized` with that session ID (expect `202`). Then, on a separate connection, open `GET /mcp` with `Accept: text/event-stream` and the session ID, and read the response status (expect `200`). Wait 2 seconds
 2. Send the server process `SIGTERM` (not SIGKILL) and time its exit. Then read the GET response to EOF
-3. Repeat steps 1–2 two more times against a fresh server
+3. Repeat steps 1–2 two more times against a fresh server, then once more with `--reload` added to the command line
 4. Start a fresh server the same way; with the `mcp` SDK's `streamable_http_client` + `ClientSession`, `initialize` and `list_tools`, close the session, then SIGTERM the server
+5. Run `uv run mcp-gee-sweet --transport websocket`
 
 **Checks**
 - 2, 3: reading the GET response to the end ends with a clean EOF (an empty body), not an `IncompleteRead`
 - 2, 3: the log has no `ASGI callable returned without completing response`, no `Exception in ASGI application`, and no `RuntimeError: Expected ASGI message`. (The nonexistent `CREDENTIALS_PATH` logs the expected `Auth failure detail` traceback ending in `RuntimeError: '<path>' not found`, as in TC-I47.) With `DEBUG_LEVEL=DEBUG` it has `DEBUG mcp_gee_sweet.sse_shutdown Closing a response cut off on /mcp during shutdown (#917)`
 - 2, 3: the server exits within a few seconds of SIGTERM, and `lsof -i :<port>` is empty afterwards
+- 3 (`--reload` run): the log has `Started reloader process`, so `--reload` is honored for streamable-http rather than silently ignored
 - 4: `initialize` and `list_tools` succeed (the guard doesn't touch a normal session), and the log has no ASGI error and no `Closing a response cut off` line
+- 5: exits non-zero with `mcp-gee-sweet: unknown --transport 'websocket' (use stdio, sse, or streamable-http)` on stderr, and no traceback
 - Re-run TC-I47's steps 1–2 once: `--transport sse` still passes, since it shares the guard and the launch helper
 
 **Cleanup:** SIGKILL any server still running (and record the case as failed).

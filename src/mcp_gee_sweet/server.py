@@ -596,6 +596,16 @@ def _auth_main(argv: list[str]) -> int:
     return run_auth_command(open_browser=not args.no_browser)
 
 
+def _streamable_http_app() -> SingleResponseGuard:
+    """Build the guarded streamable-http app (#917).
+
+    A factory rather than a module-level app like SSE's, since streamable_http_app()
+    installs the server's session manager. Also uvicorn's ``factory=True`` import
+    target for ``--reload``.
+    """
+    return SingleResponseGuard(mcp.streamable_http_app(host=_resolved_host))
+
+
 def _serve_guarded(guarded_app: SingleResponseGuard) -> None:
     """Serve an HTTP transport's guarded app the way mcp's run_*_async() launches do.
 
@@ -637,11 +647,28 @@ def main():
         if arg == "--reload":
             reload = True
 
-    if reload and transport == "sse":
+    if transport not in ("stdio", "sse", "streamable-http"):
+        sys.exit(
+            f"mcp-gee-sweet: unknown --transport {transport!r} (use stdio, sse, or streamable-http)"
+        )
+
+    if reload and transport == "stdio":
+        logger.warning(
+            "--reload applies only to the sse and streamable-http transports; ignoring it"
+        )
+
+    if reload and transport != "stdio":
         import uvicorn
 
+        # uvicorn's reloader needs an import string, so point it at the same guarded
+        # app the non-reload path serves.
+        if transport == "sse":
+            target, factory = "mcp_gee_sweet.server:app", False
+        else:
+            target, factory = "mcp_gee_sweet.server:_streamable_http_app", True
         uvicorn.run(
-            "mcp_gee_sweet.server:app",
+            target,
+            factory=factory,
             host=_resolved_host,
             port=_resolved_port,
             reload=True,
@@ -653,17 +680,12 @@ def main():
         # A failed auth stops a stdio server outright (#790); other transports start
         # the connection without Google access instead (PR #867).
         set_raise_auth_failures(True)
-        mcp.run(transport=transport)
+        mcp.run(transport="stdio")
     elif transport == "sse":
         # mcp.run(transport="sse") would build a second, unguarded sse_app, so serve
         # the guarded module-level app instead (#868).
         _serve_guarded(app)
-    elif transport == "streamable-http":
-        # Same for mcp.run(transport="streamable-http"), whose own app leaves an open
-        # GET /mcp stream unterminated at SIGTERM (#917). Built here rather than at
-        # import, since streamable_http_app() installs the server's session manager.
-        _serve_guarded(SingleResponseGuard(mcp.streamable_http_app(host=_resolved_host)))
     else:
-        # mcp v2 moved host/port from the constructor to call-time kwargs (see the
-        # mcp.sse_app() call above) — stdio's own overload doesn't accept them.
-        mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)
+        # Same for mcp.run(transport="streamable-http"), whose own app leaves an open
+        # GET /mcp stream unterminated at SIGTERM (#917).
+        _serve_guarded(_streamable_http_app())
