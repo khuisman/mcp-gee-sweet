@@ -2,6 +2,7 @@
 API -> AST walker, ast_to_markdown.py's AST -> Markdown serializer, and the
 get_doc_as_markdown tool wiring them together."""
 
+from html import escape
 from unittest.mock import MagicMock
 from xml.etree import ElementTree
 
@@ -952,6 +953,31 @@ class TestAstToMarkdownBlocks:
         nodes = [Paragraph(runs=[Run(text="- not a bullet")])]
         assert ast_to_markdown(nodes) == "\\- not a bullet\n"
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            " - a",
+            "  - a",
+            "   - a",
+            "  # h",
+            "   > q",
+            " 1. x",
+            "---",
+            "- - -",
+            "--",
+            "===",
+            "* * *",
+            "___",
+            "    four-space indent",
+            "\ttab indent",
+        ],
+    )
+    def test_paragraph_never_renders_as_another_block(self, text):
+        # Leading spaces before a marker, rule lines, and 4+ space or tab
+        # indents (an indented code block) all stay a plain paragraph (#993).
+        html = _COMMONMARK.render(ast_to_markdown([Paragraph(runs=[Run(text=text)])]))
+        assert html == f"<p>{escape(text.lstrip(), quote=False)}</p>\n"
+
     def test_paragraph_starting_with_digit_but_no_marker_punctuation_is_untouched(self):
         # "123 apples" isn't an ordered-list marker (no "." or ")" after the
         # digits) — must not be escaped.
@@ -1087,7 +1113,7 @@ class TestAstToMarkdownComments:
 
     def test_multiline_quote_prefixes_every_line_and_escapes_block_markers(self):
         section = self._quote_md("one\n\n# head\n- item\n1. num")
-        assert section == "**A**\n> one\n>\n> \\# head\n> \\- item\n> 1\\. num\n\nfix\n"
+        assert section == "**A**\n> one\n>\n> \\# head\\\n> \\- item\\\n> 1\\. num\n\nfix\n"
 
     def test_quote_is_closed_before_the_comment_text(self):
         # Without the blank line, "fix" would be a lazy continuation of the quote.
@@ -1104,12 +1130,76 @@ class TestAstToMarkdownComments:
         md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
         section = md.split("## Comments\n\n", 1)[1]
         assert section == (
-            "**A\\_b\\***\n"
-            "use \\<b> and \\*x\\*\n"
+            "**A\\_b\\***\\\n"
+            "use \\<b> and \\*x\\*\\\n"
             "\\# not a heading\n"
-            "  - **C**: ok \\*y\\*\n"
+            "  - **C**: ok \\*y\\*\\\n"
             "    \\- not an item\n"
         )
+
+    def _render(self, content=None, quoted_text=None, reply=None):
+        comment = {"author": {"display_name": "A"}, "content": content or "c", "replies": []}
+        if quoted_text is not None:
+            comment["quoted_text"] = quoted_text
+        if reply is not None:
+            comment["replies"].append({"author": {"display_name": "B"}, "content": reply})
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=[comment])
+        return _COMMONMARK.render(md.split("## Comments\n\n", 1)[1])
+
+    @pytest.mark.parametrize(
+        "content, lines",
+        [
+            # setext underline / thematic break (PR #991 QA round 1)
+            ("Summary\n---\nmore", ["Summary", "---", "more"]),
+            ("Title\n===\n--", ["Title", "===", "--"]),
+            # leading spaces before a marker
+            ("Points:\n - a\n   - b\n  # c", ["Points:", "- a", "- b", "# c"]),
+            # GFM table
+            ("a | b\n-|-\nc | d", ["a | b", "-|-", "c | d"]),
+            # every line keeps its own line, not one soft-wrapped line
+            ("step 1\nstep 2\nstep 3", ["step 1", "step 2", "step 3"]),
+            # a literal trailing backslash stays literal before the hard break
+            ("path C:\\\nnext", ["path C:\\", "next"]),
+        ],
+    )
+    def test_content_lines_render_as_plain_text_lines(self, content, lines):
+        html = self._render(content=content)
+        assert html == "<p><strong>A</strong><br />\n" + "<br />\n".join(lines) + "</p>\n"
+
+    def test_indented_content_after_blank_line_is_not_a_code_block(self):
+        html = self._render(content="intro\n\n    indented *x*")
+        assert "<pre>" not in html
+        assert "<p>indented *x*</p>" in html
+
+    def test_indented_quote_line_is_not_a_list(self):
+        html = self._render(quoted_text="   - indented quote")
+        assert "<blockquote>\n<p>- indented quote</p>\n</blockquote>" in html
+
+    @pytest.mark.parametrize(
+        "reply, expected",
+        [
+            ("r\n\n---", "<p><strong>B</strong>: r</p>\n<p>---</p>"),
+            ("r\n\n        deep *x*", "<p><strong>B</strong>: r</p>\n<p>deep *x*</p>"),
+            ("r\n- not an item", "<strong>B</strong>: r<br />\n- not an item"),
+        ],
+    )
+    def test_reply_continuation_stays_plain_text_in_the_item(self, reply, expected):
+        html = self._render(reply=reply)
+        assert "<pre>" not in html and "<hr" not in html
+        assert expected in html
+        assert html.count("<li>") == 1
+
+    def test_reply_first_line_is_not_block_escaped(self):
+        # It follows "**B**: " on the same line, so "1." can't start a list.
+        comments = [
+            {
+                "author": {"display_name": "A"},
+                "content": "c",
+                "replies": [{"author": {"display_name": "B"}, "content": "1. agreed"}],
+            }
+        ]
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
+        assert "  - **B**: 1. agreed\n" in md
 
     def test_no_comments_section_when_comments_is_none(self):
         nodes = [Paragraph(runs=[Run(text="body")])]

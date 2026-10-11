@@ -59,6 +59,10 @@ _BACKTICK_RUN = re.compile(r"`+")
 # re-parsed as a new block starting mid-line.
 _LEADING_SIMPLE_MARKER = re.compile(r"^([#>]|[-*+])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
+# A line of only "-" (spaces allowed) is a thematic break, or a setext
+# underline under a preceding line, and so is a line of only "=". "*" and "_"
+# rules can't occur: _escape has already escaped both (#993).
+_LEADING_RULE_LINE = re.compile(r"^(?:=+|-[- \t]*)$")
 
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
@@ -162,14 +166,24 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
 
     depth = getattr(node, "blockquote_depth", 0)
     if depth:
-        prefix = "> " * depth
-        body = "\n".join(
-            f"{prefix}{line}" if line else prefix.rstrip() for line in body.split("\n")
-        )
+        body = _blockquote(body, depth)
     return body
 
 
+def _blockquote(body: str, depth: int) -> str:
+    prefix = "> " * depth
+    return "\n".join(f"{prefix}{line}" if line else prefix.rstrip() for line in body.split("\n"))
+
+
 def _escape_leading_block_marker(text: str) -> str:
+    """Make one line that starts a block read as paragraph text. Leading
+    spaces and tabs are dropped first: CommonMark strips a paragraph's
+    leading whitespace anyway, so the rendered text is unchanged, while
+    keeping them lets " - a" parse as a list and four spaces or a tab as an
+    indented code block (#993)."""
+    text = text.lstrip(" \t")
+    if _LEADING_RULE_LINE.match(text):
+        return "\\" + text
     m = _LEADING_SIMPLE_MARKER.match(text)
     if m:
         return "\\" + text
@@ -464,19 +478,25 @@ def _table_safe(text: str) -> str:
 
 def _render_comment(comment: dict) -> str:
     """Comment authors, anchors, and text are all plain text (Drive's
-    `content`, not `htmlContent`), so each is escaped like a body paragraph's:
-    a "*" or "<b>" stays literal, and a line starting "# " or "- " stays text
-    instead of becoming a heading or list (#984)."""
-    author = _escape((comment.get("author") or {}).get("display_name") or "Unknown")
+    `content`, not `htmlContent`), so none of it may render as Markdown
+    structure (#984). See _comment_text for how each line is kept literal.
+
+    The quote is a blockquote ended by a blank line, since the comment text
+    after it would otherwise be a lazy continuation of the quote. Without a
+    quote, the author line ends in a hard break so the text starts on its own
+    line. A reply's continuation lines are indented to the list item's
+    content column, so they stay in the item instead of ending the list."""
+    author = _comment_inline((comment.get("author") or {}).get("display_name") or "Unknown")
+    content = _comment_text(comment.get("content") or "")
     lines = [f"**{author}**"]
     if comment.get("quoted_text"):
-        lines.append(_render_comment_quote(comment["quoted_text"]))
-    lines.append("\n".join(_comment_text_lines(comment.get("content") or "")))
+        lines.append(_blockquote(_comment_text(comment["quoted_text"]), 1) + "\n")
+    elif content.split("\n", 1)[0]:
+        lines[0] += "\\"
+    lines.append(content)
     for reply in comment.get("replies", []):
-        r_author = _escape((reply.get("author") or {}).get("display_name") or "Unknown")
-        first, *rest = _comment_text_lines(reply.get("content") or "")
-        # A continuation line indented to the item's content column stays in
-        # the list item instead of ending the list.
+        r_author = _comment_inline((reply.get("author") or {}).get("display_name") or "Unknown")
+        first, *rest = _comment_text(reply.get("content") or "", starts_block=False).split("\n")
         lines.append(
             "\n".join(
                 [f"  - **{r_author}**: {first}"] + [f"    {line}" if line else "" for line in rest]
@@ -485,14 +505,23 @@ def _render_comment(comment: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _comment_text_lines(text: str) -> list[str]:
-    return [_escape_leading_block_marker(_escape(line)) for line in text.split("\n")]
+def _comment_inline(text: str) -> str:
+    # "|" too: consecutive comment lines like "a | b" and "-|-" form a table.
+    return _escape(text).replace("|", "\\|")
 
 
-def _render_comment_quote(text: str) -> str:
-    """A comment's quoted anchor as a blockquote. Every line gets its own "> "
-    (Drive keeps newlines in a multi-line anchor), and a blank line ends the
-    quote, since the comment text after it would otherwise be read as a lazy
-    continuation of the quote's last paragraph (#984)."""
-    quoted = [f"> {line}" if line else ">" for line in _comment_text_lines(text)]
-    return "\n".join(quoted) + "\n"
+def _comment_text(text: str, starts_block: bool = True) -> str:
+    """Multi-line plain text as Markdown that renders as the same lines. Each
+    line is escaped inline, and block markers are escaped on every line that
+    can start a block: all of them, except a first line that follows other
+    text on its own line (a reply's, after "**author**: "). Every line
+    followed by a non-empty one ends in a hard break ("\\"); a soft break
+    would join them into one line. An empty line stays a paragraph break."""
+    lines = [_comment_inline(line) for line in text.split("\n")]
+    for i in range(len(lines)):
+        if i or starts_block:
+            lines[i] = _escape_leading_block_marker(lines[i])
+    for i in range(len(lines) - 1):
+        if lines[i] and lines[i + 1]:
+            lines[i] += "\\"
+    return "\n".join(lines)

@@ -4188,10 +4188,29 @@ Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `
 - Step 5's `## Comments` section contains these quote blocks, each followed by a blank line before the comment text:
   - `> Café and Tom & Jerry, a < b, say "hi" it's`
   - `> \&amp; literal`
-  - `> line one` then `> line \*two\* \<x>` on the next line
+  - `> line one\` (ending in a hard-break backslash, since PR #991 round 2) then `> line \*two\* \<x>` on the next line
 - Step 5 renders step 1's comment text as `QA TC-DOC215 a \<b> \*x\*` (plain text, escaped only as Markdown needs), and step 1 itself returns `content` unchanged
 - No `&#233;`, `&quot;`, `&#39;`, or `&lt;` appears anywhere in step 5's comments section
 
 **Cleanup:** `delete_file(file_id={SCRATCH_DOC_ID})`
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #991 round 1 (`9953a83`).** Steps 1–3 echoed each `quoted_text` exactly (`Café and Tom & Jerry, a < b, say "hi" it's`, `&amp; literal`, `line one\nline *two* <x>`); step 4 returned the same three values. Step 5's comments section had `> Café and Tom & Jerry, a < b, say "hi" it's`, `> \&amp; literal`, and `> line one` / `> line \*two\* \<x>`, each followed by a blank line, and comment text `QA TC-DOC215 a \<b> \*x\*`; no `&#233;`/`&quot;`/`&#39;`/`&lt;` in the section. Extra probe: a comment created in the Docs UI (Playwright) on the doc's literal `&amp; literal` text also came back from `list_doc_comments` as `&amp; literal`, so Drive escapes UI-created anchors too and a single unescape is correct for them. The case passes, but the round was sent back for Markdown-escaping gaps in comment text that this case doesn't exercise (see the PR comment).
+
+### TC-DOC217: Multi-line comment text and indented/rule body paragraphs stay plain text in the Markdown export ⚠️ destructive ⚠️ requires-oauth
+Comment text is plain text, so no line of it may render as Markdown structure, and each line keeps its own line (a hard break, not a soft wrap). Body paragraphs that start with spaces or a tab before a marker, or that are a `---` rule line, stay plain paragraphs too (#993). Replies are covered by unit tests only: the one tool that posts a reply, `resolve_doc_comment`, also resolves the comment, and `include_comments` exports only open ones.
+
+**Setup:**
+- `create_doc(title="QA TC-DOC217", folder_id={FOLDER_ID}, content="<p>anchor</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
+- `insert_doc_text(doc_id={SCRATCH_DOC_ID}, insertions=[{"index": 1, "text": " - a\n  # h\n---\n\ttab indent\n"}])`
+
+**Steps**
+1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n\n    indented *x*")`
+2. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True, local_path="/tmp/tc-doc217.md")`
+3. `uv run python -c "from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').enable('table').render(open('/tmp/tc-doc217.md').read()))"`
+
+**Checks**
+- Step 3's HTML has no `<ul>`, `<ol>`, `<h1>`, `<table>`, or `<pre>`. It has exactly one `<h2>` (`Comments`) and one `<hr />`: the comments section's own heading and separator
+- The body renders `<p>- a</p>`, `<p># h</p>`, `<p>---</p>`, and `<p>tab indent</p>`
+- The comment renders `Summary`, `---`, `Points:`, `- a`, `- b`, `a | b`, `-|-`, and `c | d` as separate lines joined by `<br />` in one paragraph, then `<p>indented *x*</p>` as its own paragraph
+
+**Cleanup:** `delete_file(file_id={SCRATCH_DOC_ID})`, `rm /tmp/tc-doc217.md`
