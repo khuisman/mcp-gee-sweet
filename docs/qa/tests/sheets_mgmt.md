@@ -2115,3 +2115,20 @@ Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell bra
 - None of calls 1–7 returns a 404 or a `Sheet 'NoSuchSheet' not found` error
 
 **Unit coverage:** `TestGridRangeToolsRejectMalformedRange` (`tests/sheets/test_structure.py`) runs every malformed case against all seven tools and asserts neither `spreadsheets().get()` nor `batchUpdate()` is called. `test_column_beyond_zzz_raises`, `test_row_beyond_limit_raises`, `test_row_over_int_digit_limit_keeps_prefix` and `test_last_column_and_row_accepted` in `TestParseA1Notation` (`tests/sheets/test_helpers.py`) cover the bounds.
+
+**Result (2026-10-11, PR #986 round 1, `6d180ec`) ✅ PASS.** Live via `mcp-gee-sweet-sky` after `/mcp reconnect`:
+- 1 → `{"error":"Invalid A1 notation: column is beyond ZZZ: 'ZZZZZZZZ1'"}`
+- 2 → `{"error":"Invalid A1 notation: row is beyond 10,000,000: 'A99999999999'"}`
+- 3 → `{"error":"Invalid A1 notation: column is beyond ZZZ: 'A1:AAAA2'"}`
+- 4 → `{"error":"Invalid A1 notation: 'A:5'"}`
+- 5 → `{"error":"Invalid A1 notation: 'A:B5'"}`
+- 6 → twice returned the `HttpError 404` from the sheet lookup. The Kelvin sign didn't survive the agent's own tool-call input: the call went out as ASCII `K1`, a valid cell. A fresh interpreter on this PR's code confirms `_parse_a1_notation("K1")` raises `Invalid A1 notation: 'K1'` while ASCII `K1` parses (and `"ﬀ1"` raises). When an agent drives this case, verify step 6 that way, not through the tool call.
+- 7 → `{"error":"Invalid A1 notation: row is beyond 10,000,000: 'A10000001'"}`
+- 8 (control) → `HttpError 404` from the sheet lookup, as expected
+- None of calls 1–5 or 7 returned a 404 or `Sheet ... not found` error.
+
+**#953 checks (folded into #955's pass), same round.**
+- **Bogus-ID preflight:** `format_cells(range="A1")` → `HttpError 404` (control). `A1:`, `1:B`, `ß1`, `A١` → `{"error":"Invalid A1 notation: '<range>'"}` each, no 404.
+- **No write on a real sheet** (temporary `sky-pr986-scratch` tab in `mcp-gee-sweet-qa-fixtures`, seeded A1:B6 with unsorted values, deleted afterward): `sort_range(range="A1:")` and `merge_cells(range="5:")` each returned the A1 error; a grid-data read afterward showed the original order and no merges.
+- **`format_cells` regression** (bold applied, bold cells read back with a fresh interpreter, reset between ranges, 1000×26 grid): `A1` → A1 only; `A1:B2` → rows 1–2, cols A–B (4); `A:A` → rows 1–1000, col A; `1:2` → rows 1–2, cols A–Z; `B2:D` → rows 2–1000, cols B–D; `B2:5` → rows 2–5, cols B–Z; `b2:d3` → rows 2–3, cols B–D (6). All exact.
+- **API contract:** `get_sheet_data(range="A:B5")` is accepted by the Sheets values API, which reads it as `A5:B` (returned rows 5–6 of the seeded A:B data). The GridRange tools' rejection of `A:B5` is therefore stricter than Sheets; filed as #987.
