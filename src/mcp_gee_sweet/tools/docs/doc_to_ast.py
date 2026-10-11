@@ -126,8 +126,13 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
                 continue
             items.append(_text_run_to_run(content, tr.get("textStyle", {})))
         elif "inlineObjectElement" in pe:
-            image = _resolve_inline_image(pe["inlineObjectElement"].get("inlineObjectId"), document)
+            ioe = pe["inlineObjectElement"]
+            image = _resolve_inline_image(ioe.get("inlineObjectId"), document)
             if image is not None:
+                # A linked image carries the link on its element's own
+                # textStyle, the same as a text run (#951, confirmed live).
+                link = ioe.get("textStyle", {}).get("link")
+                image.link_url = link.get("url") if link else None
                 items.append(image)
         # footnoteReference, horizontalRule, pageBreak, columnBreak, autoText,
         # richLink, person, equation: no Markdown equivalent, silently skipped.

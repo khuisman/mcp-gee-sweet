@@ -119,7 +119,15 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   distinguishes a genuine ```` ```code block``` ```` paragraph from `` `inline code` `` sitting
   next to ordinary text in the same paragraph — the one case it can't resolve (a paragraph
   containing *only* a single inline code span, nothing else) is the genuinely ambiguous case
-  documented above, not a bug in the heuristic.
+  documented above, not a bug in the heuristic. One exception (#951): a fenced block's content
+  is literal and can't carry a link, so an all-code paragraph with any linked run renders as
+  inline code spans (each line its own span, joined by `<br>`) instead of a fence, keeping the
+  link. A linked image doesn't trigger this, since images render outside the fence anyway.
+- **Linked images** (#951): Docs puts an image's link on its `inlineObjectElement`'s own
+  `textStyle.link`, the same as a text run (confirmed live). `doc_to_ast` reads it into
+  `Image.link_url`, and every image renders through `_render_image` as `[![alt](src)](url)`, in
+  ordinary text, a code paragraph, and a table cell alike. The write side doesn't set
+  `Image.link_url` yet.
 - **Code delimiters** (#923, #940, #938): a code span's content is literal, so the serializer
   can only pick a delimiter and padding. A fenced block's fence and an inline span's delimiter
   are one backtick longer than the longest backtick run in the content (fences at least 3).

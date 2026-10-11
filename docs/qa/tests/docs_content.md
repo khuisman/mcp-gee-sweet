@@ -3602,6 +3602,28 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #968 round 2 (`759362a`).** `get_doc_as_markdown` returned all four expected lines exactly. markdown-it-py 4.2.0 (`commonmark` + `table` + `strikethrough`) rendered the cells `<code>a|*b* _c_</code>`, `<code>C:\|x</code>`, and `<code>x</code><br><a href="https://example.com/b"><code>b</code></a>`, and the paragraph `Use &lt;br&gt; or &amp;#124; and ~~old~~, AT&amp;T a &lt; b`, with no `<em>`, `<del>`, or line break. Fixture content was written back.
 
+### TC-DOC209: A linked code-only paragraph and linked images keep their links on export (#951)
+**Background:** a fenced block's content is literal, so an all-code paragraph with a linked run used to export as a plain fence and drop the URL. Linked images lost their link everywhere, because the read side never read the image element's own `textStyle.link`. The write side can't create a linked image, so steps 2–3 link the images with `style_doc_range`.
+
+**Setup:**
+1. `write_doc_content(doc_id={DOC_ID}, content_format='html', content=...)` with:
+   ```html
+   <p><a href="https://pypi.org/project/pkg/"><code>pkg</code></a></p><p><code>x = 1</code><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"></p><p><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"></p>
+   ```
+2. `get_doc_structure(doc_id={DOC_ID})` and note each image's index: in the second paragraph, the position right after `x = 1` (`{IMG1}`); the third paragraph's `startIndex` (`{IMG2}`).
+3. `style_doc_range(doc_id={DOC_ID}, ranges=[{"start_index": {IMG1}, "end_index": {IMG1}+1, "link_url": "https://example.com/in-code"}, {"start_index": {IMG2}, "end_index": {IMG2}+1, "link_url": "https://example.com/plain"}])`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` starts with `` [`pkg`](https://pypi.org/project/pkg/) ``, an inline code span inside a link, not a ```` ``` ```` fence
+- The second paragraph still exports as a fence: ```` ``` ````, `x = 1`, ```` ``` ````, followed by a separate line `[![](<contentUri>)](https://example.com/in-code)`
+- The third paragraph is `[![](<contentUri>)](https://example.com/plain)`
+- Rendering `markdown` with `markdown-it-py`'s `commonmark` preset gives `<a href="https://pypi.org/project/pkg/"><code>pkg</code></a>`, one `<pre><code>x = 1` block, and two `<a>` elements each wrapping an `<img>`, with the hrefs above
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)

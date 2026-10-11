@@ -49,6 +49,9 @@ class Image:
     alt: str | None = None
     width: float | None = None  # pt
     height: float | None = None  # pt
+    # Read side only (doc_to_ast.py): the image element's own textStyle.link.
+    # The write side doesn't set it yet.
+    link_url: str | None = None
 
 
 @dataclass

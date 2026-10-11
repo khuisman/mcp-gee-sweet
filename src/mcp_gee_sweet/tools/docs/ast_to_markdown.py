@@ -88,9 +88,17 @@ def _is_code_block(node: Paragraph) -> bool:
     representation has no other marker distinguishing a full code-block
     paragraph from a Paragraph that merely contains one inline `code` span
     among ordinary text, so "every run in this paragraph is code" is the only
-    signal available (see markdown-support.md's write-side mapping table)."""
+    signal available (see markdown-support.md's write-side mapping table).
+
+    A fenced block's content is literal, so it can't carry a link. A paragraph
+    with any linked run renders as inline code spans instead, which can (#951).
+    A linked Image doesn't count: images render outside the fence anyway."""
     runs = [r for r in node.runs if isinstance(r, Run)]
-    return bool(runs) and all(r.font_family == "Courier New" for r in runs)
+    return (
+        bool(runs)
+        and all(r.font_family == "Courier New" for r in runs)
+        and not any(r.link_url for r in runs)
+    )
 
 
 def _render_code_block(node: Paragraph) -> str:
@@ -110,7 +118,7 @@ def _render_code_block(node: Paragraph) -> str:
             if buffer:
                 segments.append(_fenced_code_block(buffer))
                 buffer = ""
-            segments.append(f"![{_escape(item.alt or '')}]({_md_link_dest(item.src)})")
+            segments.append(_render_image(item))
     if buffer:
         segments.append(_fenced_code_block(buffer))
     return "\n\n".join(segments)
@@ -176,10 +184,20 @@ def _render_inline(items: list[Run | Image]) -> str:
     parts: list[str] = []
     for item in _coalesce_code_runs(items):
         if isinstance(item, Image):
-            parts.append(f"![{_escape(item.alt or '')}]({_md_link_dest(item.src)})")
+            parts.append(_render_image(item))
         else:
             parts.append(_render_run(item))
     return "".join(parts)
+
+
+def _render_image(image: Image) -> str:
+    """Markdown for one image, wrapped in a link when the image is linked.
+    Every image goes through here, so a linked image keeps its link in a
+    code paragraph, a table cell, and ordinary text alike (#951)."""
+    body = f"![{_escape(image.alt or '')}]({_md_link_dest(image.src)})"
+    if image.link_url:
+        body = f"[{body}]({_md_link_dest(image.link_url)})"
+    return body
 
 
 def _is_code_run(item: Run | Image | Table) -> bool:
@@ -354,7 +372,7 @@ def _render_cell(cell: Cell) -> str:
         if isinstance(child, Table):
             parts.append(_NESTED_TABLE_PLACEHOLDER)
         elif isinstance(child, Image):
-            parts.append(_table_safe(f"![{_escape(child.alt or '')}]({_md_link_dest(child.src)})"))
+            parts.append(_table_safe(_render_image(child)))
         else:
             parts.append(_render_run(child, in_table=True))
     # Every part is already table-safe, with its newlines turned into <br>,
