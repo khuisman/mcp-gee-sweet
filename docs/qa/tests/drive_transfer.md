@@ -2013,8 +2013,8 @@ revision separate (#814), so the diff below uses one.
 **Checks**
 - Call 1's `markdown` has the heading, bold/italic, `` `inline code` ``, a fenced code block, a
   `> ` blockquote, the numbered list, both task items, the table, and the image as
-  `![](image:sha256-<16 hex>)`. Its `images` has one entry whose `url` is a
-  `googleusercontent.com` link that opens the logo.
+  `![](image:sha256-<16 hex>)`. The result has no `images` key: the temporary Doc's image URLs
+  stop serving once it's deleted, so none is returned (PR #988 round 1).
 - Call 2's `markdown` equals call 1's except the image line (call 2 has a URL).
 - Diffing call 3's `markdown` against call 4's shows exactly one changed line: `Intro with` →
   `Intro EDITED with`.
@@ -2037,17 +2037,24 @@ revision separate (#814), so the diff below uses one.
    `textStyle: {"link": {"headingId": "<id>"}}`. `get_doc_structure(doc_id="<id>")` gives both
    headings' `headingId`s.
 3. `list_revisions(file_id="<id>")` and take the last `revisionId`.
+4. Make a second Doc, `qa-959-bullet`, the same way (steps 1–2), then turn its first `## Setup`
+   into a bulleted list item: `create_paragraph_bullets` over that heading's range (indices from
+   `get_doc_structure`). `list_revisions` on it and take the last `revisionId`.
 
 **Tool calls**
 1. `export_revision(file_id="<id>", revision_id="<last>")`
 2. The same call again.
+3. `export_revision(file_id="<bullet-id>", revision_id="<bullet last>")`
 
 **Checks**
 - Call 1's `markdown` contains `[Jump](#setup)` and `[back](#setup-1)`, and no
   `docs.google.com` URL.
 - Call 2's `markdown` is identical to call 1's.
+- Call 3's `markdown` renders the first `Setup` as a list item (`- Setup`), leaves "Jump" as
+  plain text (its target doesn't render as a heading), and contains `[back](#setup)`: the
+  bulleted heading takes no slug (PR #988 round 1).
 
-**Teardown:** `delete_file(file_id="<id>")`.
+**Teardown:** `delete_file` on both Docs.
 
 **Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Revision 4: both calls returned `[Jump](#setup) here and [back](#setup-1) here.` with no `docs.google.com` URL, byte-identical. **Extra probe (sent back as a review finding):** a second Doc with the first `## Setup` turned into a bulleted list item (`createParagraphBullets`) and the same two links exported as `- Setup\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.` The bulleted heading renders as a list item, not a heading, but still takes a slug. `#setup` now names the wrong heading and `#setup-1` names none. Both Docs trashed.
 
@@ -2066,15 +2073,23 @@ directory, even with a trailing `/`, is written as a file of that name).
 3. `export_revision(file_id="<TEST_SPREADSHEET_ID>", revision_id="<sheet rev>", local_path="/tmp/qa-959/")`
 4. `export_revision(file_id="<TEST_SPREADSHEET_ID>", revision_id="<sheet rev>", range="A1:B2")`
 5. `export_revision(file_id="<doc-id>", revision_id="999999")`
+6. `export_revision(file_id="<doc-id>_WRONG", revision_id="<doc rev>")`
+7. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", local_path="/etc/hosts/x.md")`,
+   then `search_files(query="export_revision temp")`
 
 **Checks**
 - Call 1 returns `local_path` ending `/tmp/qa-959/<doc-id>-r<doc rev>.md`, `bytes_written`,
-  `revisionId`, `modifiedTime`, `images`, and no `markdown`. The file holds raw Markdown
+  `revisionId`, `modifiedTime`, and no `markdown` or `images`. The file holds raw Markdown
   (`Saved to disk`), not JSON.
 - Call 2 raises "…is a Google Doc; range and sheet apply only to Google Sheets."
 - Call 3 raises "…is a Google Sheet; local_path applies only to Google Docs."
 - Call 4 returns `sheet`, `range`, and `values` exactly as before #959.
 - Call 5 raises "Revision 999999 of <doc-id> not found…call list_revisions again…".
+- Call 6 raises Drive's own 404 ("File not found: <doc-id>_WRONG"), not the merged-revision
+  message (PR #988 round 1).
+- Call 7 raises "local_path '/etc/hosts/x.md' has a non-directory path component at
+  '/etc/hosts'", and `search_files` finds no temporary Doc: the destination is checked before
+  the export (PR #988 round 1).
 
 **Teardown:** remove `/tmp/qa-959/`; `delete_file(file_id="<doc-id>")`.
 

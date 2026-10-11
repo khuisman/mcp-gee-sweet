@@ -1011,14 +1011,16 @@ async def _fetch_revision_export(drive_service, url: str, revision_id: str) -> b
     return content
 
 
-async def _list_revisions(drive_service, file_id: str) -> list[dict]:
-    """Every revision of `file_id` as {id, modifiedTime}, oldest first, across
-    all pages."""
+async def _list_revisions(
+    drive_service, file_id: str, fields: str = "id, modifiedTime"
+) -> list[dict]:
+    """Every revision of `file_id` with the given revision `fields`, oldest
+    first, across all pages."""
     revisions: list[dict] = []
     async for resp in iter_pages(
         lambda token: drive_service.revisions().list(
             fileId=file_id,
-            fields="nextPageToken, revisions(id, modifiedTime)",
+            fields=f"nextPageToken, revisions({fields})",
             pageSize=1000,
             pageToken=token,
         ),
@@ -2350,19 +2352,11 @@ def register(tool):
             List of revisions, each with revisionId, modifiedTime, modifiedBy, keepForever.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        revisions: list[dict] = []
-        async for resp in iter_pages(
-            lambda token: drive_service.revisions().list(
-                fileId=file_id,
-                fields="nextPageToken,"
-                "revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
-                pageSize=1000,
-                pageToken=token,
-            ),
+        revisions = await _list_revisions(
             drive_service,
-            max_pages=_REVISIONS_MAX_PAGES,
-        ):
-            revisions.extend(resp.get("revisions", []))
+            file_id,
+            fields="id,modifiedTime,lastModifyingUser/displayName,keepForever",
+        )
         return [
             {
                 "revisionId": r["id"],
@@ -2373,7 +2367,13 @@ def register(tool):
             for r in revisions
         ]
 
-    @tool(annotations=ToolAnnotations(title="Export Revision", readOnlyHint=True))
+    # Not readOnlyHint: a Doc revision is read through a temporary Doc this
+    # creates and then deletes or trashes (PR #988 QA round 1).
+    @tool(
+        annotations=ToolAnnotations(
+            title="Export Revision", readOnlyHint=False, destructiveHint=False
+        )
+    )
     async def export_revision(
         file_id: str,
         revision_id: str,
@@ -2397,15 +2397,18 @@ def register(tool):
         get_doc_as_markdown. The Docs API can only read a document's current
         state, so the revision is exported as DOCX, imported into a temporary
         Google Doc in the default folder, converted, and the temporary Doc is
-        deleted (trashed if this identity can't delete it). Expect several
+        deleted (trashed if this identity can't delete it), so this call writes
+        to Drive even though it changes nothing of yours. Expect several
         seconds per call. Two revisions' exports diff cleanly, with these
         differences from get_doc_as_markdown's output:
           - A link to a heading in the document renders as "#slug" (GitHub
-            style), not a docs.google.com URL; a link to a bookmark renders as
-            "#bookmark-<n>".
+            style), not a docs.google.com URL. A link to a bookmark, or to a
+            heading that doesn't render as one (e.g. a bulleted heading), is
+            dropped, leaving its text.
           - An image renders as "image:sha256-<hash of its bytes>", so an
-            unchanged image doesn't show up in a diff; "images" maps each one to
-            a temporary URL that expires (roughly 30 minutes).
+            unchanged image doesn't show up in a diff. No viewable URL is
+            returned: the temporary Doc's image URLs stop working once it's
+            deleted.
           - Comments aren't included: they aren't part of a revision.
 
         Args:
@@ -2422,13 +2425,14 @@ def register(tool):
         Returns:
             Sheets: revisionId, modifiedTime, sheet name, range, and values as a
             list of rows.
-            Docs: revisionId, modifiedTime, markdown, and images (a list of
-            {src, url}), plus warning if the temporary Doc couldn't be removed
-            (it names the Doc's ID). With local_path, local_path and
-            bytes_written replace markdown.
+            Docs: revisionId, modifiedTime, and markdown, plus warning if the
+            temporary Doc couldn't be removed (it names the Doc's ID). With
+            local_path, local_path and bytes_written replace markdown.
             Raises ValueError for a file that is neither a Sheet nor a Doc, for
-            an argument that doesn't apply to the file's type, or if a Docs
-            response exceeds the size cap without local_path.
+            an argument that doesn't apply to the file's type, for a revision
+            ID that no longer exists, for a local_path with a non-directory
+            component (checked before the export), or if a Docs response
+            exceeds the size cap without local_path.
 
         Note:
             For a Doc, the temporary Doc needs storage: a service account must
@@ -2445,7 +2449,10 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status != 404:
+            # Only a missing *revision* gets the merge hint: a bad or
+            # inaccessible file ID is a 404 too, with Drive's own "File not
+            # found" text (PR #988 QA round 1).
+            if e.resp.status != 404 or b"Revision not found" not in (e.content or b""):
                 raise
             # Docs folds a recent revision into the next one when more edits
             # follow soon after, so an ID from an earlier list_revisions call can
@@ -2462,6 +2469,10 @@ def register(tool):
                 raise ValueError(
                     f"{file_id} is a Google Doc; range and sheet apply only to Google Sheets."
                 )
+            if local_path:
+                # Before the export: a bad destination would otherwise fail only
+                # after the temporary Doc round trip (PR #988 QA round 1).
+                _validate_local_destination(local_path)
             from ..docs.markdown_export import export_doc_revision_markdown
 
             exported = await export_doc_revision_markdown(

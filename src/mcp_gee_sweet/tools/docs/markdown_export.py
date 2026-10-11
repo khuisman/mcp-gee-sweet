@@ -11,6 +11,7 @@ docs/design/doc-to-markdown.md for the full decision writeup.
 """
 
 import asyncio
+import functools
 import hashlib
 import logging
 from typing import Any
@@ -31,9 +32,10 @@ from ..drive.transfer import (
 from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import _github_style_slugify, _slugs_with_dedup
+from .ast import Heading, NamedBlock, Run
 from .ast_to_markdown import ast_to_markdown
 from .comments import _COMMENT_FIELDS, _map_comment
-from .doc_to_ast import document_to_ast
+from .doc_to_ast import _paragraph_to_node, document_to_ast
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,9 @@ _COMMENTS_MAX_PAGES = 1000
 
 # Image fetches per revision export, run concurrently.
 _REVISION_IMAGE_CONCURRENCY = 8
+
+# googleapiclient retries a 5xx or 429 this many times, with exponential backoff.
+_CLEANUP_RETRIES = 3
 
 
 async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any]]:
@@ -64,19 +69,6 @@ async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any
     return [c for c in comments if not c["resolved"]]
 
 
-def _iter_paragraphs(node: Any):
-    """Every paragraph dict under `node` in document order, including those
-    inside table cells."""
-    if isinstance(node, dict):
-        if "paragraph" in node:
-            yield node["paragraph"]
-        for value in node.values():
-            yield from _iter_paragraphs(value)
-    elif isinstance(node, list):
-        for item in node:
-            yield from _iter_paragraphs(item)
-
-
 def _iter_text_styles(node: Any):
     """Every textStyle dict under `node`: text runs' and inline images' alike."""
     if isinstance(node, dict):
@@ -90,59 +82,70 @@ def _iter_text_styles(node: Any):
             yield from _iter_text_styles(item)
 
 
+def _rendered_heading_slugs(document: dict) -> dict[str, str]:
+    """headingId -> '#slug' fragment for each paragraph that renders as a
+    Markdown heading, in document order.
+
+    Classified by doc_to_ast's own _paragraph_to_node rather than by
+    namedStyleType, since a paragraph with a headingId doesn't always render as
+    a heading: a bulleted heading renders as a list item, and one in a table
+    cell as cell text (PR #988 QA round 1). Counting those would shift every
+    later duplicate's -1/-2 suffix onto the wrong heading. TITLE/SUBTITLE
+    render as H1/H2, so they count."""
+    ids: list[str] = []
+    texts: list[str] = []
+    for elem in document.get("body", {}).get("content", []):
+        para = elem.get("paragraph")
+        if not para:
+            continue
+        heading_id = para.get("paragraphStyle", {}).get("headingId")
+        if not heading_id:
+            continue
+        node = _paragraph_to_node(para, document)
+        if not isinstance(node, Heading | NamedBlock):
+            continue
+        ids.append(heading_id)
+        texts.append("".join(r.text for r in node.runs if isinstance(r, Run)).strip())
+    slugs = _slugs_with_dedup(texts, _github_style_slugify)
+    return {heading_id: slug for heading_id, slug in zip(ids, slugs, strict=True) if slug}
+
+
 def _stabilize_internal_links(document: dict) -> None:
-    """Rewrite links to a heading or bookmark in a revision's temporary Doc as
-    '#slug' anchors, in place.
+    """Rewrite links to a heading in a revision's temporary Doc as '#slug'
+    anchors, and drop links to a bookmark, in place.
 
     The temporary Doc's ID and every heading/bookmark ID in it are new on each
     import (measured live, #959), so the same-document URL doc_to_ast builds
     would differ between any two exports and point at a deleted Doc. A heading
     link becomes a GitHub-style slug of the heading's text, deduplicated like
     anchors.py's resolver expects, so it survives a round trip through the
-    write side. A bookmark has no text to name it, so it gets `#bookmark-<n>`,
-    numbered by first reference. A heading link whose target isn't in the body
-    is dropped: a link to the wrong place is worse than none."""
-    body = document.get("body", {})
-    heading_ids: list[str] = []
-    heading_texts: list[str] = []
-    for para in _iter_paragraphs(body):
-        heading_id = para.get("paragraphStyle", {}).get("headingId")
-        if heading_id:
-            heading_ids.append(heading_id)
-            heading_texts.append(
-                "".join(
-                    el.get("textRun", {}).get("content", "") for el in para.get("elements", [])
-                ).strip()
-            )
-    slugs = dict(
-        zip(heading_ids, _slugs_with_dedup(heading_texts, _github_style_slugify), strict=True)
-    )
-    bookmark_refs: dict[str, str] = {}
-    for ts in _iter_text_styles(body):
+    write side. A heading link whose target doesn't render as a heading is
+    dropped, and so is every bookmark link: a bookmark has no text to name it,
+    and any '#fragment' made up for one could be resolved by the write side's
+    fuzzy matcher to some heading (PR #988 QA round 1). A link to the wrong
+    place is worse than none."""
+    slugs = _rendered_heading_slugs(document)
+    for ts in _iter_text_styles(document.get("body", {})):
         link = ts.get("link")
         if not link or link.get("url"):
             continue
         heading_id = (link.get("heading") or {}).get("id") or link.get("headingId")
-        bookmark_id = (link.get("bookmark") or {}).get("id") or link.get("bookmarkId")
-        if heading_id:
-            slug = slugs.get(heading_id)
-            if slug is None:
-                del ts["link"]
-            else:
-                ts["link"] = {"url": f"#{slug}"}
-        elif bookmark_id:
-            ref = bookmark_refs.setdefault(bookmark_id, f"bookmark-{len(bookmark_refs) + 1}")
-            ts["link"] = {"url": f"#{ref}"}
+        slug = slugs.get(heading_id) if heading_id else None
+        if slug:
+            ts["link"] = {"url": f"#{slug}"}
+        else:
+            del ts["link"]
 
 
-async def _stabilize_images(drive_service, document: dict) -> list[dict[str, str]]:
+async def _stabilize_images(drive_service, document: dict) -> None:
     """Replace each inline image's contentUri in a revision's temporary Doc with
-    `image:sha256-<hash>` of its bytes, in place, and return
-    [{"src", "url"}] mapping each placeholder to the temporary URL.
+    `image:sha256-<hash>` of its bytes, in place.
 
     The contentUri is new on every import, but the bytes are the same
     (measured live, #959), so hashing them keeps two exports diffable and still
-    shows a changed image. A failed fetch gets `image:unavailable` instead."""
+    shows a changed image. The URL itself isn't kept: it stops serving once the
+    temporary Doc is deleted (PR #988 QA round 1). A failed fetch gets
+    `image:unavailable` instead."""
     objects = [
         props
         for obj in document.get("inlineObjects", {}).values()
@@ -153,7 +156,7 @@ async def _stabilize_images(drive_service, document: dict) -> list[dict[str, str
         ).get("contentUri")
     ]
     if not objects:
-        return []
+        return
     sem = asyncio.Semaphore(_REVISION_IMAGE_CONCURRENCY)
 
     async def _hash(uri: str) -> str:
@@ -165,18 +168,14 @@ async def _stabilize_images(drive_service, document: dict) -> list[dict[str, str
 
     uris = [props["contentUri"] for props in objects]
     hashes = await asyncio.gather(*(_hash(u) for u in uris), return_exceptions=True)
-    images: dict[str, str] = {}
     for props, uri, digest in zip(objects, uris, hashes, strict=True):
         if isinstance(digest, BaseException) and not isinstance(digest, Exception):
             raise digest
         if isinstance(digest, Exception):
             logger.warning("Couldn't fetch revision image %s: %s", uri, digest)
-            src = "image:unavailable"
+            props["contentUri"] = "image:unavailable"
         else:
-            src = f"image:sha256-{digest}"
-            images.setdefault(src, uri)
-        props["contentUri"] = src
-    return [{"src": src, "url": url} for src, url in images.items()]
+            props["contentUri"] = f"image:sha256-{digest}"
 
 
 async def _discard_temp_doc(drive_service, file_id: str, can_delete: bool) -> str | None:
@@ -191,7 +190,11 @@ async def _discard_temp_doc(drive_service, file_id: str, can_delete: bool) -> st
             request = drive_service.files().update(
                 fileId=file_id, body={"trashed": True}, fields="id", supportsAllDrives=True
             )
-        await execute_in_thread(request.execute, drive_service)
+        # Retried on a 5xx or 429: a failed removal leaves a copy of the
+        # revision in Drive.
+        await execute_in_thread(
+            functools.partial(request.execute, num_retries=_CLEANUP_RETRIES), drive_service
+        )
     except Exception as e:
         logger.warning("Couldn't remove temporary revision Doc %s: %s", file_id, e)
         return str(e)
@@ -207,8 +210,8 @@ async def export_doc_revision_markdown(
     folder_id: str | None,
 ) -> dict[str, Any]:
     """A Google Doc revision as Markdown, through get_doc_as_markdown's own
-    converter (#959). Returns {"markdown", "images"}, plus "warning" if the
-    temporary Doc couldn't be removed.
+    converter (#959). Returns {"markdown"}, plus "warning" if the temporary
+    Doc couldn't be removed.
 
     The Docs API reads only a document's current state, and Drive exports an
     old revision only as a file. Google's own Markdown and HTML exports lose
@@ -235,7 +238,9 @@ async def export_doc_revision_markdown(
                     drive_service.files()
                     .create(
                         body=body,
-                        media_body=MediaInMemoryUpload(docx, mimetype=_DOCX_MIME),
+                        # Resumable: Drive takes a multipart upload only up to 5 MB, and
+                        # a revision with embedded images can exceed it.
+                        media_body=MediaInMemoryUpload(docx, mimetype=_DOCX_MIME, resumable=True),
                         fields="id,capabilities(canDelete)",
                         supportsAllDrives=True,
                     )
@@ -252,7 +257,7 @@ async def export_doc_revision_markdown(
             docs_service.documents().get(documentId=temp["id"]).execute,
             docs_service,
         )
-        images = await _stabilize_images(drive_service, document)
+        await _stabilize_images(drive_service, document)
     finally:
         if temp.get("id"):
             with anyio.CancelScope(shield=True):
@@ -265,7 +270,6 @@ async def export_doc_revision_markdown(
     _stabilize_internal_links(document)
     result: dict[str, Any] = {
         "markdown": ast_to_markdown(document_to_ast(document)),
-        "images": images,
     }
     if cleanup_error:
         result["warning"] = (

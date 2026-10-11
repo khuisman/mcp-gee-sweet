@@ -125,17 +125,21 @@ class TestDocRevisionExport:
             "revisionId": "7",
             "modifiedTime": "2026-10-11T00:00:00Z",
             "markdown": "Hello world\n",
-            "images": [],
         }
         create = drive.files.return_value.create.call_args.kwargs
         assert create["body"]["mimeType"] == "application/vnd.google-apps.document"
         assert create["body"]["parents"] == ["folder1"]
         assert create["media_body"].mimetype() == _DOCX
         assert create["media_body"].getbytes(0, 100) == b"docx-bytes"
+        # Multipart uploads are capped at 5 MB; a revision with images can exceed it.
+        assert create["media_body"].resumable() is True
         docs.documents.return_value.get.assert_called_with(documentId="tmp1")
         drive.files.return_value.delete.assert_called_once_with(
             fileId="tmp1", supportsAllDrives=True
         )
+        # Retried on a 5xx or 429: a failed removal leaves a copy in Drive.
+        delete_execute = drive.files.return_value.delete.return_value.execute
+        assert delete_execute.call_args.kwargs["num_retries"] == markdown_export._CLEANUP_RETRIES
         assert fake_http.requested[0] == "https://export/docx"
 
     async def test_no_default_folder_omits_parents(self, fake_http):
@@ -267,33 +271,64 @@ class TestInternalLinks:
         assert "[second](#setup-1)" in md
         assert "docs.google.com" not in md
 
-    async def test_bookmark_links_numbered_by_first_reference(self, fake_http):
+    async def test_bookmark_links_dropped(self, fake_http):
+        # Any '#fragment' invented for a bookmark could be fuzzy-matched to a
+        # heading by the write side's resolver (PR #988 QA round 1).
         md = await self._markdown(
             [
                 _para("one", link={"bookmarkId": "id.x"}),
                 _para("two", link={"bookmark": {"id": "id.y"}}),
-                _para("again", link={"bookmarkId": "id.x"}),
             ],
             fake_http,
         )
-        assert "[one](#bookmark-1)" in md
-        assert "[two](#bookmark-2)" in md
-        assert "[again](#bookmark-1)" in md
+        assert "one" in md and "two" in md
+        assert "](" not in md
 
     async def test_link_to_missing_heading_dropped(self, fake_http):
         md = await self._markdown([_para("orphan", link={"headingId": "h.gone"})], fake_http)
         assert md.strip() == "orphan"
 
-    async def test_heading_inside_table_cell_counts(self, fake_http):
+    async def test_bulleted_heading_not_counted_in_slugs(self, fake_http):
+        # PR #988 QA round 1: a bulleted heading renders as a list item, so it
+        # mustn't take the bare slug and push the real heading to "-1".
+        bulleted = _para("Setup\n", heading_id="h.a")
+        bulleted["paragraph"]["bullet"] = {"listId": "l1"}
+        md = await self._markdown(
+            [
+                bulleted,
+                _para("Setup\n", heading_id="h.b"),
+                _para("jump", link={"headingId": "h.a"}),
+                _para("back", link={"headingId": "h.b"}),
+            ],
+            fake_http,
+        )
+        assert "- Setup" in md
+        assert "[back](#setup)" in md
+        assert "[jump]" not in md
+
+    async def test_heading_inside_table_cell_not_counted(self, fake_http):
         table = {
             "table": {
-                "tableRows": [
-                    {"tableCells": [{"content": [_para("Cell Head\n", heading_id="h.t")]}]}
-                ]
+                "tableRows": [{"tableCells": [{"content": [_para("Setup\n", heading_id="h.t")]}]}]
             }
         }
-        md = await self._markdown([table, _para("go", link={"headingId": "h.t"})], fake_http)
-        assert "[go](#cell-head)" in md
+        md = await self._markdown(
+            [
+                table,
+                _para("Setup\n", heading_id="h.b"),
+                _para("cell", link={"headingId": "h.t"}),
+                _para("real", link={"headingId": "h.b"}),
+            ],
+            fake_http,
+        )
+        assert "[real](#setup)" in md
+        assert "[cell]" not in md
+
+    async def test_title_counts_as_heading(self, fake_http):
+        title = _para("Overview\n", heading_id="h.t")
+        title["paragraph"]["paragraphStyle"]["namedStyleType"] = "TITLE"
+        md = await self._markdown([title, _para("go", link={"headingId": "h.t"})], fake_http)
+        assert "[go](#overview)" in md
 
     async def test_url_links_untouched(self, fake_http):
         md = await self._markdown([_para("ext", link={"url": "https://example.com"})], fake_http)
@@ -310,8 +345,10 @@ class TestImages:
             results.append(await _export(_ctx(drive, docs)))
         assert results[0]["markdown"] == results[1]["markdown"]
         assert "](image:sha256-" in results[0]["markdown"]
-        assert results[0]["images"][0]["url"] == "https://img/a"
-        assert results[0]["images"][0]["src"] == results[1]["images"][0]["src"]
+        # The temporary URLs stop serving once the Doc is deleted (PR #988 QA
+        # round 1), so none is returned.
+        assert "img/a" not in str(results[0])
+        assert "images" not in results[0]
 
     async def test_changed_image_changes_src(self, fake_http):
         fake_http.routes["https://img/a"] = (200, b"one")
@@ -322,20 +359,9 @@ class TestImages:
                 {"o1": _inline_object("https://img/a"), "o2": _inline_object("https://img/b")},
             )
         )
-        result = await _export(_ctx(drive, docs))
-        assert len({i["src"] for i in result["images"]}) == 2
-
-    async def test_duplicate_image_listed_once(self, fake_http):
-        fake_http.routes["https://img/a"] = (200, b"same")
-        fake_http.routes["https://img/b"] = (200, b"same")
-        drive, docs = _services(
-            _document(
-                [_image_para("o1"), _image_para("o2")],
-                {"o1": _inline_object("https://img/a"), "o2": _inline_object("https://img/b")},
-            )
-        )
-        result = await _export(_ctx(drive, docs))
-        assert len(result["images"]) == 1
+        md = (await _export(_ctx(drive, docs)))["markdown"]
+        srcs = [line for line in md.splitlines() if "image:sha256-" in line]
+        assert len(srcs) == 2 and srcs[0] != srcs[1]
 
     async def test_unfetchable_image_marked_unavailable(self, fake_http):
         drive, docs = _services(
@@ -343,7 +369,6 @@ class TestImages:
         )
         result = await _export(_ctx(drive, docs))
         assert "](image:unavailable)" in result["markdown"]
-        assert result["images"] == []
 
 
 class TestExportRevisionDispatch:
@@ -400,10 +425,30 @@ class TestExportRevisionDispatch:
     async def test_missing_revision_explains_merging(self, fake_http):
         drive = MagicMock()
         drive.revisions.return_value.get.return_value.execute.side_effect = HttpError(
-            _resp(404), b"Revision not found"
+            _resp(404), b'{"error": {"message": "Revision not found: 7."}}'
         )
         with pytest.raises(ValueError, match="call list_revisions again"):
             await _export(_ctx(drive, MagicMock()))
+
+    async def test_missing_file_keeps_drives_error(self, fake_http):
+        # PR #988 QA round 1: a bad file ID is a 404 too, and must not read as a
+        # merged revision.
+        err = HttpError(_resp(404), b'{"error": {"message": "File not found: doc1."}}')
+        drive = MagicMock()
+        drive.revisions.return_value.get.return_value.execute.side_effect = err
+        with pytest.raises(HttpError) as exc_info:
+            await _export(_ctx(drive, MagicMock()))
+        assert exc_info.value is err
+
+    async def test_bad_doc_local_path_fails_before_export(self, fake_http, tmp_path):
+        # PR #988 QA round 1: validated before the temporary Doc round trip.
+        blocker = tmp_path / "file"
+        blocker.write_text("x")
+        drive, docs = _services(_document([_para("x\n")]))
+        with pytest.raises(ValueError, match="non-directory path component"):
+            await _export(_ctx(drive, docs), local_path=str(blocker / "out.md"))
+        assert fake_http.requested == []
+        drive.files.return_value.create.assert_not_called()
 
 
 class TestListRevisions:
