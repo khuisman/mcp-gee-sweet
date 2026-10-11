@@ -92,12 +92,15 @@ def _is_code_block(node: Paragraph) -> bool:
 
     A fenced block's content is literal, so it can't carry a link. A paragraph
     with any linked run renders as inline code spans instead, which can (#951).
-    A linked Image doesn't count: images render outside the fence anyway."""
+    Only a link `_render_code_run` would actually write counts: a linked run
+    that is only line breaks renders as bare <br>, so giving up the fence for
+    it would lose the block and still export no link (PR #976 QA round 1). A
+    linked Image doesn't count either: images render outside the fence."""
     runs = [r for r in node.runs if isinstance(r, Run)]
     return (
         bool(runs)
         and all(r.font_family == "Courier New" for r in runs)
-        and not any(r.link_url for r in runs)
+        and not any(r.link_url and r.text.strip("\n") for r in runs)
     )
 
 

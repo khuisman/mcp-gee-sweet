@@ -122,12 +122,21 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   documented above, not a bug in the heuristic. One exception (#951): a fenced block's content
   is literal and can't carry a link, so an all-code paragraph with any linked run renders as
   inline code spans (each line its own span, joined by `<br>`) instead of a fence, keeping the
-  link. A linked image doesn't trigger this, since images render outside the fence anyway.
+  link. Only a link that actually renders counts: a linked run that is only line breaks renders
+  as bare `<br>`, so it keeps the fence (PR #976 QA round 1). A linked image doesn't trigger
+  this either, since images render outside the fence anyway.
 - **Linked images** (#951): Docs puts an image's link on its `inlineObjectElement`'s own
   `textStyle.link`, the same as a text run (confirmed live). `doc_to_ast` reads it into
   `Image.link_url`, and every image renders through `_render_image` as `[![alt](src)](url)`, in
   ordinary text, a code paragraph, and a table cell alike. The write side doesn't set
-  `Image.link_url` yet.
+  `Image.link_url` yet (#977).
+- **Same-document links** (PR #976 QA round 1): Docs reports a link to a heading or bookmark by
+  ID with no `url` (confirmed live for a heading: `{"headingId": "h.x"}`, on a text run and an
+  image alike). `doc_to_ast._link_url`, shared by both, rebuilds it as
+  `https://docs.google.com/document/d/<id>/edit?tab=<tab>#heading=<id>` (or `#bookmark=`),
+  the form `get_doc_structure`'s docstring documents. The tab comes from the newer
+  `heading`/`bookmark` object's `tabId`, else `t.0`. The bookmark form follows the Docs UI's
+  own URLs; the API can't create a bookmark, so it isn't verified live.
 - **Code delimiters** (#923, #940, #938): a code span's content is literal, so the serializer
   can only pick a delimiter and padding. A fenced block's fence and an inline span's delimiter
   are one backtick longer than the longest backtick run in the content (fences at least 3).

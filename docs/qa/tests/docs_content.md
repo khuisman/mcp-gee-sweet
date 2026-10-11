@@ -3626,6 +3626,40 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #976 round 1 (`3dbd257`).** Ran on a scratch doc (created with `create_doc`, trashed afterwards) instead of `{DOC_ID}`, to stay off the shared fixture. Images landed at indices 10 and 12. `get_doc_as_markdown` returned `` [`pkg`](https://pypi.org/project/pkg/) ``, a ```` ``` ```` fence holding `x = 1`, then `[![](<contentUri>)](https://example.com/in-code)` and `[![](<contentUri>)](https://example.com/plain)` as separate paragraphs. markdown-it-py `commonmark` rendered `<a href="https://pypi.org/project/pkg/"><code>pkg</code></a>`, one `<pre><code>x = 1`, and two `<a>` elements each wrapping an `<img>` with the expected hrefs. Off-script probe on the same doc: a fenced two-line block (`a`, `b`) with only its soft break linked (`style_doc_range` over that one index) exported as `` `a`<br>`b` ``, with no fence and no link (sent back in round 1).
 
+### TC-DOC210: A code block whose only link is on its soft break keeps its fence (PR #976 QA round 1)
+**Background:** a link covering only a code block's line break (selecting a whole line in the UI can do this) renders as no link at all. It used to cost the paragraph its fence anyway, so the block exported as `` `a`<br>`b` `` with no link.
+
+**Setup:**
+1. `write_doc_content(doc_id={DOC_ID}, content_format='html', content='<pre>a\nb</pre>')`, with a real newline between `a` and `b`
+2. `get_doc_structure(doc_id={DOC_ID})` and note the code paragraph's `startIndex` (`{P}`). The soft break sits at `{P}+1`.
+3. `style_doc_range(doc_id={DOC_ID}, ranges=[{"start_index": {P}+1, "end_index": {P}+2, "link_url": "https://example.com/br"}])`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` is exactly ```` ```\na\nb\n```\n ````: one fence holding both lines, no `<br>`, no backtick span
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+### TC-DOC211: Links to a heading in the same doc export as working URLs, on text and on an image (PR #976 QA round 1)
+**Background:** Docs reports a link made with the UI's "Headings" picker as `{"headingId": ...}`, with no `url`, on a text run and an image alike. These links used to export with no link. `style_doc_range`'s `link_url` always writes a plain `url`, so step 3 makes the links through the Docs UI.
+
+**Setup:**
+1. `write_doc_content(doc_id={DOC_ID}, content_format='html', content='<h1>Target</h1><p>jump <img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"></p>')`
+2. `get_doc_structure(doc_id={DOC_ID})` and note the heading's `headingId` (`{HID}`)
+3. With Playwright, open the doc, select the word `jump`, press Ctrl+K (Cmd+K on macOS), and pick the `Target` heading from the link dialog's "Headings" list. Then click the image and link it to `Target` the same way.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `[jump](https://docs.google.com/document/d/{DOC_ID}/edit?tab=t.0#heading={HID})`. The tab may differ from `t.0` if the UI recorded one, but the `#heading={HID}` fragment must match.
+- `markdown` contains `[![](<contentUri>)](https://docs.google.com/document/d/{DOC_ID}/edit?tab=t.0#heading={HID})`, with the same tab caveat
+- Opening the exported `jump` URL in Playwright lands on the `Target` heading
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)

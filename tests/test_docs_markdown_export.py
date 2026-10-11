@@ -250,6 +250,72 @@ class TestDocToAstBlockquote:
         assert node.blockquote_depth == 2
 
 
+class TestDocToAstLinks:
+    """PR #976 QA round 1: Docs reports a same-document link by ID, with no
+    url (live shape: `{"headingId": "h.x"}`), on text runs and images alike."""
+
+    _BASE = "https://docs.google.com/document/d/DOC/edit"
+
+    def _doc(self, link):
+        return {
+            "documentId": "DOC",
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "jump", "textStyle": {"link": link}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {
+                "img1": {
+                    "inlineObjectProperties": {
+                        "embeddedObject": {"imageProperties": {"contentUri": "https://i/p.png"}}
+                    }
+                }
+            },
+        }
+
+    @pytest.mark.parametrize(
+        "link, expected",
+        [
+            ({"url": "https://example.com"}, "https://example.com"),
+            ({"headingId": "h.abc"}, f"{_BASE}?tab=t.0#heading=h.abc"),
+            ({"heading": {"id": "h.abc", "tabId": "t.7"}}, f"{_BASE}?tab=t.7#heading=h.abc"),
+            ({"bookmarkId": "id.xyz"}, f"{_BASE}?tab=t.0#bookmark=id.xyz"),
+            ({"bookmark": {"id": "id.xyz", "tabId": "t.2"}}, f"{_BASE}?tab=t.2#bookmark=id.xyz"),
+            ({"headingId": "h.abc", "tabId": "t.3"}, f"{_BASE}?tab=t.3#heading=h.abc"),
+        ],
+    )
+    def test_link_url_on_run_and_image(self, link, expected):
+        run, image = document_to_ast(self._doc(link))[0].runs
+        assert run.link_url == expected
+        assert isinstance(image, Image)
+        assert image.link_url == expected
+
+    def test_internal_link_without_document_id_is_dropped(self):
+        doc = self._doc({"headingId": "h.abc"})
+        del doc["documentId"]
+        run, image = document_to_ast(doc)[0].runs
+        assert run.link_url is None
+        assert image.link_url is None
+
+    def test_heading_link_exports_as_markdown_link(self):
+        md = ast_to_markdown(document_to_ast(self._doc({"headingId": "h.abc"})))
+        url = f"{self._BASE}?tab=t.0#heading=h.abc"
+        assert md == f"[jump]({url})[![](https://i/p.png)]({url})\n"
+
+
 class TestDocToAstImages:
     def test_inline_object_resolves_to_image(self):
         doc = {
@@ -772,6 +838,12 @@ class TestCodeBlockLinks:
         assert md == "[`a`<br>`# b`](https://x.com)\n"
         tokens = _COMMONMARK.parse(md)
         assert [t.type for t in tokens] == ["paragraph_open", "inline", "paragraph_close"]
+
+    def test_link_on_only_a_line_break_keeps_the_fence(self):
+        # PR #976 QA round 1: a link covering just the soft break renders as
+        # bare <br> with no link, so it must not cost the paragraph its fence.
+        nodes = [Paragraph(runs=[_code("a"), _code("\n", link_url="https://x.com"), _code("b")])]
+        assert ast_to_markdown(nodes) == "```\na\nb\n```\n"
 
     def test_unlinked_code_paragraph_still_fenced(self):
         nodes = [Paragraph(runs=[_code("x = 1")])]

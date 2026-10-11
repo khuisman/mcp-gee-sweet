@@ -124,15 +124,15 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
             content = tr.get("content", "")
             if content == "":
                 continue
-            items.append(_text_run_to_run(content, tr.get("textStyle", {})))
+            ts = tr.get("textStyle", {})
+            items.append(_text_run_to_run(content, ts, _link_url(ts, document)))
         elif "inlineObjectElement" in pe:
             ioe = pe["inlineObjectElement"]
-            image = _resolve_inline_image(ioe.get("inlineObjectId"), document)
+            # A linked image carries the link on its element's own textStyle,
+            # the same as a text run (#951, confirmed live).
+            link_url = _link_url(ioe.get("textStyle", {}), document)
+            image = _resolve_inline_image(ioe.get("inlineObjectId"), document, link_url)
             if image is not None:
-                # A linked image carries the link on its element's own
-                # textStyle, the same as a text run (#951, confirmed live).
-                link = ioe.get("textStyle", {}).get("link")
-                image.link_url = link.get("url") if link else None
                 items.append(image)
         # footnoteReference, horizontalRule, pageBreak, columnBreak, autoText,
         # richLink, person, equation: no Markdown equivalent, silently skipped.
@@ -147,8 +147,33 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
     return items
 
 
-def _text_run_to_run(text: str, ts: dict) -> Run:
+def _link_url(ts: dict, document: dict) -> str | None:
+    """The URL for a textStyle's link, or None when there is no link.
+
+    Docs reports a link to a heading or bookmark in this document by ID, with
+    no `url` (confirmed live for a heading: `{"headingId": "h.x"}`, #951). It's
+    rebuilt as the same-document URL the Docs UI uses, the form
+    get_doc_structure's docstring documents for heading links. The newer
+    `heading`/`bookmark` objects carry a `tabId`; the deprecated flat fields
+    don't, so they fall back to the first tab, the only one this walker reads."""
     link = ts.get("link")
+    if not link:
+        return None
+    if link.get("url"):
+        return link["url"]
+    doc_id = document.get("documentId")
+    if not doc_id:
+        return None
+    for kind in ("heading", "bookmark"):
+        target = link.get(kind) or {}
+        target_id = target.get("id") or link.get(f"{kind}Id")
+        if target_id:
+            tab = target.get("tabId") or link.get("tabId") or "t.0"
+            return f"https://docs.google.com/document/d/{doc_id}/edit?tab={tab}#{kind}={target_id}"
+    return None
+
+
+def _text_run_to_run(text: str, ts: dict, link_url: str | None = None) -> Run:
     fg = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
     bg = ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
     baseline = ts.get("baselineOffset")
@@ -159,7 +184,7 @@ def _text_run_to_run(text: str, ts: dict) -> Run:
         italic=ts.get("italic"),
         underline=ts.get("underline"),
         strikethrough=ts.get("strikethrough"),
-        link_url=link.get("url") if link else None,
+        link_url=link_url,
         font_size=ts.get("fontSize", {}).get("magnitude"),
         foreground_color=_rgb_color(fg),
         font_family=ts.get("weightedFontFamily", {}).get("fontFamily"),
@@ -175,7 +200,9 @@ def _rgb_color(rgb: dict | None) -> RGBColor | None:
     return RGBColor(red=rgb.get("red", 0.0), green=rgb.get("green", 0.0), blue=rgb.get("blue", 0.0))
 
 
-def _resolve_inline_image(object_id: str | None, document: dict) -> Image | None:
+def _resolve_inline_image(
+    object_id: str | None, document: dict, link_url: str | None = None
+) -> Image | None:
     if not object_id:
         return None
     obj = document.get("inlineObjects", {}).get(object_id)
@@ -191,6 +218,7 @@ def _resolve_inline_image(object_id: str | None, document: dict) -> Image | None
         alt=embedded.get("title") or embedded.get("description") or None,
         width=size.get("width", {}).get("magnitude"),
         height=size.get("height", {}).get("magnitude"),
+        link_url=link_url,
     )
 
 
