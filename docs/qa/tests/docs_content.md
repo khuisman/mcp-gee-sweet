@@ -3638,9 +3638,11 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 > "Export doc {DOC_ID} as Markdown"
 
 **Checks**
-- `markdown` is exactly ```` ```\na\nb\n```\n ````: one fence holding both lines, no `<br>`, no backtick span
+- `markdown` starts with ```` ```\na\nb\n``` ````: one fence holding both lines, no `<br>`, no backtick span. Trailing newlines after the fence come from the doc's empty last paragraph and aren't part of the check.
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-10) ✅ PASS — Kit, PR #976 round 2 (`fcf45d8`).** Ran on a scratch doc (created with `create_doc`, trashed afterwards). `{P}` was 1, so the link went on index 2. `get_doc_as_markdown` returned ```` ```\na\nb\n```\n\n ````: one fence, no `<br>`, no backtick span. The same setup exported `` `a`<br>`b` `` in round 1. The check said "exactly" and didn't allow the trailing `\n\n`, which every export has, so its wording was loosened.
 
 ### TC-DOC211: Links to a heading in the same doc export as working URLs, on text and on an image (PR #976 QA round 1)
 **Background:** Docs reports a link made with the UI's "Headings" picker as `{"headingId": ...}`, with no `url`, on a text run and an image alike. These links used to export with no link. `style_doc_range`'s `link_url` always writes a plain `url`, so step 3 makes the links through the Docs UI.
@@ -3659,6 +3661,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 - Opening the exported `jump` URL in Playwright lands on the `Target` heading
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-10) ✅ PASS — Kit, PR #976 round 2 (`fcf45d8`).** Ran on the same scratch doc as TC-DOC210 (trashed afterwards). The Playwright profile was signed into the fixture-owning account: the page title matched the doc name. `{HID}` was `h.ys7n1h73fcgv`. Step 3 in practice: double-click `jump` to select it. Cmd+K opens a dialog whose list already shows the heading (`Tт Target`), with no need to go through "Headings, bookmarks, and tabs". Click that dialog option, `li[role=option]`, not the left sidebar's `Target` outline entry: the outline entry only navigates, and clicking it first linked nothing. Then click the image and repeat. `get_doc_as_markdown` returned `[jump](https://docs.google.com/document/d/{DOC_ID}/edit?tab=t.0#heading=h.ys7n1h73fcgv) [![](<contentUri>)](…same URL…)`. Navigating to that URL opened the doc with the cursor at the start of `Target` (toolbar showed Heading 1).
 
 ---
 
