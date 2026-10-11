@@ -960,12 +960,16 @@ class TestAstToMarkdownBlocks:
             "  - a",
             "   - a",
             "  # h",
+            "## h",
+            "###### h",
+            "  ### h",
             "   > q",
             " 1. x",
             "---",
             "- - -",
             "--",
             "===",
+            "===  ",
             "* * *",
             "___",
             "    four-space indent",
@@ -976,7 +980,7 @@ class TestAstToMarkdownBlocks:
         # Leading spaces before a marker, rule lines, and 4+ space or tab
         # indents (an indented code block) all stay a plain paragraph (#993).
         html = _COMMONMARK.render(ast_to_markdown([Paragraph(runs=[Run(text=text)])]))
-        assert html == f"<p>{escape(text.lstrip(), quote=False)}</p>\n"
+        assert html == f"<p>{escape(text.strip(), quote=False)}</p>\n"
 
     def test_paragraph_starting_with_digit_but_no_marker_punctuation_is_untouched(self):
         # "123 apples" isn't an ordered-list marker (no "." or ")" after the
@@ -1152,6 +1156,8 @@ class TestAstToMarkdownComments:
             # setext underline / thematic break (PR #991 QA round 1)
             ("Summary\n---\nmore", ["Summary", "---", "more"]),
             ("Title\n===\n--", ["Title", "===", "--"]),
+            # multi-"#" ATX headings (PR #991 QA round 2)
+            ("Probe heading\n## Notes\n###### six", ["Probe heading", "## Notes", "###### six"]),
             # leading spaces before a marker
             ("Points:\n - a\n   - b\n  # c", ["Points:", "- a", "- b", "# c"]),
             # GFM table
@@ -1170,6 +1176,12 @@ class TestAstToMarkdownComments:
         html = self._render(content="intro\n\n    indented *x*")
         assert "<pre>" not in html
         assert "<p>indented *x*</p>" in html
+
+    def test_quote_ending_in_equals_with_trailing_spaces_is_not_a_setext_heading(self):
+        # Drive keeps trailing whitespace in quoted_text (PR #991 QA round 2, live).
+        html = self._render(quoted_text="Summary\n===  ")
+        assert "<h1>" not in html
+        assert "<blockquote>\n<p>Summary<br />\n===</p>\n</blockquote>" in html
 
     def test_indented_quote_line_is_not_a_list(self):
         html = self._render(quoted_text="   - indented quote")

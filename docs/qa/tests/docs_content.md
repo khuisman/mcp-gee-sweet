@@ -4201,17 +4201,19 @@ Comment text is plain text, so no line of it may render as Markdown structure, a
 
 **Setup:**
 - `create_doc(title="QA TC-DOC217", folder_id={FOLDER_ID}, content="<p>anchor</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
-- `insert_doc_text(doc_id={SCRATCH_DOC_ID}, insertions=[{"index": 1, "text": " - a\n  # h\n---\n\ttab indent\n"}])`
+- `insert_doc_text(doc_id={SCRATCH_DOC_ID}, insertions=[{"index": 1, "text": " - a\n  # h\n---\n\ttab indent\n## Notes\n"}])`
 
 **Steps**
-1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n\n    indented *x*")`
+1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n## Notes\n\n    indented *x*")`
+1a. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="Summary\n===  ", content="QA TC-DOC217 setext")` (the trailing spaces after `===` are part of the anchor; Drive keeps them in `quoted_text`)
 2. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True, local_path="/tmp/tc-doc217.md")`
 3. `uv run python -c "from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').enable('table').render(open('/tmp/tc-doc217.md').read()))"`
 
 **Checks**
 - Step 3's HTML has no `<ul>`, `<ol>`, `<h1>`, `<table>`, or `<pre>`. It has exactly one `<h2>` (`Comments`) and one `<hr />`: the comments section's own heading and separator
-- The body renders `<p>- a</p>`, `<p># h</p>`, `<p>---</p>`, and `<p>tab indent</p>`
-- The comment renders `Summary`, `---`, `Points:`, `- a`, `- b`, `a | b`, `-|-`, and `c | d` as separate lines joined by `<br />` in one paragraph, then `<p>indented *x*</p>` as its own paragraph
+- The body renders `<p>- a</p>`, `<p># h</p>`, `<p>---</p>`, `<p>tab indent</p>`, and `<p>## Notes</p>`
+- Step 1's comment renders `Summary`, `---`, `Points:`, `- a`, `- b`, `a | b`, `-|-`, `c | d`, and `## Notes` as separate lines joined by `<br />` in one paragraph, with no literal `\` at any line end, then `<p>indented *x*</p>` as its own paragraph
+- Step 1a's quote renders as `<blockquote>` holding `<p>Summary<br />` and `===</p>`, with no `<h1>`
 
 **Cleanup:** `delete_file(file_id={SCRATCH_DOC_ID})`, `rm /tmp/tc-doc217.md`
 

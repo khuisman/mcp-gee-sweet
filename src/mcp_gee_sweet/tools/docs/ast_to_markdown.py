@@ -57,12 +57,12 @@ _BACKTICK_RUN = re.compile(r"`+")
 # Paragraph rendering only: Heading/NamedBlock/BulletItem already have their
 # own legitimate prefix on the same line, so content following it is never
 # re-parsed as a new block starting mid-line.
-_LEADING_SIMPLE_MARKER = re.compile(r"^([#>]|[-*+])(?=[ \t]|$)")
+_LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[>*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
 # underline under a preceding line, and so is a line of only "=". "*" and "_"
 # rules can't occur: _escape has already escaped both (#993).
-_LEADING_RULE_LINE = re.compile(r"^(?:=+|-[- \t]*)$")
+_LEADING_RULE_LINE = re.compile(r"^(?:=+[ \t]*|-[- \t]*)$")
 
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
