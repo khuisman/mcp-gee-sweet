@@ -1397,3 +1397,48 @@ class TestBangBeforeLinkCommonMark:
         table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run(text="b")])])])
         html = _COMMONMARK.render(ast_to_markdown([table]))
         assert f'<th>wow!<a href="{self.URL}">x</a></th>' in html
+
+
+class TestLookaheadEscapeAcrossRunsCommonMark:
+    """PR #981 QA round 1: "<" and "&" are escaped only when the text after
+    them would make a tag, autolink, or entity. A run boundary (e.g. a color
+    change mid-word, which Markdown doesn't render) hid that text."""
+
+    def _render(self, *texts):
+        rendered = ast_to_markdown([Paragraph(runs=[Run(text=t) for t in texts])])
+        inline = next(t for t in _COMMONMARK.parse(rendered) if t.type == "inline")
+        return rendered, inline
+
+    @pytest.mark.parametrize(
+        "texts",
+        [
+            ("a <", "b> text"),
+            ("AT&", "amp;T"),
+            ("see <", "https://x.io>"),
+            ("x &", "#124; y"),
+            ("&", "am", "p; split three ways"),
+            ("a <", "", "b> empty run between"),
+        ],
+    )
+    def test_split_syntax_renders_literally(self, texts):
+        _, inline = self._render(*texts)
+        assert [t.type for t in inline.children] == ["text"]
+        assert inline.children[0].content == "".join(texts)
+
+    @pytest.mark.parametrize(
+        "texts",
+        [("a <", " b"), ("AT&", "T"), ("a &", " b"), ("1 <", "2")],
+    )
+    def test_prose_stays_unescaped(self, texts):
+        rendered, _ = self._render(*texts)
+        assert rendered == "".join(texts) + "\n"
+
+    def test_less_than_before_inline_code_is_left_alone(self):
+        rendered = ast_to_markdown([Paragraph(runs=[Run(text="a <"), _code("b")])])
+        assert rendered == "a <`b`\n"
+
+    def test_table_cell(self):
+        cell = Cell(children=[Run(text="a <"), Run(text="b> text")])
+        table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run(text="c")])])])
+        html = _COMMONMARK.render(ast_to_markdown([table]))
+        assert "<th>a &lt;b&gt; text</th>" in html
