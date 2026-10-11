@@ -414,7 +414,7 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Read/list/delete tools for named ranges (asymmetric with existing `create_named_range`); triaged out of `backlog` 2026-09-11 ([#340](https://github.com/khuisman/mcp-gee-sweet/issues/340))
 
 **Drive**
-- [ ] File comments — list and add comments on Drive files ([#142](https://github.com/khuisman/mcp-gee-sweet/issues/142))
+- [x] File comments — list and add comments on Drive files — closed as superseded: `list_doc_comments`/`add_doc_comment` (#151, PR #324) already call the generic Drive `comments` resource and work on any file type; the rename to file-generic names is #663 and the rest of CRUD is #664, both v0.9.3 ([#142](https://github.com/khuisman/mcp-gee-sweet/issues/142))
 - [ ] Watch notifications — webhook push on file changes ([#143](https://github.com/khuisman/mcp-gee-sweet/issues/143))
 - [ ] Labels API — custom metadata labels on Drive files ([#144](https://github.com/khuisman/mcp-gee-sweet/issues/144))
 - [ ] `empty_trash` — optional fan-out across all accessible Shared Drives in one call, instead of one call per drive; considered and deliberately deferred during #386's review ([#389](https://github.com/khuisman/mcp-gee-sweet/issues/389))
@@ -433,7 +433,6 @@ Net-new capabilities substantial enough (new subsystem, external infra like webh
 ### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
-- [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today _(a-bonus/google-docs-mcp)_
 - [ ] Conditional formatting rules — add/get/delete _(a-bonus/google-docs-mcp)_
 - [ ] Protected ranges — protect/unprotect a range _(a-bonus/google-docs-mcp)_
 - [ ] Dropdown / data validation on a range _(a-bonus/google-docs-mcp)_
@@ -444,7 +443,6 @@ Net-new capabilities substantial enough (new subsystem, external infra like webh
 - [ ] Copy formatting only, without values (paste-special-style) _(a-bonus/google-docs-mcp)_
 
 **Docs**
-- [ ] Doc comments (add/get/list/reply/resolve/delete) — we have zero comment tooling on Docs today _(a-bonus/google-docs-mcp)_
 - [ ] Multi-tab document support (list/add/rename tabs) — Google Docs' newer per-document tabs feature _(a-bonus/google-docs-mcp)_
 - [ ] Smart chips — date chips, person chips, rich links; `list_smart_chips` to enumerate existing ones _(a-bonus/google-docs-mcp)_
 - [ ] Section breaks and per-section page styling _(a-bonus/google-docs-mcp)_
