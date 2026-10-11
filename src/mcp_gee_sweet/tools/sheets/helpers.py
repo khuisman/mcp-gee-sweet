@@ -50,6 +50,7 @@ def _utf16_len(text: str) -> int:
 # spreadsheet. No sheet can have a row past _MAX_ROWS, so a bound beyond either
 # limit is rejected locally instead of reaching the API as a raw HttpError.
 _MAX_COLUMNS = 18278
+_MAX_COLUMN_LETTERS = len(_column_index_to_letter(_MAX_COLUMNS - 1))  # "ZZZ"
 _MAX_ROWS = 10_000_000
 
 # One grammar, one capture group per bound per alternative, so the shape check
@@ -59,24 +60,25 @@ _MAX_ROWS = 10_000_000
 _A1_PATTERN = re.compile(
     # Cell, optionally to a cell (A1:B2), a column (A1:B), or a row (A1:5).
     r"(?P<cell_col>[A-Z]+)(?P<cell_row>[0-9]+)"
-    r"(?::(?:(?P<cell_end_col>[A-Z]+)(?P<cell_end_row>[0-9]*)|(?P<cell_end_row_only>[0-9]+)))?"
+    r"(?::(?:(?P<cell_end_col>[A-Z]+)(?P<cell_end_row>[0-9]+)?|(?P<cell_end_row_only>[0-9]+)))?"
     # Column, optionally to a column (A:B).
     r"|(?P<col>[A-Z]+)(?::(?P<col_end>[A-Z]+))?"
     # Row, optionally to a row (1:5).
     r"|(?P<row>[0-9]+)(?::(?P<row_end>[0-9]+))?",
     re.ASCII | re.IGNORECASE,
 )
+_A1_END_GROUPS = ("cell_end_col", "cell_end_row", "cell_end_row_only", "col_end", "row_end")
 
 
 def _a1_column_index(letters: str, range_str: str) -> int:
-    """0-based column index for A1 letters, rejecting columns past ZZZ."""
-    # Checked on length first so a huge letter run is never converted.
-    if len(letters) > 3:
+    """0-based column index for A1 letters, rejecting columns past ZZZ.
+
+    _MAX_COLUMNS is exactly the count of 1- to 3-letter columns, so the
+    letter count is the whole bound, and a huge letter run is never converted.
+    """
+    if len(letters) > _MAX_COLUMN_LETTERS:
         raise ValueError(f"Invalid A1 notation: column is beyond ZZZ: {range_str!r}")
-    index = _letter_to_column_index(letters)
-    if index >= _MAX_COLUMNS:
-        raise ValueError(f"Invalid A1 notation: column is beyond ZZZ: {range_str!r}")
-    return index
+    return _letter_to_column_index(letters)
 
 
 def _a1_row_number(digits: str, range_str: str) -> int:
@@ -130,7 +132,9 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     start_row = groups["cell_row"] or groups["row"]
     end_col = groups["cell_end_col"] or groups["col_end"]
     end_row = groups["cell_end_row"] or groups["cell_end_row_only"] or groups["row_end"]
-    has_colon = ":" in range_str
+    # Every alternative's optional tail starts with the colon, so any end
+    # bound present means a colon was matched, and vice versa.
+    has_colon = any(groups[name] for name in _A1_END_GROUPS)
 
     result = {}
 

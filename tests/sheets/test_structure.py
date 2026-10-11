@@ -52,7 +52,7 @@ _MALFORMED_RANGES = [
     "A99999999999",
 ]
 
-# Every tool that builds a GridRange through _grid_range_or_error, with the
+# Every tool that builds a GridRange through _resolve_grid_range, with the
 # arguments it needs beyond spreadsheet_id/sheet/range to reach the range check.
 _GRID_RANGE_TOOLS = {
     "sort_range": {},

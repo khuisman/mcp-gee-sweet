@@ -24,7 +24,7 @@ async def _execute_or_error(func, service) -> tuple[dict[str, Any] | None, Any]:
     """Runs execute_in_thread(func, service) and returns (error, result): a clean
     {"error": ...} dict on HttpError instead of letting it propagate uncaught, or
     (None, result) on success — matching this codebase's established error-or-None
-    convention (_parse_a1_notation_or_error, _grid_range_or_error) instead of
+    convention (_parse_a1_notation_or_error, _resolve_grid_range) instead of
     duplicating try/except HttpError at every call site in this file that hands a
     raw caller-supplied range/request straight to the Sheets API with no local
     validation (issue #757)."""
