@@ -3390,6 +3390,8 @@ local_path set: response {local_path, doc_id, bytes_written}, no inline markdown
 
 _Both results above predate #958, when the file held the JSON result envelope; re-run against the raw-Markdown checks._
 
+**Result (2026-10-11) ✅ PASS — Kit, PR #982 round 1 (`457c37b`).** Ran on a scratch doc (created with `create_doc`, trashed afterwards) instead of `{DOC_ID}`. It held non-ASCII text (`Café naïve — 日本語`, an emoji), quotes, bold, a bullet list, and one open comment, and every call used `include_comments=True`. The `local_path=".../qa-md-export.md"` call returned `{local_path, bytes_written: 184, doc_id, title}` with no `markdown` field. The file's bytes equaled the inline `markdown` field encoded as UTF-8, including the `## Comments` section, and `json.loads` on the file failed as expected. A directory `local_path` (without `include_comments`) wrote `<doc_id>.md` (111 bytes, no comments section). Regression check: `get_sheet_data(local_path=...)` still wrote a JSON file that parses. Local files deleted. Side observation, outside this case: the comment's quoted anchor `Café` came back as `Caf&#233;`, both in the export and in `add_doc_comment`'s echo.
+
 ---
 
 ### TC-DOC183: Rowspan merge preserves the covered row's own trailing cell
