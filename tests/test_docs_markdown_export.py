@@ -1074,6 +1074,43 @@ class TestAstToMarkdownComments:
         assert "please fix" in md
         assert "**Bob**: done" in md
 
+    def _quote_md(self, quoted_text):
+        comments = [{"author": {"display_name": "A"}, "quoted_text": quoted_text, "content": "fix"}]
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
+        return md.split("## Comments\n\n", 1)[1]
+
+    def test_quote_keeps_plain_text_and_escapes_only_markdown_syntax(self):
+        # "&" before a non-entity and "<" before a space stay as-is; "*" and
+        # a "<" that could open a tag are escaped (#984).
+        section = self._quote_md('Café & Tom, a < b, <x> "hi" *two*')
+        assert section == '**A**\n> Café & Tom, a < b, \\<x> "hi" \\*two\\*\n\nfix\n'
+
+    def test_multiline_quote_prefixes_every_line_and_escapes_block_markers(self):
+        section = self._quote_md("one\n\n# head\n- item\n1. num")
+        assert section == "**A**\n> one\n>\n> \\# head\n> \\- item\n> 1\\. num\n\nfix\n"
+
+    def test_quote_is_closed_before_the_comment_text(self):
+        # Without the blank line, "fix" would be a lazy continuation of the quote.
+        assert "> the sentence\n\nfix" in self._quote_md("the sentence")
+
+    def test_author_content_and_replies_are_escaped_as_plain_text(self):
+        comments = [
+            {
+                "author": {"display_name": "A_b*"},
+                "content": "use <b> and *x*\n# not a heading",
+                "replies": [{"author": {"display_name": "C"}, "content": "ok *y*\n- not an item"}],
+            }
+        ]
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
+        section = md.split("## Comments\n\n", 1)[1]
+        assert section == (
+            "**A\\_b\\***\n"
+            "use \\<b> and \\*x\\*\n"
+            "\\# not a heading\n"
+            "  - **C**: ok \\*y\\*\n"
+            "    \\- not an item\n"
+        )
+
     def test_no_comments_section_when_comments_is_none(self):
         nodes = [Paragraph(runs=[Run(text="body")])]
         assert "## Comments" not in ast_to_markdown(nodes, comments=None)

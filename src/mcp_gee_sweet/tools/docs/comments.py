@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any
 
@@ -38,8 +39,18 @@ def _map_reply(reply: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _quoted_text(resource: dict[str, Any]) -> str | None:
+    """The plain text a comment is anchored to. Drive returns
+    quotedFileContent.value HTML-escaped ("Caf&#233;", "&amp;") even though
+    it was written as plain text, and escapes a literal "&amp;" in the
+    anchor as "&amp;amp;", so unescaping once restores it exactly (#984)."""
+    quoted = resource.get("quotedFileContent")
+    if not quoted or quoted.get("value") is None:
+        return None
+    return html.unescape(quoted["value"])
+
+
 def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
-    quoted = comment.get("quotedFileContent")
     return {
         "id": comment.get("id"),
         "content": comment.get("content"),
@@ -48,7 +59,7 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
         "modified_time": comment.get("modifiedTime"),
         "resolved": comment.get("resolved", False),
         "deleted": comment.get("deleted", False),
-        "quoted_text": quoted.get("value") if quoted else None,
+        "quoted_text": _quoted_text(comment),
         "replies": [_map_reply(r) for r in comment.get("replies", [])],
     }
 
@@ -155,14 +166,13 @@ def register(tool):
             drive_service,
         )
 
-        quoted = result.get("quotedFileContent")
         logger.debug("Added comment %s to doc %s", result.get("id"), doc_id)
         return {
             "id": result.get("id"),
             "content": result.get("content"),
             "author": _map_author(result.get("author")),
             "created_time": result.get("createdTime"),
-            "quoted_text": quoted.get("value") if quoted else None,
+            "quoted_text": _quoted_text(result),
         }
 
     @tool(annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True))

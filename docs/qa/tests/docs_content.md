@@ -4167,3 +4167,29 @@ Both tools read the local file through the shared `_read_doc_source_file` helper
 **Cleanup:** `rm -rf /tmp/tc-doc213`
 
 **Result (2026-10-10) ✅ PASS — Sky, PR #961 round 2 (`849f0bb`).** Ran with the fixtures under this job's scratch dir instead of `/tmp/tc-doc213`. Steps 1 and 3 returned `{"error": "Not a regular file: <path>/dir.md"}`; steps 2 and 4 returned `{"error": "File is not valid UTF-8: <path>/latin1.html (invalid continuation byte at byte 6)"}`. No call surfaced as `Error executing tool`. `list_files({FOLDER_ID})` showed only the three standing fixtures. After `refresh_cache`, `get_doc_content({DOC_ID})` matched the Setup snapshot. Round 1 reproduced both raises on the pre-fix code (`075ce99`).
+
+## Comment quoted text is plain text, not HTML-escaped (#984)
+
+Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `&amp;`, `&lt;`, `&quot;`, `&#39;`), and a literal `&amp;` in the anchor as `&amp;amp;`. `add_doc_comment`, `list_doc_comments`, and `get_doc_as_markdown(include_comments=True)` unescape it once. The Markdown export then escapes the quote only as Markdown needs, with `"> "` on every line, and escapes comment authors, text, and replies the same way.
+
+### TC-DOC215: Non-ASCII, `&`/`<`/`"`, literal-entity, and multi-line anchors round-trip as plain text ⚠️ destructive ⚠️ requires-oauth
+**Setup:** `create_doc(title="QA TC-DOC215", folder_id={FOLDER_ID}, content="<p>Café and Tom &amp; Jerry, a &lt; b, say \"hi\" it's &amp;amp; literal</p><p>line one</p><p>line *two* &lt;x&gt;</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
+
+**Steps**
+1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 a <b> *x*", quoted_text="Café and Tom & Jerry, a < b, say \"hi\" it's")`
+2. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 b", quoted_text="&amp; literal")`
+3. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 c", quoted_text="line one\nline *two* <x>")`
+4. `list_doc_comments(doc_id={SCRATCH_DOC_ID})`
+5. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True)`
+
+**Checks**
+- Steps 1–3 each return `quoted_text` equal to the `quoted_text` passed in, character for character: `Café`, not `Caf&#233;`; `&`, `<`, `"`, `'` unescaped; step 2 returns `&amp; literal`, not `&amp;amp; literal` or `& literal`
+- Step 4's three comments carry the same `quoted_text` values as steps 1–3
+- Step 5's `## Comments` section contains these quote blocks, each followed by a blank line before the comment text:
+  - `> Café and Tom & Jerry, a < b, say "hi" it's`
+  - `> \&amp; literal`
+  - `> line one` then `> line \*two\* \<x>` on the next line
+- Step 5 renders step 1's comment text as `QA TC-DOC215 a \<b> \*x\*` (plain text, escaped only as Markdown needs), and step 1 itself returns `content` unchanged
+- No `&#233;`, `&quot;`, `&#39;`, or `&lt;` appears anywhere in step 5's comments section
+
+**Cleanup:** `delete_file(file_id={SCRATCH_DOC_ID})`

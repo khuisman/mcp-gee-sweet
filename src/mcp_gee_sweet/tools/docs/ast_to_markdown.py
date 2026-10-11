@@ -463,12 +463,36 @@ def _table_safe(text: str) -> str:
 
 
 def _render_comment(comment: dict) -> str:
-    author = (comment.get("author") or {}).get("display_name") or "Unknown"
+    """Comment authors, anchors, and text are all plain text (Drive's
+    `content`, not `htmlContent`), so each is escaped like a body paragraph's:
+    a "*" or "<b>" stays literal, and a line starting "# " or "- " stays text
+    instead of becoming a heading or list (#984)."""
+    author = _escape((comment.get("author") or {}).get("display_name") or "Unknown")
     lines = [f"**{author}**"]
     if comment.get("quoted_text"):
-        lines.append(f"> {comment['quoted_text']}")
-    lines.append(comment.get("content") or "")
+        lines.append(_render_comment_quote(comment["quoted_text"]))
+    lines.append("\n".join(_comment_text_lines(comment.get("content") or "")))
     for reply in comment.get("replies", []):
-        r_author = (reply.get("author") or {}).get("display_name") or "Unknown"
-        lines.append(f"  - **{r_author}**: {reply.get('content') or ''}")
+        r_author = _escape((reply.get("author") or {}).get("display_name") or "Unknown")
+        first, *rest = _comment_text_lines(reply.get("content") or "")
+        # A continuation line indented to the item's content column stays in
+        # the list item instead of ending the list.
+        lines.append(
+            "\n".join(
+                [f"  - **{r_author}**: {first}"] + [f"    {line}" if line else "" for line in rest]
+            )
+        )
     return "\n".join(lines) + "\n"
+
+
+def _comment_text_lines(text: str) -> list[str]:
+    return [_escape_leading_block_marker(_escape(line)) for line in text.split("\n")]
+
+
+def _render_comment_quote(text: str) -> str:
+    """A comment's quoted anchor as a blockquote. Every line gets its own "> "
+    (Drive keeps newlines in a multi-line anchor), and a blank line ends the
+    quote, since the comment text after it would otherwise be read as a lazy
+    continuation of the quote's last paragraph (#984)."""
+    quoted = [f"> {line}" if line else ">" for line in _comment_text_lines(text)]
+    return "\n".join(quoted) + "\n"

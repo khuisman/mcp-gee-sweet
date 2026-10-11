@@ -148,6 +148,34 @@ class TestListDocComments:
         result = await _docs_tools["list_doc_comments"](doc_id="doc1", ctx=ctx)
         assert result["comments"][0]["quoted_text"] is None
 
+    async def test_quoted_text_is_html_unescaped(self):
+        # Drive returns quotedFileContent.value HTML-escaped (#984, seen live).
+        drive = MagicMock()
+        drive.comments.return_value.list.return_value.execute.return_value = {
+            "comments": [
+                {
+                    "id": "c1",
+                    "content": "note",
+                    "quotedFileContent": {
+                        "value": "Caf&#233; and Tom &amp; Jerry, a &lt; b, say &quot;hi&quot; it&#39;s"
+                    },
+                    "replies": [],
+                },
+                {
+                    "id": "c2",
+                    "content": "literal entity",
+                    "quotedFileContent": {"value": "&amp;amp; literal"},
+                    "replies": [],
+                },
+            ]
+        }
+        ctx = self._ctx(drive)
+        result = await _docs_tools["list_doc_comments"](doc_id="doc1", ctx=ctx)
+        assert [c["quoted_text"] for c in result["comments"]] == [
+            'Café and Tom & Jerry, a < b, say "hi" it\'s',
+            "&amp; literal",
+        ]
+
 
 class TestAddDocComment:
     def _ctx(self, drive_svc=None):
@@ -187,6 +215,19 @@ class TestAddDocComment:
         create_body = drive.comments.return_value.create.call_args.kwargs["body"]
         assert create_body["quotedFileContent"] == {"value": "the anchored sentence"}
         assert result["quoted_text"] == "the anchored sentence"
+
+    async def test_quoted_text_echo_is_html_unescaped(self):
+        drive = self._drive_svc()
+        drive.comments.return_value.create.return_value.execute.return_value[
+            "quotedFileContent"
+        ] = {"value": "Caf&#233; &lt;b&gt; &amp; &quot;x&quot;"}
+        ctx = self._ctx(drive)
+        result = await _docs_tools["add_doc_comment"](
+            doc_id="doc1", content="c", quoted_text='Café <b> & "x"', ctx=ctx
+        )
+        create_body = drive.comments.return_value.create.call_args.kwargs["body"]
+        assert create_body["quotedFileContent"] == {"value": 'Café <b> & "x"'}
+        assert result["quoted_text"] == 'Café <b> & "x"'
 
     async def test_file_id_passed_through_to_api(self):
         drive = self._drive_svc()
