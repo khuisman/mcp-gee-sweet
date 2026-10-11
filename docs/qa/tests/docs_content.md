@@ -3686,6 +3686,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #981 round 1 (`307e47c`).** Ran on a scratch doc (created with `create_doc` from the setup HTML, trashed afterwards) instead of `{DOC_ID}`. `get_doc_as_markdown` returned `wow\![x](https://example.com/a)`, `` hey\![`y`](https://example.com/b) ``, `fine! plain`, and the cell `cell\![z](https://example.com/c)`. markdown-it-py `commonmark` + `table` rendered `wow!<a href="https://example.com/a">x</a>`, `hey!<a href="https://example.com/b"><code>y</code></a>`, `fine! plain`, and `cell!<a href="https://example.com/c">z</a>`, with no `<img>`. Off-script probe on the same doc: `a <b> text` and `AT&amp;T` written as one run each, with `style_doc_range` setting `foreground_color` on `b> text` and `amp;T` to split each into two runs. Export was `a <b> text` (a raw HTML tag in CommonMark) and `AT&amp;T` (renders `AT&T`). As single runs, the same text exports escaped (`a \<b> text`, `AT\&amp;T`). Sent back in round 1.
 
+**Result (2026-10-10) ✅ PASS — Kit, PR #981 round 2 (`b2bfafe`).** Re-run after the fix rewrote `_join_inline`'s `!` check into the shared `_BOUNDARY_SYNTAX` table, on a scratch doc (trashed afterwards). The export was byte-identical to round 1's: `wow\![x](https://example.com/a)`, `` hey\![`y`](https://example.com/b) ``, `fine! plain`, and `cell\![z](https://example.com/c)`.
+
 ### TC-DOC214: `<` and `&` split from the rest of a tag or entity by a color change still export literally (PR #981 QA round 1)
 **Background:** `<` is escaped only when a tag or autolink could follow it, and `&` only when an entity could. Each run was escaped on its own, so a run boundary right after the `<` or `&` hid what followed. A color change splits a run without changing anything Markdown renders, so `a <b> text` exported as a raw `<b>` tag and `AT&amp;T` as the entity for `&`.
 
@@ -3703,6 +3705,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 - Rendering `markdown` with `markdown-it-py`'s `commonmark` preset gives `a &lt;b&gt; text`, `AT&amp;amp;T`, and `see &lt;https://x.io&gt;` as paragraph text, with no `<b>` tag and no `<a>`
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-10-10) ✅ PASS — Kit, PR #981 round 2 (`b2bfafe`).** Ran on a scratch doc (created with `create_doc` from the step 1 HTML, trashed afterwards) instead of `{DOC_ID}`. Step 2 used one `find_in_doc(regex=True)` call for all three queries: matches at 4–11, 15–20 and 26–39. After step 3, `get_doc_structure` showed each of the first three paragraphs as two runs split at the `<`/`&` (`a <` | `b> text`, `AT&` | `amp;T`, `see <` | `https://x.io>`). `get_doc_as_markdown` returned `a \<b> text`, `AT\&amp;T`, `see \<https://x.io>`, and `a < b and AT&T` unchanged. markdown-it-py `commonmark` rendered `a &lt;b&gt; text`, `AT&amp;amp;T`, `see &lt;https://x.io&gt;`, and `a &lt; b and AT&amp;T`, with no `<b>` and no `<a>`. Round 1 got `a <b> text` and `AT&amp;T` unescaped from the same kind of split, on pre-fix code (`307e47c`).
 
 ---
 
