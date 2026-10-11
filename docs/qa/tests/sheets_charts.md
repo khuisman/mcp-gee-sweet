@@ -237,6 +237,9 @@ add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; 
 **Result (2026-10-11) ✅ PASS** (PR #983 @ 5b85357)
 add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domains = 1 source (col 0), series = 3 sources (cols 1, 2, 3), rows 0–996 (open row end accepted). Deleted after
 
+**Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8, round 2 regression)
+add_chart(COLUMN, data_range="A:D") → chartId 915893384; domains = col 0, series = cols 1, 2, 3. Deleted after
+
 
 ---
 
@@ -249,6 +252,9 @@ add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domai
 **Checks**
 - Call 1 returns `{"error": ...}` saying `'A1:D5'` spans 4 column(s) and a PIE chart needs exactly 2; call 2 says `'B1:B5'` spans 1 column(s)
 - Neither response carries a `chartId` or `result`: the error is returned before any API call. Previously call 1 succeeded and charted only column B, silently dropping C and D
+
+**Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8)
+add_chart(PIE, "A1:D5") → {"error":"data_range 'A1:D5' spans 4 column(s); a PIE chart needs exactly 2 (labels, then values)"}; add_chart(PIE, "B1:B5") → same error with "spans 1 column(s)". No chartId in either. Regression: add_chart(PIE, "A1:B5") still succeeds (chartId 774316831, domain col 0, series col 1). Deleted after
 
 ---
 
@@ -263,3 +269,6 @@ add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domai
 - Call 2 returns a `chartId`, and `result.replies[0].addChart.chart.spec` has a `histogramChart` key with one series (column B)
 
 **Cleanup:** delete call 2's chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
+
+**Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8)
+add_chart(COLUMN, "B2:B5") → {"error":"data_range 'B2:B5' spans 1 column; a COLUMN chart needs at least 2 (the first column is the domain, the rest are series)"}, no chartId. add_chart(HISTOGRAM, "B2:B5") → chartId 1594431116, spec.histogramChart.series = 1 source (col 1, rows 1–5). Deleted after
