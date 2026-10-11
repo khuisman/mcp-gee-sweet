@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .atomic_write import _write_atomically
+
 # See docs/decisions/decision-grid-data-size-cap.md,
 # docs/decisions/decision-response-size-cap-generalization.md, and
 # docs/decisions/decision-response-size-cap-reevaluation-519.md for the live-tested
@@ -98,7 +100,10 @@ async def write_capped_result_to_disk(
 
     A dict or list is written as JSON. A str is written verbatim as UTF-8 with no
     newline translation, so a text export (get_doc_as_markdown, #958) lands as the
-    exact text the inline response would carry, not a JSON-quoted string.
+    exact text the inline response would carry, not a JSON-quoted string. The
+    write goes through _write_atomically, so a failure partway leaves any previous
+    file at dest intact rather than a truncated one that still reads as valid
+    Markdown (PR #982 QA round 1).
 
     Resolves a directory path via default_filename, mirroring get_sheet_data's
     original local_path handling from issue #235. This path exists specifically to
@@ -111,11 +116,9 @@ async def write_capped_result_to_disk(
         dest = dest / default_filename
 
     def _write() -> int:
+        text = result if isinstance(result, str) else json.dumps(result)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if isinstance(result, str):
-            dest.write_text(result, encoding="utf-8", newline="")
-        else:
-            dest.write_text(json.dumps(result))
+        _write_atomically(dest, lambda fh: fh.write(text.encode("utf-8")))
         return dest.stat().st_size
 
     bytes_written = await asyncio.to_thread(_write)

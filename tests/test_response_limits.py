@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import os
 
 import pytest
 
@@ -125,6 +126,23 @@ class TestWriteCappedResultToDisk:
         )
         assert dest.read_bytes() == text.encode("utf-8")
         assert result["bytes_written"] == len(text.encode("utf-8"))
+
+    async def test_failed_write_leaves_previous_file_intact(self, tmp_path, monkeypatch):
+        """PR #982 QA round 1: a write that fails partway must not leave a
+        truncated file over a previous good export."""
+        dest = tmp_path / "out.md"
+        dest.write_text("previous export", encoding="utf-8")
+
+        def _replace_fails(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _replace_fails)
+        with pytest.raises(OSError, match="disk full"):
+            await response_limits.write_capped_result_to_disk(
+                "new export", str(dest), default_filename="fallback.md", manifest_extra={}
+            )
+        assert dest.read_text(encoding="utf-8") == "previous export"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["out.md"]
 
     async def test_directory_path_uses_default_filename(self, tmp_path):
         result = await response_limits.write_capped_result_to_disk(

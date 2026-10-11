@@ -132,7 +132,7 @@ Each local read or write gets exactly one check, placed at the narrowest shared 
 | `download_folder`, `sync_folder` (downloads) | `mkdir`, `_write_atomically` per file | the destination root in the tool, before `mkdir`, plus each file (§6) | write |
 | `sync_folder` (uploads, `use_checksum` hashing, `stat`) | `MediaFileUpload`, `_local_md5`, `stat` | each local entry where `_sync_level` builds `local_map` / `local_folder_map` (§6) | read |
 | `sync_folder`, `upload_local_folder`, `download_folder`: the `local_path` root | `mkdir` / `iterdir` | the tool, at entry | read for upload-only, write for any direction that can download |
-| 9 tools with the response-cap bypass (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `get_doc_as_markdown`, `get_message`, `get_thread`) and `sync_folder(result_local_path=)` | `mkdir`, `write_text` | `response_limits.write_capped_result_to_disk`, at the top, before `is_dir()`. Check the final `dest` after the directory join too, since `default_filename` changes the target | write |
+| 9 tools with the response-cap bypass (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `get_doc_as_markdown`, `get_message`, `get_thread`) and `sync_folder(result_local_path=)` | `mkdir`, `_write_atomically` | `response_limits.write_capped_result_to_disk`, at the top, before `is_dir()`. Check the final `dest` after the directory join too, since `default_filename` changes the target | write |
 
 `sync_folder`'s existing "`result_local_path` inside `local_path`" `ValueError` stays as it is and runs after the policy check. The two are independent.
 
