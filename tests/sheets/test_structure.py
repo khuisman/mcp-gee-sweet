@@ -34,6 +34,84 @@ _structure_tool, _structure_tools = _make_tool_registry()
 sheets_structure_module.register(_structure_tool)
 
 
+_MALFORMED_RANGES = [
+    "A1:",
+    "A:",
+    "5:",
+    ":5",
+    ":B",
+    ":B5",
+    "1:B",
+    "A:5",
+    "A:B5",
+    "ß1",
+    "ﬀ1",
+    "\u212a1",  # Kelvin sign, which Unicode case folding maps to "k"
+    "A\u0661",
+    "AAAA1",
+    "A99999999999",
+]
+
+# Every tool that builds a GridRange through _grid_range_or_error, with the
+# arguments it needs beyond spreadsheet_id/sheet/range to reach the range check.
+_GRID_RANGE_TOOLS = {
+    "sort_range": {},
+    "merge_cells": {},
+    "unmerge_cells": {},
+    "format_cells": {"bold": True},
+    "update_borders": {"top": {"style": "SOLID"}},
+    "add_data_validation": {"condition_type": "NUMBER_GREATER", "values": ["0"]},
+    "clear_data_validation": {},
+}
+
+
+class TestGridRangeToolsRejectMalformedRange:
+    """A malformed range is rejected before any API call: no write, and no
+    spreadsheets().get() for the sheet ID on a cold cache (#955)."""
+
+    @pytest.mark.parametrize("tool_name", sorted(_GRID_RANGE_TOOLS))
+    @pytest.mark.parametrize("range_str", _MALFORMED_RANGES)
+    async def test_malformed_range_makes_no_api_call(self, tool_name, range_str):
+        svc = MagicMock()
+        result = await _structure_tools[tool_name](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range=range_str,
+            ctx=_make_ctx(sheets_service=svc, cache=None),
+            **_GRID_RANGE_TOOLS[tool_name],
+        )
+        assert "Invalid A1 notation" in result["error"]
+        svc.spreadsheets.return_value.get.assert_not_called()
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    @pytest.mark.parametrize("tool_name", sorted(_GRID_RANGE_TOOLS))
+    async def test_valid_range_sends_grid_range_with_resolved_sheet_id(self, tool_name):
+        # The range is parsed before the sheet lookup, so sheetId is filled in
+        # afterward; this pins that every tool still sends it.
+        svc = MagicMock()
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 42}}]
+        }
+        svc.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        await _structure_tools[tool_name](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="B2:D5",
+            ctx=_make_ctx(sheets_service=svc, cache=None),
+            **_GRID_RANGE_TOOLS[tool_name],
+        )
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        (request,) = body["requests"]
+        (params,) = request.values()
+        assert params["range"] == {
+            "sheetId": 42,
+            "startRowIndex": 1,
+            "endRowIndex": 5,
+            "startColumnIndex": 1,
+            "endColumnIndex": 4,
+        }
+
+
 class TestAddChart:
     """BUG-1: multi-column ranges must be split per-column; BUG-2: HISTOGRAM uses histogramChart spec."""
 
@@ -2405,18 +2483,6 @@ class TestUpdateSheetProperties:
 
 
 class TestSortRange:
-    @pytest.mark.parametrize(
-        "range_str", ["A1:", "A:", "5:", ":5", ":B", ":B5", "1:B", "ß1", "A\u0661"]
-    )
-    async def test_malformed_bounds_return_error_without_write(self, range_str):
-        svc = self._sheets_service()
-        ctx = _make_ctx(sheets_service=svc, cache=None)
-        result = await _structure_tools["sort_range"](
-            spreadsheet_id="ss1", sheet="Sheet1", range=range_str, ctx=ctx
-        )
-        assert "Invalid A1 notation" in result["error"]
-        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
-
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
         mock.spreadsheets.return_value.get.return_value.execute.return_value = {

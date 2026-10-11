@@ -251,11 +251,13 @@ def _border_spec(border: dict) -> dict[str, Any]:
     return spec
 
 
-def _grid_range(sheet_id: int, range_str: str) -> dict[str, Any]:
-    """Build a Sheets API GridRange dict from an A1 notation range string."""
+def _grid_range(range_str: str) -> dict[str, Any]:
+    """Build a Sheets API GridRange dict, minus its sheetId, from an A1
+    notation range string. The caller sets "sheetId" once it has resolved
+    the sheet, so a malformed range is rejected before that lookup, which is
+    an API call when the structure cache is cold (#955)."""
     indices = _parse_a1_notation(range_str)
     grid_range: dict[str, Any] = {
-        "sheetId": sheet_id,
         "startRowIndex": indices.get("startRowIndex", 0),
         "startColumnIndex": indices.get("startColumnIndex", 0),
     }
@@ -267,7 +269,7 @@ def _grid_range(sheet_id: int, range_str: str) -> dict[str, Any]:
 
 
 def _grid_range_or_error(
-    sheet_id: int, range_str: str
+    range_str: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Same as _grid_range, but returns (error, None) on invalid A1 notation
     instead of raising, matching _parse_a1_notation_or_error's shape and
@@ -276,9 +278,10 @@ def _grid_range_or_error(
     to wrap this in its own try/except ValueError (issue #747 QA round 1).
 
     Returns (None, grid_range) on success, or (error, None) on failure.
+    Call it before _get_sheet_id, then set grid_range["sheetId"] (#955).
     """
     try:
-        return None, _grid_range(sheet_id, range_str)
+        return None, _grid_range(range_str)
     except ValueError as e:
         return {"error": str(e)}, None
 
@@ -300,13 +303,14 @@ async def _apply_data_validation(
     duplicating this sheet-resolution + _grid_range + batchUpdate block
     almost verbatim.
     """
+    error, grid_range = _grid_range_or_error(range_str)
+    if error:
+        return error
+
     sheet_id = await _get_sheet_id(sheets_service, spreadsheet_id, sheet, cache, drive_service)
     if sheet_id is None:
         return {"error": f"Sheet '{sheet}' not found"}
-
-    error, grid_range = _grid_range_or_error(sheet_id, range_str)
-    if error:
-        return error
+    grid_range["sheetId"] = sheet_id
 
     set_data_validation: dict[str, Any] = {"range": grid_range}
     if rule is not None:
@@ -1449,11 +1453,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
+        error, grid_range = _grid_range_or_error(range)
+        if error:
+            return error
 
         cell_format: dict[str, Any] = {}
         fields: list[str] = []
@@ -1497,9 +1499,13 @@ def register(tool):
         if not fields:
             return {"error": "No formatting parameters provided"}
 
-        error, grid_range = _grid_range_or_error(sheet_id, range)
-        if error:
-            return error
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        grid_range["sheetId"] = sheet_id
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1586,15 +1592,17 @@ def register(tool):
                 return error
             update_borders_request[key] = _border_spec(border)
 
+        error, grid_range = _grid_range_or_error(range)
+        if error:
+            return error
+
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error, grid_range = _grid_range_or_error(sheet_id, range)
-        if error:
-            return error
+        grid_range["sheetId"] = sheet_id
         update_borders_request["range"] = grid_range
 
         return await execute_in_thread(
@@ -1786,15 +1794,17 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        error, grid_range = _grid_range_or_error(range)
+        if error:
+            return error
+
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error, grid_range = _grid_range_or_error(sheet_id, range)
-        if error:
-            return error
+        grid_range["sheetId"] = sheet_id
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1836,15 +1846,17 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        error, grid_range = _grid_range_or_error(range)
+        if error:
+            return error
+
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error, grid_range = _grid_range_or_error(sheet_id, range)
-        if error:
-            return error
+        grid_range["sheetId"] = sheet_id
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -2018,13 +2030,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error, grid_range = _grid_range_or_error(sheet_id, range)
+        error, grid_range = _grid_range_or_error(range)
         if error:
             return error
         col_start = grid_range["startColumnIndex"]
@@ -2057,6 +2063,13 @@ def register(tool):
                     "sortOrder": order.upper(),
                 }
             )
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+        grid_range["sheetId"] = sheet_id
 
         return await execute_in_thread(
             sheets_service.spreadsheets()

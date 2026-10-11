@@ -171,6 +171,44 @@ class TestParseA1Notation:
         with pytest.raises(ValueError):
             _parse_a1_notation("B1:A1")
 
+    def test_last_column_and_row_accepted(self):
+        # ZZZ is column 18,278 and row 10,000,000 is the most a sheet can hold.
+        assert _parse_a1_notation("ZZZ10000000") == {
+            "startColumnIndex": 18277,
+            "endColumnIndex": 18278,
+            "startRowIndex": 9999999,
+            "endRowIndex": 10000000,
+        }
+
+    def test_leading_zero_row_accepted(self):
+        assert _parse_a1_notation("A01") == _parse_a1_notation("A1")
+
+    @pytest.mark.parametrize(
+        "range_str",
+        ["AAAA1", "ZZZZZZZZ1", "A1:AAAA2", "AAAA", "A:AAAA", "A1:AAAA"],
+    )
+    def test_column_beyond_zzz_raises(self, range_str):
+        with pytest.raises(ValueError, match="Invalid A1 notation: column is beyond ZZZ"):
+            _parse_a1_notation(range_str)
+
+    @pytest.mark.parametrize(
+        "range_str",
+        ["A10000001", "A99999999999", "1:10000001", "A1:B10000001", "A1:10000001", "10000001"],
+    )
+    def test_row_beyond_limit_raises(self, range_str):
+        with pytest.raises(ValueError, match="Invalid A1 notation: row is beyond 10,000,000"):
+            _parse_a1_notation(range_str)
+
+    def test_row_over_int_digit_limit_keeps_prefix(self):
+        # int() refuses a string over 4300 digits with its own ValueError,
+        # which would lack the "Invalid A1 notation" prefix (#955).
+        with pytest.raises(ValueError, match="Invalid A1 notation: row is beyond"):
+            _parse_a1_notation("A" + "9" * 5000)
+
+    def test_all_zero_row_raises(self):
+        with pytest.raises(ValueError, match="row must be 1 or greater"):
+            _parse_a1_notation("A000")
+
 
 _ONE_OTHER_SHEET = {"sheets": [{"properties": {"title": "Other", "sheetId": 0}}]}
 _TWO_SHEETS = {

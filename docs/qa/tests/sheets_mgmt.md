@@ -2083,3 +2083,35 @@ Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell bra
 - All TC-S123–TC-S130/TC-W40 error-path unit tests still pass through the shared helpers
 - `uv run python -m pytest tests/sheets/` passes in full
 
+
+---
+
+### TC-S133: GridRange tools reject an out-of-bounds or malformed range before any API call (issue #955)
+
+**Background:** `_parse_a1_notation` had no upper limit on column letters or row numbers, so `ZZZZZZZZ1` or `A99999999999` reached the Sheets API and came back as a raw `HttpError`, and a row string over 4300 digits made `int()` raise without the `Invalid A1 notation` prefix. Separately, `sort_range`, `merge_cells`, `unmerge_cells`, `format_cells`, `update_borders`, `add_data_validation` and `clear_data_validation` resolved the sheet ID, which is an API call on a cold cache, before parsing the range. #955 rejects columns past `ZZZ` and rows past 10,000,000 (Sheets' grid limits) locally, and parses the range before the sheet lookup. The nonexistent spreadsheet ID and sheet name below prove the ordering: a build that looks up the sheet first returns a 404 or `Sheet 'NoSuchSheet' not found`, not the A1 error.
+
+**Fixture:** none. `spreadsheet_id="tc-s133-no-such-spreadsheet"`, `sheet="NoSuchSheet"`.
+
+**Prompt**
+> "Call each of these with `spreadsheet_id=\"tc-s133-no-such-spreadsheet\"` and `sheet=\"NoSuchSheet\"`, and report each raw result:
+> 1. `sort_range(range=\"ZZZZZZZZ1\")`
+> 2. `merge_cells(range=\"A99999999999\")`
+> 3. `unmerge_cells(range=\"A1:AAAA2\")`
+> 4. `format_cells(range=\"A:5\", bold=True)`
+> 5. `update_borders(range=\"A:B5\", top={\"style\": \"SOLID\"})`
+> 6. `add_data_validation(range=\"\\u212a1\", condition_type=\"NOT_BLANK\")` (the Kelvin sign U+212A, then `1`)
+> 7. `clear_data_validation(range=\"A10000001\")`
+> 8. `sort_range(range=\"ZZZ10000000\")`"
+
+**Checks**
+- 1 → `{"error": "Invalid A1 notation: column is beyond ZZZ: 'ZZZZZZZZ1'"}`
+- 2 → `{"error": "Invalid A1 notation: row is beyond 10,000,000: 'A99999999999'"}`
+- 3 → `{"error": "Invalid A1 notation: column is beyond ZZZ: 'A1:AAAA2'"}`
+- 4 → `{"error": "Invalid A1 notation: 'A:5'"}`
+- 5 → `{"error": "Invalid A1 notation: 'A:B5'"}`
+- 6 → `{"error": "Invalid A1 notation: 'K1'"}` (the error repr shows the Kelvin sign, not an ASCII `K`)
+- 7 → `{"error": "Invalid A1 notation: row is beyond 10,000,000: 'A10000001'"}`
+- 8 (control: the largest valid cell) → **not** an `Invalid A1 notation` error. It reaches the sheet lookup, so it fails on the fake spreadsheet ID instead (an `HttpError` 404 or a `Sheet ... not found` error)
+- None of calls 1–7 returns a 404 or a `Sheet 'NoSuchSheet' not found` error
+
+**Unit coverage:** `TestGridRangeToolsRejectMalformedRange` (`tests/sheets/test_structure.py`) runs every malformed case against all seven tools and asserts neither `spreadsheets().get()` nor `batchUpdate()` is called. `test_column_beyond_zzz_raises`, `test_row_beyond_limit_raises`, `test_row_over_int_digit_limit_keeps_prefix` and `test_last_column_and_row_accepted` in `TestParseA1Notation` (`tests/sheets/test_helpers.py`) cover the bounds.

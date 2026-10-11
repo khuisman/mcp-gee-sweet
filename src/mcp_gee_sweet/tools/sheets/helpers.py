@@ -46,6 +46,51 @@ def _utf16_len(text: str) -> int:
     return utf16_len(text)
 
 
+# Sheets' grid limits: 10 million cells and 18,278 columns (column ZZZ) per
+# spreadsheet. No sheet can have a row past _MAX_ROWS, so a bound beyond either
+# limit is rejected locally instead of reaching the API as a raw HttpError.
+_MAX_COLUMNS = 18278
+_MAX_ROWS = 10_000_000
+
+# One grammar, one capture group per bound per alternative, so the shape check
+# and the bound extraction can't drift apart (#955). Python's `re` forbids
+# reusing a group name across alternatives, hence the per-alternative names;
+# _parse_a1_notation folds them back into four bounds.
+_A1_PATTERN = re.compile(
+    # Cell, optionally to a cell (A1:B2), a column (A1:B), or a row (A1:5).
+    r"(?P<cell_col>[A-Z]+)(?P<cell_row>[0-9]+)"
+    r"(?::(?:(?P<cell_end_col>[A-Z]+)(?P<cell_end_row>[0-9]*)|(?P<cell_end_row_only>[0-9]+)))?"
+    # Column, optionally to a column (A:B).
+    r"|(?P<col>[A-Z]+)(?::(?P<col_end>[A-Z]+))?"
+    # Row, optionally to a row (1:5).
+    r"|(?P<row>[0-9]+)(?::(?P<row_end>[0-9]+))?",
+    re.ASCII | re.IGNORECASE,
+)
+
+
+def _a1_column_index(letters: str, range_str: str) -> int:
+    """0-based column index for A1 letters, rejecting columns past ZZZ."""
+    # Checked on length first so a huge letter run is never converted.
+    if len(letters) > 3:
+        raise ValueError(f"Invalid A1 notation: column is beyond ZZZ: {range_str!r}")
+    index = _letter_to_column_index(letters)
+    if index >= _MAX_COLUMNS:
+        raise ValueError(f"Invalid A1 notation: column is beyond ZZZ: {range_str!r}")
+    return index
+
+
+def _a1_row_number(digits: str, range_str: str) -> int:
+    """1-based row number for A1 digits, rejecting 0 and rows past _MAX_ROWS."""
+    # Checked on length first: int() refuses a string over 4300 digits with a
+    # ValueError that lacks the "Invalid A1 notation" prefix.
+    significant = digits.lstrip("0")
+    if len(significant) > len(str(_MAX_ROWS)) or (significant and int(significant) > _MAX_ROWS):
+        raise ValueError(f"Invalid A1 notation: row is beyond {_MAX_ROWS:,}: {range_str!r}")
+    if not significant:
+        raise ValueError(f"Invalid A1 notation: row must be 1 or greater: {range_str!r}")
+    return int(significant)
+
+
 def _parse_a1_notation(range_str: str) -> dict[str, int]:
     """
     Parse A1 notation range to row/column indices.
@@ -60,47 +105,46 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     Open-ended ranges (e.g. "B2:D") omit endRowIndex so the API treats them
     as extending to the last row of the sheet.
 
-    Raises ValueError for empty/malformed strings, a row number below 1
-    (matched by the regex's [0-9]+ but not a valid 1-based A1 row, e.g.
-    "A0"), or an end bound at or before its start bound (e.g. "A5:A2" or
-    "A5:A4") — otherwise these reach the Sheets API as a raw HttpError
+    Raises ValueError, always prefixed "Invalid A1 notation", for:
+    - an empty string;
+    - a malformed shape: a dangling colon ("A1:", ":B5"), mismatched bounds
+      ("A:5", "A:B5", "1:B"), a sheet prefix ("Sheet1!A1"), or anything
+      else outside the grammar above;
+    - a non-ASCII letter or digit ("ß1", "ﬀ1", "\\u212a1" (Kelvin sign),
+      "A\\u0661"), even where Unicode case folding would match ASCII;
+    - a row number below 1 ("A0");
+    - a column past ZZZ or a row past 10,000,000 (Sheets' grid limits);
+    - an end bound at or before its start bound ("A5:A2", "A5:A4").
+    Each of these would otherwise reach the Sheets API as a raw HttpError
     instead of the local {"error": ...} every call site returns on a
     ValueError from this function (issue #747 QA round 1).
     """
     if not range_str:
         raise ValueError("Invalid A1 notation: empty string")
 
-    # Validate compatible shapes before extracting their common four bounds.
-    flags = re.ASCII | re.IGNORECASE
-    valid_shape = re.fullmatch(
-        r"(?:[A-Z]+[0-9]+(?::(?:[A-Z]+[0-9]*|[0-9]+))?"
-        r"|[A-Z]+(?::[A-Z]+)?|[0-9]+(?::[0-9]+)?)",
-        range_str,
-        flags,
-    )
-    if not valid_shape:
+    match = _A1_PATTERN.fullmatch(range_str)
+    if not match:
         raise ValueError(f"Invalid A1 notation: {range_str!r}")
-
-    match = re.fullmatch(r"([A-Z]+)?([0-9]+)?(?::([A-Z]+)?([0-9]+)?)?", range_str, flags)
-    start_col, start_row, end_col, end_row = match.groups()
+    groups = match.groupdict()
+    start_col = groups["cell_col"] or groups["col"]
+    start_row = groups["cell_row"] or groups["row"]
+    end_col = groups["cell_end_col"] or groups["col_end"]
+    end_row = groups["cell_end_row"] or groups["cell_end_row_only"] or groups["row_end"]
     has_colon = ":" in range_str
-
-    if (start_row is not None and int(start_row) < 1) or (end_row is not None and int(end_row) < 1):
-        raise ValueError(f"Invalid A1 notation: row must be 1 or greater: {range_str!r}")
 
     result = {}
 
     if start_col:
-        result["startColumnIndex"] = _letter_to_column_index(start_col)
+        result["startColumnIndex"] = _a1_column_index(start_col, range_str)
     if start_row:
-        result["startRowIndex"] = int(start_row) - 1  # A1 is 1-based, API is 0-based
+        result["startRowIndex"] = _a1_row_number(start_row, range_str) - 1  # API is 0-based
     if end_col:
-        result["endColumnIndex"] = _letter_to_column_index(end_col) + 1  # exclusive
+        result["endColumnIndex"] = _a1_column_index(end_col, range_str) + 1  # exclusive
     elif start_col and not has_colon:
         # Single cell or bare column — close the range to one column
         result["endColumnIndex"] = result["startColumnIndex"] + 1
     if end_row:
-        result["endRowIndex"] = int(end_row)  # already exclusive
+        result["endRowIndex"] = _a1_row_number(end_row, range_str)  # already exclusive
     elif start_row and not has_colon:
         # Single cell or bare row — close the range to one row
         result["endRowIndex"] = result["startRowIndex"] + 1
