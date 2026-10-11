@@ -4193,3 +4193,5 @@ Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `
 - No `&#233;`, `&quot;`, `&#39;`, or `&lt;` appears anywhere in step 5's comments section
 
 **Cleanup:** `delete_file(file_id={SCRATCH_DOC_ID})`
+
+**Result (2026-10-11) ✅ PASS — Kit, PR #991 round 1 (`9953a83`).** Steps 1–3 echoed each `quoted_text` exactly (`Café and Tom & Jerry, a < b, say "hi" it's`, `&amp; literal`, `line one\nline *two* <x>`); step 4 returned the same three values. Step 5's comments section had `> Café and Tom & Jerry, a < b, say "hi" it's`, `> \&amp; literal`, and `> line one` / `> line \*two\* \<x>`, each followed by a blank line, and comment text `QA TC-DOC215 a \<b> \*x\*`; no `&#233;`/`&quot;`/`&#39;`/`&lt;` in the section. Extra probe: a comment created in the Docs UI (Playwright) on the doc's literal `&amp; literal` text also came back from `list_doc_comments` as `&amp; literal`, so Drive escapes UI-created anchors too and a single unescape is correct for them. The case passes, but the round was sent back for Markdown-escaping gaps in comment text that this case doesn't exercise (see the PR comment).
