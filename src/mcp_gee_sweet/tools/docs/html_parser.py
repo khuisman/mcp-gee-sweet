@@ -217,6 +217,12 @@ class _AstParser(HTMLParser):
         # "<a href><img></a>" keeps its link; kept apart from _link_url so text
         # handling, and an unclosed top-level <a>, are unaffected.
         self._bare_link_url: list[str] = []
+        # One entry per open <a>: which of the two stacks above its start tag
+        # pushed an href onto ("block" or "bare"), or None if it pushed nothing
+        # (no href, e.g. <a name>). </a> pops only what its own start tag pushed,
+        # so an href-less anchor nested in a linked one can't pop the outer
+        # link (#994).
+        self._anchor_pushes: list[str | None] = []
 
         # --- current run buffer ---
         self._run_buf: list[str] = []
@@ -332,6 +338,10 @@ class _AstParser(HTMLParser):
         self._strike_depth = 0
         self._code_depth = 0
         self._link_url = []
+        # The cleared hrefs' anchors no longer own an entry to pop.
+        self._anchor_pushes = [
+            None if pushed == "block" else pushed for pushed in self._anchor_pushes
+        ]
 
     def _emit_block_node(
         self, tag: str, runs: list[Run | Image], *, preserve_if_empty: bool = False
@@ -731,6 +741,7 @@ class _AstParser(HTMLParser):
                 href = attr_dict.get("href", "")
                 if href:
                     self._link_url.append(href)
+                self._anchor_pushes.append("block" if href else None)
             elif tag == "code" and not self._in_pre:
                 self._code_depth += 1
             elif tag == "br":
@@ -758,10 +769,11 @@ class _AstParser(HTMLParser):
                 # silently dropped rather than contributing a run — see
                 # self._block_had_unsupported_content.
                 self._block_had_unsupported_content = True
-        elif tag == "a" and self._table_depth == 0:
-            href = attr_dict.get("href", "")
+        elif tag == "a":
+            href = attr_dict.get("href", "") if self._table_depth == 0 else ""
             if href:
                 self._bare_link_url.append(href)
+            self._anchor_pushes.append("bare" if href else None)
 
     def handle_endtag(self, tag):
         # --- table structure ---
@@ -924,11 +936,22 @@ class _AstParser(HTMLParser):
                 self._underline_depth = max(0, self._underline_depth - 1)
             elif tag in _INLINE_STRIKE:
                 self._strike_depth = max(0, self._strike_depth - 1)
-            elif tag == "a" and self._link_url:
-                self._link_url.pop()
+            elif tag == "a":
+                self._close_anchor()
             elif tag == "code" and not self._in_pre:
                 self._code_depth = max(0, self._code_depth - 1)
-        elif tag == "a" and self._table_depth == 0 and self._bare_link_url:
+        elif tag == "a":
+            self._close_anchor()
+
+    def _close_anchor(self):
+        """Pop whatever href the matching <a> start tag pushed, and nothing
+        else (#994)."""
+        if not self._anchor_pushes:
+            return
+        pushed = self._anchor_pushes.pop()
+        if pushed == "block" and self._link_url:
+            self._link_url.pop()
+        elif pushed == "bare" and self._bare_link_url:
             self._bare_link_url.pop()
 
     def handle_data(self, data):

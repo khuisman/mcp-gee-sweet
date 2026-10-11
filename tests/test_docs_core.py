@@ -1609,6 +1609,27 @@ class TestImageLinks:
         assert self._image(nodes).link_url is None
         assert [r.link_url for node in nodes[1:] for r in node.runs] == [None, None]
 
+    def test_parser_hrefless_nested_anchor_keeps_outer_link_bare(self):
+        # PR #992 QA round 2: an href-less </a> popped the outer bare link.
+        nodes = html_to_ast('<a href="https://u"><a name="n"></a><img src="https://x/a.png"></a>')
+        assert self._image(nodes).link_url == "https://u"
+
+    def test_parser_hrefless_nested_anchor_keeps_outer_link_in_block(self):
+        # #994: the same defect in the block-level stack, for text and images.
+        nodes = html_to_ast(
+            '<p><a href="https://u"><a name="n"></a>tail<img src="https://x/a.png"></a> after</p>'
+        )
+        runs = nodes[0].runs
+        assert [r.link_url for r in runs] == ["https://u", "https://u", None]
+
+    def test_parser_outer_close_after_nested_anchor_ends_the_link(self):
+        nodes = html_to_ast(
+            '<a href="https://u"><a name="n"></a></a><img src="https://x/a.png">'
+            '<p><a href="https://v"><a name="n"></a></a>plain</p>'
+        )
+        assert self._image(nodes).link_url is None
+        assert [r.link_url for r in nodes[1].runs] == [None]
+
     def test_parser_image_between_linked_text_shares_the_link(self):
         nodes = html_to_ast('<p><a href="https://t">a<img src="https://x/i.png">b</a></p>')
         runs = nodes[0].runs
