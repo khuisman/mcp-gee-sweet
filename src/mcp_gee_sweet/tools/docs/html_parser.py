@@ -138,15 +138,18 @@ def _px_to_pt(value: str) -> float | None:
         return None
 
 
-def _make_image(attr_dict: dict, src: str) -> Image:
+def _make_image(attr_dict: dict, src: str, link_url: str | None = None) -> Image:
     """Build an Image node from an <img> tag's attributes. width/height are
     only ever present on raw HTML <img> tags (content_format="html") — plain
-    markdown "![alt](src)" has no syntax for them, so they're None there."""
+    markdown "![alt](src)" has no syntax for them, so they're None there.
+    link_url is the enclosing <a href>, if any (markdown "[![alt](src)](url)",
+    #977)."""
     return Image(
         src=src,
         alt=attr_dict.get("alt") or None,
         width=_px_to_pt(attr_dict.get("width") or ""),
         height=_px_to_pt(attr_dict.get("height") or ""),
+        link_url=link_url,
     )
 
 
@@ -739,7 +742,9 @@ class _AstParser(HTMLParser):
                 # already gets in a cell.
                 src = attr_dict.get("src")
                 if src:
-                    self._pending_runs.append(_make_image(attr_dict, src))
+                    self._pending_runs.append(
+                        _make_image(attr_dict, src, self._link_url[-1] if self._link_url else None)
+                    )
                 else:
                     self._block_had_unsupported_content = True
             elif self._block_tag:

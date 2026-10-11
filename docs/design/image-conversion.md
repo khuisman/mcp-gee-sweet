@@ -103,6 +103,24 @@ need K retries. Resending the whole document each time would be K+1 full-size ro
 Confirmed live that the split produces a document structurally identical to the old
 whole-list retry (text, bullets, table, and the surviving image all in place).
 
+## Linked images (#977)
+
+An `<img>` inside `<a href>` (markdown `[![alt](src)](url)`) keeps its link: `html_parser.py`
+copies the open `<a>`'s href onto `Image.link_url`. Docs stores an image's link on its
+`inlineObjectElement`'s own `textStyle.link`, so `emitter.py` follows the image's
+`insertInlineImage` with an `updateTextStyle` over its one-character range
+`[position, position + 1)`. The link has to come right after its own insert, inside the
+descending-position tail: at that point nothing before `position` has shifted yet. An inserted
+image never inherits a neighboring run's link (confirmed live, both directions), so an unlinked
+image gets no clearing request.
+
+The retry treats the pair as one unit. `_drop_failed_image` pops the link request with its failed
+insert, since a stranded link would land on whatever character now sits at that position.
+`_positional_insert_tail_start` counts a link request directly after its own image insert as part
+of the tail (`_is_image_link_request`), so the K≥2 split still applies. A `#slug` image link goes
+through the heading-anchor pass like a text link: `_walk_headings_and_anchor_runs` reads the
+`inlineObjectElement`'s link too, so it's resolved or stripped.
+
 ## Known, deliberate gap: table-cell images
 
 `html_parser.py`'s img-handling only fires when a block context is open at the body level

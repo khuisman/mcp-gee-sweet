@@ -173,6 +173,7 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `~~strikethrough~~` | `<del>` | `Run(strikethrough=True)` | strikethrough |
 | `[text](url)` | `<a href=...>` | `Run(link_url=...)` | hyperlink |
 | bare `https://url` | `<a href=...>` (autolink extension) | `Run(link_url=...)` | hyperlink — disable via `autolink_urls=False` |
+| `[![alt](src)](url)` | `<a href=...><img ...></a>` | `Image(link_url=...)` | linked inline image (#977) |
 | `- item` | `<ul><li>` | `BulletItem(ordered=False)` | disc bullet list |
 | `1. item` | `<ol><li>` | `BulletItem(ordered=True)` | numbered list |
 | `- [x] item` | `<input type="checkbox" checked>` | `BulletItem(checked=True)` | bullet with a `☑`/`☐` glyph prefix |

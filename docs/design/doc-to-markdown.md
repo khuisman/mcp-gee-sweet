@@ -128,8 +128,9 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
 - **Linked images** (#951): Docs puts an image's link on its `inlineObjectElement`'s own
   `textStyle.link`, the same as a text run (confirmed live). `doc_to_ast` reads it into
   `Image.link_url`, and every image renders through `_render_image` as `[![alt](src)](url)`, in
-  ordinary text, a code paragraph, and a table cell alike. The write side doesn't set
-  `Image.link_url` yet (#977).
+  ordinary text, a code paragraph, and a table cell alike. The write side sets it too (#977;
+  see [image-conversion.md](image-conversion.md#linked-images-977)), so a linked image
+  round-trips.
 - **Same-document links** (PR #976 QA round 1): Docs reports a link to a heading or bookmark by
   ID with no `url` (confirmed live for a heading: `{"headingId": "h.x"}`, on a text run and an
   image alike). `doc_to_ast._link_url`, shared by both, rebuilds it as

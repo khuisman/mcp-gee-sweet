@@ -162,13 +162,35 @@ def _failed_insert_image_message(error: HttpError) -> str:
 _POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
 
 
+def _is_image_link_request(prev: dict, req: dict) -> bool:
+    """True if `req` is the updateTextStyle emitter.py pairs with the
+    insertInlineImage `prev` to link that image (#977): a link-only style over
+    exactly the one-character range the image was inserted at."""
+    inline = prev.get("insertInlineImage")
+    style = req.get("updateTextStyle")
+    if inline is None or style is None or style.get("fields") != "link":
+        return False
+    index = inline.get("location", {}).get("index")
+    return index is not None and style.get("range") == {
+        "startIndex": index,
+        "endIndex": index + 1,
+    }
+
+
 def _positional_insert_tail_start(requests: list[dict]) -> int:
     """Index where ast_to_requests's trailing stage-3 pass (the descending-position
     insertTable + insertInlineImage requests — see its docstring) begins: the start
-    of the maximal suffix made up only of those two request kinds."""
+    of the maximal suffix made up only of those two request kinds, plus each linked
+    image's own link request right after its insert (#977)."""
     start = len(requests)
-    while start > 0 and any(key in requests[start - 1] for key in _POSITIONAL_INSERT_KEYS):
-        start -= 1
+    while start > 0:
+        req = requests[start - 1]
+        if any(key in req for key in _POSITIONAL_INSERT_KEYS):
+            start -= 1
+        elif start > 1 and _is_image_link_request(requests[start - 2], req):
+            start -= 2
+        else:
+            break
     return start
 
 
@@ -626,13 +648,20 @@ async def _apply_doc_content(
 
             def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
                 """Pop the insertInlineImage request `e` names from `requests` (the
-                batch that raised `e`), recording the failure on its image's outcome
+                batch that raised `e`), plus its link request if the image was
+                linked (#977), recording the failure on its image's outcome
                 entry. False if `e` isn't an image-fetch failure, so the caller
                 re-raises."""
                 bad_index = _failed_insert_image_request_index(e)
                 if bad_index is None or bad_index >= len(requests):
                     return False
                 bad_request = requests.pop(bad_index)
+                # Left in place, the link would land on whatever character now
+                # sits at the image's position.
+                if bad_index < len(requests) and _is_image_link_request(
+                    bad_request, requests[bad_index]
+                ):
+                    requests.pop(bad_index)
                 img_id = request_id_to_img_id.get(id(bad_request))
                 entry = entry_by_id.get(img_id) if img_id is not None else None
                 if entry is not None:
@@ -728,7 +757,7 @@ def _walk_headings_and_anchor_runs(
 ) -> tuple[list[tuple[str, str]], list[tuple[str, int, int]]]:
     """Recursively walk document body content, including table cells,
     collecting (heading_text, heading_id) pairs and (anchor_url, start, end)
-    runs for any run whose link_url starts with '#'.
+    runs for any run or inline image whose link_url starts with '#'.
 
     Mirrors _collect_doc_paragraphs's two correctness properties: it recurses
     into table cells (a heading or an anchor link living inside a table cell
@@ -767,6 +796,16 @@ def _walk_headings_and_anchor_runs(
                     end = pe.get("endIndex")
                     if end is not None:
                         offset = end
+                    # A linked image carries its link on the inlineObjectElement's
+                    # own textStyle (#977).
+                    link_url = (
+                        pe.get("inlineObjectElement", {})
+                        .get("textStyle", {})
+                        .get("link", {})
+                        .get("url", "")
+                    )
+                    if link_url.startswith("#") and end is not None:
+                        anchor_runs.append((link_url, run_start, end))
 
             if is_heading and heading_id:
                 headings.append(("".join(text_parts).strip(), heading_id))

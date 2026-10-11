@@ -3716,6 +3716,45 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #981 round 2 (`b2bfafe`).** Ran on a scratch doc (created with `create_doc` from the step 1 HTML, trashed afterwards) instead of `{DOC_ID}`. Step 2 used one `find_in_doc(regex=True)` call for all three queries: matches at 4–11, 15–20 and 26–39. After step 3, `get_doc_structure` showed each of the first three paragraphs as two runs split at the `<`/`&` (`a <` | `b> text`, `AT&` | `amp;T`, `see <` | `https://x.io>`). `get_doc_as_markdown` returned `a \<b> text`, `AT\&amp;T`, `see \<https://x.io>`, and `a < b and AT&T` unchanged. markdown-it-py `commonmark` rendered `a &lt;b&gt; text`, `AT&amp;amp;T`, `see &lt;https://x.io&gt;`, and `a &lt; b and AT&amp;T`, with no `<b>` and no `<a>`. Round 1 got `a <b> text` and `AT&amp;T` unescaped from the same kind of split, on pre-fix code (`307e47c`).
 
+
+### TC-DOC216: A linked image written as Markdown or HTML keeps its link and round-trips (#977) ⚠️ requires-oauth
+**Background:** the write side built a linked image with no link, so `[![alt](src)](url)` and `<a href><img></a>` imported as a plain image and didn't round-trip with TC-DOC209's export. The image now gets its link through an `updateTextStyle` over its one-character range, right after its insert. That request has to stay paired with the image when an unreachable image is dropped and retried, and a `#slug` image link goes through the heading-anchor pass.
+
+**Setup:** none. Each step uses a scratch doc.
+
+**Prompt**
+**Playwright: required** (each linked image is clickable to its URL in the rendered doc; the unlinked one isn't)
+1. `create_doc(title="TC-DOC216 md", folder_id={FOLDER_ID}, content_format='markdown', content=...)` with:
+   ```markdown
+   # Overview
+
+   Before [![Logo](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)](https://example.com/one) and [linked text](https://example.com/t)![Plain](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)
+
+   Jump: [![A](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)](#overview) and [![B](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)](#missing)
+
+   | a | b |
+   |---|---|
+   | 1 | 2 |
+
+   [![C](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)](https://example.com/after-table)
+   ```
+2. `get_doc_as_markdown(doc_id=<step 1 docId>)`
+3. `create_doc(title="TC-DOC216 retry", folder_id={FOLDER_ID}, content_format='html', content=...)` with:
+   ```html
+   <p><a href="https://example.com/b1"><img src="https://example.invalid/nope.png?1"></a></p><p>x <a href="https://example.com/good"><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"></a> y</p><p><a href="https://example.com/b2"><img src="https://example.invalid/nope.png?2"></a></p>
+   ```
+4. `get_doc_as_markdown(doc_id=<step 3 docId>)`
+
+**Checks**
+- Step 2: `[![](<contentUri>)](https://example.com/one)`
+- Step 2: `[linked text](https://example.com/t)` is followed by an unlinked `![](<contentUri>)`, not one inside the link
+- Step 2: image `A` links to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>`, the `Overview` heading. Image `B` is unlinked, its `#missing` link stripped
+- Step 2: the image after the table is `[![](<contentUri>)](https://example.com/after-table)`
+- Step 3: `images` reports an `error` for both `example.invalid` sources and none for the Google logo
+- Step 4: the only image is `[![](<contentUri>)](https://example.com/good)`, between `x` and `y`. No text character carries `b1`'s or `b2`'s link
+
+**Cleanup:** `delete_file` both scratch docs
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)

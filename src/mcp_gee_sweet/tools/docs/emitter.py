@@ -293,8 +293,9 @@ def ast_to_requests(
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
     # final position rather than processed as two separate blocks — see ast_to_requests's
-    # docstring. Each entry is (final_position, request_dict).
-    positional_inserts: list[tuple[int, dict]] = []
+    # docstring. Each entry is (final_position, requests): an insert request, followed
+    # for a linked image by the updateTextStyle that links it (#977).
+    positional_inserts: list[tuple[int, list[dict]]] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
@@ -354,7 +355,7 @@ def ast_to_requests(
                     if uri is not None:
                         image_position = doc_start + offset - seg.tabs_through
                         positional_inserts.append(
-                            (image_position, _image_insert_request(item, uri, image_position))
+                            (image_position, _image_insert_requests(item, uri, image_position))
                         )
                     continue
                 run_len = utf16_len(item.text)
@@ -455,13 +456,15 @@ def ast_to_requests(
         positional_inserts.append(
             (
                 position,
-                {
-                    "insertTable": {
-                        "rows": num_rows,
-                        "columns": num_cols,
-                        "location": {"index": position},
+                [
+                    {
+                        "insertTable": {
+                            "rows": num_rows,
+                            "columns": num_cols,
+                            "location": {"index": position},
+                        }
                     }
-                },
+                ],
             )
         )
 
@@ -471,8 +474,8 @@ def ast_to_requests(
     # and processing this way means an earlier, not-yet-processed insertion's position is
     # never invalidated by a later one's own content (#333 generalizes this from the
     # table-only version of the same pattern).
-    for _, insert_request in sorted(positional_inserts, key=lambda item: item[0], reverse=True):
-        requests.append(insert_request)
+    for _, insert_requests in sorted(positional_inserts, key=lambda item: item[0], reverse=True):
+        requests.extend(insert_requests)
 
     return requests, [pending.node for pending in pending_tables]
 
@@ -510,8 +513,18 @@ def _blockquote_style_request(rng: dict, depth: int) -> dict:
     }
 
 
-def _image_insert_request(image: Image, uri: str, position: int) -> dict:
-    """Build an insertInlineImage request for an already-resolved image at `position`."""
+def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
+    """Build the insertInlineImage request for an already-resolved image at `position`,
+    followed, for a linked image, by the updateTextStyle that links it (#977).
+
+    Docs stores an image's link on its inlineObjectElement's own textStyle, so the link
+    goes over the image's one-character range [position, position + 1). It must run
+    right after this insert: the descending-position pass guarantees nothing before
+    `position` has shifted yet at that point. An image never inherits a neighboring
+    run's link on insert (confirmed live), so an unlinked image needs no clearing
+    request. content.py's retry drops the pair together when the insert fails
+    (_drop_failed_image); otherwise the link would land on whatever character sits
+    at `position`."""
     request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
     if image.width is not None or image.height is not None:
         object_size: dict = {}
@@ -520,7 +533,20 @@ def _image_insert_request(image: Image, uri: str, position: int) -> dict:
         if image.height is not None:
             object_size["height"] = {"magnitude": image.height, "unit": "PT"}
         request["insertInlineImage"]["objectSize"] = object_size
-    return request
+    if image.link_url is None:
+        return [request]
+    return [request, image_link_request(image.link_url, position)]
+
+
+def image_link_request(link_url: str, position: int) -> dict:
+    """updateTextStyle linking the image just inserted at `position` (#977)."""
+    return {
+        "updateTextStyle": {
+            "range": {"startIndex": position, "endIndex": position + 1},
+            "textStyle": {"link": {"url": link_url}},
+            "fields": "link",
+        }
+    }
 
 
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
