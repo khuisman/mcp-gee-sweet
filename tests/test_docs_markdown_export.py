@@ -1161,12 +1161,63 @@ class TestGetDocAsMarkdownTool:
             "body": {"content": [_para("Hello\n")]},
         }
         ctx = _make_ctx(docs_service=docs_service, drive_service=MagicMock())
-        dest = tmp_path / "out.json"
+        dest = tmp_path / "out.md"
         result = await _docs_tools["get_doc_as_markdown"](
             doc_id="doc1", local_path=str(dest), ctx=ctx
         )
-        assert result["local_path"] == str(dest)
-        assert dest.exists()
+        assert result == {
+            "local_path": str(dest),
+            "bytes_written": dest.stat().st_size,
+            "doc_id": "doc1",
+            "title": "My Doc",
+        }
+
+    async def test_local_path_file_is_byte_identical_to_inline_markdown(self, tmp_path):
+        """#958: the file holds the raw Markdown (comments included), not the JSON envelope."""
+        docs_service = MagicMock()
+        docs_service.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "title": "My Doc",
+            "body": {"content": [_para('Héllo 😀 "quoted"\n'), _para("Second\n")]},
+        }
+        drive_service = MagicMock()
+        drive_service.comments.return_value.list.return_value.execute.return_value = {
+            "comments": [
+                {
+                    "id": "c1",
+                    "content": "open one",
+                    "author": {"displayName": "Alice"},
+                    "resolved": False,
+                    "deleted": False,
+                    "replies": [],
+                }
+            ]
+        }
+        ctx = _make_ctx(docs_service=docs_service, drive_service=drive_service)
+        inline = await _docs_tools["get_doc_as_markdown"](
+            doc_id="doc1", include_comments=True, ctx=ctx
+        )
+        dest = tmp_path / "out.md"
+        result = await _docs_tools["get_doc_as_markdown"](
+            doc_id="doc1", include_comments=True, local_path=str(dest), ctx=ctx
+        )
+        assert "## Comments" in inline["markdown"]
+        assert dest.read_bytes() == inline["markdown"].encode("utf-8")
+        assert result["bytes_written"] == len(inline["markdown"].encode("utf-8"))
+
+    async def test_local_path_directory_writes_doc_id_md(self, tmp_path):
+        docs_service = MagicMock()
+        docs_service.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "title": "My Doc",
+            "body": {"content": [_para("Hello\n")]},
+        }
+        ctx = _make_ctx(docs_service=docs_service, drive_service=MagicMock())
+        result = await _docs_tools["get_doc_as_markdown"](
+            doc_id="doc1", local_path=str(tmp_path), ctx=ctx
+        )
+        assert result["local_path"] == str(tmp_path / "doc1.md")
+        assert (tmp_path / "doc1.md").read_text(encoding="utf-8").startswith("Hello")
 
 
 @pytest.mark.parametrize("text", ["call(`value`)", "`leading", "trailing`", "``nested``"])

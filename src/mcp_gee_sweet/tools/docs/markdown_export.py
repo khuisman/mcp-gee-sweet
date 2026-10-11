@@ -74,12 +74,17 @@ def register(tool):
                 every open (non-resolved) comment's author, quoted anchor text,
                 content, and replies, via the same Drive comments resource
                 list_doc_comments uses. Default False.
-            local_path: Optional local filesystem path to write the result to
-                instead of returning it inline. Bypasses the response-size cap.
+            local_path: Optional local filesystem path to write the Markdown to
+                instead of returning it inline. The file holds the raw Markdown
+                text (UTF-8), byte-identical to the inline markdown field,
+                including the comments section when include_comments is True.
+                A directory path writes <doc_id>.md inside it. Bypasses the
+                response-size cap.
 
         Returns:
             Dictionary with doc_id, title, and markdown (the full Markdown
-            text) — or {local_path, doc_id, bytes_written} if local_path is set.
+            text) — or {local_path, doc_id, title, bytes_written} if local_path
+            is set.
             Raises ValueError if the response exceeds a safety cap (see
             MAX_TOOL_RESPONSE_CHARS in docs/configuration.md) and local_path is
             not set.
@@ -126,10 +131,10 @@ def register(tool):
 
         if local_path:
             return await write_capped_result_to_disk(
-                result,
+                markdown,
                 local_path,
-                default_filename=f"{doc_id}_markdown.json",
-                manifest_extra={"doc_id": doc_id},
+                default_filename=f"{doc_id}.md",
+                manifest_extra={"doc_id": doc_id, "title": result["title"]},
             )
 
         enforce_response_size_cap(result, tool_name="get_doc_as_markdown")

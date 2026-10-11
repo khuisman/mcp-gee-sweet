@@ -3371,20 +3371,24 @@ get_doc_as_markdown('nonexistent-doc-id-xyz') returned clean {"error": "<HttpErr
 
 ---
 
-### TC-DOC182: `local_path` bypasses the response and writes to disk
+### TC-DOC182: `local_path` bypasses the response and writes the raw Markdown to disk
 **Prompt**
-> "Export doc {DOC_ID} as Markdown, writing the result to <path-to>/qa-md-export.json"
+> "Export doc {DOC_ID} as Markdown, writing the result to <path-to>/qa-md-export.md"
+
+Tool calls: `get_doc_as_markdown(doc_id={DOC_ID})`, then `get_doc_as_markdown(doc_id={DOC_ID}, local_path="<path-to>/qa-md-export.md")`.
 
 **Checks**
-- Returns `{local_path, doc_id, bytes_written}` (no inline `markdown` field in the response)
-- The file at `<path-to>/qa-md-export.json` exists and its `markdown` field round-trips the doc's actual content
+- The second call returns `{local_path, bytes_written, doc_id, title}` (no inline `markdown` field in the response)
+- The file at `<path-to>/qa-md-export.md` is plain Markdown, not a JSON object (#958): its bytes equal the first call's `markdown` field encoded as UTF-8 (e.g. `cmp` against that text saved to a scratch file), and `bytes_written` equals the file's size
 
-**Cleanup:** delete the local `qa-md-export.json` file
+**Cleanup:** delete the local `qa-md-export.md` file (and the scratch comparison file)
 
 **Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Response was `{"local_path": ..., "bytes_written": 170, "doc_id": ...}` with no inline `markdown` field; the written file's `markdown` field matched the doc's actual content exactly.
 
 **Result (2026-09-04) ✅ PASS**
 local_path set: response {local_path, doc_id, bytes_written}, no inline markdown field. File content's markdown field matched doc's actual content exactly. Local file cleaned up.
+
+_Both results above predate #958, when the file held the JSON result envelope; re-run against the raw-Markdown checks._
 
 ---
 

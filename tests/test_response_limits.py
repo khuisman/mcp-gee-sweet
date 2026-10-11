@@ -115,6 +115,17 @@ class TestWriteCappedResultToDisk:
         )
         assert json.loads(dest.read_text()) == [{"a": 1}, {"b": 2}]
 
+    async def test_str_result_written_verbatim(self, tmp_path):
+        """#958: a str is written as raw UTF-8 text, not JSON-quoted, with no
+        newline translation."""
+        dest = tmp_path / "out.md"
+        text = '# Title\r\nline "two" 😀\n'
+        result = await response_limits.write_capped_result_to_disk(
+            text, str(dest), default_filename="fallback.md", manifest_extra={}
+        )
+        assert dest.read_bytes() == text.encode("utf-8")
+        assert result["bytes_written"] == len(text.encode("utf-8"))
+
     async def test_directory_path_uses_default_filename(self, tmp_path):
         result = await response_limits.write_capped_result_to_disk(
             {"a": 1}, str(tmp_path), default_filename="fallback.json", manifest_extra={}

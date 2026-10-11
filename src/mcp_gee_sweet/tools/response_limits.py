@@ -94,7 +94,11 @@ def _over_cap_error(
 async def write_capped_result_to_disk(
     result: Any, local_path: str, *, default_filename: str, manifest_extra: dict[str, Any]
 ) -> dict[str, Any]:
-    """Write result (dict or list) to local_path and return a manifest dict.
+    """Write result to local_path and return a manifest dict.
+
+    A dict or list is written as JSON. A str is written verbatim as UTF-8 with no
+    newline translation, so a text export (get_doc_as_markdown, #958) lands as the
+    exact text the inline response would carry, not a JSON-quoted string.
 
     Resolves a directory path via default_filename, mirroring get_sheet_data's
     original local_path handling from issue #235. This path exists specifically to
@@ -108,7 +112,10 @@ async def write_capped_result_to_disk(
 
     def _write() -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(json.dumps(result))
+        if isinstance(result, str):
+            dest.write_text(result, encoding="utf-8", newline="")
+        else:
+            dest.write_text(json.dumps(result))
         return dest.stat().st_size
 
     bytes_written = await asyncio.to_thread(_write)
