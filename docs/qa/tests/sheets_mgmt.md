@@ -2139,6 +2139,12 @@ Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell bra
 - **`sort_range`'s rebuilt sort specs:** `sort_range("B1:C4", [{"column_index": 1, "order": "DESCENDING"}])` sorted by column C (`dimensionIndex` = start column B + 1), giving c/4, a/3, d/2, b/1.
 - Side note (pre-existing, sent back to the Dev in round 2): `add_data_validation` with `condition_type="BLANK"` or `"NOT_BLANK"` reaches the API and fails with `HttpError 400 … ConditionType 'NOT_BLANK' is not supported in data validation`. TC-S133 step 6 still works because the range is rejected before the request is built.
 
+**Result (2026-10-11, PR #986 round 3, `44f9360`) ✅ PASS.** Live via `mcp-gee-sweet-sky` after `/mcp reconnect`:
+- 1–5, 7 → the same `Invalid A1 notation` errors as round 1, word for word.
+- 6 (now `DATE_IS_VALID`): the Kelvin sign again can't be sent through an agent's tool call, so it was checked in a fresh interpreter: `_parse_a1_notation("K1")` raises `Invalid A1 notation: 'K1'`. Live, `add_data_validation(range="A1:", condition_type="DATE_IS_VALID")` → `{"error":"Invalid A1 notation: 'A1:'"}`, so the new condition type passes the enum check and the range is still rejected before the sheet lookup.
+- 8 (control) → `HttpError 404` from the sheet lookup.
+- None of calls 1–5 or 7 returned a 404 or `Sheet ... not found` error.
+
 ---
 
 ### TC-S134: add_data_validation rejects condition types data validation doesn't support, before any API call (PR #986 QA round 2)
@@ -2162,3 +2168,9 @@ Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell bra
 - The `add_data_validation` tool description served by the MCP server (its `condition_type` list) no longer names any of the four types
 
 **Unit coverage:** `TestAddDataValidation::test_condition_type_unsupported_by_data_validation_rejected_locally` (`tests/sheets/test_structure.py`) asserts the local error and that neither `spreadsheets().get()` nor `batchUpdate()` is called.
+
+**Result (2026-10-11, PR #986 round 3, `44f9360`) ✅ PASS.** Live via `mcp-gee-sweet-sky` after `/mcp reconnect`:
+- 1 `BLANK`, 2 `NOT_BLANK`, 3 `TEXT_STARTS_WITH` (`values=["ab"]`), 4 `TEXT_ENDS_WITH` (`values=["ab"]`) → `{"error":"Invalid condition_type '<type>'. Must be one of: BOOLEAN, TEXT_CONTAINS, TEXT_NOT_CONTAINS, TEXT_EQ, TEXT_IS_EMAIL, TEXT_IS_URL, DATE_EQ, … ONE_OF_RANGE, ONE_OF_LIST, CUSTOM_FORMULA"}` each. The valid-type list names none of the four.
+- 5 `DATE_IS_VALID` (control) → `HttpError 404` from the sheet lookup on the fake ID.
+- None of calls 1–4 returned a 404.
+- The served `add_data_validation` description (re-fetched after the reconnect) lists `DATE_IS_VALID`, `TEXT_CONTAINS`/`TEXT_NOT_CONTAINS`/`TEXT_EQ`, `TEXT_IS_EMAIL`/`TEXT_IS_URL` and the rest, and none of the four removed types.
