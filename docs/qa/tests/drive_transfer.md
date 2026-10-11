@@ -2018,11 +2018,15 @@ revision separate (#814), so the diff below uses one.
 - Call 2's `markdown` equals call 1's except the image line (call 2 has a URL).
 - Diffing call 3's `markdown` against call 4's shows exactly one changed line: `Intro with` →
   `Intro EDITED with`.
-- Call 5 returns no files: each temporary Doc was removed.
+- Call 5 returns no temporary Doc for `<rev-id>` or `<diff-id>`: each was removed. `search_files`
+  also lists trashed files, so a hit from an earlier run is fine if `get_file_metadata` shows
+  `trashed: true`.
 
 **Teardown:** `delete_file` on both `<rev-id>` and `<diff-id>`.
 
 **Result (2026-10-11, PR #988 round 1, `8b223c5`) ❌ FAIL (sent back)** — Ran via `mcp-gee-sweet-kit` (OAuth). `qa-959-rev` listed revisions 1 and 5; R=5. `qa-959-diff.md` listed revisions 1 and 2 about 10 seconds after the edit (no wait needed). Call 1's `markdown` had every listed construct and the image as `![](image:sha256-9237fdb37f9592f6)`. Call 2's `markdown` matched it byte for byte except the image line. Calls 3 and 4 differed in exactly one line, `Intro with` → `Intro EDITED with`. Call 5 returned `[]`. **Failed check:** the `images[0].url` from call 1 returned **HTTP 404** both to an anonymous `curl` and to an OAuth-authenticated `AuthorizedSession.get`, while the live Doc's own image URL from call 2 returned 200 `image/png` anonymously. A repeat export, fetched within seconds of the call returning, also returned 404. The temporary Doc's `contentUri` stops serving once that Doc is deleted, so every `images` URL is already dead when the tool returns (contradicts `docs/design/doc-revision-export.md`'s "the URL still serves after the temporary Doc is deleted"). Both Docs trashed.
+
+**Result (2026-10-11, PR #988 round 2, `15d778d`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). `qa-959-rev` listed revisions 1 and 5; R=5. `qa-959-diff.md` listed 1 and 2 about 10 seconds after the edit. Call 1 returned `revisionId`, `modifiedTime`, `markdown` and no `images` key; `markdown` had every listed construct and the image as `![](image:sha256-9237fdb37f9592f6)` (same hash as round 1). Call 2 matched call 1 byte for byte except the image line. Calls 3 and 4 differed in exactly one line, `Intro with` → `Intro EDITED with`. Call 5 listed no temporary Doc from this pass; its one hit was a temporary Doc from the Dev's 15:15 probe of another Doc, already `trashed: true` (the trash branch working; `search_files` lists trashed files, so the check now says so). Both Docs trashed.
 
 ---
 
@@ -2058,6 +2062,8 @@ revision separate (#814), so the diff below uses one.
 
 **Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Revision 4: both calls returned `[Jump](#setup) here and [back](#setup-1) here.` with no `docs.google.com` URL, byte-identical. **Extra probe (sent back as a review finding):** a second Doc with the first `## Setup` turned into a bulleted list item (`createParagraphBullets`) and the same two links exported as `- Setup\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.` The bulleted heading renders as a list item, not a heading, but still takes a slug. `#setup` now names the wrong heading and `#setup-1` names none. Both Docs trashed.
 
+**Result (2026-10-11, PR #988 round 2, `15d778d`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Calls 1 and 2 (revision 4) both returned `[Jump](#setup) here and [back](#setup-1) here.`, byte-identical, no `docs.google.com` URL. Call 3 (`qa-959-bullet`, revision 5) returned `# Top\n\n- Setup\n\nFirst.\n\n## Setup\n\nJump here and [back](#setup) here.`: the bulleted heading takes no slug and the link to it is dropped. **Extra probe:** a Doc with `## Setup`, then a table whose first cell is a HEADING_2 `Setup`, then a second body `## Setup`; "Jump" linked to the last body heading and "here" to the cell heading. The export was `[Jump](#setup-1) here.`: the cell heading is skipped when counting duplicates (it was `#setup-2` before the fix), and the link to it is dropped. All three Docs trashed.
+
 ---
 
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
@@ -2088,12 +2094,14 @@ directory, even with a trailing `/`, is written as a file of that name).
 - Call 6 raises Drive's own 404 ("File not found: <doc-id>_WRONG"), not the merged-revision
   message (PR #988 round 1).
 - Call 7 raises "local_path '/etc/hosts/x.md' has a non-directory path component at
-  '/etc/hosts'", and `search_files` finds no temporary Doc: the destination is checked before
-  the export (PR #988 round 1).
+  '/etc/hosts'", and `search_files` finds no temporary Doc for `<doc-id>`: the destination is checked
+  before the export (PR #988 round 1).
 
 **Teardown:** remove `/tmp/qa-959/`; `delete_file(file_id="<doc-id>")`.
 
 **Result (2026-10-11, PR #988 round 1, `8b223c5`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth). The first attempt at call 1 ran without `/tmp/qa-959` existing and wrote a 15-byte *file* named `/tmp/qa-959` (`local_path: "/tmp/qa-959"`); that comes from the shared `write_capped_result_to_disk`, which this PR doesn't touch, so it's ticketed separately and the setup now creates the directory. Rerun with the directory present: call 1 returned `local_path` `/tmp/qa-959/<doc-id>-r3.md`, `bytes_written: 15`, `revisionId`, `modifiedTime`, `images: []`, no `markdown`; the file held `Saved to disk\n\n`, raw Markdown. Calls 2, 3, and 5 raised the expected messages. Call 4 returned `sheet: "Sales"`, `range: "A1:B2"`, `values: [["Product", null], ["Widget", 100]]`. **Extra probe (sent back as a review finding):** `file_id="<doc-id>_WRONG"` raised the same "Revision 3 of … not found. Drive merges a recent revision…" message, misdiagnosing a bad file ID as a merged revision.
+
+**Result (2026-10-11, PR #988 round 2, `15d778d`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth), `/tmp/qa-959` created first. Call 1 returned `local_path` `/tmp/qa-959/<doc-id>-r3.md`, `bytes_written: 15`, `revisionId`, `modifiedTime`, and no `markdown` or `images`; the file held `Saved to disk\n\n`. Calls 2, 3, and 5 raised the expected messages. Call 4 returned `sheet: "Sales"`, `range: "A1:B2"`, `values: [["Product", null], ["Widget", 100]]` (revision 342). Call 6 raised Drive's own `HttpError 404 … "File not found: <doc-id>_WRONG."`, not the merged-revision message. Call 7 raised `local_path '/etc/hosts/x.md' has a non-directory path component at '/etc/hosts'`, and `search_files` found no temporary Doc for `<doc-id>` (only the earlier trashed one noted in TC-D280). Doc trashed, `/tmp/qa-959` removed.
 
 ---
 
