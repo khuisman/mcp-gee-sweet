@@ -1798,7 +1798,7 @@ class TestAddDataValidation:
             spreadsheet_id="ss1",
             sheet="Sheet1",
             range="A1",
-            condition_type="NOT_BLANK",
+            condition_type="DATE_IS_VALID",
             input_message="This field is required",
             ctx=ctx,
         )
@@ -1812,7 +1812,7 @@ class TestAddDataValidation:
             spreadsheet_id="ss1",
             sheet="Sheet1",
             range="B2:C5",
-            condition_type="NOT_BLANK",
+            condition_type="DATE_IS_VALID",
             ctx=ctx,
         )
         req = self._set_data_validation_request(svc)
@@ -1836,6 +1836,30 @@ class TestAddDataValidation:
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize(
+        "condition_type", ["BLANK", "NOT_BLANK", "TEXT_STARTS_WITH", "TEXT_ENDS_WITH"]
+    )
+    async def test_condition_type_unsupported_by_data_validation_rejected_locally(
+        self, condition_type
+    ):
+        """Conditional-formatting/filter-only BooleanCondition types: the API
+        rejects each with "not supported in data validation" (live-confirmed,
+        PR #986 QA round 2), so they never reach it."""
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type=condition_type,
+            values=["ab"] if condition_type.startswith("TEXT_") else None,
+            ctx=ctx,
+        )
+        assert result["error"].startswith(f"Invalid condition_type '{condition_type}'")
+        assert condition_type not in sheets_structure_module._CONDITION_SPECS
+        svc.spreadsheets.return_value.get.assert_not_called()
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
 
     async def test_value_count_mismatch_returns_error_without_api_call(self):
         """Issue #366 — the exact case from the issue body: NUMBER_BETWEEN
@@ -1890,7 +1914,7 @@ class TestAddDataValidation:
             spreadsheet_id="ss1",
             sheet="Sheet1",
             range="A1",
-            condition_type="NOT_BLANK",
+            condition_type="DATE_IS_VALID",
             values=["unexpected"],
             ctx=ctx,
         )
@@ -1986,7 +2010,8 @@ class TestAddDataValidation:
 
     def test_condition_type_doc_block_never_merges_different_groups(self):
         """PR #759 review, live-confirmed regression: TEXT_IS_EMAIL,
-        TEXT_IS_URL, BLANK, and NOT_BLANK all share the identical
+        TEXT_IS_URL, BLANK, and NOT_BLANK (the last two since removed as
+        unsupported by data validation, PR #986) all shared the identical
         (counts=(0,), doc="no values") spec and sit adjacent in
         _CONDITION_SPECS, so grouping on spec equality alone silently
         collapsed two semantically unrelated condition_type families (text
@@ -2035,7 +2060,7 @@ class TestAddDataValidation:
             spreadsheet_id="ss1",
             sheet="Missing",
             range="A1",
-            condition_type="NOT_BLANK",
+            condition_type="DATE_IS_VALID",
             ctx=ctx,
         )
         assert "error" in result
@@ -2047,7 +2072,7 @@ class TestAddDataValidation:
             spreadsheet_id="ss1",
             sheet="Sheet1",
             range="Sheet1!A1",
-            condition_type="NOT_BLANK",
+            condition_type="DATE_IS_VALID",
             ctx=ctx,
         )
         assert "error" in result
@@ -2100,7 +2125,7 @@ class TestGetDataValidation:
         ]
 
     async def test_offsets_use_start_row_and_start_column(self):
-        rule = {"condition": {"type": "NOT_BLANK"}, "strict": True, "showCustomUi": True}
+        rule = {"condition": {"type": "DATE_IS_VALID"}, "strict": True, "showCustomUi": True}
         grid_data = {
             "startRow": 4,
             "startColumn": 2,

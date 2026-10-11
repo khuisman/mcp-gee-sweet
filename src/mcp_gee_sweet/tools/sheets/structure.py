@@ -30,12 +30,15 @@ _VALID_BORDER_STYLES = [
 
 _VALID_SORT_ORDERS = ["ASCENDING", "DESCENDING"]
 
+# Only the BooleanCondition types setDataValidation accepts. BLANK, NOT_BLANK,
+# TEXT_STARTS_WITH and TEXT_ENDS_WITH are conditional-formatting/filter-only
+# (the discovery doc's enum descriptions say so), and the API rejects each
+# with "ConditionType '<type>' is not supported in data validation" (live-
+# confirmed, PR #986 QA round 2), so they're rejected locally instead.
 _VALID_CONDITION_TYPES = [
     "BOOLEAN",
     "TEXT_CONTAINS",
     "TEXT_NOT_CONTAINS",
-    "TEXT_STARTS_WITH",
-    "TEXT_ENDS_WITH",
     "TEXT_EQ",
     "TEXT_IS_EMAIL",
     "TEXT_IS_URL",
@@ -57,8 +60,6 @@ _VALID_CONDITION_TYPES = [
     "NUMBER_NOT_BETWEEN",
     "ONE_OF_RANGE",
     "ONE_OF_LIST",
-    "BLANK",
-    "NOT_BLANK",
     "CUSTOM_FORMULA",
 ]
 
@@ -73,8 +74,9 @@ class _ConditionSpec(NamedTuple):
     which docstring line this condition_type renders on — deliberately
     independent of (counts, doc) equality. Two condition_types can end up
     with identical counts and doc text while remaining semantically distinct
-    (TEXT_IS_EMAIL/TEXT_IS_URL vs. BLANK/NOT_BLANK both render "no values",
-    but text-format validity and blank-cell checks aren't the same concept)
+    (TEXT_IS_EMAIL/TEXT_IS_URL and the since-removed BLANK/NOT_BLANK both
+    rendered "no values", but text-format validity and blank-cell checks
+    aren't the same concept)
     — grouping on the explicit tag instead of incidental text equality means
     the two can never silently merge onto one line just because their
     rendered text happens to coincide (PR #759 review, live-confirmed
@@ -128,13 +130,9 @@ _CONDITION_SPECS: dict[str, _ConditionSpec] = {
     "DATE_IS_VALID": _ConditionSpec((0,), "no values; any parseable date passes", "date_valid"),
     "TEXT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
     "TEXT_NOT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
-    "TEXT_STARTS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
-    "TEXT_ENDS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
     "TEXT_EQ": _ConditionSpec((1,), "one text value", "text_single"),
     "TEXT_IS_EMAIL": _ConditionSpec((0,), "no values", "text_format"),
     "TEXT_IS_URL": _ConditionSpec((0,), "no values", "text_format"),
-    "BLANK": _ConditionSpec((0,), "no values", "blank"),
-    "NOT_BLANK": _ConditionSpec((0,), "no values", "blank"),
     "CUSTOM_FORMULA": _ConditionSpec((1,), 'one formula string, e.g. "=A1>0"', "custom_formula"),
 }
 
