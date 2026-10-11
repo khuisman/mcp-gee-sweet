@@ -989,6 +989,27 @@ def _converted_md_source_mtime(f: dict) -> datetime | None:
 # 100 pages of 1,000 revisions: only a nextPageToken that never goes falsy reaches it.
 _REVISIONS_MAX_PAGES = 100
 
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+async def _fetch_revision_export(drive_service, url: str, revision_id: str) -> bytes:
+    """Download one of a revision's exportLinks. The export endpoint answers
+    an error (429 under rapid calls, measured live in #959) with an HTML page
+    and a non-200 status rather than raising, so check the status here instead
+    of handing that page to a parser."""
+    # thread_http(drive_service) must be called inside the worker thread's closure, not
+    # eagerly here on the event-loop thread — see execute_in_thread's docstring in auth.py.
+    resp, content = await asyncio.to_thread(lambda: thread_http(drive_service).request(url))
+    if resp.status != 200:
+        hint = (
+            " Drive rate-limits revision exports; retry in a minute." if resp.status == 429 else ""
+        )
+        raise ValueError(
+            f"Drive returned HTTP {resp.status} exporting revision {revision_id}.{hint}"
+        )
+    return content
+
 
 async def _list_revisions(drive_service, file_id: str) -> list[dict]:
     """Every revision of `file_id` as {id, modifiedTime}, oldest first, across
@@ -2310,12 +2331,17 @@ def register(tool):
         """
         List available revisions for a Google Drive file (Sheets, Docs, or any file).
 
-        Returns revisions in chronological order with their ID, timestamp, and the
-        user who made the change. Use the revision ID with export_revision to read
-        cell data from a historical version of a spreadsheet.
+        Returns every revision in chronological order with its ID, timestamp, and
+        the user who made the change. Use the revision ID with export_revision to
+        read a historical version of a spreadsheet (cell data) or a Google Doc
+        (Markdown).
 
-        Note: Google Drive retains all revisions for 30 days, then auto-prunes unless
-        keepForever is set on the revision.
+        Retention differs by file type:
+          - Binary (uploaded) files: Drive purges a revision 30 days after newer
+            content replaces it, unless keepForever is set (at most 200 per file).
+          - Google Docs, Sheets, and Slides: not subject to that purge, and
+            keepForever doesn't apply to them (always false). Drive may still
+            merge older edits into fewer revisions, so not every edit has its own.
 
         Args:
             file_id: The Google Drive file ID.
@@ -2324,15 +2350,19 @@ def register(tool):
             List of revisions, each with revisionId, modifiedTime, modifiedBy, keepForever.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        result = await execute_in_thread(
-            drive_service.revisions()
-            .list(
+        revisions: list[dict] = []
+        async for resp in iter_pages(
+            lambda token: drive_service.revisions().list(
                 fileId=file_id,
-                fields="revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
-            )
-            .execute,
+                fields="nextPageToken,"
+                "revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
+                pageSize=1000,
+                pageToken=token,
+            ),
             drive_service,
-        )
+            max_pages=_REVISIONS_MAX_PAGES,
+        ):
+            revisions.extend(resp.get("revisions", []))
         return [
             {
                 "revisionId": r["id"],
@@ -2340,7 +2370,7 @@ def register(tool):
                 "modifiedBy": r.get("lastModifyingUser", {}).get("displayName"),
                 "keepForever": r.get("keepForever", False),
             }
-            for r in result.get("revisions", [])
+            for r in revisions
         ]
 
     @tool(annotations=ToolAnnotations(title="Export Revision", readOnlyHint=True))
@@ -2349,53 +2379,129 @@ def register(tool):
         revision_id: str,
         range: str | None = None,
         sheet: str | None = None,
+        local_path: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Export a historical revision of a Google Sheets file and return its cell data.
+        Export a historical revision of a Google Sheets file (cell data) or a
+        Google Doc (Markdown). Use list_revisions to find the revision_id.
 
-        Downloads the revision as an XLSX file and returns the values for the requested
-        sheet and range. Use list_revisions to find the revision_id.
-
-        Typical recovery workflow:
+        Google Sheets: downloads the revision as XLSX and returns the values for
+        the requested sheet and range. Typical recovery workflow:
           1. list_revisions → find the revision ID from the timestamp before data was lost
           2. export_revision → read the affected range from that revision
           3. batch_update_cells → write the recovered values back to the current sheet
+        Each call downloads the full file, so a large spreadsheet may be slow.
 
-        Note: each call downloads the full file — for large spreadsheets this may be slow.
+        Google Docs: returns the revision as Markdown, converted the same way as
+        get_doc_as_markdown. The Docs API can only read a document's current
+        state, so the revision is exported as DOCX, imported into a temporary
+        Google Doc in the default folder, converted, and the temporary Doc is
+        deleted (trashed if this identity can't delete it). Expect several
+        seconds per call. Two revisions' exports diff cleanly, with these
+        differences from get_doc_as_markdown's output:
+          - A link to a heading in the document renders as "#slug" (GitHub
+            style), not a docs.google.com URL; a link to a bookmark renders as
+            "#bookmark-<n>".
+          - An image renders as "image:sha256-<hash of its bytes>", so an
+            unchanged image doesn't show up in a diff; "images" maps each one to
+            a temporary URL that expires (roughly 30 minutes).
+          - Comments aren't included: they aren't part of a revision.
 
         Args:
-            file_id:     The Google Drive file ID of the spreadsheet.
+            file_id:     The Google Drive file ID of the spreadsheet or document.
             revision_id: The revision ID from list_revisions.
-            range:       A1 notation range to return, e.g. "A1:D20". Omit for all data.
-            sheet:       Sheet (tab) name. Defaults to the first sheet.
+            range:       Sheets only. A1 notation range to return, e.g. "A1:D20".
+                         Omit for all data.
+            sheet:       Sheets only. Sheet (tab) name. Defaults to the first sheet.
+            local_path:  Docs only. Local path to write the Markdown to instead of
+                         returning it inline (the raw Markdown text, UTF-8). A
+                         directory path writes <file_id>-r<revision_id>.md inside
+                         it. Bypasses the response-size cap.
 
         Returns:
-            revisionId, modifiedTime, sheet name, range, and values as a list of rows.
+            Sheets: revisionId, modifiedTime, sheet name, range, and values as a
+            list of rows.
+            Docs: revisionId, modifiedTime, markdown, and images (a list of
+            {src, url}), plus warning if the temporary Doc couldn't be removed
+            (it names the Doc's ID). With local_path, local_path and
+            bytes_written replace markdown.
+            Raises ValueError for a file that is neither a Sheet nor a Doc, for
+            an argument that doesn't apply to the file's type, or if a Docs
+            response exceeds the size cap without local_path.
+
+        Note:
+            For a Doc, the temporary Doc needs storage: a service account must
+            have a Shared Drive configured as its default folder.
         """
-        import openpyxl
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
 
-        drive_service = ctx.request_context.lifespan_context.drive_service
+        try:
+            revision = await execute_in_thread(
+                drive_service.revisions()
+                .get(fileId=file_id, revisionId=revision_id, fields="exportLinks,modifiedTime")
+                .execute,
+                drive_service,
+            )
+        except HttpError as e:
+            if e.resp.status != 404:
+                raise
+            # Docs folds a recent revision into the next one when more edits
+            # follow soon after, so an ID from an earlier list_revisions call can
+            # vanish (measured live, #959).
+            raise ValueError(
+                f"Revision {revision_id} of {file_id} not found. Drive merges a "
+                "recent revision into the next when more edits follow, so call "
+                "list_revisions again for current IDs."
+            ) from e
+        export_links = revision.get("exportLinks", {})
 
-        revision = await execute_in_thread(
-            drive_service.revisions()
-            .get(fileId=file_id, revisionId=revision_id, fields="exportLinks,modifiedTime")
-            .execute,
-            drive_service,
-        )
+        if docx_url := export_links.get(_DOCX_MIME):
+            if range is not None or sheet is not None:
+                raise ValueError(
+                    f"{file_id} is a Google Doc; range and sheet apply only to Google Sheets."
+                )
+            from ..docs.markdown_export import export_doc_revision_markdown
 
-        xlsx_url = revision.get("exportLinks", {}).get(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            exported = await export_doc_revision_markdown(
+                drive_service,
+                lc.docs_service,
+                file_id,
+                revision_id,
+                docx_url,
+                lc.folder_id,
+            )
+            result: dict[str, Any] = {
+                "revisionId": revision_id,
+                "modifiedTime": revision.get("modifiedTime"),
+                **exported,
+            }
+            if local_path:
+                manifest = {k: v for k, v in result.items() if k != "markdown"}
+                return await write_capped_result_to_disk(
+                    result["markdown"],
+                    local_path,
+                    default_filename=f"{file_id}-r{revision_id}.md",
+                    manifest_extra=manifest,
+                )
+            enforce_response_size_cap(result, tool_name="export_revision")
+            return result
+
+        xlsx_url = export_links.get(_XLSX_MIME)
         if not xlsx_url:
             raise ValueError(
-                f"No XLSX export available for revision {revision_id}. "
-                "The file may not be a Google Sheets file."
+                f"No XLSX or DOCX export available for revision {revision_id}. "
+                "export_revision supports Google Sheets and Google Docs files only."
+            )
+        if local_path is not None:
+            raise ValueError(
+                f"{file_id} is a Google Sheet; local_path applies only to Google Docs."
             )
 
-        # thread_http(drive_service) must be called inside the worker thread's closure, not
-        # eagerly here on the event-loop thread — see execute_in_thread's docstring in auth.py.
-        _, content = await asyncio.to_thread(lambda: thread_http(drive_service).request(xlsx_url))
+        import openpyxl
+
+        content = await _fetch_revision_export(drive_service, xlsx_url, revision_id)
         wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
 
         ws = wb[sheet] if sheet else wb.active

@@ -120,6 +120,34 @@ raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-t
 
 ---
 
+### `export_revision` on a Google Doc — links, images, and vanishing revision IDs
+
+**What:** `export_revision` (#959) returns a Doc revision as Markdown through the same converter
+as `get_doc_as_markdown`, with these differences and gaps:
+
+1. A link to a heading renders as a GitHub-style `#slug` anchor, and a link to a bookmark as
+   `#bookmark-<n>`, not as a docs.google.com URL. An image renders as
+   `image:sha256-<hash>` rather than a URL; the result's `images` list maps each one to a
+   temporary URL that expires (roughly 30 minutes).
+2. The export doesn't include comments, which aren't part of a revision.
+3. A revision ID from `list_revisions` can stop existing: Docs folds a recent revision into the
+   next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
+   The export then fails with an error saying to list revisions again.
+4. Each call creates and removes a temporary Google Doc in the default folder, which takes
+   several seconds and needs storage there (a service account needs a Shared Drive default
+   folder). If removal fails, the result's `warning` names the Doc to delete by hand.
+
+**Why:** The Docs API reads only a document's current state, so the revision is exported as DOCX
+and imported into a temporary Doc to be read. That Doc's ID, heading IDs, and image URLs are new
+on every import, so (1) replaces them with values that stay the same between exports and keep
+diffs clean. (3) is how Drive keeps Docs revision history.
+
+**Workaround:** For (1), diff one revision's export against another's, not against
+`get_doc_as_markdown` output. For (3), export a revision only after editing has settled.
+Related: docs/design/doc-revision-export.md.
+
+---
+
 ## Google Drive
 
 ### Service account cannot create files in personal Drive

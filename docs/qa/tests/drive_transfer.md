@@ -1933,8 +1933,164 @@ export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5
 - Returns a clear error: "No XLSX export available for this revision"
 - Does not crash
 
+**Superseded by #959:** a Google Doc revision now exports as Markdown (TC-D280), so this case
+checks a file that is neither a Sheet nor a Doc. Run it as:
+
+**Setup:** Create a scratch Google Slides file named `qa-959-slides` in `DRIVE_FOLDER_ID`, and
+type one word on its first slide in the Slides UI (Playwright) so it has a revision.
+
+**Tool calls**
+1. `list_revisions(file_id="<slides-id>")`, then
+   `export_revision(file_id="<slides-id>", revision_id="<last revisionId>")`
+
+**Checks**
+- Raises a clear error: "No XLSX or DOCX export available for revision <id>. export_revision
+  supports Google Sheets and Google Docs files only."
+- Does not crash
+
+**Teardown:** `delete_file(file_id="<slides-id>")`.
+
+The 2026-09-04 Result below predates #959 and tested a Google Doc.
+
 **Result (2026-09-04) ✅ PASS**
 export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.
+
+---
+
+### TC-D280: Export two Google Doc revisions as Markdown; the diff shows only the edit (issue #959) ⚠️ requires-oauth
+
+**Background:** The Docs API can't read an old revision, so `export_revision` exports it as DOCX,
+imports that into a temporary Doc, and converts it with `get_doc_as_markdown`'s own converter.
+Docs folds the latest revision into the next one while editing continues: during #959, edits 90
+seconds and 5 minutes later both merged it. A Doc created by Drive import keeps its import
+revision separate (#814), so the diff below uses one.
+
+**Setup**
+1. `create_doc(title="qa-959-rev", content_format="markdown", content=<below>)` with:
+   ````
+   # Release Notes
+
+   Intro with **bold**, *italic*, `inline code`, and [external](https://example.com).
+
+   ## Setup
+
+   ```
+   pip install thing
+   thing --init
+   ```
+
+   > A quoted note.
+
+   1. First step
+   2. Second step
+
+   - [ ] open task
+   - [x] done task
+
+   | Key | Value |
+   |-----|-------|
+   | a   | 1     |
+
+   ![logo](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)
+   ````
+   Then `list_revisions(file_id="<rev-id>")` and take the last `revisionId` as R.
+2. `upload_file(name="qa-959-diff.md", source_format="markdown", convert_to_doc=True,
+   content="# Notes\n\nIntro with **bold** text.\n\n## Next\n\nClosing paragraph.\n")`.
+   Then `find_in_doc(doc_id="<diff-id>", query="Intro with")` and
+   `insert_doc_text(doc_id="<diff-id>", insertions=[{"index": <start_index + 6>, "text": "EDITED "}])`.
+3. Wait about a minute, then `list_revisions(file_id="<diff-id>")`: A is the first revision
+   (the import), B the last. If only one revision is listed, wait another minute and re-list.
+
+**Tool calls**
+1. `export_revision(file_id="<rev-id>", revision_id="<R>")`
+2. `get_doc_as_markdown(doc_id="<rev-id>")`
+3. `export_revision(file_id="<diff-id>", revision_id="<A>")`
+4. `export_revision(file_id="<diff-id>", revision_id="<B>")`
+5. `search_files(query="export_revision temp")`
+
+**Checks**
+- Call 1's `markdown` has the heading, bold/italic, `` `inline code` ``, a fenced code block, a
+  `> ` blockquote, the numbered list, both task items, the table, and the image as
+  `![](image:sha256-<16 hex>)`. Its `images` has one entry whose `url` is a
+  `googleusercontent.com` link that opens the logo.
+- Call 2's `markdown` equals call 1's except the image line (call 2 has a URL).
+- Diffing call 3's `markdown` against call 4's shows exactly one changed line: `Intro with` →
+  `Intro EDITED with`.
+- Call 5 returns no files: each temporary Doc was removed.
+
+**Teardown:** `delete_file` on both `<rev-id>` and `<diff-id>`.
+
+---
+
+### TC-D281: Doc revision heading links render as `#slug` and stay stable (issue #959) ⚠️ requires-oauth
+
+**Setup**
+1. `create_doc(title="qa-959-links", content_format="markdown", content="# Top\n\n## Setup\n\nFirst.\n\n## Setup\n\nJump here and back here.\n")`
+2. Link text to the headings by ID, the way the Docs UI does. No tool sets an ID-only link
+   (`style_doc_range`'s `link_url` sets a URL), so use the Docs UI in Playwright (select "Jump",
+   Insert link → Headings → the first `Setup`; "back" → the second `Setup`), or a scratch script
+   per `CLAUDE.md`'s "MCP restart" note sending `updateTextStyle` with
+   `textStyle: {"link": {"headingId": "<id>"}}`. `get_doc_structure(doc_id="<id>")` gives both
+   headings' `headingId`s.
+3. `list_revisions(file_id="<id>")` and take the last `revisionId`.
+
+**Tool calls**
+1. `export_revision(file_id="<id>", revision_id="<last>")`
+2. The same call again.
+
+**Checks**
+- Call 1's `markdown` contains `[Jump](#setup)` and `[back](#setup-1)`, and no
+  `docs.google.com` URL.
+- Call 2's `markdown` is identical to call 1's.
+
+**Teardown:** `delete_file(file_id="<id>")`.
+
+---
+
+### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
+
+**Setup:** `create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
+`list_revisions` on it and on `TEST_SPREADSHEET_ID`, taking each one's last `revisionId`.
+
+**Tool calls**
+1. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", local_path="/tmp/qa-959/")`
+2. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", range="A1:B2")`
+3. `export_revision(file_id="<TEST_SPREADSHEET_ID>", revision_id="<sheet rev>", local_path="/tmp/qa-959/")`
+4. `export_revision(file_id="<TEST_SPREADSHEET_ID>", revision_id="<sheet rev>", range="A1:B2")`
+5. `export_revision(file_id="<doc-id>", revision_id="999999")`
+
+**Checks**
+- Call 1 returns `local_path` ending `/tmp/qa-959/<doc-id>-r<doc rev>.md`, `bytes_written`,
+  `revisionId`, `modifiedTime`, `images`, and no `markdown`. The file holds raw Markdown
+  (`Saved to disk`), not JSON.
+- Call 2 raises "…is a Google Doc; range and sheet apply only to Google Sheets."
+- Call 3 raises "…is a Google Sheet; local_path applies only to Google Docs."
+- Call 4 returns `sheet`, `range`, and `values` exactly as before #959.
+- Call 5 raises "Revision 999999 of <doc-id> not found…call list_revisions again…".
+
+**Teardown:** remove `/tmp/qa-959/`; `delete_file(file_id="<doc-id>")`.
+
+---
+
+### TC-D283: A service account (Content manager) exports a Doc revision; the temporary Doc is trashed (issue #959)
+
+**Background:** A Content manager on a Shared Drive can trash but not permanently delete (#876),
+so the temporary Doc is trashed instead. Use the `mcp-gee-sweet-sa` server, whose default folder
+is the Shared Drive.
+
+**Setup:** On the SA server, `create_doc(title="qa-959-sa", content="<p>SA revision</p>")`, then
+`list_revisions(file_id="<id>")` and take the last `revisionId`.
+
+**Tool calls**
+1. `export_revision(file_id="<id>", revision_id="<last>")` on the SA server
+2. `search_files(query="export_revision temp")` on the SA server
+
+**Checks**
+- Call 1 returns `markdown` containing `SA revision` and no `warning`.
+- Call 2 finds no live file. If the client can show trashed files, the temporary Doc is in the
+  Shared Drive's trash.
+
+**Teardown:** `delete_file(file_id="<id>")` on the SA server.
 
 ---
 
