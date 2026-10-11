@@ -3755,6 +3755,8 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Cleanup:** `delete_file` both scratch docs
 
+**Result (2026-10-11) ✅ PASS — Sky, PR #992 round 1 (`6aa4dac`).** Step 2: `Logo` came back as `[![](<contentUri>)](https://example.com/one)`. `[linked text](https://example.com/t)` was followed by an unlinked `![](<contentUri>)`. `A` linked to `.../edit?tab=t.0#heading=h.…` (the `Overview` heading), and `B` was unlinked. The image after the table kept `https://example.com/after-table`. Step 3: `images` reported an `error` for both `example.invalid` sources and none for the logo. Step 4: the only image was `[![](<contentUri>)](https://example.com/good)` between `x` and `y`, and no text carried `b1`'s or `b2`'s link. Playwright, clicking each image in the step 1 doc's editor: `Logo` and the after-table image each showed a link chip for `https://example.com/…`, and `A`'s chip showed `Overview`. The unlinked image and `B` showed no link chip. The `/mobilebasic` HTML view isn't a substitute: it renders the text link but never wraps an image in `<a>`. A separate probe, `[![first](…)](https://example.com/first)[![second](…)](https://example.com/second)`, exported as `second` then `first`: adjacent images are written in reverse order. Each kept its own link.
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
