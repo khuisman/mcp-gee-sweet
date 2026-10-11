@@ -106,7 +106,10 @@ whole-list retry (text, bullets, table, and the surviving image all in place).
 ## Linked images (#977)
 
 An `<img>` inside `<a href>` (markdown `[![alt](src)](url)`) keeps its link: `html_parser.py`
-copies the open `<a>`'s href onto `Image.link_url`. Docs stores an image's link on its
+copies the open `<a>`'s href onto `Image.link_url`. That includes raw HTML with no enclosing
+block: a top-level `<img>` gets an implicit paragraph even when it's wrapped in inline tags (unlike
+bare text or `<hr>` in that position), and reads its link from `_bare_link_url`, a stack separate
+from `_link_url` so text handling and an unclosed top-level `<a>` are unaffected. Docs stores an image's link on its
 `inlineObjectElement`'s own `textStyle.link`, so `emitter.py` follows the image's
 `insertInlineImage` with an `updateTextStyle` over its one-character range
 `[position, position + 1)`. The link has to come right after its own insert, inside the
@@ -114,10 +117,19 @@ descending-position tail: at that point nothing before `position` has shifted ye
 image never inherits a neighboring run's link (confirmed live, both directions), so an unlinked
 image gets no clearing request.
 
-The retry treats the pair as one unit. `_drop_failed_image` pops the link request with its failed
+Inserts that share a position, such as adjacent images with nothing between them, each land in
+front of whatever is already there, so the later one in the document has to be inserted first.
+The descending pass sorts on `(position, node order, item order)`, all descending; sorting by
+position alone kept source order within a tie and wrote adjacent images reversed (PR #992 QA
+round 1). A table and the image right after it share a position the same way, and still come out
+table first.
+
+The retry treats the pair as one unit. `ast_to_requests(image_links=...)` records each
+`id(insert request) -> link request` as it builds them, and `_apply_doc_content` uses that record
+rather than matching request shapes. `_drop_failed_image` pops the link request with its failed
 insert, since a stranded link would land on whatever character now sits at that position.
-`_positional_insert_tail_start` counts a link request directly after its own image insert as part
-of the tail (`_is_image_link_request`), so the K≥2 split still applies. A `#slug` image link goes
+`_positional_insert_tail_start` counts a recorded link request as part of the tail, so the K≥2
+split still applies. A `#slug` image link goes
 through the heading-anchor pass like a text link: `_walk_headings_and_anchor_runs` reads the
 `inlineObjectElement`'s link too, so it's resolved or stripped.
 

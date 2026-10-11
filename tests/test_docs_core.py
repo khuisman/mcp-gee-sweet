@@ -1595,6 +1595,20 @@ class TestImageLinks:
         nodes = html_to_ast('<p><a href="https://t">text</a><img src="https://x/i.png"></p>')
         assert self._image(nodes).link_url is None
 
+    def test_parser_top_level_linked_image_gets_implicit_paragraph(self):
+        # PR #992 QA round 1: raw HTML with no enclosing block dropped the image.
+        nodes = html_to_ast('<a href="https://t"><img src="https://x/i.png"></a>')
+        assert len(nodes) == 1
+        assert self._image(nodes).link_url == "https://t"
+
+    def test_parser_top_level_link_does_not_reach_later_text_or_images(self):
+        nodes = html_to_ast(
+            '<a href="https://t">dropped</a><img src="https://x/a.png"><p>text</p>'
+            '<a href="https://u"><p>in block</p></a>'
+        )
+        assert self._image(nodes).link_url is None
+        assert [r.link_url for node in nodes[1:] for r in node.runs] == [None, None]
+
     def test_parser_image_between_linked_text_shares_the_link(self):
         nodes = html_to_ast('<p><a href="https://t">a<img src="https://x/i.png">b</a></p>')
         runs = nodes[0].runs
@@ -1622,6 +1636,43 @@ class TestImageLinks:
         requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
         links = [r for r in requests if "link" in r.get("updateTextStyle", {}).get("textStyle", {})]
         assert [r["updateTextStyle"]["range"] for r in links] == [{"startIndex": 1, "endIndex": 5}]
+
+    def test_emitter_adjacent_images_keep_source_order(self):
+        # PR #992 QA round 1: images with nothing between them share a position,
+        # and each insert lands in front of what's already there, so the later
+        # one must be inserted first.
+        img1 = Image(src="a.png", link_url="https://one")
+        img2 = Image(src="b.png", link_url="https://two")
+        img3 = Image(src="c.png")
+        nodes = [Paragraph(runs=[Run("x"), img1, img2, img3])]
+        uris = {id(i): i.src for i in (img1, img2, img3)}
+        requests, _ = ast_to_requests(nodes, image_uris=uris)
+        tail = [r for r in requests if "insertInlineImage" in r or "link" in str(r)]
+        assert [r["insertInlineImage"]["uri"] for r in tail if "insertInlineImage" in r] == [
+            "c.png",
+            "b.png",
+            "a.png",
+        ]
+        # Simulate the inserts in order: each lands at index 2, in front of the rest.
+        doc: list[str] = []
+        for r in tail:
+            if "insertInlineImage" in r:
+                doc.insert(0, r["insertInlineImage"]["uri"])
+        assert doc == ["a.png", "b.png", "c.png"]
+        # Each link still directly follows its own image's insert.
+        for i, r in enumerate(tail):
+            if r.get("insertInlineImage", {}).get("uri") == "a.png":
+                assert tail[i + 1]["updateTextStyle"]["textStyle"]["link"]["url"] == "https://one"
+
+    def test_emitter_table_still_precedes_image_at_same_position(self):
+        img = Image(src="a.png")
+        table = Table(rows=[Row(cells=[Cell(children=[Run("cell")])])])
+        nodes = [Paragraph(runs=[Run("Before")]), table, Paragraph(runs=[img])]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "a.png"})
+        kinds = [next(iter(r)) for r in requests if "insertTable" in r or "insertInlineImage" in r]
+        # Both target index 8: the image (later in the doc) goes first, then the
+        # table is inserted in front of it.
+        assert kinds == ["insertInlineImage", "insertTable"]
 
     def test_emitter_each_link_follows_its_own_image_across_tables(self):
         # The descending pass interleaves images and tables; every link request

@@ -162,35 +162,21 @@ def _failed_insert_image_message(error: HttpError) -> str:
 _POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
 
 
-def _is_image_link_request(prev: dict, req: dict) -> bool:
-    """True if `req` is the updateTextStyle emitter.py pairs with the
-    insertInlineImage `prev` to link that image (#977): a link-only style over
-    exactly the one-character range the image was inserted at."""
-    inline = prev.get("insertInlineImage")
-    style = req.get("updateTextStyle")
-    if inline is None or style is None or style.get("fields") != "link":
-        return False
-    index = inline.get("location", {}).get("index")
-    return index is not None and style.get("range") == {
-        "startIndex": index,
-        "endIndex": index + 1,
-    }
-
-
-def _positional_insert_tail_start(requests: list[dict]) -> int:
+def _positional_insert_tail_start(
+    requests: list[dict], image_links: dict[int, dict] | None = None
+) -> int:
     """Index where ast_to_requests's trailing stage-3 pass (the descending-position
     insertTable + insertInlineImage requests — see its docstring) begins: the start
     of the maximal suffix made up only of those two request kinds, plus each linked
-    image's own link request right after its insert (#977)."""
+    image's own link request (#977). `image_links` is the id(insert) -> link
+    request map ast_to_requests filled; a link request counts by identity."""
+    link_ids = {id(link) for link in (image_links or {}).values()}
     start = len(requests)
-    while start > 0:
-        req = requests[start - 1]
-        if any(key in req for key in _POSITIONAL_INSERT_KEYS):
-            start -= 1
-        elif start > 1 and _is_image_link_request(requests[start - 2], req):
-            start -= 2
-        else:
-            break
+    while start > 0 and (
+        id(requests[start - 1]) in link_ids
+        or any(key in requests[start - 1] for key in _POSITIONAL_INSERT_KEYS)
+    ):
+        start -= 1
     return start
 
 
@@ -575,8 +561,9 @@ async def _apply_doc_content(
     # (#789): revoking after a failed edit is harmless, since a doc that did embed
     # an image holds its own copy and one that didn't never needed the share.
     try:
+        image_links: dict[int, dict] = {}
         content_requests, tables = ast_to_requests(
-            nodes, start_index=1, image_uris=placeholder_uris
+            nodes, start_index=1, image_uris=placeholder_uris, image_links=image_links
         )
 
         # Swap each request's placeholder URI for the real one, recording which
@@ -657,11 +644,12 @@ async def _apply_doc_content(
                     return False
                 bad_request = requests.pop(bad_index)
                 # Left in place, the link would land on whatever character now
-                # sits at the image's position.
-                if bad_index < len(requests) and _is_image_link_request(
-                    bad_request, requests[bad_index]
-                ):
-                    requests.pop(bad_index)
+                # sits at the image's position. Matched by identity: the list
+                # holds the same dict objects ast_to_requests recorded.
+                link = image_links.get(id(bad_request))
+                if link is not None:
+                    link_index = next(i for i, r in enumerate(requests) if r is link)
+                    requests.pop(link_index)
                 img_id = request_id_to_img_id.get(id(bad_request))
                 entry = entry_by_id.get(img_id) if img_id is not None else None
                 if entry is not None:
@@ -689,7 +677,7 @@ async def _apply_doc_content(
                     image_failures += 1
                     if image_failures != 2:
                         continue
-                    tail_start = _positional_insert_tail_start(remaining)
+                    tail_start = _positional_insert_tail_start(remaining, image_links)
                     # Fail-safe: split only if every image request really is in the
                     # tail. If ast_to_requests ever emits something after its
                     # positional-insert pass, the boundary scan comes up short —

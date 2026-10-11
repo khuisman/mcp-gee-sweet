@@ -3744,6 +3744,11 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
    <p><a href="https://example.com/b1"><img src="https://example.invalid/nope.png?1"></a></p><p>x <a href="https://example.com/good"><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"></a> y</p><p><a href="https://example.com/b2"><img src="https://example.invalid/nope.png?2"></a></p>
    ```
 4. `get_doc_as_markdown(doc_id=<step 3 docId>)`
+5. `create_doc(title="TC-DOC216 adjacent", folder_id={FOLDER_ID}, content_format='html', content=...)` with (raw HTML, the first image wrapped in a top-level `<a>` with no `<p>`):
+   ```html
+   <a href="https://example.com/top"><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png" width="100"></a><p>x <a href="https://example.com/first"><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png" width="40"></a><a href="https://example.com/second"><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png" width="80"></a><img src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png" width="120"> y</p>
+   ```
+6. `get_doc_as_markdown(doc_id=<step 5 docId>)`
 
 **Checks**
 - Step 2: `[![](<contentUri>)](https://example.com/one)`
@@ -3752,8 +3757,10 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 - Step 2: the image after the table is `[![](<contentUri>)](https://example.com/after-table)`
 - Step 3: `images` reports an `error` for both `example.invalid` sources and none for the Google logo
 - Step 4: the only image is `[![](<contentUri>)](https://example.com/good)`, between `x` and `y`. No text character carries `b1`'s or `b2`'s link
+- Step 6: the first paragraph is the top-level image alone, as `[![](<contentUri>)](https://example.com/top)`
+- Step 6: the second paragraph is `x `, `[![](<contentUri>)](https://example.com/first)`, `[![](<contentUri>)](https://example.com/second)`, an unlinked `![](<contentUri>)`, then ` y`, in that order. Playwright: in the step 5 doc's editor the three inline images get wider left to right (40, 80, 120px source widths), which confirms the order independently of the links
 
-**Cleanup:** `delete_file` both scratch docs
+**Cleanup:** `delete_file` all three scratch docs
 
 **Result (2026-10-11) ✅ PASS — Sky, PR #992 round 1 (`6aa4dac`).** Step 2: `Logo` came back as `[![](<contentUri>)](https://example.com/one)`. `[linked text](https://example.com/t)` was followed by an unlinked `![](<contentUri>)`. `A` linked to `.../edit?tab=t.0#heading=h.…` (the `Overview` heading), and `B` was unlinked. The image after the table kept `https://example.com/after-table`. Step 3: `images` reported an `error` for both `example.invalid` sources and none for the logo. Step 4: the only image was `[![](<contentUri>)](https://example.com/good)` between `x` and `y`, and no text carried `b1`'s or `b2`'s link. Playwright, clicking each image in the step 1 doc's editor: `Logo` and the after-table image each showed a link chip for `https://example.com/…`, and `A`'s chip showed `Overview`. The unlinked image and `B` showed no link chip. The `/mobilebasic` HTML view isn't a substitute: it renders the text link but never wraps an image in `<a>`. A separate probe, `[![first](…)](https://example.com/first)[![second](…)](https://example.com/second)`, exported as `second` then `first`: adjacent images are written in reverse order. Each kept its own link.
 

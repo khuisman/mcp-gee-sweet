@@ -23,6 +23,7 @@ class _PendingTable:
     node: Table
     position: int  # doc index where this table starts, before tab-consumption adjustment
     tab_offset: int  # cumulative synthetic bullet-tabs consumed ahead of it by insertTable time
+    order: int  # index in the top-level node list; breaks same-position ties (see below)
 
 
 @dataclass
@@ -46,6 +47,7 @@ class _SegmentMeta:
     skip_len: int
     tabs_through: int
     runs: list[Run | Image]
+    order: int  # index in the top-level node list, as _PendingTable.order
 
 
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
@@ -119,6 +121,8 @@ def ast_to_requests(
     nodes: list[DocNode],
     start_index: int = 1,
     image_uris: dict[int, str] | None = None,
+    *,
+    image_links: dict[int, dict] | None = None,
 ) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
 
@@ -149,6 +153,11 @@ def ast_to_requests(
     insertInlineImage has no notion of "insert later"; the caller is expected to have
     already recorded why that image failed via extract_images's own resolution pass.
 
+    image_links: if given, filled with id(insertInlineImage request) -> the
+    updateTextStyle request that links that image (#977), so a caller that drops a
+    failed image request can drop its link request too, by identity rather than by
+    matching request shapes.
+
     Returns (requests, tables) where tables is the list of Table AST nodes in document
     order.
     """
@@ -166,7 +175,7 @@ def ast_to_requests(
     pending_tables: list[_PendingTable] = []
     cumulative_tabs = 0
 
-    for node in nodes:
+    for order, node in enumerate(nodes):
         if isinstance(node, Table):
             num_rows = len(node.rows)
             num_cols = max((sum(c.colspan for c in row.cells) for row in node.rows), default=0)
@@ -176,7 +185,9 @@ def ast_to_requests(
                 # tables list positionally against the tables actually present in the live
                 # doc, and a table with no insertTable request never shows up there.
                 continue
-            pending_tables.append(_PendingTable(node, start_index + utf16_offset, cumulative_tabs))
+            pending_tables.append(
+                _PendingTable(node, start_index + utf16_offset, cumulative_tabs, order)
+            )
         else:
             doc_start = start_index + utf16_offset
             # Leading tab characters encode a bullet's nesting depth for
@@ -278,6 +289,7 @@ def ast_to_requests(
                     skip_len=utf16_len(tabs) + utf16_len(prefix),
                     tabs_through=cumulative_tabs,
                     runs=offset_runs,
+                    order=order,
                 )
             )
 
@@ -293,9 +305,10 @@ def ast_to_requests(
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
     # final position rather than processed as two separate blocks — see ast_to_requests's
-    # docstring. Each entry is (final_position, requests): an insert request, followed
-    # for a linked image by the updateTextStyle that links it (#977).
-    positional_inserts: list[tuple[int, list[dict]]] = []
+    # docstring. Each entry is (sort_key, requests): an insert request, followed for a
+    # linked image by the updateTextStyle that links it (#977). sort_key is
+    # (final_position, node order, item order) — see the sort at the end.
+    positional_inserts: list[tuple[tuple[int, int, int], list[dict]]] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
@@ -349,13 +362,16 @@ def ast_to_requests(
             # many tab characters were stripped but never actually inserted (the
             # regression PR #768's QA round 2 caught in finding 1's own first version).
             offset = seg.skip_len
-            for item in seg.runs:
+            for item_order, item in enumerate(seg.runs, start=1):
                 if isinstance(item, Image):
                     uri = image_uris.get(id(item))
                     if uri is not None:
                         image_position = doc_start + offset - seg.tabs_through
+                        image_requests = _image_insert_requests(item, uri, image_position)
+                        if image_links is not None and len(image_requests) == 2:
+                            image_links[id(image_requests[0])] = image_requests[1]
                         positional_inserts.append(
-                            (image_position, _image_insert_requests(item, uri, image_position))
+                            ((image_position, seg.order, item_order), image_requests)
                         )
                     continue
                 run_len = utf16_len(item.text)
@@ -455,7 +471,7 @@ def ast_to_requests(
         position = pending.position - pending.tab_offset
         positional_inserts.append(
             (
-                position,
+                (position, pending.order, 0),
                 [
                     {
                         "insertTable": {
@@ -474,6 +490,12 @@ def ast_to_requests(
     # and processing this way means an earlier, not-yet-processed insertion's position is
     # never invalidated by a later one's own content (#333 generalizes this from the
     # table-only version of the same pattern).
+    #
+    # Inserts that share a position (adjacent images with no text between them, or a
+    # table and the image right after it) are each inserted *in front of* whatever is
+    # already at that position, so the later one in the document must go first. The
+    # node/item order in the key does that; sorting by position alone kept source order
+    # within a tie and wrote adjacent images reversed (PR #992 QA round 1).
     for _, insert_requests in sorted(positional_inserts, key=lambda item: item[0], reverse=True):
         requests.extend(insert_requests)
 
@@ -523,8 +545,8 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
     `position` has shifted yet at that point. An image never inherits a neighboring
     run's link on insert (confirmed live), so an unlinked image needs no clearing
     request. content.py's retry drops the pair together when the insert fails
-    (_drop_failed_image); otherwise the link would land on whatever character sits
-    at `position`."""
+    (_drop_failed_image, through ast_to_requests's image_links); otherwise the link
+    would land on whatever character sits at `position`."""
     request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
     if image.width is not None or image.height is not None:
         object_size: dict = {}
@@ -535,10 +557,10 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
         request["insertInlineImage"]["objectSize"] = object_size
     if image.link_url is None:
         return [request]
-    return [request, image_link_request(image.link_url, position)]
+    return [request, _image_link_request(image.link_url, position)]
 
 
-def image_link_request(link_url: str, position: int) -> dict:
+def _image_link_request(link_url: str, position: int) -> dict:
     """updateTextStyle linking the image just inserted at `position` (#977)."""
     return {
         "updateTextStyle": {

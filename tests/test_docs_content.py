@@ -3828,39 +3828,53 @@ class TestPositionalInsertTailStart:
         ]
         assert _positional_insert_tail_start(requests) == 2
 
-    def test_image_link_request_stays_in_the_tail(self):
-        # #977: a linked image's own link request follows its insert inside the
-        # tail; any other updateTextStyle still ends the scan.
-        link = {
+    @staticmethod
+    def _link(start: int) -> dict:
+        return {
             "updateTextStyle": {
-                "range": {"startIndex": 5, "endIndex": 6},
+                "range": {"startIndex": start, "endIndex": start + 1},
                 "textStyle": {"link": {"url": "https://t"}},
                 "fields": "link",
             }
         }
+
+    def test_image_link_request_stays_in_the_tail(self):
+        # #977: a linked image's own link request, recorded in image_links,
+        # counts as part of the tail.
+        insert = {"insertInlineImage": {"location": {"index": 5}}}
+        link = self._link(5)
         requests = [
             {"insertText": {}},
             {"updateTextStyle": {}},
             {"insertTable": {"location": {"index": 9}}},
-            {"insertInlineImage": {"location": {"index": 5}}},
+            insert,
             link,
             {"insertInlineImage": {"location": {"index": 2}}},
         ]
-        assert _positional_insert_tail_start(requests) == 2
+        assert _positional_insert_tail_start(requests, {id(insert): link}) == 2
 
-    def test_link_request_not_matching_image_range_ends_the_tail(self):
-        requests = [
-            {"insertText": {}},
-            {"insertInlineImage": {"location": {"index": 5}}},
-            {
-                "updateTextStyle": {
-                    "range": {"startIndex": 1, "endIndex": 3},
-                    "textStyle": {"link": {"url": "https://t"}},
-                    "fields": "link",
-                }
-            },
-        ]
+    def test_unrecorded_link_request_ends_the_tail(self):
+        # Matched by identity, not shape: an identical-looking link request
+        # that ast_to_requests didn't record ends the scan.
+        insert = {"insertInlineImage": {"location": {"index": 5}}}
+        recorded = self._link(5)
+        requests = [{"insertText": {}}, insert, self._link(5)]
+        assert _positional_insert_tail_start(requests, {id(insert): recorded}) == 3
         assert _positional_insert_tail_start(requests) == 3
+
+    def test_ast_to_requests_records_each_image_link(self):
+        md = "[![A](https://x/a.png)](https://t) ![B](https://x/b.png)"
+        nodes = html_to_ast(_md_to_html(md))
+        uris = {id(img): img.src for img in extract_images(nodes)}
+        image_links: dict[int, dict] = {}
+        requests, _ = ast_to_requests(nodes, image_uris=uris, image_links=image_links)
+        inserts = {r["insertInlineImage"]["uri"]: r for r in requests if "insertInlineImage" in r}
+        assert list(image_links) == [id(inserts["https://x/a.png"])]
+        link = image_links[id(inserts["https://x/a.png"])]
+        assert any(r is link for r in requests)
+        assert _positional_insert_tail_start(requests, image_links) == requests.index(
+            min(inserts.values(), key=requests.index)
+        )
 
     def test_no_tail(self):
         assert _positional_insert_tail_start([{"insertText": {}}]) == 1

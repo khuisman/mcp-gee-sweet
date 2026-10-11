@@ -212,6 +212,11 @@ class _AstParser(HTMLParser):
         self._strike_depth = 0
         self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
+        # href values of <a> tags opened with no block or table cell around them.
+        # Read only by the bare top-level <img> branch (#977), so a top-level
+        # "<a href><img></a>" keeps its link; kept apart from _link_url so text
+        # handling, and an unclosed top-level <a>, are unaffected.
+        self._bare_link_url: list[str] = []
 
         # --- current run buffer ---
         self._run_buf: list[str] = []
@@ -689,18 +694,17 @@ class _AstParser(HTMLParser):
         # Same rationale as <hr> just above: markdown's own "![]()" syntax
         # always renders wrapped in a <p>, so this only matters for raw HTML
         # (content_format="html") supplying a top-level <img> with no
-        # wrapping tag at all.
-        if (
-            tag == "img"
-            and self._block_tag is None
-            and self._table_depth == 0
-            and self._tag_depth == 0
-        ):
+        # wrapping block at all. Unlike <hr> and bare text, an <img> wrapped
+        # only in inline tags still gets its implicit paragraph: a raw-HTML
+        # "<a href><img></a>" (a linked badge, say) is real content, and
+        # dropping it loses the image along with its link (PR #992 QA round 1).
+        if tag == "img" and self._block_tag is None and self._table_depth == 0:
             src = attr_dict.get("src")
             if src:
+                link_url = self._bare_link_url[-1] if self._bare_link_url else None
                 self._nodes.append(
                     Paragraph(
-                        runs=[_make_image(attr_dict, src)],
+                        runs=[_make_image(attr_dict, src, link_url)],
                         blockquote_depth=self._blockquote_depth,
                     )
                 )
@@ -754,6 +758,10 @@ class _AstParser(HTMLParser):
                 # silently dropped rather than contributing a run — see
                 # self._block_had_unsupported_content.
                 self._block_had_unsupported_content = True
+        elif tag == "a" and self._table_depth == 0:
+            href = attr_dict.get("href", "")
+            if href:
+                self._bare_link_url.append(href)
 
     def handle_endtag(self, tag):
         # --- table structure ---
@@ -920,6 +928,8 @@ class _AstParser(HTMLParser):
                 self._link_url.pop()
             elif tag == "code" and not self._in_pre:
                 self._code_depth = max(0, self._code_depth - 1)
+        elif tag == "a" and self._table_depth == 0 and self._bare_link_url:
+            self._bare_link_url.pop()
 
     def handle_data(self, data):
         # Table-cell text and open-block text are independent triggers that happen
