@@ -190,7 +190,33 @@ def _render_inline(items: list[Run | Image]) -> str:
             parts.append(_render_image(item))
         else:
             parts.append(_render_run(item))
-    return "".join(parts)
+    return _join_inline(parts)
+
+
+def _join_inline(parts: list[str]) -> str:
+    """Join rendered inline parts, escaping a "!" that would fuse with the
+    next part's "[" into image syntax. Each part is rendered on its own, so a
+    plain run ending in "!" followed by a link would export "wow![x](url)",
+    which CommonMark reads as an image and drops the "!" (#969). Within one
+    plain run "[" is already escaped, so only a part boundary can do this.
+    Escaping every "!" would also work, but would clutter all exported prose.
+    The check runs against the text joined so far, so an empty part between
+    the two can't hide the boundary."""
+    out = ""
+    for part in parts:
+        if part.startswith("[") and _ends_with_unescaped_bang(out):
+            out = out[:-1] + "\\!"
+        out += part
+    return out
+
+
+def _ends_with_unescaped_bang(text: str) -> bool:
+    # An odd number of backslashes right before the "!" escapes it; an even
+    # number is escaped backslashes, leaving the "!" itself live.
+    if not text.endswith("!"):
+        return False
+    backslashes = len(text[:-1]) - len(text[:-1].rstrip("\\"))
+    return backslashes % 2 == 0
 
 
 def _render_image(image: Image) -> str:
@@ -381,7 +407,7 @@ def _render_cell(cell: Cell) -> str:
     # Every part is already table-safe, with its newlines turned into <br>,
     # so strip() here only removes incidental whitespace, never an edge
     # spacer paragraph (#594 QA round 2; see _table_safe).
-    return "".join(parts).strip()
+    return _join_inline(parts).strip()
 
 
 def _table_safe(text: str) -> str:

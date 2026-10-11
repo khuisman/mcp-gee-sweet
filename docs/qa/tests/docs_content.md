@@ -3664,6 +3664,26 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-10) ✅ PASS — Kit, PR #976 round 2 (`fcf45d8`).** Ran on the same scratch doc as TC-DOC210 (trashed afterwards). The Playwright profile was signed into the fixture-owning account: the page title matched the doc name. `{HID}` was `h.ys7n1h73fcgv`. Step 3 in practice: double-click `jump` to select it. Cmd+K opens a dialog whose list already shows the heading (`Tт Target`), with no need to go through "Headings, bookmarks, and tabs". Click that dialog option, `li[role=option]`, not the left sidebar's `Target` outline entry: the outline entry only navigates, and clicking it first linked nothing. Then click the image and repeat. `get_doc_as_markdown` returned `[jump](https://docs.google.com/document/d/{DOC_ID}/edit?tab=t.0#heading=h.ys7n1h73fcgv) [![](<contentUri>)](…same URL…)`. Navigating to that URL opened the doc with the cursor at the start of `Target` (toolbar showed Heading 1).
 
+### TC-DOC212: Text ending in `!` right before a link exports as text plus a link, not as an image (#969)
+**Background:** each run is rendered on its own, so `wow!` followed by a linked `x` exported as `wow![x](https://example.com/a)`, which CommonMark reads as an image: the link becomes an `<img>` and the `!` disappears. Linked code (`` wow![`y`](...) ``) and table cells did the same.
+
+**Setup:**
+1. `write_doc_content(doc_id={DOC_ID}, content_format='html', content=...)` with:
+   ```html
+   <p>wow!<a href="https://example.com/a">x</a></p><p>hey!<a href="https://example.com/b"><code>y</code></a></p><p>fine! plain</p><table><tr><td>cell!<a href="https://example.com/c">z</a></td></tr><tr><td>b</td></tr></table>
+   ```
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `wow\![x](https://example.com/a)` and `` hey\![`y`](https://example.com/b) ``
+- `markdown` contains `fine! plain`, with no backslash: a `!` that isn't right before a link is left alone
+- The table's first cell is `cell\![z](https://example.com/c)`
+- Rendering `markdown` with `markdown-it-py`'s `commonmark` preset (with `table` enabled) gives `wow!<a href="https://example.com/a">x</a>`, `hey!<a href="https://example.com/b"><code>y</code></a>`, and `cell!<a href="https://example.com/c">z</a>`, and no `<img>` anywhere
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
@@ -4095,7 +4115,7 @@ All files from both probes and the three steps, and the doc, were trashed.
 
 Both tools read the local file through the shared `_read_doc_source_file` helper. Before PR #961's round 2, a path that existed but wasn't a readable UTF-8 regular file raised out of the tool (`[Errno 21] Is a directory`, `'utf-8' codec can't decode byte 0xe9 ...`) instead of returning `{"error": ...}`.
 
-### TC-DOC208: A directory or non-UTF-8 source file returns `{"error": ...}`, and nothing is created or edited
+### TC-DOC213: A directory or non-UTF-8 source file returns `{"error": ...}`, and nothing is created or edited
 **Setup:**
 - `mkdir -p /tmp/tc-doc208/dir.md`
 - `python3 -c "open('/tmp/tc-doc208/latin1.html','wb').write('<p>caf\xe9</p>'.encode('latin-1'))"`
