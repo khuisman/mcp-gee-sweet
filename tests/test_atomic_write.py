@@ -1,4 +1,5 @@
 import os
+import stat
 from datetime import datetime, timezone
 
 import pytest
@@ -110,6 +111,165 @@ class TestWriteAtomically:
         assert link.is_symlink()
         assert real.read_bytes() == b"new"
         assert _partial_files(real.parent) == []
+
+    def test_temp_file_and_directory_are_fsynced(self, tmp_path, monkeypatch):
+        """#887: without an fsync before the rename, a power loss could leave
+        dest empty or truncated, contradicting the docstring."""
+        synced: list[int] = []
+        real_fsync = os.fsync
+
+        def _record(fd):
+            synced.append(fd)
+            return real_fsync(fd)
+
+        monkeypatch.setattr(atomic_write.os, "fsync", _record)
+        dest = tmp_path / "f.bin"
+
+        atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert len(synced) == 2  # the temp file, then the directory
+        assert dest.read_bytes() == b"new"
+
+    def test_fdopen_failure_closes_fd_and_removes_temp(self, tmp_path, monkeypatch):
+        """#887: the fd from os.open leaked when os.fdopen raised."""
+        closed: list[int] = []
+        real_close = os.close
+
+        def _fdopen_fails(fd, *args, **kwargs):
+            raise OSError("fdopen failed")
+
+        def _record_close(fd):
+            closed.append(fd)
+            return real_close(fd)
+
+        monkeypatch.setattr(atomic_write.os, "fdopen", _fdopen_fails)
+        monkeypatch.setattr(atomic_write.os, "close", _record_close)
+        dest = tmp_path / "f.bin"
+
+        with pytest.raises(OSError, match="fdopen failed"):
+            atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert len(closed) == 1
+        assert _partial_files(tmp_path) == []
+        assert not dest.exists()
+
+    def test_owner_and_group_are_carried_over(self, tmp_path, monkeypatch):
+        """#887: replacing the inode dropped owner/group, so a root process
+        (the Docker image) turned a host user's file into a root:root one."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        real_stat = os.stat
+        calls: list[tuple] = []
+
+        def _foreign_owner_stat(path, *args, **kwargs):
+            st = real_stat(path, *args, **kwargs)
+            if os.fspath(path) == str(dest):
+                fields = list(st)
+                fields[4], fields[5] = 4242, 4343  # st_uid, st_gid
+                return os.stat_result(fields)
+            return st
+
+        monkeypatch.setattr(atomic_write.Path, "stat", lambda self, **kw: _foreign_owner_stat(self))
+        monkeypatch.setattr(atomic_write.os, "chown", lambda p, u, g: calls.append((u, g)))
+
+        atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert calls == [(4242, 4343)]
+        assert dest.read_bytes() == b"new"
+
+    def test_group_alone_is_kept_when_full_chown_is_refused(self, tmp_path, monkeypatch):
+        """PR #1001 QA round 1: a non-root process can't set another user as
+        owner, so the full chown failed and the group was silently lost too."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        real_stat = os.stat
+        calls: list[tuple] = []
+
+        def _foreign_owner_stat(path, *args, **kwargs):
+            st = real_stat(path, *args, **kwargs)
+            if os.fspath(path) == str(dest):
+                fields = list(st)
+                fields[4], fields[5] = 4242, 4343
+                return os.stat_result(fields)
+            return st
+
+        def _chown(path, uid, gid):
+            calls.append((uid, gid))
+            if uid != -1:
+                raise PermissionError("not permitted")
+
+        monkeypatch.setattr(atomic_write.Path, "stat", lambda self, **kw: _foreign_owner_stat(self))
+        monkeypatch.setattr(atomic_write.os, "chown", _chown)
+
+        atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert calls == [(4242, 4343), (-1, 4343)]
+        assert dest.read_bytes() == b"new"
+
+    def test_directory_destination_is_refused_before_writing(self, tmp_path):
+        """PR #1001 QA round 1: a directory at dest let the whole download
+        stream into the temp file, then failed at the rename with an error
+        naming the internal temp file."""
+        dest = tmp_path / "hello.txt"
+        dest.mkdir()
+        wrote: list[bool] = []
+
+        with pytest.raises(IsADirectoryError, match=r"hello\.txt"):
+            atomic_write._write_atomically(dest, lambda fh: wrote.append(True))
+
+        assert wrote == []
+        assert _partial_files(tmp_path) == []
+
+    def test_failed_chown_is_ignored(self, tmp_path, monkeypatch):
+        """A non-root process can't give a file away; the write still succeeds."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        real_stat = os.stat
+
+        def _foreign_owner_stat(path, *args, **kwargs):
+            st = real_stat(path, *args, **kwargs)
+            if os.fspath(path) == str(dest):
+                fields = list(st)
+                fields[4] = 4242
+                return os.stat_result(fields)
+            return st
+
+        def _chown_denied(*args):
+            raise PermissionError("not permitted")
+
+        monkeypatch.setattr(atomic_write.Path, "stat", lambda self, **kw: _foreign_owner_stat(self))
+        monkeypatch.setattr(atomic_write.os, "chown", _chown_denied)
+
+        atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert dest.read_bytes() == b"new"
+
+    def test_character_device_is_written_directly(self, tmp_path):
+        """#887: /dev/null can't be renamed over; the old open('wb') wrote to
+        it, and a symlink to it is followed the same way."""
+        link = tmp_path / "out"
+        link.symlink_to("/dev/null")
+
+        atomic_write._write_atomically(link, lambda fh: fh.write(b"discarded"), 12345.0)
+
+        assert link.is_symlink()
+        assert _partial_files(tmp_path) == []
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs mkfifo")
+    def test_fifo_is_refused_not_replaced(self, tmp_path):
+        """#887: a FIFO would be replaced by a regular file, or block a direct
+        write until a reader appeared."""
+        fifo = tmp_path / "pipe"
+        os.mkfifo(fifo)
+
+        wrote: list[bool] = []
+        with pytest.raises(OSError, match="isn't a regular file"):
+            atomic_write._write_atomically(fifo, lambda fh: wrote.append(True))
+
+        assert wrote == []
+
+        assert stat.S_ISFIFO(os.lstat(fifo).st_mode)
+        assert _partial_files(tmp_path) == []
 
     def test_partial_name_matcher_is_exact(self):
         assert atomic_write._is_partial_download(".gee-sweet-partial-0123456789abcdef")

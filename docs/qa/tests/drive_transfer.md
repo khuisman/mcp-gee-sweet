@@ -656,13 +656,64 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 > `download_file(file_id="qa-bogus-file-id", local_path="/tmp/qa-d277/dangling/")`
 
 **Checks**
-- Raises `ValueError` `local_path '/tmp/qa-d277/dangling/' has a non-directory path component at '/tmp/qa-d277/dangling'`, with no Drive 404.
+- Raises `ValueError` `local_path '/tmp/qa-d277/dangling/' has a symlink to a missing target at '/tmp/qa-d277/dangling'`, with no Drive 404. (Before #895 the message said `non-directory path component`.)
 - The symlink is unchanged, and `/tmp/qa-d277/missing-target` was **not** created.
 
 **Teardown**
 `rm -rf /tmp/qa-d277`.
 
 **Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855). Raised `ValueError` `local_path '…/dangling/' has a non-directory path component at '…/dangling'`, with no 404. The symlink was intact and `missing-target` did not exist afterwards.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth. Raised `ValueError` `local_path '/tmp/qa-d277/dangling/' has a symlink to a missing target at '/tmp/qa-d277/dangling'`, with no 404. The symlink was intact and `missing-target` did not exist.
+
+---
+
+### TC-D284: Local destination checks for `download_file`, `download_folder`, and `sync_folder`: trailing `/.`, dangling symlinks, files in the path (issue #874, via #895) ⚠️ local-filesystem
+
+**Background:** #855 added a local-path check to `download_file` that runs before any Drive request. #874 found gaps in it. `Path()` drops a trailing `/.`, so `newdir/.` wrote a *file* named `newdir`, and `report/.` overwrote an existing `report` file. A dangling symlink at a plain file destination was followed, which created its missing target. And when the cause was the trailing separator, the error didn't say so. `download_folder` and `sync_folder` ran a bare `mkdir -p` on `local_path` and leaked a raw `NotADirectoryError`/`FileExistsError`. `sync_folder` also missed a dangling symlink where a Drive subfolder was to be created. The race this check can lose (a file created at the path during the Drive metadata call) can't be timed through the tool surface; it's unit-tested in `TestDownloadFile::test_*_created_during_metadata_call_raises_valueerror`.
+
+**Setup**
+> 1. Call `create_folder(name="qa-284", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`. Call `create_folder(name="sub", parent_folder_id="{F}")`.
+> 2. Run `rm -rf /tmp/qa-284 && mkdir -p /tmp/qa-284/sync && printf 'hello' > /tmp/qa-284/hello.txt && printf 'keep me' > /tmp/qa-284/report && printf x > /tmp/qa-284/clash && ln -s /tmp/qa-284/missing-a /tmp/qa-284/out.bin && ln -s /tmp/qa-284/missing-b /tmp/qa-284/dangling-dir && ln -s /tmp/qa-284/missing-c /tmp/qa-284/sync/sub`.
+> 3. Call `upload_local_file(local_path="/tmp/qa-284/hello.txt", parent_folder_id="{F}")`; call the returned ID `{H}`.
+
+**Steps**
+> 1. `download_file(file_id="{H}", local_path="/tmp/qa-284/newdir/.")`, then `ls -la /tmp/qa-284/newdir/`.
+> 2. `download_file(file_id="{H}", local_path="/tmp/qa-284/report/.")`, then `cat /tmp/qa-284/report`.
+> 3. `download_file(file_id="{H}", local_path="/tmp/qa-284/report/")`.
+> 4. `download_file(file_id="{H}", local_path="/tmp/qa-284/out.bin")`, then `ls -la /tmp/qa-284/`.
+> 5. `download_folder(folder_id="{F}", local_path="/tmp/qa-284/clash/sub")`.
+> 6. `download_folder(folder_id="{F}", local_path="/tmp/qa-284/dangling-dir")`.
+> 7. `sync_folder(folder_id="{F}", local_path="/tmp/qa-284/clash/sub", direction="download")`.
+> 8. `sync_folder(folder_id="{F}", local_path="/tmp/qa-284/sync", direction="download", recursive=true)`, then `ls -la /tmp/qa-284/ /tmp/qa-284/sync/`.
+> 9. (PR #1001 QA round 1) Repeat step 8 with `dry_run=true`.
+
+**Checks**
+- Step 1: succeeds. `local_path` is `/tmp/qa-284/newdir/hello.txt`; `newdir` is a directory holding `hello.txt`.
+- Step 2: raises `ValueError` `local_path '/tmp/qa-284/report/.' has a non-directory path component at '/tmp/qa-284/report'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead`. `report` still reads `keep me`.
+- Step 3: the same `ValueError` and hint as step 2, for `'/tmp/qa-284/report/'`.
+- Step 4: raises `ValueError` `local_path '/tmp/qa-284/out.bin' has a symlink to a missing target at '/tmp/qa-284/out.bin'`. `out.bin` is still a symlink and `/tmp/qa-284/missing-a` doesn't exist.
+- Step 5: raises `ValueError` `local_path '/tmp/qa-284/clash/sub' has a non-directory path component at '/tmp/qa-284/clash'`. No `NotADirectoryError`. `clash` still contains `x`.
+- Step 6: raises `ValueError` `local_path '/tmp/qa-284/dangling-dir' has a symlink to a missing target at '/tmp/qa-284/dangling-dir'`. `missing-b` doesn't exist.
+- Step 7: the same `ValueError` as step 5, with `local_path '/tmp/qa-284/clash/sub'`. No `NotADirectoryError`.
+- Step 8: returns normally (no `FileExistsError`). `downloaded` is `["hello.txt"]`, and `failed` is `[{"name": "sub/", "error": "cannot create local folder 'sub': a symlink to a missing target already exists at this path"}]`. `sync/sub` is still a symlink and `missing-c` doesn't exist.
+- Step 9: `failed` is empty. `actions` holds `hello.txt` as `skip` (`in sync`) and `{"name": "sub/", "action": "conflict", "reason": "cannot create local folder 'sub': a symlink to a missing target already exists at this path"}`.
+
+**Teardown**
+`delete_file` on `{F}`. `rm -rf /tmp/qa-284`.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, throwaway `qa-284` folder under `TEST_FOLDER_ID`.
+- **Step 1:** `local_path` `/tmp/qa-284/newdir/hello.txt`, 5 B; `newdir` is a directory holding `hello.txt`.
+- **Steps 2–3:** both raised the expected `ValueError` with the trailing-ending hint; `report` still reads `keep me`.
+- **Step 4:** `has a symlink to a missing target at '/tmp/qa-284/out.bin'`; link intact, `missing-a` absent.
+- **Steps 5, 7:** `has a non-directory path component at '/tmp/qa-284/clash'`, no `NotADirectoryError`; `clash` still holds `x`.
+- **Step 6:** `has a symlink to a missing target at '/tmp/qa-284/dangling-dir'`; `missing-b` absent.
+- **Step 8:** `downloaded: ["hello.txt"]`, `failed` exactly the expected `sub/` entry; `sync/sub` still a dangling symlink, `missing-c` absent.
+
+The case passes. Extra probe: the same step-8 call with `dry_run=true` listed only `hello.txt: download` and nothing for `sub/`, so the preview doesn't show the failure the real run reports (sent back on the PR).
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 2 (`a0955ce`), OAuth, after reconnecting to the fix. Fresh `qa-284` folder and fixtures; steps 1–8 gave the same results as round 1.
+- **Step 9:** `failed` empty; `actions`: `hello.txt` `skip` (`in sync`), and `sub/` `conflict` with `cannot create local folder 'sub': a symlink to a missing target already exists at this path`.
 
 ---
 
@@ -1791,7 +1842,7 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 
 ### TC-D279: downloads write to a temp file and rename it into place; a leftover temp file is never uploaded (issue #844) ⚠️ local-filesystem ⚠️ destructive
 
-**Background:** `sync_folder`, `download_file`, and `download_folder` used to stream straight into the destination. A download that failed partway left a truncated file with a current mtime, so the next bidirectional sync read it as locally newer and uploaded it over the intact Drive copy. Every download now goes through `_write_atomically`: it writes a sibling `.gee-sweet-partial-<16 hex>` file, stamps `sync_folder`'s Drive mtime on it, and renames it onto the destination only when complete. A temp file survives only a hard kill mid-write, and `sync_folder` and `upload_local_folder` skip one. The failure path itself (a dropped connection mid-download) can't be triggered through the tool surface; it's unit-tested in `tests/drive/test_transfer.py::TestSyncFolderFailedDownloadLeavesNoPartial`, `TestDownloadToolsFailedDownloadLeavesNoPartial`, and `TestWriteAtomically`. This case checks the success path through the new write, the mode and mtime it leaves, and the leftover-temp-file skip.
+**Background:** `sync_folder`, `download_file`, and `download_folder` used to stream straight into the destination. A download that failed partway left a truncated file with a current mtime, so the next bidirectional sync read it as locally newer and uploaded it over the intact Drive copy. Every download now goes through `_write_atomically`: it writes a sibling `.gee-sweet-partial-<16 hex>` file, stamps `sync_folder`'s Drive mtime on it, and renames it onto the destination only when complete. A temp file survives only a hard kill mid-write, and `sync_folder` and `upload_local_folder` never upload one. Since #895 they list it under `skipped`; before that it appeared in no result list. The failure path itself (a dropped connection mid-download) can't be triggered through the tool surface; it's unit-tested in `tests/drive/test_transfer.py::TestSyncFolderFailedDownloadLeavesNoPartial`, `TestDownloadToolsFailedDownloadLeavesNoPartial`, and `TestWriteAtomically`. This case checks the success path through the new write, the mode and mtime it leaves, and the leftover-temp-file skip.
 
 **Setup**
 > 1. Call `create_folder(name="qa-279", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
@@ -1810,11 +1861,11 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 > 8. Make a read-only local copy: `printf 'protected' > /tmp/qa-279/ro.bin && chmod 444 /tmp/qa-279/ro.bin && chmod 4644 /tmp/qa-279/dl/big.bin`. Call `download_file(file_id="{BIG}", local_path="/tmp/qa-279/ro.bin")`. Then call `download_file(file_id="{BIG}", local_path="/tmp/qa-279/dl/big.bin")` and run `ls -la /tmp/qa-279/ /tmp/qa-279/dl/ && cat /tmp/qa-279/ro.bin`. (Not as root: root can write a `0444` file.)
 
 **Checks**
-- Step 1: `downloaded` is `["big.bin"]`. `uploaded` is empty, and `.gee-sweet-partial-0123456789abcdef` appears in no result list. `failed` is empty.
+- Step 1: `downloaded` is `["big.bin"]`. `uploaded` is empty, `skipped` is `[".gee-sweet-partial-0123456789abcdef"]` (#895), and `failed` is empty.
 - Step 2: `big.bin` is 3000000 bytes, its md5 matches setup step 3's `md5_checksum`, its mode is still `-rw-r-----` (the replaced file's mode is kept), and its mtime matches setup step 3's `modified_time` to the second (local time vs UTC aside). The only `.gee-sweet-partial-*` file in the directory is the planted `…0123456789abcdef`; no new one was left behind.
 - Step 3: `{F}` holds exactly one file, `big.bin`. No `.gee-sweet-partial-*` file was uploaded.
-- Step 4: `big.bin` in `skipped`; `uploaded` and `downloaded` empty (the restamped mtime round-trips, as in #346).
-- Step 5: `uploaded` lists only `big.bin` (a second copy, since `skip_if_exists=false`); the planted temp file is not uploaded and not in `failed`. `list_files` shows two `big.bin` and no `.gee-sweet-partial-*`.
+- Step 4: `skipped` is `[".gee-sweet-partial-0123456789abcdef", "big.bin"]`; `uploaded` and `downloaded` empty (the restamped mtime round-trips, as in #346).
+- Step 5: `uploaded` lists only `big.bin` (a second copy, since `skip_if_exists=false`); the planted temp file is not uploaded, is not in `failed`, and is listed in `skipped` (#895). `list_files` shows two `big.bin` and no `.gee-sweet-partial-*`.
 - Step 6: succeeds with `size_bytes` 3000000. The directory still holds only `big.bin` and the planted temp file.
 - Step 7: `downloaded` is `["big.bin"]` and `failed` has one duplicate-filename entry for the second `big.bin` (PR #351). `/tmp/qa-279/dl/` holds only `big.bin`, 3000000 bytes, and no `.gee-sweet-partial-*` file.
 - Step 8 (PR #884 QA round 1): the first `download_file` fails with a permission error. `ro.bin` still reads `protected`, still `-r--r--r--`, and no `.gee-sweet-partial-*` file is in `/tmp/qa-279/`. The second call succeeds, and `dl/big.bin` is `-rw-r--r--`: the setuid bit is not carried onto the new content.
@@ -1836,6 +1887,78 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 **Result (2026-10-04) ✅ PASS** — Sky, PR #884 round 2 (`b4e7287`), step 8 only, after reconnecting to the fix. Steps 1–7 code paths are unchanged apart from the new up-front `os.access` check and the `0o777` mask. Fresh `qa-279` folder; setup plus step 7 (`download_folder` → `dl/big.bin`, 3000000 B) re-run first.
 - **Step 8, `ro.bin`:** `download_file` failed with `[Errno 13] Permission denied: '/tmp/qa-279/ro.bin'`. `ro.bin` still reads `protected`, still `-r--r--r--`, and there's no `.gee-sweet-partial-*` in `/tmp/qa-279/`.
 - **Step 8, `dl/big.bin` (`chmod 4644` first):** succeeded, `size_bytes` 3000000, and the file is now `-rw-r--r--`: setuid dropped.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, throwaway `qa-279` folder under `TEST_FOLDER_ID`. Drive `big.bin`: 3000000 B, `modified_time` `03:54:22Z`.
+- **Step 1:** `downloaded: ["big.bin"]`, `skipped: [".gee-sweet-partial-0123456789abcdef"]`; `uploaded`, `failed` empty.
+- **Step 2:** 3000000 B, md5 matches, mode `-rw-r-----` kept, mtime `20:54:22-0700` (= `03:54:22Z`). Only the planted temp file present.
+- **Step 3:** one file, `big.bin`.
+- **Step 4:** `skipped: [".gee-sweet-partial-0123456789abcdef", "big.bin"]`, nothing transferred.
+- **Step 5:** `uploaded: ["big.bin"]`, `skipped: [".gee-sweet-partial-0123456789abcdef"]`, `failed` empty; `list_files` shows two `big.bin`, no temp file.
+- **Step 6:** `size_bytes` 3000000; directory still holds only `big.bin` and the planted temp file.
+- **Step 7:** `downloaded: ["big.bin"]`, one duplicate-filename `failed` entry; `dl/` holds only `big.bin`, 3000000 B.
+- **Step 8:** `ro.bin` refused with `[Errno 13] Permission denied`, still `protected` and `-r--r--r--`, no temp file; `dl/big.bin` succeeded and is `-rw-r--r--` (setuid dropped).
+
+---
+
+### TC-D285: Temp-file names on Drive, device and FIFO destinations, and a kept owner group (issue #887, via #895) ⚠️ local-filesystem ⚠️ destructive
+
+**Background:** #887 lists follow-ups to the temp-file-and-rename download from #844 (TC-D279). Only the local side filtered the temp name, so a Drive file named `.gee-sweet-partial-<16 hex>` downloaded, became invisible locally, and downloaded again on every sync. Such a name is now refused as a local filename, like `..`. The rename also broke non-regular destinations. `/dev/null` failed, since a temp file can't be created in `/dev`. A FIFO was replaced by a regular file. Now a device is written directly, as the old `open("wb")` did, and a FIFO is refused without blocking. The replacement file now also takes the replaced file's group when the process may set it. A directory at a file's destination is refused before the download starts (PR #1001 QA round 1). The fsync, the fd-leak fix, owner changes (root only), and the group-only fallback for a file another user owns aren't observable through the tool surface; they're unit-tested in `tests/test_atomic_write.py`.
+
+**Setup**
+> 1. Call `create_folder(name="qa-285", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
+> 2. Run `rm -rf /tmp/qa-285 && mkdir -p /tmp/qa-285/src /tmp/qa-285/sync /tmp/qa-285/dl && printf 'payload' > /tmp/qa-285/src/.gee-sweet-partial-0123456789abcdef && printf 'hello' > /tmp/qa-285/src/hello.txt && mkfifo /tmp/qa-285/pipe && ln -s /dev/null /tmp/qa-285/null-link`.
+> 3. Call `upload_local_file(local_path="/tmp/qa-285/src/.gee-sweet-partial-0123456789abcdef", parent_folder_id="{F}")` and `upload_local_file(local_path="/tmp/qa-285/src/hello.txt", parent_folder_id="{F}")`; call the second ID `{H}`.
+> 4. Run `printf x > /tmp/qa-285/ref && ls -l /tmp/qa-285/ref` to see the group a new file in that folder gets. Pick a different group you belong to (`id -Gn`), call it `{G}`, and run `printf old > /tmp/qa-285/owned.txt && chgrp {G} /tmp/qa-285/owned.txt && ls -l /tmp/qa-285/owned.txt`.
+
+**Steps**
+> 1. `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/sync", direction="download")`, then `ls -la /tmp/qa-285/sync/`.
+> 2. `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/sync", direction="download", dry_run=true)`.
+> 3. `download_folder(folder_id="{F}", local_path="/tmp/qa-285/dl")`, then `ls -la /tmp/qa-285/dl/`.
+> 4. `download_file(file_id="{H}", local_path="/dev/null")`.
+> 5. `download_file(file_id="{H}", local_path="/tmp/qa-285/null-link")`, then `ls -la /tmp/qa-285/`.
+> 6. `download_file(file_id="{H}", local_path="/tmp/qa-285/pipe")` (it must return promptly, not hang), then `ls -la /tmp/qa-285/`.
+> 7. `download_file(file_id="{H}", local_path="/tmp/qa-285/owned.txt")`, then `ls -l /tmp/qa-285/owned.txt && cat /tmp/qa-285/owned.txt`.
+> 8. (PR #1001 QA round 1) `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`. The temp name exists on both sides here.
+> 9. (PR #1001 QA round 1) Run `mkdir -p /tmp/qa-285/dirsync/hello.txt`, then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/dirsync", direction="download")`, then `ls -la /tmp/qa-285/dirsync/`.
+> 10. (PR #1001 QA round 1) `create_folder(name=".gee-sweet-partial-0123456789abcdef", parent_folder_id="{F}")`; call the returned ID `{P}`. `upload_local_file(local_path="/tmp/qa-285/src/hello.txt", parent_folder_id="{P}")`. Then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/sync", direction="download", recursive=true, dry_run=true)`.
+> 11. (PR #1001 QA round 2) Run `mkdir -p /tmp/qa-285/probe && printf '# probe' > /tmp/qa-285/src/probe.md && mkfifo /tmp/qa-285/probe/probe.md.xlsx`. Call `upload_local_file(local_path="/tmp/qa-285/src/probe.md", parent_folder_id="{F}", convert=true)`; call the returned ID `{D}`. Then `download_file(file_id="{D}", local_path="/tmp/qa-285/probe/", export_format="xlsx")`. A Doc can't be exported as xlsx, so a Drive error here means the export ran before the destination check.
+
+**Checks**
+- Step 1: `downloaded` is `["hello.txt"]`. `failed` has one entry, named `.gee-sweet-partial-0123456789abcdef`, whose error says the name is reserved for this server's temporary download files. `sync/` holds only `hello.txt`.
+- Step 2: `actions` has an `unsafe_name` entry for `.gee-sweet-partial-0123456789abcdef` (the same reason) and a `skip` for `hello.txt`.
+- Step 3: `downloaded` is `["hello.txt"]`, and `failed` has one entry for the temp-file name, saying it can't be used as a local filename. `dl/` holds only `hello.txt`.
+- Step 4: succeeds with `size_bytes` 0 (as `/dev/null` reports it). No `.gee-sweet-partial-*` error.
+- Step 5: succeeds the same way. `null-link` is still a symlink to `/dev/null`, and no `.gee-sweet-partial-*` file is in `/tmp/qa-285/`.
+- Step 6: fails promptly with an error saying the destination isn't a regular file. `pipe` is still a FIFO (`p` in `ls -la`), and no `.gee-sweet-partial-*` file is in `/tmp/qa-285/`.
+- Step 7: succeeds. `owned.txt` reads `hello` and its group is still `{G}`.
+- Step 8: `actions` has an `unsafe_name` entry for `.gee-sweet-partial-0123456789abcdef` with the reserved-name reason, not `skip` / `drive only, upload direction`.
+- Step 9: `downloaded` is empty. `failed` has an entry for `hello.txt` whose error says the destination is a directory and names `/tmp/qa-285/dirsync/hello.txt`, not a `.gee-sweet-partial-*` file, plus the reserved-name entry from step 1. `dirsync/hello.txt` is still an empty directory and no `.gee-sweet-partial-*` file is in `dirsync/`.
+- Step 10: `failed` is empty. `actions` still has the `unsafe_name` entry for the reserved-name *file*, and also `.gee-sweet-partial-0123456789abcdef/hello.txt` as `download`: a folder with the reserved name is synced like any other, with no `unsafe_name` entry for the folder.
+- Step 11: raises `[Errno 22] destination exists but isn't a regular file` naming `/tmp/qa-285/probe/probe.md.xlsx`, not Drive's `HttpError 400 … conversion is not supported`. `probe.md.xlsx` is still a FIFO.
+
+**Teardown**
+`delete_file` on `{F}`. `rm -rf /tmp/qa-285`.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, macOS, throwaway `qa-285` folder under `TEST_FOLDER_ID`. New files in `/tmp/qa-285` get group `wheel`; `{G}` was `staff`.
+- **Step 1:** `downloaded: ["hello.txt"]`; `failed` one entry for `.gee-sweet-partial-0123456789abcdef`, `name is reserved for this server's temporary download files; not synced`. `sync/` holds only `hello.txt`.
+- **Step 2:** `actions`: `unsafe_name` for the temp name (same reason), `skip` (`in sync`) for `hello.txt`.
+- **Step 3:** `downloaded: ["hello.txt"]`; `failed` one entry, `… can't be used as a local filename: name is reserved …`. `dl/` holds only `hello.txt`.
+- **Steps 4–5:** both returned `size_bytes` 0; `null-link` still → `/dev/null`, no temp file.
+- **Step 6:** returned at once with `[Errno 22] destination exists but isn't a regular file`; `pipe` still `prw-r--r--`, no temp file.
+- **Step 7:** succeeded; `owned.txt` reads `hello`, group still `staff`.
+
+The case passes. Extra probe: `sync_folder(local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`, where the temp name exists on both sides, reported `skip` / `drive only, upload direction`, which is false, and never mentions the local leftover (sent back on the PR).
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 2 (`a0955ce`), OAuth, macOS, after reconnecting to the fix. Fresh `qa-285` folder and fixtures; steps 1–7 gave the same results as round 1 (`owned.txt` group still `staff`).
+- **Step 8:** `.gee-sweet-partial-0123456789abcdef` is `unsafe_name` with the reserved-name reason, no longer `skip` / `drive only`.
+- **Step 9:** `downloaded` empty; `failed` has the reserved-name entry and `hello.txt`: `[Errno 21] destination is a directory: '/tmp/qa-285/dirsync/hello.txt'`, with no temp-file name. `dirsync/hello.txt` is still an empty directory, and there's no temp file.
+- **Step 10:** `failed` empty; `actions` has `unsafe_name` for the reserved-name file and `.gee-sweet-partial-0123456789abcdef/hello.txt` as `download`, with no `unsafe_name` entry for the folder.
+
+The case passes. Extra probe (sent back on the PR): a Doc exported with `download_file` to a *directory* target holding a FIFO at the export's filename isn't checked before the export. Explicit `local_path=".../explicit.xlsx"` (a FIFO) with `export_format="xlsx"` raised `EINVAL` with no Drive call. `local_path=".../probe/"` with `export_format="xlsx"` (FIFO at `probe/qa-probe.xlsx`) returned Drive's `HttpError 400 … conversion is not supported`, so the export ran first. With `export_format="txt"` (FIFO at `probe/qa-probe.txt`), the call raised `EINVAL`. It runs the same path, so the export had already been fetched by then.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 3 (`8e5e87d`), OAuth, after reconnecting to the fix. Step 11 only (the fix touches only `download_file`'s directory-target branch); fresh `qa-285` folder.
+- **Step 11:** raised `[Errno 22] destination exists but isn't a regular file: '/tmp/qa-285/probe/probe.md.xlsx'`, not Drive's `HttpError 400`. `probe.md.xlsx` is still a FIFO.
+- Extra: the same call with `export_format="txt"` (FIFO at `probe/probe.md.txt`) raised the same `EINVAL`. With no blocker, `download_file(local_path="/tmp/qa-285/ok/", export_format="txt")` still wrote `ok/probe.md.txt` (8 B, `probe`).
 
 ---
 
