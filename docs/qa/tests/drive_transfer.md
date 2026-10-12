@@ -1956,6 +1956,10 @@ The case passes. Extra probe: `sync_folder(local_path="/tmp/qa-285/src", directi
 
 The case passes. Extra probe (sent back on the PR): a Doc exported with `download_file` to a *directory* target holding a FIFO at the export's filename isn't checked before the export. Explicit `local_path=".../explicit.xlsx"` (a FIFO) with `export_format="xlsx"` raised `EINVAL` with no Drive call. `local_path=".../probe/"` with `export_format="xlsx"` (FIFO at `probe/qa-probe.xlsx`) returned Drive's `HttpError 400 … conversion is not supported`, so the export ran first. With `export_format="txt"` (FIFO at `probe/qa-probe.txt`), the call raised `EINVAL`. It runs the same path, so the export had already been fetched by then.
 
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 3 (`8e5e87d`), OAuth, after reconnecting to the fix. Step 11 only (the fix touches only `download_file`'s directory-target branch); fresh `qa-285` folder.
+- **Step 11:** raised `[Errno 22] destination exists but isn't a regular file: '/tmp/qa-285/probe/probe.md.xlsx'`, not Drive's `HttpError 400`. `probe.md.xlsx` is still a FIFO.
+- Extra: the same call with `export_format="txt"` (FIFO at `probe/probe.md.txt`) raised the same `EINVAL`. With no blocker, `download_file(local_path="/tmp/qa-285/ok/", export_format="txt")` still wrote `ok/probe.md.txt` (8 B, `probe`).
+
 ---
 
 ## `list_revisions`
