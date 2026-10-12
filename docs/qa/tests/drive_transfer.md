@@ -1921,6 +1921,7 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 > 8. (PR #1001 QA round 1) `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`. The temp name exists on both sides here.
 > 9. (PR #1001 QA round 1) Run `mkdir -p /tmp/qa-285/dirsync/hello.txt`, then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/dirsync", direction="download")`, then `ls -la /tmp/qa-285/dirsync/`.
 > 10. (PR #1001 QA round 1) `create_folder(name=".gee-sweet-partial-0123456789abcdef", parent_folder_id="{F}")`; call the returned ID `{P}`. `upload_local_file(local_path="/tmp/qa-285/src/hello.txt", parent_folder_id="{P}")`. Then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/sync", direction="download", recursive=true, dry_run=true)`.
+> 11. (PR #1001 QA round 2) Run `mkdir -p /tmp/qa-285/probe && printf '# probe' > /tmp/qa-285/src/probe.md && mkfifo /tmp/qa-285/probe/probe.md.xlsx`. Call `upload_local_file(local_path="/tmp/qa-285/src/probe.md", parent_folder_id="{F}", convert=true)`; call the returned ID `{D}`. Then `download_file(file_id="{D}", local_path="/tmp/qa-285/probe/", export_format="xlsx")`. A Doc can't be exported as xlsx, so a Drive error here means the export ran before the destination check.
 
 **Checks**
 - Step 1: `downloaded` is `["hello.txt"]`. `failed` has one entry, named `.gee-sweet-partial-0123456789abcdef`, whose error says the name is reserved for this server's temporary download files. `sync/` holds only `hello.txt`.
@@ -1933,6 +1934,7 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 - Step 8: `actions` has an `unsafe_name` entry for `.gee-sweet-partial-0123456789abcdef` with the reserved-name reason, not `skip` / `drive only, upload direction`.
 - Step 9: `downloaded` is empty. `failed` has an entry for `hello.txt` whose error says the destination is a directory and names `/tmp/qa-285/dirsync/hello.txt`, not a `.gee-sweet-partial-*` file, plus the reserved-name entry from step 1. `dirsync/hello.txt` is still an empty directory and no `.gee-sweet-partial-*` file is in `dirsync/`.
 - Step 10: `failed` is empty. `actions` still has the `unsafe_name` entry for the reserved-name *file*, and also `.gee-sweet-partial-0123456789abcdef/hello.txt` as `download`: a folder with the reserved name is synced like any other, with no `unsafe_name` entry for the folder.
+- Step 11: raises `[Errno 22] destination exists but isn't a regular file` naming `/tmp/qa-285/probe/probe.md.xlsx`, not Drive's `HttpError 400 … conversion is not supported`. `probe.md.xlsx` is still a FIFO.
 
 **Teardown**
 `delete_file` on `{F}`. `rm -rf /tmp/qa-285`.

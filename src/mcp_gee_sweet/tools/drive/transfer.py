@@ -3112,6 +3112,9 @@ def register(tool):
                 ) from None
             _make_local_dir(dest, local_path)
             dest = target
+            # The name is only known after the metadata call; check it before
+            # the export or download (PR #1001 QA round 2).
+            _check_destination(dest)
 
         _make_local_dir(dest.parent, local_path)
 

@@ -5697,6 +5697,34 @@ class TestDownloadFile:
         svc.files.return_value.get.assert_not_called()
         svc.files.return_value.export.assert_not_called()
 
+    @pytest.mark.parametrize("blocker", ["fifo", "dir"])
+    async def test_unwritable_name_in_directory_target_fails_before_export(self, tmp_path, blocker):
+        """PR #1001 QA round 2: a directory target's resolved dir/<name> was
+        only checked by _write_atomically, after the whole export."""
+        if blocker == "fifo" and not hasattr(os, "mkfifo"):
+            pytest.skip("needs mkfifo")
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Doc", "application/vnd.google-apps.document"
+        )
+        target = tmp_path / "My Doc.txt"
+        if blocker == "fifo":
+            os.mkfifo(target)
+            expected = OSError
+        else:
+            target.mkdir()
+            expected = IsADirectoryError
+
+        with pytest.raises(expected):
+            await _transfer_tools["download_file"](
+                file_id="doc1",
+                local_path=str(tmp_path) + os.sep,
+                export_format="txt",
+                ctx=self._ctx(svc),
+            )
+
+        svc.files.return_value.export.assert_not_called()
+
     async def test_trailing_slash_dot_is_a_directory_target(self, tmp_path):
         """#874: Path() drops a trailing '/.', so 'newdir/.' used to write a file
         named 'newdir' (the #690 symptom)."""
