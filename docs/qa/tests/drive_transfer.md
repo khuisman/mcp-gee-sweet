@@ -334,6 +334,27 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 ---
 
+### TC-D286: a compressed file uploads with its compression MIME type, not the inner file's (#930) ⚠️ local-filesystem
+**Background:** `upload_local_file`, `upload_local_folder`, and `sync_folder` dropped the encoding half of `mimetypes.guess_type()`, so `report.csv.gz` (`("text/csv", "gzip")`) was uploaded as `text/csv` even though its bytes are gzip. All three now go through the shared `guess_mime_type`, which Gmail attachments already used.
+
+**Setup**
+`mkdir -p /tmp/qa-gz-286 && printf 'a,b\n1,2\n' | gzip > /tmp/qa-gz-286/qa-report-286.csv.gz`
+
+**Prompt**
+> Step 1: "Upload the local file `/tmp/qa-gz-286/qa-report-286.csv.gz` to {FOLDER_ID}"
+> Step 2: "Sync `/tmp/qa-gz-286` up to a new folder `qa-gz-286-sync` in {FOLDER_ID}"
+
+**Checks**
+- Step 1: call `upload_local_file(local_path="/tmp/qa-gz-286/qa-report-286.csv.gz", parent_folder_id="{FOLDER_ID}")`; response has no `error` key
+- `get_file_metadata` on step 1's `fileId` reports `mimeType: application/gzip` (not `text/csv`)
+- Step 2: `create_folder(name="qa-gz-286-sync", parent_folder_id="{FOLDER_ID}")`, then `sync_folder(folder_id=<new folder ID>, local_path="/tmp/qa-gz-286", direction="upload")`; `uploaded` is `["qa-report-286.csv.gz"]`
+- `list_files` on the new folder shows `qa-report-286.csv.gz` with `mimeType: application/gzip`
+
+**Teardown**
+Delete `qa-report-286.csv.gz` and the `qa-gz-286-sync` folder from `{FOLDER_ID}`. Remove `/tmp/qa-gz-286`.
+
+---
+
 ## `upload_local_folder`
 
 ### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem

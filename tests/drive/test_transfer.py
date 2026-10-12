@@ -190,6 +190,57 @@ class TestUploadLocalFileCore:
         assert "modifiedTime" in body
         assert "webContentLink" in create_kwargs["fields"]
 
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("report.csv.gz", "application/gzip"),
+            ("dump.sql.bz2", "application/x-bzip2"),
+            ("report.csv", "text/csv"),
+            ("scratch_tmpfile", "application/octet-stream"),
+        ],
+    )
+    async def test_upload_mimetype_reflects_compression(self, tmp_path, filename, expected):
+        # #930: guess_type("report.csv.gz") is ("text/csv", "gzip"); the bytes are
+        # gzip, so the upload must not claim text/csv.
+        local_file = tmp_path / filename
+        local_file.write_bytes(b"\x1f\x8b fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": filename,
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["media_body"].mimetype() == expected
+        assert "mimeType" not in create_kwargs["body"]
+
+    async def test_upload_mimetype_comes_from_local_path_not_name_override(self, tmp_path):
+        # The bytes are the local file's, so a name= override doesn't change the
+        # guessed type.
+        local_file = tmp_path / "report.csv.gz"
+        local_file.write_bytes(b"\x1f\x8b fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "Quarterly report",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", name="Quarterly report"
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["name"] == "Quarterly report"
+        assert create_kwargs["media_body"].mimetype() == "application/gzip"
+
     async def test_returns_web_content_link_when_drive_provides_it(self, tmp_path):
         # #511: an image-embedding caller uses this link directly instead of a
         # follow-up files().get().
@@ -1148,6 +1199,23 @@ class TestUploadLocalFolder:
             "folder1"
         )
 
+    async def test_compressed_file_uploads_with_compression_mimetype(self, tmp_path):
+        # #930: not the inner file's text/csv.
+        (tmp_path / "report.csv.gz").write_bytes(b"\x1f\x8b fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "report.csv.gz",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == ["report.csv.gz"]
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["media_body"].mimetype() == "application/gzip"
+
     async def test_leftover_partial_listed_as_skipped_not_uploaded(self, tmp_path):
         """#887: a download's leftover temp file is never uploaded, but it's
         reported rather than silently ignored."""
@@ -1917,6 +1985,34 @@ class TestSyncFolderValidation:
         )
         assert result["error"].startswith("Unknown export_format 'bogus'. Valid: ")
         assert fs.list_calls == []  # rejected before any Drive API call
+
+
+class TestSyncFolderUploadMimetype:
+    """#930: a compressed file is uploaded with its compression type, not the
+    type of the file inside it."""
+
+    async def test_local_only_compressed_file_uploads_as_gzip(self, tmp_path):
+        (tmp_path / "report.csv.gz").write_bytes(b"\x1f\x8b fake")
+        (tmp_path / "plain.csv").write_text("a,b\n1,2")
+        fs = _FakeDriveFS({"root": []})
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=ctx
+        )
+
+        assert sorted(result["uploaded"]) == ["plain.csv", "report.csv.gz"]
+        mimetypes_by_name = {
+            call.kwargs["body"]["name"]: call.kwargs["media_body"].mimetype()
+            for call in fs.svc.files.return_value.create.call_args_list
+        }
+        assert mimetypes_by_name == {
+            "report.csv.gz": "application/gzip",
+            "plain.csv": "text/csv",
+        }
 
 
 class TestSyncFolderRecursive:

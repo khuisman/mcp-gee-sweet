@@ -6,7 +6,6 @@ import binascii
 import codecs
 import functools
 import logging
-import mimetypes
 import re
 import time
 from dataclasses import dataclass, field
@@ -25,6 +24,7 @@ from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread, get_gmail_unauthorized_message
 from .concurrency import gather_with_fallback
+from .mime_types import OCTET_STREAM, guess_mime_type
 from .response_limits import (
     clamp_max_results,
     enforce_response_size_cap,
@@ -568,25 +568,6 @@ def _shape_label(label: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# What a compressed file's guess_type() encoding means as a MIME type. guess_type
-# reports "x.csv.gz" as ("text/csv", "gzip"), and the bytes are gzip, not CSV.
-_ENCODING_MIME_TYPES = {
-    "gzip": "application/gzip",
-    "bzip2": "application/x-bzip2",
-    "xz": "application/x-xz",
-    "compress": "application/x-compress",
-    "br": "application/x-brotli",
-}
-
-# Python's built-in extension table only. A bare MimeTypes() builds its table from
-# the module's built-in defaults; what mimetypes.init() reads from /etc/mime.types,
-# Apache's files, or the Windows registry goes only into the module-level database,
-# so a guess doesn't depend on the host (PR #928 QA: a Windows host with Excel maps
-# .csv to application/vnd.ms-excel).
-_MIME_TYPES = mimetypes.MimeTypes()
-
-_OCTET_STREAM = "application/octet-stream"
-
 # A type/subtype with both halves non-empty. "application/" or "/pdf" would
 # otherwise go out verbatim as a broken Content-Type (PR #928 QA round 2).
 _MIME_TYPE_RE = re.compile(r"[^/\s;]+/[^/\s;]+\Z")
@@ -603,11 +584,9 @@ def _guess_attachment_mime_type(filename: str) -> str:
     message/rfc822 part could alter bytes the caller never asked to change (PR #928
     QA).
     """
-    mime_type, encoding = _MIME_TYPES.guess_type(filename)
-    if encoding:
-        return _ENCODING_MIME_TYPES.get(encoding, _OCTET_STREAM)
-    if not mime_type or mime_type.partition("/")[0] in ("message", "multipart"):
-        return _OCTET_STREAM
+    mime_type = guess_mime_type(filename)
+    if mime_type.partition("/")[0] in ("message", "multipart"):
+        return OCTET_STREAM
     return mime_type
 
 

@@ -3,7 +3,6 @@ import base64
 import hashlib
 import io
 import logging
-import mimetypes
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -19,6 +18,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
+from ..mime_types import guess_mime_type
 from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
@@ -882,8 +882,7 @@ async def _upload_local_file(
         # within Drive's per-property byte cap (PR #800 QA round 1).
         metadata["properties"] = _convert_properties(file_name)
     else:
-        mime, _ = mimetypes.guess_type(local_path)
-        mime = mime or "application/octet-stream"
+        mime = guess_mime_type(local_path)
     try:
         # Inside the try, so a file that vanishes or becomes unreadable after
         # the is_file() check above returns {"error": ...} instead of raising
@@ -1862,8 +1861,7 @@ async def _sync_level(
                 if convert_this:
                     mime, convert_target_mime = _CONVERT_MIME[".md"]
                 else:
-                    mime, _ = mimetypes.guess_type(str(p))
-                    mime = mime or "application/octet-stream"
+                    mime = guess_mime_type(str(p))
                 try:
                     # Inside the try: the file can vanish or become unreadable
                     # between the scan and here, and that must land as this
