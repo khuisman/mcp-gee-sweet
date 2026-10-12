@@ -664,6 +664,8 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 
 **Result (2026-10-03) ✅ PASS** — via an isolated service-account sandbox (PR #855). Raised `ValueError` `local_path '…/dangling/' has a non-directory path component at '…/dangling'`, with no 404. The symlink was intact and `missing-target` did not exist afterwards.
 
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth. Raised `ValueError` `local_path '/tmp/qa-d277/dangling/' has a symlink to a missing target at '/tmp/qa-d277/dangling'`, with no 404. The symlink was intact and `missing-target` did not exist.
+
 ---
 
 ### TC-D284: Local destination checks for `download_file`, `download_folder`, and `sync_folder`: trailing `/.`, dangling symlinks, files in the path (issue #874, via #895) ⚠️ local-filesystem
@@ -697,6 +699,16 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 
 **Teardown**
 `delete_file` on `{F}`. `rm -rf /tmp/qa-284`.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, throwaway `qa-284` folder under `TEST_FOLDER_ID`.
+- **Step 1:** `local_path` `/tmp/qa-284/newdir/hello.txt`, 5 B; `newdir` is a directory holding `hello.txt`.
+- **Steps 2–3:** both raised the expected `ValueError` with the trailing-ending hint; `report` still reads `keep me`.
+- **Step 4:** `has a symlink to a missing target at '/tmp/qa-284/out.bin'`; link intact, `missing-a` absent.
+- **Steps 5, 7:** `has a non-directory path component at '/tmp/qa-284/clash'`, no `NotADirectoryError`; `clash` still holds `x`.
+- **Step 6:** `has a symlink to a missing target at '/tmp/qa-284/dangling-dir'`; `missing-b` absent.
+- **Step 8:** `downloaded: ["hello.txt"]`, `failed` exactly the expected `sub/` entry; `sync/sub` still a dangling symlink, `missing-c` absent.
+
+The case passes. Extra probe: the same step-8 call with `dry_run=true` listed only `hello.txt: download` and nothing for `sub/`, so the preview doesn't show the failure the real run reports (sent back on the PR).
 
 ---
 
@@ -1871,6 +1883,16 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 - **Step 8, `ro.bin`:** `download_file` failed with `[Errno 13] Permission denied: '/tmp/qa-279/ro.bin'`. `ro.bin` still reads `protected`, still `-r--r--r--`, and there's no `.gee-sweet-partial-*` in `/tmp/qa-279/`.
 - **Step 8, `dl/big.bin` (`chmod 4644` first):** succeeded, `size_bytes` 3000000, and the file is now `-rw-r--r--`: setuid dropped.
 
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, throwaway `qa-279` folder under `TEST_FOLDER_ID`. Drive `big.bin`: 3000000 B, `modified_time` `03:54:22Z`.
+- **Step 1:** `downloaded: ["big.bin"]`, `skipped: [".gee-sweet-partial-0123456789abcdef"]`; `uploaded`, `failed` empty.
+- **Step 2:** 3000000 B, md5 matches, mode `-rw-r-----` kept, mtime `20:54:22-0700` (= `03:54:22Z`). Only the planted temp file present.
+- **Step 3:** one file, `big.bin`.
+- **Step 4:** `skipped: [".gee-sweet-partial-0123456789abcdef", "big.bin"]`, nothing transferred.
+- **Step 5:** `uploaded: ["big.bin"]`, `skipped: [".gee-sweet-partial-0123456789abcdef"]`, `failed` empty; `list_files` shows two `big.bin`, no temp file.
+- **Step 6:** `size_bytes` 3000000; directory still holds only `big.bin` and the planted temp file.
+- **Step 7:** `downloaded: ["big.bin"]`, one duplicate-filename `failed` entry; `dl/` holds only `big.bin`, 3000000 B.
+- **Step 8:** `ro.bin` refused with `[Errno 13] Permission denied`, still `protected` and `-r--r--r--`, no temp file; `dl/big.bin` succeeded and is `-rw-r--r--` (setuid dropped).
+
 ---
 
 ### TC-D285: Temp-file names on Drive, device and FIFO destinations, and a kept owner group (issue #887, via #895) ⚠️ local-filesystem ⚠️ destructive
@@ -1903,6 +1925,16 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 
 **Teardown**
 `delete_file` on `{F}`. `rm -rf /tmp/qa-285`.
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 1 (`499aa59`), OAuth, macOS, throwaway `qa-285` folder under `TEST_FOLDER_ID`. New files in `/tmp/qa-285` get group `wheel`; `{G}` was `staff`.
+- **Step 1:** `downloaded: ["hello.txt"]`; `failed` one entry for `.gee-sweet-partial-0123456789abcdef`, `name is reserved for this server's temporary download files; not synced`. `sync/` holds only `hello.txt`.
+- **Step 2:** `actions`: `unsafe_name` for the temp name (same reason), `skip` (`in sync`) for `hello.txt`.
+- **Step 3:** `downloaded: ["hello.txt"]`; `failed` one entry, `… can't be used as a local filename: name is reserved …`. `dl/` holds only `hello.txt`.
+- **Steps 4–5:** both returned `size_bytes` 0; `null-link` still → `/dev/null`, no temp file.
+- **Step 6:** returned at once with `[Errno 22] destination exists but isn't a regular file`; `pipe` still `prw-r--r--`, no temp file.
+- **Step 7:** succeeded; `owned.txt` reads `hello`, group still `staff`.
+
+The case passes. Extra probe: `sync_folder(local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`, where the temp name exists on both sides, reported `skip` / `drive only, upload direction`, which is false, and never mentions the local leftover (sent back on the PR).
 
 ---
 
