@@ -334,6 +334,35 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 ---
 
+### TC-D286: a compressed file uploads with its compression MIME type, not the inner file's (#930) ⚠️ local-filesystem
+**Background:** `upload_local_file`, `upload_local_folder`, and `sync_folder` dropped the encoding half of `mimetypes.guess_type()`, so `report.csv.gz` (`("text/csv", "gzip")`) was uploaded as `text/csv` even though its bytes are gzip. All three now go through the shared `guess_mime_type`, which Gmail attachments already used.
+
+**Setup**
+`mkdir -p /tmp/qa-gz-286 && printf 'a,b\n1,2\n' | gzip > /tmp/qa-gz-286/qa-report-286.csv.gz`
+
+**Prompt**
+> Step 1: "Upload the local file `/tmp/qa-gz-286/qa-report-286.csv.gz` to {FOLDER_ID}"
+> Step 2: "Sync `/tmp/qa-gz-286` up to a new folder `qa-gz-286-sync` in {FOLDER_ID}"
+> Step 3: "Upload the folder `/tmp/qa-gz-286` to a new folder `qa-gz-286-folder` in {FOLDER_ID}"
+
+**Checks**
+- Step 1: call `upload_local_file(local_path="/tmp/qa-gz-286/qa-report-286.csv.gz", parent_folder_id="{FOLDER_ID}")`; response has no `error` key
+- `get_file_metadata` on step 1's `fileId` reports `mimeType: application/gzip` (not `text/csv`)
+- Step 2: `create_folder(name="qa-gz-286-sync", parent_folder_id="{FOLDER_ID}")`, then `sync_folder(folder_id=<new folder ID>, local_path="/tmp/qa-gz-286", direction="upload")`; `uploaded` is `["qa-report-286.csv.gz"]`
+- `list_files` on the new folder shows `qa-report-286.csv.gz` with `mimeType: application/gzip`
+- Step 3: `create_folder(name="qa-gz-286-folder", parent_folder_id="{FOLDER_ID}")`, then `upload_local_folder(local_path="/tmp/qa-gz-286", parent_folder_id=<new folder ID>)`; `uploaded` is `["qa-report-286.csv.gz"]`, and `list_files` on that folder shows it with `mimeType: application/gzip`
+
+**Teardown**
+Delete `qa-report-286.csv.gz` and the `qa-gz-286-sync` and `qa-gz-286-folder` folders from `{FOLDER_ID}`. Remove `/tmp/qa-gz-286`.
+
+**Result** (2026-10-11, Sky, PR #1002 round 1 at `594299f`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive, `{FOLDER_ID}` = a throwaway child of `TEST_FOLDER_ID`): ✅ **PASS**.
+- Step 1: no error. `get_file_metadata` reported `mimeType: application/gzip`, `size: 28`.
+- Step 2: `uploaded == ["qa-report-286.csv.gz"]`, and `list_files` showed `application/gzip`. (`size_bytes` was `0`: sync_folder counts only downloaded bytes, which predates this PR.)
+- Step 3 (added this round, since the Background names `upload_local_folder` but no check called it): `uploaded == ["qa-report-286.csv.gz"]`, and `list_files` showed `application/gzip`.
+- Side probes on code-review findings. (a) Files the built-in table doesn't know, uploaded as `application/octet-stream` (`.xlsx`, `.docx` and `.7z` with random bytes, `.log`, `.ics`): Drive derived the real type from the name every time (the OOXML types, `application/x-7z-compressed`, `text/plain`, `text/calendar`). (b) A `.csv.gz` created the pre-fix way as `text/csv`, then re-uploaded by `sync_folder`'s `update()` path: Drive reset it to `application/gzip`. (c) `.svgz` now lands as `application/gzip`, where it used to be `image/svg+xml`. Neither version got a Drive thumbnail.
+
+---
+
 ## `upload_local_folder`
 
 ### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem
