@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .atomic_write import _check_destination, _write_atomically
+from .atomic_write import _check_destination, _is_partial_download, _write_atomically
 
 # See docs/decisions/decision-grid-data-size-cap.md,
 # docs/decisions/decision-response-size-cap-generalization.md, and
@@ -179,6 +179,24 @@ def validate_local_destination(
     return dest, wants_dir
 
 
+def _safe_filename(name: str) -> str:
+    """`name` as a single ordinary path component, for joining onto a directory.
+
+    Separators ('/' and '\\', on every platform) and NUL become '_', and so does
+    the ':' of a Windows drive-qualified name like 'C:x'. '.', '..', and the
+    temp-file prefix _write_atomically reserves get a leading '_'. A sheet named
+    '../x' therefore writes '.._x_data.json' inside the chosen directory, not
+    'x_data.json' beside it (PR #1000 QA round 2).
+    """
+    for ch in ("/", "\\", "\x00"):
+        name = name.replace(ch, "_")
+    if Path(name).anchor:
+        name = name.replace(":", "_")
+    if name in ("", ".", "..") or _is_partial_download(name):
+        name = "_" + name
+    return name
+
+
 async def write_capped_result_to_disk(
     result: Any,
     local_path: str,
@@ -199,18 +217,30 @@ async def write_capped_result_to_disk(
     Resolves a directory path via default_filename, mirroring get_sheet_data's
     original local_path handling from issue #235. A path ending in a separator is
     a directory whether or not it exists yet: it's created rather than written as
-    a file named after it (#990). A non-directory path component (an existing file
+    a file named after it (#990). A non-directory parent component (an existing file
     or a dangling symlink) raises ValueError via validate_local_destination instead
     of an OSError from mkdir, and an existing file is never overwritten for a
-    trailing-separator path. This path exists specifically to hold data too large
-    for the response-size cap, so the write itself is offloaded to a worker thread
-    rather than blocking the event loop for however long a large write takes.
+    trailing-separator path. An existing file at a plain file path is replaced.
+
+    default_filename can carry caller text (get_sheet_data's sheet name), so it's
+    reduced to one ordinary path component (_safe_filename) before the join, and the
+    joined file gets the same checks as a file local_path: a dangling symlink there
+    is refused rather than written through (PR #1000 QA round 2).
+
+    This path exists specifically to hold data too large for the response-size cap,
+    so the write itself is offloaded to a worker thread rather than blocking the
+    event loop for however long a large write takes.
     """
 
     def _write() -> tuple[Path, int]:
         dest, wants_dir = validate_local_destination(local_path, local_path_param=local_path_param)
         if wants_dir or dest.is_dir():
-            dest = dest / default_filename
+            dest = dest / _safe_filename(default_filename)
+            if _is_dangling_symlink(dest):
+                raise _blocked_destination_error(
+                    local_path, dest, local_path_param=local_path_param
+                )
+            _check_destination(dest)
         text = result if isinstance(result, str) else json.dumps(result)
         dest.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(dest, lambda fh: fh.write(text.encode("utf-8")))

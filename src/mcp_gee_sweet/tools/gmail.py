@@ -853,8 +853,10 @@ def register(tool):
             local_path: Optional local filesystem path (file or directory) to write the
                         message JSON to instead of returning it inline. Bypasses the
                         response-size cap, for messages with very large bodies. A
-                        path ending in '/' is a directory, created if missing; a path
-                        component that's an existing file raises ValueError.
+                        path ending in '/' is a directory, created if missing. A file
+                        in place of a parent directory, or at a path ending in '/',
+                        raises ValueError; an existing file at a plain file path is
+                        replaced.
             include_body: When False, fetch only metadata (Gmail's format='metadata'):
                           no body is downloaded, and body_plain, body_html, and
                           attachments are left out of the result.
@@ -972,8 +974,10 @@ def register(tool):
             local_path: Optional local filesystem path (file or directory) to write the
                         thread JSON to instead of returning it inline. Bypasses the
                         response-size cap, for threads with very large bodies. A
-                        path ending in '/' is a directory, created if missing; a path
-                        component that's an existing file raises ValueError.
+                        path ending in '/' is a directory, created if missing. A file
+                        in place of a parent directory, or at a path ending in '/',
+                        raises ValueError; an existing file at a plain file path is
+                        replaced.
             include_body: When False, fetch only each message's metadata (Gmail's
                           format='metadata'): no body is downloaded, and body_plain,
                           body_html, and attachments are left out. Use it to list a

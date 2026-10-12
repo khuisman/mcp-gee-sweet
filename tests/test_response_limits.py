@@ -205,6 +205,33 @@ class TestWriteCappedResultToDisk:
             )
         assert not (tmp_path / "missing").exists()
 
+    async def test_default_filename_with_separators_stays_inside_the_directory(self, tmp_path):
+        """PR #1000 QA round 2: a sheet named '../x' wrote x_data.json beside the
+        chosen directory, and 'a/b' created a subdirectory."""
+        out = tmp_path / "out"
+        for name, expected in (
+            ("../x_data.json", ".._x_data.json"),
+            ("a/b_data.json", "a_b_data.json"),
+        ):
+            result = await response_limits.write_capped_result_to_disk(
+                {"a": 1}, f"{out}/", default_filename=name, manifest_extra={}
+            )
+            assert result["local_path"] == str(out / expected)
+        assert sorted(p.name for p in out.iterdir()) == [".._x_data.json", "a_b_data.json"]
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["out"]
+
+    async def test_dangling_symlink_at_joined_filename_raises(self, tmp_path):
+        """PR #1000 QA round 2: a dangling symlink at <dir>/<default_filename> was
+        written through to its target; the same symlink as local_path is refused."""
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "fallback.json").symlink_to(tmp_path / "elsewhere")
+        with pytest.raises(ValueError, match="symlink to a missing target"):
+            await response_limits.write_capped_result_to_disk(
+                {"a": 1}, f"{out}/", default_filename="fallback.json", manifest_extra={}
+            )
+        assert not (tmp_path / "elsewhere").exists()
+
     async def test_missing_directory_with_trailing_dot_is_created(self, tmp_path):
         """Path() drops a trailing '/.', so 'dir/.' must be read from the string,
         the same as download_file (#874)."""
@@ -244,3 +271,20 @@ class TestWriteCappedResultToDisk:
         )
         assert json.loads(dest.read_text()) == big_result
         assert result["bytes_written"] == dest.stat().st_size
+
+
+class TestSafeFilename:
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("Sheet1_data.json", "Sheet1_data.json"),
+            ("../x_data.json", ".._x_data.json"),
+            ("a/b\\c_data.json", "a_b_c_data.json"),
+            ("nul\x00_data.json", "nul__data.json"),
+            (".", "_."),
+            ("..", "_.."),
+            (".gee-sweet-partial-0123456789abcdef", "_.gee-sweet-partial-0123456789abcdef"),
+        ],
+    )
+    def test_reduces_to_one_ordinary_component(self, name, expected):
+        assert response_limits._safe_filename(name) == expected

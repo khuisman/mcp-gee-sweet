@@ -5975,6 +5975,29 @@ class TestSyncFolderResponseSizeCap:
         assert fs.created_files == []
         assert blocker.read_text() == "keep me"
 
+    async def test_refused_result_local_path_leaves_missing_local_path_uncreated(self, tmp_path):
+        # PR #1000 QA round 2: the result_local_path checks run before local_path's
+        # mkdir, so a refused call leaves nothing on disk.
+        fs = _FakeDriveFS({"root": []})
+        sync_dir = tmp_path / "new" / "deep" / "sync"
+        blocker = tmp_path / "blocker"
+        blocker.write_text("keep me")
+        with pytest.raises(ValueError, match="^result_local_path "):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                result_local_path=f"{blocker}/",
+                ctx=self._ctx(fs),
+            )
+        with pytest.raises(ValueError, match="must not be local_path"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                result_local_path=str(sync_dir / "out.json"),
+                ctx=self._ctx(fs),
+            )
+        assert not (tmp_path / "new").exists()
+
     async def test_result_local_path_outside_local_path_succeeds(self, tmp_path):
         fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
         sync_dir = tmp_path / "sync"

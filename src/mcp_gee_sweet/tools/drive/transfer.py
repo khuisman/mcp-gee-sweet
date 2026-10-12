@@ -2490,8 +2490,10 @@ def register(tool):
                          returning it inline (the raw Markdown text, UTF-8). A
                          directory path writes <file_id>-r<revision_id>.md inside
                          it; a path ending in '/' is a directory, created if
-                         missing. A path component that's an existing file raises
-                         ValueError before the export. Bypasses the response-size cap.
+                         missing. A file in place of a parent directory, or at a
+                         path ending in '/', raises ValueError before the export; an
+                         existing file at a plain file path is replaced. Bypasses the
+                         response-size cap.
 
         Returns:
             Sheets: revisionId, modifiedTime, sheet name, range, and values as a
@@ -3563,9 +3565,10 @@ def register(tool):
                        would show up as a new local-only file on the next sync (and
                        get uploaded to Drive on a real run); raises ValueError if it
                        resolves inside `local_path`. A path ending in '/' is a
-                       directory, created if missing; a path component that's an
-                       existing file raises ValueError. Both checks run before any
-                       transfer.
+                       directory, created if missing. A file in place of a parent
+                       directory, or at a path ending in '/', raises ValueError; an
+                       existing file at a plain file path is replaced. Both checks
+                       run before any transfer or local mkdir.
 
         Returns:
             uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
@@ -3601,12 +3604,13 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         dest_dir, _ = validate_local_destination(local_path, is_dir=True)
-        _make_local_dir(dest_dir, local_path)
 
         if result_local_path:
             # Before any transfer: a bad destination would otherwise fail only at the
             # final manifest write, after every upload/download had already run, and
-            # the caller would get no record of them (PR #1000 QA round 1).
+            # the caller would get no record of them (PR #1000 QA round 1). Before
+            # local_path's mkdir too, so a refused call leaves nothing on disk
+            # (PR #1000 QA round 2).
             validate_local_destination(result_local_path, local_path_param="result_local_path")
             # local_path is also a live input directory this same call scans — unlike
             # every other capped tool's local_path (a pure output destination), writing
@@ -3625,6 +3629,8 @@ def register(tool):
                     "sync input, so writing the result manifest there would make it show "
                     "up as a new local-only file on the next sync. Use a separate directory."
                 )
+
+        _make_local_dir(dest_dir, local_path)
 
         uploaded: list[str] = []
         downloaded: list[str] = []

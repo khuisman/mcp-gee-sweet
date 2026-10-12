@@ -2192,7 +2192,7 @@ revision separate (#814), so the diff below uses one.
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Setup:** `mkdir -p /tmp/qa-959` (before #990, a `local_path` naming a missing directory, even
-with a trailing `/`, was written as a file of that name; TC-D286 covers the missing-directory case).
+with a trailing `/`, was written as a file of that name; TC-D288 covers the missing-directory case).
 `create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
 `list_revisions` on it and on `TEST_SPREADSHEET_ID`, taking each one's last `revisionId`.
 
@@ -2252,7 +2252,7 @@ is the Shared Drive.
 
 ---
 
-### TC-D286: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
+### TC-D288: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
 
 Reproduces PR #988 round 1's observation: with the directory absent, `local_path="<dir>/"`
 wrote a 15-byte *file* named after it. Uses `/tmp/qa-990-rev`, not TC-DOC218's `/tmp/qa-990`, so
@@ -2287,6 +2287,7 @@ write, and the error named `local_path` (`sync_folder`'s other parameter).
 **Tool calls**
 1. `sync_folder(folder_id="<folder-id>", local_path="/tmp/qa-990-sync/src", direction="upload", result_local_path="/tmp/qa-990-sync/blocker/")`
 2. `list_files(folder_id="<folder-id>")`
+3. `sync_folder(folder_id="<folder-id>", local_path="/tmp/qa-990-sync/new/deep/sync", result_local_path="/tmp/qa-990-sync/blocker/")`
 
 **Checks**
 - Call 1 raises "result_local_path '/tmp/qa-990-sync/blocker/' has a non-directory path component
@@ -2294,6 +2295,8 @@ write, and the error named `local_path` (`sync_folder`'s other parameter).
   `result_local_path` throughout, never `local_path`.
 - Call 2 returns no files: `a.txt` was not uploaded (a real, non-`dry_run` sync).
 - `/tmp/qa-990-sync/blocker` still holds `keep me`.
+- Call 3 raises the same error, and `/tmp/qa-990-sync/new` doesn't exist: the missing `local_path`
+  isn't created for a refused call (PR #1000 QA round 2).
 
 **Teardown:** `rm -rf /tmp/qa-990-sync`; `delete_file(file_id="<folder-id>")`.
 
