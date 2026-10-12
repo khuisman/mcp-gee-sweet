@@ -4282,15 +4282,19 @@ Comment text is plain text, so no line of it may render as Markdown structure, a
 ### TC-DOC218: A trailing-slash `local_path` naming a missing directory creates it; one naming an existing file is refused (issue #990) ⚠️ local-filesystem
 Every capped tool's `local_path` goes through the shared `write_capped_result_to_disk`. Before #990, `dir/` for a directory that didn't exist yet was written as a *file* named `dir`, and `file/` over an existing file overwrote it.
 
-**Setup:** `rm -rf /tmp/qa-990 && mkdir -p /tmp/qa-990 && printf 'keep me' > /tmp/qa-990/blocker`. Confirm `/tmp/qa-990/new` doesn't exist.
+**Setup:** `rm -rf /tmp/qa-990 && mkdir -p /tmp/qa-990 && printf 'keep me' > /tmp/qa-990/blocker && ln -s /tmp/qa-990/missing /tmp/qa-990/dangling`. Confirm `/tmp/qa-990/new` and `/tmp/qa-990/missing` don't exist.
 
 **Steps**
 1. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/new/sub/")`
 2. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/blocker/")`
+3. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/blocker/sub/")`
+4. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/dangling/")`
 
 **Checks**
 - Step 1 returns `local_path` `/tmp/qa-990/new/sub/{DOC_ID}.md`. `/tmp/qa-990/new/sub` is a directory (`test -d`), not a file, and the `.md` file in it holds raw Markdown whose byte size equals `bytes_written`
-- Step 2 raises "local_path '/tmp/qa-990/blocker/' ends in a separator, so it must be a directory, but '/tmp/qa-990/blocker' is an existing file", and `/tmp/qa-990/blocker` still holds `keep me`
+- Step 2 raises "local_path '/tmp/qa-990/blocker/' has a non-directory path component at '/tmp/qa-990/blocker'; local_path ends in a path separator or '.', which makes it a directory target…", and `/tmp/qa-990/blocker` still holds `keep me`
+- Step 3 raises a `ValueError` "…has a non-directory path component at '/tmp/qa-990/blocker'" (a file further up the path), not a raw `NotADirectoryError` (PR #1000 QA round 1)
+- Step 4 raises a `ValueError` "…has a symlink to a missing target at '/tmp/qa-990/dangling'", not a raw `FileExistsError`, and `/tmp/qa-990/missing` still doesn't exist (PR #1000 QA round 1)
 
 **Cleanup:** `rm -rf /tmp/qa-990`
 

@@ -20,7 +20,14 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread, thread_http
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..pagination import iter_pages
-from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
+from ..response_limits import (
+    _blocked_destination_error,
+    _is_dangling_symlink,
+    _local_dir_blocker,
+    enforce_response_size_cap,
+    validate_local_destination,
+    write_capped_result_to_disk,
+)
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 
 logger = logging.getLogger(__name__)
@@ -270,75 +277,6 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
         ),
         "fileId": file_id,
     }
-
-
-def _local_dir_blocker(path: Path) -> Path | None:
-    """The nearest existing component of `path` (itself, then its parents), if
-    it isn't a directory; None when `path` can be created with mkdir -p.
-
-    A dangling symlink counts as existing: mkdir can't create a directory over it.
-    """
-    for p in (path, *path.parents):
-        if p.exists() or p.is_symlink():
-            return None if p.is_dir() else p
-    return None
-
-
-def _is_dangling_symlink(path: Path) -> bool:
-    return path.is_symlink() and not path.exists()
-
-
-def _blocked_destination_error(
-    local_path: str, blocker: Path, ending_made_dir: bool = False
-) -> ValueError:
-    """The ValueError for a local_path that `blocker` stops from being written.
-
-    `ending_made_dir`: `blocker` is the destination itself, and only local_path's
-    ending (a trailing separator, '.' or '..') made it a directory target. The
-    message then says so, since dropping that ending writes a file there instead.
-    """
-    if _is_dangling_symlink(blocker):
-        return ValueError(
-            f"local_path {local_path!r} has a symlink to a missing target at {str(blocker)!r}"
-        )
-    message = f"local_path {local_path!r} has a non-directory path component at {str(blocker)!r}"
-    if ending_made_dir:
-        message += (
-            "; local_path ends in a path separator or '.', which makes it a directory "
-            "target. Remove that ending to write a file at that path instead"
-        )
-    return ValueError(message)
-
-
-def _validate_local_destination(local_path: str, *, is_dir: bool = False) -> tuple[Path, bool]:
-    """Reject a blocked local destination before making any Drive request.
-
-    The destination must be a directory when `is_dir` is set or local_path ends
-    in a separator, '.' or '..' (Path() drops a trailing '/.', so a check on the
-    Path alone would read 'dir/.' as a file named 'dir'). Otherwise it's a file
-    and only its parents must be directories: an existing regular file there may
-    still be replaced, but a dangling symlink is refused, the same as a dangling
-    symlink at a directory target (#874).
-    """
-    dest = Path(local_path)
-    ending_made_dir = os.path.basename(local_path) in ("", ".", "..")
-    wants_dir = is_dir or ending_made_dir
-    if wants_dir:
-        blocker = _local_dir_blocker(dest)
-    elif _is_dangling_symlink(dest):
-        blocker = dest
-    else:
-        blocker = _local_dir_blocker(dest.parent)
-    if blocker is not None:
-        raise _blocked_destination_error(
-            local_path, blocker, ending_made_dir and not is_dir and blocker == dest
-        )
-    if not wants_dir and not dest.is_dir():
-        # A FIFO, socket, or unwritable file at a file destination fails here,
-        # not after a Workspace export's round trip (PR #1001 QA round 1). An
-        # existing directory without a trailing separator is a directory target.
-        _check_destination(dest)
-    return dest, wants_dir
 
 
 def _mkdir_or_blocker(path: Path) -> Path | None:
@@ -2551,7 +2489,9 @@ def register(tool):
             local_path:  Docs only. Local path to write the Markdown to instead of
                          returning it inline (the raw Markdown text, UTF-8). A
                          directory path writes <file_id>-r<revision_id>.md inside
-                         it. Bypasses the response-size cap.
+                         it; a path ending in '/' is a directory, created if
+                         missing. A path component that's an existing file raises
+                         ValueError before the export. Bypasses the response-size cap.
 
         Returns:
             Sheets: revisionId, modifiedTime, sheet name, range, and values as a
@@ -2603,7 +2543,7 @@ def register(tool):
             if local_path:
                 # Before the export: a bad destination would otherwise fail only
                 # after the temporary Doc round trip (PR #988 QA round 1).
-                _validate_local_destination(local_path)
+                validate_local_destination(local_path)
             from ..docs.markdown_export import export_doc_revision_markdown
 
             exported = await export_doc_revision_markdown(
@@ -3083,7 +3023,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        dest, wants_dir = _validate_local_destination(local_path)
+        dest, wants_dir = validate_local_destination(local_path)
 
         metadata = await execute_in_thread(
             drive_service.files()
@@ -3198,7 +3138,7 @@ def register(tool):
             plus total 'size_bytes' downloaded.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        dest_dir, _ = _validate_local_destination(local_path, is_dir=True)
+        dest_dir, _ = validate_local_destination(local_path, is_dir=True)
         _make_local_dir(dest_dir, local_path)
         resolved_dest_dir = dest_dir.resolve()
 
@@ -3622,7 +3562,10 @@ def register(tool):
                        sync input on every call, so a result manifest written there
                        would show up as a new local-only file on the next sync (and
                        get uploaded to Drive on a real run); raises ValueError if it
-                       resolves inside `local_path`.
+                       resolves inside `local_path`. A path ending in '/' is a
+                       directory, created if missing; a path component that's an
+                       existing file raises ValueError. Both checks run before any
+                       transfer.
 
         Returns:
             uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
@@ -3657,10 +3600,14 @@ def register(tool):
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
-        dest_dir, _ = _validate_local_destination(local_path, is_dir=True)
+        dest_dir, _ = validate_local_destination(local_path, is_dir=True)
         _make_local_dir(dest_dir, local_path)
 
         if result_local_path:
+            # Before any transfer: a bad destination would otherwise fail only at the
+            # final manifest write, after every upload/download had already run, and
+            # the caller would get no record of them (PR #1000 QA round 1).
+            validate_local_destination(result_local_path, local_path_param="result_local_path")
             # local_path is also a live input directory this same call scans — unlike
             # every other capped tool's local_path (a pure output destination), writing
             # the result manifest inside it would make the manifest file itself show up
@@ -3731,6 +3678,7 @@ def register(tool):
                 result_local_path,
                 default_filename=f"{folder_id}_sync_result.json",
                 manifest_extra={"folder_id": folder_id, "dry_run": dry_run},
+                local_path_param="result_local_path",
             )
 
         # recursive=True removes the previous implicit bound (one folder's direct

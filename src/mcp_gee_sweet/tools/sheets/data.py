@@ -116,6 +116,8 @@ def register(tool):
                 bypass the cap entirely.
             local_path: Optional local filesystem path (file or directory) to write the result
                 to instead of returning it inline. Bypasses the include_grid_data response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's — over SSE that's only useful if the
                 path is on a volume the caller can also reach; for stdio it's the same machine.
@@ -259,6 +261,8 @@ def register(tool):
                                {'spreadsheet_id': 'xyz', 'sheet': 'Data'}]
             local_path: Optional local filesystem path (file or directory) to write the
                 result to instead of returning it inline. Bypasses the response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's.
 
@@ -373,6 +377,8 @@ def register(tool):
             rows_to_fetch: The number of rows (including header) to fetch for the summary (default: 5).
             local_path: Optional local filesystem path (file or directory) to write the
                 result to instead of returning it inline. Bypasses the response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's.
 
@@ -577,6 +583,8 @@ def register(tool):
             max_results: Maximum number of results to return (default 50)
             local_path: Optional local filesystem path (file or directory) to write the
                 result to instead of returning it inline. Bypasses the response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's.
 

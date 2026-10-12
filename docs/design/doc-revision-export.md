@@ -103,7 +103,7 @@ Measured across two imports of the same DOCX:
 - `revisions.list` returns at most 200 revisions per page by default (discovery document), and
   `list_revisions` read only the first page. It now pages through every revision via the same
   `_list_revisions` helper `sync_folder` uses.
-- A Doc `local_path` is checked with `_validate_local_destination` before the export, so a bad
+- A Doc `local_path` is checked with `response_limits.validate_local_destination` before the export, so a bad
   destination fails before the temporary Doc round trip.
 
 ## Live verification

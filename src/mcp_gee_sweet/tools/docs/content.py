@@ -1157,6 +1157,8 @@ def register(tool):
             file_id: The Google Drive file ID of the document.
             local_path: Optional local filesystem path (file or directory) to write the
                 result to instead of returning it inline. Bypasses the response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's.
 
@@ -1540,6 +1542,8 @@ def register(tool):
             max_results: Maximum number of matches to return (default 50).
             local_path: Optional local filesystem path (file or directory) to write the
                 result to instead of returning it inline. Bypasses the response-size cap.
+                A path ending in '/' is a directory, created if missing; a path component
+                that's an existing file raises ValueError rather than being overwritten.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's.
 

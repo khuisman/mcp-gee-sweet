@@ -5953,6 +5953,28 @@ class TestSyncFolderResponseSizeCap:
                 ctx=self._ctx(fs),
             )
 
+    async def test_result_local_path_over_existing_file_raises_before_any_transfer(self, tmp_path):
+        # PR #1000 QA round 1: a bad result_local_path must fail before the sync
+        # runs, not at the final manifest write after every transfer, and the error
+        # must name result_local_path, not sync_folder's other local_path param.
+        fs = _FakeDriveFS({"root": []})
+        sync_dir = tmp_path / "sync"
+        sync_dir.mkdir()
+        (sync_dir / "local.txt").write_text("upload me")
+        blocker = tmp_path / "blocker"
+        blocker.write_text("keep me")
+        with pytest.raises(ValueError, match=r"^result_local_path .* non-directory"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                direction="upload",
+                result_local_path=f"{blocker}/",
+                ctx=self._ctx(fs),
+            )
+        assert fs.list_calls == []
+        assert fs.created_files == []
+        assert blocker.read_text() == "keep me"
+
     async def test_result_local_path_outside_local_path_succeeds(self, tmp_path):
         fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
         sync_dir = tmp_path / "sync"

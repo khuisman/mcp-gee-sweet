@@ -128,11 +128,11 @@ Each local read or write gets exactly one check, placed at the narrowest shared 
 | `create_doc_from_file`, `update_doc_from_file` | `read_text` | `content._read_doc_source_file`, at the top, before `exists()` | read |
 | `import_csv_to_sheet` | `open` | the tool, before `path.open` | read |
 | `send_message`, `create_draft` (attachments) | `read_bytes` | `gmail._read_attachment_bytes` (already in a worker thread; the `ValueError` propagates out of `_compose_raw` as today's missing-field error does) | read |
-| `download_file` | `_write_atomically`, `mkdir` | the tool, before `_validate_local_destination` (that helper `stat`s parents) | write |
+| `download_file` | `_write_atomically`, `mkdir` | the tool, before `response_limits.validate_local_destination` (that helper `stat`s parents) | write |
 | `download_folder`, `sync_folder` (downloads) | `mkdir`, `_write_atomically` per file | the destination root in the tool, before `mkdir`, plus each file (§6) | write |
 | `sync_folder` (uploads, `use_checksum` hashing, `stat`) | `MediaFileUpload`, `_local_md5`, `stat` | each local entry where `_sync_level` builds `local_map` / `local_folder_map` (§6) | read |
 | `sync_folder`, `upload_local_folder`, `download_folder`: the `local_path` root | `mkdir` / `iterdir` | the tool, at entry | read for upload-only, write for any direction that can download |
-| 9 tools with the response-cap bypass (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `get_doc_as_markdown`, `get_message`, `get_thread`) and `sync_folder(result_local_path=)` | `mkdir`, `_write_atomically` | `response_limits.write_capped_result_to_disk`, at the top, before `is_dir()`. Check the final `dest` after the directory join too, since `default_filename` changes the target | write |
+| 9 tools with the response-cap bypass (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `get_doc_as_markdown`, `get_message`, `get_thread`) and `sync_folder(result_local_path=)` | `mkdir`, `_write_atomically` | `response_limits.write_capped_result_to_disk`, at the top, before `validate_local_destination`. Check the final `dest` after the directory join too, since `default_filename` changes the target | write |
 
 `sync_folder`'s existing "`result_local_path` inside `local_path`" `ValueError` stays as it is and runs after the policy check. The two are independent.
 

@@ -585,7 +585,7 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 
 ### TC-D274: `download_file` — trailing-slash `local_path` over an existing regular file fails before any Drive request (#827, #855) ⚠️ local-filesystem
 
-**Background:** #827 moved the trailing-slash clash check ahead of the Drive metadata call, and #855 folded it into a single preflight (`_validate_local_destination`). A bad destination should now fail without spending a Drive request. A file ID that doesn't exist is the live stand-in for "no Drive request": if the call reaches Drive it gets a 404 `HttpError`, and if the preflight rejects it first the path error comes back.
+**Background:** #827 moved the trailing-slash clash check ahead of the Drive metadata call, and #855 folded it into a single preflight (`_validate_local_destination`, now the shared `response_limits.validate_local_destination`, #990). A bad destination should now fail without spending a Drive request. A file ID that doesn't exist is the live stand-in for "no Drive request": if the call reaches Drive it gets a 404 `HttpError`, and if the preflight rejects it first the path error comes back.
 
 **Setup:** `rm -rf /tmp/qa-d274 && mkdir -p /tmp/qa-d274 && printf x > /tmp/qa-d274/clash`
 
@@ -2192,7 +2192,7 @@ revision separate (#814), so the diff below uses one.
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Setup:** `mkdir -p /tmp/qa-959` (before #990, a `local_path` naming a missing directory, even
-with a trailing `/`, was written as a file of that name; TC-D284 covers the missing-directory case).
+with a trailing `/`, was written as a file of that name; TC-D286 covers the missing-directory case).
 `create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
 `list_revisions` on it and on `TEST_SPREADSHEET_ID`, taking each one's last `revisionId`.
 
@@ -2252,7 +2252,7 @@ is the Shared Drive.
 
 ---
 
-### TC-D284: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
+### TC-D286: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
 
 Reproduces PR #988 round 1's observation: with the directory absent, `local_path="<dir>/"`
 wrote a 15-byte *file* named after it. Uses `/tmp/qa-990-rev`, not TC-DOC218's `/tmp/qa-990`, so
@@ -2271,6 +2271,29 @@ parallel shards don't delete each other's scratch dir.
 **Teardown:** `rm -rf /tmp/qa-990-rev`; `delete_file(file_id="<doc-id>")`.
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 1 (`12bd36a`).** Ran under this job's scratch dir instead of `/tmp`. With the directory absent, call 1 returned `local_path` `<dir>/<doc-id>-r3.md`, `bytes_written` 15; `<dir>` is a directory and the file holds `Saved to disk`.
+
+---
+
+### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
+
+Before the fix, a real sync ran every upload and download, then failed at the final manifest
+write, and the error named `local_path` (`sync_folder`'s other parameter).
+
+**Setup:** `rm -rf /tmp/qa-990-sync && mkdir -p /tmp/qa-990-sync/src && printf 'upload me' > /tmp/qa-990-sync/src/a.txt && printf 'keep me' > /tmp/qa-990-sync/blocker`.
+`create_folder(name="qa-990-sync")`, note the returned ID as `<folder-id>`.
+
+**Tool calls**
+1. `sync_folder(folder_id="<folder-id>", local_path="/tmp/qa-990-sync/src", direction="upload", result_local_path="/tmp/qa-990-sync/blocker/")`
+2. `list_files(folder_id="<folder-id>")`
+
+**Checks**
+- Call 1 raises "result_local_path '/tmp/qa-990-sync/blocker/' has a non-directory path component
+  at '/tmp/qa-990-sync/blocker'; result_local_path ends in a path separator…". The message names
+  `result_local_path` throughout, never `local_path`.
+- Call 2 returns no files: `a.txt` was not uploaded (a real, non-`dry_run` sync).
+- `/tmp/qa-990-sync/blocker` still holds `keep me`.
+
+**Teardown:** `rm -rf /tmp/qa-990-sync`; `delete_file(file_id="<folder-id>")`.
 
 ---
 

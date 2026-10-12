@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .atomic_write import _write_atomically
+from .atomic_write import _check_destination, _write_atomically
 
 # See docs/decisions/decision-grid-data-size-cap.md,
 # docs/decisions/decision-response-size-cap-generalization.md, and
@@ -93,8 +93,99 @@ def _over_cap_error(
     )
 
 
+def _local_dir_blocker(path: Path) -> Path | None:
+    """The nearest existing component of `path` (itself, then its parents), if
+    it isn't a directory; None when `path` can be created with mkdir -p.
+
+    A dangling symlink counts as existing: mkdir can't create a directory over it.
+    """
+    for p in (path, *path.parents):
+        if p.exists() or p.is_symlink():
+            return None if p.is_dir() else p
+    return None
+
+
+def _is_dangling_symlink(path: Path) -> bool:
+    return path.is_symlink() and not path.exists()
+
+
+def _blocked_destination_error(
+    local_path: str,
+    blocker: Path,
+    ending_made_dir: bool = False,
+    *,
+    local_path_param: str = "local_path",
+) -> ValueError:
+    """The ValueError for a local_path that `blocker` stops from being written.
+
+    `ending_made_dir`: `blocker` is the destination itself, and only local_path's
+    ending (a trailing separator, '.' or '..') made it a directory target. The
+    message then says so, since dropping that ending writes a file there instead.
+    `local_path_param` names the caller's parameter (e.g. sync_folder's
+    result_local_path).
+    """
+    if _is_dangling_symlink(blocker):
+        return ValueError(
+            f"{local_path_param} {local_path!r} has a symlink to a missing target "
+            f"at {str(blocker)!r}"
+        )
+    message = (
+        f"{local_path_param} {local_path!r} has a non-directory path component at {str(blocker)!r}"
+    )
+    if ending_made_dir:
+        message += (
+            f"; {local_path_param} ends in a path separator or '.', which makes it a "
+            "directory target. Remove that ending to write a file at that path instead"
+        )
+    return ValueError(message)
+
+
+def validate_local_destination(
+    local_path: str, *, is_dir: bool = False, local_path_param: str = "local_path"
+) -> tuple[Path, bool]:
+    """Reject a blocked local destination before anything is fetched or written.
+
+    The destination must be a directory when `is_dir` is set or local_path ends
+    in a separator, '.' or '..' (Path() drops a trailing '/.', so a check on the
+    Path alone would read 'dir/.' as a file named 'dir'). Otherwise it's a file
+    and only its parents must be directories: an existing regular file there may
+    still be replaced, but a dangling symlink is refused, the same as a dangling
+    symlink at a directory target (#874). Returns (Path(local_path), wants_dir).
+
+    Shared by write_capped_result_to_disk (#990) and drive/transfer.py's download
+    and sync tools, which call it before their Drive requests.
+    """
+    dest = Path(local_path)
+    ending_made_dir = os.path.basename(local_path) in ("", ".", "..")
+    wants_dir = is_dir or ending_made_dir
+    if wants_dir:
+        blocker = _local_dir_blocker(dest)
+    elif _is_dangling_symlink(dest):
+        blocker = dest
+    else:
+        blocker = _local_dir_blocker(dest.parent)
+    if blocker is not None:
+        raise _blocked_destination_error(
+            local_path,
+            blocker,
+            ending_made_dir and not is_dir and blocker == dest,
+            local_path_param=local_path_param,
+        )
+    if not wants_dir and not dest.is_dir():
+        # A FIFO, socket, or unwritable file at a file destination fails here,
+        # not after a Workspace export's round trip (PR #1001 QA round 1). An
+        # existing directory without a trailing separator is a directory target.
+        _check_destination(dest)
+    return dest, wants_dir
+
+
 async def write_capped_result_to_disk(
-    result: Any, local_path: str, *, default_filename: str, manifest_extra: dict[str, Any]
+    result: Any,
+    local_path: str,
+    *,
+    default_filename: str,
+    manifest_extra: dict[str, Any],
+    local_path_param: str = "local_path",
 ) -> dict[str, Any]:
     """Write result to local_path and return a manifest dict.
 
@@ -108,26 +199,22 @@ async def write_capped_result_to_disk(
     Resolves a directory path via default_filename, mirroring get_sheet_data's
     original local_path handling from issue #235. A path ending in a separator is
     a directory whether or not it exists yet: it's created rather than written as
-    a file named after it (#990), the same rule as drive/transfer.py's
-    _validate_local_destination. This path exists specifically to hold data too
-    large for the response-size cap, so the write itself is offloaded to a worker
-    thread rather than blocking the event loop for however long a large write takes.
+    a file named after it (#990). A non-directory path component (an existing file
+    or a dangling symlink) raises ValueError via validate_local_destination instead
+    of an OSError from mkdir, and an existing file is never overwritten for a
+    trailing-separator path. This path exists specifically to hold data too large
+    for the response-size cap, so the write itself is offloaded to a worker thread
+    rather than blocking the event loop for however long a large write takes.
     """
-    dest = Path(local_path)
-    wants_dir = local_path.endswith(("/", os.sep))
-    if wants_dir or dest.is_dir():
-        dest = dest / default_filename
 
-    def _write() -> int:
+    def _write() -> tuple[Path, int]:
+        dest, wants_dir = validate_local_destination(local_path, local_path_param=local_path_param)
+        if wants_dir or dest.is_dir():
+            dest = dest / default_filename
         text = result if isinstance(result, str) else json.dumps(result)
-        if wants_dir and dest.parent.exists() and not dest.parent.is_dir():
-            raise ValueError(
-                f"local_path {local_path!r} ends in a separator, so it must be a "
-                f"directory, but {str(dest.parent)!r} is an existing file"
-            )
         dest.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(dest, lambda fh: fh.write(text.encode("utf-8")))
-        return dest.stat().st_size
+        return dest, dest.stat().st_size
 
-    bytes_written = await asyncio.to_thread(_write)
+    dest, bytes_written = await asyncio.to_thread(_write)
     return {"local_path": str(dest), "bytes_written": bytes_written, **manifest_extra}

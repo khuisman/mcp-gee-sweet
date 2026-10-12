@@ -177,11 +177,56 @@ class TestWriteCappedResultToDisk:
         never overwritten as if the slash weren't there."""
         existing = tmp_path / "out"
         existing.write_text("keep me", encoding="utf-8")
-        with pytest.raises(ValueError, match="must be a directory"):
+        with pytest.raises(ValueError, match="non-directory path component"):
             await response_limits.write_capped_result_to_disk(
                 {"a": 1}, f"{existing}/", default_filename="fallback.json", manifest_extra={}
             )
         assert existing.read_text(encoding="utf-8") == "keep me"
+
+    async def test_existing_file_further_up_the_path_raises(self, tmp_path):
+        """PR #1000 QA round 1: 'file/sub/' raised a raw NotADirectoryError
+        from mkdir; every ancestor is checked, not just the immediate parent."""
+        existing = tmp_path / "out"
+        existing.write_text("keep me", encoding="utf-8")
+        for local_path in (f"{existing}/sub/", f"{existing}/sub/x.json"):
+            with pytest.raises(ValueError, match=r"non-directory path component at '.*out'"):
+                await response_limits.write_capped_result_to_disk(
+                    {"a": 1}, local_path, default_filename="fallback.json", manifest_extra={}
+                )
+        assert existing.read_text(encoding="utf-8") == "keep me"
+
+    async def test_dangling_symlink_with_trailing_slash_raises(self, tmp_path):
+        """PR #1000 QA round 1: a dangling symlink raised a raw FileExistsError."""
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path / "missing")
+        with pytest.raises(ValueError, match="symlink to a missing target"):
+            await response_limits.write_capped_result_to_disk(
+                {"a": 1}, f"{link}/", default_filename="fallback.json", manifest_extra={}
+            )
+        assert not (tmp_path / "missing").exists()
+
+    async def test_missing_directory_with_trailing_dot_is_created(self, tmp_path):
+        """Path() drops a trailing '/.', so 'dir/.' must be read from the string,
+        the same as download_file (#874)."""
+        missing = tmp_path / "new"
+        result = await response_limits.write_capped_result_to_disk(
+            {"a": 1}, f"{missing}/.", default_filename="fallback.json", manifest_extra={}
+        )
+        assert missing.is_dir()
+        assert json.loads((missing / "fallback.json").read_text()) == {"a": 1}
+        assert result["bytes_written"] == (missing / "fallback.json").stat().st_size
+
+    async def test_error_names_the_callers_parameter(self, tmp_path):
+        existing = tmp_path / "out"
+        existing.write_text("keep me", encoding="utf-8")
+        with pytest.raises(ValueError, match="^result_local_path "):
+            await response_limits.write_capped_result_to_disk(
+                {"a": 1},
+                f"{existing}/",
+                default_filename="fallback.json",
+                manifest_extra={},
+                local_path_param="result_local_path",
+            )
 
     async def test_creates_missing_parent_dirs(self, tmp_path):
         dest = tmp_path / "nested" / "sub" / "out.json"
