@@ -152,6 +152,37 @@ class TestWriteCappedResultToDisk:
         assert result["local_path"] == str(dest)
         assert dest.exists()
 
+    async def test_missing_directory_with_trailing_slash_is_created(self, tmp_path):
+        """#990: 'dir/' for a directory that doesn't exist yet means a directory,
+        not a file named 'dir'."""
+        missing = tmp_path / "new" / "sub"
+        result = await response_limits.write_capped_result_to_disk(
+            {"a": 1}, f"{missing}/", default_filename="fallback.json", manifest_extra={}
+        )
+        dest = missing / "fallback.json"
+        assert missing.is_dir()
+        assert result["local_path"] == str(dest)
+        assert json.loads(dest.read_text()) == {"a": 1}
+
+    async def test_existing_directory_with_trailing_slash_uses_default_filename(self, tmp_path):
+        result = await response_limits.write_capped_result_to_disk(
+            "text", f"{tmp_path}/", default_filename="fallback.md", manifest_extra={}
+        )
+        dest = tmp_path / "fallback.md"
+        assert result["local_path"] == str(dest)
+        assert dest.read_text() == "text"
+
+    async def test_trailing_slash_on_existing_file_raises_and_keeps_file(self, tmp_path):
+        """#990: a trailing slash naming an existing regular file is refused,
+        never overwritten as if the slash weren't there."""
+        existing = tmp_path / "out"
+        existing.write_text("keep me", encoding="utf-8")
+        with pytest.raises(ValueError, match="must be a directory"):
+            await response_limits.write_capped_result_to_disk(
+                {"a": 1}, f"{existing}/", default_filename="fallback.json", manifest_extra={}
+            )
+        assert existing.read_text(encoding="utf-8") == "keep me"
+
     async def test_creates_missing_parent_dirs(self, tmp_path):
         dest = tmp_path / "nested" / "sub" / "out.json"
         await response_limits.write_capped_result_to_disk(

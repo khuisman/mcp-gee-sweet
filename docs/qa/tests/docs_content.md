@@ -4278,3 +4278,18 @@ Comment text is plain text, so no line of it may render as Markdown structure, a
 **Result (2026-10-11) ✅ PASS (case as written), ❌ sent back on probes — Kit, PR #991 round 2 (`de8143e`).** Ran with the export under this job's scratch dir instead of `/tmp`. Every check passed for the case's own content: body `<p>- a</p>`, `<p># h</p>`, `<p>---</p>`, `<p>tab indent</p>`; the comment's eight lines joined by `<br />` in one paragraph, then `<p>indented *x*</p>`; no `<ul>`/`<ol>`/`<table>`/`<pre>`. Extra probes on the same doc failed: (1) a body paragraph `## Notes` and a comment line `## Notes` each rendered as `<h2>`, and the comment line before it kept a literal `\`, because `_LEADING_SIMPLE_MARKER` matches only a single `#`; (2) `add_doc_comment(quoted_text="Summary\n===  ")` exported `> Summary\` / `> ===  `, which renders as `<h1>Summary\</h1>` inside the blockquote, because `_LEADING_RULE_LINE` doesn't allow trailing whitespace after `=`. Drive trims trailing whitespace from the end of comment `content` (not from `quoted_text`), and a mid-content `===  ` line is safe because the hard break before it blocks the setext.
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #991 round 3 (`95ba882`).** Ran with the export under this job's scratch dir instead of `/tmp`. Step 3's HTML had no `<ul>`/`<ol>`/`<h1>`/`<table>`/`<pre>`, exactly one `<h2>` (`Comments`) and one `<hr />`. Body: `<p>- a</p>`, `<p># h</p>`, `<p>---</p>`, `<p>tab indent</p>`, `<p>## Notes</p>`. Step 1's comment rendered its nine lines through `## Notes` joined by `<br />` with no literal `\`, then `<p>indented *x*</p>`. Step 1a's `quoted_text` came back as `Summary\n===  ` (trailing spaces kept) and rendered as `<blockquote><p>Summary<br />===</p></blockquote>`, no `<h1>`.
+
+### TC-DOC218: A trailing-slash `local_path` naming a missing directory creates it; one naming an existing file is refused (issue #990) ⚠️ local-filesystem
+Every capped tool's `local_path` goes through the shared `write_capped_result_to_disk`. Before #990, `dir/` for a directory that didn't exist yet was written as a *file* named `dir`, and `file/` over an existing file overwrote it.
+
+**Setup:** `rm -rf /tmp/qa-990 && mkdir -p /tmp/qa-990 && printf 'keep me' > /tmp/qa-990/blocker`. Confirm `/tmp/qa-990/new` doesn't exist.
+
+**Steps**
+1. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/new/sub/")`
+2. `get_doc_as_markdown(doc_id={DOC_ID}, local_path="/tmp/qa-990/blocker/")`
+
+**Checks**
+- Step 1 returns `local_path` `/tmp/qa-990/new/sub/{DOC_ID}.md`. `/tmp/qa-990/new/sub` is a directory (`test -d`), not a file, and the `.md` file in it holds raw Markdown whose byte size equals `bytes_written`
+- Step 2 raises "local_path '/tmp/qa-990/blocker/' ends in a separator, so it must be a directory, but '/tmp/qa-990/blocker' is an existing file", and `/tmp/qa-990/blocker` still holds `keep me`
+
+**Cleanup:** `rm -rf /tmp/qa-990`

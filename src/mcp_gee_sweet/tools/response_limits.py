@@ -106,17 +106,25 @@ async def write_capped_result_to_disk(
     Markdown (PR #982 QA round 1).
 
     Resolves a directory path via default_filename, mirroring get_sheet_data's
-    original local_path handling from issue #235. This path exists specifically to
-    hold data too large for the response-size cap, so the write itself is offloaded
-    to a worker thread rather than blocking the event loop for however long a large
-    write takes.
+    original local_path handling from issue #235. A path ending in a separator is
+    a directory whether or not it exists yet: it's created rather than written as
+    a file named after it (#990), the same rule as drive/transfer.py's
+    _validate_local_destination. This path exists specifically to hold data too
+    large for the response-size cap, so the write itself is offloaded to a worker
+    thread rather than blocking the event loop for however long a large write takes.
     """
     dest = Path(local_path)
-    if dest.is_dir():
+    wants_dir = local_path.endswith(("/", os.sep))
+    if wants_dir or dest.is_dir():
         dest = dest / default_filename
 
     def _write() -> int:
         text = result if isinstance(result, str) else json.dumps(result)
+        if wants_dir and dest.parent.exists() and not dest.parent.is_dir():
+            raise ValueError(
+                f"local_path {local_path!r} ends in a separator, so it must be a "
+                f"directory, but {str(dest.parent)!r} is an existing file"
+            )
         dest.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(dest, lambda fh: fh.write(text.encode("utf-8")))
         return dest.stat().st_size

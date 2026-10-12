@@ -2068,8 +2068,8 @@ revision separate (#814), so the diff below uses one.
 
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
 
-**Setup:** `mkdir -p /tmp/qa-959` (the directory must exist: a `local_path` naming a missing
-directory, even with a trailing `/`, is written as a file of that name).
+**Setup:** `mkdir -p /tmp/qa-959` (before #990, a `local_path` naming a missing directory, even
+with a trailing `/`, was written as a file of that name; TC-D284 covers the missing-directory case).
 `create_doc(title="qa-959-args", content="<p>Saved to disk</p>")`, then
 `list_revisions` on it and on `TEST_SPREADSHEET_ID`, taking each one's last `revisionId`.
 
@@ -2126,6 +2126,25 @@ is the Shared Drive.
 **Teardown:** `delete_file(file_id="<id>")` on the SA server.
 
 **Result (2026-10-11, PR #988 round 1, `8b223c5`) ⏭️ SKIP** — Not run: a lane QA session may call only its own `mcp-gee-sweet-kit` server, and the case needs `mcp-gee-sweet-sa`. Pending for a release pass (Aziz may use the `-sa` slot). The trash branch is unit-tested only so far.
+
+---
+
+### TC-D284: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
+
+Reproduces PR #988 round 1's observation: with `/tmp/qa-990` absent, `local_path="/tmp/qa-990/"`
+wrote a 15-byte *file* named `/tmp/qa-990`.
+
+**Setup:** `rm -rf /tmp/qa-990`. `create_doc(title="qa-990", content="<p>Saved to disk</p>")`, then
+`list_revisions(file_id="<doc-id>")` and take the last `revisionId`.
+
+**Tool calls**
+1. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", local_path="/tmp/qa-990/")`
+
+**Checks**
+- Call 1 returns `local_path` `/tmp/qa-990/<doc-id>-r<doc rev>.md`, not `/tmp/qa-990`.
+- `/tmp/qa-990` is a directory (`test -d`), and the `.md` file in it holds `Saved to disk`.
+
+**Teardown:** `rm -rf /tmp/qa-990`; `delete_file(file_id="<doc-id>")`.
 
 ---
 
