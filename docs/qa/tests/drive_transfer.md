@@ -2131,20 +2131,23 @@ is the Shared Drive.
 
 ### TC-D284: `export_revision` — a trailing-slash `local_path` naming a missing directory creates it, not a file (issue #990) ⚠️ local-filesystem ⚠️ requires-oauth
 
-Reproduces PR #988 round 1's observation: with `/tmp/qa-990` absent, `local_path="/tmp/qa-990/"`
-wrote a 15-byte *file* named `/tmp/qa-990`.
+Reproduces PR #988 round 1's observation: with the directory absent, `local_path="<dir>/"`
+wrote a 15-byte *file* named after it. Uses `/tmp/qa-990-rev`, not TC-DOC218's `/tmp/qa-990`, so
+parallel shards don't delete each other's scratch dir.
 
-**Setup:** `rm -rf /tmp/qa-990`. `create_doc(title="qa-990", content="<p>Saved to disk</p>")`, then
+**Setup:** `rm -rf /tmp/qa-990-rev`. `create_doc(title="qa-990", content="<p>Saved to disk</p>")`, then
 `list_revisions(file_id="<doc-id>")` and take the last `revisionId`.
 
 **Tool calls**
-1. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", local_path="/tmp/qa-990/")`
+1. `export_revision(file_id="<doc-id>", revision_id="<doc rev>", local_path="/tmp/qa-990-rev/")`
 
 **Checks**
-- Call 1 returns `local_path` `/tmp/qa-990/<doc-id>-r<doc rev>.md`, not `/tmp/qa-990`.
-- `/tmp/qa-990` is a directory (`test -d`), and the `.md` file in it holds `Saved to disk`.
+- Call 1 returns `local_path` `/tmp/qa-990-rev/<doc-id>-r<doc rev>.md`, not `/tmp/qa-990-rev`.
+- `/tmp/qa-990-rev` is a directory (`test -d`), and the `.md` file in it holds `Saved to disk`.
 
-**Teardown:** `rm -rf /tmp/qa-990`; `delete_file(file_id="<doc-id>")`.
+**Teardown:** `rm -rf /tmp/qa-990-rev`; `delete_file(file_id="<doc-id>")`.
+
+**Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 1 (`12bd36a`).** Ran under this job's scratch dir instead of `/tmp`. With the directory absent, call 1 returned `local_path` `<dir>/<doc-id>-r3.md`, `bytes_written` 15; `<dir>` is a directory and the file holds `Saved to disk`.
 
 ---
 

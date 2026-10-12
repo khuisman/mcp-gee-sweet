@@ -4293,3 +4293,5 @@ Every capped tool's `local_path` goes through the shared `write_capped_result_to
 - Step 2 raises "local_path '/tmp/qa-990/blocker/' ends in a separator, so it must be a directory, but '/tmp/qa-990/blocker' is an existing file", and `/tmp/qa-990/blocker` still holds `keep me`
 
 **Cleanup:** `rm -rf /tmp/qa-990`
+
+**Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 1 (`12bd36a`).** Ran under this job's scratch dir instead of `/tmp`. Step 1 returned `local_path` `<dir>/new/sub/{DOC_ID}.md`, `bytes_written` 96; `new/sub` is a directory and the file is 96 bytes. Step 2 raised the expected "ends in a separator, so it must be a directory, but … is an existing file" error and `blocker` still holds `keep me`. Probes outside the case (sent back): `<file>/sub/` with `<file>` a regular file raises a raw `NotADirectoryError`, and `<dangling symlink>/` raises `FileExistsError`, not the new `ValueError`.
