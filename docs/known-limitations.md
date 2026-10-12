@@ -238,3 +238,30 @@ refused everywhere, which means the same names are refused as path separators on
 
 **Workaround:** Rename the file or folder in Drive (or locally). For a single file,
 `download_file` with a full file path as `local_path` downloads it under that name.
+
+### Downloads replace the local file rather than rewriting it
+
+**What:** `download_file`, `download_folder`, and `sync_folder` write a download to a temporary
+`.gee-sweet-partial-*` file next to the destination, then rename it over the old file. The
+replacement is a new file, so:
+
+- It keeps the old file's permission bits, and its owner and group only when the server may set
+  them (running as root, as the Docker image does). Running as a regular user, a file owned by
+  someone else becomes owned by the server's user. ACLs, extended attributes (macOS Finder tags,
+  the quarantine flag), and the creation time aren't carried over.
+- Another hard link to the old file keeps the old content.
+- The server needs write permission on the destination's *folder*, not just on the file. A
+  writable file inside a read-only folder can't be downloaded over.
+- A FIFO or socket at the destination is refused instead of written to. A device such as
+  `/dev/null` is still written directly.
+
+A download the server is killed partway through leaves its `.gee-sweet-partial-*` file behind.
+`sync_folder` and `upload_local_folder` never upload one and list it under `skipped`; they
+don't delete it, since it may belong to a download that's still running.
+
+**Why:** Writing into the existing file left a truncated file behind when a download failed
+partway, with a fresh mtime that made `sync_folder` upload it over the intact Drive copy (#844).
+A rename means the destination only ever holds the old content or the complete new content.
+
+**Workaround:** Re-apply ACLs, tags, or ownership after downloading, if they matter. Delete a
+leftover `.gee-sweet-partial-*` file once no download into that folder is running.

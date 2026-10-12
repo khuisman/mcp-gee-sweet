@@ -41,6 +41,12 @@ _EXPORT_MIME: dict[str, tuple[str, str]] = {
 
 _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 
+# sync_folder's skip reason for a local _write_atomically temp file (#887).
+_PARTIAL_SKIP_REASON = (
+    "temporary file from an interrupted download; never synced, "
+    "safe to delete unless a download into this folder is still running"
+)
+
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
 # use_checksum hashes every both-sides pair with a Drive md5Checksum (#716), so
@@ -266,24 +272,99 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
-def _validate_local_destination(local_path: str) -> tuple[Path, bool]:
-    """Reject a non-directory path component before making any Drive request.
+def _local_dir_blocker(path: Path) -> Path | None:
+    """The nearest existing component of `path` (itself, then its parents), if
+    it isn't a directory; None when `path` can be created with mkdir -p.
 
-    A trailing separator means the destination itself must be a directory;
-    otherwise the destination is a file and only its parents must be directories.
-    Existing regular files at an explicit file destination may still be replaced.
+    A dangling symlink counts as existing: mkdir can't create a directory over it.
+    """
+    for p in (path, *path.parents):
+        if p.exists() or p.is_symlink():
+            return None if p.is_dir() else p
+    return None
+
+
+def _is_dangling_symlink(path: Path) -> bool:
+    return path.is_symlink() and not path.exists()
+
+
+def _blocked_destination_error(
+    local_path: str, blocker: Path, ending_made_dir: bool = False
+) -> ValueError:
+    """The ValueError for a local_path that `blocker` stops from being written.
+
+    `ending_made_dir`: `blocker` is the destination itself, and only local_path's
+    ending (a trailing separator, '.' or '..') made it a directory target. The
+    message then says so, since dropping that ending writes a file there instead.
+    """
+    if _is_dangling_symlink(blocker):
+        return ValueError(
+            f"local_path {local_path!r} has a symlink to a missing target at {str(blocker)!r}"
+        )
+    message = f"local_path {local_path!r} has a non-directory path component at {str(blocker)!r}"
+    if ending_made_dir:
+        message += (
+            "; local_path ends in a path separator or '.', which makes it a directory "
+            "target. Remove that ending to write a file at that path instead"
+        )
+    return ValueError(message)
+
+
+def _validate_local_destination(local_path: str, *, is_dir: bool = False) -> tuple[Path, bool]:
+    """Reject a blocked local destination before making any Drive request.
+
+    The destination must be a directory when `is_dir` is set or local_path ends
+    in a separator, '.' or '..' (Path() drops a trailing '/.', so a check on the
+    Path alone would read 'dir/.' as a file named 'dir'). Otherwise it's a file
+    and only its parents must be directories: an existing regular file there may
+    still be replaced, but a dangling symlink is refused, the same as a dangling
+    symlink at a directory target (#874).
     """
     dest = Path(local_path)
-    wants_dir = local_path.endswith(("/", os.sep))
-    start = dest if wants_dir else dest.parent
-    for path in (start, *start.parents):
-        if path.exists() or path.is_symlink():
-            if not path.is_dir():
-                raise ValueError(
-                    f"local_path {local_path!r} has a non-directory path component at {str(path)!r}"
-                )
-            break
+    ending_made_dir = os.path.basename(local_path) in ("", ".", "..")
+    wants_dir = is_dir or ending_made_dir
+    if wants_dir:
+        blocker = _local_dir_blocker(dest)
+    elif _is_dangling_symlink(dest):
+        blocker = dest
+    else:
+        blocker = _local_dir_blocker(dest.parent)
+    if blocker is not None:
+        raise _blocked_destination_error(
+            local_path, blocker, ending_made_dir and not is_dir and blocker == dest
+        )
     return dest, wants_dir
+
+
+def _make_local_dir(path: Path, local_path: str) -> None:
+    """mkdir -p `path`, raising the preflight's ValueError when something was
+    created in the way after _validate_local_destination ran (it runs before an
+    awaited Drive call, so a concurrent download can get there first; #874)."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except (FileExistsError, NotADirectoryError):
+        blocker = _local_dir_blocker(path)
+        if blocker is None:
+            raise
+        raise _blocked_destination_error(local_path, blocker) from None
+
+
+def _download_media(drive_service, file_id: str, dest: Path, mtime: float | None = None) -> None:
+    """Stream a non-Workspace Drive file's content into `dest` via _write_atomically.
+
+    Blocking: run it with asyncio.to_thread. thread_http is called here, on the
+    worker thread, so concurrent downloads never share one httplib2 transport.
+    """
+    request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
+    request.http = thread_http(drive_service)
+
+    def _stream(fh: BinaryIO) -> None:
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+    _write_atomically(dest, _stream, mtime)
 
 
 def _unsafe_name_reason(name: str) -> str | None:
@@ -303,6 +384,10 @@ def _unsafe_name_reason(name: str) -> str | None:
         return "name contains a path separator"
     if name in (".", ".."):
         return f"name is the special path segment {name!r}"
+    if _is_partial_download(name):
+        # sync_folder and upload_local_folder never read such a file locally,
+        # so it would download again on every sync (#887).
+        return "name is reserved for this server's temporary download files"
     # Catches a Windows drive-qualified name such as 'C:x' (relative but
     # anchored to another drive); the separator check above already covers
     # every POSIX absolute path.
@@ -1345,6 +1430,10 @@ async def _sync_level(
         drive_map[local_name] = f
 
     local_map: dict[str, Path] = {}
+    # Temp files a killed download left behind (_write_atomically): never
+    # uploaded, but reported as a skip so they don't sit unnoticed at near
+    # full size (#887). Not deleted: one may belong to a download still running.
+    partial_names: set[str] = set()
     if dest_dir.is_dir():
         for p in dest_dir.iterdir():
             if not p.is_file():
@@ -1352,6 +1441,7 @@ async def _sync_level(
             if skip_system_files and p.name in _SYSTEM_FILES:
                 continue
             if _is_partial_download(p.name):
+                partial_names.add(p.name)
                 continue
             # Only a backslash (a separator on Windows, legal in a POSIX name) can
             # fail this for a name the OS listed. Such a file would upload under
@@ -1370,7 +1460,12 @@ async def _sync_level(
     plan: list[_SyncStep] = []
     hash_jobs: list[_HashJob] = []
     revision_jobs: list[_RevisionJob] = []
-    for name in sorted(drive_map.keys() | local_map.keys() | collision_names | unsafe_names.keys()):
+    for name in sorted(
+        drive_map.keys() | local_map.keys() | collision_names | unsafe_names.keys() | partial_names
+    ):
+        if name in partial_names and name not in unsafe_names:
+            plan.append(_SyncStep(name=name, action="skip", reason=_PARTIAL_SKIP_REASON))
+            continue
         if name in unsafe_names:
             # Same shape as local_read_fail: one 'failed' entry on a real run,
             # never an exception out of the whole call.
@@ -1945,22 +2040,9 @@ async def _sync_level(
                         _write_atomically, dest_file, lambda fh, c=content: fh.write(c), drive_ts
                     )
                 else:
-
-                    def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
-                        request = drive_service.files().get_media(
-                            fileId=fid, supportsAllDrives=True
-                        )
-                        request.http = thread_http(drive_service)
-
-                        def _stream(fh: BinaryIO) -> None:
-                            downloader = MediaIoBaseDownload(fh, request)
-                            done = False
-                            while not done:
-                                _, done = downloader.next_chunk()
-
-                        _write_atomically(dest_file, _stream, drive_ts)
-
-                    await asyncio.to_thread(_download_to_completion)
+                    await asyncio.to_thread(
+                        _download_media, drive_service, fid, dest_file, drive_ts
+                    )
                 size = dest_file.stat().st_size
                 logger.debug("Synced (download) Drive → %s%s (%d bytes)", rel_prefix, name, size)
                 return {"kind": "download_ok", "name": name, "bytes": size}
@@ -2108,19 +2190,30 @@ async def _sync_level(
                     # A Drive file and a Drive folder can share a name (they're keyed
                     # by ID, not name) — if the file-level pass above just downloaded
                     # a same-named file here, exist_ok=True won't save us since the
-                    # existing path isn't a directory.
-                    if child_dest_dir.exists() and not child_dest_dir.is_dir():
+                    # existing path isn't a directory. The mkdir is checked too, for
+                    # anything created there since the check (#874).
+                    blocker = _local_dir_blocker(child_dest_dir)
+                    if blocker is None:
+                        try:
+                            child_dest_dir.mkdir(parents=True, exist_ok=True)
+                        except (FileExistsError, NotADirectoryError):
+                            blocker = _local_dir_blocker(child_dest_dir) or child_dest_dir
+                    if blocker is not None:
+                        what = (
+                            "a symlink to a missing target"
+                            if _is_dangling_symlink(blocker)
+                            else "a file with the same name"
+                        )
                         failed.append(
                             {
                                 "name": child_rel_prefix,
                                 "error": (
-                                    f"cannot create local folder '{name}': a file with "
-                                    "the same name already exists at this path"
+                                    f"cannot create local folder '{name}': {what} "
+                                    "already exists at this path"
                                 ),
                             }
                         )
                         continue
-                    child_dest_dir.mkdir(parents=True, exist_ok=True)
             else:  # local only
                 if direction not in ("upload", "bidirectional"):
                     folders_skipped.append(child_rel_prefix)
@@ -2728,7 +2821,9 @@ def register(tool):
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', 'skipped_unverified', and
-            'failed'. 'uploaded'/'skipped' are filenames. 'skipped_unverified' (only
+            'failed'. 'uploaded'/'skipped' are filenames. 'skipped' also lists any
+            '.gee-sweet-partial-*' temp file an interrupted download left in the
+            folder; those are never uploaded. 'skipped_unverified' (only
             ever populated under convert=True) holds {name, matched_name, reason}
             entries for files skipped because an existing file in the target format is
             named after the local file's extension-stripped stem (Drive strips the
@@ -2753,14 +2848,16 @@ def register(tool):
         if not folder.is_dir():
             raise ValueError(f"No directory found at {local_path!r}")
 
-        candidates = [
-            p for p in folder.iterdir() if p.is_file() and not _is_partial_download(p.name)
-        ]
+        files = [p for p in folder.iterdir() if p.is_file()]
+        # A download's temp file is never uploaded, but it's listed under
+        # 'skipped' so it doesn't go unnoticed (#887).
+        partials = sorted(p.name for p in files if _is_partial_download(p.name))
+        candidates = [p for p in files if not _is_partial_download(p.name)]
         if skip_system_files:
             candidates = [p for p in candidates if p.name not in _SYSTEM_FILES]
 
         uploaded: list[str] = []
-        skipped: list[str] = []
+        skipped: list[str] = list(partials)
         skipped_unverified: list[dict[str, str]] = []
         failed: list[dict[str, str]] = []
         any_created = False
@@ -2925,8 +3022,11 @@ def register(tool):
 
         If local_path is a directory, the file is saved inside it using the Drive
         filename (with an extension appended for exported Workspace files). A
-        local_path ending in a path separator is always treated as a directory
-        target, and is created (mkdir -p) if it doesn't exist yet. A Drive name
+        local_path ending in a path separator (or in '/.' or '/..') is always
+        treated as a directory target, and is created (mkdir -p) if it doesn't
+        exist yet. A local_path that can't be written (a parent is a file, or the
+        destination is a symlink to a missing target) raises ValueError before
+        anything is downloaded. A Drive name
         that isn't a single ordinary filename (it contains '/' or '\\', is '.' or
         '..', etc.) is refused for a directory target with a ValueError, before
         anything is written; pass a full file path as local_path instead.
@@ -2972,10 +3072,10 @@ def register(tool):
                     f"Drive file name {drive_name!r} can't be used as a local filename: "
                     f"{e}. Pass a full file path as local_path to choose the name."
                 ) from None
-            dest.mkdir(parents=True, exist_ok=True)
+            _make_local_dir(dest, local_path)
             dest = target
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        _make_local_dir(dest.parent, local_path)
 
         if is_workspace:
             if not export_format:
@@ -2996,20 +3096,7 @@ def register(tool):
                 content = content.encode("utf-8")
             await asyncio.to_thread(_write_atomically, dest, lambda fh: fh.write(content))
         else:
-
-            def _download_to_completion() -> None:
-                request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
-                request.http = thread_http(drive_service)
-
-                def _stream(fh: BinaryIO) -> None:
-                    downloader = MediaIoBaseDownload(fh, request)
-                    done = False
-                    while not done:
-                        _, done = downloader.next_chunk()
-
-                _write_atomically(dest, _stream)
-
-            await asyncio.to_thread(_download_to_completion)
+            await asyncio.to_thread(_download_media, drive_service, file_id, dest)
 
         size = dest.stat().st_size
         logger.debug("Downloaded %s → %s (%d bytes)", file_id, dest, size)
@@ -3070,8 +3157,8 @@ def register(tool):
             plus total 'size_bytes' downloaded.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        dest_dir = Path(local_path)
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_dir, _ = _validate_local_destination(local_path, is_dir=True)
+        _make_local_dir(dest_dir, local_path)
         resolved_dest_dir = dest_dir.resolve()
 
         query = f"'{folder_id}' in parents and trashed=false"
@@ -3220,24 +3307,9 @@ def register(tool):
                         _write_atomically, candidate.dest_file, lambda fh: fh.write(content)
                     )
                 else:
-
-                    def _download_to_completion(
-                        fid=candidate.file_id, dest_file=candidate.dest_file
-                    ) -> None:
-                        request = drive_service.files().get_media(
-                            fileId=fid, supportsAllDrives=True
-                        )
-                        request.http = thread_http(drive_service)
-
-                        def _stream(fh: BinaryIO) -> None:
-                            downloader = MediaIoBaseDownload(fh, request)
-                            done = False
-                            while not done:
-                                _, done = downloader.next_chunk()
-
-                        _write_atomically(dest_file, _stream)
-
-                    await asyncio.to_thread(_download_to_completion)
+                    await asyncio.to_thread(
+                        _download_media, drive_service, candidate.file_id, candidate.dest_file
+                    )
 
                 size = candidate.dest_file.stat().st_size
                 logger.debug(
@@ -3516,7 +3588,9 @@ def register(tool):
             section above), 'folders_skipped' (relative subfolder paths not entered —
             always empty when recursive=False), size_bytes transferred, dry_run flag,
             and — when dry_run=True — an 'actions' list with {name, action, reason}
-            for every file considered at every level visited. Each 'failed' entry is
+            for every file considered at every level visited. A '.gee-sweet-partial-*'
+            temp file an interrupted download left locally is never synced; it's
+            listed under 'skipped' (a 'skip' action under dry_run). Each 'failed' entry is
             {name, error} plus a 'fileId' in the narrow convert_markdown case where
             create() actually succeeded in Drive but a follow-up metadata call then
             failed (#420) — that fileId names a real, already-created Drive file, not
@@ -3540,8 +3614,8 @@ def register(tool):
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
-        dest_dir = Path(local_path)
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_dir, _ = _validate_local_destination(local_path, is_dir=True)
+        _make_local_dir(dest_dir, local_path)
 
         if result_local_path:
             # local_path is also a live input directory this same call scans — unlike

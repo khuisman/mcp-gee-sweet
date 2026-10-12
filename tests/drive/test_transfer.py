@@ -1148,6 +1148,26 @@ class TestUploadLocalFolder:
             "folder1"
         )
 
+    async def test_leftover_partial_listed_as_skipped_not_uploaded(self, tmp_path):
+        """#887: a download's leftover temp file is never uploaded, but it's
+        reported rather than silently ignored."""
+        (tmp_path / "a.txt").write_text("a")
+        leftover = tmp_path / (atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef")
+        leftover.write_bytes(b"half a file")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "a.txt",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == ["a.txt"]
+        assert result["skipped"] == [leftover.name]
+        assert drive_svc.files.return_value.create.call_count == 1
+
     async def test_restamp_failure_orphan_still_marks_folder_cache_dirty(self, tmp_path):
         """#420 QA round 1 (PR #645): a single-item folder where create()
         succeeds but the convert restamp then fails never lands in `uploaded`
@@ -2203,6 +2223,64 @@ class TestSyncFolderRecursive:
         ]
         # the pre-existing local file itself must survive untouched
         assert (tmp_path / "collide").read_text() == "existing local file, not a directory"
+
+    async def test_dangling_symlink_at_subfolder_path_recorded_as_failed(self, tmp_path):
+        """#874: exists() is False for a dangling symlink, so the guard above
+        missed it and mkdir raised a raw FileExistsError mid-sync."""
+        (tmp_path / "collide").symlink_to(tmp_path / "missing-target")
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("collide", "collide-folder-id")],
+                "collide-folder-id": [],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["failed"] == [
+            {
+                "name": "collide/",
+                "error": (
+                    "cannot create local folder 'collide': a symlink to a missing target "
+                    "already exists at this path"
+                ),
+            }
+        ]
+        assert (tmp_path / "collide").is_symlink()
+        assert not (tmp_path / "missing-target").exists()
+
+    async def test_file_created_at_subfolder_path_after_check_recorded_as_failed(
+        self, tmp_path, monkeypatch
+    ):
+        """#874: the mkdir itself is guarded too, for a file that appears
+        between the check and the mkdir."""
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("collide", "collide-folder-id")],
+                "collide-folder-id": [],
+            }
+        )
+        real_mkdir = Path.mkdir
+
+        def _racing_mkdir(self, *args, **kwargs):
+            if self.name == "collide":
+                self.write_text("raced in")
+            return real_mkdir(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "mkdir", _racing_mkdir)
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert [f["name"] for f in result["failed"]] == ["collide/"]
+        assert (tmp_path / "collide").read_text() == "raced in"
 
     async def test_drive_folder_create_failure_recorded_as_failed_not_crashed(self, tmp_path):
         """PR #328 review: unlike every file-level transfer, the Drive folder-create
@@ -3865,6 +3943,42 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
 
         assert result["uploaded"] == []
         assert fs.created_files == []
+        # #887: reported, so it doesn't sit there unnoticed, but not deleted.
+        assert result["skipped"] == [leftover.name]
+        assert leftover.read_bytes() == b"half a file"
+
+    async def test_leftover_partial_is_a_skip_action_in_dry_run(self, tmp_path):
+        leftover = tmp_path / (atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef")
+        leftover.write_bytes(b"half a file")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), dry_run=True, ctx=self._ctx(fs)
+        )
+
+        assert result["skipped"] == []
+        assert result["actions"] == [
+            {
+                "name": leftover.name,
+                "action": "skip",
+                "reason": transfer_module._PARTIAL_SKIP_REASON,
+            }
+        ]
+
+    async def test_drive_file_with_partial_name_is_refused(self, tmp_path, monkeypatch):
+        """#887: only the local side filtered the temp name, so a Drive file
+        with it downloaded, was hidden locally, and downloaded again next sync."""
+        name = atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef"
+        fs = _FakeDriveFS({"root": [_drive_file(name, "fp", mime="application/octet-stream")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="download", ctx=self._ctx(fs)
+        )
+
+        assert result["downloaded"] == []
+        assert [f["name"] for f in result["failed"]] == [name]
+        assert "reserved" in result["failed"][0]["error"]
+        assert list(tmp_path.iterdir()) == []
 
 
 class TestDownloadToolsFailedDownloadLeavesNoPartial:
@@ -5189,7 +5303,6 @@ class TestDownloadFile:
         )
         svc.files.return_value.export.return_value.execute.return_value = b"pptx bytes"
         dest = tmp_path / "custom_name.pptx"
-        dest.write_bytes(b"previous download")
 
         result = await _transfer_tools["download_file"](
             file_id="slides1",
@@ -5202,6 +5315,26 @@ class TestDownloadFile:
             fileId="slides1",
             mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
+        assert result["local_path"] == str(dest)
+        assert dest.read_bytes() == b"pptx bytes"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["custom_name.pptx"]
+
+    async def test_explicit_local_path_replaces_existing_file(self, tmp_path):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Slides", "application/vnd.google-apps.presentation"
+        )
+        svc.files.return_value.export.return_value.execute.return_value = b"pptx bytes"
+        dest = tmp_path / "custom_name.pptx"
+        dest.write_bytes(b"previous download")
+
+        result = await _transfer_tools["download_file"](
+            file_id="slides1",
+            local_path=str(dest),
+            export_format="pptx",
+            ctx=self._ctx(svc),
+        )
+
         assert result["local_path"] == str(dest)
         assert dest.read_bytes() == b"pptx bytes"
 
@@ -5424,12 +5557,169 @@ class TestDownloadFile:
         blocker = tmp_path / "dangling"
         blocker.symlink_to(tmp_path / "missing-target")
 
-        with pytest.raises(ValueError, match=r"non-directory path component at.*dangling"):
+        with pytest.raises(ValueError, match=r"symlink to a missing target at.*dangling"):
             await _transfer_tools["download_file"](
                 file_id="bin1", local_path=str(blocker) + os.sep, ctx=self._ctx(svc)
             )
 
         svc.files.return_value.get.assert_not_called()
+
+    async def test_dangling_symlink_at_explicit_file_destination_is_refused(self, tmp_path):
+        """#874: without a trailing slash the same dangling symlink used to be
+        accepted, and the write followed it to create its missing target."""
+        svc = MagicMock()
+        missing = tmp_path / "missing-target"
+        link = tmp_path / "out.bin"
+        link.symlink_to(missing)
+
+        with pytest.raises(ValueError, match=r"symlink to a missing target at.*out\.bin"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(link), ctx=self._ctx(svc)
+            )
+
+        svc.files.return_value.get.assert_not_called()
+        assert not missing.exists()
+
+    async def test_trailing_slash_dot_is_a_directory_target(self, tmp_path):
+        """#874: Path() drops a trailing '/.', so 'newdir/.' used to write a file
+        named 'newdir' (the #690 symptom)."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Doc", "application/vnd.google-apps.document"
+        )
+        svc.files.return_value.export.return_value.execute.return_value = b"pdf bytes"
+        newdir = tmp_path / "newdir"
+
+        result = await _transfer_tools["download_file"](
+            file_id="doc1",
+            local_path=str(newdir) + os.sep + ".",
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+
+        assert newdir.is_dir()
+        assert (newdir / "My Doc.pdf").read_bytes() == b"pdf bytes"
+        assert result["local_path"] == str(newdir / "My Doc.pdf")
+
+    async def test_trailing_slash_dot_over_existing_file_raises_with_hint(self, tmp_path):
+        """#874: 'report/.' over an existing file used to overwrite it. The error
+        says the ending is what made it a directory target."""
+        svc = MagicMock()
+        report = tmp_path / "report"
+        report.write_bytes(b"keep me")
+
+        with pytest.raises(ValueError, match=r"Remove that ending to write a file"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(report) + os.sep + ".", ctx=self._ctx(svc)
+            )
+
+        assert report.read_bytes() == b"keep me"
+        svc.files.return_value.get.assert_not_called()
+
+    async def test_trailing_slash_hint_only_when_destination_itself_blocks(self, tmp_path):
+        """#874: the hint names the trailing separator only when dropping it
+        would help, i.e. the destination itself is the file in the way."""
+        svc = MagicMock()
+        clash = tmp_path / "clash"
+        clash.write_bytes(b"i am a file")
+
+        with pytest.raises(ValueError, match=r"ends in a path separator"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(clash) + os.sep, ctx=self._ctx(svc)
+            )
+        with pytest.raises(ValueError) as excinfo:
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(clash / "sub") + os.sep, ctx=self._ctx(svc)
+            )
+        assert "ends in a path separator" not in str(excinfo.value)
+
+    async def test_directory_created_during_metadata_call_raises_valueerror(self, tmp_path):
+        """#874: the preflight runs before the awaited metadata call, so a file
+        created at the target meanwhile must still surface as ValueError, not a
+        raw FileExistsError from mkdir."""
+        svc = MagicMock()
+        target = tmp_path / "out"
+
+        def _metadata_then_race(*_args, **_kwargs):
+            target.write_bytes(b"raced in")
+            return self._metadata("x.bin", "application/octet-stream")
+
+        svc.files.return_value.get.return_value.execute.side_effect = _metadata_then_race
+
+        with pytest.raises(ValueError, match=r"non-directory path component at.*out"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(target) + os.sep, ctx=self._ctx(svc)
+            )
+        assert target.read_bytes() == b"raced in"
+
+    async def test_parent_created_during_metadata_call_raises_valueerror(self, tmp_path):
+        """#874: same race for an explicit file destination's parent, which
+        raised a raw NotADirectoryError/FileExistsError."""
+        svc = MagicMock()
+        parent = tmp_path / "sub"
+
+        def _metadata_then_race(*_args, **_kwargs):
+            parent.write_bytes(b"raced in")
+            return self._metadata("x.bin", "application/octet-stream")
+
+        svc.files.return_value.get.return_value.execute.side_effect = _metadata_then_race
+
+        with pytest.raises(ValueError, match=r"non-directory path component at.*sub"):
+            await _transfer_tools["download_file"](
+                file_id="bin1", local_path=str(parent / "x.bin"), ctx=self._ctx(svc)
+            )
+
+
+class TestFolderToolsLocalPathPreflight:
+    """#874: download_folder and sync_folder ran a bare mkdir -p on local_path,
+    so a file in an intermediate parent, or a dangling symlink at local_path,
+    leaked a raw NotADirectoryError/FileExistsError after the Drive listing."""
+
+    def _ctx(self, drive_svc):
+        ctx = _make_ctx(drive_service=drive_svc, drive_folder_cache=MagicMock())
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    @pytest.mark.parametrize("tool", ["download_folder", "sync_folder"])
+    async def test_file_in_parent_path_raises_valueerror_before_drive_call(self, tmp_path, tool):
+        clash = tmp_path / "clash"
+        clash.write_bytes(b"i am a file")
+        svc = MagicMock()
+
+        with pytest.raises(ValueError, match=r"non-directory path component at.*clash"):
+            await _transfer_tools[tool](
+                folder_id="root", local_path=str(clash / "sub"), ctx=self._ctx(svc)
+            )
+
+        svc.files.return_value.list.assert_not_called()
+        assert clash.read_bytes() == b"i am a file"
+
+    @pytest.mark.parametrize("tool", ["download_folder", "sync_folder"])
+    async def test_dangling_symlink_local_path_raises_valueerror(self, tmp_path, tool):
+        link = tmp_path / "dest"
+        link.symlink_to(tmp_path / "missing-target")
+        svc = MagicMock()
+
+        with pytest.raises(ValueError, match=r"symlink to a missing target at.*dest"):
+            await _transfer_tools[tool](folder_id="root", local_path=str(link), ctx=self._ctx(svc))
+
+        svc.files.return_value.list.assert_not_called()
+
+    async def test_download_folder_refuses_drive_file_with_partial_name(self, tmp_path):
+        """#887: such a file would be invisible to every later sync of the folder."""
+        name = atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef"
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "fp", "name": name, "mimeType": "application/octet-stream"}]
+        }
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root", local_path=str(tmp_path), ctx=self._ctx(svc)
+        )
+
+        assert result["downloaded"] == []
+        assert [f["name"] for f in result["failed"]] == [name]
+        svc.files.return_value.get_media.assert_not_called()
 
 
 class TestSyncFolderResponseSizeCap:
