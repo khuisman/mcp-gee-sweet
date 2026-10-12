@@ -712,6 +712,9 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 
 The case passes. Extra probe: the same step-8 call with `dry_run=true` listed only `hello.txt: download` and nothing for `sub/`, so the preview doesn't show the failure the real run reports (sent back on the PR).
 
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 2 (`a0955ce`), OAuth, after reconnecting to the fix. Fresh `qa-284` folder and fixtures; steps 1–8 gave the same results as round 1.
+- **Step 9:** `failed` empty; `actions`: `hello.txt` `skip` (`in sync`), and `sub/` `conflict` with `cannot create local folder 'sub': a symlink to a missing target already exists at this path`.
+
 ---
 
 ## `download_folder`
@@ -1943,6 +1946,13 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 - **Step 7:** succeeded; `owned.txt` reads `hello`, group still `staff`.
 
 The case passes. Extra probe: `sync_folder(local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`, where the temp name exists on both sides, reported `skip` / `drive only, upload direction`, which is false, and never mentions the local leftover (sent back on the PR).
+
+**Result (2026-10-11) ✅ PASS** — Sky, PR #1001 round 2 (`a0955ce`), OAuth, macOS, after reconnecting to the fix. Fresh `qa-285` folder and fixtures; steps 1–7 gave the same results as round 1 (`owned.txt` group still `staff`).
+- **Step 8:** `.gee-sweet-partial-0123456789abcdef` is `unsafe_name` with the reserved-name reason, no longer `skip` / `drive only`.
+- **Step 9:** `downloaded` empty; `failed` has the reserved-name entry and `hello.txt`: `[Errno 21] destination is a directory: '/tmp/qa-285/dirsync/hello.txt'`, with no temp-file name. `dirsync/hello.txt` is still an empty directory, and there's no temp file.
+- **Step 10:** `failed` empty; `actions` has `unsafe_name` for the reserved-name file and `.gee-sweet-partial-0123456789abcdef/hello.txt` as `download`, with no `unsafe_name` entry for the folder.
+
+The case passes. Extra probe (sent back on the PR): a Doc exported with `download_file` to a *directory* target holding a FIFO at the export's filename isn't checked before the export. Explicit `local_path=".../explicit.xlsx"` (a FIFO) with `export_format="xlsx"` raised `EINVAL` with no Drive call. `local_path=".../probe/"` with `export_format="xlsx"` (FIFO at `probe/qa-probe.xlsx`) returned Drive's `HttpError 400 … conversion is not supported`, so the export ran first. With `export_format="txt"` (FIFO at `probe/qa-probe.txt`), the call raised `EINVAL`. It runs the same path, so the export had already been fetched by then.
 
 ---
 
