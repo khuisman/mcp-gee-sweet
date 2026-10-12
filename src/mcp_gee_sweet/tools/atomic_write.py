@@ -59,23 +59,16 @@ def _write_atomically(
 
     A character or block device at `dest` (e.g. /dev/null) can't be renamed
     over, so it's written directly, as `open("wb")` did, and `mtime` isn't
-    stamped on it. Any other non-regular file (a FIFO, a socket) is refused
-    with an OSError rather than replaced, or blocking on a FIFO (#887).
+    stamped on it. A directory, FIFO, or socket is refused (_check_destination)
+    before `write` runs, so a download isn't streamed only to fail at the
+    rename, and a FIFO is never replaced or blocked on (#887).
     """
     target = Path(os.path.realpath(dest)) if dest.is_symlink() else dest
-    try:
-        target_st: os.stat_result | None = target.stat()
-    except FileNotFoundError:
-        target_st = None
-    if target_st is not None:
-        if stat.S_ISCHR(target_st.st_mode) or stat.S_ISBLK(target_st.st_mode):
-            with open(target, "wb") as fh:
-                write(fh)
-            return
-        if not stat.S_ISREG(target_st.st_mode) and not stat.S_ISDIR(target_st.st_mode):
-            raise OSError(errno.EINVAL, "destination exists but isn't a regular file", str(target))
-        if not os.access(target, os.W_OK):
-            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(target))
+    target_st = _check_destination(target)
+    if target_st is not None and _is_device(target_st):
+        with open(target, "wb") as fh:
+            write(fh)
+        return
     tmp = target.with_name(_PARTIAL_DOWNLOAD_PREFIX + secrets.token_hex(8))
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
     try:
@@ -100,18 +93,50 @@ def _write_atomically(
     _fsync_directory(target.parent)
 
 
+def _is_device(st: os.stat_result) -> bool:
+    return stat.S_ISCHR(st.st_mode) or stat.S_ISBLK(st.st_mode)
+
+
+def _check_destination(dest: Path) -> os.stat_result | None:
+    """Raise if _write_atomically can't write `dest`; else its stat, or None if absent.
+
+    Callers that fetch content before writing (a Workspace export) call this
+    first too, so a bad destination fails before the round trip. Raises
+    IsADirectoryError for a directory, OSError(EINVAL) for a FIFO or socket,
+    and PermissionError for a file this process can't open for writing (a
+    rename only needs directory permission, so without this a read-only file
+    would be silently replaced; PR #884 QA round 1). A symlink is followed.
+    """
+    try:
+        st = dest.stat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISDIR(st.st_mode):
+        raise IsADirectoryError(errno.EISDIR, "destination is a directory", str(dest))
+    if not stat.S_ISREG(st.st_mode) and not _is_device(st):
+        raise OSError(errno.EINVAL, "destination exists but isn't a regular file", str(dest))
+    if not os.access(dest, os.W_OK):
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(dest))
+    return st
+
+
 def _copy_owner_and_mode(tmp: Path, old: os.stat_result) -> None:
     """Give `tmp` the replaced file's owner, group, and permission bits.
 
     Owner and group are best effort: only root can give a file away, and
-    anyone else can only pick a group they belong to. chown runs before chmod
-    because it can clear bits that chmod then sets.
+    anyone else can only pick a group they belong to. When the full chown is
+    refused, the group alone is still tried (PR #1001 QA round 1). chown runs
+    before chmod because it can clear bits that chmod then sets.
     """
     if hasattr(os, "chown"):
         tmp_st = os.stat(tmp)
         if (tmp_st.st_uid, tmp_st.st_gid) != (old.st_uid, old.st_gid):
-            with contextlib.suppress(OSError):
+            try:
                 os.chown(tmp, old.st_uid, old.st_gid)
+            except OSError:
+                if tmp_st.st_gid != old.st_gid:
+                    with contextlib.suppress(OSError):
+                        os.chown(tmp, -1, old.st_gid)
     os.chmod(tmp, old.st_mode & 0o777)
 
 

@@ -686,6 +686,7 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 > 6. `download_folder(folder_id="{F}", local_path="/tmp/qa-284/dangling-dir")`.
 > 7. `sync_folder(folder_id="{F}", local_path="/tmp/qa-284/clash/sub", direction="download")`.
 > 8. `sync_folder(folder_id="{F}", local_path="/tmp/qa-284/sync", direction="download", recursive=true)`, then `ls -la /tmp/qa-284/ /tmp/qa-284/sync/`.
+> 9. (PR #1001 QA round 1) Repeat step 8 with `dry_run=true`.
 
 **Checks**
 - Step 1: succeeds. `local_path` is `/tmp/qa-284/newdir/hello.txt`; `newdir` is a directory holding `hello.txt`.
@@ -696,6 +697,7 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 - Step 6: raises `ValueError` `local_path '/tmp/qa-284/dangling-dir' has a symlink to a missing target at '/tmp/qa-284/dangling-dir'`. `missing-b` doesn't exist.
 - Step 7: the same `ValueError` as step 5, with `local_path '/tmp/qa-284/clash/sub'`. No `NotADirectoryError`.
 - Step 8: returns normally (no `FileExistsError`). `downloaded` is `["hello.txt"]`, and `failed` is `[{"name": "sub/", "error": "cannot create local folder 'sub': a symlink to a missing target already exists at this path"}]`. `sync/sub` is still a symlink and `missing-c` doesn't exist.
+- Step 9: `failed` is empty. `actions` holds `hello.txt` as `skip` (`in sync`) and `{"name": "sub/", "action": "conflict", "reason": "cannot create local folder 'sub': a symlink to a missing target already exists at this path"}`.
 
 **Teardown**
 `delete_file` on `{F}`. `rm -rf /tmp/qa-284`.
@@ -1897,7 +1899,7 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 
 ### TC-D285: Temp-file names on Drive, device and FIFO destinations, and a kept owner group (issue #887, via #895) ⚠️ local-filesystem ⚠️ destructive
 
-**Background:** #887 lists follow-ups to the temp-file-and-rename download from #844 (TC-D279). Only the local side filtered the temp name, so a Drive file named `.gee-sweet-partial-<16 hex>` downloaded, became invisible locally, and downloaded again on every sync. Such a name is now refused as a local filename, like `..`. The rename also broke non-regular destinations. `/dev/null` failed, since a temp file can't be created in `/dev`. A FIFO was replaced by a regular file. Now a device is written directly, as the old `open("wb")` did, and a FIFO is refused without blocking. The replacement file now also takes the replaced file's group when the process may set it. The fsync, the fd-leak fix, and owner changes (root only) aren't observable through the tool surface; they're unit-tested in `tests/test_atomic_write.py`.
+**Background:** #887 lists follow-ups to the temp-file-and-rename download from #844 (TC-D279). Only the local side filtered the temp name, so a Drive file named `.gee-sweet-partial-<16 hex>` downloaded, became invisible locally, and downloaded again on every sync. Such a name is now refused as a local filename, like `..`. The rename also broke non-regular destinations. `/dev/null` failed, since a temp file can't be created in `/dev`. A FIFO was replaced by a regular file. Now a device is written directly, as the old `open("wb")` did, and a FIFO is refused without blocking. The replacement file now also takes the replaced file's group when the process may set it. A directory at a file's destination is refused before the download starts (PR #1001 QA round 1). The fsync, the fd-leak fix, owner changes (root only), and the group-only fallback for a file another user owns aren't observable through the tool surface; they're unit-tested in `tests/test_atomic_write.py`.
 
 **Setup**
 > 1. Call `create_folder(name="qa-285", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{F}`.
@@ -1913,6 +1915,9 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 > 5. `download_file(file_id="{H}", local_path="/tmp/qa-285/null-link")`, then `ls -la /tmp/qa-285/`.
 > 6. `download_file(file_id="{H}", local_path="/tmp/qa-285/pipe")` (it must return promptly, not hang), then `ls -la /tmp/qa-285/`.
 > 7. `download_file(file_id="{H}", local_path="/tmp/qa-285/owned.txt")`, then `ls -l /tmp/qa-285/owned.txt && cat /tmp/qa-285/owned.txt`.
+> 8. (PR #1001 QA round 1) `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/src", direction="upload", dry_run=true)`. The temp name exists on both sides here.
+> 9. (PR #1001 QA round 1) Run `mkdir -p /tmp/qa-285/dirsync/hello.txt`, then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/dirsync", direction="download")`, then `ls -la /tmp/qa-285/dirsync/`.
+> 10. (PR #1001 QA round 1) `create_folder(name=".gee-sweet-partial-0123456789abcdef", parent_folder_id="{F}")`; call the returned ID `{P}`. `upload_local_file(local_path="/tmp/qa-285/src/hello.txt", parent_folder_id="{P}")`. Then `sync_folder(folder_id="{F}", local_path="/tmp/qa-285/sync", direction="download", recursive=true, dry_run=true)`.
 
 **Checks**
 - Step 1: `downloaded` is `["hello.txt"]`. `failed` has one entry, named `.gee-sweet-partial-0123456789abcdef`, whose error says the name is reserved for this server's temporary download files. `sync/` holds only `hello.txt`.
@@ -1922,6 +1927,9 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 - Step 5: succeeds the same way. `null-link` is still a symlink to `/dev/null`, and no `.gee-sweet-partial-*` file is in `/tmp/qa-285/`.
 - Step 6: fails promptly with an error saying the destination isn't a regular file. `pipe` is still a FIFO (`p` in `ls -la`), and no `.gee-sweet-partial-*` file is in `/tmp/qa-285/`.
 - Step 7: succeeds. `owned.txt` reads `hello` and its group is still `{G}`.
+- Step 8: `actions` has an `unsafe_name` entry for `.gee-sweet-partial-0123456789abcdef` with the reserved-name reason, not `skip` / `drive only, upload direction`.
+- Step 9: `downloaded` is empty. `failed` has an entry for `hello.txt` whose error says the destination is a directory and names `/tmp/qa-285/dirsync/hello.txt`, not a `.gee-sweet-partial-*` file, plus the reserved-name entry from step 1. `dirsync/hello.txt` is still an empty directory and no `.gee-sweet-partial-*` file is in `dirsync/`.
+- Step 10: `failed` is empty. `actions` still has the `unsafe_name` entry for the reserved-name *file*, and also `.gee-sweet-partial-0123456789abcdef/hello.txt` as `download`: a folder with the reserved name is synced like any other, with no `unsafe_name` entry for the folder.
 
 **Teardown**
 `delete_file` on `{F}`. `rm -rf /tmp/qa-285`.

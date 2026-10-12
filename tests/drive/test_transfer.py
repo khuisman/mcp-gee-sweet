@@ -2253,6 +2253,56 @@ class TestSyncFolderRecursive:
         assert (tmp_path / "collide").is_symlink()
         assert not (tmp_path / "missing-target").exists()
 
+    async def test_dry_run_reports_subfolder_blocker_as_conflict(self, tmp_path):
+        """PR #1001 QA round 1: the blocker check ran only on a real run, so a
+        dry_run preview left out the folder the real run reports as failed."""
+        (tmp_path / "collide").symlink_to(tmp_path / "missing-target")
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("collide", "collide-folder-id")],
+                "collide-folder-id": [_drive_file("nested.txt", "f1")],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["actions"] == [
+            {
+                "name": "collide/",
+                "action": "conflict",
+                "reason": (
+                    "cannot create local folder 'collide': a symlink to a missing target "
+                    "already exists at this path"
+                ),
+            }
+        ]
+        assert result["failed"] == []
+        assert not (tmp_path / "missing-target").exists()
+
+    async def test_folder_with_temp_file_name_is_synced(self, tmp_path):
+        """PR #1001 QA round 1: the reserved temp-file name applies to files
+        only; a folder with it is synced like any other."""
+        name = atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef"
+        fs = _FakeDriveFS(
+            {"root": [_drive_folder(name, "pf")], "pf": [_drive_file("nested.txt", "f1")]}
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        assert [(a["name"], a["action"]) for a in result["actions"]] == [
+            (f"{name}/nested.txt", "download")
+        ]
+
     async def test_file_created_at_subfolder_path_after_check_recorded_as_failed(
         self, tmp_path, monkeypatch
     ):
@@ -3980,6 +4030,57 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
         assert "reserved" in result["failed"][0]["error"]
         assert list(tmp_path.iterdir()) == []
 
+    async def test_temp_file_name_on_both_sides_is_not_drive_only(self, tmp_path):
+        """PR #1001 QA round 1: a local leftover sharing a Drive file's reserved
+        name was previewed as 'drive only, upload direction'."""
+        name = atomic_write._PARTIAL_DOWNLOAD_PREFIX + "0123456789abcdef"
+        (tmp_path / name).write_bytes(b"half a file")
+        fs = _FakeDriveFS({"root": [_drive_file(name, "fp", mime="application/octet-stream")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["actions"] == [
+            {
+                "name": name,
+                "action": "unsafe_name",
+                "reason": "name is reserved for this server's temporary download files; not synced",
+            }
+        ]
+
+    async def test_directory_at_download_destination_fails_before_download(
+        self, tmp_path, monkeypatch
+    ):
+        """PR #1001 QA round 1: the whole file streamed into a temp file, then
+        the rename failed with an error naming the temp file."""
+        (tmp_path / "big.bin").mkdir()
+        downloads: list[bool] = []
+
+        class _RecordingDownloader:
+            def __init__(self, fh, request):
+                downloads.append(True)
+
+            def next_chunk(self):
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _RecordingDownloader)
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="download", ctx=self._ctx(fs)
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["big.bin"]
+        assert "destination is a directory" in result["failed"][0]["error"]
+        assert atomic_write._PARTIAL_DOWNLOAD_PREFIX not in result["failed"][0]["error"]
+        assert downloads == []
+        fs.svc.files.return_value.get_media.assert_not_called()
+
 
 class TestDownloadToolsFailedDownloadLeavesNoPartial:
     """#844's sibling sites: download_file and download_folder shared the same
@@ -5579,6 +5680,22 @@ class TestDownloadFile:
 
         svc.files.return_value.get.assert_not_called()
         assert not missing.exists()
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs mkfifo")
+    async def test_fifo_at_explicit_file_destination_fails_before_drive_call(self, tmp_path):
+        """PR #1001 QA round 1: _write_atomically refused the FIFO, but only
+        after a Workspace export's whole round trip."""
+        svc = MagicMock()
+        fifo = tmp_path / "pipe"
+        os.mkfifo(fifo)
+
+        with pytest.raises(OSError, match="isn't a regular file"):
+            await _transfer_tools["download_file"](
+                file_id="doc1", local_path=str(fifo), export_format="pdf", ctx=self._ctx(svc)
+            )
+
+        svc.files.return_value.get.assert_not_called()
+        svc.files.return_value.export.assert_not_called()
 
     async def test_trailing_slash_dot_is_a_directory_target(self, tmp_path):
         """#874: Path() drops a trailing '/.', so 'newdir/.' used to write a file

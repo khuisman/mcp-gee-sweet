@@ -247,7 +247,8 @@ replacement is a new file, so:
 
 - It keeps the old file's permission bits, and its owner and group only when the server may set
   them (running as root, as the Docker image does). Running as a regular user, a file owned by
-  someone else becomes owned by the server's user. ACLs, extended attributes (macOS Finder tags,
+  someone else becomes owned by the server's user; its group is kept if the server's user
+  belongs to that group. ACLs, extended attributes (macOS Finder tags,
   the quarantine flag), and the creation time aren't carried over.
 - Another hard link to the old file keeps the old content.
 - The server needs write permission on the destination's *folder*, not just on the file. A

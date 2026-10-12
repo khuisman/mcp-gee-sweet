@@ -177,6 +177,49 @@ class TestWriteAtomically:
         assert calls == [(4242, 4343)]
         assert dest.read_bytes() == b"new"
 
+    def test_group_alone_is_kept_when_full_chown_is_refused(self, tmp_path, monkeypatch):
+        """PR #1001 QA round 1: a non-root process can't set another user as
+        owner, so the full chown failed and the group was silently lost too."""
+        dest = tmp_path / "f.bin"
+        dest.write_bytes(b"old")
+        real_stat = os.stat
+        calls: list[tuple] = []
+
+        def _foreign_owner_stat(path, *args, **kwargs):
+            st = real_stat(path, *args, **kwargs)
+            if os.fspath(path) == str(dest):
+                fields = list(st)
+                fields[4], fields[5] = 4242, 4343
+                return os.stat_result(fields)
+            return st
+
+        def _chown(path, uid, gid):
+            calls.append((uid, gid))
+            if uid != -1:
+                raise PermissionError("not permitted")
+
+        monkeypatch.setattr(atomic_write.Path, "stat", lambda self, **kw: _foreign_owner_stat(self))
+        monkeypatch.setattr(atomic_write.os, "chown", _chown)
+
+        atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"))
+
+        assert calls == [(4242, 4343), (-1, 4343)]
+        assert dest.read_bytes() == b"new"
+
+    def test_directory_destination_is_refused_before_writing(self, tmp_path):
+        """PR #1001 QA round 1: a directory at dest let the whole download
+        stream into the temp file, then failed at the rename with an error
+        naming the internal temp file."""
+        dest = tmp_path / "hello.txt"
+        dest.mkdir()
+        wrote: list[bool] = []
+
+        with pytest.raises(IsADirectoryError, match=r"hello\.txt"):
+            atomic_write._write_atomically(dest, lambda fh: wrote.append(True))
+
+        assert wrote == []
+        assert _partial_files(tmp_path) == []
+
     def test_failed_chown_is_ignored(self, tmp_path, monkeypatch):
         """A non-root process can't give a file away; the write still succeeds."""
         dest = tmp_path / "f.bin"
@@ -219,8 +262,11 @@ class TestWriteAtomically:
         fifo = tmp_path / "pipe"
         os.mkfifo(fifo)
 
+        wrote: list[bool] = []
         with pytest.raises(OSError, match="isn't a regular file"):
-            atomic_write._write_atomically(fifo, lambda fh: fh.write(b"new"))
+            atomic_write._write_atomically(fifo, lambda fh: wrote.append(True))
+
+        assert wrote == []
 
         assert stat.S_ISFIFO(os.lstat(fifo).st_mode)
         assert _partial_files(tmp_path) == []

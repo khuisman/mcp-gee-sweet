@@ -18,7 +18,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
-from ..atomic_write import _is_partial_download, _write_atomically
+from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
@@ -333,20 +333,38 @@ def _validate_local_destination(local_path: str, *, is_dir: bool = False) -> tup
         raise _blocked_destination_error(
             local_path, blocker, ending_made_dir and not is_dir and blocker == dest
         )
+    if not wants_dir and not dest.is_dir():
+        # A FIFO, socket, or unwritable file at a file destination fails here,
+        # not after a Workspace export's round trip (PR #1001 QA round 1). An
+        # existing directory without a trailing separator is a directory target.
+        _check_destination(dest)
     return dest, wants_dir
 
 
-def _make_local_dir(path: Path, local_path: str) -> None:
-    """mkdir -p `path`, raising the preflight's ValueError when something was
-    created in the way after _validate_local_destination ran (it runs before an
-    awaited Drive call, so a concurrent download can get there first; #874)."""
+def _mkdir_or_blocker(path: Path) -> Path | None:
+    """mkdir -p `path`, or return the component in its way (_local_dir_blocker).
+
+    Checked again when the mkdir fails, for anything created there since the
+    first check: a caller's check can run before an awaited Drive call, so a
+    concurrent download can get there first (#874).
+    """
+    blocker = _local_dir_blocker(path)
+    if blocker is not None:
+        return blocker
     try:
         path.mkdir(parents=True, exist_ok=True)
     except (FileExistsError, NotADirectoryError):
         blocker = _local_dir_blocker(path)
         if blocker is None:
             raise
-        raise _blocked_destination_error(local_path, blocker) from None
+    return blocker
+
+
+def _make_local_dir(path: Path, local_path: str) -> None:
+    """mkdir -p `path`, raising the preflight's ValueError for a blocker."""
+    blocker = _mkdir_or_blocker(path)
+    if blocker is not None:
+        raise _blocked_destination_error(local_path, blocker)
 
 
 def _download_media(drive_service, file_id: str, dest: Path, mtime: float | None = None) -> None:
@@ -384,10 +402,6 @@ def _unsafe_name_reason(name: str) -> str | None:
         return "name contains a path separator"
     if name in (".", ".."):
         return f"name is the special path segment {name!r}"
-    if _is_partial_download(name):
-        # sync_folder and upload_local_folder never read such a file locally,
-        # so it would download again on every sync (#887).
-        return "name is reserved for this server's temporary download files"
     # Catches a Windows drive-qualified name such as 'C:x' (relative but
     # anchored to another drive); the separator check above already covers
     # every POSIX absolute path.
@@ -396,12 +410,27 @@ def _unsafe_name_reason(name: str) -> str | None:
     return None
 
 
-def _safe_local_dest(base: Path, name: str, resolved_base: Path | None = None) -> Path:
+def _unsafe_file_name_reason(name: str) -> str | None:
+    """_unsafe_name_reason, plus the temp-file name _write_atomically reserves.
+
+    Files only: sync_folder and upload_local_folder never read a local file
+    with that name, so a Drive *file* with it would download again on every
+    sync (#887). A folder with that name is synced like any other.
+    """
+    if _is_partial_download(name):
+        return "name is reserved for this server's temporary download files"
+    return _unsafe_name_reason(name)
+
+
+def _safe_local_dest(
+    base: Path, name: str, resolved_base: Path | None = None, *, is_file: bool = True
+) -> Path:
     """`base / name`, after checking that the result stays inside `base`.
 
     The one place every Drive-supplied name is joined onto a local directory
     (download_file, download_folder, _sync_level's files and subfolders).
-    Raises ValueError for a name _unsafe_name_reason refuses, or, as a
+    Raises ValueError for a name _unsafe_file_name_reason refuses
+    (_unsafe_name_reason for a folder, `is_file=False`), or, as a
     backstop, when the joined path doesn't stay under the resolved `base`. The
     error's text is the reason alone, so each caller can phrase it around the
     name its user sees. A caller joining many names onto one directory passes
@@ -410,7 +439,7 @@ def _safe_local_dest(base: Path, name: str, resolved_base: Path | None = None) -
     symlink the user put inside `base` keeps working as it did, and a Drive
     name can't create one.
     """
-    reason = _unsafe_name_reason(name)
+    reason = _unsafe_file_name_reason(name) if is_file else _unsafe_name_reason(name)
     if reason is None:
         if resolved_base is None:
             resolved_base = base.resolve()
@@ -1384,7 +1413,7 @@ async def _sync_level(
 
         # Checked on local_name, not f["name"]: a converted Doc's source name
         # comes from its Drive properties, which whoever shared it controls too.
-        unsafe_reason = _unsafe_name_reason(local_name)
+        unsafe_reason = _unsafe_file_name_reason(local_name)
         if unsafe_reason is not None:
             unsafe_names[local_name] = unsafe_reason
             unsafe_drive_counts[local_name] = unsafe_drive_counts.get(local_name, 0) + 1
@@ -1474,7 +1503,9 @@ async def _sync_level(
                     name,
                     unsafe_names[name],
                     in_drive=name in unsafe_drive_counts,
-                    in_local=name in unsafe_local_names,
+                    # A local leftover with a Drive file's reserved name is on
+                    # both sides, not "drive only" (PR #1001 QA round 1).
+                    in_local=name in unsafe_local_names or name in partial_names,
                     direction=direction,
                     drive_count=unsafe_drive_counts.get(name, 0),
                 )
@@ -2019,6 +2050,9 @@ async def _sync_level(
                 # The plan already routed unsafe names to 'unsafe_name'; this is
                 # the shared backstop, and a refusal lands as download_fail.
                 dest_file = _safe_local_dest(dest_dir, name, resolved_dest_dir)
+                # Before any export or download, so a directory or FIFO at the
+                # destination fails without the round trip (PR #1001 QA round 1).
+                _check_destination(dest_file)
                 # Mirror what the upload branch above does in reverse: set the
                 # local file's mtime to Drive's modifiedTime so the round trip
                 # stays within _SYNC_MTIME_TOLERANCE on the next sync. Without
@@ -2159,7 +2193,7 @@ async def _sync_level(
             # the way a file's plan step is: a skip, a dry_run action, or a
             # 'failed' entry on a real run.
             try:
-                child_dest_dir = _safe_local_dest(dest_dir, name, resolved_dest_dir)
+                child_dest_dir = _safe_local_dest(dest_dir, name, resolved_dest_dir, is_file=False)
             except ValueError as e:
                 step = _unsafe_name_step(
                     name,
@@ -2186,34 +2220,38 @@ async def _sync_level(
                     folders_skipped.append(child_rel_prefix)
                     continue
                 child_drive_id = drive_folder_map[name]["id"]
-                if not dry_run:
-                    # A Drive file and a Drive folder can share a name (they're keyed
-                    # by ID, not name) — if the file-level pass above just downloaded
-                    # a same-named file here, exist_ok=True won't save us since the
-                    # existing path isn't a directory. The mkdir is checked too, for
-                    # anything created there since the check (#874).
-                    blocker = _local_dir_blocker(child_dest_dir)
-                    if blocker is None:
-                        try:
-                            child_dest_dir.mkdir(parents=True, exist_ok=True)
-                        except (FileExistsError, NotADirectoryError):
-                            blocker = _local_dir_blocker(child_dest_dir) or child_dest_dir
-                    if blocker is not None:
-                        what = (
-                            "a symlink to a missing target"
-                            if _is_dangling_symlink(blocker)
-                            else "a file with the same name"
+                # A Drive file and a Drive folder can share a name (they're keyed
+                # by ID, not name) — if the file-level pass above just downloaded
+                # a same-named file here, exist_ok=True won't save us since the
+                # existing path isn't a directory. A dry_run reports one already
+                # on disk as a conflict, the way it previews a name collision (#874).
+                error = None
+                try:
+                    blocker = (
+                        _local_dir_blocker(child_dest_dir)
+                        if dry_run
+                        else _mkdir_or_blocker(child_dest_dir)
+                    )
+                except OSError as e:
+                    blocker = None
+                    error = f"cannot create local folder '{name}': {e}"
+                if blocker is not None:
+                    what = (
+                        "a symlink to a missing target"
+                        if _is_dangling_symlink(blocker)
+                        else "a file with the same name"
+                    )
+                    error = (
+                        f"cannot create local folder '{name}': {what} already exists at this path"
+                    )
+                if error is not None:
+                    if dry_run:
+                        actions.append(
+                            {"name": child_rel_prefix, "action": "conflict", "reason": error}
                         )
-                        failed.append(
-                            {
-                                "name": child_rel_prefix,
-                                "error": (
-                                    f"cannot create local folder '{name}': {what} "
-                                    "already exists at this path"
-                                ),
-                            }
-                        )
-                        continue
+                    else:
+                        failed.append({"name": child_rel_prefix, "error": error})
+                    continue
             else:  # local only
                 if direction not in ("upload", "bidirectional"):
                     folders_skipped.append(child_rel_prefix)
@@ -3293,6 +3331,8 @@ def register(tool):
 
         async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
             try:
+                # Fail a bad destination before the export or download round trip.
+                _check_destination(candidate.dest_file)
                 if candidate.is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
                     content = await execute_in_thread(
