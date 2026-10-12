@@ -6078,7 +6078,7 @@ class TestSyncFolderResponseSizeCap:
         sync_dir = tmp_path / "new" / "deep" / "sync"
         blocker = tmp_path / "blocker"
         blocker.write_text("keep me")
-        with pytest.raises(ValueError, match="^result_local_path "):
+        with pytest.raises(ValueError, match=r"^result_local_path "):
             await _transfer_tools["sync_folder"](
                 folder_id="root",
                 local_path=str(sync_dir),

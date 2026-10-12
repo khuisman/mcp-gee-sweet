@@ -246,7 +246,7 @@ class TestWriteCappedResultToDisk:
     async def test_error_names_the_callers_parameter(self, tmp_path):
         existing = tmp_path / "out"
         existing.write_text("keep me", encoding="utf-8")
-        with pytest.raises(ValueError, match="^result_local_path "):
+        with pytest.raises(ValueError, match=r"^result_local_path "):
             await response_limits.write_capped_result_to_disk(
                 {"a": 1},
                 f"{existing}/",
