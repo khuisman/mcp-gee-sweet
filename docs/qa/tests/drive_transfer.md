@@ -2272,6 +2272,8 @@ parallel shards don't delete each other's scratch dir.
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 1 (`12bd36a`).** Ran under this job's scratch dir instead of `/tmp`. With the directory absent, call 1 returned `local_path` `<dir>/<doc-id>-r3.md`, `bytes_written` 15; `<dir>` is a directory and the file holds `Saved to disk`.
 
+**Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 2 (`695d0f9`).** Same as round 1: call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15; `<dir>` is a directory holding `Saved to disk`.
+
 ---
 
 ### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
@@ -2294,6 +2296,8 @@ write, and the error named `local_path` (`sync_folder`'s other parameter).
 - `/tmp/qa-990-sync/blocker` still holds `keep me`.
 
 **Teardown:** `rm -rf /tmp/qa-990-sync`; `delete_file(file_id="<folder-id>")`.
+
+**Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 2 (`695d0f9`).** Ran under this job's scratch dir instead of `/tmp`. Call 1 raised "result_local_path '<dir>/blocker/' has a non-directory path component at '<dir>/blocker'; result_local_path ends in a path separator or '.'…", naming `result_local_path` throughout. Call 2 returned `[]`, and `blocker` still holds `keep me`. Probe outside the case (sent back): the same call with a missing `local_path` of `<dir>/new/deep/sync` raised the same error but had already created `new/deep/sync`.
 
 ---
 
