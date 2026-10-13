@@ -2638,3 +2638,26 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-273/`.
 - Call 2: `conflicts == ["g.md"]`, and `x.md` was in `skipped`, even though `g.md` had also drifted.
 - Call 3: `modified_time` was still `03:45:36.140Z`, not reset. `g.md` carried `geeSweetImportRevision: "1"`.
 - Call 4: `uploaded == ["x.md"]`, and `get_doc_content` contained "appended within 5s". An immediate extra resync left `x.md` in `skipped` (no repeat upload), and `g.md` stayed in `conflicts`.
+
+### TC-D289: `sync_folder` — `size_bytes` counts uploaded bytes, on both the create and update paths (issue #1003) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** `size_bytes` is documented as bytes transferred, but `sync_folder` added only downloaded bytes to it. An upload-only sync always returned `size_bytes: 0`, whether the file was new (`create()`) or a re-upload (`update()`). Found live in PR #1002's QA.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-289/` containing `a.txt` (exactly 28 bytes) and a subfolder `sub/` containing `b.txt` (exactly 7 bytes).
+
+**Tool calls**
+1. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-289/", direction="upload", recursive=True)`
+2. Overwrite `/tmp/qa-289/a.txt` with exactly 40 bytes. Then read the Drive copy's `modified_time` with `get_file_metadata` and set the local file's mtime to that value plus at least 60 s (scratch script: `os.utime`). An mtime within `_SYNC_MTIME_TOLERANCE` (5 s) of Drive's would make the size change a `conflict` rather than an upload. Then repeat call 1.
+
+**Checks**
+- Call 1: `uploaded` contains `a.txt` and `sub/b.txt`, and `size_bytes == 35`.
+- Call 2: `uploaded == ["a.txt"]`, `sub/b.txt` is in `skipped`, and `size_bytes == 40`. `list_files(folder_id={FOLDER_ID})` shows a single `a.txt`, with the same file ID as after call 1 (the `update()` path, not a new file), and `get_file_metadata` on it shows `size` `"40"`.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-289/`.
+
+**Result** (2026-10-12, Sky, PR #1007 round 1 at `10dfb80`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1: `uploaded == ["a.txt", "sub/b.txt"]`, `size_bytes == 35`.
+- Call 2 (local mtime set to now + 120 s): `uploaded == ["a.txt"]`, `skipped == ["sub/b.txt"]`, `size_bytes == 40`. `list_files` showed a single `a.txt` with the same file ID as after call 1, and `get_file_metadata` showed `size` `"40"`.
+- Side probes, not part of the checks: a `convert_markdown=True` upload of a new 17-byte `c.md` returned `uploaded == ["c.md"]`, `size_bytes == 17`. A bidirectional call that downloaded `sub/b.txt` (7 bytes, after deleting it locally) and uploaded a new `d.txt` (5 bytes) returned `size_bytes == 12`.
