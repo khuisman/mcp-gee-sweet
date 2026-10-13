@@ -5,11 +5,11 @@ import weakref
 from datetime import datetime, timezone
 from typing import Any
 
-from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread
+from .http_errors import http_error_has_reason
 from .pagination import iter_pages
 from .response_limits import clamp_max_results, enforce_response_size_cap
 
@@ -80,24 +80,13 @@ def _list_all_events_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
-def _http_error_has_reason(e: BaseException, status: int, reason: str) -> bool:
-    """Whether `e` is an HttpError with this status whose body names this reason.
-    The reason is matched as a quoted JSON string, so one reason that's a prefix
-    of another (cannotChangeOwnAcl / cannotChangeOwnerAcl) can't false-match."""
-    return (
-        isinstance(e, HttpError)
-        and e.resp.status == status
-        and f'"{reason}"'.encode() in (e.content or b"")
-    )
-
-
 def _acl_error(e: Exception, *, removing: bool) -> dict[str, str]:
     """{"error": ...} for a failed add_calendar_acl (removing=False) or
     remove_calendar_acl (removing=True) call, rewriting Google's two
     unchangeable-rule 403s into messages naming the restriction (#459)."""
-    if _http_error_has_reason(e, 403, "cannotChangeOwnAcl"):
+    if http_error_has_reason(e, 403, "cannotChangeOwnAcl"):
         return {"error": _CANNOT_CHANGE_OWN_ACL_ERROR}
-    if _http_error_has_reason(e, 403, "cannotChangeOwnerAcl"):
+    if http_error_has_reason(e, 403, "cannotChangeOwnerAcl"):
         return {
             "error": _CANNOT_REMOVE_OWNER_ACL_ERROR if removing else _CANNOT_CHANGE_OWNER_ACL_ERROR
         }
@@ -471,7 +460,7 @@ def register(tool):
                 lc.calendar_service,
             )
         except Exception as e:
-            if _http_error_has_reason(e, 403, "cannotUnsubscribeFromOwnedCalendar"):
+            if http_error_has_reason(e, 403, "cannotUnsubscribeFromOwnedCalendar"):
                 return {"error": _CANNOT_UNSUBSCRIBE_OWNED_ERROR}
             return {"error": str(e)}
 

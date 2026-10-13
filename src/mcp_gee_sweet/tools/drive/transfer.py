@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
+from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
 from ..pagination import iter_pages
 from ..response_limits import (
@@ -240,24 +241,13 @@ def _is_workspace_entry(f: dict) -> bool:
     return f["mimeType"].startswith("application/vnd.google-apps.")
 
 
-def _is_quota_error(exc: Exception) -> bool:
-    """True for Drive's storageQuotaExceeded HttpError (403) — the "this identity
-    has no personal storage" failure a service account hits on a non-Shared-Drive
-    target, which the shared _SA_QUOTA_ERROR text explains."""
-    return (
-        isinstance(exc, HttpError)
-        and exc.resp.status == 403
-        and b"storageQuotaExceeded" in (exc.content or b"")
-    )
-
-
 def _quota_error_detail(exc: Exception) -> str:
     """Render an exception as a user-facing 'error' string: the friendly
     _SA_QUOTA_ERROR text for a storageQuotaExceeded HttpError, else str(exc).
     Keeps every quota-error site in this file rendering the same way — including
     catch-all `except Exception` handlers where a bare `except HttpError` quota
     check would otherwise be skipped and leak the raw error blob (#670)."""
-    return _SA_QUOTA_ERROR if _is_quota_error(exc) else str(exc)
+    return _SA_QUOTA_ERROR if is_storage_quota_error(exc) else str(exc)
 
 
 def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
@@ -2681,7 +2671,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 

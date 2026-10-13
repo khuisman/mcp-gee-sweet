@@ -891,30 +891,6 @@ class TestRemoveCalendarAcl:
         assert result["error"].startswith("<HttpError 404")
 
 
-class TestHttpErrorHasReason:
-    """The shared reason check behind every calendar 403 rewrite (#890 QA round 1)."""
-
-    def test_owner_reason_does_not_match_own_reason(self):
-        """cannotChangeOwnAcl and cannotChangeOwnerAcl must not cross-match."""
-        own = _cannot_change_own_acl_error()
-        owner = _cannot_change_owner_acl_error()
-
-        assert calendar_module._http_error_has_reason(own, 403, "cannotChangeOwnAcl")
-        assert not calendar_module._http_error_has_reason(own, 403, "cannotChangeOwnerAcl")
-        assert calendar_module._http_error_has_reason(owner, 403, "cannotChangeOwnerAcl")
-        assert not calendar_module._http_error_has_reason(owner, 403, "cannotChangeOwnAcl")
-
-    def test_status_must_match(self):
-        assert not calendar_module._http_error_has_reason(
-            _cannot_change_owner_acl_error(), 404, "cannotChangeOwnerAcl"
-        )
-
-    def test_non_http_error_never_matches(self):
-        assert not calendar_module._http_error_has_reason(
-            Exception('"cannotChangeOwnerAcl"'), 403, "cannotChangeOwnerAcl"
-        )
-
-
 class TestCreateEvent:
     """create_event detects all-day events, passes attendees, and invalidates the cache."""
 

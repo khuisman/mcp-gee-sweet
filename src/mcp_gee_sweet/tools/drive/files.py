@@ -12,6 +12,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import gather_with_fallback, report_progress_safe
+from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
@@ -108,7 +109,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if is_storage_quota_error(e):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 
@@ -209,7 +210,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if is_storage_quota_error(e):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 
@@ -977,7 +978,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if is_storage_quota_error(e):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 
