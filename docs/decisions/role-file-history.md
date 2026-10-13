@@ -270,6 +270,10 @@ Addendum, PR #414 (issue #211) round 3: the fix targeted exactly two named findi
 
 PR #1000 (#990, lane B) originally changed only `response_limits.py`. Its round 1 code review noted that the new guard duplicated `drive/transfer.py`'s `_validate_local_destination`, and Kit's send-back suggested moving that helper into `response_limits.py`. Nobody checked for other open PRs. PR #1001 (#874/#887, lane A), opened 11 seconds after #1000, was rewriting that same function. Jay caught the overlap before pushing and recommended waiting for #1001. #1000 then took in `develop` and moved #1001's rewritten validator, growing from one helper to every capped tool's `local_path` (11 docstrings). The `develop` merge forced a full `/code-review`, which reviewed the larger scope and found five more send-backs. Two of them were pre-existing defects the move exposed (sheet-name path traversal, the joined-file symlink), not new ones. The PR took four rounds, and the user called the cycle "a hot mess." The scheduling was not the cause: #990's own fix touched no file #1001 did. The fix in round 1 should have stayed in `response_limits.py`, with the consolidation filed for after #1001 merged.
 
+### CI must be green before `qa-approved`
+
+Round 3 of PR #1000 (`290f5bc`) got `qa-approved` while `Lint and test` was failing on every Python version: two non-raw `match=` patterns tripped ruff RUF043. Kai caught it at `/merge-pr`. Step 8 had no CI check, and QA's local checks didn't catch it, because pre-commit's ruff hook is pinned at v0.11.9, where RUF043 is preview-only, while CI runs 0.16.x (#974 tracks that version skew). Step 8 now waits for every check on the head SHA, with `Lint and test` present and passing, before adding the label.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
