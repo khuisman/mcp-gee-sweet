@@ -1850,7 +1850,7 @@ async def _sync_level(
                 raise revisions
             if isinstance(revisions, Exception) or not revisions:
                 detail = (
-                    _quota_error_detail(revisions)
+                    _quota_error_detail(revisions, drive_service)
                     if isinstance(revisions, Exception)
                     else "Drive returned an empty revision history"
                 )
@@ -1975,7 +1975,11 @@ async def _sync_level(
                         drive_service,
                     )
                 except Exception as e:
-                    return {"kind": "resolve_fail", "name": name, "error": _quota_error_detail(e)}
+                    return {
+                        "kind": "resolve_fail",
+                        "name": name,
+                        "error": _quota_error_detail(e, drive_service),
+                    }
                 logger.debug("Re-baselined %s%s on Drive revision %s", rel_prefix, name, latest)
                 return {"kind": "resolved", "name": name}
 
