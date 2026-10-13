@@ -34,6 +34,7 @@ from .images import (
     upload_and_share_local_image,
 )
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
+from .markdown_export import _discard_temp_doc
 from .style import _add_or_clear_field
 
 logger = logging.getLogger(__name__)
@@ -327,6 +328,17 @@ async def _replace_doc_content(
     The three flags are keyword-only (#567), here and in _apply_doc_content: as
     positional bools, swapping two at a call site would type-check and silently do
     the wrong thing.
+
+    A doc with content is copied with Drive before the clear (#878), and the copy
+    is deleted once the new content is in. If anything after the copy fails or is
+    cancelled, the copy is kept and a failure result names it as "backupId". Drive's
+    revision history can't serve this: Docs merges the revision current before the
+    clear into the clear's own revision at once, so its ID is a 404 straight away
+    (measured live; see docs/design/doc-replace-backup.md). A failed copy leaves the
+    doc untouched and returns an error, except a storageQuotaExceeded one: a service
+    account writing into a user-owned doc can't own a copy, and this tool is the
+    documented way to write such a doc, so it replaces without a backup, and a
+    failure says so.
     """
     docs_service = lc.docs_service
     drive_service = lc.drive_service
@@ -338,39 +350,74 @@ async def _replace_doc_content(
     body_content = doc.get("body", {}).get("content", [])
     end_index = body_content[-1].get("endIndex", 2) if body_content else 2
 
-    clear_requests = []
+    backup: dict[str, Any] = {}
+    no_backup_reason: str | None = None
     if end_index > 2:
-        # The document's final paragraph mark can't be deleted by the Docs API (only
-        # everything before it), so an explicit textStyle override left there by prior
-        # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
-        # table, see _build_blank_para_before_table_collapses in emitter.py — would
-        # otherwise survive this "clear" and can leak into newly-inserted content below.
-        # Reset it before deleting, while its original index range is still valid.
-        clear_requests.append(
-            {
-                "updateTextStyle": {
-                    "range": {"startIndex": end_index - 1, "endIndex": end_index},
-                    "textStyle": {},
-                    "fields": "*",
-                }
-            }
-        )
-        clear_requests.append(
-            {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
-        )
-        # Sent as its own batchUpdate, not combined with the insert below: live testing
-        # showed the Docs API resolves a same-batch insertText's inherited formatting
-        # from a pre-batch snapshot, so contamination survived even after the clear
-        # request above ran earlier in that same batch. A separate call forces the
-        # insert to see the already-cleared document state.
-        await execute_in_thread(
-            docs_service.documents()
-            .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
-            .execute,
-            docs_service,
-        )
+        # Shielded, so a cancellation can't land after Drive made the copy but
+        # before its ID is recorded (the PR #877 rule).
+        with anyio.CancelScope(shield=True):
+            try:
+                backup = await execute_in_thread(
+                    drive_service.files()
+                    .copy(
+                        fileId=doc_id,
+                        body={"name": f"{doc.get('title') or doc_id} (backup before replace)"},
+                        fields="id,name,capabilities(canDelete)",
+                        supportsAllDrives=True,
+                    )
+                    .execute,
+                    drive_service,
+                )
+            except Exception as e:
+                if not is_storage_quota_error(e):
+                    return {
+                        "error": (
+                            f"Couldn't back up the document before replacing its content, "
+                            f"so it was left unchanged: {e}"
+                        ),
+                        "docId": doc_id,
+                    }
+                no_backup_reason = "this account has no Drive storage quota for the copy"
+                logger.warning(
+                    "Replacing doc %s without a backup: storage quota exceeded on copy", doc_id
+                )
 
+    # A clear the API rejected (HttpError) left the doc unchanged. Any other
+    # exception from it might have landed or not, so it's treated as cleared.
+    clear_rejected = False
     try:
+        if end_index > 2:
+            # The document's final paragraph mark can't be deleted by the Docs API (only
+            # everything before it), so an explicit textStyle override left there by prior
+            # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
+            # table, see _build_blank_para_before_table_collapses in emitter.py — would
+            # otherwise survive this "clear" and can leak into newly-inserted content below.
+            # Reset it before deleting, while its original index range is still valid.
+            clear_requests = [
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": end_index - 1, "endIndex": end_index},
+                        "textStyle": {},
+                        "fields": "*",
+                    }
+                },
+                {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}},
+            ]
+            # Sent as its own batchUpdate, not combined with the insert below: live testing
+            # showed the Docs API resolves a same-batch insertText's inherited formatting
+            # from a pre-batch snapshot, so contamination survived even after the clear
+            # request above ran earlier in that same batch. A separate call forces the
+            # insert to see the already-cleared document state.
+            try:
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
+                    .execute,
+                    docs_service,
+                )
+            except HttpError:
+                clear_rejected = True
+                raise
         image_outcomes = await _apply_doc_content(
             docs_service,
             drive_service,
@@ -382,10 +429,45 @@ async def _replace_doc_content(
             revoke_sharing=revoke_sharing,
             auto_downscale=auto_downscale,
         )
-    except DocEditError as e:
-        # The clear above already committed, so the doc changed either way.
+    except BaseException as e:
+        if clear_rejected:
+            # The doc is unchanged, so the backup isn't needed.
+            warning = await _discard_backup(drive_service, backup)
+            if not isinstance(e, Exception):
+                raise
+            result = {
+                "error": f"Couldn't clear the document, so it was left unchanged: {e}",
+                "docId": doc_id,
+            }
+            if warning:
+                result["warning"] = warning
+            return result
+        # The clear committed (or may have), so the doc changed either way.
         doc_cache.mark_dirty(doc_id)
-        return _doc_edit_failure_result(e, doc_id)
+        if not isinstance(e, Exception):
+            if backup.get("id"):
+                logger.warning(
+                    "Replacing doc %s was cancelled; kept its backup copy %s", doc_id, backup["id"]
+                )
+            raise
+        if isinstance(e, DocEditError):
+            result = _doc_edit_failure_result(e, doc_id)
+        else:
+            result = {"error": f"doc edit failed: {e}", "docId": doc_id}
+        if backup.get("id"):
+            result["error"] += (
+                f". The document's previous content was cleared first; a full copy of it is "
+                f"kept as {backup['name']!r} (backupId)."
+            )
+            result["backupId"] = backup["id"]
+        elif no_backup_reason:
+            result["error"] += (
+                f". The document's previous content was cleared first and couldn't be backed "
+                f"up ({no_backup_reason}), so the document may be empty or partly written."
+            )
+        return result
+
+    warning = await _discard_backup(drive_service, backup)
 
     metadata = await execute_in_thread(
         drive_service.files()
@@ -399,7 +481,27 @@ async def _replace_doc_content(
     result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
     if image_outcomes is not None:
         result["images"] = image_outcomes
+    if warning:
+        result["warning"] = warning
     return result
+
+
+async def _discard_backup(drive_service, backup: dict[str, Any]) -> str | None:
+    """Remove _replace_doc_content's backup copy, if one was made. Shielded, so a
+    cancellation doesn't leave the copy behind. Returns a warning for the caller's
+    result if the removal failed, else None."""
+    if not backup.get("id"):
+        return None
+    with anyio.CancelScope(shield=True):
+        cleanup_error = await _discard_temp_doc(
+            drive_service, backup["id"], backup.get("capabilities", {}).get("canDelete", True)
+        )
+    if not cleanup_error:
+        return None
+    return (
+        f"Couldn't remove the backup copy {backup['id']} made before replacing "
+        f"the content; delete it manually ({cleanup_error})."
+    )
 
 
 class DocEditError(Exception):
@@ -1277,9 +1379,15 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when content contained any images.
-            If writing the new content fails, returns {"error", "docId", "images"}
-            instead, with any temporary image share already revoked. The old content
-            was cleared first, so the doc may be empty or partly written.
+            Includes "warning" if the backup copy (below) couldn't be removed.
+            Before clearing a doc that has content, a full copy of it is made in Drive,
+            and deleted again once the new content is in. If the copy fails, nothing
+            is changed and an error is returned (except when the account has no
+            storage quota for it, e.g. a service account: the replace then goes ahead
+            without a backup). If writing the new content fails, returns {"error",
+            "docId", "backupId", "images"} instead, with any temporary image share
+            already revoked: the doc may be empty or partly written, and backupId is
+            the kept copy of its previous content.
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
@@ -1338,9 +1446,15 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when the file contained any images.
-            If writing the new content fails, returns {"error", "docId", "images"}
-            instead, with any temporary image share already revoked. The old content
-            was cleared first, so the doc may be empty or partly written.
+            Includes "warning" if the backup copy (below) couldn't be removed.
+            Before clearing a doc that has content, a full copy of it is made in Drive,
+            and deleted again once the new content is in. If the copy fails, nothing
+            is changed and an error is returned (except when the account has no
+            storage quota for it, e.g. a service account: the replace then goes ahead
+            without a backup). If writing the new content fails, returns {"error",
+            "docId", "backupId", "images"} instead, with any temporary image share
+            already revoked: the doc may be empty or partly written, and backupId is
+            the kept copy of its previous content.
         """
         source = _read_doc_source_file(local_path, content_format, format_overridable=True)
         if isinstance(source, dict):

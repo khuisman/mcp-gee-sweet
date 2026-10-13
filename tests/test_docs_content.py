@@ -3502,6 +3502,236 @@ class TestWriteDocContent:
         assert result["images"] == [{"src": "https://example.com/a.png"}]
 
 
+class TestReplaceDocBackup:
+    """#878: write_doc_content / update_doc_from_file copy a doc with content before
+    clearing it, delete the copy once the new content is in, and keep it (named as
+    backupId) when the replacement fails. Drive's revision history can't serve: the
+    revision current before the clear is merged away by it (measured live)."""
+
+    @staticmethod
+    def _backup(can_delete=True):
+        return {
+            "id": "backup1",
+            "name": "My Doc (backup before replace)",
+            "capabilities": {"canDelete": can_delete},
+        }
+
+    def _make_services(self, end_index=50, backup=None):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webViewLink": "https://example.com"
+        }
+        drive_svc.files.return_value.copy.return_value.execute.return_value = (
+            backup if backup is not None else self._backup()
+        )
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "title": "My Doc",
+            "body": {"content": [{"endIndex": end_index}]},
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(drive_service=drive_svc, docs_service=docs_svc, doc_cache=MagicMock())
+
+    @staticmethod
+    def _batch_update_execute(docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.return_value.execute
+
+    @staticmethod
+    def _fail_content_write(docs_svc, exc):
+        """The clear succeeds; the content batchUpdate after it raises `exc`."""
+        calls = []
+
+        def execute(**kwargs):
+            calls.append(kwargs)
+            if len(calls) > 1:
+                raise exc
+            return {}
+
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = execute
+
+    async def _write(self, ctx, content="<p>New</p>"):
+        return await _docs_tools["write_doc_content"](doc_id="doc1", content=content, ctx=ctx)
+
+    async def test_backup_made_before_clear_and_deleted_after_success(self):
+        drive_svc, docs_svc = self._make_services()
+        order = []
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = lambda **kw: (
+            order.append("copy") or self._backup()
+        )
+        self._batch_update_execute(docs_svc).side_effect = lambda **kw: order.append("edit") or {}
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+
+        assert order[0] == "copy"
+        drive_svc.files.return_value.copy.assert_called_once_with(
+            fileId="doc1",
+            body={"name": "My Doc (backup before replace)"},
+            fields="id,name,capabilities(canDelete)",
+            supportsAllDrives=True,
+        )
+        drive_svc.files.return_value.delete.assert_called_once_with(
+            fileId="backup1", supportsAllDrives=True
+        )
+        assert result == {"docId": "doc1", "web_link": "https://example.com"}
+
+    async def test_backup_trashed_when_it_cannot_be_deleted(self):
+        # A Content manager on a Shared Drive can trash but not delete (#876).
+        backup = self._backup(can_delete=False)
+        drive_svc, docs_svc = self._make_services(backup=backup)
+        await self._write(self._ctx(drive_svc, docs_svc))
+        drive_svc.files.return_value.delete.assert_not_called()
+        drive_svc.files.return_value.update.assert_called_once_with(
+            fileId="backup1", body={"trashed": True}, fields="id", supportsAllDrives=True
+        )
+
+    async def test_backup_removal_failure_is_a_warning_not_an_error(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.delete.return_value.execute.side_effect = RuntimeError("gone")
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert "error" not in result
+        assert result["warning"] == (
+            "Couldn't remove the backup copy backup1 made before replacing the content; "
+            "delete it manually (gone)."
+        )
+
+    async def test_empty_doc_is_not_backed_up(self):
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        drive_svc.files.return_value.copy.assert_not_called()
+        assert "error" not in result
+
+    async def test_failed_copy_leaves_doc_unchanged(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = _other_403_error()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await self._write(ctx)
+        assert result["docId"] == "doc1"
+        assert result["error"].startswith(
+            "Couldn't back up the document before replacing its content, so it was left unchanged"
+        )
+        self._batch_update_execute(docs_svc).assert_not_called()
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_not_called()
+
+    async def test_quota_error_on_copy_replaces_without_backup(self):
+        # A service account writing into a user-owned doc can't own the copy, and
+        # write_doc_content is the documented way to write such a doc.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result == {"docId": "doc1", "web_link": "https://example.com"}
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    async def test_quota_error_on_copy_then_failed_write_says_no_backup(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result == {
+            "error": (
+                "doc edit failed: edit boom. The document's previous content was cleared "
+                "first and couldn't be backed up (this account has no Drive storage quota "
+                "for the copy), so the document may be empty or partly written."
+            ),
+            "docId": "doc1",
+        }
+
+    async def test_failed_write_after_clear_keeps_backup_and_names_it(self):
+        drive_svc, docs_svc = self._make_services()
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await self._write(ctx)
+        assert result == {
+            "error": (
+                "doc edit failed: edit boom. The document's previous content was cleared "
+                "first; a full copy of it is kept as 'My Doc (backup before replace)' "
+                "(backupId)."
+            ),
+            "docId": "doc1",
+            "backupId": "backup1",
+        }
+        drive_svc.files.return_value.delete.assert_not_called()
+        drive_svc.files.return_value.update.assert_not_called()
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_failed_write_with_images_keeps_image_outcomes_and_backup(self):
+        drive_svc, docs_svc = self._make_services()
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        result = await self._write(
+            self._ctx(drive_svc, docs_svc), content='<img src="https://example.com/a.png">'
+        )
+        assert result["backupId"] == "backup1"
+        assert result["images"] == [{"src": "https://example.com/a.png"}]
+
+    async def test_rejected_clear_discards_backup_and_reports_unchanged(self):
+        drive_svc, docs_svc = self._make_services()
+        self._batch_update_execute(docs_svc).side_effect = _other_403_error()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await self._write(ctx)
+        assert result["docId"] == "doc1"
+        assert result["error"].startswith("Couldn't clear the document, so it was left unchanged")
+        assert "backupId" not in result
+        drive_svc.files.return_value.delete.assert_called_once_with(
+            fileId="backup1", supportsAllDrives=True
+        )
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_not_called()
+
+    async def test_rejected_clear_reports_backup_removal_failure(self):
+        drive_svc, docs_svc = self._make_services()
+        self._batch_update_execute(docs_svc).side_effect = _other_403_error()
+        drive_svc.files.return_value.delete.return_value.execute.side_effect = RuntimeError("gone")
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result["error"].startswith("Couldn't clear the document")
+        assert result["warning"] == (
+            "Couldn't remove the backup copy backup1 made before replacing the content; "
+            "delete it manually (gone)."
+        )
+
+    async def test_non_http_clear_failure_keeps_backup(self):
+        # A transport error doesn't say whether the clear landed, so the backup stays.
+        drive_svc, docs_svc = self._make_services()
+        self._batch_update_execute(docs_svc).side_effect = TimeoutError("timed out")
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result["backupId"] == "backup1"
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    async def test_cancelled_after_clear_keeps_backup_and_logs_it(self):
+        drive_svc, docs_svc = self._make_services()
+        started, release = threading.Event(), threading.Event()
+        calls = []
+
+        def execute(**kwargs):
+            calls.append(kwargs)
+            if len(calls) > 1:  # the content write, after the clear
+                started.set()
+                release.wait(5)
+            return {}
+
+        self._batch_update_execute(docs_svc).side_effect = execute
+        ctx = self._ctx(drive_svc, docs_svc)
+        with patch.object(content_module, "logger") as mock_logger:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(partial(self._write, ctx))
+                await anyio.to_thread.run_sync(started.wait, 5)
+                tg.cancel_scope.cancel()
+                release.set()
+        drive_svc.files.return_value.delete.assert_not_called()
+        mock_logger.warning.assert_called_once_with(
+            "Replacing doc %s was cancelled; kept its backup copy %s", "doc1", "backup1"
+        )
+
+    async def test_update_doc_from_file_failed_write_names_backup(self, tmp_path):
+        source = tmp_path / "doc.md"
+        source.write_text("# New\n")
+        drive_svc, docs_svc = self._make_services()
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(source), ctx=self._ctx(drive_svc, docs_svc)
+        )
+        assert result["backupId"] == "backup1"
+        assert result["error"].startswith("doc edit failed: edit boom. ")
+
+
 def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:
     """Build a synthetic Docs API body from a list of paragraphs, each a list of
     textRun content strings (the last run of a paragraph should end in "\\n",

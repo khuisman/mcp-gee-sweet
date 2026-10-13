@@ -179,9 +179,10 @@ async def _stabilize_images(drive_service, document: dict) -> None:
 
 
 async def _discard_temp_doc(drive_service, file_id: str, can_delete: bool) -> str | None:
-    """Delete (or, without permanent-delete permission, trash) the temporary
-    Doc. Returns an error string instead of raising, so a failed cleanup never
-    hides the export's own outcome."""
+    """Delete (or, without permanent-delete permission, trash) a temporary Doc:
+    a revision export's import here, or _replace_doc_content's pre-clear backup
+    (#878). Returns an error string instead of raising, so a failed cleanup
+    never hides the calling tool's own outcome."""
     try:
         if can_delete:
             request = drive_service.files().delete(fileId=file_id, supportsAllDrives=True)
@@ -190,13 +191,12 @@ async def _discard_temp_doc(drive_service, file_id: str, can_delete: bool) -> st
             request = drive_service.files().update(
                 fileId=file_id, body={"trashed": True}, fields="id", supportsAllDrives=True
             )
-        # Retried on a 5xx or 429: a failed removal leaves a copy of the
-        # revision in Drive.
+        # Retried on a 5xx or 429: a failed removal leaves a stray copy in Drive.
         await execute_in_thread(
             functools.partial(request.execute, num_retries=_CLEANUP_RETRIES), drive_service
         )
     except Exception as e:
-        logger.warning("Couldn't remove temporary revision Doc %s: %s", file_id, e)
+        logger.warning("Couldn't remove temporary Doc %s: %s", file_id, e)
         return str(e)
     return None
 

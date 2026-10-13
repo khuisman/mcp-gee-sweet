@@ -4305,3 +4305,47 @@ Every capped tool's `local_path` goes through the shared `write_capped_result_to
 **Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 2 (`695d0f9`).** Ran under this job's scratch dir instead of `/tmp`. Step 1 returned `<dir>/new/sub/{DOC_ID}.md`, `bytes_written` 96, and `new/sub` is a directory. Step 2 raised "…has a non-directory path component at '<dir>/blocker'; local_path ends in a path separator or '.', which makes it a directory target…", and `blocker` still holds `keep me`. Step 3 raised the `ValueError` naming `<dir>/blocker`. Step 4 raised "…has a symlink to a missing target at '<dir>/dangling'", and `missing` was not created.
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 3 (`290f5bc`).** Ran under this job's scratch dir instead of `/tmp`. Steps 1–4 matched round 2 (step 1 wrote `<dir>/new/sub/{DOC_ID}.md`, 96 bytes; steps 2–4 raised the expected `ValueError`s; `blocker` still holds `keep me`; `missing` not created). Step 5 raised "…has a symlink to a missing target at '<dir>/linkdir/{DOC_ID}.md'", and `elsewhere` was not created.
+
+## Backup copy before replacing a doc's content — `write_doc_content` / `update_doc_from_file` (#878)
+
+### TC-DOC219: A replace backs the doc up first, removes the backup on success, and names it on failure ⚠️ destructive
+Before #878, a replace that failed after the clear left the doc empty, and the error didn't say so. Now a doc with content is copied with Drive before the clear (`"<title> (backup before replace)"`, next to the doc). The copy is removed on success and kept and named as `backupId` on failure. No tool call can make the content write fail after a successful clear, so part B injects the failure from a scratch script against the checkout under test. Design: `docs/design/doc-replace-backup.md`.
+
+Run it on a server whose account can own a copy of `{DOC_ID}`: OAuth, or a service account when `{DOC_ID}` is on a Shared Drive. A service account writing into a My Drive doc gets `storageQuotaExceeded` on the copy, so it replaces without a backup by design, and step 4 then reports "couldn't be backed up" instead of a `backupId`.
+
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC219 before</p>")`. Note the doc's `name` from `get_file_metadata(file_id={DOC_ID})`.
+
+**Steps (part A, tool calls)**
+1. `write_doc_content(doc_id={DOC_ID}, content="<h1>TC-DOC219 after</h1><p>Replaced.</p>")`
+2. `search_files(query="<name> (backup before replace)")` (the name noted in Setup)
+3. `get_doc_content(file_id={DOC_ID})`
+
+**Steps (part B, scratch script from the checkout under test, same OAuth token as the server under test)**
+
+4. Run, with `{DOC_ID}` filled in:
+```
+uv run python3 -c "
+import asyncio, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(), folder_id=None)
+with patch.object(c, 'fill_tables', side_effect=RuntimeError('injected failure')):
+    print(asyncio.run(c._replace_doc_content(lc, '{DOC_ID}', '<p>TC-DOC219 failed write</p>', 'html',
+        autolink_urls=True, revoke_sharing=True, auto_downscale=False)))
+"
+```
+5. `get_doc_content(file_id={BACKUP_ID})`, where `{BACKUP_ID}` is step 4's `backupId`
+
+**Checks**
+- Step 1 returns `docId` and `web_link`, with no `error`, `backupId`, or `warning`
+- Step 2 finds no file: the backup was removed (deleted, or trashed on a Shared Drive where the account can't delete, #876)
+- Step 3 shows "TC-DOC219 after" and "Replaced.", and no "TC-DOC219 before"
+- Step 4 prints `{"error": "doc edit failed: injected failure. The document's previous content was cleared first; a full copy of it is kept as '<name> (backup before replace)' (backupId).", "docId": "{DOC_ID}", "backupId": "..."}`
+- Step 5 shows "TC-DOC219 after" and "Replaced.", the content from before step 4's failed write
+
+**Cleanup:** `delete_file(file_id={BACKUP_ID})`, then write fixture content back over `{DOC_ID}`
