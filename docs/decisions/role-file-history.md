@@ -266,6 +266,10 @@ Addendum, PR #414 (issue #211) round 3: the fix targeted exactly two named findi
 
 - **A race repro must keep the stale operation in flight across the event, or it proves nothing.** PR #867 round 4: Sky's first success-side race repro started B only after A's consent had finished, which can't be told apart from a legitimate new consent; Ash caught it. Command decision: the technique is now a bullet in `docs/qa/run.md` §"Running server-startup and CLI cases" ("Race and hang repros").
 
+### Check other open PRs before suggesting a fix outside this PR's diff
+
+PR #1000 (#990, lane B) originally changed only `response_limits.py`. Its round 1 code review noted that the new guard duplicated `drive/transfer.py`'s `_validate_local_destination`, and Kit's send-back suggested moving that helper into `response_limits.py`. Nobody checked for other open PRs. PR #1001 (#874/#887, lane A), opened 11 seconds after #1000, was rewriting that same function. Jay caught the overlap before pushing and recommended waiting for #1001. #1000 then took in `develop` and moved #1001's rewritten validator, growing from one helper to every capped tool's `local_path` (11 docstrings). The `develop` merge forced a full `/code-review`, which reviewed the larger scope and found five more send-backs. Two of them were pre-existing defects the move exposed (sheet-name path traversal, the joined-file symlink), not new ones. The PR took four rounds, and the user called the cycle "a hot mess." The scheduling was not the cause: #990's own fix touched no file #1001 did. The fix in round 1 should have stayed in `response_limits.py`, with the consolidation filed for after #1001 merged.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
