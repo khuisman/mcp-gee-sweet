@@ -72,10 +72,20 @@ Measured across two imports of the same DOCX:
 
 ## The temporary Doc
 
-- Created in the default folder (`lc.folder_id`), like every other create path, so a service
-  account works when a Shared Drive is configured. A storageQuotaExceeded error renders with the
-  shared `_SA_QUOTA_ERROR` text. Who can see it there, and its 30 days in the trash when the
-  identity can only trash, is tracked in #989.
+- Where it's created depends on the identity (#989), because the copy holds the revision's full
+  content and the default folder's audience can differ from the source Doc's:
+  - A user identity (OAuth, or ADC with user credentials) creates it in My Drive root, not the
+    default folder, so only the user can see it.
+  - A service account identity (`lc.is_service_account_identity`) creates it in the default
+    folder (`lc.folder_id`). A service account has no My Drive storage, so only a configured
+    Shared Drive works. The remaining exposure is documented in `docs/known-limitations.md`: the
+    Shared Drive's members can open the copy while the export runs, a Content manager's copy sits
+    in the trash for 30 days, and a failed cleanup leaves it live.
+
+  Rejected alternatives: the source Doc's parent folder matches the source's audience more
+  closely, but the identity may not be able to write there. Restricting the copy's permissions
+  after creation can't work on a Shared Drive, where member access is inherited. A
+  storageQuotaExceeded error renders with the shared `_SA_QUOTA_ERROR` text.
 - Uploaded resumable: Drive takes a multipart upload only up to 5 MB, and a revision with
   embedded images can exceed it.
 - Named `export_revision temp (<file_id> r<revision_id>)`, so an orphan is identifiable.

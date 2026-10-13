@@ -2307,6 +2307,35 @@ parallel shards don't delete each other's scratch dir.
 
 ---
 
+### TC-D289: `export_revision` — under OAuth the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
+
+**Background:** The temporary Doc holds the revision's full content. Before #989 it was created in
+the default folder, so with `DRIVE_FOLDER_ID` on a Shared Drive every member of that drive could
+open it while the export ran. A user identity now creates it in My Drive root. A service account,
+which has no My Drive storage, still uses the default folder. The temporary Doc is removed before
+`export_revision` returns, so no tool call can see its parent afterward. The script runs this
+checkout's real `export_revision` against a scratch Doc and reads the temporary Doc's parents just
+before removal. It prints booleans only.
+
+**Setup:** `src/mcp_gee_sweet/.env` in the checkout under test has an OAuth token and
+`DRIVE_FOLDER_ID` set to a Shared Drive folder.
+
+**Tool calls**
+1. `uv run python scripts/qa_revision_temp_doc_parent.py --identity user`
+2. `uv run python scripts/qa_revision_temp_doc_parent.py --identity service-account`
+
+**Checks**
+- Both calls print `DRIVE_FOLDER_ID set: True`, `markdown: 'probe 989\n'`, and `warning: None`.
+- Call 1 prints `temp Doc in My Drive root: True`, `temp Doc in DRIVE_FOLDER_ID: False`, and
+  `temp Doc in a Shared Drive: False`.
+- Call 2 prints `temp Doc in My Drive root: False`, `temp Doc in DRIVE_FOLDER_ID: True`, and
+  `temp Doc in a Shared Drive: True`.
+
+**Teardown:** None. The script deletes its scratch Doc, and `export_revision` removes the temporary
+Doc.
+
+---
+
 ### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
 
 Before the fix, a real sync ran every upload and download, then failed at the final manifest

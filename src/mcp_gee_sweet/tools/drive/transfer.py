@@ -2463,8 +2463,8 @@ def register(tool):
         Google Docs: returns the revision as Markdown, converted the same way as
         get_doc_as_markdown. The Docs API can only read a document's current
         state, so the revision is exported as DOCX, imported into a temporary
-        Google Doc in the default folder, converted, and the temporary Doc is
-        deleted (trashed if this identity can't delete it), so this call writes
+        Google Doc, converted, and the temporary Doc is deleted (trashed if
+        this identity can't delete it), so this call writes
         to Drive even though it changes nothing of yours. Expect several
         seconds per call. Two revisions' exports diff cleanly, with these
         differences from get_doc_as_markdown's output:
@@ -2506,8 +2506,10 @@ def register(tool):
             exceeds the size cap without local_path.
 
         Note:
-            For a Doc, the temporary Doc needs storage: a service account must
-            have a Shared Drive configured as its default folder.
+            For a Doc, the temporary Doc goes in My Drive root under OAuth, so
+            only you can see it. A service account has no My Drive storage, so
+            it uses the default folder, which must be a Shared Drive: that
+            drive's members can open the copy while the export runs.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -2546,13 +2548,19 @@ def register(tool):
                 validate_local_destination(local_path)
             from ..docs.markdown_export import export_doc_revision_markdown
 
+            # The temporary Doc holds the revision's full content, so it goes
+            # where the fewest people can see it: My Drive root for a user
+            # identity. A service account has no My Drive storage, so it keeps
+            # the default folder and its audience (#989,
+            # docs/known-limitations.md).
+            temp_folder_id = lc.folder_id if lc.is_service_account_identity else None
             exported = await export_doc_revision_markdown(
                 drive_service,
                 lc.docs_service,
                 file_id,
                 revision_id,
                 docx_url,
-                lc.folder_id,
+                temp_folder_id,
             )
             result: dict[str, Any] = {
                 "revisionId": revision_id,

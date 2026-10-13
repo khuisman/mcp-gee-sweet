@@ -95,10 +95,11 @@ def _services(document, can_delete=True):
     return drive, docs
 
 
-def _ctx(drive, docs, folder_id: str | None = "folder1"):
+def _ctx(drive, docs, folder_id: str | None = "folder1", service_account: bool = True):
     ctx = MagicMock()
     lc = ctx.request_context.lifespan_context
     lc.drive_service, lc.docs_service, lc.folder_id = drive, docs, folder_id
+    lc.is_service_account_identity = service_account
     return ctx
 
 
@@ -145,6 +146,13 @@ class TestDocRevisionExport:
     async def test_no_default_folder_omits_parents(self, fake_http):
         drive, docs = _services(_document([_para("x\n")]))
         await _export(_ctx(drive, docs, folder_id=None))
+        assert "parents" not in drive.files.return_value.create.call_args.kwargs["body"]
+
+    async def test_user_identity_uses_my_drive_root_not_default_folder(self, fake_http):
+        # The default folder's audience can differ from the source Doc's; a
+        # user identity keeps the revision's copy where only it can see it (#989).
+        drive, docs = _services(_document([_para("x\n")]))
+        await _export(_ctx(drive, docs, service_account=False))
         assert "parents" not in drive.files.return_value.create.call_args.kwargs["body"]
 
     async def test_trashes_when_identity_cannot_delete(self, fake_http):

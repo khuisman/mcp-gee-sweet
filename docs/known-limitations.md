@@ -134,19 +134,29 @@ as `get_doc_as_markdown`, with these differences and gaps:
 3. A revision ID from `list_revisions` can stop existing: Docs folds a recent revision into the
    next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
    The export then fails with an error saying to list revisions again.
-4. Each call creates and removes a temporary Google Doc in the default folder, which takes
-   several seconds and needs storage there (a service account needs a Shared Drive default
-   folder). If removal fails, the result's `warning` names the Doc to delete by hand.
+4. Each call creates and removes a temporary Google Doc holding the revision's full content,
+   which takes several seconds. Under OAuth it goes in My Drive root, where only you can see it.
+   A service account has no My Drive storage, so it uses the default folder, which must be a
+   Shared Drive. The source Doc's own sharing doesn't limit who can see that copy:
+   - Every member of the Shared Drive can open it while the export runs, including the image
+     downloads.
+   - A Content manager can only trash it, not delete it, so it stays in the Shared Drive's
+     trash for 30 days, where the drive's managers can see it.
+   - If removal fails, the copy stays live, and the result's `warning` names the Doc to delete
+     by hand.
 
 **Why:** The Docs API reads only a document's current state, so the revision is exported as DOCX
 and imported into a temporary Doc to be read. That Doc's ID, heading IDs, and image URLs are new
 on every import, so (1) replaces them with values that stay the same between exports and keep
 diffs clean. A bookmark has no text to make a stable anchor from, and an invented one could be
 matched to the wrong heading if the Markdown is written back. (3) is how Drive keeps Docs
-revision history.
+revision history. (4) follows from that import: a service account can create files only in a
+Shared Drive, and member access there is inherited, so the copy's permissions can't be narrowed.
 
 **Workaround:** For (1), diff one revision's export against another's, not against
-`get_doc_as_markdown` output. For (3), export a revision only after editing has settled.
+`get_doc_as_markdown` output. For (3), export a revision only after editing has settled. For
+(4), when a revision's content shouldn't reach the Shared Drive's members, export it over OAuth,
+or point `DRIVE_FOLDER_ID` at a Shared Drive whose membership matches the source Doc's audience.
 Related: docs/design/doc-revision-export.md.
 
 ---
