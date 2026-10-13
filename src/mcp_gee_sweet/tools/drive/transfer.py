@@ -2077,6 +2077,7 @@ async def _sync_level(
                 conflicts.append(rel_name)
             elif kind == "upload_ok":
                 uploaded.append(rel_name)
+                total_bytes += o["bytes"]
                 level_changed = True
             elif kind == "download_ok":
                 downloaded.append(rel_name)
@@ -3573,7 +3574,8 @@ def register(tool):
             just the filename at the top level, 'subdir/name' for nested matches when
             recursive descends; always empty when dry_run=True, see the dry_run
             section above), 'folders_skipped' (relative subfolder paths not entered —
-            always empty when recursive=False), size_bytes transferred, dry_run flag,
+            always empty when recursive=False), size_bytes transferred (uploaded plus
+            downloaded), dry_run flag,
             and — when dry_run=True — an 'actions' list with {name, action, reason}
             for every file considered at every level visited. A '.gee-sweet-partial-*'
             temp file an interrupted download left locally is never synced; it's

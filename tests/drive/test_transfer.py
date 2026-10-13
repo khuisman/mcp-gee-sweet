@@ -2015,6 +2015,62 @@ class TestSyncFolderUploadMimetype:
         }
 
 
+class TestSyncFolderSizeBytesCountsUploads:
+    """#1003: size_bytes ("bytes transferred") counted only downloads, so an
+    upload-only sync always reported 0."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_create_path_counts_uploaded_bytes(self, tmp_path):
+        (tmp_path / "a.txt").write_bytes(b"x" * 28)
+        (tmp_path / "b.txt").write_bytes(b"y" * 5)
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=self._ctx(fs)
+        )
+
+        assert sorted(result["uploaded"]) == ["a.txt", "b.txt"]
+        assert result["size_bytes"] == 33
+
+    async def test_update_path_counts_uploaded_bytes(self, tmp_path):
+        # Drive copy is far older than the local file, so the plan re-uploads
+        # it through update() rather than create().
+        (tmp_path / "a.txt").write_bytes(b"x" * 28)
+        fs = _FakeDriveFS({"root": [_drive_file("a.txt", "f1", mtime="2020-01-01T00:00:00.000Z")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=self._ctx(fs)
+        )
+
+        assert result["uploaded"] == ["a.txt"]
+        assert [u["fileId"] for u in fs.updated_files] == ["f1"]
+        assert fs.created_files == []
+        assert result["size_bytes"] == 28
+
+    async def test_recursive_upload_sums_bytes_across_levels(self, tmp_path):
+        (tmp_path / "top.txt").write_bytes(b"x" * 3)
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "nested.txt").write_bytes(b"y" * 7)
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert sorted(result["uploaded"]) == ["sub/nested.txt", "top.txt"]
+        assert result["size_bytes"] == 10
+
+
 class TestSyncFolderRecursive:
     """Issue #315: sync_folder silently ignored every subfolder, one level deep,
     reporting a clean 'in sync' result instead of surfacing the gap. `recursive=True`
