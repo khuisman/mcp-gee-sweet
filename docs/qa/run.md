@@ -162,6 +162,28 @@ Workaround for a *scratch* fixture sheet (never do this to a sheet with real dat
 
 ---
 
+## Forcing a real `storageQuotaExceeded` (service account only)
+
+Several quota-error test cases say a quota error can't be forced live, so they verify only by unit test. That's true for a user identity, since the QA account's My Drive isn't full. A service account's error can be forced: it has no My Drive storage, so creating a file with no `parents` returns a real 403 `storageQuotaExceeded`. Run it from a fresh interpreter in the checkout under test (no MCP server involved), and pass the caught exception to the code under test:
+
+```
+uv run python -I -c "
+import mcp_gee_sweet
+from mcp_gee_sweet import auth
+from googleapiclient.discovery import build
+d = build('drive', 'v3', credentials=auth._service_account_creds(), cache_discovery=False)
+try:
+    r = d.files().create(body={'name': 'qa-sa-quota-probe', 'mimeType': 'application/vnd.google-apps.document'}, fields='id').execute()
+    print('UNEXPECTED: created'); d.files().delete(fileId=r['id']).execute()
+except Exception as e:
+    print(type(e).__name__, e.resp.status)  # then feed e to the helper under test
+"
+```
+
+This needs service-account credentials in `src/mcp_gee_sweet/.env` (`CREDENTIALS_CONFIG` or `SERVICE_ACCOUNT_PATH`). Nothing is created, so there's no teardown. Used for TC-D291 in PR #1006.
+
+---
+
 ## Missing `docs/qa/.env` in a role worktree
 
 `docs/qa/.env` is gitignored, so it doesn't exist by default in a freshly-provisioned `.claude/worktrees/<name>` slot — confirmed empty/absent across every role worktree and the main checkout, 2026-07-19, while doing a scoped QA pass from Kit's own role process (`.claude/team-roles/qa.md` step 4), not the full conductor-prompt flow this file otherwise documents. That flow's own fixture-check step (below) would just stop and ask the user to run `setup.md`, but a scoped single-PR QA pass doesn't need the whole `.env` — only the one fixture ID relevant to the PR under review.

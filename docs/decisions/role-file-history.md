@@ -282,6 +282,10 @@ PR #1000 (#990, lane B) originally changed only `response_limits.py`. Its round 
 
 Round 3 of PR #1000 (`290f5bc`) got `qa-approved` while `Lint and test` was failing on every Python version: two non-raw `match=` patterns tripped ruff RUF043. Kai caught it at `/merge-pr`. Step 8 had no CI check, and QA's local checks didn't catch it, because pre-commit's ruff hook is pinned at v0.11.9, where RUF043 is preview-only, while CI runs 0.16.x (#974 tracks that version skew). Step 8 now waits for CI on the head SHA after QA's Result-entry push and before the `approved` comment. Every check must pass, with all four `Lint and test` jobs present and passing. A failure sends the round back through step 7, and an absent check is retriggered per `merge-pr.md` step 2.
 
+### Re-read this file when a `develop` merge changes it mid-pass
+
+PR #1006 (#989, lane B) took seven rounds, and `qa.md` changed under it twice. Kit read `qa.md` once, at session start, from a checkout whose step 8 had no CI wait. In round 3, Jay merged `develop` into the branch, bringing in #1008's new bar-2 boundary. Kit noticed the bar change in that merge's diff and re-triaged round 2's ticket lines: #1009 turned into a send-back. The CI wait already on `develop` went unnoticed, so rounds 5 and 7 applied `qa-approved` without waiting for CI. After round 5's label, Kai found the PR `CONFLICTING` with `develop` (PR #1011 had merged, touching the same quota sites), with only CodeQL run on the head and no `Lint and test`. Step 1 now diffs the process files after a `develop` merge and re-reads what changed. Step 8 checks `mergeable` before retriggering an absent `Lint and test`, since a conflicting PR never runs it.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
