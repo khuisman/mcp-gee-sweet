@@ -46,17 +46,30 @@ images, and tables survive, which a re-inserted snapshot wouldn't.
   doesn't fail the call. The result gets a `warning` naming the copy.
 - **Failure after the clear:** the copy is kept. The result is `{"error", "docId", "backupId"}`
   (plus `images` when there are any), and the error names the copy.
-- **The clear itself rejected (`HttpError`):** the API ran nothing, so the doc is unchanged. The
-  copy is removed and the error says so. Any other exception from the clear, such as a timeout,
-  doesn't say whether the clear landed, so it's treated as a failure after the clear.
-- **The copy fails:** nothing is changed, and an error is returned. The exception is
+- **The clear answered with a 4xx (429 included):** the API ran nothing, so the doc is unchanged.
+  The copy is removed and the error says so. Anything else from the clear (a 5xx, a timeout, a
+  transport error) doesn't say whether it landed, so the copy is kept and the error says the
+  content *may have been* cleared. QA reproduced a 503 returned after a clear that had run (PR
+  #1017 round 1), which an earlier version treated as rejected, deleting the only copy.
+- **The doc is re-read after the copy.** The copy takes seconds, and a concurrent edit meanwhile
+  would otherwise survive the clear (the doc grew) or make it fail (it shrank). A failed re-read
+  stops before the clear: the doc is unchanged and the copy is removed. A doc emptied meanwhile
+  isn't cleared, and a later failure still names the copy.
+- **The copy fails:** nothing is changed, and an error is returned. A 429 is retried (up to 3 times,
+  with backoff), since Drive ran nothing. A 5xx isn't, since the copy may already exist and a
+  retry would make a second one. For a failure other than a 4xx, the error names the copy that
+  may have been created, so the caller can find and remove it. The exception is
   `storageQuotaExceeded`. A service account can't own a copy of a user-owned doc, and
   `write_doc_content` is the documented way for a service account to write into such a doc
   (`known-limitations.md`'s quota section). That case replaces without a backup and logs a
-  warning. If the replace then fails, the error says no backup could be made.
+  warning. If the replace then fails, the error says no backup could be made. Whether other
+  permission or limit failures should also fall back to no backup is #1018.
 - **Cancellation:** the copy is created inside a shielded scope, so its ID is always recorded (the
-  PR #877 rule). Once the copy exists, a cancellation keeps it and logs a warning with its ID,
-  since the doc may already be cleared and the call has no result left to report it in.
+  PR #877 rule). The scope is bounded by `_BACKUP_COPY_TIMEOUT` (60 s, all attempts together), per
+  `CLAUDE.md`'s rule that a cancel waits for shielded work; a timeout is reported like a 5xx.
+  Once the copy exists, a cancellation keeps it and logs a warning with its ID, since the doc may
+  already be cleared and the call has no result left to report it in.
+- **On success,** the copy's removal and the `webViewLink` lookup run together.
 
 ## Cost
 

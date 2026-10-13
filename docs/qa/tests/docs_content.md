@@ -4339,7 +4339,35 @@ with patch.object(c, 'fill_tables', side_effect=RuntimeError('injected failure')
         autolink_urls=True, revoke_sharing=True, auto_downscale=False)))
 "
 ```
-5. `get_doc_content(file_id={BACKUP_ID})`, where `{BACKUP_ID}` is step 4's `backupId`
+5. `get_doc_content(file_id={BACKUP_ID})`, where `{BACKUP_ID}` is step 4's `backupId`. Part B's mock `doc_cache` leaves the server's cache stale, so call `refresh_cache(doc_id={DOC_ID})` before reading `{DOC_ID}` again.
+
+**Steps (part C, a 503 returned after the request already ran, PR #1017 QA round 1)**
+
+6. Restore some content first: `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC219 before C</p>")`. Then run the script below with `MATCH=':batchUpdate'` (the clear), then `refresh_cache(doc_id={DOC_ID})` and `get_doc_content(file_id={DOC_ID})`, then `get_doc_content(file_id=<its backupId>)`.
+7. `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC219 before C2</p>")`, then run the script with `MATCH='/copy'` (the backup copy), then `refresh_cache(doc_id={DOC_ID})`, `get_doc_content(file_id={DOC_ID})`, and `search_files(query="<name> (backup before replace)")`.
+```
+MATCH=':batchUpdate' uv run python3 -c "
+import asyncio, os, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(), folder_id=None)
+real = c.execute_in_thread
+async def after_commit(fn, service):
+    result = await real(fn, service)
+    if os.environ['MATCH'] in getattr(getattr(fn, '__self__', None), 'uri', ''):
+        raise HttpError(resp=MagicMock(status=503), content=b'{}')
+    return result
+with patch.object(c, 'execute_in_thread', after_commit):
+    print(asyncio.run(c._replace_doc_content(lc, '{DOC_ID}', '<p>TC-DOC219 part C</p>', 'html',
+        autolink_urls=True, revoke_sharing=True, auto_downscale=False)))
+"
+```
 
 **Checks**
 - Step 1 returns `docId` and `web_link`, with no `error`, `backupId`, or `warning`
@@ -4347,7 +4375,9 @@ with patch.object(c, 'fill_tables', side_effect=RuntimeError('injected failure')
 - Step 3 shows "TC-DOC219 after" and "Replaced.", and no "TC-DOC219 before"
 - Step 4 prints `{"error": "doc edit failed: injected failure. The document's previous content was cleared first; a full copy of it is kept as '<name> (backup before replace)' (backupId).", "docId": "{DOC_ID}", "backupId": "..."}`
 - Step 5 shows "TC-DOC219 after" and "Replaced.", the content from before step 4's failed write
+- Step 6's script prints an error containing "may have been cleared" and a `backupId`. `{DOC_ID}` reads empty, and the `backupId` doc shows "TC-DOC219 before C": the backup was kept, not deleted
+- Step 7's script prints "Couldn't back up the document before replacing its content, so it was left unchanged" ending in "A copy named '<name> (backup before replace)' may still have been created next to the document; check for it and delete it". `{DOC_ID}` still shows "TC-DOC219 before C2", and `search_files` finds that copy
 
-**Cleanup:** `delete_file(file_id={BACKUP_ID})`, then write fixture content back over `{DOC_ID}`
+**Cleanup:** `delete_file` on `{BACKUP_ID}`, step 6's `backupId`, and the copy step 7's `search_files` found, then write fixture content back over `{DOC_ID}`
 
 **Result (2026-10-12) ❌ FAIL — Sky, PR #1017 round 1 (`94b1ddd`).** Ran on a scratch doc on the QA Shared Drive (OAuth), not the shared fixture doc, and part B used the script with the server's env loaded from this slot's MCP config. Part A passed: step 1 returned `docId`/`web_link` only; step 2 found no backup; step 3 showed the new content. Part B passed: step 4 printed the expected error with a `backupId`, step 5 showed the pre-failure content, and the same `search_files` query from step 2 found that kept backup (a positive control for step 2). The case fails on two extra probes run with the same script, `execute_in_thread` patched to raise `HttpError` 503 after the real call had already gone through. (a) On the clear: it returned "Couldn't clear the document, so it was left unchanged" and removed the backup, but a fresh `get_doc_content` (after `refresh_cache`) showed the doc empty: data loss (review finding 1). (b) On the `files.copy`: it returned "Couldn't back up… left unchanged" with no file ID, while a `(backup before replace)` copy now existed next to the doc (finding 5). `update_doc_from_file` replace on the same doc: new content written, no backup left behind. Note: part B's mock `doc_cache` leaves the server's cache stale, so call `refresh_cache(doc_id=…)` before step 5-style reads of `{DOC_ID}`. Cleanup done: the scratch doc and both kept copies were trashed.
