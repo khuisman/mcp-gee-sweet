@@ -3861,14 +3861,17 @@ class TestReplaceDocBackup:
         )
         self._batch_update_execute(docs_svc).assert_not_called()
 
-    async def test_link_lookup_failure_still_removes_backup(self):
+    async def test_link_lookup_failure_still_removes_backup_and_dirties_cache(self):
         drive_svc, docs_svc = self._make_services()
         drive_svc.files.return_value.get.return_value.execute.side_effect = RuntimeError("get boom")
+        ctx = self._ctx(drive_svc, docs_svc)
         with pytest.raises(RuntimeError, match="get boom"):
-            await self._write(self._ctx(drive_svc, docs_svc))
+            await self._write(ctx)
         drive_svc.files.return_value.delete.assert_called_once_with(
             fileId="backup1", supportsAllDrives=True
         )
+        # The doc was already replaced (PR #1017 QA round 2).
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
 
     async def test_backup_removal_and_link_lookup_run_together(self):
         drive_svc, docs_svc = self._make_services()

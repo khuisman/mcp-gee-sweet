@@ -526,6 +526,9 @@ async def _replace_doc_content(
         )
     except BaseException as e:
         return _failed(e, cleared)
+    # Before the link lookup, which can still raise with the doc already
+    # replaced (PR #1017 QA round 2).
+    doc_cache.mark_dirty(doc_id)
 
     # The backup's removal and the link lookup are independent, so they run
     # together. The removal catches its own errors; a lookup error is re-raised
@@ -552,7 +555,6 @@ async def _replace_doc_content(
     if lookup_error is not None:
         raise lookup_error
 
-    doc_cache.mark_dirty(doc_id)
     logger.debug("Replaced content in doc %s", doc_id)
     result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
     if image_outcomes is not None:
