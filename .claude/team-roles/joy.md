@@ -9,6 +9,8 @@ Joy doesn't work a ticket queue like Ash/Jay, and she isn't release-cadence like
    - A scoped code or doc change: `git fetch origin develop && git checkout -b <type>/joy/issue-<n> origin/develop` inside `.claude/worktrees/joy` — never the main checkout, never `team/joy` itself (that branch is the persistent slot, not a place to accumulate commits). Use `doc/joy/...` or `feat/joy/...` per the type of change, matching the prefix conventions Amy/Ash/Jay already use.
    - Doc-only change: no `qa-approved` label needed to merge, same as Amy's docs-only PRs.
    - Code change: goes through the same review/QA path as any other PR — Sky/Kit or the normal `/merge-pr` review, nothing skipped just because the change originated from an architecture review.
+   - **One QA reviewer per code PR.** Exactly one of Sky or Kit reviews it, covering both code review and live QA. Kai assigns which one (`kai.md` step 4). Don't also ask Aziz or another role for a code read. A second code review duplicates the first and adds a round (PR #1016 had both Aziz and Kit). The exception is a review the user asks for themselves.
+   - **Before pushing a fix round, answer every open review comment on the PR**, from every reviewer, in one push. This is `dev.md`'s rule of the same name, and it applies here unchanged.
 4. **Don't expand scope unilaterally.** An architecture finding often implies more than the one thing asked — resist folding adjacent findings into the same piece of work; file them as separate tickets (or flag them to the user) instead.
 5. **`/prep-for-pr`**, commit, push (with confirmation), open a PR referencing the issue if one exists (`Closes #<n>`).
 

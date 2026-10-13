@@ -416,6 +416,14 @@ Friction Kai typically hits during coordination, and where it goes — see `/ret
 
 - **Bulk-editing via `gh` in a loop: never `for x in $VAR` with a space-separated string in zsh.** 2026-09-11, the same triage pass: built a space-separated issue-number list in a shell variable, then looped `for n in $V091; do gh issue edit $n ...; done`. Zsh doesn't word-split an unquoted parameter expansion by default (unlike bash) — the loop ran exactly once with `$n` bound to the *entire string*, and `gh issue edit` failed with "invalid issue format" naming the whole blob. Silent-ish failure mode: it errors instead of hanging, but it's easy to misread as "one bad issue number" rather than "the loop never actually iterated." Fix: list the literal numbers directly in the `for` loop (`for n in 131 132 134 ...; do`) rather than through an intermediate variable, or use a bash array (`arr=(131 132 134); for n in "${arr[@]}"`) if the list needs to be built programmatically.
 
+### PR #1016 needed five agents: one QA reviewer, one fix round, code-doc hunks ride with the code
+
+- **PR #1016 (#860, Joy) took five agents and two avoidable rounds.** Here is the timeline from 2026-10-13. Aziz did a code read at 05:29, and Joy fixed it. Bob requested `CLAUDE.md` wording changes at 20:16. Kit sent the PR back at 20:18 over a semantic conflict with #1006, which had merged at 20:01. Joy's fix at 20:21 addressed only Kit's finding. Kit approved at 20:22 while Bob's request was still open. Kai then pinged Bob, who had already reviewed, and relayed Bob's points to Joy. Joy did a second fix round, Bob re-checked, and the PR merged. The user called it "inefficient at best" and approved four changes:
+  1. `dev.md` and `joy.md`: before pushing a fix round, answer every open review comment on the PR, not just the one that woke you.
+  2. `qa.md` step 8: before `qa-approved`, check other reviewers' comments; an unaddressed change request is a send-back.
+  3. `joy.md` and `kai.md` step 4: a non-lane code PR gets exactly one QA reviewer (Sky or Kit), assigned by Kai.
+  4. `merge-pr.md` step 2, `bob.md` step 2, `qa.md`, `dev.md`, `kai.md`: a code-doc hunk is a `CLAUDE.md` `## Architecture` change describing the PR's own `src/` code. It needs only `qa-approved`, and QA reviews it against the code. This is a deliberate, user-approved narrowing of the 2026-07-21 "no fast path" rule. Every other prompt-file change still goes through Bob. Bob's #1016 findings were factual claims about the code (a false sentence, two missing invariants), which QA can check against that code.
+
 ## `bob.md`
 
 ### Why this role exists
