@@ -2338,6 +2338,8 @@ Doc.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 1 (`5994843`).** Call 1 was run twice and call 2 once. Every run printed `DRIVE_FOLDER_ID set: True`, `markdown: 'probe 989\n'`, and `warning: None`. Call 1 printed My Drive root `True`, DRIVE_FOLDER_ID `False`, Shared Drive `False`. Call 2 printed My Drive root `False`, DRIVE_FOLDER_ID `True`, Shared Drive `True`.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 2 (`77960a6`).** The fix commit changes docs only. Ran each call once, with output identical to round 1: `probe 989\n` and no warning on both. Call 1 put the copy in My Drive root only, and call 2 put it in `DRIVE_FOLDER_ID` on the Shared Drive.
+
 ---
 
 ### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
