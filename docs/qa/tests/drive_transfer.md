@@ -2307,6 +2307,8 @@ parallel shards don't delete each other's scratch dir.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 1 (`5994843`).** Regression check of the OAuth (user-identity) temporary-Doc path through the live tool. Ran under this job's scratch dir instead of `/tmp`. Call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15, with no `warning`; `<dir>` is a directory holding `Saved to disk`. Afterward, `search_files(query="export_revision temp")` found no copy from this run, only one older Shared Drive copy dated 2026-10-11.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`), after `/mcp reconnect`.** Ran under this job's scratch dir. Call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15, with no `warning`; `<dir>` is a directory holding `Saved to disk`.
+
 ---
 
 ### TC-D290: `export_revision` — for a user identity the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
@@ -2340,6 +2342,8 @@ Doc.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 2 (`77960a6`).** The fix commit changes docs only. Ran each call once, with output identical to round 1: `probe 989\n` and no warning on both. Call 1 put the copy in My Drive root only, and call 2 put it in `DRIVE_FOLDER_ID` on the Shared Drive.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`).** Re-run because `8ba9194` changes how `export_doc_revision_markdown` renders a create error. Each call ran once, with output identical to round 2: `probe 989\n` and no warning on both, and the same folder placement for each identity.
+
 ---
 
 ### TC-D291: A quota-exceeded error says "storage is full" to a user identity and keeps the service-account text for a service account (issue #1009) (unit test)
@@ -2372,6 +2376,13 @@ error paths are unit-tested only.
   `_quota_error_text` on a Drive service built from this checkout's OAuth token returns
   `_USER_QUOTA_ERROR`. On one built from a `service_account.Credentials` (a throwaway local key is
   enough, since `build()` makes no network call) it returns `_SA_QUOTA_ERROR`.
+- Live service-account quota error, from a fresh interpreter: a Drive service built from
+  `auth._service_account_creds()` calls `files().create()` with no `parents`. A service account
+  has no My Drive storage, so Drive returns a real 403 `storageQuotaExceeded`.
+  `_is_quota_error` is `True` for it, and `_quota_error_detail(e, service)` returns
+  `_SA_QUOTA_ERROR`. Only the user-identity error can't be forced live.
+
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`).** The full suite passed (2772 passed, 3 skipped), including every unit test listed above. Identity detection on real services: the OAuth-built service gave the user text, and one built from the configured service-account credentials gave the SA text. Live SA quota: `create()` with no parents returned 403 `storageQuotaExceeded`, `_is_quota_error` was `True`, and the rendered text equaled `_SA_QUOTA_ERROR`.
 
 ---
 
