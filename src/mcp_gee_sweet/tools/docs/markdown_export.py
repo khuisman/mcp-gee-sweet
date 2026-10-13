@@ -250,7 +250,7 @@ async def export_doc_revision_markdown(
             except Exception as e:
                 raise ValueError(
                     f"Couldn't import revision {revision_id} into a temporary Doc: "
-                    f"{_quota_error_detail(e)}"
+                    f"{_quota_error_detail(e, drive_service)}"
                 ) from e
         await anyio.lowlevel.checkpoint()
         document = await execute_in_thread(

@@ -61,7 +61,7 @@ Created 'QA-Create-Root' with no folder; get_file_metadata parents=["0APfXAGTeZY
 **Setup:** `{PERSONAL_DRIVE_FOLDER_ID}` = a folder in the OAuth user's personal My Drive that the service account has no write quota for (e.g. the pre-Shared-Drive `TEST_FOLDER_ID`, or any personal-Drive folder shared to the SA). If no such folder is available this run, record SKIP(environmental) — the unit-level equivalent (`tests/drive/test_files.py::TestQuotaErrors`) still covers the error path.
 
 **Checks**
-- Call returns `{"error": ...}` containing `_SA_QUOTA_ERROR` text: "Service accounts cannot create or copy files in personal Drive (no storage quota)…"
+- Call returns `{"error": ...}` containing `_SA_QUOTA_ERROR` text: "This service account has no My Drive storage, so it can create files only in a Shared Drive…"
 - Run the same prompt with **no** folder (default → `DRIVE_FOLDER_ID` Shared Drive) and confirm it now **succeeds** for the SA — trash the result
 
 **Result (2026-09-04) ⏭️ SKIP**

@@ -118,6 +118,14 @@ Friction Dev (Ash/Jay) typically hits after finishing a ticket, and where it goe
 
 - **A ticket's ask can rest on an unverified assumption about an external API's capabilities.** Issue #404/PR #471: `tab_stops` on `style_doc_range` shipped fully before QA's live round caught `HttpError 400 "Unallowed field: tabStops"` — the field was read-only per its own discovery-schema description. See `CLAUDE.md`'s "Verify a ticket's API premise live before implementing, not after" note for the operative rule — no separate incident detail needed here.
 
+### Check a user-facing message against every case that reaches it
+
+- **Check a user-facing message against every case that reaches it.** PR #1006 (#989, #1009) took six QA rounds, and three of the send-backs were wording that was right for the common case and wrong for another case reaching the same text. Round 1: the docs said "under OAuth" while the code branched on `is_service_account_identity`, which also routes ADC with user credentials to My Drive root. Round 4: the new user-identity quota message said "this account's storage is full", but a user writing to a Shared Drive whose pooled organization storage is full reaches it too. Round 6: `_SA_QUOTA_ERROR` told a service account already on a (full) Shared Drive to "use a Shared Drive destination", and an ADC-resolved service identity to "use OAuth or ADC". Each was a one-line fix QA had to find, one round at a time. Enumerating identity × destination once, before the first push, would have caught all three.
+
+### Before widening a fix into files outside the ticket's original scope, check open PRs touching those files
+
+- **Before widening a fix into files outside the ticket's original scope, check open PRs touching those files.** PR #1006, round 3: #1008's bar-2 rule pulled #1009 into the PR, and the fix grew to all 13 quota-error sites across `transfer.py`, `files.py`, `docs/content.py` and `docs/images.py`. PR #1011 (#916, lane A) was open at the same time, rewriting the same sites' quota check into `tools/http_errors.is_storage_quota_error`. It even showed up in this session's TC-ID collision check against `drive_transfer.md`, but nobody looked at its other files. #1011 merged first. #1006 went CONFLICTING in four files, CI skipped "Lint and test", and the merge had to be redone onto #916's helper, dropping this PR's own `_is_quota_error`. One `gh pr list ... files` check before writing the cross-cutting change would have surfaced the overlap while it was cheap to agree on one predicate.
+
 ## `qa.md`
 
 ### Opening paragraph: dedicated server and reconnect

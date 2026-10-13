@@ -6,7 +6,10 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.cache import DriveFolderCache
+from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import files as drive_files_module
+
+from ..fakes import as_service_account
 
 
 def _make_tool_registry():
@@ -585,22 +588,33 @@ class TestQuotaErrors:
     def _assert_helpful_error(self, result):
         assert "error" in result
         assert "storageQuotaExceeded" not in result["error"]
-        assert "Service accounts" in result["error"]
+        assert "This service account has no My Drive storage" in result["error"]
         assert "server://auth-status" in result["error"]
 
     async def test_create_spreadsheet_quota_returns_error_dict(self):
-        mock = MagicMock()
+        mock = as_service_account(MagicMock())
         mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         result = await _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
         self._assert_helpful_error(result)
 
     async def test_copy_file_quota_returns_error_dict(self):
-        mock = MagicMock()
+        mock = as_service_account(MagicMock())
         mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
         result = await _drive_tools["copy_file"](file_id="fid", ctx=ctx)
         self._assert_helpful_error(result)
+
+    @pytest.mark.parametrize("tool", ["create_spreadsheet", "copy_file"])
+    async def test_user_identity_quota_says_storage_is_full(self, tool):
+        # A user whose own Drive is full must not be told to switch to OAuth (#1009).
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
+        kwargs = {"title": "Test"} if tool == "create_spreadsheet" else {"file_id": "fid"}
+        result = await _drive_tools[tool](ctx=ctx, **kwargs)
+        assert result == {"error": _USER_QUOTA_ERROR}
 
     async def test_create_spreadsheet_non_quota_403_still_raises(self):
         """A 403 that is not storageQuotaExceeded must propagate — not be swallowed."""
@@ -1544,11 +1558,11 @@ class TestImportCsvToSheet:
 
     async def test_storage_quota_error_returns_helpful_message(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
-        drive_svc = MagicMock()
+        drive_svc = as_service_account(MagicMock())
         drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
         result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
-        assert result["error"] == drive_files_module._SA_QUOTA_ERROR
+        assert result["error"] == _SA_QUOTA_ERROR
 
     async def test_other_403_error_reraises(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])

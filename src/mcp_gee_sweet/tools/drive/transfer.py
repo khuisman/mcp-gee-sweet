@@ -29,7 +29,7 @@ from ..response_limits import (
     validate_local_destination,
     write_capped_result_to_disk,
 )
-from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
+from . import _escape_drive_query_mime_type, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -241,26 +241,27 @@ def _is_workspace_entry(f: dict) -> bool:
     return f["mimeType"].startswith("application/vnd.google-apps.")
 
 
-def _quota_error_detail(exc: Exception) -> str:
+def _quota_error_detail(exc: Exception, service: Any) -> str:
     """Render an exception as a user-facing 'error' string: the friendly
-    _SA_QUOTA_ERROR text for a storageQuotaExceeded HttpError, else str(exc).
+    _quota_error_text for `service`'s identity on a storageQuotaExceeded
+    HttpError, else str(exc).
     Keeps every quota-error site in this file rendering the same way — including
     catch-all `except Exception` handlers where a bare `except HttpError` quota
     check would otherwise be skipped and leak the raw error blob (#670)."""
-    return _SA_QUOTA_ERROR if is_storage_quota_error(exc) else str(exc)
+    return _quota_error_text(service) if is_storage_quota_error(exc) else str(exc)
 
 
-def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
+def _restamp_failure_result(file_id: str, exc: Exception, service: Any) -> dict[str, Any]:
     """Shared result for the narrow case where create() succeeded but the
     follow-up metadata-only modifiedTime restamp (convert / convert_markdown
     uploads only) then failed. The created Drive file is real — pairing the
     error with its fileId keeps that orphan findable instead of losing its ID
     entirely (#420). A storageQuotaExceeded HttpError is rendered with the
-    shared _SA_QUOTA_ERROR text, matching every other quota-error site in this
+    shared _quota_error_text, matching every other quota-error site in this
     file — the original per-site restamp except caught only bare Exception and
     would have leaked a raw str(e) here (#650). Callers layer their own result
     shape on top (e.g. _sync_level._run_one's kind/name keys)."""
-    detail = _quota_error_detail(exc)
+    detail = _quota_error_detail(exc, service)
     return {
         "error": (
             f"created Drive file {file_id!r} but failed to restamp its modifiedTime: {detail}"
@@ -509,7 +510,7 @@ async def _restamp_modified_time(
             drive_service,
         )
     except Exception as e:
-        return _restamp_failure_result(file_id, e)
+        return _restamp_failure_result(file_id, e, drive_service)
     return None
 
 
@@ -702,7 +703,7 @@ async def _upload_local_file(
 ) -> dict[str, Any]:
     """Upload a local file to a Drive folder. Shared core behind the upload_local_file
     tool and docs/images.py's insert_local_images (imported cross-package the same
-    way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py).
+    way docs/content.py imports _quota_error_text from tools/drive/__init__.py).
 
     include_permission_ids=True also returns the new file's permissionIds as
     permission_ids, from the same create() call. docs/images.py's
@@ -846,7 +847,7 @@ async def _upload_local_file(
             drive_service,
         )
     except HttpError as e:
-        return {"error": _quota_error_detail(e)}
+        return {"error": _quota_error_detail(e, drive_service)}
     except Exception as e:
         # The upload_local_file tool has no try/except of its own, so a create()
         # failure must be caught here rather than propagate uncaught (#422 QA
@@ -1773,7 +1774,7 @@ async def _sync_level(
                 # would point the user at replacing the Doc (PR #854 QA round
                 # 1). One failed entry for this name, not the whole call.
                 detail = (
-                    _quota_error_detail(revisions)
+                    _quota_error_detail(revisions, drive_service)
                     if isinstance(revisions, Exception)
                     else "Drive returned an empty revision history"
                 )
@@ -2145,7 +2146,7 @@ async def _sync_level(
                     return {
                         "kind": "upload_fail",
                         "name": name,
-                        "error": _quota_error_detail(e),
+                        "error": _quota_error_detail(e, drive_service),
                     }
 
             # action == "download"
@@ -2673,8 +2674,8 @@ def register(tool):
         Google Docs: returns the revision as Markdown, converted the same way as
         get_doc_as_markdown. The Docs API can only read a document's current
         state, so the revision is exported as DOCX, imported into a temporary
-        Google Doc in the default folder, converted, and the temporary Doc is
-        deleted (trashed if this identity can't delete it), so this call writes
+        Google Doc, converted, and the temporary Doc is deleted (trashed if
+        this identity can't delete it), so this call writes
         to Drive even though it changes nothing of yours. Expect several
         seconds per call. Two revisions' exports diff cleanly, with these
         differences from get_doc_as_markdown's output:
@@ -2716,8 +2717,13 @@ def register(tool):
             exceeds the size cap without local_path.
 
         Note:
-            For a Doc, the temporary Doc needs storage: a service account must
-            have a Shared Drive configured as its default folder.
+            For a Doc, a user identity (OAuth, or ADC with user credentials)
+            creates the temporary Doc in My Drive root, not shared with anyone.
+            That needs room in My Drive and permission to create files there,
+            even when the default folder is a Shared Drive. A service account
+            has no My Drive storage, so it uses the default folder, which must
+            be a Shared Drive: that drive's members can open the copy while the
+            export runs.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -2756,13 +2762,19 @@ def register(tool):
                 validate_local_destination(local_path)
             from ..docs.markdown_export import export_doc_revision_markdown
 
+            # The temporary Doc holds the revision's full content, so it goes
+            # where the fewest people can see it: My Drive root for a user
+            # identity. A service account has no My Drive storage, so it keeps
+            # the default folder and its audience (#989,
+            # docs/known-limitations.md).
+            temp_folder_id = lc.folder_id if lc.is_service_account_identity else None
             exported = await export_doc_revision_markdown(
                 drive_service,
                 lc.docs_service,
                 file_id,
                 revision_id,
                 docx_url,
-                lc.folder_id,
+                temp_folder_id,
             )
             result: dict[str, Any] = {
                 "revisionId": revision_id,
@@ -2891,7 +2903,7 @@ def register(tool):
             )
         except HttpError as e:
             if is_storage_quota_error(e):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         file_id = result.get("id")

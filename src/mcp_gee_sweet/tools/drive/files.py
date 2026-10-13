@@ -16,7 +16,7 @@ from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
-from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
+from . import _escape_drive_query_mime_type, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ def register(tool):
             )
         except HttpError as e:
             if is_storage_quota_error(e):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         spreadsheet_id = spreadsheet.get("id")
@@ -211,7 +211,7 @@ def register(tool):
             )
         except HttpError as e:
             if is_storage_quota_error(e):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         spreadsheet_id = spreadsheet.get("id")
@@ -979,7 +979,7 @@ def register(tool):
             )
         except HttpError as e:
             if is_storage_quota_error(e):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         parents = copied.get("parents", [])

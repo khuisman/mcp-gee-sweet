@@ -13,8 +13,10 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import markdown_export
-from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR
+from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
+
+from .fakes import as_service_account
 
 _DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -95,10 +97,11 @@ def _services(document, can_delete=True):
     return drive, docs
 
 
-def _ctx(drive, docs, folder_id: str | None = "folder1"):
+def _ctx(drive, docs, folder_id: str | None = "folder1", service_account: bool = True):
     ctx = MagicMock()
     lc = ctx.request_context.lifespan_context
     lc.drive_service, lc.docs_service, lc.folder_id = drive, docs, folder_id
+    lc.is_service_account_identity = service_account
     return ctx
 
 
@@ -147,6 +150,13 @@ class TestDocRevisionExport:
         await _export(_ctx(drive, docs, folder_id=None))
         assert "parents" not in drive.files.return_value.create.call_args.kwargs["body"]
 
+    async def test_user_identity_uses_my_drive_root_not_default_folder(self, fake_http):
+        # The default folder's audience can differ from the source Doc's; a
+        # user identity keeps the revision's copy where only it can see it (#989).
+        drive, docs = _services(_document([_para("x\n")]))
+        await _export(_ctx(drive, docs, service_account=False))
+        assert "parents" not in drive.files.return_value.create.call_args.kwargs["body"]
+
     async def test_trashes_when_identity_cannot_delete(self, fake_http):
         # A Content manager on a Shared Drive can trash but not delete (#876).
         drive, docs = _services(_document([_para("x\n")]), can_delete=False)
@@ -170,13 +180,24 @@ class TestDocRevisionExport:
             await _export(_ctx(drive, docs))
         drive.files.return_value.delete.assert_called_once()
 
-    async def test_quota_error_on_import_uses_shared_text(self, fake_http):
+    @pytest.mark.parametrize(
+        ("service_account", "expected"),
+        [(True, _SA_QUOTA_ERROR), (False, _USER_QUOTA_ERROR)],
+    )
+    async def test_quota_error_on_import_matches_identity(
+        self, fake_http, service_account, expected
+    ):
+        # A user identity's copy goes in My Drive root (#989), so a full My Drive
+        # fails the import; it must say so, not tell the user to switch to OAuth
+        # (#1009).
         drive, docs = _services(_document([]))
+        if service_account:
+            as_service_account(drive)
         err = HttpError(_resp(403), b'{"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}')
         drive.files.return_value.create.return_value.execute.side_effect = err
         with pytest.raises(ValueError) as exc_info:
-            await _export(_ctx(drive, docs))
-        assert _SA_QUOTA_ERROR in str(exc_info.value)
+            await _export(_ctx(drive, docs, service_account=service_account))
+        assert expected in str(exc_info.value)
         drive.files.return_value.delete.assert_not_called()
 
     async def test_export_http_error_raises_before_import(self, fake_http):
