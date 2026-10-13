@@ -424,6 +424,8 @@ remove_calendar_from_list invalid ID -> {"error":"<HttpError 404 ... notFound ..
 **Result (2026-09-04) ✅ PASS**
 remove_calendar_from_list on SA-owned MINCAL -> {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.
 
+**Result (2026-10-12) ✅ PASS** (PR #1011 round 1, Sky, against `1a8053e` after a fresh reconnect). Regression check after `remove_calendar_from_list` moved onto the shared `http_error_has_reason` in `tools/http_errors.py` (#916). On a freshly created owned calendar it still returns the `cannotUnsubscribeFromOwnedCalendar` message naming `delete_calendar`.
+
 ---
 
 ## `list_calendar_acl`
@@ -1095,6 +1097,8 @@ Before #459 both tools returned the raw `HttpError` string; they now return a me
 - An invalid rule id still passes through as raw `HttpError 400`.
 
 Cleanup done.
+
+**Result (2026-10-12) ✅ PASS** (PR #1011 round 1, Sky, against `1a8053e` after a fresh reconnect). Regression check after the reason check moved to the shared `tools/http_errors.py` (#916). On a fresh `QA-OwnerAcl` calendar every check returns exactly the documented string: primary-owner remove (`cannotChangeOwnerAcl`, names `delete_calendar`) and add (change message, no `delete_calendar`); own-rule remove and add (`cannotChangeOwnAcl`); a follow-up `list_calendar_acl` still shows both rules as `owner`; `totally-invalid-rule-id` passes through as raw `HttpError 400`. Cleanup done.
 
 ---
 
