@@ -272,7 +272,7 @@ PR #1000 (#990, lane B) originally changed only `response_limits.py`. Its round 
 
 ### CI must be green before `qa-approved`
 
-Round 3 of PR #1000 (`290f5bc`) got `qa-approved` while `Lint and test` was failing on every Python version: two non-raw `match=` patterns tripped ruff RUF043. Kai caught it at `/merge-pr`. Step 8 had no CI check, and QA's local checks didn't catch it, because pre-commit's ruff hook is pinned at v0.11.9, where RUF043 is preview-only, while CI runs 0.16.x (#974 tracks that version skew). Step 8 now waits for every check on the head SHA, with `Lint and test` present and passing, before adding the label.
+Round 3 of PR #1000 (`290f5bc`) got `qa-approved` while `Lint and test` was failing on every Python version: two non-raw `match=` patterns tripped ruff RUF043. Kai caught it at `/merge-pr`. Step 8 had no CI check, and QA's local checks didn't catch it, because pre-commit's ruff hook is pinned at v0.11.9, where RUF043 is preview-only, while CI runs 0.16.x (#974 tracks that version skew). Step 8 now waits for CI on the head SHA after QA's Result-entry push and before the `approved` comment. Every check must pass, with all four `Lint and test` jobs present and passing. A failure sends the round back through step 7, and an absent check is retriggered per `merge-pr.md` step 2.
 
 ## `aziz.md`
 
