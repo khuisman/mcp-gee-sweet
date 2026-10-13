@@ -2344,6 +2344,8 @@ Doc.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`).** Re-run because `8ba9194` changes how `export_doc_revision_markdown` renders a create error. Each call ran once, with output identical to round 2: `probe 989\n` and no warning on both, and the same folder placement for each identity.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 5 (`28508e5`).** Re-run with the script's new `try/finally` cleanup and imported `_GOOGLE_DOC_MIME`. Each call ran once, with output identical to round 4.
+
 ---
 
 ### TC-D291: A quota-exceeded error says "storage is full" to a user identity and keeps the service-account text for a service account (issue #1009) (unit test)
@@ -2383,6 +2385,8 @@ error paths are unit-tested only.
   `_SA_QUOTA_ERROR`. Only the user-identity error can't be forced live.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`).** The full suite passed (2772 passed, 3 skipped), including every unit test listed above. Identity detection on real services: the OAuth-built service gave the user text, and one built from the configured service-account credentials gave the SA text. Live SA quota: `create()` with no parents returned 403 `storageQuotaExceeded`, `_is_quota_error` was `True`, and the rendered text equaled `_SA_QUOTA_ERROR`.
+
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 5 (`28508e5`).** `_is_quota_error` now lives in `tools/drive/__init__.py`, and no inline `storageQuotaExceeded` check remains under `src/`. The suite passed (2772 passed, 3 skipped), and ruff is clean. Same live checks as round 4, all passing: the OAuth service gave `_USER_QUOTA_ERROR` (now worded "storage is full for this destination: your My Drive, or the Shared Drive's organization storage"). A real SA 403 `storageQuotaExceeded` made the shared `_is_quota_error` return `True`, and it rendered `_SA_QUOTA_ERROR`.
 
 ---
 
