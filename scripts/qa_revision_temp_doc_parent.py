@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Where does export_revision put its temporary Doc? (TC-D289, issue #989)
+Where does export_revision put its temporary Doc? (TC-D290, issue #989)
 
 The temporary Doc is removed before export_revision returns, so no tool call
 can see its parent folder afterward. This script runs the real export_revision
