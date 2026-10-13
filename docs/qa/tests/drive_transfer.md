@@ -2305,6 +2305,8 @@ parallel shards don't delete each other's scratch dir.
 
 **Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 3 (`290f5bc`).** Ran under this job's scratch dir instead of `/tmp`. Call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15; `<dir>` is a directory holding `Saved to disk`.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 1 (`5994843`).** Regression check of the OAuth (user-identity) temporary-Doc path through the live tool. Ran under this job's scratch dir instead of `/tmp`. Call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15, with no `warning`; `<dir>` is a directory holding `Saved to disk`. Afterward, `search_files(query="export_revision temp")` found no copy from this run, only one older Shared Drive copy dated 2026-10-11.
+
 ---
 
 ### TC-D289: `export_revision` — under OAuth the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
@@ -2333,6 +2335,8 @@ before removal. It prints booleans only.
 
 **Teardown:** None. The script deletes its scratch Doc, and `export_revision` removes the temporary
 Doc.
+
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 1 (`5994843`).** Call 1 was run twice and call 2 once. Every run printed `DRIVE_FOLDER_ID set: True`, `markdown: 'probe 989\n'`, and `warning: None`. Call 1 printed My Drive root `True`, DRIVE_FOLDER_ID `False`, Shared Drive `False`. Call 2 printed My Drive root `False`, DRIVE_FOLDER_ID `True`, Shared Drive `True`.
 
 ---
 
