@@ -2658,6 +2658,15 @@ Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-292/` containing `p.md`
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-292/`.
 
+**Result** (2026-10-13, Kit, PR #1016 round 1 at `6204b5f`, `mcp-gee-sweet-kit` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Setup: after the bidirectional sync, all three Docs carried `geeSweetImportRevision: "1"`. Each Drive edit added revision `2`.
+- Call 1: all three were `conflict`. The `p.md` and `m.md` reasons were the both-sides text, ending "re-sync with resolve 'keep_local' to upload the merged file", with no mention of `keep_drive`. The `q.md` reason ended "re-sync with resolve 'keep_drive' (or 'keep_local' to overwrite the Drive edit)".
+- Call 2: `p.md` was `keep_drive` and `q.md`/`m.md` were `keep_local`, with the reason texts as specified. `resolved == []`. The scratch-script properties and latest-revision listings before and after call 2 were identical (diffed).
+- Call 3: `resolved == ["m.md", "p.md", "q.md"]`, `uploaded == ["m.md", "q.md"]`, `conflicts == []`, `failed == []`.
+- Call 4: the same three file IDs. `p.md` held "Drive edit P". `q.md` no longer held "Drive edit Q". `m.md` held both "local edit M" and "Drive edit M" (joined into one paragraph by Markdown soft breaks). `q.md` and `m.md` went from revision `2` to `3`, and each now carried `geeSweetBaselineRevision: "2"` with no import revision. `p.md` carried `geeSweetImportRevision: "2"` (its latest), and `geeSweetSourceMtime` `2026-10-13T20:13:36.790121Z` matched `os.stat` to the microsecond. Its `geeSweetUploadedAt` was unchanged.
+- Call 5: `skipped == ["m.md", "p.md", "q.md"]`, `conflicts == []`.
+- Call 6: `uploaded == ["p.md"]`, `conflicts == []`. `p.md`'s content held "local edit after resolve".
+
 ### TC-D293: `sync_folder(resolve=...)` — a name that isn't a convert_markdown conflict refuses the whole call and changes nothing, including in a subfolder (issue #860) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** `resolve` has no folder-wide form: every key must be a converted `.md` currently listed under `conflicts`. Because a real run syncs each folder level before planning its subfolders, the keys are checked against a read-only planning pass of the whole tree first, so a bad key in a subfolder can't let the levels above it sync.
@@ -2683,3 +2692,8 @@ Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-293/` containing `r.md`
 
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
+
+**Result** (2026-10-13, Kit, PR #1016 round 1 at `6204b5f`, `mcp-gee-sweet-kit` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Calls 1–5 each returned only an `error`, with the expected text: call 1 named `'s.md': not a conflict (planned action: skip)` and contained "Nothing was changed". Call 2 named only `'sub/t.md'`, with no mention of `r.md`. Call 3 named `'sub/t.md': not found in this sync (a subfolder path needs recursive=True)`. Call 4 contained "direction='download' never does". Call 5 matched exactly.
+- Call 6: `list_files` showed only `r.md`, `s.md`, and `sub`, with no `new.txt`. A scratch-script listing of the whole tree after calls 1–5 (properties plus latest revision ID for `r.md`, `s.md`, and `sub/t.md`) was identical to the setup snapshot (diffed), so nothing changed at any level. The dry run listed `r.md` as `conflict`, `new.txt` as `upload`, and `s.md` and `sub/t.md` as `skip`.
+- Side probe, not part of the checks: after a Drive edit to `sub/t.md`, the real call `resolve={"r.md": "keep_local", "sub/t.md": "keep_drive"}` (with `recursive=True`) returned `resolved == ["r.md", "sub/t.md"]` and `uploaded == ["new.txt", "r.md"]`. `sub/t.md` then carried `geeSweetImportRevision: "2"` (its latest), and `r.md` carried `geeSweetBaselineRevision: "2"` at revision `3`. A valid subfolder key resolves.
