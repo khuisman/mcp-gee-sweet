@@ -13,8 +13,10 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import markdown_export
-from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR
+from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
+
+from .fakes import as_service_account
 
 _DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -178,13 +180,24 @@ class TestDocRevisionExport:
             await _export(_ctx(drive, docs))
         drive.files.return_value.delete.assert_called_once()
 
-    async def test_quota_error_on_import_uses_shared_text(self, fake_http):
+    @pytest.mark.parametrize(
+        ("service_account", "expected"),
+        [(True, _SA_QUOTA_ERROR), (False, _USER_QUOTA_ERROR)],
+    )
+    async def test_quota_error_on_import_matches_identity(
+        self, fake_http, service_account, expected
+    ):
+        # A user identity's copy goes in My Drive root (#989), so a full My Drive
+        # fails the import; it must say so, not tell the user to switch to OAuth
+        # (#1009).
         drive, docs = _services(_document([]))
+        if service_account:
+            as_service_account(drive)
         err = HttpError(_resp(403), b'{"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}')
         drive.files.return_value.create.return_value.execute.side_effect = err
         with pytest.raises(ValueError) as exc_info:
-            await _export(_ctx(drive, docs))
-        assert _SA_QUOTA_ERROR in str(exc_info.value)
+            await _export(_ctx(drive, docs, service_account=service_account))
+        assert expected in str(exc_info.value)
         drive.files.return_value.delete.assert_not_called()
 
     async def test_export_http_error_raises_before_import(self, fake_http):

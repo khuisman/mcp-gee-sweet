@@ -15,7 +15,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import SpreadsheetContext, execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
-from ..drive import _SA_QUOTA_ERROR
+from ..drive import _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
@@ -978,7 +978,7 @@ def register(tool):
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         doc_id = doc.get("id")
@@ -1107,7 +1107,7 @@ def register(tool):
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-                return {"error": _SA_QUOTA_ERROR}
+                return {"error": _quota_error_text(drive_service)}
             raise
 
         doc_id = doc.get("id")

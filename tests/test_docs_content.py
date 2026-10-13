@@ -39,6 +39,9 @@ from mcp_gee_sweet.tools.docs.content import (
 )
 from mcp_gee_sweet.tools.docs.emitter import ast_to_requests, extract_images
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.drive import _USER_QUOTA_ERROR
+
+from .fakes import as_service_account
 
 
 def _make_png_bytes(width: int, height: int) -> bytes:
@@ -157,7 +160,7 @@ class TestCreateDoc:
 
     async def test_quota_exceeded_returns_error_dict(self):
         """create_doc must return {"error": ...} on storageQuotaExceeded, not raise."""
-        drive_svc = MagicMock()
+        drive_svc = as_service_account(MagicMock())
         drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
         docs_svc = MagicMock()
         ctx = self._ctx(drive_svc, docs_svc)
@@ -166,6 +169,14 @@ class TestCreateDoc:
         assert "storageQuotaExceeded" not in result["error"]
         assert "Service accounts" in result["error"]
         assert "server://auth-status" in result["error"]
+
+    async def test_quota_exceeded_for_user_identity_says_storage_is_full(self):
+        # A user whose own Drive is full must not be told to switch to OAuth (#1009).
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        ctx = self._ctx(drive_svc, MagicMock())
+        result = await _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)
+        assert result == {"error": _USER_QUOTA_ERROR}
 
     async def test_non_quota_403_still_raises(self):
         """A 403 that is NOT storageQuotaExceeded must propagate — not be swallowed."""

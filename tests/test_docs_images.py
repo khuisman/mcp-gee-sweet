@@ -18,6 +18,9 @@ from PIL import ImageFile as PILImageFile
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import images
+from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
+
+from .fakes import as_service_account
 
 
 def _png_bytes(width: int, height: int) -> bytes:
@@ -469,8 +472,15 @@ class TestUploadAndShareImage:
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert "parents" not in create_kwargs["body"]
 
-    async def test_quota_exceeded_returns_sa_quota_error(self):
+    @pytest.mark.parametrize(
+        ("service_account", "expected"),
+        [(True, _SA_QUOTA_ERROR), (False, _USER_QUOTA_ERROR)],
+    )
+    async def test_quota_exceeded_error_matches_identity(self, service_account, expected):
+        # A user whose own Drive is full must not be told to switch to OAuth (#1009).
         drive_svc = MagicMock()
+        if service_account:
+            as_service_account(drive_svc)
         resp = MagicMock()
         resp.status = 403
         drive_svc.files.return_value.create.return_value.execute.side_effect = HttpError(
@@ -482,7 +492,7 @@ class TestUploadAndShareImage:
         result = await images.upload_and_share_image(
             drive_svc, b"fake-bytes", "image/png", "pic.png", "folder1"
         )
-        assert result["error"] == images._SA_QUOTA_ERROR
+        assert result["error"] == expected
 
     async def test_missing_web_content_link_is_error(self):
         drive_svc = MagicMock()

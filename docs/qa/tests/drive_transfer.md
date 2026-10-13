@@ -2342,6 +2342,39 @@ Doc.
 
 ---
 
+### TC-D291: A quota-exceeded error says "storage is full" to a user identity and keeps the service-account text for a service account (issue #1009) (unit test)
+
+**Background:** Every `storageQuotaExceeded` site rendered `_SA_QUOTA_ERROR` ("Service accounts
+cannot create or copy files in personal Drive… Use OAuth or ADC auth"), whatever the identity. A
+user whose own My Drive was full was told to switch to OAuth and never told the storage was full.
+#989 made this more reachable: `export_revision` now creates its temporary Doc in a user
+identity's My Drive root. Every site now renders `tools/drive/__init__.py`'s
+`_quota_error_text(drive_service)`, which picks the text from the service's own credentials (the
+same check that sets `is_service_account_identity`). A quota error can't be forced against the real
+Drive API (a QA account's My Drive isn't full), the same constraint as TC-D249–TC-D252, so the
+error paths are unit-tested only.
+
+**Checks (unit test)**
+- `tests/test_docs_revision_export.py::TestDocRevisionExport::test_quota_error_on_import_matches_identity`:
+  `export_revision`'s temporary-Doc import gets `_USER_QUOTA_ERROR` for a user identity and
+  `_SA_QUOTA_ERROR` for a service account.
+- User-identity tests for the other site families:
+  `tests/drive/test_files.py::TestQuotaErrors::test_user_identity_quota_says_storage_is_full`
+  (`create_spreadsheet`, `copy_file`),
+  `tests/drive/test_transfer.py::TestUploadLocalFileCore::test_quota_exceeded_for_user_identity_says_storage_is_full`,
+  `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_upload_create_quota_failure_uses_friendly_message`
+  (both identities), `tests/test_docs_content.py::TestCreateDoc::test_quota_exceeded_for_user_identity_says_storage_is_full`,
+  and `tests/test_docs_images.py::TestUploadAndShareImage::test_quota_exceeded_error_matches_identity`
+  (both identities).
+- Regression: the existing service-account quota tests pass with their mocked service given
+  service-account credentials (`tests/fakes.py::as_service_account`).
+- Identity detection on real services, from a fresh interpreter in the checkout under test:
+  `_quota_error_text` on a Drive service built from this checkout's OAuth token returns
+  `_USER_QUOTA_ERROR`. On one built from a `service_account.Credentials` (a throwaway local key is
+  enough, since `build()` makes no network call) it returns `_SA_QUOTA_ERROR`.
+
+---
+
 ### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
 
 Before the fix, a real sync ran every upload and download, then failed at the final manifest

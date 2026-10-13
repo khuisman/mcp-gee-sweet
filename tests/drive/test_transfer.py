@@ -14,12 +14,15 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import atomic_write, response_limits
+from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import (
     _should_skip_existing_upload,
     _upload_local_file,
     _xlsx_range_values,
 )
+
+from ..fakes import as_service_account
 
 
 def _make_tool_registry():
@@ -84,7 +87,7 @@ class TestUploadFile:
 
     async def test_quota_exceeded_returns_friendly_error_dict(self):
         """upload_file must return {"error": ...} on storageQuotaExceeded, not raise."""
-        mock = MagicMock()
+        mock = as_service_account(MagicMock())
         mock.files.return_value.create.return_value.execute.side_effect = self._quota_err()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         result = await _transfer_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
@@ -315,7 +318,7 @@ class TestUploadLocalFileCore:
     async def test_quota_exceeded_returns_friendly_error_dict(self, tmp_path):
         local_file = tmp_path / "pic.png"
         local_file.write_bytes(b"fake-bytes")
-        drive_svc = MagicMock()
+        drive_svc = as_service_account(MagicMock())
         drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
         drive_svc.files.return_value.create.return_value.execute.side_effect = self._quota_err()
 
@@ -323,6 +326,18 @@ class TestUploadLocalFileCore:
 
         assert "error" in result
         assert "Service accounts" in result["error"]
+
+    async def test_quota_exceeded_for_user_identity_says_storage_is_full(self, tmp_path):
+        # A user whose own Drive is full must not be told to switch to OAuth (#1009).
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = self._quota_err()
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert result == {"error": _USER_QUOTA_ERROR}
 
     async def test_custom_name_used_instead_of_filename(self, tmp_path):
         local_file = tmp_path / "pic.png"
@@ -547,7 +562,7 @@ class TestUploadLocalFileConvert:
         _SA_QUOTA_ERROR text while still carrying the created file's fileId."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
-        drive_svc = MagicMock()
+        drive_svc = as_service_account(MagicMock())
         drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
         drive_svc.files.return_value.create.return_value.execute.return_value = {
             "id": "fid1",
@@ -562,7 +577,7 @@ class TestUploadLocalFileConvert:
 
         assert result["fileId"] == "fid1"
         assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
-        assert transfer_module._SA_QUOTA_ERROR in result["error"]
+        assert _SA_QUOTA_ERROR in result["error"]
 
     async def test_create_failure_returns_error_with_no_fileId(self, tmp_path):
         """#420: distinct from the restamp-failure case above — when create()
@@ -3189,6 +3204,7 @@ class TestSyncFolderConvertMarkdown:
                 return super()._update(**kwargs)
 
         fs = _RestampQuotaFailsFakeDriveFS({"root": []})
+        as_service_account(fs.svc)
 
         result = await _transfer_tools["sync_folder"](
             folder_id="root",
@@ -3204,7 +3220,7 @@ class TestSyncFolderConvertMarkdown:
         assert entry["name"] == "notes.md"
         assert entry["fileId"] == "new-file-1"
         assert "storageQuotaExceeded" not in entry["error"]
-        assert transfer_module._SA_QUOTA_ERROR in entry["error"]
+        assert _SA_QUOTA_ERROR in entry["error"]
 
     async def test_upload_create_quota_failure_uses_friendly_message(self, tmp_path):
         """#670: _sync_level._run_one's *outer* catch-all `except Exception` (the
@@ -3225,21 +3241,24 @@ class TestSyncFolderConvertMarkdown:
                     content=b'{"error": {"reason": "storageQuotaExceeded"}}',
                 )
 
-        fs = _CreateQuotaFailsFakeDriveFS({"root": []})
+        for service_account, expected in ((True, _SA_QUOTA_ERROR), (False, _USER_QUOTA_ERROR)):
+            fs = _CreateQuotaFailsFakeDriveFS({"root": []})
+            if service_account:
+                as_service_account(fs.svc)
 
-        result = await _transfer_tools["sync_folder"](
-            folder_id="root",
-            local_path=str(tmp_path),
-            direction="upload",
-            ctx=self._ctx(fs),
-        )
+            result = await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(tmp_path),
+                direction="upload",
+                ctx=self._ctx(fs),
+            )
 
-        assert result["uploaded"] == []
-        assert len(result["failed"]) == 1
-        entry = result["failed"][0]
-        assert entry["name"] == "readme.txt"
-        assert "storageQuotaExceeded" not in entry["error"]
-        assert transfer_module._SA_QUOTA_ERROR in entry["error"]
+            assert result["uploaded"] == []
+            assert len(result["failed"]) == 1
+            entry = result["failed"][0]
+            assert entry["name"] == "readme.txt"
+            # A user identity whose Drive is full gets its own text (#1009).
+            assert entry["error"] == expected
 
     async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
         """TC-D218 (#414 QA review): Drive's native import-conversion on create()

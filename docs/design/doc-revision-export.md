@@ -85,9 +85,8 @@ Measured across two imports of the same DOCX:
   Rejected alternatives: the source Doc's parent folder matches the source's audience more
   closely, but the identity may not be able to write there. Restricting the copy's permissions
   after creation can't work on a Shared Drive, where member access is inherited.
-- A storageQuotaExceeded error on create renders with the shared `_SA_QUOTA_ERROR` text. On the
-  user-identity path (a full My Drive) that text, which addresses service accounts, is
-  misleading; tracked in #1009.
+- A storageQuotaExceeded error on create renders with the shared `_quota_error_text`: "storage is
+  full" for a user identity (a full My Drive), `_SA_QUOTA_ERROR` for a service account (#1009).
 - Uploaded resumable: Drive takes a multipart upload only up to 5 MB, and a revision with
   embedded images can exceed it.
 - Named `export_revision temp (<file_id> r<revision_id>)`, so an orphan is identifiable.
