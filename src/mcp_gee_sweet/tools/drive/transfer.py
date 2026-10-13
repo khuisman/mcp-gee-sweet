@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
+from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
 from ..pagination import iter_pages
 from ..response_limits import (
@@ -28,7 +29,7 @@ from ..response_limits import (
     validate_local_destination,
     write_capped_result_to_disk,
 )
-from . import _escape_drive_query_mime_type, _is_quota_error, _quota_error_text
+from . import _escape_drive_query_mime_type, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +248,7 @@ def _quota_error_detail(exc: Exception, service: Any) -> str:
     Keeps every quota-error site in this file rendering the same way — including
     catch-all `except Exception` handlers where a bare `except HttpError` quota
     check would otherwise be skipped and leak the raw error blob (#670)."""
-    return _quota_error_text(service) if _is_quota_error(exc) else str(exc)
+    return _quota_error_text(service) if is_storage_quota_error(exc) else str(exc)
 
 
 def _restamp_failure_result(file_id: str, exc: Exception, service: Any) -> dict[str, Any]:
@@ -2682,7 +2683,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 

@@ -15,8 +15,9 @@ from mcp.types import ToolAnnotations
 
 from ...auth import SpreadsheetContext, execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
-from ..drive import _is_quota_error, _quota_error_text
+from ..drive import _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
+from ..http_errors import is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Run, Table
@@ -977,7 +978,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 
@@ -1106,7 +1107,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 

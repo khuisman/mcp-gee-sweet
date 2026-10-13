@@ -12,10 +12,11 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import gather_with_fallback, report_progress_safe
+from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
-from . import _escape_drive_query_mime_type, _is_quota_error, _quota_error_text
+from . import _escape_drive_query_mime_type, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 
@@ -209,7 +210,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 
@@ -977,7 +978,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if _is_quota_error(e):
+            if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 
