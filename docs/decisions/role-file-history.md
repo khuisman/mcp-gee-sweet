@@ -422,7 +422,7 @@ Friction Kai typically hits during coordination, and where it goes — see `/ret
   1. `dev.md` and `joy.md`: before pushing a fix round, answer every open review comment on the PR, not just the one that woke you.
   2. `qa.md` step 8: before `qa-approved`, check other reviewers' comments; an unaddressed change request is a send-back.
   3. `joy.md` and `kai.md` step 4: a non-lane code PR gets exactly one QA reviewer (Sky or Kit), assigned by Kai.
-  4. `merge-pr.md` step 2, `bob.md` step 2, `qa.md`, `dev.md`, `kai.md`: a code-doc hunk is a `CLAUDE.md` `## Architecture` change describing the PR's own `src/` code. It needs only `qa-approved`, and QA reviews it against the code. This is a deliberate, user-approved narrowing of the 2026-07-21 "no fast path" rule. Every other prompt-file change still goes through Bob. Bob's #1016 findings were factual claims about the code (a false sentence, two missing invariants), which QA can check against that code.
+  4. `merge-pr.md` step 2, `bob.md` step 2, `qa.md`, `dev.md`, `kai.md`: a code-doc hunk (a three-part definition in `merge-pr.md` step 2: inside a per-module `## Architecture` entry, every sentence about this PR's `src/` code, no agent-process instruction touched) needs only `qa-approved`. QA checks it against the code and lists each hunk as a `code-doc hunk:` line in its approval, so the classification is written down, not judged at merge time (Bob's round 1 on PR #1021). This is a deliberate, user-approved narrowing of the 2026-07-21 "no fast path" rule. Every other prompt-file change still goes through Bob. Bob's #1016 findings were factual claims about the code (a false sentence, two missing invariants), which QA can check against that code.
 
 ## `bob.md`
 
