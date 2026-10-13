@@ -3909,6 +3909,431 @@ class TestSyncFolderConvertedDocChangeDetection:
         assert tokens == [None, "t"]
 
 
+class TestSyncFolderResolve:
+    """#860: `resolve` clears a convert_markdown conflict per name without
+    replacing the Doc, so its file ID (sharing, comments, links) survives.
+    'keep_drive' re-baselines on the Doc's current revision; 'keep_local'
+    re-uploads in place. Every name is checked against a read-only plan of
+    the whole tree before anything is written."""
+
+    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    _STAMP = "2025-06-01T00:00:00.000Z"
+    _DRIVE_MTIME = "2030-01-01T00:00:00.000Z"
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _local(self, directory: Path, name="notes.md", offset=0.0) -> Path:
+        directory.mkdir(parents=True, exist_ok=True)
+        local = directory / name
+        local.write_text("# Notes")
+        ts = self._LOCAL_MTIME.timestamp() + offset
+        os.utime(local, (ts, ts))
+        return local
+
+    def _doc(self, name="notes.md", file_id="fa", props=None):
+        return _drive_file(
+            name,
+            file_id,
+            mtime=self._DRIVE_MTIME,
+            mime="application/vnd.google-apps.document",
+            properties={
+                transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: name,
+                transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: self._STAMP,
+                transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1",
+                **(props or {}),
+            },
+        )
+
+    def _drive_edited(self, tmp_path, local_offset=0.0):
+        """notes.md whose Doc `fa` was edited in Drive (revision 2 after the
+        recorded import revision 1): a conflict on every plain sync."""
+        self._local(tmp_path, offset=local_offset)
+        fs = _FakeDriveFS({"root": [self._doc()]})
+        fs.revisions["fa"] = ["1", "2"]
+        return fs
+
+    def _revision_reads(self, fs, *reads):
+        """Serve successive revisions.list calls from `reads`, in order."""
+        it = iter(reads)
+
+        def _next(**kwargs):
+            resp = MagicMock()
+            resp.execute.return_value = {"revisions": [{"id": i} for i in next(it)]}
+            return resp
+
+        fs.svc.revisions.return_value.list.side_effect = _next
+
+    async def _sync(self, fs, tmp_path, **kwargs):
+        return await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), ctx=self._ctx(fs), **kwargs
+        )
+
+    async def test_keep_drive_rebaselines_without_touching_content(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["resolved"] == ["notes.md"]
+        assert result["conflicts"] == []
+        assert result["uploaded"] == []
+        assert result["failed"] == []
+        (update,) = fs.updated_files
+        assert "media_body" not in update  # metadata only, no re-import
+        assert update["fileId"] == "fa"
+        assert update["body"] == {
+            "properties": {
+                transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(
+                    tmp_path / "notes.md"
+                ),
+                transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "2",
+            },
+            # Drive's own value from the listing, as when recording an import
+            # revision on an edited Doc.
+            "modifiedTime": self._DRIVE_MTIME,
+        }
+
+    async def test_keep_drive_leaves_doc_in_sync_on_next_run(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+        await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+        (update,) = fs.updated_files
+        fs.children["root"][0]["properties"].update(update["body"]["properties"])
+        fs.updated_files.clear()
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["conflicts"] == []
+        assert fs.updated_files == []
+
+    async def test_keep_drive_then_local_edit_uploads(self, tmp_path):
+        """The decision's workflow: carry the Drive edits into the .md, accept
+        the Drive baseline, and the next local change uploads normally."""
+        fs = self._drive_edited(tmp_path)
+        await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+        fs.children["root"][0]["properties"].update(fs.updated_files[0]["body"]["properties"])
+        fs.updated_files.clear()
+        self._local(tmp_path, offset=600)
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["uploaded"] == ["notes.md"]
+        assert result["conflicts"] == []
+
+    async def test_keep_local_reuploads_in_place(self, tmp_path):
+        fs = self._drive_edited(tmp_path, local_offset=600)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_local"})
+
+        assert result["uploaded"] == ["notes.md"]
+        assert result["resolved"] == ["notes.md"]
+        assert result["conflicts"] == []
+        assert fs.created_files == []  # same file ID, not a replacement Doc
+        (update,) = fs.updated_files
+        assert update["fileId"] == "fa"
+        assert "media_body" in update
+        props = dict(update["body"]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(tmp_path / "notes.md"),
+            transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "2",
+            transfer_module._CONVERTED_MD_IMPORT_REV_PROP: None,
+        }
+
+    async def test_keep_local_with_unchanged_local_file(self, tmp_path):
+        """Overwriting the Drive edit with the last-uploaded content is a valid
+        choice too: the local side doesn't have to have changed."""
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_local"})
+
+        assert result["uploaded"] == ["notes.md"]
+        assert result["resolved"] == ["notes.md"]
+
+    async def test_dry_run_previews_without_writing(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"}, dry_run=True)
+
+        (action,) = result["actions"]
+        assert action["action"] == "keep_drive"
+        assert action["reason"].startswith("resolve=keep_drive: accept the Doc's current Drive")
+        assert "(was: edited in Drive since the last upload" in action["reason"]
+        assert result["resolved"] == []
+        assert fs.updated_files == []
+        # The dry run is the check pass: one planning pass, one revision read.
+        assert fs.revision_list_calls == ["fa"]
+
+    async def test_dry_run_previews_keep_local(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_local"}, dry_run=True)
+
+        assert result["actions"][0]["action"] == "keep_local"
+        assert fs.updated_files == []
+
+    async def test_name_not_in_conflicts_is_refused(self, tmp_path):
+        self._local(tmp_path)
+        fs = _FakeDriveFS({"root": [self._doc()]})  # unedited: in sync
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert set(result) == {"error"}
+        assert "Nothing was changed" in result["error"]
+        assert "'notes.md': not a conflict (planned action: skip)" in result["error"]
+        assert fs.updated_files == []
+
+    async def test_unknown_name_is_refused(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(
+            fs, tmp_path, resolve={"notes.md": "keep_drive", "other.md": "keep_drive"}
+        )
+
+        assert "'other.md': not found in this sync" in result["error"]
+        # One bad name refuses the whole call, including the valid one.
+        assert fs.updated_files == []
+
+    async def test_plain_file_conflict_is_refused(self, tmp_path):
+        """Only convert_markdown Docs: a plain file's conflict has other ways
+        out and isn't what resolve is for."""
+        local = tmp_path / "a.txt"
+        local.write_text("local content")
+        ts = self._LOCAL_MTIME.timestamp()
+        os.utime(local, (ts, ts))
+        fs = _FakeDriveFS({"root": [_drive_file("a.txt", "fb", mtime=self._STAMP, size=1)]})
+
+        result = await self._sync(fs, tmp_path, resolve={"a.txt": "keep_local"})
+
+        assert "'a.txt': a conflict, but not a convert_markdown Doc" in result["error"]
+        assert fs.updated_files == []
+
+    async def test_drive_only_doc_is_refused(self, tmp_path):
+        """No local .md to keep or to stamp."""
+        fs = _FakeDriveFS({"root": [self._doc()]})
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert "not a convert_markdown Doc with a matching local .md" in result["error"]
+
+    async def test_invalid_mode_rejected_before_any_api_call(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "overwrite"})
+
+        assert result == {
+            "error": "Invalid resolve value for 'notes.md'. Use 'keep_drive' or 'keep_local'."
+        }
+        assert fs.list_calls == []
+
+    async def test_keep_local_under_download_rejected_before_any_api_call(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(
+            fs, tmp_path, direction="download", resolve={"notes.md": "keep_local"}
+        )
+
+        assert "direction='download' never does" in result["error"]
+        assert fs.list_calls == []
+
+    async def test_keep_drive_allowed_under_download(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(
+            fs, tmp_path, direction="download", resolve={"notes.md": "keep_drive"}
+        )
+
+        assert result["resolved"] == ["notes.md"]
+
+    async def test_bad_subfolder_name_refuses_before_top_level_runs(self, tmp_path):
+        """The reason for the check pass: a real run syncs each level before
+        planning the next, so a bad key under sub/ would otherwise only show
+        up after the top level had already been written."""
+        self._local(tmp_path)
+        (tmp_path / "new.txt").write_text("local only, would upload")
+        self._local(tmp_path / "sub", name="other.md")
+        fs = _FakeDriveFS(
+            {
+                "root": [self._doc(), _drive_folder("sub", "sub-id")],
+                "sub-id": [self._doc(name="other.md", file_id="fs")],  # unedited
+            }
+        )
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(
+            fs,
+            tmp_path,
+            recursive=True,
+            resolve={"notes.md": "keep_drive", "sub/other.md": "keep_drive"},
+        )
+
+        assert "'sub/other.md': not a conflict (planned action: skip)" in result["error"]
+        assert fs.created_files == []
+        assert fs.updated_files == []
+
+    async def test_subfolder_name_resolved_with_recursive(self, tmp_path):
+        self._local(tmp_path / "sub")
+        fs = _FakeDriveFS(
+            {"root": [_drive_folder("sub", "sub-id")], "sub-id": [self._doc(file_id="fs")]}
+        )
+        fs.revisions["fs"] = ["1", "2"]
+
+        result = await self._sync(
+            fs, tmp_path, recursive=True, resolve={"sub/notes.md": "keep_drive"}
+        )
+
+        assert result["resolved"] == ["sub/notes.md"]
+        assert fs.updated_files[0]["fileId"] == "fs"
+
+    async def test_subfolder_name_without_recursive_is_not_found(self, tmp_path):
+        self._local(tmp_path / "sub")
+        fs = _FakeDriveFS(
+            {"root": [_drive_folder("sub", "sub-id")], "sub-id": [self._doc(file_id="fs")]}
+        )
+
+        result = await self._sync(fs, tmp_path, resolve={"sub/notes.md": "keep_drive"})
+
+        assert "needs recursive=True" in result["error"]
+
+    async def test_drive_edit_after_plan_stays_a_conflict(self, tmp_path):
+        """An edit landing between the plan and the write isn't the version
+        the caller chose to keep; it's not absorbed into the baseline."""
+        fs = self._drive_edited(tmp_path)
+        self._revision_reads(fs, ["1", "2"], ["1", "2"], ["1", "2", "3"])  # check, plan, write
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["resolved"] == []
+        assert fs.updated_files == []
+
+    async def test_conflict_gone_between_passes_is_not_applied(self, tmp_path):
+        """If the conflict clears between the check and the real pass, the
+        name lands under 'failed' and nothing is done for it, rather than the
+        resolution applying to a situation the caller never saw."""
+        fs = self._drive_edited(tmp_path)
+        self._revision_reads(fs, ["1", "2"], ["1"])  # check: edited; real: unedited
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_local"})
+
+        assert result["uploaded"] == []
+        assert result["resolved"] == []
+        assert result["failed"] == [
+            {
+                "name": "notes.md",
+                "error": (
+                    "resolve not applied, nothing changed: not a conflict (planned action: skip)"
+                ),
+            }
+        ]
+        assert fs.updated_files == []
+
+    async def test_name_gone_between_passes_is_reported(self, tmp_path):
+        local = self._local(tmp_path)
+        fs = _FakeDriveFS({"root": [self._doc()]})
+        fs.revisions["fa"] = ["1", "2"]
+        listings = iter([[self._doc()], []])
+
+        def _vanishing(**kwargs):
+            files = next(listings)
+            if not files:
+                local.unlink()  # gone on both sides by the real pass
+            resp = MagicMock()
+            resp.execute.return_value = {"files": files}
+            return resp
+
+        fs.svc.files.return_value.list.side_effect = _vanishing
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["failed"] == [
+            {"name": "notes.md", "error": "resolve not applied, nothing changed: no longer found"}
+        ]
+        assert fs.updated_files == []
+
+    async def test_keep_drive_write_failure_reported_as_failed(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        def _fail(**kwargs):
+            raise RuntimeError("update rejected")
+
+        fs.svc.files.return_value.update.side_effect = _fail
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["resolved"] == []
+        assert result["failed"] == [{"name": "notes.md", "error": "update rejected"}]
+
+    async def test_keep_drive_marks_folder_dirty(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+        ctx = self._ctx(fs)
+
+        await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            resolve={"notes.md": "keep_drive"},
+            ctx=ctx,
+        )
+
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_with(
+            "root"
+        )
+
+    async def test_legacy_doc_keep_drive_moves_it_onto_revision_check(self, tmp_path):
+        """A Doc from before #814 stuck as 'drive newer' (the late async
+        modifiedTime update): keep_drive gives it the stamp, so the next sync
+        compares revisions instead of modifiedTime."""
+        self._local(tmp_path)
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=self._DRIVE_MTIME,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+        fs.revisions["fa"] = ["7"]
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["resolved"] == ["notes.md"]
+        (update,) = fs.updated_files
+        assert update["body"]["properties"] == {
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(tmp_path / "notes.md"),
+            transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "7",
+        }
+        fs.children["root"][0]["properties"].update(update["body"]["properties"])
+        fs.updated_files.clear()
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+
+    async def test_conflict_reason_points_at_resolve(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        assert "re-sync with resolve 'keep_drive'" in result["actions"][0]["reason"]
+
+    async def test_resolved_empty_without_resolve(self, tmp_path):
+        fs = self._drive_edited(tmp_path)
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["resolved"] == []
+        assert result["conflicts"] == ["notes.md"]
+
+
 class TestSyncFolderDownloadMtimeRoundTrip:
     """Issue #346: a downloaded file's local mtime defaulted to write time ('now'),
     not Drive's modifiedTime — since 'now' is always later than Drive's original

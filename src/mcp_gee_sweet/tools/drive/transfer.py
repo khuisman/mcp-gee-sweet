@@ -5,7 +5,7 @@ import io
 import logging
 import os
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
@@ -435,6 +435,12 @@ def _parse_time(value: str | None) -> datetime | None:
         return None
 
 
+def _source_mtime_value(lmtime: datetime) -> str:
+    """`lmtime` as _CONVERTED_MD_SOURCE_MTIME_PROP stores it: full microsecond
+    precision, so the next sync can compare it exactly."""
+    return lmtime.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def _converted_md_upload_properties(
     lmtime: datetime, *, reupload: bool = False, baseline_rev: str | None = None
 ) -> dict[str, str | None]:
@@ -448,7 +454,7 @@ def _converted_md_upload_properties(
     import revision. A new Doc needs neither: its first revision is the import.
     Every caller stamps through here, so they can't disagree on the set."""
     props: dict[str, str | None] = {
-        _CONVERTED_MD_SOURCE_MTIME_PROP: lmtime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        _CONVERTED_MD_SOURCE_MTIME_PROP: _source_mtime_value(lmtime),
         _CONVERTED_MD_UPLOADED_AT_PROP: _drive_time_str(datetime.now(timezone.utc)),
     }
     if reupload:
@@ -917,7 +923,50 @@ _SyncAction = Literal[
     "drive_read_fail",
     "upload",
     "download",
+    "keep_drive",
+    "keep_local",
+    "resolve_fail",
 ]
+
+_ResolveMode = Literal["keep_drive", "keep_local"]
+_RESOLVE_MODES: tuple[_ResolveMode, ...] = ("keep_drive", "keep_local")
+
+
+@dataclass
+class _ResolveRequest:
+    """sync_folder's `resolve` (#860): per-name resolutions for convert_markdown
+    Docs reported under 'conflicts', keyed by the relative name the result
+    reports. `status` records, for each key the plan reached, None if it was
+    eligible or else why not. A key the plan never reached has no entry.
+
+    One instance per pass. sync_folder plans a read-only pass first and checks
+    every key against it, since a real run executes each level before planning
+    the next, so a bad key in a subfolder would only surface after the levels
+    above it had already synced."""
+
+    modes: dict[str, _ResolveMode]
+    status: dict[str, str | None] = field(default_factory=dict)
+
+    def problems(self) -> list[str]:
+        """Each key that can't be resolved, with why, in name order."""
+        out = []
+        for name in sorted(self.modes):
+            if name not in self.status:
+                out.append(
+                    f"'{name}': not found in this sync (a subfolder path needs recursive=True)"
+                )
+            elif self.status[name] is not None:
+                out.append(f"'{name}': {self.status[name]}")
+        return out
+
+
+_RESOLVE_REASONS: dict[_ResolveMode, str] = {
+    "keep_drive": (
+        "resolve=keep_drive: accept the Doc's current Drive version as the new baseline; "
+        "nothing in Drive changes"
+    ),
+    "keep_local": "resolve=keep_local: re-upload the local .md in place over the Drive version",
+}
 
 
 @dataclass
@@ -981,7 +1030,8 @@ def _mtime_step(name: str, diff: float, direction: str, is_converted_md: bool) -
             action="conflict",
             reason=(
                 f"drive newer by {-diff:.0f}s but {_NO_REVERSE_CONVERSION_CLAUSE} — "
-                "re-upload the local file to update Drive"
+                "re-sync with resolve 'keep_local' to re-upload the .md, or 'keep_drive' "
+                "if the Doc is already current"
             ),
         )
     if direction in ("download", "bidirectional"):
@@ -1154,8 +1204,8 @@ def _converted_md_step(
             action="conflict",
             reason=(
                 f"local .md is {-local_diff:.0f}s older than the version last uploaded "
-                "(rolled back?) — can't tell which side is newer; touch the local file, "
-                "or remove the Doc in Drive, then re-sync"
+                "(rolled back?) — can't tell which side is newer; re-sync with resolve "
+                "'keep_local' to upload it or 'keep_drive' to keep the Doc as it is"
             ),
         )
     local_changed = local_diff > _CONVERTED_MD_STAMP_TOLERANCE
@@ -1165,8 +1215,8 @@ def _converted_md_step(
             action="conflict",
             reason=(
                 "can't tell whether the Doc was edited in Drive: the revision recorded "
-                "before its last upload is gone from its history — rename or remove the "
-                "Doc in Drive, then re-sync to upload a fresh copy"
+                "before its last upload is gone from its history — re-sync with resolve "
+                "'keep_drive' to keep the Doc as it is or 'keep_local' to re-upload the .md"
             ),
         )
     if drive_state == "changed":
@@ -1174,14 +1224,14 @@ def _converted_md_step(
             reason = (
                 "edited both locally and in Drive since the last upload — re-uploading "
                 f"would overwrite the Drive edit, and {_NO_REVERSE_CONVERSION_CLAUSE}; "
-                "merge the Drive edits into the local .md, then rename or remove the "
-                "Doc in Drive and re-sync"
+                "merge the Drive edits into the local .md, then re-sync with resolve "
+                "'keep_drive' (or 'keep_local' to overwrite the Drive edit)"
             )
         else:
             reason = (
                 f"edited in Drive since the last upload, but {_NO_REVERSE_CONVERSION_CLAUSE} "
-                "— merge the Drive edits into the local .md, then rename or remove the "
-                "Doc in Drive and re-sync"
+                "— merge the Drive edits into the local .md, then re-sync with resolve "
+                "'keep_drive' (or 'keep_local' to overwrite the Drive edit)"
             )
         return _SyncStep(name=name, action="conflict", reason=reason)
     if not local_changed:
@@ -1213,6 +1263,54 @@ def _converted_md_step(
     )
 
 
+def _apply_resolve(
+    plan: list[_SyncStep],
+    rel_prefix: str,
+    drive_map: dict[str, dict],
+    local_map: dict[str, Path],
+    resolve: _ResolveRequest,
+) -> None:
+    """Rewrite each plan step `resolve` names (#860). An eligible step becomes
+    its 'keep_drive' or 'keep_local' action. Eligible means a 'conflict' on a
+    convert_markdown Doc with a matching local .md, whichever detection
+    reported it (a Doc from before #814 included). Anything else becomes
+    'resolve_fail', so a resolution never falls back to the step's own action.
+    sync_folder's read-only pass rejects the call on any ineligible key before
+    a real run starts, so on a real run that only happens when the folder
+    changed between the two passes."""
+    for i, step in enumerate(plan):
+        rel_name = f"{rel_prefix}{step.name}"
+        mode = resolve.modes.get(rel_name)
+        if mode is None:
+            continue
+        if step.action != "conflict":
+            problem = f"not a conflict (planned action: {step.action})"
+        elif (
+            step.name not in local_map
+            or step.name not in drive_map
+            or not _is_converted_md_entry(drive_map[step.name])
+        ):
+            problem = (
+                "a conflict, but not a convert_markdown Doc with a matching local .md; "
+                "resolve covers only those"
+            )
+        else:
+            problem = None
+        resolve.status[rel_name] = problem
+        if problem is None:
+            plan[i] = _SyncStep(
+                name=step.name,
+                action=mode,
+                reason=f"{_RESOLVE_REASONS[mode]} (was: {step.reason})",
+            )
+        else:
+            plan[i] = _SyncStep(
+                name=step.name,
+                action="resolve_fail",
+                reason=f"resolve not applied, nothing changed: {problem}",
+            )
+
+
 async def _sync_level(
     lc,
     drive_service,
@@ -1236,6 +1334,8 @@ async def _sync_level(
     ctx: Context,
     progress_count: list[int],
     progress_bytes: list[int],
+    resolved: list[str],
+    resolve: _ResolveRequest | None,
 ) -> int:
     """
     Sync the files directly inside one Drive-folder/local-dir pair and, if `recursive`,
@@ -1284,6 +1384,13 @@ async def _sync_level(
     directory scan and the plan's stat or this read) reports that one name under
     'failed' instead of raising out of the whole call (finding #1; PR #841 QA
     extended it to the stat).
+
+    `resolve` (#860) rewrites the named convert_markdown conflicts once the
+    plan is final (_apply_resolve). 'keep_local' then runs through the
+    existing re-upload path, Drive-moved guard included. 'keep_drive' records
+    the Doc's latest revision as its import revision and the local mtime the
+    plan saw as its source mtime, so the next sync reads both sides as
+    unchanged.
 
     Independently of use_checksum (#659): for a both-sides pair whose mtimes are
     within tolerance, the local file's byte size is compared against Drive's
@@ -1416,6 +1523,11 @@ async def _sync_level(
     plan: list[_SyncStep] = []
     hash_jobs: list[_HashJob] = []
     revision_jobs: list[_RevisionJob] = []
+    # The local mtime each both-sides name was planned against. resolve's
+    # keep_drive stamps this one rather than a fresh stat, so a local edit
+    # landing after the plan still uploads on the next sync instead of being
+    # absorbed into the baseline.
+    planned_local_mtime: dict[str, datetime] = {}
     for name in sorted(
         drive_map.keys() | local_map.keys() | collision_names | unsafe_names.keys() | partial_names
     ):
@@ -1502,6 +1614,7 @@ async def _sync_level(
                 plan.append(_SyncStep(name=name, action="local_read_fail", reason=str(e)))
                 continue
             lmtime = _local_mtime_dt(local_map[name], st)
+            planned_local_mtime[name] = lmtime
             entry = drive_map[name]
 
             # A convert_markdown Doc stamped by #814 never compares against
@@ -1708,6 +1821,9 @@ async def _sync_level(
             else:
                 recorded_metadata = True
 
+    if resolve is not None:
+        _apply_resolve(plan, rel_prefix, drive_map, local_map, resolve)
+
     # Resolved once per level for every _safe_local_dest call below, rather
     # than once per file on the event loop.
     resolved_dest_dir = dest_dir.resolve()
@@ -1766,7 +1882,63 @@ async def _sync_level(
             if action == "drive_read_fail":
                 return {"kind": "drive_read_fail", "name": name, "error": step.reason}
 
-            if action == "upload":
+            if action == "resolve_fail":
+                return {"kind": "resolve_fail", "name": name, "error": step.reason}
+
+            if action == "keep_drive":
+                entry = drive_map[name]
+                fid = entry["id"]
+                try:
+                    revisions = await _list_revisions(drive_service, fid)
+                    if not revisions:
+                        raise ValueError("Drive returned an empty revision history")
+                    latest = revisions[-1]["id"]
+                    planned = planned_latest_revision.get(name)
+                    if planned is not None and latest != planned:
+                        # Edited in Drive after the plan: that edit isn't the
+                        # version the caller chose to keep, so don't absorb it
+                        # into the baseline. Same guard as the upload below.
+                        logger.debug(
+                            "Not re-baselining %s%s: Drive revision moved from %s to %s "
+                            "since planning",
+                            rel_prefix,
+                            name,
+                            planned,
+                            latest,
+                        )
+                        return {"kind": "conflict", "name": name}
+                    # Recording the latest revision as the import revision
+                    # makes the Drive side read as unchanged from here on (see
+                    # _converted_md_drive_state), and the planned local mtime
+                    # does the same for the local side. A Doc from before #814
+                    # gains the stamp here and leaves the modifiedTime path.
+                    # modifiedTime is re-sent from the listing for the reason
+                    # _record_import_revision gives.
+                    await execute_in_thread(
+                        drive_service.files()
+                        .update(
+                            fileId=fid,
+                            body={
+                                "properties": {
+                                    _CONVERTED_MD_SOURCE_MTIME_PROP: _source_mtime_value(
+                                        planned_local_mtime[name]
+                                    ),
+                                    _CONVERTED_MD_IMPORT_REV_PROP: latest,
+                                },
+                                "modifiedTime": entry["modifiedTime"],
+                            },
+                            supportsAllDrives=True,
+                            fields="id",
+                        )
+                        .execute,
+                        drive_service,
+                    )
+                except Exception as e:
+                    return {"kind": "resolve_fail", "name": name, "error": _quota_error_detail(e)}
+                logger.debug("Re-baselined %s%s on Drive revision %s", rel_prefix, name, latest)
+                return {"kind": "resolved", "name": name}
+
+            if action in ("upload", "keep_local"):
                 p = local_map[name]
                 # Matching (drive_map, above) now recognizes an already-converted Doc
                 # regardless of whether this call passes convert_markdown — so the
@@ -2065,15 +2237,20 @@ async def _sync_level(
                 skipped.append(rel_name)
             elif kind == "conflict":
                 conflicts.append(rel_name)
+            elif kind == "resolved":
+                resolved.append(rel_name)
+                level_changed = True
             elif kind == "upload_ok":
                 uploaded.append(rel_name)
+                if step.action == "keep_local":
+                    resolved.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
             elif kind == "download_ok":
                 downloaded.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
-            else:  # upload/download/collision/unsafe_name/local_read/drive_read _fail
+            else:  # upload/download/collision/unsafe_name/local_read/drive_read/resolve _fail
                 entry = {"name": rel_name, "error": o["error"]}
                 if "fileId" in o:
                     # Set only for the create()-succeeded-but-restamp-failed case
@@ -2235,6 +2412,8 @@ async def _sync_level(
                 ctx,
                 progress_count,
                 progress_bytes,
+                resolved,
+                resolve,
             )
 
         # Sibling subfolders are independent — descend into all of them concurrently
@@ -3367,6 +3546,7 @@ def register(tool):
         dry_run: bool = False,
         recursive: bool = False,
         result_local_path: str | None = None,
+        resolve: dict[str, str] | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -3524,7 +3704,8 @@ def register(tool):
                            and a Drive edit is detected from the Doc's revision history
                            (one extra metadata call per converted Doc per sync). A Doc
                            edited in Drive is a conflict even when the local .md changed
-                           too, rather than being overwritten by the upload. A local
+                           too, rather than being overwritten by the upload; clear it
+                           with `resolve` (below). A local
                            change made within seconds of the previous upload waits for
                            a later sync. A Doc converted by an older version of this
                            tool keeps the modifiedTime comparison until it's next
@@ -3558,13 +3739,39 @@ def register(tool):
                        directory, or at a path ending in '/', raises ValueError; an
                        existing file at a plain file path is replaced. Both checks
                        run before any transfer or local mkdir.
+            resolve: Clears convert_markdown conflicts one Doc at a time, keeping
+                       its file ID (and so its sharing, comments, and links). Maps a
+                       name exactly as 'conflicts' reports it ('sub/notes.md' under
+                       recursive) to one of:
+                         'keep_drive' — accept the Doc's current Drive version as
+                                        the new baseline. Nothing in Drive changes.
+                                        Carry the Drive edits into the local .md
+                                        first; from then on, a local change uploads
+                                        as usual. Also moves a Doc converted by an
+                                        older version of this tool onto the
+                                        revision-history check.
+                         'keep_local' — re-upload the local .md over the Drive
+                                        version, in place. The Drive edits are
+                                        overwritten (they stay in the Doc's version
+                                        history). Not allowed with
+                                        direction='download'.
+                       Every name must be a convert_markdown Doc with a matching
+                       local .md that this sync would report under 'conflicts';
+                       otherwise the call returns an error listing each bad name
+                       and changes nothing (there's no folder-wide form). With
+                       dry_run=True, 'actions' previews each one as a 'keep_drive'
+                       or 'keep_local' action. If the Doc is edited in Drive again
+                       between the plan and the write, it stays under 'conflicts'
+                       instead. Checking the names costs one read-only planning
+                       pass before a real run.
 
         Returns:
             uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
             just the filename at the top level, 'subdir/name' for nested matches when
             recursive descends; always empty when dry_run=True, see the dry_run
             section above), 'folders_skipped' (relative subfolder paths not entered —
-            always empty when recursive=False), size_bytes transferred (uploaded plus
+            always empty when recursive=False), 'resolved' (names `resolve` was
+            applied to; a 'keep_local' name is also under 'uploaded'), size_bytes transferred (uploaded plus
             downloaded), dry_run flag,
             and — when dry_run=True — an 'actions' list with {name, action, reason}
             for every file considered at every level visited. A '.gee-sweet-partial-*'
@@ -3590,6 +3797,22 @@ def register(tool):
                 "error": f"Unknown export_format '{export_format}'. "
                 f"Valid: {', '.join(_EXPORT_MIME)}"
             }
+        if resolve:
+            bad_modes = sorted(name for name, mode in resolve.items() if mode not in _RESOLVE_MODES)
+            if bad_modes:
+                return {
+                    "error": (
+                        f"Invalid resolve value for {', '.join(repr(n) for n in bad_modes)}. "
+                        "Use 'keep_drive' or 'keep_local'."
+                    )
+                }
+            if direction == "download" and "keep_local" in resolve.values():
+                return {
+                    "error": (
+                        "resolve 'keep_local' uploads, which direction='download' never does. "
+                        "Use direction='upload' or 'bidirectional', or 'keep_drive'."
+                    )
+                }
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -3622,51 +3845,92 @@ def register(tool):
 
         _make_local_dir(dest_dir, local_path)
 
-        uploaded: list[str] = []
-        downloaded: list[str] = []
-        skipped: list[str] = []
-        conflicts: list[str] = []
-        failed: list[dict[str, str]] = []
-        actions: list[dict[str, str]] = []
-        folders_skipped: list[str] = []
+        async def _run(run_dry: bool, resolve_req: _ResolveRequest | None) -> dict[str, Any]:
+            uploaded: list[str] = []
+            downloaded: list[str] = []
+            skipped: list[str] = []
+            conflicts: list[str] = []
+            failed: list[dict[str, str]] = []
+            actions: list[dict[str, str]] = []
+            folders_skipped: list[str] = []
+            resolved: list[str] = []
 
-        total_bytes = await _sync_level(
-            lc,
-            drive_service,
-            folder_id,
-            dest_dir,
-            "",
-            direction,
-            export_format,
-            convert_markdown,
-            use_checksum,
-            skip_system_files,
-            dry_run,
-            recursive,
-            uploaded,
-            downloaded,
-            skipped,
-            conflicts,
-            failed,
-            actions,
-            folders_skipped,
-            ctx,
-            [0],
-            [0],
-        )
+            total_bytes = await _sync_level(
+                lc,
+                drive_service,
+                folder_id,
+                dest_dir,
+                "",
+                direction,
+                export_format,
+                convert_markdown,
+                use_checksum,
+                skip_system_files,
+                run_dry,
+                recursive,
+                uploaded,
+                downloaded,
+                skipped,
+                conflicts,
+                failed,
+                actions,
+                folders_skipped,
+                ctx,
+                [0],
+                [0],
+                resolved,
+                resolve_req,
+            )
 
-        result: dict[str, Any] = {
-            "uploaded": uploaded,
-            "downloaded": downloaded,
-            "skipped": skipped,
-            "conflicts": conflicts,
-            "failed": failed,
-            "folders_skipped": folders_skipped,
-            "size_bytes": total_bytes,
-            "dry_run": dry_run,
-        }
-        if dry_run:
-            result["actions"] = actions
+            run_result: dict[str, Any] = {
+                "uploaded": uploaded,
+                "downloaded": downloaded,
+                "skipped": skipped,
+                "conflicts": conflicts,
+                "failed": failed,
+                "folders_skipped": folders_skipped,
+                "resolved": resolved,
+                "size_bytes": total_bytes,
+                "dry_run": run_dry,
+            }
+            if run_dry:
+                run_result["actions"] = actions
+            return run_result
+
+        if resolve:
+            # Every key is checked against a read-only plan of the whole tree
+            # before anything is written: a real run executes each level before
+            # planning the next, so checking there would let the levels above a
+            # bad subfolder key sync first. The dry_run pass records nothing
+            # (not even an import revision), so a refused call changed nothing.
+            # A dry_run call is that pass, so it costs no extra reads.
+            checked = _ResolveRequest(modes=dict(resolve))
+            preview = await _run(True, checked)
+            problems = checked.problems()
+            if problems:
+                return {
+                    "error": (
+                        "Each resolve name must be a convert_markdown .md listed under "
+                        "'conflicts' (names as the result reports them). Nothing was changed. "
+                        + "; ".join(problems)
+                    )
+                }
+            if dry_run:
+                result = preview
+            else:
+                applied = _ResolveRequest(modes=dict(resolve))
+                result = await _run(False, applied)
+                # A name the check pass found but the real pass didn't (it was
+                # removed in between) still gets a line saying nothing happened.
+                for name in sorted(applied.modes.keys() - applied.status.keys()):
+                    result["failed"].append(
+                        {
+                            "name": name,
+                            "error": "resolve not applied, nothing changed: no longer found",
+                        }
+                    )
+        else:
+            result = await _run(dry_run, None)
 
         if result_local_path:
             return await write_capped_result_to_disk(
