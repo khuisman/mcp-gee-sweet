@@ -4318,12 +4318,86 @@ class TestSyncFolderResolve:
 
         assert result["skipped"] == ["notes.md"]
 
-    async def test_conflict_reason_points_at_resolve(self, tmp_path):
+    def _legacy(self, tmp_path):
+        """notes.md and a Doc `fa` converted before #814 (no stamp) whose
+        modifiedTime reads as "Drive newer": a conflict on every sync."""
+        self._local(tmp_path)
+        return _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=self._DRIVE_MTIME,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+    async def test_legacy_doc_drive_edit_after_plan_stays_a_conflict(self, tmp_path):
+        """PR #1016 review, finding 2: a pre-#814 Doc has no revision job, so
+        the "Drive moved since planning" guard used to be skipped and an edit
+        landing before the write was absorbed into the baseline."""
+        fs = self._legacy(tmp_path)
+        self._revision_reads(fs, ["7"], ["7"], ["7", "8"])  # check, plan, write
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["resolved"] == []
+        assert fs.updated_files == []
+
+    async def test_legacy_doc_keep_local_drive_edit_after_plan_stays_a_conflict(self, tmp_path):
+        fs = self._legacy(tmp_path)
+        self._revision_reads(fs, ["7"], ["7"], ["7", "8"])  # check, plan, baseline read
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_local"})
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.updated_files == []
+
+    async def test_legacy_doc_revision_read_failure_refuses(self, tmp_path):
+        fs = self._legacy(tmp_path)
+        fs.revision_errors["fa"] = RuntimeError("revisions unavailable")
+
+        result = await self._sync(fs, tmp_path, resolve={"notes.md": "keep_drive"})
+
+        assert (
+            "'notes.md': couldn't read the Doc's revision history to resolve it: "
+            "revisions unavailable" in result["error"]
+        )
+        assert fs.updated_files == []
+
+    async def test_legacy_doc_not_named_gets_no_revision_read(self, tmp_path):
+        """The extra read is only for a Doc resolve names."""
+        fs = self._legacy(tmp_path)
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["conflicts"] == ["notes.md"]
+        assert fs.revision_list_calls == []
+
+    async def test_drive_only_edit_reason_suggests_keep_drive(self, tmp_path):
         fs = self._drive_edited(tmp_path)
 
         result = await self._sync(fs, tmp_path, dry_run=True)
 
         assert "re-sync with resolve 'keep_drive'" in result["actions"][0]["reason"]
+
+    async def test_both_sides_reason_suggests_keep_local_not_keep_drive(self, tmp_path):
+        """PR #1016 review, finding 1: after merging, the local file holds its
+        own edits too. keep_drive would record it as matching the Doc, so
+        those edits would never reach Drive while syncs read "in sync"."""
+        fs = self._drive_edited(tmp_path, local_offset=600)
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        reason = result["actions"][0]["reason"]
+        assert reason.endswith("re-sync with resolve 'keep_local' to upload the merged file")
+        assert "keep_drive" not in reason
 
     async def test_resolved_empty_without_resolve(self, tmp_path):
         fs = self._drive_edited(tmp_path)

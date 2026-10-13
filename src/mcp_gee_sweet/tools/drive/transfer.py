@@ -1225,8 +1225,11 @@ def _converted_md_step(
                 "edited both locally and in Drive since the last upload — re-uploading "
                 f"would overwrite the Drive edit, and {_NO_REVERSE_CONVERSION_CLAUSE}; "
                 "merge the Drive edits into the local .md, then re-sync with resolve "
-                "'keep_drive' (or 'keep_local' to overwrite the Drive edit)"
+                "'keep_local' to upload the merged file"
             )
+            # Not 'keep_drive': it would stamp the merged file as matching the
+            # Doc, so the local edits would never reach Drive while every sync
+            # read "in sync" (PR #1016 review, finding 1).
         else:
             reason = (
                 f"edited in Drive since the last upload, but {_NO_REVERSE_CONVERSION_CLAUSE} "
@@ -1283,7 +1286,9 @@ def _apply_resolve(
         mode = resolve.modes.get(rel_name)
         if mode is None:
             continue
-        if step.action != "conflict":
+        if step.action in ("drive_read_fail", "local_read_fail"):
+            problem = step.reason
+        elif step.action != "conflict":
             problem = f"not a conflict (planned action: {step.action})"
         elif (
             step.name not in local_map
@@ -1523,6 +1528,8 @@ async def _sync_level(
     plan: list[_SyncStep] = []
     hash_jobs: list[_HashJob] = []
     revision_jobs: list[_RevisionJob] = []
+    # (plan index, name, file ID) of each pre-#814 Doc that resolve names.
+    legacy_resolve_jobs: list[tuple[int, str, str]] = []
     # The local mtime each both-sides name was planned against. resolve's
     # keep_drive stamps this one rather than a fresh stat, so a local edit
     # landing after the plan still uploads on the next sync instead of being
@@ -1661,6 +1668,17 @@ async def _sync_level(
                     continue
 
             step = _mtime_step(name, diff, direction, _is_converted_md_entry(entry))
+            if (
+                resolve is not None
+                and f"{rel_prefix}{name}" in resolve.modes
+                and _is_converted_md_entry(entry)
+            ):
+                # A Doc from before #814 has no revision job, so resolve
+                # reads its latest revision here instead: without it, the
+                # "Drive moved since planning" guard is skipped and an edit
+                # landing before the write is silently absorbed (PR #1016
+                # review, finding 2).
+                legacy_resolve_jobs.append((len(plan), name, entry["id"]))
 
             # use_checksum is an explicit accuracy opt-in, so it verifies every
             # both-sides pair with a real md5Checksum — including a within-
@@ -1820,6 +1838,28 @@ async def _sync_level(
                 raise outcome
             else:
                 recorded_metadata = True
+
+    if legacy_resolve_jobs:
+        legacy_revisions = await asyncio.gather(
+            *(_list_revisions(drive_service, fid) for _, _, fid in legacy_resolve_jobs),
+            return_exceptions=True,
+        )
+        for (index, name, _), revisions in zip(legacy_resolve_jobs, legacy_revisions, strict=True):
+            if isinstance(revisions, BaseException) and not isinstance(revisions, Exception):
+                raise revisions
+            if isinstance(revisions, Exception) or not revisions:
+                detail = (
+                    _quota_error_detail(revisions)
+                    if isinstance(revisions, Exception)
+                    else "Drive returned an empty revision history"
+                )
+                plan[index] = _SyncStep(
+                    name=name,
+                    action="drive_read_fail",
+                    reason=f"couldn't read the Doc's revision history to resolve it: {detail}",
+                )
+            else:
+                planned_latest_revision[name] = revisions[-1]["id"]
 
     if resolve is not None:
         _apply_resolve(plan, rel_prefix, drive_map, local_map, resolve)
@@ -3744,12 +3784,17 @@ def register(tool):
                        name exactly as 'conflicts' reports it ('sub/notes.md' under
                        recursive) to one of:
                          'keep_drive' — accept the Doc's current Drive version as
-                                        the new baseline. Nothing in Drive changes.
-                                        Carry the Drive edits into the local .md
-                                        first; from then on, a local change uploads
-                                        as usual. Also moves a Doc converted by an
-                                        older version of this tool onto the
-                                        revision-history check.
+                                        the new baseline. Nothing in Drive changes,
+                                        and the local .md is recorded as matching
+                                        it, so use this only once the local file
+                                        holds exactly the Doc's content (carry the
+                                        Drive edits in first). If the local file
+                                        has edits of its own, merge and use
+                                        'keep_local' instead, or those edits never
+                                        reach Drive. From then on, a local change
+                                        uploads as usual. Also moves a Doc
+                                        converted by an older version of this tool
+                                        onto the revision-history check.
                          'keep_local' — re-upload the local .md over the Drive
                                         version, in place. The Drive edits are
                                         overwritten (they stay in the Doc's version

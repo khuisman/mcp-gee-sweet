@@ -200,11 +200,20 @@ doesn't clear the conflict. Clearing it takes a call that names the Doc in `reso
 and uploading the local file would overwrite it. `sync_folder` used to do that silently and now
 refuses (#814), so which side wins is the caller's choice.
 
-**Workaround:** To keep the Drive version, carry the Drive edits into the local `.md` by hand,
-then sync with `resolve={"<name>": "keep_drive"}`. To keep the local version, sync with
-`resolve={"<name>": "keep_local"}`, which overwrites the Drive edit in place. The Doc keeps its
-version history. Either way the Doc keeps its file ID, sharing, comments, and links. Preview
-either with `dry_run=True` first.
+**Workaround:** Name the Doc in `resolve`. The right choice depends on whether the local file has
+edits of its own:
+
+- **Only the Doc was edited:** copy the Drive edits into the local `.md` by hand, so the two
+  match, then sync with `resolve={"<name>": "keep_drive"}`. Nothing in Drive changes.
+- **Both were edited:** merge the Drive edits into the local `.md`, then sync with
+  `resolve={"<name>": "keep_local"}`, which uploads the merged file in place. Don't use
+  `keep_drive` here. It records the local file as matching the Doc, so its own edits would never
+  reach Drive.
+- **To discard the Drive edit:** sync with `"keep_local"` without merging. The edit stays in
+  the Doc's version history.
+
+Either way the Doc keeps its file ID, sharing, comments, and links. Preview the call with
+`dry_run=True` first.
 
 ### `sync_folder` — a `convert_markdown` Doc from before #814 can stay stuck in `conflicts`
 
@@ -218,9 +227,10 @@ never picks up the properties that would fix it.
 newer, `sync_folder` can't tell a lagging timestamp from a real Drive edit, so it doesn't guess.
 
 **Workaround:** Sync once with `resolve={"<name>": "keep_drive"}`. That stamps the properties
-without changing the Doc's content, and from then on the Doc uses the new detection. If the Doc
-*was* edited in Drive, carry those edits into the local file first. To overwrite the Drive
-version instead, use `"keep_local"`, which re-uploads in place and stamps the same properties.
+without changing the Doc's content, and from then on the Doc uses the new detection. Use it only
+when the local file matches the Doc: if the Doc *was* edited in Drive, copy those edits into the
+local file first. If the local file has edits of its own, merge and use `"keep_local"` instead,
+which re-uploads in place and stamps the same properties.
 
 ### Downloads and `sync_folder` skip names that aren't a single filename
 

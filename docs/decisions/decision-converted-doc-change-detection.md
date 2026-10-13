@@ -73,8 +73,8 @@ Under the design above, a Drive-edited Doc stays a `conflict` on every sync, bec
 
 **Decision:** one per-name parameter, `sync_folder(resolve={name: mode})`, offering both options #860 listed:
 
-- `keep_drive`: record the Doc's current latest revision as its import revision, and the local mtime as its source mtime. Nothing in Drive changes. The caller carries the Drive edits into the local `.md` first, and the next local change uploads as usual.
-- `keep_local`: re-upload the local file in place over the Drive edit, keeping the file ID, through the existing re-upload path (`_converted_md_upload_properties(reupload=True)`).
+- `keep_drive`: record the Doc's current latest revision as its import revision, and the local mtime as its source mtime. Nothing in Drive changes. This records the local file as matching the Doc, so it's only right once the local `.md` holds exactly the Doc's content, i.e. the caller copied the Drive edits in and the file had no edits of its own. The next local change then uploads as usual.
+- `keep_local`: re-upload the local file in place over the Drive edit, keeping the file ID, through the existing re-upload path (`_converted_md_upload_properties(reupload=True)`). This is also the way out of a both-sides conflict: merge the Drive edits into the local file, then upload it. With `keep_drive` there, the local edits would never reach Drive while every sync read "in sync" (PR #1016 review, finding 1). The both-sides conflict reason recommends `keep_local` for that reason.
 
 **Guards against a careless folder-wide call:**
 
@@ -86,7 +86,7 @@ Under the design above, a Drive-edited Doc stays a `conflict` on every sync, bec
 - *Checked against a read-only pass.* "Changes nothing" can't be checked inside a real run: `_sync_level` executes each level before planning its subfolders, so a bad key under `sub/` would only surface after the levels above it had synced. When `resolve` is set, `sync_folder` first runs the whole tree as a `dry_run` and checks every key against it. A `dry_run` writes nothing, not even an import revision. A real call costs a second planning pass, which is acceptable for an explicit, rare call. A `dry_run` call *is* that pass.
 - *State that moves between passes.* On the real pass, a key whose step is no longer an eligible conflict lands in `failed` and nothing is done for it, rather than the resolution applying to a situation the caller never saw. A Drive edit between the plan and the write leaves the name in `conflicts`, using the same "Drive moved since planning" guard the upload path already had.
 - *`keep_drive` stamps the planned mtime, not a fresh one.* A local save landing between the plan and the write then still uploads on the next sync, instead of being absorbed into the baseline.
-- *Legacy Docs included.* A Doc converted before #814 that reads as "Drive newer" is eligible too. `keep_drive` gives it the properties, which is the migration this doc's **Legacy Docs** paragraph left to the next re-upload.
+- *Legacy Docs included.* A Doc converted before #814 that reads as "Drive newer" is eligible too. `keep_drive` gives it the properties, which is the migration this doc's **Legacy Docs** paragraph left to the next re-upload. Such a Doc has no revision job, so when `resolve` names one, the plan reads its revisions separately. That gives both modes the same "Drive moved since planning" guard (PR #1016 review, finding 2).
 - *`keep_local` is refused with `direction='download'`*, before any API call, because that direction never uploads.
 
 #818 (other conversion types) can adopt the same parameter shape.
