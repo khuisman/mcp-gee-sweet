@@ -588,7 +588,7 @@ class TestQuotaErrors:
     def _assert_helpful_error(self, result):
         assert "error" in result
         assert "storageQuotaExceeded" not in result["error"]
-        assert "Service accounts" in result["error"]
+        assert "This service account has no My Drive storage" in result["error"]
         assert "server://auth-status" in result["error"]
 
     async def test_create_spreadsheet_quota_returns_error_dict(self):

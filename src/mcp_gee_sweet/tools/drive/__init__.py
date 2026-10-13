@@ -3,9 +3,11 @@ from typing import Any
 from ...auth import _is_service_account_credential
 
 _SA_QUOTA_ERROR = (
-    "Service accounts cannot create or copy files in personal Drive (no storage quota). "
-    "Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. "
-    "Check server://auth-status for your current auth method and affected tools."
+    "This service account has no My Drive storage, so it can create files only in a "
+    "Shared Drive. Target a Shared Drive folder, or authenticate as a user (OAuth, or ADC "
+    "with user credentials). If the destination is already a Shared Drive, its "
+    "organization storage is full. Check server://auth-status for your current auth "
+    "method and affected tools."
 )
 
 _USER_QUOTA_ERROR = (
@@ -19,7 +21,9 @@ def _quota_error_text(service: Any) -> str:
     an error http_errors.is_storage_quota_error has matched.
 
     A service account has no personal storage, so it needs _SA_QUOTA_ERROR's
-    advice (switch auth, or target a Shared Drive). A user identity's
+    advice (target a Shared Drive or authenticate as a user, or the Shared Drive
+    it already targets is full). That covers an ADC-resolved service identity
+    too, which "use OAuth or ADC" would mislead (PR #1006 QA round 6). A user identity's
     destination is full, either its My Drive or a Shared Drive's pooled
     organization storage, so that advice would mislead it (#1009). The identity
     comes from the service's own credentials, the same check that sets

@@ -93,7 +93,7 @@ class TestUploadFile:
         result = await _transfer_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
         assert "error" in result
         assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
-        assert "Service accounts" in result["error"]
+        assert "This service account has no My Drive storage" in result["error"]
         assert "server://auth-status" in result["error"]
 
     async def test_with_folder_marks_folder_cache_dirty(self):
@@ -325,7 +325,7 @@ class TestUploadLocalFileCore:
         result = await _upload_local_file(drive_svc, str(local_file), "folder1")
 
         assert "error" in result
-        assert "Service accounts" in result["error"]
+        assert "This service account has no My Drive storage" in result["error"]
 
     async def test_quota_exceeded_for_user_identity_says_storage_is_full(self, tmp_path):
         # A user whose own Drive is full must not be told to switch to OAuth (#1009).

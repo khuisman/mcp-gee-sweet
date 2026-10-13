@@ -167,7 +167,7 @@ class TestCreateDoc:
         result = await _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)
         assert "error" in result
         assert "storageQuotaExceeded" not in result["error"]
-        assert "Service accounts" in result["error"]
+        assert "This service account has no My Drive storage" in result["error"]
         assert "server://auth-status" in result["error"]
 
     async def test_quota_exceeded_for_user_identity_says_storage_is_full(self):

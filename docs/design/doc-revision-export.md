@@ -75,7 +75,7 @@ Measured across two imports of the same DOCX:
 - Where it's created depends on the identity (#989), because the copy holds the revision's full
   content and the default folder's audience can differ from the source Doc's:
   - A user identity (OAuth, or ADC with user credentials) creates it in My Drive root, not the
-    default folder, so only the user can see it.
+    default folder, so the copy isn't shared with anyone.
   - A service account identity (`lc.is_service_account_identity`) creates it in the default
     folder (`lc.folder_id`). A service account has no My Drive storage, so only a configured
     Shared Drive works. The remaining exposure is documented in `docs/known-limitations.md`: the

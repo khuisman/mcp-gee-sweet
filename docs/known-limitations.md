@@ -136,7 +136,7 @@ as `get_doc_as_markdown`, with these differences and gaps:
    The export then fails with an error saying to list revisions again.
 4. Each call creates and removes a temporary Google Doc holding the revision's full content,
    which takes several seconds. A user identity (OAuth, or ADC with user credentials) creates it
-   in My Drive root, where only you can see it. That needs room in My Drive and permission to
+   in My Drive root, not shared with anyone. That needs room in My Drive and permission to
    create files there, even when `DRIVE_FOLDER_ID` is a Shared Drive with room: a full My Drive,
    or a Workspace policy that blocks creating files in My Drive, makes the export fail. A service
    account has no My Drive storage, so it uses the default folder, which must be a Shared Drive.

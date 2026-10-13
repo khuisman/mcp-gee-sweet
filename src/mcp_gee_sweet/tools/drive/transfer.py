@@ -2499,7 +2499,7 @@ def register(tool):
 
         Note:
             For a Doc, a user identity (OAuth, or ADC with user credentials)
-            creates the temporary Doc in My Drive root, so only you can see it.
+            creates the temporary Doc in My Drive root, not shared with anyone.
             That needs room in My Drive and permission to create files there,
             even when the default folder is a Shared Drive. A service account
             has no My Drive storage, so it uses the default folder, which must
