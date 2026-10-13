@@ -28,7 +28,7 @@ from ..response_limits import (
     validate_local_destination,
     write_capped_result_to_disk,
 )
-from . import _escape_drive_query_mime_type, _quota_error_text
+from . import _escape_drive_query_mime_type, _is_quota_error, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -238,17 +238,6 @@ def _is_workspace_entry(f: dict) -> bool:
     reintroducing a synthetic key on drive_map's entries. Works against any
     dict carrying Drive's own "mimeType" field, not just a drive_map entry."""
     return f["mimeType"].startswith("application/vnd.google-apps.")
-
-
-def _is_quota_error(exc: Exception) -> bool:
-    """True for Drive's storageQuotaExceeded HttpError (403): a service account
-    with no personal storage on a non-Shared-Drive target, or a user identity
-    whose storage is full. _quota_error_text picks the message for each."""
-    return (
-        isinstance(exc, HttpError)
-        and exc.resp.status == 403
-        and b"storageQuotaExceeded" in (exc.content or b"")
-    )
 
 
 def _quota_error_detail(exc: Exception, service: Any) -> str:

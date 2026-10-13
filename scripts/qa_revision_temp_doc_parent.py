@@ -31,8 +31,7 @@ from mcp_gee_sweet import auth
 from mcp_gee_sweet.http_transport import execute_in_thread
 from mcp_gee_sweet.tools.docs import markdown_export
 from mcp_gee_sweet.tools.drive import transfer
-
-_GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+from mcp_gee_sweet.tools.drive.transfer import _GOOGLE_DOC_MIME
 
 
 def _register_tools() -> dict:
@@ -54,15 +53,20 @@ async def main(identity: str) -> None:
     original_discard = markdown_export._discard_temp_doc
 
     async def spy_discard(drive_service, file_id, can_delete):
-        seen.update(
-            await execute_in_thread(
-                drive_service.files()
-                .get(fileId=file_id, fields="parents,driveId", supportsAllDrives=True)
-                .execute,
-                drive_service,
+        # The temporary Doc holds the revision's content: remove it even if
+        # reading its parents fails.
+        try:
+            seen.update(
+                await execute_in_thread(
+                    drive_service.files()
+                    .get(fileId=file_id, fields="parents,driveId", supportsAllDrives=True)
+                    .execute,
+                    drive_service,
+                )
             )
-        )
-        return await original_discard(drive_service, file_id, can_delete)
+        finally:
+            cleanup_error = await original_discard(drive_service, file_id, can_delete)
+        return cleanup_error
 
     markdown_export._discard_temp_doc = spy_discard
 

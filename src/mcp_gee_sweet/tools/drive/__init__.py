@@ -1,5 +1,7 @@
 from typing import Any
 
+from googleapiclient.errors import HttpError
+
 from ...auth import _is_service_account_credential
 
 _SA_QUOTA_ERROR = (
@@ -9,16 +11,30 @@ _SA_QUOTA_ERROR = (
 )
 
 _USER_QUOTA_ERROR = (
-    "This account's Google Drive storage is full. Free up space or add storage, then try again."
+    "Google Drive storage is full for this destination: your My Drive, or the Shared "
+    "Drive's organization storage. Free up space or add storage, then try again."
 )
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    """True for Drive's storageQuotaExceeded HttpError (403): a service account
+    with no personal storage on a non-Shared-Drive target, or a user identity
+    whose destination's storage is full. Every quota site checks through here
+    and renders _quota_error_text."""
+    return (
+        isinstance(exc, HttpError)
+        and exc.resp.status == 403
+        and b"storageQuotaExceeded" in (exc.content or b"")
+    )
 
 
 def _quota_error_text(service: Any) -> str:
     """The storageQuotaExceeded message for the identity behind `service`.
 
     A service account has no personal storage, so it needs _SA_QUOTA_ERROR's
-    advice (switch auth, or target a Shared Drive). A user identity already has
-    storage that's full, so that advice would mislead it (#1009). The identity
+    advice (switch auth, or target a Shared Drive). A user identity's
+    destination is full, either its My Drive or a Shared Drive's pooled
+    organization storage, so that advice would mislead it (#1009). The identity
     comes from the service's own credentials, the same check that sets
     SpreadsheetContext.is_service_account_identity, so every site that has a
     service can render the right text without the flag being passed down."""

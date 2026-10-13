@@ -48,7 +48,7 @@ from mcp.types import ToolAnnotations
 from PIL import Image
 
 from ...auth import execute_in_thread, thread_http
-from ..drive import _quota_error_text
+from ..drive import _is_quota_error, _quota_error_text
 from ..drive.transfer import _upload_local_file
 from .indices import _collect_doc_paragraphs, utf16_len
 
@@ -455,7 +455,7 @@ async def upload_and_share_image(
             drive_service,
         )
     except HttpError as e:
-        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+        if _is_quota_error(e):
             return {"error": _quota_error_text(drive_service)}
         return {"error": f"failed to upload resized image: {e}"}
     except Exception as e:
