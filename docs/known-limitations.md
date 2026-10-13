@@ -135,9 +135,12 @@ as `get_doc_as_markdown`, with these differences and gaps:
    next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
    The export then fails with an error saying to list revisions again.
 4. Each call creates and removes a temporary Google Doc holding the revision's full content,
-   which takes several seconds. Under OAuth it goes in My Drive root, where only you can see it.
-   A service account has no My Drive storage, so it uses the default folder, which must be a
-   Shared Drive. The source Doc's own sharing doesn't limit who can see that copy:
+   which takes several seconds. A user identity (OAuth, or ADC with user credentials) creates it
+   in My Drive root, where only you can see it. That needs room in My Drive and permission to
+   create files there, even when `DRIVE_FOLDER_ID` is a Shared Drive with room: a full My Drive,
+   or a Workspace policy that blocks creating files in My Drive, makes the export fail. A service
+   account has no My Drive storage, so it uses the default folder, which must be a Shared Drive.
+   The source Doc's own sharing doesn't limit who can see that copy:
    - Every member of the Shared Drive can open it while the export runs, including the image
      downloads.
    - A Content manager can only trash it, not delete it, so it stays in the Shared Drive's
@@ -155,8 +158,9 @@ Shared Drive, and member access there is inherited, so the copy's permissions ca
 
 **Workaround:** For (1), diff one revision's export against another's, not against
 `get_doc_as_markdown` output. For (3), export a revision only after editing has settled. For
-(4), when a revision's content shouldn't reach the Shared Drive's members, export it over OAuth,
-or point `DRIVE_FOLDER_ID` at a Shared Drive whose membership matches the source Doc's audience.
+(4), when a revision's content shouldn't reach the Shared Drive's members, export it with a user
+identity (OAuth), or point `DRIVE_FOLDER_ID` at a Shared Drive whose membership matches the
+source Doc's audience.
 Related: docs/design/doc-revision-export.md.
 
 ---

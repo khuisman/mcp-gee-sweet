@@ -2506,10 +2506,13 @@ def register(tool):
             exceeds the size cap without local_path.
 
         Note:
-            For a Doc, the temporary Doc goes in My Drive root under OAuth, so
-            only you can see it. A service account has no My Drive storage, so
-            it uses the default folder, which must be a Shared Drive: that
-            drive's members can open the copy while the export runs.
+            For a Doc, a user identity (OAuth, or ADC with user credentials)
+            creates the temporary Doc in My Drive root, so only you can see it.
+            That needs room in My Drive and permission to create files there,
+            even when the default folder is a Shared Drive. A service account
+            has no My Drive storage, so it uses the default folder, which must
+            be a Shared Drive: that drive's members can open the copy while the
+            export runs.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service

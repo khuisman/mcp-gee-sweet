@@ -2309,7 +2309,7 @@ parallel shards don't delete each other's scratch dir.
 
 ---
 
-### TC-D289: `export_revision` — under OAuth the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
+### TC-D289: `export_revision` — for a user identity the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
 
 **Background:** The temporary Doc holds the revision's full content. Before #989 it was created in
 the default folder, so with `DRIVE_FOLDER_ID` on a Shared Drive every member of that drive could
