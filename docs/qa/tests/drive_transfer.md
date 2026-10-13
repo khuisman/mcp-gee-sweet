@@ -2311,6 +2311,8 @@ parallel shards don't delete each other's scratch dir.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`), after `/mcp reconnect`.** Ran under this job's scratch dir. Call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15, with no `warning`; `<dir>` is a directory holding `Saved to disk`.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 6 (`f05bd0e`), after `/mcp reconnect`.** Same as round 4: call 1 returned `<dir>/<doc-id>-r3.md`, `bytes_written` 15, with no `warning`; `<dir>` holds `Saved to disk`.
+
 ---
 
 ### TC-D290: `export_revision` — for a user identity the temporary Doc goes in My Drive root, not the default folder (issue #989) ⚠️ requires-oauth
@@ -2348,6 +2350,8 @@ Doc.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 5 (`28508e5`).** Re-run with the script's new `try/finally` cleanup and imported `_GOOGLE_DOC_MIME`. Each call ran once, with output identical to round 4.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 6 (`f05bd0e`).** Re-run after the develop merge. Each call ran once, with output identical to round 4.
+
 ---
 
 ### TC-D291: A quota-exceeded error says "storage is full" to a user identity and keeps the service-account text for a service account (issue #1009) (unit test)
@@ -2383,12 +2387,14 @@ error paths are unit-tested only.
 - Live service-account quota error, from a fresh interpreter: a Drive service built from
   `auth._service_account_creds()` calls `files().create()` with no `parents`. A service account
   has no My Drive storage, so Drive returns a real 403 `storageQuotaExceeded`.
-  `_is_quota_error` is `True` for it, and `_quota_error_detail(e, service)` returns
+  `tools/http_errors.py`'s `is_storage_quota_error` is `True` for it, and `_quota_error_detail(e, service)` returns
   `_SA_QUOTA_ERROR`. Only the user-identity error can't be forced live.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 4 (`8ba9194`).** The full suite passed (2772 passed, 3 skipped), including every unit test listed above. Identity detection on real services: the OAuth-built service gave the user text, and one built from the configured service-account credentials gave the SA text. Live SA quota: `create()` with no parents returned 403 `storageQuotaExceeded`, `_is_quota_error` was `True`, and the rendered text equaled `_SA_QUOTA_ERROR`.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 5 (`28508e5`).** `_is_quota_error` now lives in `tools/drive/__init__.py`, and no inline `storageQuotaExceeded` check remains under `src/`. The suite passed (2772 passed, 3 skipped), and ruff is clean. Same live checks as round 4, all passing: the OAuth service gave `_USER_QUOTA_ERROR` (now worded "storage is full for this destination: your My Drive, or the Shared Drive's organization storage"). A real SA 403 `storageQuotaExceeded` made the shared `_is_quota_error` return `True`, and it rendered `_SA_QUOTA_ERROR`.
+
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 6 (`f05bd0e`, after the develop merge onto #916).** `_is_quota_error` is gone. Every site now checks with `tools/http_errors.py`'s `is_storage_quota_error`, and no inline `storageQuotaExceeded` check remains under `src/`. I updated the live-check step above to name that helper. The suite passed (2777 passed, 3 skipped), and ruff is clean. Live: the OAuth service gave `_USER_QUOTA_ERROR`. A real SA 403 `storageQuotaExceeded` made `is_storage_quota_error` return `True`, and `_quota_error_detail(e, service)` rendered `_SA_QUOTA_ERROR`.
 
 ---
 
