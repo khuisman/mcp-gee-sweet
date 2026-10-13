@@ -2352,6 +2352,8 @@ Doc.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 6 (`f05bd0e`).** Re-run after the develop merge. Each call ran once, with output identical to round 4.
 
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 7 (`6ae08b8`).** Each call ran once, with output identical to round 4.
+
 ---
 
 ### TC-D291: A quota-exceeded error says "storage is full" to a user identity and keeps the service-account text for a service account (issue #1009) (unit test)
@@ -2395,6 +2397,8 @@ error paths are unit-tested only.
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 5 (`28508e5`).** `_is_quota_error` now lives in `tools/drive/__init__.py`, and no inline `storageQuotaExceeded` check remains under `src/`. The suite passed (2772 passed, 3 skipped), and ruff is clean. Same live checks as round 4, all passing: the OAuth service gave `_USER_QUOTA_ERROR` (now worded "storage is full for this destination: your My Drive, or the Shared Drive's organization storage"). A real SA 403 `storageQuotaExceeded` made the shared `_is_quota_error` return `True`, and it rendered `_SA_QUOTA_ERROR`.
 
 **Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 6 (`f05bd0e`, after the develop merge onto #916).** `_is_quota_error` is gone. Every site now checks with `tools/http_errors.py`'s `is_storage_quota_error`, and no inline `storageQuotaExceeded` check remains under `src/`. I updated the live-check step above to name that helper. The suite passed (2777 passed, 3 skipped), and ruff is clean. Live: the OAuth service gave `_USER_QUOTA_ERROR`. A real SA 403 `storageQuotaExceeded` made `is_storage_quota_error` return `True`, and `_quota_error_detail(e, service)` rendered `_SA_QUOTA_ERROR`.
+
+**Result (2026-10-12) ✅ PASS — Kit, PR #1006 round 7 (`6ae08b8`).** `_SA_QUOTA_ERROR` is reworded. It now says a service account can create files only in a Shared Drive, says to target one or authenticate as a user, and notes that an existing Shared Drive destination's organization storage is full. The suite passed (2777 passed, 3 skipped), ruff is clean, and `gen_tool_docs.py` leaves no diff. Live: the OAuth service gave `_USER_QUOTA_ERROR`. A real SA 403 `storageQuotaExceeded` made `is_storage_quota_error` return `True`, and it rendered the new `_SA_QUOTA_ERROR` text verbatim.
 
 ---
 
