@@ -3,28 +3,43 @@ repos:
     hooks:
       # ruff runs from the project's own locked version (uv.lock), the same one CI's
       # `uv run ruff` uses. A pinned ruff-pre-commit rev drifts behind it, so new rules
-      # passed locally and failed CI (#974).
+      # passed locally and failed CI (#974). Every hook uses `uv run --frozen`, as CI's
+      # `uv sync --frozen` does, so a commit never re-locks or rewrites uv.lock.
       - id: ruff
         name: ruff check
-        entry: uv run ruff check --fix --force-exclude
+        entry: uv run --frozen ruff check --fix --force-exclude
         language: system
         types_or: [python, pyi]
         require_serial: true
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format --force-exclude
+        entry: uv run --frozen ruff format --force-exclude
         language: system
         types_or: [python, pyi]
         require_serial: true
+      # A change to ruff's config or version can fail files the commit doesn't touch, so
+      # lint the whole tree exactly as CI does.
+      - id: ruff-tree
+        name: ruff check (whole tree, ruff config or version changed)
+        entry: uv run --frozen ruff check .
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+      - id: ruff-format-tree
+        name: ruff format --check (whole tree, ruff config or version changed)
+        entry: uv run --frozen ruff format --check .
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
       - id: gen-tool-docs
         name: Regenerate tool docs
-        entry: uv run python scripts/gen_tool_docs.py
+        entry: uv run --frozen python scripts/gen_tool_docs.py
         language: system
         pass_filenames: false
         files: ^(src/mcp_gee_sweet/tools/.*\.py|docs/tools\.md|docs/configuration\.md)$
       - id: check-supports-all-drives
         name: Check supportsAllDrives on Drive API calls
-        entry: uv run python scripts/check_supports_all_drives.py
+        entry: uv run --frozen python scripts/check_supports_all_drives.py
         language: system
         pass_filenames: false
         files: ^src/mcp_gee_sweet/.*\.py$
