@@ -1,12 +1,21 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.9
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
   - repo: local
     hooks:
+      # ruff runs from the project's own locked version (uv.lock), the same one CI's
+      # `uv run ruff` uses. A pinned ruff-pre-commit rev drifts behind it, so new rules
+      # passed locally and failed CI (#974).
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: gen-tool-docs
         name: Regenerate tool docs
         entry: uv run python scripts/gen_tool_docs.py
