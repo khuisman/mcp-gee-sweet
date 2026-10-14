@@ -199,6 +199,7 @@ def register(tool):
                 (same vocabulary as style_doc_range's text-style fields):
                   bold, italic, underline, strikethrough (bool)
                   font_size (float): size in points
+                  font_family (str): font name, e.g. "Courier New" for monospace
                   foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
                   link_url (str | null): set a hyperlink (null to clear)
             named_style_type: Paragraph style applied to the whole paragraph the

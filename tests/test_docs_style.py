@@ -509,6 +509,43 @@ class TestStyleDocRangeTool:
         docs_module.register(tool)
         return tools
 
+    async def test_font_family_only_and_combined_styles(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 5, "font_family": "Courier New"},
+                {"start_index": 8, "end_index": 12, "font_family": "Arial", "bold": True},
+                {"start_index": 15, "end_index": 20, "italic": True},
+            ],
+            ctx=ctx,
+        )
+
+        assert result == {"docId": "doc123", "requests": 3}
+        requests = mock_docs.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        updates = [request["updateTextStyle"] for request in requests]
+        assert updates == [
+            {
+                "range": {"startIndex": 1, "endIndex": 5},
+                "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
+                "fields": "weightedFontFamily",
+            },
+            {
+                "range": {"startIndex": 8, "endIndex": 12},
+                "textStyle": {"bold": True, "weightedFontFamily": {"fontFamily": "Arial"}},
+                "fields": "bold,weightedFontFamily",
+            },
+            {
+                "range": {"startIndex": 15, "endIndex": 20},
+                "textStyle": {"italic": True},
+                "fields": "italic",
+            },
+        ]
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc123")
+
     async def test_link_url_null_clears_link(self):
         # #408: link_url=None must actually send a clearing request, not get
         # silently skipped because the resulting textStyle dict is empty.
