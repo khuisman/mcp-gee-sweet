@@ -2822,6 +2822,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 - `/tmp/qa-294` did not exist after calls 1–4. The four calls ran in parallel, so it was checked once after all four rather than after each one.
 - Call 6 wrote `/tmp/qa-294/new/dir/mcp-gee-sweet-qa-fixtures-doc.pdf` (20152 bytes).
 
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Same outcomes as round 1: calls 1–4 raised the expected errors, `/tmp/qa-294` didn't exist after them, and call 6 wrote the 20152-byte PDF.
+
 ---
 
 ### TC-D295: `sync_folder(dry_run=True)` — a preview against a `local_path` that doesn't exist creates nothing (issue #1012) ⚠️ local-filesystem
@@ -2853,6 +2855,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 - Call 3 returned only an `error` containing "'nope.md': not found in this sync" and "Nothing was changed".
 - Call 5: `downloaded == ["a.txt"]`, and `/tmp/qa-295/new/sync/a.txt` exists.
 
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Ran against a scratch folder holding only `a.txt`. Call 1 listed `a.txt` as `download`. `/tmp/qa-295` didn't exist after call 1 or call 3, and call 3 returned the expected `error`. Call 5 downloaded `a.txt`, so the directory now gets created at the first download (`_run_one`), not at the top of the run.
+
 ---
 
 ### TC-D296: `download_folder` — a folder ID Drive can't find creates no local directory (issue #1012) ⚠️ local-filesystem
@@ -2878,6 +2882,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 - Call 1 raised `HttpError 404` "File not found", and `/tmp/qa-296` did not exist afterward.
 - Call 3 used TC-D295's scratch folder: `downloaded == ["a.txt"]`, and `/tmp/qa-296/new/` held it.
 
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Call 1 raised the 404, and `/tmp/qa-296` didn't exist afterward. Call 3 against the scratch folder downloaded `a.txt` into `/tmp/qa-296/new/`.
+
 ---
 
 ### TC-D297: `sync_folder` — a real run creates `local_path` only at its first local write (issue #1012, PR #1023 QA round 1) ⚠️ local-filesystem
@@ -2901,6 +2907,13 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 **Teardown**
 `rm -rf /tmp/qa-297`. Trash `{SCRATCH_FOLDER_ID}`.
 
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1 raised `HttpError 404` "File not found".
+- Call 2: `uploaded == []`, `downloaded == []`, `failed == []`, and `skipped == ["a.txt"]`. `list_files` still listed only `a.txt`.
+- `/tmp/qa-297` didn't exist after calls 1–2. These two calls ran in parallel, so it was checked once after both.
+- Call 4: `downloaded == ["a.txt"]`, and `/tmp/qa-297/new/a.txt` exists.
+- Side probe, not part of the checks: a scratch folder whose only content was a subfolder `sub/` holding `b.txt`. `sync_folder(..., local_path=<missing>/subonly/, direction="download", recursive=True)` returned `downloaded == ["sub/b.txt"]` and created `subonly/sub/b.txt`, so the Drive-only-subfolder path creates `local_path` too.
+
 ---
 
 ### TC-D298: `download_folder` — a folder with nothing to download creates no local directory (issue #1012, PR #1023 QA round 1) ⚠️ local-filesystem
@@ -2921,3 +2934,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 
 **Teardown**
 `rm -rf /tmp/qa-298`.
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1: `downloaded == []`. All 5 entries were in `skipped`: 3 Workspace files plus the 2 scratch subfolders from this pass.
+- Step 2: `/tmp/qa-298` did not exist.
+- Call 3: `downloaded == ["mcp-gee-sweet-qa-fixtures.pdf", "mcp-gee-sweet-qa-fixtures-doc.pdf", "mcp-gee-sweet-qa-large-doc.pdf"]`, and all three are in `/tmp/qa-298/new/`. The subfolders stayed in `skipped`.
