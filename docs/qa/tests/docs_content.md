@@ -3774,6 +3774,47 @@ Not covered live: a soft break (Shift+Enter) inside an inline code run in a para
 
 **Result (2026-10-11) ✅ PASS — Sky, PR #992 round 3 (`9271dfe`).** Ran the new step 7. Step 8: the first paragraph was `[![](<contentUri>)](https://example.com/bare)`, and the second was `[tail](https://example.com/block)`, then `[![](<contentUri>)](https://example.com/block)`, then an unlinked ` after`. The fix commit only touches `html_parser.py`'s anchor handling, so steps 1–6 weren't re-run.
 
+### TC-DOC220: A literal fence line inside a code block doesn't close its export fence (PR #940) ⚠️ requires-oauth
+**Background:** a code-block paragraph used to export inside a fixed three-backtick fence, so a content line of three or more backticks closed the block early and everything after it fell out as ordinary Markdown. The fence is now one longer than the longest backtick run in the content, with a minimum of three.
+
+**Setup:** none. Each step uses a scratch doc.
+
+**Prompt**
+1. `create_doc(title="TC-DOC220 three", folder_id={FOLDER_ID}, content='<pre>before\n```\nafter</pre>')`, with real newlines inside the `<pre>`
+2. `get_doc_as_markdown(doc_id=<step 1 docId>)`
+3. Repeat steps 1–2 with a middle line of four backticks, then of six
+4. Repeat steps 1–2 with `<pre>x = 1\ny = 2</pre>`, which has no backticks
+
+**Checks**
+- Step 2: `markdown` starts with ```````` ````\nbefore\n```\nafter\n```` ````````. A strict CommonMark renderer gives one `<pre><code>` holding exactly `before`, ```` ``` ````, `after`
+- Step 3: the fence is five backticks around the four-backtick line and seven around the six-backtick line. Each renders as one `<pre><code>` holding all three lines, with nothing after the literal line falling out of the block
+- Step 4: `markdown` starts with ```` ```\nx = 1\ny = 2\n``` ````, the plain three-backtick fence
+- Trailing newlines after the fence come from the doc's empty last paragraph and aren't part of any check
+
+**Cleanup:** `delete_file` all four scratch docs
+
+**Result (2026-10-13) ✅ PASS — post-merge live check, develop `6bf7961`.** Ran in an isolated service-account sandbox on a Shared Drive. The exports were ```````` ````\nbefore\n```\nafter\n````\n\n ````````, then the five- and seven-backtick equivalents, then ```` ```\nx = 1\ny = 2\n```\n\n ````. markdown-it-py 4.2.0's `commonmark` preset rendered each fenced block as one `<pre><code>` holding exactly the original lines. Control: the same renderer, given the pre-fix three-backtick fence around the step 1 content, ends the block after `before` and renders `after` as a paragraph. Scratch docs trashed.
+
+### TC-DOC221: Code segments split by an inline image each get a fence sized to their own content (PR #940) ⚠️ requires-oauth
+**Background:** a code-block paragraph with an inline image exports as one fenced block per code segment, with the image between them. Since PR #940, each segment's fence is sized to its own backtick runs, so a literal fence line in one segment doesn't lengthen the other's.
+
+**Setup:**
+1. `create_doc(title="TC-DOC221", folder_id={FOLDER_ID}, content='<pre>before\n```\nmid\nafter</pre>')`, with real newlines inside the `<pre>`
+2. `get_doc_structure(doc_id=<docId>)` and note the code paragraph's `startIndex` (`{P}`). `mid` starts at `{P}+11`.
+3. `insert_inline_image(doc_id=<docId>, index={P}+11, uri="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png")`
+
+**Prompt**
+> "Export doc <docId> as Markdown"
+
+**Checks**
+- `markdown` is a four-backtick fence holding `before` and ```` ``` ````, then `![](<contentUri>)`, then a three-backtick fence holding `mid` and `after`, in that order
+- A strict CommonMark renderer gives `<pre><code>`, `<img>`, `<pre><code>`, with the literal ```` ``` ```` inside the first block and nothing outside a block except the image
+- The first block also ends with an empty line: the soft break before the image belongs to the first segment. That's how segments have always split (#594), not part of this case
+
+**Cleanup:** `delete_file` the scratch doc
+
+**Result (2026-10-13) ✅ PASS — post-merge live check, develop `6bf7961`.** Ran in an isolated service-account sandbox on a Shared Drive. `{P}` was 1, so the image went in at index 12. The export was ````````` ````\nbefore\n```\n\n````\n\n![](<contentUri>)\n\n```\nmid\nafter\n```\n\n `````````. markdown-it-py 4.2.0's `commonmark` preset rendered `<pre><code>before\n```\n\n</code></pre>`, the `<img>`, then `<pre><code>mid\nafter\n</code></pre>`. Scratch doc trashed.
+
 ---
 
 ## Orphan fileId on inline-image sharing failure (#649)
