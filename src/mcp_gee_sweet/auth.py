@@ -33,6 +33,7 @@ from .cache import (
     SheetStructureCache,
 )
 from .http_transport import (  # noqa: F401 — re-exported for tool imports
+    after_abandoned_calls,
     execute_in_thread,
     thread_http,
 )

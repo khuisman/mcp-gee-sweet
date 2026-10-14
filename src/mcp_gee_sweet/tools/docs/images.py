@@ -36,6 +36,8 @@ import asyncio
 import io
 import logging
 import re
+from collections.abc import AsyncIterator, Awaitable, Iterable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +49,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 from PIL import Image
 
-from ...auth import execute_in_thread, thread_http
+from ...auth import after_abandoned_calls, execute_in_thread, thread_http
 from ..drive import _quota_error_text
 from ..drive.transfer import _upload_local_file
 from ..http_errors import is_storage_quota_error
@@ -425,6 +427,104 @@ def log_images_after_failed_edit(
     )
 
 
+class ImageShareLifecycle:
+    """The temporary-image-share lifecycle of one image-embedding doc edit (#908),
+    shared by _apply_doc_content and insert_local_images so the two can't drift again
+    (the cancellation gaps PR #903's QA found lived in their differences):
+
+      1. `resolve()`: the image upload/share coroutines run as one gather shielded
+         from cancellation. mcp cancels a request through an anyio cancel scope, and
+         an upload cancelled mid-gather can have already granted an anyone:reader
+         share whose permission ID would then never be recorded, or revoked (PR #877,
+         #883). Every folder a result says a file was created in ("created_in") is
+         marked dirty in the Drive folder cache (#666).
+      2. The caller records each result: `shares` gets every (outcome_entry, file_id,
+         permission_id) to revoke, `outcomes` every image's outcome entry, and
+         `created_file_ids` the files this call created, for the warning log.
+      3. `async with edit():` wraps the doc edit. On entry, a checkpoint lands a
+         cancellation the shielded gather held off, before any edit is handed to a
+         worker thread that asyncio.to_thread then couldn't stop (#904). Every exit
+         marks the doc cache dirty, and so does any request the edit abandoned to a
+         cancellation, once its thread actually finishes (#907). Then the shares are
+         revoked (revoke_sharing=True), shielded so a cancellation can't cancel the
+         revokes before they're sent, followed by a checkpoint that lands a
+         cancellation the shield held off (#908). On a failed or cancelled exit, the
+         touched files are logged as a warning, since a cancelled call returns
+         nothing, and the exception propagates.
+    """
+
+    def __init__(self, lc: Any, doc_id: str, *, revoke_sharing: bool):
+        self._drive_service = lc.drive_service
+        self._doc_cache = lc.doc_cache
+        self._drive_folder_cache = lc.drive_folder_cache
+        self._doc_id = doc_id
+        self._revoke_sharing = revoke_sharing
+        self._revoked = False
+        self.shares: list[tuple[dict[str, Any], str, str | None]] = []
+        self.outcomes: list[dict[str, Any]] = []
+        self.created_file_ids: set[str] = set()
+
+    async def resolve(
+        self, coros: Iterable[Awaitable[dict[str, Any]]]
+    ) -> list[dict[str, Any] | BaseException]:
+        # return_exceptions=True: each image coroutine catches its own errors, but
+        # this also guards against anything unexpected escaping one without one
+        # failed image's exception aborting every other upload.
+        with anyio.CancelScope(shield=True):
+            results = await asyncio.gather(*coros, return_exceptions=True)
+        folders = {r["created_in"] for r in results if isinstance(r, dict) and r.get("created_in")}
+        for folder_id in sorted(folders):
+            self._drive_folder_cache.mark_dirty(folder_id)
+        return results
+
+    def _mark_doc_dirty_after_abandoned_edit(self) -> None:
+        logger.debug(
+            "A cancelled edit of doc %s finished afterward; marking its cache dirty",
+            self._doc_id,
+        )
+        self._doc_cache.mark_dirty(self._doc_id)
+
+    async def _revoke(self) -> None:
+        # Runs at most once, since a cancellation caught after the normal-path
+        # revoke reaches it again.
+        if self._revoked or not self._revoke_sharing:
+            return
+        self._revoked = True
+        with anyio.CancelScope(shield=True):
+            await revoke_image_shares(self._drive_service, self.shares)
+
+    @asynccontextmanager
+    async def edit(self) -> AsyncIterator[None]:
+        try:
+            await anyio.lowlevel.checkpoint()
+            try:
+                with after_abandoned_calls(self._mark_doc_dirty_after_abandoned_edit):
+                    yield
+            finally:
+                # The edit may or may not have been applied, so the cached doc
+                # can't be trusted either way.
+                self._doc_cache.mark_dirty(self._doc_id)
+            await self._revoke()
+            await anyio.lowlevel.checkpoint()
+        except BaseException:
+            try:
+                await self._revoke()
+            finally:
+                log_images_after_failed_edit(self._doc_id, self.outcomes, self.created_file_ids)
+            raise
+
+
+def _with_created_in(result: dict[str, Any], folder_id: str | None) -> dict[str, Any]:
+    """Tags a result whose file_id this call just created with "created_in", the Drive
+    folder the file landed in, so ImageShareLifecycle can mark that folder's listing
+    dirty (#666). A resized drive: copy lands next to its original, not in the
+    caller's target folder, so the folder has to come from where the file was made.
+    A root-level file (folder_id None) has no folder listing to invalidate."""
+    if folder_id and result.get("file_id"):
+        result["created_in"] = folder_id
+    return result
+
+
 async def upload_and_share_image(
     drive_service, data: bytes, mime_type: str, name: str, parent_folder_id: str | None
 ) -> dict[str, Any]:
@@ -438,7 +538,9 @@ async def upload_and_share_image(
     Returns {"uri": ..., "file_id": ..., "permission_id": ...} on success, {"error": ...} on failure before
     any Drive file was created, or {"error": ..., "file_id": ...} if create() succeeded
     but share_image_file failed afterward (#649): a bare error there would leave the
-    newly-created file an untracked orphan with no record of its ID."""
+    newly-created file an untracked orphan with no record of its ID. Any result
+    carrying file_id also carries "created_in" (see _with_created_in) when
+    parent_folder_id is set."""
     file_body: dict[str, Any] = {"name": name}
     if parent_folder_id:
         file_body["parents"] = [parent_folder_id]
@@ -462,12 +564,15 @@ async def upload_and_share_image(
     except Exception as e:
         return {"error": f"failed to upload resized image: {e}"}
 
-    result = await share_image_file(
-        drive_service,
-        created["id"],
-        created.get("webContentLink"),
-        created.get("permissionIds"),
-        created_here=True,
+    result = _with_created_in(
+        await share_image_file(
+            drive_service,
+            created["id"],
+            created.get("webContentLink"),
+            created.get("permissionIds"),
+            created_here=True,
+        ),
+        parent_folder_id,
     )
     if "error" in result:
         return result
@@ -567,7 +672,8 @@ async def upload_and_share_local_image(
     "permission_id"} on success (plus "downscaled": True if auto_downscale resized
     it), else {"error": ...}, carrying "file_id" only for a created-but-unshared
     orphan (#649) — including one _upload_local_file itself reports as fileId after
-    a create() that succeeded before a later step failed (#420)."""
+    a create() that succeeded before a later step failed (#420). Any result carrying
+    file_id also carries "created_in": folder_id."""
     prepared = await prepare_local_image(
         drive_service, path, folder_id, auto_downscale=auto_downscale
     )
@@ -581,13 +687,16 @@ async def upload_and_share_local_image(
         error: dict[str, Any] = {"error": upload["error"]}
         if orphan_id := upload.get("fileId"):
             error["file_id"] = orphan_id
-        return error
-    return await share_image_file(
-        drive_service,
-        upload["fileId"],
-        upload.get("web_content_link"),
-        upload.get("permission_ids"),
-        created_here=True,
+        return _with_created_in(error, folder_id)
+    return _with_created_in(
+        await share_image_file(
+            drive_service,
+            upload["fileId"],
+            upload.get("web_content_link"),
+            upload.get("permission_ids"),
+            created_here=True,
+        ),
+        folder_id,
     )
 
 
@@ -661,7 +770,8 @@ def register(tool):
 
         Returns:
             Confirmation with docId and the insertion index. Also includes
-            resized_file_id if drive_file_id was resized under auto_downscale.
+            resized_file_id if drive_file_id was resized under auto_downscale,
+            on an error result too, since the resized copy exists either way.
         """
         if not uri and not drive_file_id:
             return {"error": "Provide either uri or drive_file_id"}
@@ -693,9 +803,14 @@ def register(tool):
             if size_error is not None:
                 if not auto_downscale:
                     return size_error
-                resized = await downscale_drive_file(
-                    lc.drive_service, drive_file_id, metadata, lc.folder_id
-                )
+                # Shielded, so a cancellation can't land after the resized copy was
+                # created and shared but before its ID is known (the PR #877 rule).
+                with anyio.CancelScope(shield=True):
+                    resized = await downscale_drive_file(
+                        lc.drive_service, drive_file_id, metadata, lc.folder_id
+                    )
+                if created_in := resized.pop("created_in", None):
+                    lc.drive_folder_cache.mark_dirty(created_in)
                 if "error" in resized:
                     return resized
                 uri = resized["uri"]
@@ -715,17 +830,36 @@ def register(tool):
                 object_size["height"] = {"magnitude": height, "unit": "PT"}
             image_request["insertInlineImage"]["objectSize"] = object_size
 
+        # A resized copy exists and stays link-shared however the edit ends, so
+        # every exit reports its ID: an error result carries it, and a cancelled
+        # call, which returns nothing, logs it.
+        failure: dict[str, Any] = {"resized_file_id": resized_file_id} if resized_file_id else {}
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": [image_request]})
-                .execute,
-                lc.docs_service,
-            )
+            # Lands a cancellation the shielded downscale held off, before the
+            # edit is handed to a worker thread that can't be stopped (#904).
+            await anyio.lowlevel.checkpoint()
+            # A cancelled call's edit can still land after it returns (#907).
+            with after_abandoned_calls(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": [image_request]})
+                    .execute,
+                    lc.docs_service,
+                )
         except HttpError as e:
-            return {"error": rewrite_too_large_error(str(e))}
+            return {"error": rewrite_too_large_error(str(e)), **failure}
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": str(e), **failure}
+        except BaseException:
+            lc.doc_cache.mark_dirty(doc_id)
+            if resized_file_id:
+                logger.warning(
+                    "insert_inline_image for doc %s was cancelled; its resized copy %s "
+                    "was created and stays link-shared",
+                    doc_id,
+                    resized_file_id,
+                )
+            raise
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_inline_image: at index %d in doc %s", index, doc_id)
@@ -904,170 +1038,88 @@ def register(tool):
                 }
             )
 
-        async def _upload_and_share(placement: dict[str, Any]) -> None:
-            entry = placement["entry"]
-            result = await upload_and_share_local_image(
-                drive_service,
-                placement["local_path"],
-                target_folder_id,
-                auto_downscale=auto_downscale,
+        lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
+        results = await lifecycle.resolve(
+            upload_and_share_local_image(
+                drive_service, p["local_path"], target_folder_id, auto_downscale=auto_downscale
             )
-            ok = record_image_outcome(entry, result)
-            # A created-but-unshared orphan (#649) still carries file_id: read it
-            # back from the entry so the cache-invalidation check below fires for
-            # it too (mirrors the gap PR #645's QA round found in transfer.py's
-            # analogous gates), from the same value the caller sees.
-            if "fileId" in entry:
-                placement["file_id"] = entry["fileId"]
-            if not ok:
-                placement["failed"] = True
-                return
-            placement["permission_id"] = result["permission_id"]
-            placement["uri"] = result["uri"]
+            for p in placements
+        )
+        ready: list[dict[str, Any]] = []
+        for placement, result in zip(placements, results, strict=True):
+            entry = placement["entry"]
+            lifecycle.outcomes.append(entry)
+            if isinstance(result, BaseException):
+                entry["error"] = f"upload/share failed: {result}"
+            # record_image_outcome also surfaces a created-but-unshared orphan's
+            # file_id (#649), so the caller isn't left with no record of it.
+            elif record_image_outcome(entry, result):
+                placement["uri"] = result["uri"]
+                lifecycle.shares.append((entry, result["file_id"], result["permission_id"]))
+                # fileId/shared are kept regardless of how the doc edit below ends:
+                # a failed or cancelled embed doesn't undo the upload+share that
+                # already succeeded, so the file is still genuinely world-readable
+                # and the caller needs fileId to trace it — silently dropping both
+                # would leave it orphaned with zero signal (PR #502 review round 1,
+                # finding #1).
+                entry["shared"] = True
+                ready.append(placement)
+            # Every file here was uploaded by this call.
+            if entry.get("fileId"):
+                lifecycle.created_file_ids.add(entry["fileId"])
+            outcomes[placement["index"]] = entry
 
-        if placements:
-            # Shielded from cancellation (#883, same as _apply_doc_content after PR
-            # #877): mcp cancels a request through an anyio cancel scope, and an
-            # upload cancelled mid-gather can have already granted an anyone:reader
-            # share whose permission ID would then never be recorded, or revoked.
-            # Letting every upload finish means each granted share is known; the
-            # cancellation is re-delivered at the next unshielded await, below.
-            #
-            # return_exceptions=True: _upload_and_share already catches its own
-            # errors, but this also guards against anything unexpected escaping it
-            # without one failed image's exception aborting every other upload.
-            with anyio.CancelScope(shield=True):
-                gather_results = await asyncio.gather(
-                    *(_upload_and_share(p) for p in placements), return_exceptions=True
-                )
-            for placement, result in zip(placements, gather_results, strict=True):
-                if isinstance(result, BaseException):
-                    placement["failed"] = True
-                    placement["entry"]["error"] = f"upload/share failed: {result}"
-
-        if any("file_id" in p for p in placements):
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-
-        for placement in placements:
-            if placement.get("failed"):
-                outcomes[placement["index"]] = placement["entry"]
-
-        ready = [p for p in placements if not p.get("failed")]
-
-        # fileId/shared are kept regardless of how the doc edit below ends: a failed
-        # or cancelled embed doesn't undo the upload+share that already succeeded,
-        # so the file is still genuinely world-readable and the caller needs fileId
-        # to trace it — silently dropping both would leave it orphaned with zero
-        # signal (PR #502 review round 1, finding #1).
-        for placement in ready:
-            placement["entry"]["shared"] = True
-
-        revoked = False
-
-        async def _revoke_shares() -> None:
-            # Runs on every exit from the doc edit — success, failure, or
-            # cancellation (#883) — since an image that failed to embed was still
-            # genuinely uploaded and shared. Shielded: a cancellation is re-delivered
-            # at every unshielded await, which would cancel the revokes before
-            # they're sent (PR #877 QA round 1). Runs at most once, since a
-            # cancellation caught after the normal-path revoke reaches it again.
-            nonlocal revoked
-            if revoked or not revoke_sharing:
-                return
-            revoked = True
-            with anyio.CancelScope(shield=True):
-                await revoke_image_shares(
-                    drive_service,
-                    [(p["entry"], p["file_id"], p["permission_id"]) for p in ready],
-                )
-
-        # Everything from the end of the shielded gather to the return sits in one
-        # try, so a cancellation (or anything unexpected) on any exit path is seen
-        # here: the shares are revoked and every touched file ID is logged, since a
-        # cancelled call returns nothing (PR #903 QA round 1). A shield holds a
-        # cancellation off without ever raising it, so each shielded step is
-        # followed by an explicit checkpoint where it lands.
-        edit_sent = False
-        try:
-            # Lands a cancellation from the shielded gather before the early return
-            # below (which may still leave a created-but-unshared orphan, #649) and
-            # before the batchUpdate is handed to a worker thread. Past that point
-            # asyncio.to_thread can't stop the thread, so the edit would still run.
-            await anyio.lowlevel.checkpoint()
-            if not ready:
-                return {"docId": doc_id, "results": outcomes}
-
-            # Highest marker_start first, so an earlier (lower-index) marker's
-            # position is never shifted by a later edit — same convention as
-            # insert_doc_text.
-            requests: list[dict[str, Any]] = []
-            for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
-                marker_start = placement["marker_start"]
-                image_request: dict[str, Any] = {
-                    "insertInlineImage": {
-                        "location": {"index": marker_start},
-                        "uri": placement["uri"],
-                    }
-                }
-                width, height = placement.get("width"), placement.get("height")
-                if width is not None or height is not None:
-                    object_size: dict[str, Any] = {}
-                    if width is not None:
-                        object_size["width"] = {"magnitude": width, "unit": "PT"}
-                    if height is not None:
-                        object_size["height"] = {"magnitude": height, "unit": "PT"}
-                    image_request["insertInlineImage"]["objectSize"] = object_size
-                requests.append(image_request)
-                requests.append(
-                    {
-                        "deleteContentRange": {
-                            "range": {
-                                "startIndex": marker_start + 1,
-                                "endIndex": marker_start + 1 + placement["marker_len"],
-                            }
+        doc_edit_error: str | None = None
+        async with lifecycle.edit():
+            if ready:
+                # Highest marker_start first, so an earlier (lower-index) marker's
+                # position is never shifted by a later edit — same convention as
+                # insert_doc_text.
+                requests: list[dict[str, Any]] = []
+                for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
+                    marker_start = placement["marker_start"]
+                    image_request: dict[str, Any] = {
+                        "insertInlineImage": {
+                            "location": {"index": marker_start},
+                            "uri": placement["uri"],
                         }
                     }
-                )
+                    width, height = placement.get("width"), placement.get("height")
+                    if width is not None or height is not None:
+                        object_size: dict[str, Any] = {}
+                        if width is not None:
+                            object_size["width"] = {"magnitude": width, "unit": "PT"}
+                        if height is not None:
+                            object_size["height"] = {"magnitude": height, "unit": "PT"}
+                        image_request["insertInlineImage"]["objectSize"] = object_size
+                    requests.append(image_request)
+                    requests.append(
+                        {
+                            "deleteContentRange": {
+                                "range": {
+                                    "startIndex": marker_start + 1,
+                                    "endIndex": marker_start + 1 + placement["marker_len"],
+                                }
+                            }
+                        }
+                    )
 
-            doc_edit_error: str | None = None
-            edit_sent = True
-            try:
-                await execute_in_thread(
-                    docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": requests})
-                    .execute,
-                    docs_service,
-                )
-            except Exception as e:
-                doc_edit_error = rewrite_too_large_error(str(e))
+                try:
+                    await execute_in_thread(
+                        docs_service.documents()
+                        .batchUpdate(documentId=doc_id, body={"requests": requests})
+                        .execute,
+                        docs_service,
+                    )
+                except Exception as e:
+                    doc_edit_error = rewrite_too_large_error(str(e))
 
-            for placement in ready:
-                entry = placement["entry"]
-                if doc_edit_error is not None:
-                    entry["error"] = f"doc edit failed: {doc_edit_error}"
-                else:
-                    entry["index"] = placement["marker_start"]
-                outcomes[placement["index"]] = entry
-
-            if doc_edit_error is None:
-                lc.doc_cache.mark_dirty(doc_id)
-            await _revoke_shares()
-            # Lands a cancellation the shielded revoke held off.
-            await anyio.lowlevel.checkpoint()
-        except BaseException:
-            if edit_sent:
-                # The edit may or may not have been applied, so the cached doc can't
-                # be trusted either way.
-                lc.doc_cache.mark_dirty(doc_id)
-            try:
-                await _revoke_shares()
-            finally:
-                # Every file here was uploaded by this call.
-                entries = [p["entry"] for p in placements]
-                log_images_after_failed_edit(
-                    doc_id, entries, {e["fileId"] for e in entries if e.get("fileId")}
-                )
-            raise
+                for placement in ready:
+                    entry = placement["entry"]
+                    if doc_edit_error is not None:
+                        entry["error"] = f"doc edit failed: {doc_edit_error}"
+                    else:
+                        entry["index"] = placement["marker_start"]
 
         logger.debug(
             "insert_local_images: %d/%d images placed in doc %s",

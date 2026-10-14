@@ -1251,6 +1251,7 @@ class TestResolveImageSource:
             "uri": "https://drive.google.com/uc?id=uploaded1",
             "file_id": "uploaded1",
             "permission_id": "perm2",
+            "created_in": "folder1",
         }
         # #511: two Drive calls (create, share), no follow-up files().get().
         drive_svc.files.return_value.get.assert_not_called()
@@ -1405,6 +1406,7 @@ class TestResolveImageSource:
             "uri": "https://drive.google.com/uc?id=resized1",
             "file_id": "resized1",
             "permission_id": "perm-resized",
+            "created_in": "folder1",
             "downscaled": True,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
@@ -1451,6 +1453,7 @@ class TestResolveImageSource:
             "uri": "https://drive.google.com/uc?id=resized2",
             "file_id": "resized2",
             "permission_id": "perm-resized2",
+            "created_in": "folder1",
             "downscaled": True,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
@@ -1736,7 +1739,7 @@ class TestCreateDocImages:
             "docId": "doc9",
             "images": [{"src": "drive:file1", "fileId": "file1", "shared": False}],
         }
-        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc9")
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_with("doc9")
         self._assert_file1_revoked(drive_svc)
 
     async def _create_doc_with_failing_edit(self, drive_svc, docs_svc, content, **kwargs):
@@ -1862,6 +1865,103 @@ class TestCreateDocImages:
         ctx = self._ctx(drive_svc, docs_svc)
         await self._cancel_create_doc_once_started(ctx, started, release)
         self._assert_file1_revoked(drive_svc)
+        # #904: the cancellation lands before the content batchUpdate is handed to
+        # a worker thread that could no longer be stopped.
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_cancelled_mid_edit_marks_doc_dirty_after_edit_lands(self):
+        # #907: the cancelled edit's worker thread still commits after the
+        # cancellation unwinds, so the doc is marked dirty again once it does,
+        # not only on the cancel path before it.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        started, release, landed = threading.Event(), threading.Event(), []
+
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            landed.append(True)
+            return {}
+
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = execute
+        ctx = self._ctx(drive_svc, docs_svc)
+        doc_cache = ctx.request_context.lifespan_context.doc_cache
+        dirty_after_landing = []
+        doc_cache.mark_dirty.side_effect = lambda doc_id: dirty_after_landing.append(
+            (doc_id, bool(landed))
+        )
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _docs_tools["create_doc"],
+                    title="Doc",
+                    content="![Alt](drive:file1)",
+                    content_format="markdown",
+                    ctx=ctx,
+                )
+            )
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+        assert dirty_after_landing == [("doc123", False)]
+        release.set()
+        with anyio.fail_after(2):
+            while ("doc123", True) not in dirty_after_landing:
+                await anyio.sleep(0.01)
+
+    async def test_cancelled_mid_revoke_after_successful_edit_is_logged(self):
+        # #908: a cancellation that arrives during the success path's shielded
+        # revoke used to be absorbed by the shield with nothing logged.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.delete.return_value.execute.side_effect = self._blocking(
+            started, release, {}
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        with patch.object(images_module, "logger") as mock_logger:
+            await self._cancel_create_doc_once_started(ctx, started, release)
+        self._assert_file1_revoked(drive_svc)
+        assert mock_logger.warning.call_args.args[1:] == ("doc123", "none", "file1", "none")
+
+    async def test_resized_drive_copy_marks_its_own_folder_dirty(self):
+        # #666: a drive: source's resized copy lands next to the original, not in
+        # the doc's folder, so that folder's listing changed too.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "parents": ["origfolder"],
+            "imageMediaMetadata": {"width": 6000, "height": 6000},
+        }
+        drive_svc.files.return_value.create.return_value.execute.side_effect = [
+            {"id": "doc123", "name": "Test", "parents": ["folder1"], "webViewLink": "x"},
+            {"id": "resized1", "webContentLink": "https://drive.google.com/uc?id=resized1"},
+        ]
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        png_bytes = _make_png_bytes(6000, 6000)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                fh.write(png_bytes)
+
+            def next_chunk(self):
+                return None, True
+
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        with (
+            patch("mcp_gee_sweet.tools.docs.images.MediaIoBaseDownload", _FakeDownloader),
+            patch("mcp_gee_sweet.tools.docs.images.thread_http"),
+        ):
+            result = await _docs_tools["create_doc"](
+                title="Doc",
+                content="![Big](drive:orig1)",
+                content_format="markdown",
+                auto_downscale=True,
+                ctx=ctx,
+            )
+        assert result["images"][0]["fileId"] == "resized1"
+        folder_cache = ctx.request_context.lifespan_context.drive_folder_cache
+        dirtied = {c.args[0] for c in folder_cache.mark_dirty.call_args_list}
+        assert dirtied == {"origfolder", "folder1"}
 
     async def test_unresolvable_image_reported_as_error_doc_still_created(self, tmp_path):
         drive_svc, docs_svc = self._make_services()
@@ -3667,7 +3767,7 @@ class TestReplaceDocBackup:
         }
         drive_svc.files.return_value.delete.assert_not_called()
         drive_svc.files.return_value.update.assert_not_called()
-        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_with("doc1")
 
     async def test_failed_write_with_images_keeps_image_outcomes_and_backup(self):
         drive_svc, docs_svc = self._make_services()
@@ -3733,6 +3833,62 @@ class TestReplaceDocBackup:
         drive_svc.files.return_value.delete.assert_not_called()
         mock_logger.warning.assert_called_once_with(
             "Replacing doc %s was cancelled; kept its backup copy %s", "doc1", "backup1"
+        )
+
+    async def test_cancelled_mid_clear_marks_doc_dirty_after_clear_lands(self):
+        # #907: the clear's worker thread still commits after the cancellation
+        # unwinds, so the doc is marked dirty again once it does.
+        drive_svc, docs_svc = self._make_services()
+        started, release, landed = threading.Event(), threading.Event(), []
+
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            landed.append(True)
+            return {}
+
+        self._batch_update_execute(docs_svc).side_effect = execute
+        ctx = self._ctx(drive_svc, docs_svc)
+        dirty_after_landing = []
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.side_effect = lambda doc_id: (
+            dirty_after_landing.append((doc_id, bool(landed)))
+        )
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(partial(self._write, ctx))
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+        assert ("doc1", True) not in dirty_after_landing
+        release.set()
+        with anyio.fail_after(2):
+            while ("doc1", True) not in dirty_after_landing:
+                await anyio.sleep(0.01)
+
+    async def test_local_image_upload_marks_folder_dirty(self, tmp_path):
+        # #666: the image is uploaded into the server's default folder, whose
+        # listing then changed.
+        img = tmp_path / "pixel.png"
+        img.write_bytes(_make_png_bytes(2, 2))
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "up1",
+            "webContentLink": "https://drive.google.com/uc?id=up1",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id="folder1",
+        )
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1", content=f"![Pixel]({img})", content_format="markdown", ctx=ctx
+        )
+        assert result["images"] == [{"src": str(img), "fileId": "up1", "shared": False}]
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
         )
 
     async def test_update_doc_from_file_failed_write_names_backup(self, tmp_path):

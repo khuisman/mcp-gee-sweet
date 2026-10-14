@@ -448,6 +448,7 @@ class TestUploadAndShareImage:
             "uri": "https://drive.google.com/uc?id=new1",
             "file_id": "new1",
             "permission_id": "perm1",
+            "created_in": "folder1",
             "downscaled": True,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
@@ -676,6 +677,7 @@ class TestUploadAndShareLocalImage:
             "uri": "https://drive.google.com/uc?id=f1",
             "file_id": "f1",
             "permission_id": "perm1",
+            "created_in": "folder1",
         }
         # Two Drive calls per image, not three: no follow-up files().get().
         drive_svc.files.return_value.get.assert_not_called()
@@ -762,7 +764,7 @@ class TestUploadAndShareLocalImageRound1:
                 MagicMock(), str(img), "folder1", auto_downscale=False
             )
 
-        assert result == {"error": "restamp boom", "file_id": "orphan1"}
+        assert result == {"error": "restamp boom", "file_id": "orphan1", "created_in": "folder1"}
 
     async def test_requests_permission_ids_and_passes_them_to_share(self, tmp_path):
         # F1: an upload that inherited its folder's link sharing isn't revoked.
@@ -893,6 +895,7 @@ class TestDownscaleDriveFile:
             "uri": "https://drive.google.com/uc?id=resized1",
             "file_id": "resized1",
             "permission_id": "perm1",
+            "created_in": "folder1",
             "downscaled": True,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
@@ -1272,6 +1275,126 @@ class TestInsertInlineImage:
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         req = body["requests"][0]["insertInlineImage"]
         assert req["uri"] == "https://drive.google.com/uc?id=resized1"
+        # #666: the resized copy landed next to the original.
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
+        )
+
+    @staticmethod
+    def _oversized_drive_svc():
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "parents": ["folder1"],
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+            "imageMediaMetadata": {"width": 6000, "height": 6000},
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "resized1",
+            "webContentLink": "https://drive.google.com/uc?id=resized1",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm-resized"
+        }
+        return drive_svc
+
+    @staticmethod
+    def _fake_downloads():
+        png_bytes = _make_png_bytes(6000, 6000)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                fh.write(png_bytes)
+
+            def next_chunk(self):
+                return None, True
+
+        return (
+            patch("mcp_gee_sweet.tools.docs.images.MediaIoBaseDownload", _FakeDownloader),
+            patch("mcp_gee_sweet.tools.docs.images.thread_http"),
+        )
+
+    async def test_failed_edit_after_resize_still_reports_resized_copy(self):
+        # The resized copy exists and stays link-shared even though the edit
+        # failed, so the error result names it rather than orphaning it.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._oversized_drive_svc())
+        download_patch, http_patch = self._fake_downloads()
+        with download_patch, http_patch:
+            result = await _docs_tools["insert_inline_image"](
+                doc_id="doc1", index=1, drive_file_id="file1", auto_downscale=True, ctx=ctx
+            )
+        assert result == {"error": "API error", "resized_file_id": "resized1"}
+
+    async def test_cancelled_after_resize_logs_resized_copy(self):
+        # A cancelled call returns nothing, so the log is the only record of the
+        # resized copy it created.
+        docs_svc = MagicMock()
+        started, release = threading.Event(), threading.Event()
+
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            return {}
+
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = execute
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._oversized_drive_svc())
+        download_patch, http_patch = self._fake_downloads()
+        with download_patch, http_patch, patch.object(images, "logger") as mock_logger:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(
+                    partial(
+                        _docs_tools["insert_inline_image"],
+                        doc_id="doc1",
+                        index=1,
+                        drive_file_id="file1",
+                        auto_downscale=True,
+                        ctx=ctx,
+                    )
+                )
+                await anyio.to_thread.run_sync(started.wait, 5)
+                tg.cancel_scope.cancel()
+                release.set()
+        assert mock_logger.warning.call_args.args[1:] == ("doc1", "resized1")
+
+    async def test_cancelled_mid_edit_marks_doc_dirty_after_edit_lands(self):
+        # #907: the cancelled edit's worker thread still commits after the
+        # cancellation unwinds, so the doc is marked dirty once it does.
+        docs_svc = MagicMock()
+        started, release, landed = threading.Event(), threading.Event(), []
+
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            landed.append(True)
+            return {}
+
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = execute
+        ctx = self._ctx(docs_svc=docs_svc)
+        dirty_after_landing = []
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.side_effect = lambda doc_id: (
+            dirty_after_landing.append((doc_id, bool(landed)))
+        )
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _docs_tools["insert_inline_image"],
+                    doc_id="doc1",
+                    index=1,
+                    uri="https://example.com/img.png",
+                    ctx=ctx,
+                )
+            )
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+        assert dirty_after_landing == [("doc1", False)]
+        release.set()
+        with anyio.fail_after(2):
+            while ("doc1", True) not in dirty_after_landing:
+                await anyio.sleep(0.01)
 
     async def test_too_large_batchupdate_error_is_rewritten(self):
         docs_svc = MagicMock()
@@ -2108,3 +2231,37 @@ class TestInsertLocalImages:
             )
         assert result["results"][0]["shared"] is False
         mock_logger.warning.assert_not_called()
+
+    async def test_cancelled_mid_edit_marks_doc_dirty_after_edit_lands(self, tmp_path):
+        # #907: the cancel path's own invalidation runs before the orphaned edit
+        # commits, so the doc is marked dirty again once the edit's thread finishes.
+        img, docs_svc, _drive_svc, ctx = self._cancel_fixture(tmp_path)
+        started, release, landed = threading.Event(), threading.Event(), []
+
+        def execute(**kwargs):
+            started.set()
+            release.wait(5)
+            landed.append(True)
+            return {}
+
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = execute
+        dirty_after_landing = []
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.side_effect = lambda doc_id: (
+            dirty_after_landing.append((doc_id, bool(landed)))
+        )
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _docs_tools["insert_local_images"],
+                    doc_id="doc1",
+                    images=[{"marker": "MARKER", "local_path": str(img)}],
+                    ctx=ctx,
+                )
+            )
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+        assert dirty_after_landing == [("doc1", False)]
+        release.set()
+        with anyio.fail_after(2):
+            while ("doc1", True) not in dirty_after_landing:
+                await anyio.sleep(0.01)

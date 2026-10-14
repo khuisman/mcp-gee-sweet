@@ -1,7 +1,9 @@
 import asyncio
+import contextlib
 import contextvars
+import logging
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -9,7 +11,29 @@ import httplib2
 from google.auth.exceptions import RefreshError
 from google_auth_httplib2 import AuthorizedHttp
 
+logger = logging.getLogger(__name__)
+
 _thread_local = threading.local()
+
+_abandoned_call_hook: contextvars.ContextVar[Callable[[], None] | None] = contextvars.ContextVar(
+    "mcp_gee_sweet_abandoned_call_hook", default=None
+)
+
+
+@contextmanager
+def after_abandoned_calls(callback: Callable[[], None]) -> Iterator[None]:
+    """Run `callback` on the event loop each time a request made inside this block is
+    abandoned and later finishes (#907): the awaiting task was cancelled while the
+    request's worker thread was already running. asyncio.to_thread can't stop that
+    thread, so the request still lands after the cancellation has unwound, and a cache
+    invalidated on the cancel path can be refilled from the pre-edit state in between.
+    The callback runs once per such request, after it returns or raises; a request whose
+    thread never started (or that finished before the cancellation) never triggers it."""
+    token = _abandoned_call_hook.set(callback)
+    try:
+        yield
+    finally:
+        _abandoned_call_hook.reset(token)
 
 
 class CallAuthState:
@@ -98,5 +122,45 @@ async def execute_in_thread(execute_fn: Any, service: Any) -> Any:
     errors under real concurrent load). Passing `execute_fn` (the unbound-but-not-yet-called
     `.execute` method) through and only calling `thread_http()` inside the lambda that
     `asyncio.to_thread()` actually runs on the worker thread fixes that.
+
+    Inside an `after_abandoned_calls` block, a call whose awaiting task is cancelled
+    while the worker thread is running triggers that block's callback once the thread
+    finishes.
     """
-    return await asyncio.to_thread(lambda: execute_fn(http=thread_http(service)))
+    hook = _abandoned_call_hook.get()
+    if hook is None:
+        return await asyncio.to_thread(lambda: execute_fn(http=thread_http(service)))
+
+    loop = asyncio.get_running_loop()
+    lock = threading.Lock()
+    finished = abandoned = False
+
+    def _run_hook() -> None:
+        try:
+            hook()
+        except Exception:
+            logger.exception("after_abandoned_calls callback failed")
+
+    def _run() -> Any:
+        nonlocal finished
+        try:
+            return execute_fn(http=thread_http(service))
+        finally:
+            # The lock orders this against the cancel path below: either the call
+            # finished first (the cancel path's own handling runs after it) or the
+            # cancel path marked it abandoned first (the hook runs after it).
+            with lock:
+                finished = True
+                notify = abandoned
+            if notify:
+                # RuntimeError: the loop already closed, so the process is shutting down.
+                with contextlib.suppress(RuntimeError):
+                    loop.call_soon_threadsafe(_run_hook)
+
+    try:
+        return await asyncio.to_thread(_run)
+    except BaseException:
+        with lock:
+            if not finished:
+                abandoned = True
+        raise
