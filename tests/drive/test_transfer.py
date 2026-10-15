@@ -7095,3 +7095,271 @@ class TestSyncFolderUnsafeName:
         assert result["failed"] == []
         assert result["folders_skipped"] == ["../"]
         assert fs.list_calls == ["root"]
+
+
+class _OkDownloader:
+    """Writes b"drive content" in one chunk."""
+
+    def __init__(self, fh, request):
+        self._fh = fh
+
+    def next_chunk(self):
+        self._fh.write(b"drive content")
+        return None, True
+
+
+class TestCallsThatWriteNothingCreateNoDirectories:
+    """#1012: download_file, sync_folder, and download_folder ran mkdir -p on
+    the destination before they knew the call would write anything, so an
+    error or a dry_run left empty directories behind."""
+
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _svc(self, name, mime_type):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "name": name,
+            "mimeType": mime_type,
+        }
+        return svc
+
+    @pytest.mark.parametrize("local_path", ["new/dir/", "new/dir/out.pdf"])
+    async def test_download_file_missing_export_format(self, tmp_path, local_path):
+        svc = self._svc("My Doc", _DOC_MIME)
+
+        with pytest.raises(ValueError, match="export_format is required"):
+            await _transfer_tools["download_file"](
+                file_id="doc1", local_path=f"{tmp_path}/{local_path}", ctx=self._ctx(svc)
+            )
+
+        assert _tree(tmp_path) == set()
+
+    async def test_download_file_unknown_export_format(self, tmp_path):
+        svc = self._svc("My Doc", _DOC_MIME)
+
+        with pytest.raises(ValueError, match="Unknown export_format"):
+            await _transfer_tools["download_file"](
+                file_id="doc1",
+                local_path=f"{tmp_path}/new/",
+                export_format="bogus",
+                ctx=self._ctx(svc),
+            )
+
+        assert _tree(tmp_path) == set()
+
+    async def test_download_file_export_error(self, tmp_path):
+        svc = self._svc("My Doc", _DOC_MIME)
+        resp = MagicMock(status=403, reason="Forbidden")
+        svc.files.return_value.export.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"message": "exportSizeLimitExceeded"}}'
+        )
+
+        with pytest.raises(HttpError):
+            await _transfer_tools["download_file"](
+                file_id="doc1",
+                local_path=f"{tmp_path}/new/dir/",
+                export_format="pdf",
+                ctx=self._ctx(svc),
+            )
+
+        assert _tree(tmp_path) == set()
+
+    async def test_download_file_failed_media_download_keeps_its_directory(
+        self, tmp_path, monkeypatch
+    ):
+        """No rmdir rollback: it could race another call writing into the same
+        new directory (PR #1023 QA round 1). The partial file is still gone."""
+        svc = self._svc("big.bin", "application/octet-stream")
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
+
+        with pytest.raises(ConnectionError):
+            await _transfer_tools["download_file"](
+                file_id="fbig",
+                local_path=str(tmp_path / "new" / "sub" / "big.bin"),
+                ctx=self._ctx(svc),
+            )
+
+        assert _tree(tmp_path) == {"new", "new/sub"}
+
+    async def test_download_file_success_still_creates_dirs(self, tmp_path):
+        svc = self._svc("My Doc", _DOC_MIME)
+        svc.files.return_value.export.return_value.execute.return_value = b"pdf bytes"
+
+        result = await _transfer_tools["download_file"](
+            file_id="doc1",
+            local_path=f"{tmp_path}/new/dir/",
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+
+        dest = tmp_path / "new" / "dir" / "My Doc.pdf"
+        assert dest.read_bytes() == b"pdf bytes"
+        assert result["local_path"] == str(dest)
+
+    async def test_download_folder_listing_error(self, tmp_path):
+        svc = MagicMock()
+        resp = MagicMock(status=404, reason="Not Found")
+        svc.files.return_value.list.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"message": "File not found: bogus"}}'
+        )
+
+        with pytest.raises(HttpError):
+            await _transfer_tools["download_folder"](
+                folder_id="bogus", local_path=str(tmp_path / "new" / "dir"), ctx=self._ctx(svc)
+            )
+
+        assert _tree(tmp_path) == set()
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            [],
+            [
+                {"id": "d1", "name": "Doc", "mimeType": _DOC_MIME},
+                {"id": "s1", "name": "sub", "mimeType": "application/vnd.google-apps.folder"},
+                {"id": "u1", "name": "..", "mimeType": "text/plain"},
+            ],
+        ],
+        ids=["empty", "all_skipped_or_refused"],
+    )
+    async def test_download_folder_nothing_to_download(self, tmp_path, files):
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": files}
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root", local_path=str(tmp_path / "new"), ctx=self._ctx(svc)
+        )
+
+        assert result["downloaded"] == []
+        assert _tree(tmp_path) == set()
+
+    async def test_download_folder_creates_local_path_for_a_download(self, tmp_path, monkeypatch):
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "f1", "name": "a.bin", "mimeType": "application/octet-stream"}]
+        }
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root", local_path=str(tmp_path / "new"), ctx=self._ctx(svc)
+        )
+
+        assert result["downloaded"] == ["a.bin"]
+        assert (tmp_path / "new" / "a.bin").read_bytes() == b"drive content"
+
+    async def test_sync_folder_dry_run_missing_local_path(self, tmp_path):
+        """A missing local_path plans as an empty local side."""
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa"), _drive_folder("sub", "fsub")], "fsub": []}
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new" / "sync"),
+            direction="download",
+            recursive=True,
+            dry_run=True,
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert [(a["name"], a["action"]) for a in result["actions"]] == [("a.txt", "download")]
+        assert result["failed"] == []
+        assert fs.list_calls == ["root", "fsub"]
+        assert _tree(tmp_path) == set()
+
+    async def test_sync_folder_refused_resolve_on_missing_local_path(self, tmp_path):
+        """A real run's resolve check pass is a dry_run: a refused call
+        changed nothing, on disk included."""
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new"),
+            convert_markdown=True,
+            resolve={"notes.md": "keep_drive"},
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert "Nothing was changed" in result["error"]
+        assert _tree(tmp_path) == set()
+
+    async def test_sync_folder_listing_error_on_missing_local_path(self, tmp_path):
+        fs = _FakeDriveFS({})
+        resp = MagicMock(status=404, reason="Not Found")
+        listing = MagicMock()
+        listing.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"message": "File not found: bogus"}}'
+        )
+        fs.svc.files.return_value.list.side_effect = lambda **_kwargs: listing
+
+        with pytest.raises(HttpError):
+            await _transfer_tools["sync_folder"](
+                folder_id="bogus",
+                local_path=str(tmp_path / "new"),
+                direction="download",
+                ctx=self._ctx(fs.svc),
+            )
+
+        assert _tree(tmp_path) == set()
+
+    @pytest.mark.parametrize("direction", ["upload", "bidirectional"])
+    async def test_sync_folder_real_run_with_nothing_to_write_locally(self, tmp_path, direction):
+        """An upload-only sync never writes locally, and neither does any
+        direction when Drive has nothing to download."""
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new"),
+            direction=direction,
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert result["failed"] == []
+        assert _tree(tmp_path) == set()
+
+    async def test_sync_folder_upload_direction_ignores_drive_files(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("a.txt", "fa")]})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new"),
+            direction="upload",
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert result["downloaded"] == []
+        assert _tree(tmp_path) == set()
+
+    async def test_sync_folder_download_creates_local_path(self, tmp_path, monkeypatch):
+        fs = _FakeDriveFS({"root": [_drive_file("a.txt", "fa")]})
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _OkDownloader)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new" / "sync"),
+            direction="download",
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert result["downloaded"] == ["a.txt"]
+        assert (tmp_path / "new" / "sync" / "a.txt").read_bytes() == b"drive content"
+
+    async def test_sync_folder_drive_only_subfolder_creates_local_path(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_folder("sub", "fsub")], "fsub": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "new"),
+            direction="download",
+            recursive=True,
+            ctx=self._ctx(fs.svc),
+        )
+
+        assert result["failed"] == []
+        assert _tree(tmp_path) == {"new", "new/sub"}

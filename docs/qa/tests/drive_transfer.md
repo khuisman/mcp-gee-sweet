@@ -2790,3 +2790,152 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 - Calls 1–5 each returned only an `error`, with the expected text: call 1 named `'s.md': not a conflict (planned action: skip)` and contained "Nothing was changed". Call 2 named only `'sub/t.md'`, with no mention of `r.md`. Call 3 named `'sub/t.md': not found in this sync (a subfolder path needs recursive=True)`. Call 4 contained "direction='download' never does". Call 5 matched exactly.
 - Call 6: `list_files` showed only `r.md`, `s.md`, and `sub`, with no `new.txt`. A scratch-script listing of the whole tree after calls 1–5 (properties plus latest revision ID for `r.md`, `s.md`, and `sub/t.md`) was identical to the setup snapshot (diffed), so nothing changed at any level. The dry run listed `r.md` as `conflict`, `new.txt` as `upload`, and `s.md` and `sub/t.md` as `skip`.
 - Side probe, not part of the checks: after a Drive edit to `sub/t.md`, the real call `resolve={"r.md": "keep_local", "sub/t.md": "keep_drive"}` (with `recursive=True`) returned `resolved == ["r.md", "sub/t.md"]` and `uploaded == ["new.txt", "r.md"]`. `sub/t.md` then carried `geeSweetImportRevision: "2"` (its latest), and `r.md` carried `geeSweetBaselineRevision: "2"` at revision `3`. A valid subfolder key resolves.
+
+---
+
+### TC-D294: `download_file` — a call that fails creates no local directories (issue #1012) ⚠️ local-filesystem
+
+**Background:** `download_file` ran `mkdir -p` on the destination before checking `export_format`, so a Workspace file requested without one raised the expected `ValueError` but left the directories behind. It now validates `export_format` first, and fetches a Workspace export before creating anything. A non-Workspace download that fails partway keeps the directory it created (no rollback, since an `rmdir` could race another call writing there; PR #1023 QA round 1).
+
+**Setup:** `/tmp/qa-294/` must NOT exist (`rm -rf /tmp/qa-294`). `{DOC_ID}` is a Google Doc.
+
+**Tool calls**
+1. `download_file(file_id="{DOC_ID}", local_path="/tmp/qa-294/new/dir/")` (no `export_format`)
+2. `download_file(file_id="{DOC_ID}", local_path="/tmp/qa-294/new/out.pdf")` (no `export_format`)
+3. `download_file(file_id="{DOC_ID}", local_path="/tmp/qa-294/new/dir/", export_format="bogus")`
+4. `download_file(file_id="{DOC_ID}", local_path="/tmp/qa-294/new/dir/", export_format="xlsx")` (a Sheets format, which Drive refuses for a Doc)
+5. After each of calls 1–4: `ls /tmp/qa-294`
+6. `download_file(file_id="{DOC_ID}", local_path="/tmp/qa-294/new/dir/", export_format="pdf")`
+
+**Checks**
+- Calls 1 and 2 raise `ValueError` "export_format is required for Google Workspace file …".
+- Call 3 raises `ValueError` "Unknown export_format 'bogus'. …".
+- Call 4 raises Drive's `HttpError 400` "The requested conversion is not supported."
+- Step 5: after every one of calls 1–4, `/tmp/qa-294` does not exist.
+- Call 6 succeeds: `/tmp/qa-294/new/dir/` is a directory holding `<doc name>.pdf`, and the returned `local_path` is that file.
+
+**Teardown**
+`rm -rf /tmp/qa-294`.
+
+**Result** (2026-10-13, Sky, PR #1023 round 1 at `db72e58`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Calls 1 and 2 raised `export_format is required for Google Workspace file 'mcp-gee-sweet-qa-fixtures-doc'`. Call 3 raised `Unknown export_format 'bogus'`. Call 4 raised `HttpError 400` "The requested conversion is not supported."
+- `/tmp/qa-294` did not exist after calls 1–4. The four calls ran in parallel, so it was checked once after all four rather than after each one.
+- Call 6 wrote `/tmp/qa-294/new/dir/mcp-gee-sweet-qa-fixtures-doc.pdf` (20152 bytes).
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Same outcomes as round 1: calls 1–4 raised the expected errors, `/tmp/qa-294` didn't exist after them, and call 6 wrote the 20152-byte PDF.
+
+---
+
+### TC-D295: `sync_folder(dry_run=True)` — a preview against a `local_path` that doesn't exist creates nothing (issue #1012) ⚠️ local-filesystem
+
+**Background:** `sync_folder` created `local_path` before checking `dry_run`, so a preview against a new directory left it behind, empty. Now only a real run creates it. A dry run plans a missing `local_path` as an empty local side. A real call that `resolve` refuses (its check pass is a dry run) also creates nothing.
+
+**Setup:** `/tmp/qa-295/` must NOT exist (`rm -rf /tmp/qa-295`). `{FOLDER_ID}` holds at least one non-Workspace file. `TEST_FOLDER_ID` holds only Workspace files, so create a scratch subfolder in it (`create_folder`) and put a text file in it (`upload_file(name="a.txt", content="hello", folder_id=...)`). TC-D296 call 3 can reuse that folder.
+
+**Tool calls**
+1. `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-295/new/sync/", direction="download", recursive=True, dry_run=True)`
+2. `ls /tmp/qa-295`
+3. `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-295/new/sync/", convert_markdown=True, resolve={"nope.md": "keep_drive"})` (no `dry_run`)
+4. `ls /tmp/qa-295`
+5. `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-295/new/sync/", direction="download")`
+
+**Checks**
+- Call 1: `dry_run` is `true`, `failed == []`, and `actions` lists every non-Workspace file in `{FOLDER_ID}` as `download`.
+- Step 2: `/tmp/qa-295` does not exist.
+- Call 3: the response is only `{"error": ...}`, containing "'nope.md': not found in this sync" and "Nothing was changed".
+- Step 4: `/tmp/qa-295` still does not exist.
+- Call 5: `/tmp/qa-295/new/sync/` is a directory, and `downloaded` names the same files call 1 listed as `download`.
+
+**Teardown**
+`rm -rf /tmp/qa-295`. Trash the scratch folder (`delete_file`) once TC-D296 is done with it.
+
+**Result** (2026-10-13, Sky, PR #1023 round 1 at `db72e58`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- First run against `TEST_FOLDER_ID` itself: call 1 returned `actions: []` because that folder holds only Workspace files (Setup now says so). Re-ran against a scratch subfolder holding one uploaded `a.txt`: call 1 listed `a.txt` as `download` ("drive only"), with `failed == []`.
+- `/tmp/qa-295` did not exist after call 1 or after call 3.
+- Call 3 returned only an `error` containing "'nope.md': not found in this sync" and "Nothing was changed".
+- Call 5: `downloaded == ["a.txt"]`, and `/tmp/qa-295/new/sync/a.txt` exists.
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Ran against a scratch folder holding only `a.txt`. Call 1 listed `a.txt` as `download`. `/tmp/qa-295` didn't exist after call 1 or call 3, and call 3 returned the expected `error`. Call 5 downloaded `a.txt`, so the directory now gets created at the first download (`_run_one`), not at the top of the run.
+
+---
+
+### TC-D296: `download_folder` — a folder ID Drive can't find creates no local directory (issue #1012) ⚠️ local-filesystem
+
+**Background:** `download_folder` created `local_path` before listing the Drive folder, so a listing error left it behind, empty. It now creates `local_path` only once the listing has at least one file to download (see TC-D298 for a folder with none).
+
+**Setup:** `/tmp/qa-296/` must NOT exist (`rm -rf /tmp/qa-296`).
+
+**Tool calls**
+1. `download_folder(folder_id="invalidfolderid123xyz", local_path="/tmp/qa-296/new/")`
+2. `ls /tmp/qa-296`
+3. `download_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-296/new/")`
+
+**Checks**
+- Call 1 raises an error from Drive (`HttpError 404`, "File not found").
+- Step 2: `/tmp/qa-296` does not exist.
+- Call 3: `/tmp/qa-296/new/` is a directory holding the folder's non-Workspace files, as listed in `downloaded`.
+
+**Teardown**
+`rm -rf /tmp/qa-296`.
+
+**Result** (2026-10-13, Sky, PR #1023 round 1 at `db72e58`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1 raised `HttpError 404` "File not found", and `/tmp/qa-296` did not exist afterward.
+- Call 3 used TC-D295's scratch folder: `downloaded == ["a.txt"]`, and `/tmp/qa-296/new/` held it.
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Call 1 raised the 404, and `/tmp/qa-296` didn't exist afterward. Call 3 against the scratch folder downloaded `a.txt` into `/tmp/qa-296/new/`.
+
+---
+
+### TC-D297: `sync_folder` — a real run creates `local_path` only at its first local write (issue #1012, PR #1023 QA round 1) ⚠️ local-filesystem
+
+**Background:** a real `sync_folder` run used to create `local_path` before its first Drive call, so a bad `folder_id` or an upload-only sync, neither of which writes anything locally, left it behind, empty. Now it's created at the first file download or Drive-only subfolder.
+
+**Setup:** `/tmp/qa-297/` must NOT exist (`rm -rf /tmp/qa-297`). `{SCRATCH_FOLDER_ID}` is a scratch Drive folder holding one uploaded non-Workspace file `a.txt` (as in TC-D295's setup) and nothing else.
+
+**Tool calls**
+1. `sync_folder(folder_id="invalidfolderid123xyz", local_path="/tmp/qa-297/new/", direction="download")`
+2. `sync_folder(folder_id="{SCRATCH_FOLDER_ID}", local_path="/tmp/qa-297/new/", direction="upload")`
+3. After each of calls 1–2: `ls /tmp/qa-297`
+4. `sync_folder(folder_id="{SCRATCH_FOLDER_ID}", local_path="/tmp/qa-297/new/", direction="download")`
+
+**Checks**
+- Call 1 raises Drive's `HttpError 404` "File not found".
+- Call 2: `uploaded == []`, `downloaded == []`, `failed == []`. `list_files(folder_id="{SCRATCH_FOLDER_ID}")` still lists only `a.txt`.
+- Step 3: after both calls, `/tmp/qa-297` does not exist.
+- Call 4: `downloaded == ["a.txt"]`, and `/tmp/qa-297/new/a.txt` exists.
+
+**Teardown**
+`rm -rf /tmp/qa-297`. Trash `{SCRATCH_FOLDER_ID}`.
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1 raised `HttpError 404` "File not found".
+- Call 2: `uploaded == []`, `downloaded == []`, `failed == []`, and `skipped == ["a.txt"]`. `list_files` still listed only `a.txt`.
+- `/tmp/qa-297` didn't exist after calls 1–2. These two calls ran in parallel, so it was checked once after both.
+- Call 4: `downloaded == ["a.txt"]`, and `/tmp/qa-297/new/a.txt` exists.
+- Side probe, not part of the checks: a scratch folder whose only content was a subfolder `sub/` holding `b.txt`. `sync_folder(..., local_path=<missing>/subonly/, direction="download", recursive=True)` returned `downloaded == ["sub/b.txt"]` and created `subonly/sub/b.txt`, so the Drive-only-subfolder path creates `local_path` too.
+
+---
+
+### TC-D298: `download_folder` — a folder with nothing to download creates no local directory (issue #1012, PR #1023 QA round 1) ⚠️ local-filesystem
+
+**Background:** `download_folder` used to create `local_path` even when every entry was skipped (Workspace files with no `export_format`, subfolders), leaving it empty. It now creates it only once it has at least one file to download.
+
+**Setup:** `/tmp/qa-298/` must NOT exist (`rm -rf /tmp/qa-298`). `{FOLDER_ID}` holds only Workspace files and subfolders (true of `TEST_FOLDER_ID`; see TC-D295's result).
+
+**Tool calls**
+1. `download_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-298/new/")` (no `export_format`)
+2. `ls /tmp/qa-298`
+3. `download_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-298/new/", export_format="pdf")`
+
+**Checks**
+- Call 1: `downloaded == []`, and every entry is in `skipped`.
+- Step 2: `/tmp/qa-298` does not exist.
+- Call 3: `downloaded` lists each Workspace file as `<name>.pdf`, and `/tmp/qa-298/new/` holds them.
+
+**Teardown**
+`rm -rf /tmp/qa-298`.
+
+**Result** (2026-10-13, Sky, PR #1023 round 2 at `894b490`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1: `downloaded == []`. All 5 entries were in `skipped`: 3 Workspace files plus the 2 scratch subfolders from this pass.
+- Step 2: `/tmp/qa-298` did not exist.
+- Call 3: `downloaded == ["mcp-gee-sweet-qa-fixtures.pdf", "mcp-gee-sweet-qa-fixtures-doc.pdf", "mcp-gee-sweet-qa-large-doc.pdf"]`, and all three are in `/tmp/qa-298/new/`. The subfolders stayed in `skipped`.

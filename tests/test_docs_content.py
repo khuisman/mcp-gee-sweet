@@ -3786,7 +3786,14 @@ class TestReplaceDocBackup:
         drive_svc, docs_svc = self._make_services()
         drive_svc.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
         result = await self._write(self._ctx(drive_svc, docs_svc))
-        assert result == {"docId": "doc1", "web_link": "https://example.com"}
+        assert result == {
+            "docId": "doc1",
+            "web_link": "https://example.com",
+            "warning": (
+                "The document's previous content was replaced without a backup copy "
+                "(there's no Drive storage quota left for the copy)."
+            ),
+        }
         drive_svc.files.return_value.delete.assert_not_called()
 
     async def test_quota_error_on_copy_then_failed_write_says_no_backup(self):
@@ -3797,11 +3804,117 @@ class TestReplaceDocBackup:
         assert result == {
             "error": (
                 "doc edit failed: edit boom. The document's previous content was cleared "
-                "first and couldn't be backed up (this account has no Drive storage quota "
+                "first and couldn't be backed up (there's no Drive storage quota left "
                 "for the copy), so the document may be empty or partly written."
             ),
             "docId": "doc1",
         }
+
+    @staticmethod
+    def _reason_error(status, reason):
+        return HttpError(
+            resp=MagicMock(status=status),
+            content=json.dumps({"error": {"errors": [{"reason": reason}]}}).encode(),
+        )
+
+    # #1018: the reason string for the folder case was measured live (2026-10-14):
+    # files.copy by a caller who can edit the doc but only read or comment on its
+    # folder (My Drive or Shared Drive) returns 403 insufficientFilePermissions.
+    _FALLBACK_REASONS = (
+        (
+            "insufficientFilePermissions",
+            "this account can't add a file to the document's folder",
+        ),
+        ("teamDriveFileLimitExceeded", "the document's Shared Drive is at its item limit"),
+        ("numChildrenInNonRootLimitExceeded", "the document's folder is at its item limit"),
+    )
+
+    @pytest.mark.parametrize(("reason", "why"), _FALLBACK_REASONS)
+    async def test_permission_or_limit_error_on_copy_replaces_with_warning(self, reason, why):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result == {
+            "docId": "doc1",
+            "web_link": "https://example.com",
+            "warning": (
+                f"The document's previous content was replaced without a backup copy ({why})."
+            ),
+        }
+        # The clear and the content write both went out.
+        assert self._batch_update_execute(docs_svc).call_count == 2
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    @pytest.mark.parametrize(("reason", "why"), _FALLBACK_REASONS)
+    async def test_permission_or_limit_error_on_copy_then_failed_write_says_no_backup(
+        self, reason, why
+    ):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result == {
+            "error": (
+                f"doc edit failed: edit boom. The document's previous content was cleared "
+                f"first and couldn't be backed up ({why}), so the document may be empty "
+                f"or partly written."
+            ),
+            "docId": "doc1",
+        }
+
+    @pytest.mark.parametrize("reason", ["rateLimitExceeded", "userRateLimitExceeded"])
+    async def test_rate_limit_403_on_copy_still_refuses(self, reason):
+        # Drive returns these as 403s too; they mean "try again", not "can't copy here".
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result["error"].startswith(
+            "Couldn't back up the document before replacing its content, so it was left unchanged"
+        )
+        self._batch_update_execute(docs_svc).assert_not_called()
+
+    async def test_fallback_reason_with_other_status_still_refuses(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            400, "insufficientFilePermissions"
+        )
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert "left unchanged" in result["error"]
+        self._batch_update_execute(docs_svc).assert_not_called()
+
+    async def test_no_backup_and_doc_emptied_during_copy_has_no_warning(self):
+        # Nothing was cleared, so nothing was lost without a backup.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "insufficientFilePermissions"
+        )
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = [
+            {"title": "My Doc", "body": {"content": [{"endIndex": 50}]}},
+            {"title": "My Doc", "body": {"content": [{"endIndex": 2}]}},
+        ]
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert result == {"docId": "doc1", "web_link": "https://example.com"}
+
+    async def test_update_doc_from_file_no_backup_warning(self, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "insufficientFilePermissions"
+        )
+        src = tmp_path / "doc.md"
+        src.write_text("# New\n", encoding="utf-8")
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(src), ctx=self._ctx(drive_svc, docs_svc)
+        )
+        assert result["warning"] == (
+            "The document's previous content was replaced without a backup copy "
+            "(this account can't add a file to the document's folder)."
+        )
 
     async def test_failed_write_after_clear_keeps_backup_and_names_it(self):
         drive_svc, docs_svc = self._make_services()
@@ -4123,6 +4236,26 @@ class TestReplaceDocBackup:
             fileId="backup1", supportsAllDrives=True
         )
         # The doc was already replaced (PR #1017 QA round 2).
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_link_lookup_failure_after_no_backup_replace_still_reports_it(self):
+        # The content was replaced with no backup; a lookup error alone wouldn't
+        # tell the caller the old content is gone (PR #1034 QA round 1).
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "insufficientFilePermissions"
+        )
+        lookup_error = RuntimeError("get boom")
+        drive_svc.files.return_value.get.return_value.execute.side_effect = lookup_error
+        ctx = self._ctx(drive_svc, docs_svc)
+        with pytest.raises(RuntimeError) as excinfo:
+            await self._write(ctx)
+        assert str(excinfo.value) == (
+            "The document's previous content was replaced without a backup copy "
+            "(this account can't add a file to the document's folder). The new content "
+            "was written, but looking up the document's link failed: get boom"
+        )
+        assert excinfo.value.__cause__ is lookup_error
         ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
 
     async def test_backup_removal_and_link_lookup_run_together(self):

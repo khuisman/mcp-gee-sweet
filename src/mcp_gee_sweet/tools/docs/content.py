@@ -16,7 +16,7 @@ from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
-from ..http_errors import is_storage_quota_error
+from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Run, Table
@@ -325,6 +325,28 @@ def _was_rejected(e: BaseException) -> bool:
     return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
 
 
+def _no_backup_reason(e: BaseException) -> str | None:
+    """Why a failed backup copy lets the replace go ahead without one, or None if
+    the failure must stop it (#1018). Decided by Drive's error reason, not the
+    status: rateLimitExceeded and userRateLimitExceeded are 403s too, and they
+    stop it. insufficientFilePermissions is what Drive returns when the caller can
+    edit the doc but not add a file to its folder (measured live, 2026-10-14).
+    teamDriveFileLimitExceeded and numChildrenInNonRootLimitExceeded are a Shared
+    Drive's and a My Drive folder's item limits (documented reasons; they can't be
+    produced in QA)."""
+    if is_storage_quota_error(e):
+        # Worded for both causes: a service account with no storage, and a user
+        # whose destination is full (#1009).
+        return "there's no Drive storage quota left for the copy"
+    if http_error_has_reason(e, 403, "insufficientFilePermissions"):
+        return "this account can't add a file to the document's folder"
+    if http_error_has_reason(e, 403, "teamDriveFileLimitExceeded"):
+        return "the document's Shared Drive is at its item limit"
+    if http_error_has_reason(e, 403, "numChildrenInNonRootLimitExceeded"):
+        return "the document's folder is at its item limit"
+    return None
+
+
 def _describe(e: BaseException) -> str:
     """str(e), or the exception's type name when that's empty (a TimeoutError)."""
     return str(e) or type(e).__name__
@@ -405,10 +427,10 @@ async def _replace_doc_content(
     revision history can't serve this: Docs merges the revision current before the
     clear into the clear's own revision at once, so its ID is a 404 straight away
     (measured live; see docs/design/doc-replace-backup.md). A failed copy leaves the
-    doc untouched and returns an error, except a storageQuotaExceeded one: a service
-    account writing into a user-owned doc can't own a copy, and this tool is the
-    documented way to write such a doc, so it replaces without a backup, and a
-    failure says so.
+    doc untouched and returns an error, except for the reasons _no_backup_reason
+    accepts (storage quota, no right to add to the doc's folder, a full Shared
+    Drive; #1018): a caller who can edit the doc could write it before #878, so it
+    replaces without a backup, and both a success and a failure say so.
 
     The doc is unchanged, and the copy removed, only when a step before the clear
     fails or the clear gets a 4xx. A clear that fails any other way (a 5xx, a
@@ -431,7 +453,8 @@ async def _replace_doc_content(
             try:
                 backup = await _copy_for_backup(drive_service, doc_id, backup_name)
             except Exception as e:
-                if not is_storage_quota_error(e):
+                no_backup_reason = _no_backup_reason(e)
+                if no_backup_reason is None:
                     error = (
                         f"Couldn't back up the document before replacing its content, "
                         f"so it was left unchanged: {_describe(e)}"
@@ -443,10 +466,7 @@ async def _replace_doc_content(
                             f"next to the document; check for it and delete it"
                         )
                     return {"error": error, "docId": doc_id}
-                no_backup_reason = "this account has no Drive storage quota for the copy"
-                logger.warning(
-                    "Replacing doc %s without a backup: storage quota exceeded on copy", doc_id
-                )
+                logger.warning("Replacing doc %s without a backup: %s", doc_id, no_backup_reason)
 
         # Re-read after the copy, which takes seconds: a concurrent edit meanwhile
         # would otherwise survive the clear (the doc grew) or make it fail (it
@@ -560,6 +580,12 @@ async def _replace_doc_content(
     # lookup below, which can still raise with the doc already replaced (PR #1017
     # QA round 2).
 
+    no_backup_warning = (
+        f"The document's previous content was replaced without a backup copy ({no_backup_reason})."
+        if no_backup_reason and cleared == "yes"
+        else None
+    )
+
     # The backup's removal and the link lookup are independent, so they run
     # together. The removal catches its own errors; a lookup error is re-raised
     # after the removal finishes.
@@ -583,6 +609,13 @@ async def _replace_doc_content(
         except Exception as e:
             lookup_error = e
     if lookup_error is not None:
+        if no_backup_warning:
+            # The caller must still learn the old content is gone; the lookup
+            # error alone wouldn't say so (PR #1034 QA round 1).
+            raise RuntimeError(
+                f"{no_backup_warning} The new content was written, but looking up "
+                f"the document's link failed: {_describe(lookup_error)}"
+            ) from lookup_error
         raise lookup_error
 
     logger.debug("Replaced content in doc %s", doc_id)
@@ -591,6 +624,8 @@ async def _replace_doc_content(
         result["images"] = image_outcomes
     if warning:
         result["warning"] = warning
+    elif no_backup_warning:
+        result["warning"] = no_backup_warning
     return result
 
 
@@ -1461,15 +1496,19 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when content contained any images.
-            Includes "warning" if the backup copy (below) couldn't be removed.
+            Includes "warning" if the backup copy (below) couldn't be removed, or
+            if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
-            and deleted again once the new content is in. If the copy fails, nothing
-            is changed and an error is returned (except when the account has no
-            storage quota for it, e.g. a service account: the replace then goes ahead
-            without a backup). If writing the new content fails, returns {"error",
-            "docId", "backupId", "images"} instead, with any temporary image share
-            already revoked: the doc may be empty or partly written, and backupId is
-            the kept copy of its previous content.
+            next to the doc, and deleted again once the new content is in. If the copy
+            fails, nothing is changed and an error is returned, except when Drive
+            refuses it for storage quota, because the account can't add a file to the
+            doc's folder, or because the folder or Shared Drive is at its item limit:
+            the replace then goes ahead without a backup. If writing the new content
+            fails, returns {"error", "docId", "backupId", "images"} instead, with any
+            temporary image share already revoked: the doc may be empty or partly
+            written, and backupId is the kept copy of its previous content. When the
+            replace went ahead without a backup there's no backupId, and the error
+            says the previous content couldn't be backed up: it can't be recovered.
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
@@ -1528,15 +1567,19 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when the file contained any images.
-            Includes "warning" if the backup copy (below) couldn't be removed.
+            Includes "warning" if the backup copy (below) couldn't be removed, or
+            if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
-            and deleted again once the new content is in. If the copy fails, nothing
-            is changed and an error is returned (except when the account has no
-            storage quota for it, e.g. a service account: the replace then goes ahead
-            without a backup). If writing the new content fails, returns {"error",
-            "docId", "backupId", "images"} instead, with any temporary image share
-            already revoked: the doc may be empty or partly written, and backupId is
-            the kept copy of its previous content.
+            next to the doc, and deleted again once the new content is in. If the copy
+            fails, nothing is changed and an error is returned, except when Drive
+            refuses it for storage quota, because the account can't add a file to the
+            doc's folder, or because the folder or Shared Drive is at its item limit:
+            the replace then goes ahead without a backup. If writing the new content
+            fails, returns {"error", "docId", "backupId", "images"} instead, with any
+            temporary image share already revoked: the doc may be empty or partly
+            written, and backupId is the kept copy of its previous content. When the
+            replace went ahead without a backup there's no backupId, and the error
+            says the previous content couldn't be backed up: it can't be recovered.
         """
         source = _read_doc_source_file(local_path, content_format, format_overridable=True)
         if isinstance(source, dict):

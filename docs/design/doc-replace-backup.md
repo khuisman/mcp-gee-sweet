@@ -58,12 +58,33 @@ images, and tables survive, which a re-inserted snapshot wouldn't.
 - **The copy fails:** nothing is changed, and an error is returned. A 429 is retried (up to 3 times,
   with backoff), since Drive ran nothing. A 5xx isn't, since the copy may already exist and a
   retry would make a second one. For a failure other than a 4xx, the error names the copy that
-  may have been created, so the caller can find and remove it. The exception is
-  `storageQuotaExceeded`. A service account can't own a copy of a user-owned doc, and
-  `write_doc_content` is the documented way for a service account to write into such a doc
-  (`known-limitations.md`'s quota section). That case replaces without a backup and logs a
-  warning. If the replace then fails, the error says no backup could be made. Whether other
-  permission or limit failures should also fall back to no backup is #1018.
+  may have been created, so the caller can find and remove it. Some failures replace without
+  a backup instead (`_no_backup_reason`). That function decides from Drive's error `reason`, not
+  the status, because `rateLimitExceeded` and `userRateLimitExceeded` are 403s too and must
+  still refuse. The reasons that fall back, all 403s:
+  - `storageQuotaExceeded`. A service account can't own a copy of a user-owned doc, and
+    `write_doc_content` is the documented way for a service account to write into such a doc
+    (`known-limitations.md`'s quota section).
+  - `insufficientFilePermissions`. The copy has no `parents`, so it goes into the doc's folder,
+    and a caller who can edit the doc but only read or comment on that folder can't add it.
+    Measured live on 2026-10-14 with the service account as the caller. The doc was shared to
+    it as writer, and it was a reader or commenter on a My Drive folder, or a commenter
+    member of a Shared Drive. All three layouts returned this reason. With writer access to
+    the My Drive folder, the same copy returned `storageQuotaExceeded`, so the folder
+    permission is checked first.
+  - `teamDriveFileLimitExceeded` and `numChildrenInNonRootLimitExceeded`. The doc's Shared
+    Drive, or its My Drive folder, is at its item limit, so the copy can't be added there.
+    Neither limit can be reached in QA, so both rest on Drive's documented reason strings.
+
+  Each of these callers could write the doc before #878, which is why the maintainer chose to
+  replace without a backup rather than refuse (2026-10-13, #1018). Copying somewhere else was
+  rejected because it changes who can see the copy (the #989 trade-off). The fallback logs a
+  warning. A successful replace returns a `warning` naming the reason. If only the
+  `webViewLink` lookup after it fails, the raised error starts with that same warning, so the
+  caller still learns the old content is gone (PR #1034 QA round 1). If the replace fails
+  after the clear, the error says the content couldn't be backed up and why. In that case the
+  original content can't be recovered, since the pre-clear revision is merged away at once
+  (table above).
 - **Cancellation:** the copy is created inside a shielded scope, so its ID is always recorded (the
   PR #877 rule). The scope is bounded by `_BACKUP_COPY_TIMEOUT` (60 s, all attempts together), per
   `CLAUDE.md`'s rule that a cancel waits for shielded work; a timeout is reported like a 5xx.

@@ -4315,7 +4315,7 @@ Every capped tool's `local_path` goes through the shared `write_capped_result_to
 ### TC-DOC219: A replace backs the doc up first, removes the backup on success, and names it on failure ⚠️ destructive
 Before #878, a replace that failed after the clear left the doc empty, and the error didn't say so. Now a doc with content is copied with Drive before the clear (`"<title> (backup before replace)"`, next to the doc). The copy is removed on success and kept and named as `backupId` on failure. No tool call can make the content write fail after a successful clear, so part B injects the failure from a scratch script against the checkout under test. Design: `docs/design/doc-replace-backup.md`.
 
-Run it on a server whose account can own a copy of `{DOC_ID}`: OAuth, or a service account when `{DOC_ID}` is on a Shared Drive. A service account writing into a My Drive doc gets `storageQuotaExceeded` on the copy, so it replaces without a backup by design, and step 4 then reports "couldn't be backed up" instead of a `backupId`.
+Run it on a server whose account can own a copy of `{DOC_ID}`: OAuth, or a service account when `{DOC_ID}` is on a Shared Drive. A service account writing into a My Drive doc gets `storageQuotaExceeded` on the copy, so it replaces without a backup by design (#1018 widened this to a few other copy failures; TC-DOC224). Step 1 then returns a "replaced without a backup copy" `warning`, and step 4 reports "couldn't be backed up" instead of a `backupId`.
 
 **Setup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC219 before</p>")`. Note the doc's `name` from `get_file_metadata(file_id={DOC_ID})`.
 
@@ -4391,6 +4391,61 @@ with patch.object(c, 'execute_in_thread', after_commit):
 **Result (2026-10-13) ✅ PASS — Sky, PR #1017 round 2 (`e6f0902`).** Ran on a fresh scratch doc on the QA Shared Drive (OAuth). The scripts loaded the server's env from this slot's MCP config. Part A: step 1 returned `docId`/`web_link` only, step 2 found no backup, step 3 showed the new content. Part B: step 4 printed the expected "cleared first" error with a `backupId`, and step 5 showed "TC-DOC219 after / Replaced.". Part C step 6 (503 after the clear landed): "…may have been cleared; a full copy of it is kept…" with a `backupId`. After `refresh_cache`, `{DOC_ID}` read empty and the backup showed "TC-DOC219 before C". Step 7 (503 after the copy landed): "…left unchanged… A copy named '<name> (backup before replace)' may still have been created next to the document; check for it and delete it". `{DOC_ID}` still showed "TC-DOC219 before C2", and `search_files` found the copy. The 503 text in steps 6–7 shows the script's `MagicMock` reason, a script artifact. Extra probe: `_BACKUP_COPY_TIMEOUT` patched to 3 s, with the copy's worker thread blocking 15 s after the real copy. The coroutine returned after 3.7 s with "…left unchanged: TimeoutError. A copy named … may still have been created…", so the bound cancels the wait on the thread. `asyncio.run` still waited for the thread at exit, which is expected in a script. Each timeout run left the copy it warned about. Cleanup done: the scratch doc and all five copies were trashed.
 
 **Result (2026-10-13) ✅ PASS — Sky, PR #1017 round 3 (`b78faab`).** Re-verification of the round-2 cache fix. Part A ran on a fresh scratch doc on the QA Shared Drive (OAuth), with the cache warmed by a `get_doc_content` before step 1 and no `refresh_cache` before step 3. Step 1 returned `docId`/`web_link` only, step 2 found no backup, and step 3 showed "TC-DOC219 after / Replaced.", so the write invalidated the cached pre-write content. Parts B and C weren't re-run: the fix only moves `mark_dirty` on the success path, and both parts passed in round 2. The lookup-failure path is covered by the new unit assertion. Cleanup done: the scratch doc was trashed.
+
+### TC-DOC224: A caller who can edit the doc but can't add to its folder replaces it without a backup, and is told so (#1018) ⚠️ destructive ⚠️ requires-oauth
+#878's backup copy has no `parents`, so it goes into the doc's folder. A caller who can edit the doc but only read or comment on that folder gets 403 `insufficientFilePermissions` on the copy. That caller could write the doc before #878, so the replace now goes ahead without a backup and says so (`docs/design/doc-replace-backup.md`, "The copy fails"). Two identities are needed: the OAuth account owns the fixture, and the service account is the caller. The case runs as a scratch script from the checkout under test, with no MCP server involved, so it needs both `token.json` and service-account credentials in `src/mcp_gee_sweet/.env`. The fixture is a fresh My Drive folder, not `{DOC_ID}`, since the service account needs exactly reader access on the folder and writer access on the doc.
+
+**Setup:** none. The script creates and deletes its own fixture.
+
+**Steps**
+1. Run from the checkout under test:
+```
+uv run python -I -c "
+import asyncio, json, time, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+oauth, sa = auth._oauth_creds(), auth._service_account_creds()
+od, odocs = build('drive', 'v3', credentials=oauth), build('docs', 'v1', credentials=oauth)
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=sa),
+    drive_service=build('drive', 'v3', credentials=sa), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+def text(d):
+    b = odocs.documents().get(documentId=d).execute()['body']['content']
+    return ''.join(r.get('textRun', {}).get('content', '') for e in b for r in e.get('paragraph', {}).get('elements', [])).strip()
+def run(d, html):
+    return asyncio.run(c._replace_doc_content(lc, d, html, 'html', autolink_urls=True, revoke_sharing=True, auto_downscale=False))
+folder = od.files().create(body={'name': 'TC-DOC224 folder', 'mimeType': 'application/vnd.google-apps.folder'}, fields='id').execute()['id']
+try:
+    doc = od.files().create(body={'name': 'TC-DOC224 doc', 'mimeType': 'application/vnd.google-apps.document', 'parents': [folder]}, fields='id').execute()['id']
+    odocs.documents().batchUpdate(documentId=doc, body={'requests': [{'insertText': {'location': {'index': 1}, 'text': 'TC-DOC224 before\n'}}]}).execute()
+    for fid, role in ((folder, 'reader'), (doc, 'writer')):
+        od.permissions().create(fileId=fid, body={'type': 'user', 'role': role, 'emailAddress': sa.service_account_email}, sendNotificationEmail=False).execute()
+    time.sleep(3)
+    print('A', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC224 after</p>').items() if k != 'docId'}), repr(text(doc)))
+    with patch.object(c, 'fill_tables', side_effect=RuntimeError('injected failure')):
+        print('B', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC224 failed</p>').items() if k != 'docId'}))
+    print('C', [f['name'] for f in od.files().list(q=f\"'{folder}' in parents and trashed=false\", fields='files(name)').execute()['files']])
+finally:
+    od.files().delete(fileId=folder).execute()
+    print('cleanup done')
+"
+```
+
+**Checks**
+- Line `A` has `web_link` and `warning` "The document's previous content was replaced without a backup copy (this account can't add a file to the document's folder).", with no `error` or `backupId`. Its doc text is `'TC-DOC224 after'`
+- Line `B`'s `error` is "doc edit failed: injected failure. The document's previous content was cleared first and couldn't be backed up (this account can't add a file to the document's folder), so the document may be empty or partly written.", with no `backupId`
+- Line `C` lists only `TC-DOC224 doc`: no `(backup before replace)` copy was made
+- The log shows `Replacing doc … without a backup: this account can't add a file to the document's folder` before each of `A` and `B`
+- `cleanup done` is printed
+
+**Cleanup:** the script deletes the folder, and the doc with it. If it stopped before `cleanup done`, `search_files(query="TC-DOC224")` on the OAuth server and delete what it finds.
+
+**Result (2026-10-14) ✅ PASS — Sky, PR #1034 round 1 (`454001d`).** Ran the script as written from this slot's checkout, with this slot's OAuth token and the shared service-account key passed by env var. Line `A` had `web_link` and the expected `warning`, with doc text `'TC-DOC224 after'`. Line `B` had the expected "cleared first and couldn't be backed up (this account can't add a file to the document's folder)" error and no `backupId`. Line `C` listed only `TC-DOC224 doc`. Before each of `A` and `B`, the log showed googleapiclient's `403 … "insufficientFilePermissions"` and then `Replacing doc … without a backup: this account can't add a file to the document's folder`. `cleanup done` was printed. Extra probe: the service account was given writer access on both the doc and a My Drive folder, and the copy returned `storageQuotaExceeded`, as the design doc says. After the owner set `downloadRestrictions.itemDownloadRestriction.restrictedForWriters`, the same copy returned 403 `cannotCopyFile` (with or without `parents`). That reason isn't in `_no_backup_reason`, so such a writer is still refused.
+
+**Result (2026-10-14) ✅ PASS — Sky, PR #1034 round 2 (`ca210a4`).** Re-ran the script as written, and every check held, with the same `A`/`B`/`C` output and log lines as round 1. Extra probe for the round-1 fix: the same fixture, with `execute_in_thread` patched so that only the `webViewLink` lookup raises `ConnectionError`. The replace raised `RuntimeError` "The document's previous content was replaced without a backup copy (this account can't add a file to the document's folder). The new content was written, but looking up the document's link failed: injected lookup failure", with the `ConnectionError` as `__cause__`. The doc read `'TC-DOC224 lookup after'`, and the folder held no backup copy. `numChildrenInNonRootLimitExceeded` can't be produced live (a 500k-item folder), so it's unit-tested only. Cleanup done.
 
 ## Image-share lifecycle: cancellation and cache follow-ups (#909)
 
