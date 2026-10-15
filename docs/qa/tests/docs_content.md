@@ -4429,6 +4429,8 @@ with patch.object(c, 'execute_in_thread', after_commit):
 
 **Result (2026-10-14) ✅ PASS (partial re-run) — Kit, PR #1029 round 2 (`fd591d9`).** Re-ran step 3 and step 5 on fresh scratch docs; both matched round 1 (step 3: `(edit landed: no)` lines, then `(edit landed: yes)`, `sent: 1; landed: 1`, the doc `Before`/image/`After`; step 5: `kept its backup copy` logged, the backup held the old content). Round 1's failed probe (`revoke` on a doc with content) now passes: both batchUpdates landed, the doc read `Before`/image/`After`, no `kept its backup copy` line was logged, and after `refresh_cache` the folder held no `(backup before replace)` copy of that doc. Cleanup done.
 
+**Result (2026-10-14) ✅ PASS (probe only) — Kit, PR #1029 round 3 (`2311322`).** Steps not re-run; the round's fix only touches `create_doc`/`create_doc_from_file`'s Drive create. A scratch script (not committed) ran the checkout's `create_doc` against the real APIs with a mock folder cache and cancelled it while `files().create` ran on its worker thread. The tool returned nothing, the create landed afterward (the Doc was in the folder), and the folder was marked dirty once it landed. An uncancelled `create_doc` in the same folder marked it dirty as before. Cleanup done.
+
 ---
 
 ### TC-DOC223: An image upload or resized copy shows up in a cached folder listing without `refresh_cache`, and a failed edit still names its resized copy (#666) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
