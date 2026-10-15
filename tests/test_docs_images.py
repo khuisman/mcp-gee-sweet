@@ -8,7 +8,7 @@ import struct
 import threading
 import zlib
 from functools import partial
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import anyio
 import pytest
@@ -2135,8 +2135,12 @@ class TestInsertLocalImages:
         )
         # (doc, created by this call, pre-existing, still link-shared by this call)
         assert mock_logger.warning.call_args.args[1:] == ("doc1", "img1", "none", "none")
-        # The edit may have landed, so the cached doc is stale either way.
-        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+        # The edit may have landed, so the cached doc is stale either way. A second
+        # call comes from the abandoned-call hook (#907) when the released thread
+        # finishes after the cancellation landed; whether it does is timing.
+        mark_dirty = ctx.request_context.lifespan_context.doc_cache.mark_dirty
+        assert mark_dirty.call_args_list
+        assert all(c == call("doc1") for c in mark_dirty.call_args_list)
 
     async def test_share_revoked_when_cancelled_mid_share(self, tmp_path):
         # Cancelled while the share is being granted, the upload gather still
