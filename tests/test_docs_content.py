@@ -3674,6 +3674,7 @@ class TestReplaceDocBackup:
             "this account can't add a file to the document's folder",
         ),
         ("teamDriveFileLimitExceeded", "the document's Shared Drive is at its item limit"),
+        ("numChildrenInNonRootLimitExceeded", "the document's folder is at its item limit"),
     )
 
     @pytest.mark.parametrize(("reason", "why"), _FALLBACK_REASONS)
@@ -3994,6 +3995,26 @@ class TestReplaceDocBackup:
             fileId="backup1", supportsAllDrives=True
         )
         # The doc was already replaced (PR #1017 QA round 2).
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_link_lookup_failure_after_no_backup_replace_still_reports_it(self):
+        # The content was replaced with no backup; a lookup error alone wouldn't
+        # tell the caller the old content is gone (PR #1034 QA round 1).
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "insufficientFilePermissions"
+        )
+        lookup_error = RuntimeError("get boom")
+        drive_svc.files.return_value.get.return_value.execute.side_effect = lookup_error
+        ctx = self._ctx(drive_svc, docs_svc)
+        with pytest.raises(RuntimeError) as excinfo:
+            await self._write(ctx)
+        assert str(excinfo.value) == (
+            "The document's previous content was replaced without a backup copy "
+            "(this account can't add a file to the document's folder). The new content "
+            "was written, but looking up the document's link failed: get boom"
+        )
+        assert excinfo.value.__cause__ is lookup_error
         ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
 
     async def test_backup_removal_and_link_lookup_run_together(self):

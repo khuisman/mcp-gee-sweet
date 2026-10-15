@@ -72,13 +72,16 @@ images, and tables survive, which a re-inserted snapshot wouldn't.
     member of a Shared Drive. All three layouts returned this reason. With writer access to
     the My Drive folder, the same copy returned `storageQuotaExceeded`, so the folder
     permission is checked first.
-  - `teamDriveFileLimitExceeded`. The doc's Shared Drive is at its item limit. It can't be
-    reproduced in QA, so it rests on Drive's documented reason string.
+  - `teamDriveFileLimitExceeded` and `numChildrenInNonRootLimitExceeded`. The doc's Shared
+    Drive, or its My Drive folder, is at its item limit, so the copy can't be added there.
+    Neither limit can be reached in QA, so both rest on Drive's documented reason strings.
 
   Each of these callers could write the doc before #878, which is why the maintainer chose to
   replace without a backup rather than refuse (2026-10-13, #1018). Copying somewhere else was
   rejected because it changes who can see the copy (the #989 trade-off). The fallback logs a
-  warning. A successful replace returns a `warning` naming the reason. If the replace fails
+  warning. A successful replace returns a `warning` naming the reason. If only the
+  `webViewLink` lookup after it fails, the raised error starts with that same warning, so the
+  caller still learns the old content is gone (PR #1034 QA round 1). If the replace fails
   after the clear, the error says the content couldn't be backed up and why. In that case the
   original content can't be recovered, since the pre-clear revision is merged away at once
   (table above).
