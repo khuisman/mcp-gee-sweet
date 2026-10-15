@@ -48,6 +48,12 @@ Only the call that creates a file knows its folder (`downscale_drive_file` picks
 
 #666's first item, a `files().get()` failing after a successful `permissions().create()` and losing the permission ID, can't happen any more. Since #511, `share_image_file` takes `webContentLink` from the `create()`/`get()` call that preceded the share and makes no request after it (`test_local_path_uploaded_shared_and_resolved` asserts no `files().get()`). There's nothing left to fix.
 
+### A cancellation after the edit finished (PR #1029 QA round 1)
+
+The post-revoke checkpoint raises a cancellation that the revoke's shield held off, even though the edit itself completed. For `_replace_doc_content` that used to read as a partial write: `_failed` kept the backup copy of a doc whose new content had fully landed (reproduced live). The lifecycle now sets `edit_completed` once the edit body exits cleanly. `_replace_doc_content` builds the lifecycle itself, passes it to `_apply_doc_content(lifecycle=...)`, and on a cancellation with `edit_completed` set it discards the backup (shielded) and re-raises.
+
+`create_doc`/`create_doc_from_file` now mark the target folder dirty right after the Drive `create()`. They used to do it only after the content step, which a cancellation skipped. The doc is in the folder from the create on, and images uploaded later are marked dirty by `resolve()`.
+
 ## Trade-offs
 
 - A failed or cancelled `write_doc_content` now marks the doc dirty twice: once in the lifecycle and once in `_replace_doc_content`'s `_failed`. `_failed` has to keep its own call, because a doc that was cleared and whose `_apply_doc_content` raised before the edit phase (during image resolution, say) still changed. A redundant `mark_dirty` costs one SQLite write.

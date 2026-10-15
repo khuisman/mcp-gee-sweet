@@ -1907,6 +1907,20 @@ class TestCreateDocImages:
             while ("doc123", True) not in dirty_after_landing:
                 await anyio.sleep(0.01)
 
+    async def test_cancelled_create_doc_still_marks_target_folder_dirty(self):
+        # PR #1029 QA round 1: the doc exists in the folder from the create on, so
+        # a cancellation out of the content step still changes its listing.
+        drive_svc, docs_svc = self._shared_drive_image_services()
+        started, release = threading.Event(), threading.Event()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = self._blocking(
+            started, release, {"id": "perm1"}
+        )
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        await self._cancel_create_doc_once_started(ctx, started, release)
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_with(
+            "folder1"
+        )
+
     async def test_cancelled_mid_revoke_after_successful_edit_is_logged(self):
         # #908: a cancellation that arrives during the success path's shielded
         # revoke used to be absorbed by the shield with nothing logged.
@@ -3834,6 +3848,39 @@ class TestReplaceDocBackup:
         mock_logger.warning.assert_called_once_with(
             "Replacing doc %s was cancelled; kept its backup copy %s", "doc1", "backup1"
         )
+
+    async def test_cancelled_during_revoke_after_full_replace_discards_backup(self):
+        # PR #1029 QA round 1 (reproduced live): a cancellation held off by the
+        # image-share revoke lands after the new content fully landed. The doc was
+        # replaced, so the backup is removed, not kept as if the write were partial.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webViewLink": "https://example.com",
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        started, release = threading.Event(), threading.Event()
+
+        def revoke(**kwargs):
+            started.set()
+            release.wait(5)
+            return {}
+
+        drive_svc.permissions.return_value.delete.return_value.execute.side_effect = revoke
+        ctx = self._ctx(drive_svc, docs_svc)
+        with patch.object(content_module, "logger") as mock_logger:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(partial(self._write, ctx, '<img src="drive:file1">'))
+                await anyio.to_thread.run_sync(started.wait, 5)
+                tg.cancel_scope.cancel()
+                release.set()
+        drive_svc.files.return_value.delete.assert_called_once_with(
+            fileId="backup1", supportsAllDrives=True
+        )
+        kept = [c for c in mock_logger.warning.call_args_list if "kept its backup" in c.args[0]]
+        assert kept == []
 
     async def test_cancelled_mid_clear_marks_doc_dirty_after_clear_lands(self):
         # #907: the clear's worker thread still commits after the cancellation

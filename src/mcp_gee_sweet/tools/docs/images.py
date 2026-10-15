@@ -460,6 +460,10 @@ class ImageShareLifecycle:
         self._doc_id = doc_id
         self._revoke_sharing = revoke_sharing
         self._revoked = False
+        # True once the edit body has finished without raising, so a caller can
+        # tell a cancellation during the revoke after it (the doc fully written)
+        # from one during the edit itself.
+        self.edit_completed = False
         self.shares: list[tuple[dict[str, Any], str, str | None]] = []
         self.outcomes: list[dict[str, Any]] = []
         self.created_file_ids: set[str] = set()
@@ -500,6 +504,7 @@ class ImageShareLifecycle:
             try:
                 with after_abandoned_calls(self._mark_doc_dirty_after_abandoned_edit):
                     yield
+                self.edit_completed = True
             finally:
                 # The edit may or may not have been applied, so the cached doc
                 # can't be trusted either way.
@@ -851,7 +856,6 @@ def register(tool):
         except Exception as e:
             return {"error": str(e), **failure}
         except BaseException:
-            lc.doc_cache.mark_dirty(doc_id)
             if resized_file_id:
                 logger.warning(
                     "insert_inline_image for doc %s was cancelled; its resized copy %s "
@@ -860,8 +864,11 @@ def register(tool):
                     resized_file_id,
                 )
             raise
+        finally:
+            # Every exit: a failed request (a timeout, a 5xx) may still have been
+            # applied, and a cancelled one may still land.
+            lc.doc_cache.mark_dirty(doc_id)
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_inline_image: at index %d in doc %s", index, doc_id)
         result: dict[str, Any] = {"docId": doc_id, "index": index}
         if resized_file_id:

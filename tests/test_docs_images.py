@@ -1195,6 +1195,9 @@ class TestInsertInlineImage:
             doc_id="doc1", index=1, uri="https://example.com/img.png", ctx=ctx
         )
         assert "error" in result
+        # PR #1029 QA round 1: a failed request (a timeout, a 5xx after commit)
+        # may still have been applied, so the cached doc can't be trusted.
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_called_once_with("doc1")
 
     async def test_oversized_drive_image_fails_fast_without_batchupdate(self):
         drive_svc = MagicMock()

@@ -27,7 +27,8 @@ Every doc-cache invalidation is printed as `doc cache marked dirty for <id>
 (edit landed: yes|no)`, and the script waits for an in-flight edit to finish
 before exiting, so the `inflight` point shows whether the doc is marked dirty
 again once the abandoned edit lands (#907). A `batchUpdate` sent counts as
-landed once its worker thread returns.
+landed once its worker thread returns or raises; one the cancel
+stopped before it was sent isn't counted.
 
 With `--tool write_doc_content`, MARKER is ignored and the doc's content is
 replaced with `Before`, the image, `After`. Use an empty doc, so there's no
@@ -96,8 +97,8 @@ async def main(args: argparse.Namespace) -> None:
     lc.drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
     lc.folder_id = args.folder_id
 
-    sent: list[bool] = []  # one entry per batchUpdate handed to a worker thread
-    landed: list[bool] = []  # one entry per batchUpdate whose thread returned
+    sent: list[bool] = []  # one entry per batchUpdate whose worker thread started it
+    landed: list[bool] = []  # one entry per batchUpdate whose thread returned or raised
 
     def _mark_dirty(doc_id: str) -> None:
         print(
@@ -113,12 +114,15 @@ async def main(args: argparse.Namespace) -> None:
         async def gated(execute_fn, service):
             run = execute_fn
             if ":batchUpdate" in _request(execute_fn)[0]:
-                sent.append(True)
-
+                # Counted on the worker thread: `sent` once the request actually
+                # starts (a request the gate held and the cancel stopped never
+                # does), `landed` once it returns or raises.
                 def run(**kwargs):
-                    result = execute_fn(**kwargs)
-                    landed.append(True)
-                    return result
+                    sent.append(True)
+                    try:
+                        return execute_fn(**kwargs)
+                    finally:
+                        landed.append(True)
 
             if reached.is_set() or not _matches(execute_fn, args.point):
                 return await original(run, service)

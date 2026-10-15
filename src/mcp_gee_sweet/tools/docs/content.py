@@ -512,6 +512,7 @@ async def _replace_doc_content(
     else:
         cleared = "no"
 
+    lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
     try:
         image_outcomes = await _apply_doc_content(
             lc,
@@ -522,8 +523,19 @@ async def _replace_doc_content(
             target_folder_id=lc.folder_id,
             revoke_sharing=revoke_sharing,
             auto_downscale=auto_downscale,
+            lifecycle=lifecycle,
         )
     except BaseException as e:
+        if lifecycle.edit_completed and not isinstance(e, Exception):
+            # Cancelled during the image-share revoke, after the new content had
+            # fully landed (PR #1029 QA round 1): the doc was replaced, so the
+            # backup isn't needed.
+            warning = await _discard_backup(drive_service, backup)
+            if warning:
+                logger.warning(
+                    "Replacing doc %s was cancelled after it finished: %s", doc_id, warning
+                )
+            raise
         return _failed(e, cleared)
     # _apply_doc_content's lifecycle already marked the doc dirty, before the link
     # lookup below, which can still raise with the doc already replaced (PR #1017
@@ -629,6 +641,7 @@ async def _apply_doc_content(
     target_folder_id: str | None,
     revoke_sharing: bool,
     auto_downscale: bool = False,
+    lifecycle: ImageShareLifecycle | None = None,
 ) -> list[dict[str, Any]] | None:
     """Shared content-insertion body for create_doc / create_doc_from_file /
     write_doc_content (#333): converts content to AST, resolves any markdown/HTML
@@ -645,7 +658,9 @@ async def _apply_doc_content(
     as its cause); a cancellation propagates as-is. Either way the touched file IDs
     are also logged as a warning. That lifecycle, and the doc and folder cache
     invalidation that goes with it, is images.ImageShareLifecycle's (#908), shared
-    with insert_local_images.
+    with insert_local_images. A caller that needs to know how far a cancelled call
+    got passes its own `lifecycle` (built for this doc_id and revoke_sharing) and
+    reads its edit_completed afterward.
 
     auto_downscale (#400) is passed straight through to _resolve_image_source for
     each image — see that function's own docstring for the per-source-kind behavior
@@ -678,7 +693,8 @@ async def _apply_doc_content(
     # created (a local upload, or a drive: source's resized copy), as opposed to a
     # caller's pre-existing drive: file, which the failed-edit warning must never
     # present as an orphan (PR #877 QA round 1).
-    lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
+    if lifecycle is None:
+        lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
     image_outcomes = lifecycle.outcomes
     # All keyed by id(img) — the only value guaranteed unique per image.
     # Neither a resolved URI nor a computed document position is safe to key on:
@@ -1158,6 +1174,12 @@ def register(tool):
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
 
+        # Right after the create, not after the content: the doc is in the folder
+        # from here on, however the content step ends (a failure or a
+        # cancellation; PR #1029 QA round 1).
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
         image_outcomes = None
         if content:
             try:
@@ -1172,12 +1194,7 @@ def register(tool):
                     auto_downscale=auto_downscale,
                 )
             except DocEditError as e:
-                if target_folder_id:
-                    lc.drive_folder_cache.mark_dirty(target_folder_id)
                 return _doc_edit_failure_result(e, doc_id)
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         result: dict[str, Any] = {
             "docId": doc_id,
@@ -1281,6 +1298,12 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
+        # Right after the create, not after the content: the doc is in the folder
+        # from here on, however the content step ends (a failure or a
+        # cancellation; PR #1029 QA round 1).
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
         image_outcomes = None
         if content:
             try:
@@ -1295,12 +1318,7 @@ def register(tool):
                     auto_downscale=auto_downscale,
                 )
             except DocEditError as e:
-                if target_folder_id:
-                    lc.drive_folder_cache.mark_dirty(target_folder_id)
                 return _doc_edit_failure_result(e, doc_id)
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         result: dict[str, Any] = {
             "docId": doc_id,
