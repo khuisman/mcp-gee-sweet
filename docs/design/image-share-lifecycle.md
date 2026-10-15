@@ -52,7 +52,7 @@ Only the call that creates a file knows its folder (`downscale_drive_file` picks
 
 The post-revoke checkpoint raises a cancellation that the revoke's shield held off, even though the edit itself completed. For `_replace_doc_content` that used to read as a partial write: `_failed` kept the backup copy of a doc whose new content had fully landed (reproduced live). The lifecycle now sets `edit_completed` once the edit body exits cleanly. `_replace_doc_content` builds the lifecycle itself, passes it to `_apply_doc_content(lifecycle=...)`, and on a cancellation with `edit_completed` set it discards the backup (shielded) and re-raises.
 
-`create_doc`/`create_doc_from_file` now mark the target folder dirty right after the Drive `create()`. They used to do it only after the content step, which a cancellation skipped. The doc is in the folder from the create on, and images uploaded later are marked dirty by `resolve()`.
+`create_doc`/`create_doc_from_file` now mark the target folder dirty right after the Drive `create()`. They used to do it only after the content step, which a cancellation skipped. The doc is in the folder from the create on, and images uploaded later are marked dirty by `resolve()`. The create itself (`_create_doc_file`) runs inside `after_abandoned_calls`, since a create cancelled in flight still lands after the post-create `mark_dirty` would have run (QA round 2).
 
 ## Trade-offs
 

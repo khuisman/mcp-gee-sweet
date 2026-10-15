@@ -350,6 +350,25 @@ async def _copy_for_backup(drive_service, doc_id: str, name: str) -> dict[str, A
     raise AssertionError("unreachable")
 
 
+async def _create_doc_file(
+    lc: SpreadsheetContext, file_body: dict[str, Any], target_folder_id: str | None
+) -> dict[str, Any]:
+    """Drive files.create for create_doc / create_doc_from_file. A cancelled create
+    can still land after the call unwinds, putting the Doc in the folder with no
+    later step to invalidate its listing, so the folder is marked dirty again once
+    an abandoned create finishes (#907; PR #1029 QA round 2)."""
+    drive_service = lc.drive_service
+    request = drive_service.files().create(
+        supportsAllDrives=True,
+        body=file_body,
+        fields="id, name, parents, webViewLink",
+    )
+    if not target_folder_id:
+        return await execute_in_thread(request.execute, drive_service)
+    with after_abandoned_calls(lambda: lc.drive_folder_cache.mark_dirty(target_folder_id)):
+        return await execute_in_thread(request.execute, drive_service)
+
+
 async def _doc_end_index(docs_service, doc_id: str) -> tuple[dict[str, Any], int]:
     """The doc and its body's endIndex (2 for an empty doc)."""
     doc = await execute_in_thread(
@@ -1151,16 +1170,7 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    supportsAllDrives=True,
-                    body=file_body,
-                    fields="id, name, parents, webViewLink",
-                )
-                .execute,
-                drive_service,
-            )
+            doc = await _create_doc_file(lc, file_body, target_folder_id)
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
@@ -1279,16 +1289,7 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    supportsAllDrives=True,
-                    body=file_body,
-                    fields="id, name, parents, webViewLink",
-                )
-                .execute,
-                drive_service,
-            )
+            doc = await _create_doc_file(lc, file_body, target_folder_id)
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}

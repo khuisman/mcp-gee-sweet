@@ -1921,6 +1921,44 @@ class TestCreateDocImages:
             "folder1"
         )
 
+    @pytest.mark.parametrize("tool_name", ["create_doc", "create_doc_from_file"])
+    async def test_cancelled_mid_create_marks_folder_dirty_after_create_lands(
+        self, tmp_path, tool_name
+    ):
+        # PR #1029 QA round 2: the create's worker thread can't be stopped, so the
+        # Doc lands in the folder after the cancellation unwinds, past the
+        # post-create mark_dirty. The folder is marked dirty once it lands.
+        drive_svc, docs_svc = self._make_services()
+        started, release, landed = threading.Event(), threading.Event(), []
+
+        def create(**kwargs):
+            started.set()
+            release.wait(5)
+            landed.append(True)
+            return {"id": "doc123", "name": "Doc", "parents": ["folder1"], "webViewLink": "x"}
+
+        drive_svc.files.return_value.create.return_value.execute.side_effect = create
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        dirty_after_landing = []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.side_effect = (
+            lambda folder_id: dirty_after_landing.append((folder_id, bool(landed)))
+        )
+        if tool_name == "create_doc":
+            call = partial(_docs_tools["create_doc"], title="Doc", content="Text", ctx=ctx)
+        else:
+            source = tmp_path / "doc.md"
+            source.write_text("Text\n")
+            call = partial(_docs_tools["create_doc_from_file"], local_path=str(source), ctx=ctx)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(call)
+            await anyio.to_thread.run_sync(started.wait, 5)
+            tg.cancel_scope.cancel()
+        assert dirty_after_landing == []
+        release.set()
+        with anyio.fail_after(2):
+            while ("folder1", True) not in dirty_after_landing:
+                await anyio.sleep(0.01)
+
     async def test_cancelled_mid_revoke_after_successful_edit_is_logged(self):
         # #908: a cancellation that arrives during the success path's shielded
         # revoke used to be absorbed by the shield with nothing logged.
