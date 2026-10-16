@@ -160,7 +160,7 @@ def _add_or_clear_field(
 
 def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
     """Build a Docs API textStyle dict + field mask from a flat style dict keyed
-    by bold/italic/underline/strikethrough/font_size/foreground_color/link_url.
+    by bold/italic/underline/strikethrough/font_size/font_family/foreground_color/link_url.
 
     Shared by style_doc_range and insert_softbreak_paragraph so both tools draw
     per-run styling from the same key vocabulary and request-building logic.
@@ -177,6 +177,9 @@ def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
     if "font_size" in style:
         text_style["fontSize"] = {"magnitude": style["font_size"], "unit": "PT"}
         fields.append("fontSize")
+    if "font_family" in style:
+        text_style["weightedFontFamily"] = {"fontFamily": style["font_family"]}
+        fields.append("weightedFontFamily")
     if "foreground_color" in style:
         text_style["foregroundColor"] = {"color": {"rgbColor": style["foreground_color"]}}
         fields.append("foregroundColor")
@@ -269,6 +272,7 @@ def register(tool):
                 Text style:
                   bold (bool), italic (bool), underline (bool), strikethrough (bool)
                   font_size (float): size in points
+                  font_family (str): font family name (e.g. "Courier New", "Consolas")
                   foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
                   link_url (str | null): set a hyperlink (null to clear)
 

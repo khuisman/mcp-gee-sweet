@@ -147,6 +147,12 @@ class TestTextStyleAndFieldsLinkClearing:
         assert "link" not in text_style
         assert "link" not in fields
 
+    def test_font_family_sets_weighted_font_family(self):
+        # #720: font_family sets weightedFontFamily with fontFamily
+        text_style, fields = _text_style_and_fields({"font_family": "Courier New"})
+        assert text_style == {"weightedFontFamily": {"fontFamily": "Courier New"}}
+        assert fields == ["weightedFontFamily"]
+
 
 class TestAddOrClearField:
     """#448: the general "omit key but keep field mask" helper factored out
@@ -547,6 +553,25 @@ class TestStyleDocRangeTool:
         reqs = call_kwargs["body"]["requests"]
         update = next(r["updateTextStyle"] for r in reqs if "updateTextStyle" in r)
         assert update["textStyle"]["link"] == {"url": "https://x.com"}
+
+    async def test_font_family_sets_weighted_font_family(self):
+        # #720: font_family sets textStyle.weightedFontFamily.fontFamily and fields="weightedFontFamily"
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        update = next(r["updateTextStyle"] for r in reqs if "updateTextStyle" in r)
+        assert update["fields"] == "weightedFontFamily"
+        assert update["textStyle"]["weightedFontFamily"] == {"fontFamily": "Courier New"}
 
 
 # ---------------------------------------------------------------------------
