@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import xml.etree.ElementTree as etree
@@ -14,6 +15,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
+from ...local_files import LocalFileAccessError, check_read, check_write
 from ..drive import _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..http_errors import http_error_has_reason, is_storage_quota_error
@@ -261,8 +263,13 @@ async def _resolve_image_source(
             created_here=False,
         )
     else:
-        if not Path(src).is_file():
-            return {"error": f"No file found at {src!r}"}
+        try:
+            # Before the stat, so a refused path reads the same whether or not it
+            # exists (#796).
+            if not check_read(src).is_file():
+                return {"error": f"No file found at {src!r}"}
+        except LocalFileAccessError as e:
+            return {"error": str(e)}
         if not target_folder_id:
             return {
                 "error": "folder_id is required to upload a local image "
@@ -285,14 +292,20 @@ def _read_doc_source_file(
     that isn't a regular file, an unreadable or non-UTF-8 file, or an extension with
     no inferable format. content_format=None infers it from the extension.
     format_overridable says whether the calling tool takes a content_format
-    parameter, so the error only suggests one when it exists."""
-    path = Path(local_path)
+    parameter, so the error only suggests one when it exists.
+
+    Reads the file, so callers run it via asyncio.to_thread."""
+    try:
+        path = check_read(local_path)
+    except LocalFileAccessError as e:
+        return {"error": str(e)}
     if not path.exists():
         return {"error": f"File not found: {local_path}"}
     if not path.is_file():
         return {"error": f"Not a regular file: {local_path}"}
     if content_format is None:
-        ext = path.suffix.lower()
+        # The caller's own suffix, not the resolved one: a symlink keeps its link name.
+        ext = Path(local_path).suffix.lower()
         inferred = _SOURCE_FILE_FORMATS.get(ext)
         if inferred is None:
             hint = ", or pass content_format explicitly." if format_overridable else ""
@@ -1251,7 +1264,10 @@ def register(tool):
             result["images"] = image_outcomes
         return result
 
-    @tool(annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True),
+        local_only=True,
+    )
     async def create_doc_from_file(
         local_path: str,
         title: str | None = None,
@@ -1263,6 +1279,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Create a Google Doc from a local .md or .html file.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         The file format is inferred from the extension: .md files are parsed as
         Markdown, .html / .htm files as HTML. The document title defaults to the
@@ -1306,7 +1323,9 @@ def register(tool):
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
             Drive (no storage quota). Check server://auth-status for your current auth method.
         """
-        source = _read_doc_source_file(local_path, None, format_overridable=False)
+        source = await asyncio.to_thread(
+            _read_doc_source_file, local_path, None, format_overridable=False
+        )
         if isinstance(source, dict):
             return source
         content, content_format = source
@@ -1391,6 +1410,9 @@ def register(tool):
             for the configured default) and local_path is not set. If local_path is set, returns
             {local_path, id, bytes_written} instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
@@ -1521,7 +1543,10 @@ def register(tool):
             auto_downscale=auto_downscale,
         )
 
-    @tool(annotations=ToolAnnotations(title="Update Document from File", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Update Document from File", destructiveHint=True),
+        local_only=True,
+    )
     async def update_doc_from_file(
         doc_id: str,
         local_path: str,
@@ -1533,6 +1558,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Replace an existing Google Doc's content in place from a local .md or .html file.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Reads local_path server-side the same way create_doc_from_file does (file
         format inferred from extension, or pass content_format to override), then
@@ -1581,7 +1607,9 @@ def register(tool):
             replace went ahead without a backup there's no backupId, and the error
             says the previous content couldn't be backed up: it can't be recovered.
         """
-        source = _read_doc_source_file(local_path, content_format, format_overridable=True)
+        source = await asyncio.to_thread(
+            _read_doc_source_file, local_path, content_format, format_overridable=True
+        )
         if isinstance(source, dict):
             return source
         content, content_format = source
@@ -1805,6 +1833,9 @@ def register(tool):
             local_path is set, returns {local_path, doc_id, query, match_count,
             bytes_written} instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
 

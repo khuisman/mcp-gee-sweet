@@ -9,7 +9,7 @@ def _make_tool_registry():
     captured = {}
     captured_annotations = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured[func.__name__] = func
             captured_annotations[func.__name__] = annotations

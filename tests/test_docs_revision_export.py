@@ -24,7 +24,7 @@ _XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _tools: dict = {}
 
 
-def _tool(annotations=None):
+def _tool(annotations=None, local_only=False):
     def decorator(func):
         _tools[func.__name__] = func
         return func

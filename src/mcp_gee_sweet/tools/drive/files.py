@@ -11,6 +11,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...local_files import LocalFileAccessError, check_read
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
@@ -130,7 +131,10 @@ def register(tool):
             "folder": parents[0] if parents else "root",
         }
 
-    @tool(annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True),
+        local_only=True,
+    )
     async def import_csv_to_sheet(
         local_path: str,
         title: str,
@@ -140,6 +144,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Create a new Google Spreadsheet populated from a local CSV file.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
         the data (avoiding the default 1000-row/26-column limit), and writes
@@ -171,11 +176,16 @@ def register(tool):
             Drive (no storage quota). Works on Shared Drives regardless of auth method.
             Check server://auth-status for your current auth method.
         """
-        path = Path(local_path)
+        try:
+            # Before any stat, so a refused path reads the same whether or not it exists.
+            path = check_read(local_path)
+        except LocalFileAccessError as e:
+            return {"error": str(e)}
         if not path.exists():
             return {"error": f"File not found: {local_path}"}
-        if path.suffix.lower() != ".csv":
-            return {"error": f"Unsupported file extension '{path.suffix}'. Use .csv"}
+        suffix = Path(local_path).suffix
+        if suffix.lower() != ".csv":
+            return {"error": f"Unsupported file extension '{suffix}'. Use .csv"}
 
         def _read_csv() -> list[list[str]]:
             with path.open(newline="", encoding="utf-8") as f:

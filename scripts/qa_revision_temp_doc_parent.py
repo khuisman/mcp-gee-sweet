@@ -37,7 +37,7 @@ from mcp_gee_sweet.tools.drive.transfer import _GOOGLE_DOC_MIME
 def _register_tools() -> dict:
     tools: dict = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             tools[func.__name__] = func
             return func

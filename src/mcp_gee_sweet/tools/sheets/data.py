@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
+from ...local_files import check_write
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import (
@@ -128,6 +129,9 @@ def register(tool):
             depending on include_grid_data parameter. If local_path is set, returns
             {local_path, spreadsheet_id, sheet, range, bytes_written} instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         quoted = _quote_sheet_name(sheet)
@@ -276,6 +280,9 @@ def register(tool):
             or pass local_path. If local_path is set, returns
             {local_path, query_count, bytes_written} instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         total = len(queries)
@@ -395,6 +402,9 @@ def register(tool):
             call, lower rows_to_fetch, or pass local_path. If local_path is set, returns
             {local_path, spreadsheet_count, bytes_written} instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
         drive_service = lc.drive_service
@@ -601,6 +611,9 @@ def register(tool):
             is set, returns {local_path, spreadsheet_id, query, match_count, bytes_written}
             instead.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
         results = []

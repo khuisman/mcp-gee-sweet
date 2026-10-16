@@ -50,6 +50,7 @@ from mcp.types import ToolAnnotations
 from PIL import Image
 
 from ...auth import after_abandoned_calls, execute_in_thread, thread_http
+from ...local_files import LocalFileAccessError, check_read
 from ..drive import _quota_error_text
 from ..drive.transfer import _upload_local_file
 from ..http_errors import is_storage_quota_error
@@ -679,6 +680,11 @@ async def upload_and_share_local_image(
     orphan (#649) — including one _upload_local_file itself reports as fileId after
     a create() that succeeded before a later step failed (#420). Any result carrying
     file_id also carries "created_in": folder_id."""
+    try:
+        # Before prepare_local_image's stat and header read (#796).
+        check_read(path)
+    except LocalFileAccessError as e:
+        return {"error": str(e)}
     prepared = await prepare_local_image(
         drive_service, path, folder_id, auto_downscale=auto_downscale
     )
@@ -875,7 +881,10 @@ def register(tool):
             result["resized_file_id"] = resized_file_id
         return result
 
-    @tool(annotations=ToolAnnotations(title="Insert Local Images by Marker", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Insert Local Images by Marker", destructiveHint=True),
+        local_only=True,
+    )
     async def insert_local_images(
         doc_id: str,
         images: list[dict],
@@ -887,6 +896,7 @@ def register(tool):
         """
         Upload local image files to Drive and swap each into a Google Doc at a
         plain-text marker, in one call.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Typical flow: write doc content with a unique plain-text placeholder per
         image (e.g. "IMGMARKERONE") via create_doc/write_doc_content/insert_doc_text,
@@ -1018,7 +1028,15 @@ def register(tool):
                 entry["error"] = "missing 'local_path'"
                 outcomes[i] = entry
                 continue
-            if not Path(local_path).is_file():
+            try:
+                # Before the stat, so a refused path reads the same whether or not
+                # it exists (#796).
+                is_file = check_read(local_path).is_file()
+            except LocalFileAccessError as e:
+                entry["error"] = str(e)
+                outcomes[i] = entry
+                continue
+            if not is_file:
                 entry["error"] = f"No file found at {local_path!r}"
                 outcomes[i] = entry
                 continue

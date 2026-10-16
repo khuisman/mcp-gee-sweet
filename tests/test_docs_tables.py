@@ -30,7 +30,7 @@ from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured[func.__name__] = func
             return func

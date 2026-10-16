@@ -56,7 +56,7 @@ def _make_png_bytes(width: int, height: int) -> bytes:
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured[func.__name__] = func
             return func

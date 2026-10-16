@@ -37,3 +37,14 @@ def as_service_account(service):
     (#1009)."""
     service._http = SimpleNamespace(credentials=MagicMock(spec=service_account.Credentials))
     return service
+
+
+def use_local_file_policy(monkeypatch, **env):
+    """Install the local-file policy (#796) that `env` (LOCAL_FILE_ACCESS,
+    LOCAL_FILE_ROOTS, ...) would resolve to under a stdio launch, for the rest of
+    the test. Returns the policy."""
+    from mcp_gee_sweet import local_files
+
+    policy = local_files.resolve_policy(env, ["mcp-gee-sweet"])
+    monkeypatch.setattr(local_files, "POLICY", policy)
+    return policy

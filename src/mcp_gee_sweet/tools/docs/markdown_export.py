@@ -23,6 +23,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
+from ...local_files import check_write
 from ..drive.transfer import (
     _DOCX_MIME,
     _GOOGLE_DOC_MIME,
@@ -339,6 +340,9 @@ def register(tool):
               pipe tables have no merge concept, so a spanned cell's text
               lands in its first column and the rest render blank.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
         try:

@@ -59,7 +59,7 @@
 | Tool | Description | Key parameters |
 |---|---|---|
 | `create_spreadsheet` | Create a new Google Spreadsheet. | `title`, `folder_id?` |
-| `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. | `local_path`, `title`, `folder_id?`, `sheet_name?` |
+| `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title`, `folder_id?`, `sheet_name?` |
 | `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'. | `folder_id?`, `max_results?` |
 | `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content. | `query`, `max_results?` |
 
@@ -96,11 +96,11 @@
 | `list_revisions` | List available revisions for a Google Drive file (Sheets, Docs, or any file). | `file_id` |
 | `export_revision` | Export a historical revision of a Google Sheets file (cell data) or a Google Doc (Markdown). Use list_revisions to find the revision_id. | `file_id`, `revision_id`, `range?`, `sheet?`, `local_path?` |
 | `upload_file` | Upload a text file to Google Drive, optionally converting it to a Google Doc. | `name`, `content`, `source_format?`, `folder_id?`, `convert_to_doc?` |
-| `upload_local_file` | Upload a file from the local filesystem to a Google Drive folder. Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.). | `local_path`, `parent_folder_id`, `name?`, `skip_if_exists?`, `convert?` |
-| `upload_local_folder` | Upload all files in a local directory (non-recursive) to a Google Drive folder. | `local_path`, `parent_folder_id`, `skip_if_exists?`, `skip_system_files?`, `convert?` |
-| `download_file` | Download a file from Google Drive to the local filesystem. | `file_id`, `local_path`, `export_format?` |
-| `download_folder` | Download all files in a Google Drive folder (non-recursive) to a local directory. | `folder_id`, `local_path`, `export_format?`, `mime_type_filter?`, `skip_if_exists?`, `progress_unit?` |
-| `sync_folder` | Sync files between a Google Drive folder and a local directory. | `folder_id`, `local_path`, `direction?`, `export_format?`, `convert_markdown?`, `use_checksum?`, `skip_system_files?`, `dry_run?`, `recursive?`, `result_local_path?`, `resolve?` |
+| `upload_local_file` | Upload a file from the local filesystem to a Google Drive folder. Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.). Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `parent_folder_id`, `name?`, `skip_if_exists?`, `convert?` |
+| `upload_local_folder` | Upload all files in a local directory (non-recursive) to a Google Drive folder. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `parent_folder_id`, `skip_if_exists?`, `skip_system_files?`, `convert?` |
+| `download_file` | Download a file from Google Drive to the local filesystem. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `file_id`, `local_path`, `export_format?` |
+| `download_folder` | Download all files in a Google Drive folder (non-recursive) to a local directory. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `folder_id`, `local_path`, `export_format?`, `mime_type_filter?`, `skip_if_exists?`, `progress_unit?` |
+| `sync_folder` | Sync files between a Google Drive folder and a local directory. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `folder_id`, `local_path`, `direction?`, `export_format?`, `convert_markdown?`, `use_checksum?`, `skip_system_files?`, `dry_run?`, `recursive?`, `result_local_path?`, `resolve?` |
 
 ## Drive — sharing
 
@@ -130,10 +130,10 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | Tool | Description | Key parameters |
 |---|---|---|
 | `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
-| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
+| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title?`, `folder_id?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
 | `get_doc_content` | Get the plain text content of a Google Doc. | `file_id`, `local_path?` |
 | `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
-| `update_doc_from_file` | Replace an existing Google Doc's content in place from a local .md or .html file. | `doc_id`, `local_path`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
+| `update_doc_from_file` | Replace an existing Google Doc's content in place from a local .md or .html file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `doc_id`, `local_path`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
 | `get_doc_structure` | Return the full structural map of a Google Doc body with element indices. | `doc_id` |
 | `find_in_doc` | Search a Google Doc's text and return match locations as document character offsets. | `doc_id`, `query`, `regex?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
@@ -141,7 +141,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `insert_page_break` | Insert an explicit page break at a specific index in a Google Doc. | `doc_id`, `index` |
 | `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at `index`. | `doc_id`, `index`, `lines`, `named_style_type?` |
 | `insert_inline_image` | Insert an inline image at a specific index in a Google Doc. | `doc_id`, `index`, `uri?`, `drive_file_id?`, `width?`, `height?`, `auto_downscale?` |
-| `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. | `doc_id`, `images`, `folder_id?`, `revoke_sharing?`, `auto_downscale?` |
+| `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `doc_id`, `images`, `folder_id?`, `revoke_sharing?`, `auto_downscale?` |
 | `insert_doc_table` | Insert an empty table at a specific position in a Google Doc. | `doc_id`, `index`, `rows`, `columns` |
 | `insert_table_row` | Insert a row into an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index`, `insert_below?` |
 | `delete_table_row` | Delete a row from an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index` |

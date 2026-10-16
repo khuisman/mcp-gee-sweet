@@ -40,7 +40,7 @@ def collect_tools():
     FastMCP one, so this script never touches the mcp/auth machinery."""
     captured = []
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured.append(func)
             return func

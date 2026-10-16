@@ -10,7 +10,7 @@ from mcp_gee_sweet.tools import docs as docs_module
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured[func.__name__] = func
             return func

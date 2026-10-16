@@ -289,3 +289,44 @@ A rename means the destination only ever holds the old content or the complete n
 
 **Workaround:** Re-apply ACLs, tags, or ownership after downloading, if they matter. Delete a
 leftover `.gee-sweet-partial-*` file once no download into that folder is running.
+
+## Local file access
+
+### `LOCAL_FILE_ACCESS=roots` checks a path before it's used, not as it's used
+
+**What:** A path is resolved, symlinks included, and checked against `LOCAL_FILE_ROOTS` just
+before the tool opens it. If a symlink inside a root is swapped to point outside it between
+that check and the open, the tool follows the new link.
+
+**Why:** Closing the gap fully means descriptor-relative I/O (`openat`) through every local
+read and write, which is out of proportion here. No tool can create a symlink (downloads write
+regular files and `sync_folder` never creates links), so a remote caller can't stage the swap.
+It takes a local user with write access inside a root.
+
+**Workaround:** Don't give untrusted local users write access to a directory listed in
+`LOCAL_FILE_ROOTS`.
+
+### `roots` mode can refuse a path spelled in a different case on macOS
+
+**What:** On a case-insensitive filesystem (macOS's default), a path whose directories are
+spelled with a different case than the configured root, such as `/Data/x.csv` under the root
+`/data`, can be refused even though it names a file inside the root.
+
+**Why:** Containment is a test on the resolved path's text, and resolving keeps the caller's
+spelling of existing directories. A case mismatch can therefore refuse a path inside a root,
+but never allows one outside it. The always-refused credential files are matched by file
+identity instead, so a case variant of one of them is still refused.
+
+**Workaround:** Spell paths with the same case as the `LOCAL_FILE_ROOTS` entry.
+
+### Only the server's own files are protected
+
+**What:** In every mode, tools can't read or write the server's own credential, config, cache,
+and log files. Any other secret is readable in `full` mode, or in `roots` mode when it's
+inside a root.
+
+**Why:** The server can't know which other files are sensitive. `roots` mode is how an
+operator limits tools to directories meant for them.
+
+**Workaround:** Use `LOCAL_FILE_ACCESS=roots` with roots that hold only files meant for the
+server.

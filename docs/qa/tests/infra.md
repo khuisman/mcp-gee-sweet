@@ -1397,3 +1397,120 @@ uvicorn 0.47.0, mcp 2.3.0, run through `uv run` (exit code 143 is uv forwarding 
 
 **Result (2026-10-10, PR #975 round 2 @ f5987b8, Sky) ✅ PASS**
 Same driver as round 1 (uvicorn 0.47.0, mcp 2.3.0, `uv run`). Steps 1–3 (three plain runs): `initialize` 200, `notifications/initialized` 202, `GET /mcp` 200. Each GET read to a clean EOF (0 bytes), and each log has the `#917` close line and none of the three error strings. The servers exited 0.60–0.61s after SIGTERM, with no listener left. Step 3 `--reload` run: `Started reloader process ... using StatReload`, the same `#917` close line, a clean EOF, and exit 0.76s (uvicorn's reloader exits 0). Extra check: touching `src/mcp_gee_sweet/sse_shutdown.py` under `--reload` logged `StatReload detected changes ... Reloading...` and started a new server process, so the reload works and isn't only a banner. Step 4: SDK session, 139 tools, no close line and no ASGI error, exit 0.23s. Step 5: `mcp-gee-sweet: unknown --transport 'websocket' (use stdio, sse, or streamable-http)`, exit 1, no traceback. Extra check: `--reload` with stdio logs `WARNING ... --reload applies only to the sse and streamable-http transports; ignoring it`. TC-I47 recheck: steps 1–2 once (`#868` drop line, clean EOF, exit 0.60s, port free).
+
+---
+
+### TC-I56: over SSE with `LOCAL_FILE_ACCESS` unset, local-only tools aren't registered and an optional `local_path` is refused before any fetch (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** #796's policy defaults to `off` under any network transport, because a network-facing server's caller isn't necessarily its operator. In `off` mode the nine tools that only work on local files aren't registered. Tools with an optional local path stay registered and refuse it at entry, before any Google API call, so a refused destination costs no fetch and never reports an unrelated API error first. Design: `docs/design/local-file-access-policy.md`.
+
+**Setup:** a checkout of this branch with working OAuth credentials in `src/mcp_gee_sweet/.env` (or `CREDENTIALS_PATH`/`TOKEN_PATH`). A spreadsheet ID the account can read (`QA_SPREADSHEET_ID`). Make sure `LOCAL_FILE_ACCESS` and `LOCAL_FILE_ROOTS` are unset in the environment *and* not set in `.env`. An empty scratch directory `<scratch>`.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free port>`. With the `mcp` SDK's `sse_client` + `ClientSession`:
+1. `initialize`, then `list_tools`
+2. `read_resource("server://auth-status")`
+3. `call_tool("get_sheet_data", {"spreadsheet_id": QA_SPREADSHEET_ID, "sheet": "Sheet1", "local_path": "<scratch>/out.json"})`
+4. `call_tool("get_sheet_data", {"spreadsheet_id": "not-a-real-id", "sheet": "Sheet1", "local_path": "<scratch>/out.json"})`
+5. `call_tool("create_doc", {"title": "TC-I56 image probe", "content": "Text\n\n![x](<scratch>/x.png)", "content_format": "markdown"})` after writing any small PNG to `<scratch>/x.png`
+
+**Checks**
+- 1: none of `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, `insert_local_images` is listed. `get_sheet_data`, `send_message`, `create_doc` are.
+- 2: `local_file_access` is `{"mode": "off", "explicit": false, "roots": [], "unregistered_tools": [<the nine names above, sorted>]}`
+- 3 and 4: both return an error whose text is exactly `local file access is disabled on this server: LOCAL_FILE_ACCESS is unset, which means off for the sse transport`. Step 4 does **not** report an HttpError 404, which proves the refusal comes before the fetch
+- 3, 4: `<scratch>` is still empty
+- 5: the doc is created with its text. The result's image outcome for `<scratch>/x.png` carries the same refusal text, and no file was uploaded to Drive for it
+
+**Cleanup:** `delete_file` the TC-I56 doc. SIGTERM the server.
+
+---
+
+### TC-I57: `LOCAL_FILE_ACCESS=roots` allows paths inside a root and refuses the rest, symlinks included (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** In `roots` mode a path is resolved, symlinks included, and must land under a `LOCAL_FILE_ROOTS` directory. The refusal lists the allowed directories so a caller can choose a valid path. During a folder walk each entry is checked, so a symlink inside a root that points outside it is refused while the rest of the walk continues.
+
+**Setup:** working OAuth credentials, a Drive scratch folder (`QA_SCRATCH_FOLDER_ID`). Local directories `<root>` and `<outside>` (siblings, not nested). Files: `<root>/ok.txt` (`fine`), `<outside>/secret.txt` (`secret`), and a symlink `<root>/escape.txt` → `<outside>/secret.txt`.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free port>`, `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=<root>`. With the SDK client:
+1. `list_tools`, then `read_resource("server://auth-status")`
+2. `call_tool("upload_local_file", {"local_path": "<root>/ok.txt", "parent_folder_id": QA_SCRATCH_FOLDER_ID, "skip_if_exists": false})`
+3. `call_tool("upload_local_file", {"local_path": "<outside>/secret.txt", "parent_folder_id": QA_SCRATCH_FOLDER_ID})`
+4. `call_tool("upload_local_file", {"local_path": "<root>/escape.txt", "parent_folder_id": QA_SCRATCH_FOLDER_ID})`
+5. `call_tool("upload_local_file", {"local_path": "<root>/../<outside basename>/secret.txt", "parent_folder_id": QA_SCRATCH_FOLDER_ID})`
+6. `call_tool("sync_folder", {"folder_id": QA_SCRATCH_FOLDER_ID, "local_path": "<root>", "direction": "upload", "dry_run": true})`
+7. `call_tool("upload_local_folder", {"local_path": "<root>", "parent_folder_id": QA_SCRATCH_FOLDER_ID, "skip_if_exists": false})`
+
+**Checks**
+- 1: all nine local-only tools are listed. `local_file_access` is `{"mode": "roots", "explicit": true, "roots": ["<root>"], "unregistered_tools": []}`
+- 2: succeeds, returning a `fileId`
+- 3, 4, 5: each fails with `<the path as passed> is outside this server's LOCAL_FILE_ROOTS. Allowed directories: <root>`, and no file is created in `QA_SCRATCH_FOLDER_ID` (check with `list_files`)
+- 6: `actions` has `escape.txt` with `action: "local_read_fail"` and a reason containing `outside this server's LOCAL_FILE_ROOTS`. `ok.txt` is planned normally
+- 7: `uploaded` is `["ok.txt"]` and `failed` has one entry, `escape.txt`, with the same refusal text. `secret` never appears in Drive
+
+**Cleanup:** `delete_file` every file the case created in `QA_SCRATCH_FOLDER_ID`. SIGTERM the server. Remove `<root>` and `<outside>`.
+
+---
+
+### TC-I58: the server's own credential files are refused in `full` mode too (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** In every mode, including stdio's default `full`, tools can't read or write the server's own `CREDENTIALS_PATH`, `TOKEN_PATH`, `SERVICE_ACCOUNT_PATH`, `.env`, ADC key files, cache DB, or log files. Files are matched by identity, so a hardlink or symlink to the token is refused too, and a write target that doesn't exist yet is still refused, so a download can't plant a token.
+
+**Setup:** a server whose `TOKEN_PATH` is a real OAuth token (a stdio server launched from this branch, e.g. via an MCP client config pointing at `uv run mcp-gee-sweet`). A Drive scratch folder holding a small text file named `token.json` (`QA_TOKEN_NAMED_FILE_ID`). A hardlink `<scratch>/innocent.json` to `TOKEN_PATH` (`ln <TOKEN_PATH> <scratch>/innocent.json`).
+
+**Action**
+1. `upload_local_file(local_path=<TOKEN_PATH>, parent_folder_id=QA_SCRATCH_FOLDER_ID)`
+2. `upload_local_file(local_path="<scratch>/innocent.json", parent_folder_id=QA_SCRATCH_FOLDER_ID)`
+3. `create_draft(to=<QA mailbox>, subject="TC-I58", body="x", attachments=[{"local_path": <TOKEN_PATH>}])`
+4. `download_file(file_id=QA_TOKEN_NAMED_FILE_ID, local_path=<directory containing TOKEN_PATH>)`
+5. `read_resource("server://auth-status")`
+
+**Checks**
+- 1–4: each fails with `<path> is one of this server's own credential, config, cache, or log files and can't be read by a tool` (`written` for step 4)
+- 1, 2: no file is created in `QA_SCRATCH_FOLDER_ID`. 3: no draft is created (check `list_messages` with `label_ids=["DRAFT"]`). 4: `TOKEN_PATH`'s content and mtime are unchanged
+- 5: `local_file_access` is `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`
+
+**Cleanup:** `rm <scratch>/innocent.json` (the hardlink, not the token). Leave `QA_TOKEN_NAMED_FILE_ID` for re-runs.
+
+---
+
+### TC-I59: an invalid local-file setting stops the server at startup with a one-line message (issue #796) ⚠️ local-filesystem
+
+**Background:** `LOCAL_FILE_ACCESS`/`LOCAL_FILE_ROOTS` are validated at import, so a misconfigured server never serves. A `LOCAL_FILE_ROOTS` set outside `roots` mode only warns. With `ENABLED_TOOLS` naming a local-only tool that `off` mode drops, the server warns which ones are missing and why.
+
+**Setup:** none beyond a checkout of this branch. No Google credentials are needed.
+
+**Action**
+Run each with `uv run mcp-gee-sweet --transport sse` and `HOST=127.0.0.1`, `PORT=<free port>`, stderr captured. Stop a server that starts with SIGTERM after 3 seconds.
+1. `LOCAL_FILE_ACCESS=everything`
+2. `LOCAL_FILE_ACCESS=roots` with `LOCAL_FILE_ROOTS` unset
+3. `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=/no/such/dir`
+4. `LOCAL_FILE_ACCESS=full`, `LOCAL_FILE_ROOTS=/tmp`
+5. `LOCAL_FILE_ACCESS=off`, `ENABLED_TOOLS=sync_folder,get_sheet_data`
+
+**Checks**
+- 1: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ACCESS='everything' isn't valid (use full, roots, or off)` and no traceback
+- 2: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ACCESS=roots needs LOCAL_FILE_ROOTS, a ':'-separated list of directories`
+- 3: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ROOTS entry '/no/such/dir' isn't an existing directory`
+- 4: starts; stderr has `LOCAL_FILE_ROOTS is set but ignored: it applies only when LOCAL_FILE_ACCESS=roots`
+- 5: starts; stderr has `LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: sync_folder`, and an SDK `list_tools` returns only `get_sheet_data`
+
+**Cleanup:** SIGKILL any server still running.
+
+---
+
+### TC-I60: an HTTP request reaching a defaulted `full` policy is refused (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** The transport default is read from `--transport` on the command line. A server served some other way, such as `uvicorn mcp_gee_sweet.server:app` directly, has no `--transport`, so it resolves to stdio's default `full` while actually serving SSE. `_timed` marks every call that arrives over HTTP, and the policy then refuses all local access unless `LOCAL_FILE_ACCESS` was set explicitly, logging one warning. The local-only tools are registered in that launch, but every call they make is refused.
+
+**Setup:** working OAuth credentials (a call needs Google services to reach the tool body). A scratch file `<scratch>/a.txt`. `LOCAL_FILE_ACCESS` unset in the environment and in `.env`.
+
+**Action**
+1. Start `uv run uvicorn mcp_gee_sweet.server:app --host 127.0.0.1 --port <free port>`. With the SDK's `sse_client`: `list_tools`, then `call_tool("upload_local_file", {"local_path": "<scratch>/a.txt", "parent_folder_id": QA_SCRATCH_FOLDER_ID})` twice. SIGTERM the server
+2. Same with `LOCAL_FILE_ACCESS=full` set, calling `upload_local_file` once
+
+**Checks**
+- 1: `upload_local_file` is listed. Both calls fail with `local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly`, nothing is uploaded, and the server log has exactly one `Refusing local file access for an HTTP request` warning
+- 2: the upload succeeds (an explicit `full` over HTTP is the operator's choice)
+
+**Cleanup:** `delete_file` the step-2 upload. SIGTERM the server.

@@ -17,6 +17,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
+from ...local_files import LocalFileAccessError, check_read, check_write
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
@@ -404,6 +405,22 @@ def _unsafe_name_step(
     return _SyncStep(name=name, action="unsafe_name", reason=f"{reason}; not synced")
 
 
+def _sync_policy_refusal(local: Path, in_drive: bool, in_local: bool, direction: str) -> str | None:
+    """Why the local-file policy refuses `local`, a file or subfolder sync_folder
+    would act on, or None (#796). Checked per entry, not just at the root: a
+    symlink inside the sync directory can point anywhere. A name on one side only
+    that this direction never acts on is never touched, so it isn't checked."""
+    if in_drive and not in_local and direction == "upload":
+        return None
+    if in_local and not in_drive and direction == "download":
+        return None
+    try:
+        (check_read if direction == "upload" else check_write)(local)
+    except LocalFileAccessError as e:
+        return f"{e}; not synced"
+    return None
+
+
 def _local_mtime_dt(path: Path, st: os.stat_result | None = None) -> datetime:
     """A local file's mtime as an aware UTC datetime. The one place that reads
     it, so sync_folder's mtime comparison and every modifiedTime value this
@@ -719,11 +736,13 @@ async def _upload_local_file(
     upload_file's convert_to_doc param implements the identical trick for raw
     text/markdown/html content instead of a local file — see _GOOGLE_DOC_MIME
     above, shared by both so they can't drift apart on the target mimeType (#412)."""
-    path = Path(local_path)
+    # Before any stat, so a refused path reads the same whether or not it exists.
+    path = check_read(local_path)
     if not path.is_file():
         raise ValueError(f"No file found at {local_path!r}")
 
-    file_name = name or path.name
+    # The caller's own name, not the resolved one: a symlink keeps its link name.
+    file_name = name or Path(local_path).name
 
     convert_mime: tuple[str, str] | None = None
     if convert:
@@ -831,7 +850,7 @@ async def _upload_local_file(
                 **metadata["properties"],
                 **_converted_md_upload_properties(lmtime),
             }
-        media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
+        media = MediaFileUpload(str(path), mimetype=mime, resumable=True)
         result = await execute_in_thread(
             drive_service.files()
             .create(
@@ -1571,6 +1590,11 @@ async def _sync_level(
             continue
         in_drive = name in drive_map
         in_local = name in local_map
+        if refusal := _sync_policy_refusal(
+            local_map.get(name, dest_dir / name), in_drive, in_local, direction
+        ):
+            plan.append(_SyncStep(name=name, action="local_read_fail", reason=refusal))
+            continue
 
         if in_drive and not in_local:
             if direction not in ("download", "bidirectional"):
@@ -2011,6 +2035,8 @@ async def _sync_level(
                     # Inside the try: the file can vanish or become unreadable
                     # between the scan and here, and that must land as this
                     # item's upload_fail, not escape the gather (PR #817 QA).
+                    # The plan checked this path; checked again at use (#796).
+                    check_read(p)
                     lmtime = _local_mtime_dt(p)
                     lmtime_str = _drive_time_str(lmtime)
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
@@ -2193,6 +2219,8 @@ async def _sync_level(
                 # The plan already routed unsafe names to 'unsafe_name'; this is
                 # the shared backstop, and a refusal lands as download_fail.
                 dest_file = _safe_local_dest(dest_dir, name, resolved_dest_dir)
+                # The plan checked this path; checked again at use (#796).
+                check_write(dest_file)
                 # Before any export or download, so a directory or FIFO at the
                 # destination fails without the round trip (PR #1001 QA round 1).
                 _check_destination(dest_file)
@@ -2366,6 +2394,15 @@ async def _sync_level(
                     )
                 else:
                     failed.append({"name": child_rel_prefix, "error": step.reason})
+                continue
+            if refusal := _sync_policy_refusal(child_dest_dir, in_drive, in_local, direction):
+                # Never descended into: a symlinked subfolder can lead outside a root.
+                if dry_run:
+                    actions.append(
+                        {"name": child_rel_prefix, "action": "local_read_fail", "reason": refusal}
+                    )
+                else:
+                    failed.append({"name": child_rel_prefix, "error": refusal})
                 continue
 
             if in_drive and in_local:
@@ -2735,6 +2772,9 @@ def register(tool):
             be a Shared Drive: that drive's members can open the copy while the
             export runs.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
@@ -2930,7 +2970,10 @@ def register(tool):
             "web_link": result.get("webViewLink"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Upload Local File", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Upload Local File", destructiveHint=True),
+        local_only=True,
+    )
     async def upload_local_file(
         local_path: str,
         parent_folder_id: str,
@@ -2942,6 +2985,7 @@ def register(tool):
         """
         Upload a file from the local filesystem to a Google Drive folder.
         Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.).
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Args:
             local_path: Absolute path to the local file to upload.
@@ -3004,7 +3048,10 @@ def register(tool):
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
         return result
 
-    @tool(annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True),
+        local_only=True,
+    )
     async def upload_local_folder(
         local_path: str,
         parent_folder_id: str,
@@ -3015,6 +3062,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Upload all files in a local directory (non-recursive) to a Google Drive folder.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Args:
             local_path: Absolute path to the local directory.
@@ -3054,10 +3102,12 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        folder = Path(local_path)
+        folder = check_read(local_path)
         if not folder.is_dir():
             raise ValueError(f"No directory found at {local_path!r}")
 
+        # Each file gets its own check in _upload_local_file: a symlink inside the
+        # folder can point anywhere (#796).
         files = [p for p in folder.iterdir() if p.is_file()]
         # A download's temp file is never uploaded, but it's listed under
         # 'skipped' so it doesn't go unnoticed (#887).
@@ -3216,7 +3266,10 @@ def register(tool):
             "failed": failed,
         }
 
-    @tool(annotations=ToolAnnotations(title="Download File", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Download File", readOnlyHint=True),
+        local_only=True,
+    )
     async def download_file(
         file_id: str,
         local_path: str,
@@ -3225,6 +3278,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Download a file from Google Drive to the local filesystem.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         For non-Google files the raw content is downloaded. For Google Workspace
         files (Docs, Sheets, Slides) an export_format is required to convert the
@@ -3258,6 +3312,8 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
+        # Before validate_local_destination, which stats the parents (#796).
+        check_write(local_path)
         dest, wants_dir = validate_local_destination(local_path)
 
         metadata = await execute_in_thread(
@@ -3295,6 +3351,8 @@ def register(tool):
                 ) from None
             target_dir = dest
             dest = target
+            # The joined file is its own target: a symlink there can point anywhere.
+            check_write(dest)
         else:
             target_dir = dest.parent
 
@@ -3333,7 +3391,10 @@ def register(tool):
         logger.debug("Downloaded %s → %s (%d bytes)", file_id, dest, size)
         return {"local_path": str(dest), "name": drive_name, "size_bytes": size}
 
-    @tool(annotations=ToolAnnotations(title="Download Folder", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Download Folder", readOnlyHint=True),
+        local_only=True,
+    )
     async def download_folder(
         folder_id: str,
         local_path: str,
@@ -3345,6 +3406,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Download all files in a Google Drive folder (non-recursive) to a local directory.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         For non-Google files the raw content is downloaded. Google Workspace files
         are skipped unless export_format is provided, in which case they are exported
@@ -3390,6 +3452,7 @@ def register(tool):
             plus total 'size_bytes' downloaded.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
+        check_write(local_path)
         dest_dir, _ = validate_local_destination(local_path, is_dir=True)
         resolved_dest_dir = dest_dir.resolve()
 
@@ -3454,6 +3517,12 @@ def register(tool):
                 failed.append(
                     {"name": fname, "error": f"{fname!r} can't be used as a local filename: {e}"}
                 )
+                continue
+            try:
+                # A symlink already in the destination can point anywhere (#796).
+                check_write(dest_file)
+            except LocalFileAccessError as e:
+                failed.append({"name": fname, "error": str(e)})
                 continue
 
             if skip_if_exists and dest_file.exists():
@@ -3621,7 +3690,10 @@ def register(tool):
             "size_bytes": total_bytes,
         }
 
-    @tool(annotations=ToolAnnotations(title="Sync Folder", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Sync Folder", destructiveHint=True),
+        local_only=True,
+    )
     async def sync_folder(
         folder_id: str,
         local_path: str,
@@ -3638,6 +3710,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Sync files between a Google Drive folder and a local directory.
+        Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         ## Sync logic
 
@@ -3912,9 +3985,13 @@ def register(tool):
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
+        # The root here; each entry again in _sync_level, since a symlink inside it
+        # can point anywhere (#796).
+        (check_read if direction == "upload" else check_write)(local_path)
         dest_dir, _ = validate_local_destination(local_path, is_dir=True)
 
         if result_local_path:
+            check_write(result_local_path)
             # Before any transfer: a bad destination would otherwise fail only at the
             # final manifest write, after every upload/download had already run, and
             # the caller would get no record of them (PR #1000 QA round 1). Before

@@ -4,6 +4,8 @@ import importlib.metadata
 import inspect
 import json
 import logging
+import os
+import subprocess
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -18,10 +20,11 @@ from httplib2 import Response
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError, UnexpectedToolError
 from pydantic import ValidationError
+from starlette.requests import Request
 from uvicorn.importer import import_from_string
 
 from mcp_gee_sweet import auth as auth_module
-from mcp_gee_sweet import server
+from mcp_gee_sweet import local_files, server
 from mcp_gee_sweet.server import (
     _auth_status_json,
     _parse_enabled_tools,
@@ -34,6 +37,8 @@ from mcp_gee_sweet.server import (
     tool,
 )
 from mcp_gee_sweet.sse_shutdown import SingleResponseGuard
+
+from .fakes import use_local_file_policy
 
 
 def _http_error(status: int, message: str) -> HttpError:
@@ -945,3 +950,233 @@ class TestToolStrictArgs:
         registered = mcp._tool_manager.get_tool("list_sheets")
         result = registered.fn_metadata.arg_model.model_validate({"spreadsheet_id": "abc123"})
         assert result.spreadsheet_id == "abc123"
+
+
+# The tools that take local paths, and where each one's local-file policy check
+# lives (#796, docs/design/local-file-access-policy.md §5). A new tool with a
+# local-path parameter fails TestLocalPathToolsAreCovered until it's added here,
+# with its check in place.
+_LOCAL_ONLY_TOOLS = {
+    "create_doc_from_file",
+    "download_file",
+    "download_folder",
+    "import_csv_to_sheet",
+    "insert_local_images",
+    "sync_folder",
+    "update_doc_from_file",
+    "upload_local_file",
+    "upload_local_folder",
+}
+_OPTIONAL_LOCAL_PATH_TOOLS = {
+    # response_limits.write_capped_result_to_disk
+    "export_revision",
+    "find_in_doc",
+    "find_in_spreadsheet",
+    "get_doc_as_markdown",
+    "get_doc_content",
+    "get_message",
+    "get_multiple_sheet_data",
+    "get_multiple_spreadsheet_summary",
+    "get_sheet_data",
+    "get_thread",
+    # gmail._read_attachment_bytes
+    "create_draft",
+    "send_message",
+    # content._resolve_image_source (Markdown/HTML image sources)
+    "create_doc",
+    "write_doc_content",
+}
+_LOCAL_PATH_PARAMS = {"local_path", "result_local_path", "attachments", "images"}
+
+
+def _captured_registrations():
+    """Every tool function with the local_only flag its decorator passed."""
+    from mcp_gee_sweet.tools import register_all
+
+    captured = {}
+
+    def capture(annotations=None, local_only=False):
+        def decorator(func):
+            captured[func.__name__] = (func, local_only)
+            return func
+
+        return decorator
+
+    register_all(capture)
+    return captured
+
+
+class TestLocalOnlyRegistration:
+    """#796: LOCAL_FILE_ACCESS=off doesn't register tools that can only work on
+    local files."""
+
+    def test_exactly_the_local_only_tools_are_flagged(self):
+        flagged = {name for name, (_, flag) in _captured_registrations().items() if flag}
+        assert flagged == _LOCAL_ONLY_TOOLS
+
+    def test_off_mode_skips_a_local_only_tool(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="off")
+        dropped: list[str] = []
+        monkeypatch.setattr(server, "_unregistered_local_only_tools", dropped)
+        monkeypatch.setattr(server, "ENABLED_TOOLS", None)
+        fake_mcp = MagicMock()
+        monkeypatch.setattr(server, "mcp", fake_mcp)
+
+        async def sync_folder():
+            pass
+
+        assert tool(local_only=True)(sync_folder) is sync_folder
+        fake_mcp.tool.assert_not_called()
+        assert dropped == ["sync_folder"]
+
+    def test_enabled_tools_filter_wins_before_the_policy(self, monkeypatch):
+        # A tool ENABLED_TOOLS already leaves out isn't one "the policy dropped".
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="off")
+        dropped: list[str] = []
+        monkeypatch.setattr(server, "_unregistered_local_only_tools", dropped)
+        monkeypatch.setattr(server, "ENABLED_TOOLS", {"get_sheet_data"})
+
+        async def sync_folder():
+            pass
+
+        tool(local_only=True)(sync_folder)
+        assert dropped == []
+
+    def test_full_mode_registers_every_local_only_tool(self):
+        # The test process runs with the stdio default, full.
+        registered = {t.name for t in mcp._tool_manager.list_tools()}
+        assert registered >= _LOCAL_ONLY_TOOLS
+
+
+def _import_server_in_subprocess(argv: list[str], env: dict[str, str]):
+    """Import mcp_gee_sweet.server in a fresh interpreter, as a launch with `argv`
+    would, and return (registered tool names, stderr). The policy and registration
+    both happen at import, so only a fresh process exercises them for real."""
+    code = (
+        "import json, sys\n"
+        f"sys.argv = {argv!r}\n"
+        "from mcp_gee_sweet import server\n"
+        "print(json.dumps(sorted(t.name for t in server.mcp._tool_manager.list_tools())))\n"
+    )
+    full_env = {
+        k: v for k, v in os.environ.items() if k not in ("LOCAL_FILE_ACCESS", "ENABLED_TOOLS")
+    }
+    full_env.update(env)
+    proc = subprocess.run(
+        [sys.executable, "-c", code], env=full_env, capture_output=True, text=True, timeout=120
+    )
+    assert proc.returncode == 0, proc.stderr
+    return set(json.loads(proc.stdout.strip().splitlines()[-1])), proc.stderr
+
+
+class TestLocalFilePolicyAtImport:
+    def test_sse_default_leaves_local_only_tools_unregistered(self):
+        names, _ = _import_server_in_subprocess(["mcp-gee-sweet", "--transport", "sse"], {})
+        assert not (names & _LOCAL_ONLY_TOOLS)
+        # Tools with only an optional local path stay registered.
+        assert {"get_sheet_data", "send_message", "create_doc"} <= names
+
+    def test_explicit_full_under_sse_registers_them(self):
+        names, _ = _import_server_in_subprocess(
+            ["mcp-gee-sweet", "--transport", "sse"], {"LOCAL_FILE_ACCESS": "full"}
+        )
+        assert names >= _LOCAL_ONLY_TOOLS
+
+    def test_enabled_tools_naming_a_dropped_tool_warns(self):
+        names, stderr = _import_server_in_subprocess(
+            ["mcp-gee-sweet"],
+            {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "sync_folder,get_sheet_data"},
+        )
+        assert names == {"get_sheet_data"}
+        assert "not registering local-only tools named in ENABLED_TOOLS: sync_folder" in stderr
+
+
+class TestLocalPathToolsAreCovered:
+    """A guard: every tool that takes a local path is one whose policy check is
+    placed (#796). A new one fails here until someone decides where its check goes."""
+
+    def test_every_local_path_tool_is_accounted_for(self):
+        takes_local_path = {
+            name
+            for name, (func, _) in _captured_registrations().items()
+            if _LOCAL_PATH_PARAMS & set(inspect.signature(func).parameters)
+        }
+        # create_doc / write_doc_content take local image paths inside their content.
+        assert takes_local_path | {"create_doc", "write_doc_content"} == (
+            _LOCAL_ONLY_TOOLS | _OPTIONAL_LOCAL_PATH_TOOLS
+        )
+
+
+class TestAuthStatusLocalFileAccess:
+    """#796 §9: server://auth-status reports the local-file policy."""
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("oauth", False, None, None),
+            ("service_account", True, None, None),
+            ("none", False, None, "no usable token"),
+        ],
+    )
+    def test_present_in_every_branch(self, monkeypatch, args):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        monkeypatch.setattr(server, "_unregistered_local_only_tools", [])
+        status = json.loads(_auth_status_json(*args))
+        assert status["local_file_access"] == {
+            "mode": "full",
+            "explicit": True,
+            "roots": [],
+            "unregistered_tools": [],
+        }
+
+    def test_roots_mode_lists_roots(self, monkeypatch, tmp_path):
+        use_local_file_policy(
+            monkeypatch, LOCAL_FILE_ACCESS="roots", LOCAL_FILE_ROOTS=str(tmp_path)
+        )
+        status = json.loads(_auth_status_json("oauth"))
+        assert status["local_file_access"]["mode"] == "roots"
+        assert status["local_file_access"]["roots"] == [str(tmp_path)]
+
+    def test_off_mode_lists_unregistered_tools(self, monkeypatch):
+        monkeypatch.setattr(
+            local_files, "POLICY", local_files.resolve_policy({}, ["x", "--transport", "sse"])
+        )
+        monkeypatch.setattr(
+            server, "_unregistered_local_only_tools", ["sync_folder", "download_file"]
+        )
+        status = json.loads(_auth_status_json("oauth"))
+        assert status["local_file_access"] == {
+            "mode": "off",
+            "explicit": False,
+            "roots": [],
+            "unregistered_tools": ["download_file", "sync_folder"],
+        }
+
+
+class TestTimedMarksHttpRequests:
+    """#796 §2: _timed tells the local-file policy whether a call came over HTTP."""
+
+    @staticmethod
+    def _ctx(request):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.unauthorized_message = None
+        ctx.request_context.request = request
+        return ctx
+
+    async def _seen(self, request):
+        @_timed
+        async def some_tool(**kwargs):
+            return local_files.request_over_http.get()
+
+        return await some_tool(ctx=self._ctx(request))
+
+    async def test_starlette_request_is_http(self):
+        request = Request({"type": "http", "headers": [], "client": ("1.2.3.4", 1)})
+        assert await self._seen(request) is True
+
+    async def test_stdio_has_no_request(self):
+        assert await self._seen(None) is False
+
+    async def test_reset_after_the_call(self):
+        await self._seen(Request({"type": "http", "headers": []}))
+        assert local_files.request_over_http.get() is False

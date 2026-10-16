@@ -64,7 +64,7 @@ _TOOLS = ["insert_local_images", "write_doc_content"]
 def _register_tools() -> dict:
     captured = {}
 
-    def tool(annotations=None):
+    def tool(annotations=None, local_only=False):
         def decorator(func):
             captured[func.__name__] = func
             return func

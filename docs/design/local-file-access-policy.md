@@ -219,6 +219,16 @@ Unit tests only for the policy itself; it has no Google API surface.
 
 Live QA: the policy makes no Google API calls of its own, so live QA is limited to confirming the real launch paths. One stdio and one SSE subprocess run through `tests/integration/` (`decision-local-fs-test-harness.md`): under SSE with no setting, `sync_folder` is absent from `tools/list`; with `LOCAL_FILE_ACCESS=roots`, `upload_local_file` works inside the root and is refused outside it.
 
+## As implemented
+
+Where the implementation goes beyond the design above:
+
+- **The `off` refusal says why when the mode was defaulted.** An explicit `off` reads as in §3. A defaulted one reads `local file access is disabled on this server: LOCAL_FILE_ACCESS is unset, which means off for the <transport> transport`, since `(LOCAL_FILE_ACCESS=off)` would name a setting the operator never made. The deny-list message ends `can't be read by a tool` or `can't be written by a tool`, depending on the operation.
+- **An optional `local_path` is also checked at the tool's entry.** A live SSE run showed `get_sheet_data(local_path=...)` in `off` mode fetching first: a bad spreadsheet ID reported its 404 instead of the refusal, and a good one paid for a fetch it would then refuse to write. The ten tools with an optional `local_path` now call `check_write` before any API call. `write_capped_result_to_disk` keeps its own check as the backstop.
+- **`sync_folder` checks a download's target even when nothing exists locally.** §6 checks each local entry; a Drive-only file is checked at the path it would be written to, so a Drive file named `token.json` can't plant a token in the directory holding `TOKEN_PATH`. A name on one side only that the direction never touches (local-only under `download`, Drive-only under `upload`) is planned as the usual skip without a check (`_sync_policy_refusal`), the way `_unsafe_name_step` treats an unsafe name.
+- **The docstring note joins each local-only tool's first paragraph.** `gen_tool_docs.py` takes only the first paragraph, so a separate one wouldn't have reached `docs/tools.md`.
+- **No CHANGELOG entry.** `CHANGELOG.md` stops at 0.8.1, so the breaking default for network transports goes in the PR body for the release notes instead.
+
 ## Known limitations
 
 - **Check-then-use race.** A symlink swapped between the check and the `open` defeats `roots`. A remote caller can't create symlinks through any tool (downloads write regular files and `sync_folder` never creates links), so exploiting it needs a local actor with write access inside a root. Closing it fully would mean `openat`-style descriptor-relative I/O through every site, which is out of proportion here.

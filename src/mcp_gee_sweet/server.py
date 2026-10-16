@@ -80,8 +80,9 @@ from mcp import UrlElicitationRequiredError  # noqa: E402
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
+from starlette.requests import Request  # noqa: E402
 
-from . import reauth  # noqa: E402
+from . import local_files, reauth  # noqa: E402
 from .auth import (  # noqa: E402
     MissingOAuthScopesError,
     execute_in_thread,
@@ -238,6 +239,10 @@ def _timed(func):
     async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
+        # A Starlette Request under SSE and streamable HTTP, None under stdio: the
+        # local-file policy's tripwire for a defaulted `full` served over HTTP (#796).
+        request = getattr(getattr(kwargs.get("ctx"), "request_context", None), "request", None)
+        over_http = local_files.request_over_http.set(isinstance(request, Request))
         try:
             return await _run_tracking_reauth(func, args, kwargs)
         except UrlElicitationRequiredError:
@@ -257,6 +262,7 @@ def _timed(func):
             error, status = visible
             raise error from e
         finally:
+            local_files.request_over_http.reset(over_http)
             elapsed = time.perf_counter() - start
             ctx = kwargs.get("ctx")
             req = getattr(ctx, "request_context", None)
@@ -294,21 +300,31 @@ def _enforce_strict_tool_args(tool_name: str) -> None:
 # Modules that registered at least one tool, so auth can request a domain's scopes
 # only when that domain has a registered tool (#790).
 _registered_tool_modules: set[str] = set()
+# Local-only tools that LOCAL_FILE_ACCESS=off kept from registering, though
+# ENABLED_TOOLS would have allowed them (#796). Reported by server://auth-status.
+_unregistered_local_only_tools: list[str] = []
 
 
-def tool(annotations: ToolAnnotations | None = None):
+def tool(annotations: ToolAnnotations | None = None, *, local_only: bool = False):
+    """Register a tool unless ENABLED_TOOLS leaves it out. `local_only` marks a tool
+    that can only work on local files, which LOCAL_FILE_ACCESS=off doesn't register;
+    it's set at the tool's own decorator so a rename can't drop it from a list."""
+
     def decorator(func):
         tool_name = func.__name__
-        if ENABLED_TOOLS is None or tool_name in ENABLED_TOOLS:
-            _registered_tool_modules.add(func.__module__)
-            timed = _timed(func)
-            if annotations:
-                mcp.tool(annotations=annotations)(timed)
-            else:
-                mcp.tool()(timed)
-            _enforce_strict_tool_args(tool_name)
-            return timed
-        return func
+        if ENABLED_TOOLS is not None and tool_name not in ENABLED_TOOLS:
+            return func
+        if local_only and not local_files.registers_local_only_tools():
+            _unregistered_local_only_tools.append(tool_name)
+            return func
+        _registered_tool_modules.add(func.__module__)
+        timed = _timed(func)
+        if annotations:
+            mcp.tool(annotations=annotations)(timed)
+        else:
+            mcp.tool()(timed)
+        _enforce_strict_tool_args(tool_name)
+        return timed
 
     return decorator
 
@@ -318,6 +334,12 @@ from .tools import gmail as _gmail_tools  # noqa: E402
 from .tools import register_all  # noqa: E402
 
 register_all(tool)
+if ENABLED_TOOLS is not None and _unregistered_local_only_tools:
+    # An operator who named these in ENABLED_TOOLS should learn why they're missing.
+    logger.warning(
+        "LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: %s",
+        ", ".join(sorted(_unregistered_local_only_tools)),
+    )
 # Runs before the lifespan (i.e. before auth), so Gmail's mailbox scope is only
 # requested when an ENABLED_TOOLS filter leaves at least one Gmail tool in (#790).
 set_gmail_enabled(_gmail_tools.__name__ in _registered_tool_modules)
@@ -412,6 +434,19 @@ def _sa_limitations_for(auth_method: str) -> list[dict]:
     return adjusted
 
 
+def _local_file_access_status() -> dict:
+    """The local-file policy as server://auth-status reports it (#796). `explicit`
+    false with mode "full" means a defaulted stdio policy, which an HTTP request's
+    tool call refuses anyway; this static resource can't see the reading request."""
+    policy = local_files.POLICY
+    return {
+        "mode": policy.mode.value,
+        "explicit": policy.explicit,
+        "roots": [spelling for spelling, _ in policy.roots],
+        "unregistered_tools": sorted(_unregistered_local_only_tools),
+    }
+
+
 def _auth_status_json(
     auth_method: str,
     is_service_account_identity: bool = False,
@@ -436,12 +471,14 @@ def _auth_status_json(
     exact same Drive limitations as `auth_method == "service_account"`, even though
     the auth *method* used to reach it was ADC.
     """
+    local_file_access = _local_file_access_status()
     if oauth_unauthorized:
         return json.dumps(
             {
                 "auth_method": auth_method,
                 "is_service_account_identity": False,
                 "can_create_in_personal_drive": False,
+                "local_file_access": local_file_access,
                 "limited_tools": ["*"],
                 "limitations": [
                     {
@@ -463,6 +500,7 @@ def _auth_status_json(
                 "auth_method": auth_method,
                 "is_service_account_identity": True,
                 "can_create_in_personal_drive": False,
+                "local_file_access": local_file_access,
                 "limited_tools": [t for lim in limitations for t in lim["tools"]],
                 "limitations": limitations,
             },
@@ -485,6 +523,7 @@ def _auth_status_json(
             "auth_method": auth_method,
             "is_service_account_identity": False,
             "can_create_in_personal_drive": True,
+            "local_file_access": local_file_access,
             "limited_tools": [t for lim in limitations for t in lim["tools"]],
             "limitations": limitations,
         },
@@ -499,6 +538,9 @@ def get_auth_status() -> str:
 
     Returns a JSON summary of the active auth method and which tools are
     restricted. Useful for deciding which tools to attempt before calling them.
+    `local_file_access` gives the LOCAL_FILE_ACCESS policy: its mode, whether it
+    was set explicitly, the allowed directories in roots mode, and the local-only
+    tools off mode left unregistered.
     """
     # mcp v2 dropped get_context() with no replacement for a static (non-templated)
     # resource — Context injection isn't supported there at all (confirmed live
@@ -639,13 +681,9 @@ def main():
     else:
         logger.debug("Tool filtering disabled. All tools are enabled.")
 
-    transport = "stdio"
-    reload = False
-    for i, arg in enumerate(sys.argv):
-        if arg == "--transport" and i + 1 < len(sys.argv):
-            transport = sys.argv[i + 1]
-        if arg == "--reload":
-            reload = True
+    # The same parse the local-file policy made at import, so they agree (#796).
+    transport = local_files.cli_transport(sys.argv)
+    reload = "--reload" in sys.argv
 
     if transport not in ("stdio", "sse", "streamable-http"):
         sys.exit(

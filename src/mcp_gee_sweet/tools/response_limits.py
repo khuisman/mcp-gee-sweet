@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .. import local_files
 from .atomic_write import _check_destination, _is_partial_download, _write_atomically
 
 # See docs/decisions/decision-grid-data-size-cap.md,
@@ -79,10 +80,11 @@ def _over_cap_error(
     local_path_available: bool,
     local_path_param: str,
 ) -> ValueError:
+    # Not offered when this server's LOCAL_FILE_ACCESS policy would refuse it (#796).
     local_path_clause = (
         f"Pass {local_path_param} to write the result to disk instead of returning it "
         "inline (bypasses this cap), or set"
-        if local_path_available
+        if local_path_available and local_files.local_paths_usable()
         else "set"
     )
     return ValueError(
@@ -232,10 +234,15 @@ async def write_capped_result_to_disk(
     event loop for however long a large write takes.
     """
 
+    # On the loop, before anything stats the path (#796).
+    local_files.check_write(local_path)
+
     def _write() -> tuple[Path, int]:
         dest, wants_dir = validate_local_destination(local_path, local_path_param=local_path_param)
         if wants_dir or dest.is_dir():
             dest = dest / _safe_filename(default_filename)
+            # default_filename changes the target, so the joined file is checked too.
+            local_files.check_write(dest)
             if _is_dangling_symlink(dest):
                 raise _blocked_destination_error(
                     local_path, dest, local_path_param=local_path_param

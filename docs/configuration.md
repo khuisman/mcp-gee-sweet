@@ -13,6 +13,8 @@
 | `OAUTH_CONSENT_TIMEOUT_SECONDS` | SSE only: how long the server waits for the browser consent when there's no usable OAuth token, before starting without Google access. See [Authentication](auth.md) | `300` |
 | `CREDENTIALS_CONFIG` | Base64-encoded credentials JSON (for containers) | — |
 | `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
+| `LOCAL_FILE_ACCESS` | Which local files tools may read and write: `full`, `roots`, or `off`. See [Local file access](#local-file-access) | `full` under stdio, `off` under SSE and streamable HTTP |
+| `LOCAL_FILE_ROOTS` | With `LOCAL_FILE_ACCESS=roots`, the directories tools may use, separated by `:` (`;` on Windows), like `PATH` | — |
 | `CACHE_DB_PATH` | Path to the SQLite cache database | `/tmp/mcp_gee_sweet.db` |
 | `CACHE_TTL` | Cache time-to-live in seconds. Also adjustable at runtime via the `set_cache_ttl` tool, no restart needed | `1800` (30 min) |
 | `CACHE_VALIDATE_MODIFIED_TIME` | Validate sheet/doc cache hits against Drive's `modifiedTime` before serving them, catching edits from other sessions without waiting out the TTL. Costs one extra Drive API call per cache lookup | `true` |
@@ -112,6 +114,39 @@ list_messages,get_message,list_threads,get_thread,list_labels,send_message,creat
 ```
 
 See [Tools](tools.md) for the full list of tool names.
+
+## Local file access
+
+Some tools read or write files on the machine the server runs on: uploads, downloads, `sync_folder`, `create_doc_from_file`, Gmail attachments, local images in Markdown, and the `local_path` destination that large results can be written to. `LOCAL_FILE_ACCESS` decides which files they may use:
+
+| Mode | What tools may use |
+|---|---|
+| `full` | Any local path the server process can open |
+| `roots` | Only paths under a directory listed in `LOCAL_FILE_ROOTS`. Paths are resolved first, symlinks included, so a link inside a root that points outside it is refused |
+| `off` | No local files |
+
+**Default:** `full` under stdio, where the caller is the person running the server, and `off` under SSE and streamable HTTP, where it may not be. A network-facing server that should use local files needs `LOCAL_FILE_ACCESS` set explicitly.
+
+**Always refused, in every mode:** the server's own credential, config, cache, and log files. That's `CREDENTIALS_PATH`, `TOKEN_PATH`, `SERVICE_ACCOUNT_PATH`, `GOOGLE_APPLICATION_CREDENTIALS`, gcloud's default ADC file, `src/mcp_gee_sweet/.env`, `CACHE_DB_PATH` (and its `-wal`/`-shm` files), `LOG_FILE`, and `ACCESS_LOG_FILE`. A file is matched by identity, so a hardlink or a differently cased path to one of them is refused too.
+
+**In `off` mode** these tools aren't registered, since they can only work on local files: `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, and `insert_local_images`. Tools with an optional local path stay registered and return an error if one is used. That covers `local_path` on large-result tools, Gmail's `attachments[].local_path` (`content_base64` still works), and local image paths in `create_doc`/`write_doc_content` content, which fail per image while the doc is still written.
+
+During a folder walk (`upload_local_folder`, `download_folder`, `sync_folder`), each file and subfolder is checked, not just the top directory. A refused entry is listed under `failed`, and the rest of the walk continues.
+
+`server://auth-status` reports the active policy under `local_file_access`: its `mode`, whether it was set `explicit`ly, the `roots` in `roots` mode, and the `unregistered_tools` that `off` mode left out.
+
+Docker example, with the host's `./data` directory as the only one tools may use:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -v "$PWD/data:/data" \
+  -e LOCAL_FILE_ACCESS=roots \
+  -e LOCAL_FILE_ROOTS=/data \
+  -e CREDENTIALS_CONFIG=<base64> \
+  mcp-gee-sweet
+```
+
+An invalid `LOCAL_FILE_ACCESS` value, `roots` mode without `LOCAL_FILE_ROOTS`, or a root that isn't an existing directory stops the server at startup. Design: [local-file-access-policy.md](design/local-file-access-policy.md).
 
 ## Caching
 

@@ -23,6 +23,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread, get_gmail_unauthorized_message
+from ..local_files import check_read, check_write
 from .concurrency import gather_with_fallback
 from .mime_types import OCTET_STREAM, guess_mime_type
 from .response_limits import (
@@ -595,9 +596,9 @@ def _read_attachment_bytes(att: dict[str, Any]) -> tuple[str, str | None, bytes]
     bytes). Reads local_path from disk, so it runs off the event loop (via
     _compose_raw)."""
     if att.get("local_path"):
-        path = Path(att["local_path"])
-        filename = att.get("filename") or path.name
-        data = path.read_bytes()
+        # The caller's own name, not the resolved one: a symlink keeps its link name.
+        filename = att.get("filename") or Path(att["local_path"]).name
+        data = check_read(att["local_path"]).read_bytes()
     elif att.get("content_base64"):
         filename = att.get("filename") or "attachment"
         data = base64.b64decode(att["content_base64"])
@@ -858,6 +859,9 @@ def register(tool):
             id, thread_id, snippet, label_ids, internal_date, size_estimate, and
             headers. On API failure, {"error": "..."}.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
@@ -971,6 +975,9 @@ def register(tool):
             body_decode_errors (each entry with message_id) when present. On API
             failure, {"error": "..."}.
         """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
