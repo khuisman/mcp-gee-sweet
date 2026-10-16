@@ -1423,6 +1423,9 @@ Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free 
 
 **Cleanup:** `delete_file` the TC-I56 doc. SIGTERM the server.
 
+**Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ✅ PASS**
+mcp 2.3.0, uvicorn 0.47.0, `uv run mcp-gee-sweet --transport sse`, SDK `sse_client`, OAuth, `LOCAL_FILE_ACCESS`/`LOCAL_FILE_ROOTS` unset in the environment and both `.env` files. Step 1: none of the nine local-only tools listed; `get_sheet_data`, `send_message`, `create_doc` listed. Step 2: `{"mode": "off", "explicit": false, "roots": [], "unregistered_tools": [<the nine, sorted>]}`. Steps 3 and 4: both `is_error` with exactly `local file access is disabled on this server: LOCAL_FILE_ACCESS is unset, which means off for the sse transport`; step 4 reported no 404. `<scratch>` held only `x.png` afterwards. Step 5: doc created with its text, `images[0].error` the same refusal text, and no PNG appeared in the target folder. Doc deleted.
+
 ---
 
 ### TC-I57: `LOCAL_FILE_ACCESS=roots` allows paths inside a root and refuses the rest, symlinks included (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1450,6 +1453,9 @@ Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free 
 
 **Cleanup:** `delete_file` every file the case created in `QA_SCRATCH_FOLDER_ID`. SIGTERM the server. Remove `<root>` and `<outside>`.
 
+**Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ✅ PASS**
+Same driver as TC-I56, with `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=<root>`. Step 1: all nine local-only tools listed; `{"mode": "roots", "explicit": true, "roots": ["<root>"], "unregistered_tools": []}`. Step 2: `fileId` returned. Steps 3, 4 (symlink) and 5 (`..` traversal): each `<path as passed> is outside this server's LOCAL_FILE_ROOTS. Allowed directories: <root>`. Step 6: `escape.txt` → `local_read_fail` with that reason plus `; not synced`; `ok.txt` → `skip` / `in sync`. Step 7: `uploaded: ["ok.txt"]`, `failed: [{escape.txt, <same refusal>}]`. `list_files` on the scratch folder never showed `secret.txt` or `escape.txt`. Note: a first harness run crashed after step 2 and left extra `ok.txt` copies, which made step 6 plan `collision`; the copies were deleted and the case rerun clean, as recorded here.
+
 ---
 
 ### TC-I58: the server's own credential files are refused in `full` mode too (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1471,6 +1477,9 @@ Start `uv run mcp-gee-sweet --transport sse` with `HOST=127.0.0.1`, `PORT=<free 
 - 5: `local_file_access` is `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`
 
 **Cleanup:** `rm <scratch>/innocent.json` (the hardlink, not the token). Leave `QA_TOKEN_NAMED_FILE_ID` for re-runs.
+
+**Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ⚠️ PARTIAL: steps 1, 2, 4 run against a deny-listed log file, not `TOKEN_PATH`; step 3 pending**
+This role's stdio `mcp-gee-sweet-sky` server (defaulted `full`). Claude Code's auto-mode classifier refused creating a hardlink to the real OAuth token, so the identity check was exercised with `LOG_FILE` (`/tmp/mcp-gee-sweet.log`), which goes through the same `_is_denied` path. Step 1 (`upload_local_file` on `LOG_FILE`): `... is one of this server's own credential, config, cache, or log files and can't be read by a tool`. Step 2 (a hardlink to `LOG_FILE` in a scratch dir, same inode confirmed with `ls -li`): the same refusal, naming the hardlink path. Step 4 (`download_file` of a Drive file named `mcp-gee-sweet.log` to `/tmp/`): `/tmp/mcp-gee-sweet.log is one of ... and can't be written by a tool`. Steps 1–2 added nothing to the scratch folder. Step 3 **pending**: the classifier also refused `create_draft` with an attachment, and this slot's token lacks the Gmail scope anyway. Step 5: `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`. Not yet run: steps 1, 2 and 4 against the real `TOKEN_PATH`.
 
 ---
 
@@ -1497,6 +1506,9 @@ Run each with `uv run mcp-gee-sweet --transport sse` and `HOST=127.0.0.1`, `PORT
 
 **Cleanup:** SIGKILL any server still running.
 
+**Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ✅ PASS**
+`uv run mcp-gee-sweet --transport sse`, stdout and stderr captured. Steps 1–3: exit 1 with exactly the three expected one-line messages and no traceback. Step 4: started; `WARNING mcp_gee_sweet.local_files LOCAL_FILE_ROOTS is set but ignored: it applies only when LOCAL_FILE_ACCESS=roots`. Step 5: started; `WARNING mcp_gee_sweet.server LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: sync_folder`, and SDK `list_tools` returned `["get_sheet_data"]`. Exit 143 for the started servers is uv forwarding SIGTERM.
+
 ---
 
 ### TC-I60: an HTTP request reaching a defaulted `full` policy is refused (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1514,3 +1526,6 @@ Run each with `uv run mcp-gee-sweet --transport sse` and `HOST=127.0.0.1`, `PORT
 - 2: the upload succeeds (an explicit `full` over HTTP is the operator's choice)
 
 **Cleanup:** `delete_file` the step-2 upload. SIGTERM the server.
+
+**Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ✅ PASS**
+`uv run uvicorn mcp_gee_sweet.server:app` (uvicorn 0.47.0), OAuth, SDK `sse_client`. Step 1: `upload_local_file` listed; both calls returned `local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly`; the run's stderr has exactly one `Refusing local file access for an HTTP request` warning; nothing uploaded. Step 2 (`LOCAL_FILE_ACCESS=full`): upload succeeded, no warning. Upload deleted.
