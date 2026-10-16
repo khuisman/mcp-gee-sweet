@@ -1485,7 +1485,7 @@ This role's stdio `mcp-gee-sweet-sky` server (defaulted `full`). Claude Code's a
 
 ### TC-I59: an invalid local-file setting stops the server at startup with a one-line message (issue #796) ⚠️ local-filesystem
 
-**Background:** `LOCAL_FILE_ACCESS`/`LOCAL_FILE_ROOTS` are validated at import, so a misconfigured server never serves. A `LOCAL_FILE_ROOTS` set outside `roots` mode only warns. With `ENABLED_TOOLS` naming a local-only tool that `off` mode drops, the server warns which ones are missing and why.
+**Background:** `LOCAL_FILE_ACCESS`/`LOCAL_FILE_ROOTS` are validated at import, but an invalid setting only resolves to `off` there, with its reason recorded. `main()` exits on it before serving, so a misconfigured server never serves, while `mcp-gee-sweet auth` and `scripts/gen_tool_docs.py` still run (PR #1039 QA round 1, finding 4). A `LOCAL_FILE_ROOTS` set outside `roots` mode only warns. With `ENABLED_TOOLS` naming a local-only tool that `off` mode drops, the server warns which ones are missing and why.
 
 **Setup:** none beyond a checkout of this branch. No Google credentials are needed.
 
@@ -1496,13 +1496,17 @@ Run each with `uv run mcp-gee-sweet --transport sse` and `HOST=127.0.0.1`, `PORT
 3. `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=/no/such/dir`
 4. `LOCAL_FILE_ACCESS=full`, `LOCAL_FILE_ROOTS=/tmp`
 5. `LOCAL_FILE_ACCESS=off`, `ENABLED_TOOLS=sync_folder,get_sheet_data`
+6. `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=/no/such/dir`, running `uv run mcp-gee-sweet auth --help` instead of the server
+7. `LOCAL_FILE_ACCESS=everything`, running `uv run python scripts/gen_tool_docs.py` instead of the server
 
 **Checks**
-- 1: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ACCESS='everything' isn't valid (use full, roots, or off)` and no traceback
+- 1: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ACCESS='everything' isn't valid (use full, roots, or off)` and no traceback. Steps 1–3 also log one `ERROR mcp_gee_sweet.local_files Local file access is off: <the same reason>` line first
 - 2: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ACCESS=roots needs LOCAL_FILE_ROOTS, a ':'-separated list of directories`
 - 3: exits non-zero with `mcp-gee-sweet: LOCAL_FILE_ROOTS entry '/no/such/dir' isn't an existing directory`
 - 4: starts; stderr has `LOCAL_FILE_ROOTS is set but ignored: it applies only when LOCAL_FILE_ACCESS=roots`
 - 5: starts; stderr has `LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: sync_folder`, and an SDK `list_tools` returns only `get_sheet_data`
+- 6: exits 0 and prints `usage: mcp-gee-sweet auth`, so a root that isn't mounted yet doesn't block re-authorization
+- 7: exits 0 with `gen_tool_docs: docs already up to date` (on a clean checkout), and `git status` shows no change to `docs/tools.md`: the generated docs list every tool whatever the policy
 
 **Cleanup:** SIGKILL any server still running.
 

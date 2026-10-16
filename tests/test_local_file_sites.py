@@ -444,3 +444,92 @@ async def test_optional_local_path_refused_before_any_api_call(off, tmp_path, na
         await func(**kwargs, local_path=str(tmp_path / "out.json"), ctx=ctx)
     assert ctx.request_context.lifespan_context.mock_calls == []
     assert _tree(tmp_path) == ["secrets"]
+
+
+class TestMalformedPathFailsOneItem:
+    """QA round 1, finding 1: a NUL byte in a path fails that item, as a missing
+    file did before #796, instead of raising out of the whole call."""
+
+    _NUL = "/tmp/a\x00b"
+
+    async def test_markdown_image(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        result = await content._resolve_image_source(MagicMock(), self._NUL + ".png", "folder")
+        assert "isn't a usable local path" in result["error"]
+
+    def test_doc_source_file(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        result = content._read_doc_source_file(self._NUL + ".md", None, format_overridable=False)
+        assert "isn't a usable local path" in result["error"]
+
+    async def test_import_csv(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        tools = _all_tools()
+        result = await tools["import_csv_to_sheet"](
+            local_path=self._NUL + ".csv", title="t", ctx=_ctx(MagicMock())
+        )
+        assert "isn't a usable local path" in result["error"]
+
+    async def test_upload_local_folder_entry(self, monkeypatch):
+        # _upload_local_file raises it as the LocalFileAccessError the folder loop
+        # records per file.
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        with pytest.raises(LocalFileAccessError):
+            await _upload_local_file(MagicMock(), self._NUL, "parent")
+
+
+class TestSyncVerbFollowsTheOperation:
+    """QA round 1, finding 3: under direction='bidirectional' the refusal says
+    what the plan would do to the local side, not always 'written'."""
+
+    @pytest.fixture(autouse=True)
+    def _full(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+
+    async def _failed_error(self, secrets, drive_files, direction="bidirectional"):
+        fs = _FakeDriveFS({"root": drive_files})
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(secrets), direction=direction, ctx=_ctx(fs.svc)
+        )
+        assert [f["name"] for f in result["failed"]] == ["token.json"]
+        return result["failed"][0]["error"]
+
+    async def test_local_only_is_read(self, _isolated_deny_list):
+        (_isolated_deny_list / "token.json").write_text("{}")
+        error = await self._failed_error(_isolated_deny_list, [])
+        assert "can't be read by a tool" in error
+
+    async def test_drive_only_is_written(self, _isolated_deny_list):
+        error = await self._failed_error(_isolated_deny_list, [_drive_file("token.json", "ft")])
+        assert "can't be written by a tool" in error
+
+    async def test_both_sides_is_read_or_written(self, _isolated_deny_list):
+        (_isolated_deny_list / "token.json").write_text("{}")
+        error = await self._failed_error(_isolated_deny_list, [_drive_file("token.json", "ft")])
+        assert "can't be read or written by a tool" in error
+
+    @pytest.mark.parametrize(("direction", "verb"), [("upload", "read"), ("download", "written")])
+    async def test_both_sides_follows_a_one_way_direction(
+        self, _isolated_deny_list, direction, verb
+    ):
+        (_isolated_deny_list / "token.json").write_text("{}")
+        error = await self._failed_error(
+            _isolated_deny_list, [_drive_file("token.json", "ft")], direction
+        )
+        assert f"can't be {verb} by a tool" in error
+
+    @pytest.mark.parametrize(
+        ("direction", "verb"),
+        [("upload", "read"), ("download", "written"), ("bidirectional", "read or written")],
+    )
+    async def test_root_check_follows_the_direction(self, monkeypatch, tmp_path, direction, verb):
+        log = tmp_path / "server.log"
+        log.mkdir()  # a deny-listed path used as a sync root
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full", LOG_FILE=str(log))
+        with pytest.raises(LocalFileAccessError, match=f"can't be {verb} by a tool"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(log),
+                direction=direction,
+                ctx=_ctx(_FakeDriveFS({}).svc),
+            )

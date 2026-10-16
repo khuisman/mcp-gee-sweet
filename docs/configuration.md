@@ -146,7 +146,7 @@ docker run --rm -p 8000:8000 \
   mcp-gee-sweet
 ```
 
-An invalid `LOCAL_FILE_ACCESS` value, `roots` mode without `LOCAL_FILE_ROOTS`, or a root that isn't an existing directory stops the server at startup. Design: [local-file-access-policy.md](design/local-file-access-policy.md).
+An invalid `LOCAL_FILE_ACCESS` value, `roots` mode without `LOCAL_FILE_ROOTS`, or a root that isn't an existing directory stops the server at startup, before it serves. `mcp-gee-sweet auth` still runs, so a root that isn't mounted yet doesn't block re-authorization. Design: [local-file-access-policy.md](design/local-file-access-policy.md).
 
 ## Caching
 

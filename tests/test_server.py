@@ -7,6 +7,7 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -1180,3 +1181,56 @@ class TestTimedMarksHttpRequests:
     async def test_reset_after_the_call(self):
         await self._seen(Request({"type": "http", "headers": []}))
         assert local_files.request_over_http.get() is False
+
+
+class TestInvalidPolicyOnlyStopsServing:
+    """QA round 1, finding 4: an invalid LOCAL_FILE_ACCESS must not block the
+    `mcp-gee-sweet auth` recovery subcommand or the tool-doc generator; only
+    serving refuses to start on it."""
+
+    @staticmethod
+    def _run(code: str, env: dict[str, str]):
+        full_env = {k: v for k, v in os.environ.items() if not k.startswith("LOCAL_FILE")}
+        full_env.update(env)
+        return subprocess.run(
+            [sys.executable, "-c", code], env=full_env, capture_output=True, text=True, timeout=120
+        )
+
+    def test_serving_exits_with_the_one_line_message(self):
+        proc = self._run(
+            "import sys\n"
+            "sys.argv = ['mcp-gee-sweet', '--transport', 'sse']\n"
+            "from mcp_gee_sweet import main\n"
+            "main()\n",
+            {"LOCAL_FILE_ACCESS": "bogus"},
+        )
+        assert proc.returncode == 1
+        assert (
+            "mcp-gee-sweet: LOCAL_FILE_ACCESS='bogus' isn't valid (use full, roots, or off)"
+            in proc.stderr
+        )
+        assert "Traceback" not in proc.stderr
+
+    def test_auth_subcommand_still_parses(self):
+        proc = self._run(
+            "import sys\n"
+            "sys.argv = ['mcp-gee-sweet', 'auth', '--help']\n"
+            "from mcp_gee_sweet import main\n"
+            "main()\n",
+            {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": "/not/mounted/yet"},
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "usage: mcp-gee-sweet auth" in proc.stdout
+
+    def test_gen_tool_docs_still_collects_every_tool(self):
+        scripts = Path(__file__).resolve().parents[1] / "scripts"
+        proc = self._run(
+            "import sys\n"
+            f"sys.path.insert(0, {str(scripts)!r})\n"
+            "import gen_tool_docs\n"
+            "print(len(gen_tool_docs.collect_tools()))\n",
+            {"LOCAL_FILE_ACCESS": "bogus"},
+        )
+        assert proc.returncode == 0, proc.stderr
+        # Every tool, local-only ones included: the docs never depend on the policy.
+        assert int(proc.stdout.strip().splitlines()[-1]) == len(_captured_registrations())

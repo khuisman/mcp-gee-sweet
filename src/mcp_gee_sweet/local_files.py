@@ -8,11 +8,13 @@ necessarily its operator. `roots` limits paths to the directories in
 refused in every mode. Design: docs/design/local-file-access-policy.md.
 """
 
+import contextlib
 import contextvars
 import enum
 import logging
 import os
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -55,6 +57,8 @@ class Policy:
     roots: tuple[tuple[str, str], ...] = ()
     # realpaths of the files refused in every mode (_deny_list_paths).
     deny_list: tuple[str, ...] = field(default=(), repr=False)
+    # Why the setting is invalid; the mode is then off (resolve_policy).
+    error: str | None = None
 
 
 def _adc_default_path(env) -> str:
@@ -90,51 +94,81 @@ def _deny_list_paths(env) -> list[str]:
     return [os.path.realpath(p) for p in paths if p]
 
 
+def _config_error(mode: LocalFileAccess, raw_roots: list[str]) -> str | None:
+    """Why the roots configuration is invalid, or None."""
+    if mode is not LocalFileAccess.ROOTS:
+        return None
+    if not raw_roots:
+        return (
+            "LOCAL_FILE_ACCESS=roots needs LOCAL_FILE_ROOTS, a "
+            f"{os.pathsep!r}-separated list of directories"
+        )
+    for root in raw_roots:
+        if not os.path.isdir(root):
+            return f"LOCAL_FILE_ROOTS entry {root!r} isn't an existing directory"
+    return None
+
+
 def resolve_policy(env, argv: list[str]) -> Policy:
-    """The policy for this environment and command line. Raises SystemExit with a
-    one-line message for an invalid setting, so a misconfigured server never serves."""
+    """The policy for this environment and command line.
+
+    Never raises: an invalid setting resolves to `off`, the fail-safe for
+    registration, with the reason in `error`. Only serving refuses to start on it
+    (`exit_if_invalid`, from `server.main()`), so `mcp-gee-sweet auth` and the doc
+    generator still run on a misconfigured setting, e.g. a root not mounted yet."""
     transport = cli_transport(argv)
     raw_mode = (env.get("LOCAL_FILE_ACCESS") or "").strip().lower()
     explicit = bool(raw_mode)
+    deny_list = tuple(_deny_list_paths(env))
+    raw_roots = [
+        r.strip() for r in (env.get("LOCAL_FILE_ROOTS") or "").split(os.pathsep) if r.strip()
+    ]
     if not explicit:
         mode = LocalFileAccess.FULL if transport == "stdio" else LocalFileAccess.OFF
     else:
         try:
             mode = LocalFileAccess(raw_mode)
         except ValueError:
-            raise SystemExit(
-                f"mcp-gee-sweet: LOCAL_FILE_ACCESS={raw_mode!r} isn't valid "
-                "(use full, roots, or off)"
-            ) from None
+            error = f"LOCAL_FILE_ACCESS={raw_mode!r} isn't valid (use full, roots, or off)"
+            return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error)
+    if error := _config_error(mode, raw_roots):
+        return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error)
 
-    raw_roots = [r for r in (env.get("LOCAL_FILE_ROOTS") or "").split(os.pathsep) if r.strip()]
-    roots: list[tuple[str, str]] = []
+    roots: tuple[tuple[str, str], ...] = ()
     if mode is LocalFileAccess.ROOTS:
-        if not raw_roots:
-            raise SystemExit(
-                "mcp-gee-sweet: LOCAL_FILE_ACCESS=roots needs LOCAL_FILE_ROOTS, a "
-                f"{os.pathsep!r}-separated list of directories"
-            )
-        for root in raw_roots:
-            root = root.strip()
-            if not os.path.isdir(root):
-                raise SystemExit(
-                    f"mcp-gee-sweet: LOCAL_FILE_ROOTS entry {root!r} isn't an existing directory"
-                )
-            roots.append((root, os.path.realpath(root)))
+        roots = tuple((root, os.path.realpath(root)) for root in raw_roots)
     elif raw_roots:
         logger.warning(
             "LOCAL_FILE_ROOTS is set but ignored: it applies only when LOCAL_FILE_ACCESS=roots"
         )
-    return Policy(mode, explicit, transport, tuple(roots), tuple(_deny_list_paths(env)))
+    return Policy(mode, explicit, transport, roots, deny_list)
 
 
 POLICY = resolve_policy(os.environ, sys.argv)
+if POLICY.error:
+    # Reported here too, for a launch that never reaches main(), such as uvicorn
+    # serving mcp_gee_sweet.server:app directly; that one serves with access off.
+    logger.error("Local file access is off: %s", POLICY.error)
+
+
+def exit_if_invalid() -> None:
+    """Stop the server before it serves on an invalid setting, with a one-line message."""
+    if POLICY.error:
+        raise SystemExit(f"mcp-gee-sweet: {POLICY.error}")
+
 
 # Set by server._timed for the duration of a tool call: whether the call arrived over
 # an HTTP transport (its request context carries a Starlette Request).
 request_over_http: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "mcp_gee_sweet_request_over_http", default=False
+)
+# The deny-list entries' stats, snapshotted for a run of checks (many_checks).
+_deny_snapshot: contextvars.ContextVar[tuple | None] = contextvars.ContextVar(
+    "mcp_gee_sweet_deny_snapshot", default=None
+)
+# Resolved parent directories, cached for a run of checks (many_checks).
+_dir_cache: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
+    "mcp_gee_sweet_dir_cache", default=None
 )
 _tripwire_warned = False
 
@@ -158,6 +192,8 @@ def local_paths_usable() -> bool:
 
 
 def _off_message() -> str:
+    if POLICY.error:
+        return f"local file access is disabled on this server: {POLICY.error}"
     if POLICY.explicit:
         return "local file access is disabled on this server (LOCAL_FILE_ACCESS=off)"
     return (
@@ -166,24 +202,69 @@ def _off_message() -> str:
     )
 
 
+def _deny_stats() -> tuple[tuple[str, os.stat_result | None], ...]:
+    stats = []
+    for entry in POLICY.deny_list:
+        try:
+            stats.append((entry, os.stat(entry)))
+        except OSError:
+            stats.append((entry, None))
+    return tuple(stats)
+
+
+@contextlib.contextmanager
+def many_checks() -> Iterator[None]:
+    """Stat the deny-list entries once, and resolve each parent directory once, for
+    every check inside this block rather than per checked path: a folder walk checks
+    every entry, on the loop. A deny-listed file created mid-block is still caught
+    by its path, though not through a hardlink to it."""
+    token = _deny_snapshot.set(_deny_stats())
+    dirs = _dir_cache.set({})
+    try:
+        yield
+    finally:
+        _dir_cache.reset(dirs)
+        _deny_snapshot.reset(token)
+
+
+def _realpath(path: str) -> str:
+    """os.path.realpath, reusing a parent directory many_checks already resolved
+    when the last component isn't a symlink: one lstat instead of one per component.
+    A NUL byte raises ValueError either way."""
+    cache = _dir_cache.get()
+    if cache is None or "\x00" in path:
+        return os.path.realpath(path)
+    parent, name = os.path.split(os.path.abspath(path))
+    if name in ("", ".", "..") or os.path.islink(path):
+        return os.path.realpath(path)
+    if (real_parent := cache.get(parent)) is None:
+        real_parent = cache[parent] = os.path.realpath(parent)
+    return os.path.join(real_parent, name)
+
+
 def _is_denied(real: str) -> bool:
-    """Whether `real` (a realpath) is one of the deny-listed files. File identity for
-    an existing target, so a case variant on a case-insensitive filesystem or a
-    hardlink is caught; a normalized path compare otherwise (the write case)."""
+    """Whether `real` (a realpath) is one of the deny-listed files.
+
+    An existing target is matched by its exact path or by file identity, which
+    catches a case variant on a case-insensitive filesystem and a hardlink, but not
+    a distinct `Token.json` beside `token.json` on a case-sensitive one. A target
+    that doesn't exist yet (a write) is also matched case-insensitively, so a new
+    `TOKEN.JSON` can't be planted on macOS where it would be the token."""
     try:
         st = os.stat(real)
     except OSError:
         st = None
-    folded = os.path.normcase(real).casefold()
-    for entry in POLICY.deny_list:
-        if os.path.normcase(entry).casefold() == folded:
+    normalized = os.path.normcase(real)
+    folded = normalized.casefold()
+    for entry, entry_st in _deny_snapshot.get() or _deny_stats():
+        entry_normalized = os.path.normcase(entry)
+        if entry_normalized == normalized:
             return True
-        if st is not None:
-            try:
-                if os.path.samestat(st, os.stat(entry)):
-                    return True
-            except OSError:
-                continue
+        if st is None:
+            if entry_normalized.casefold() == folded:
+                return True
+        elif entry_st is not None and os.path.samestat(st, entry_st):
+            return True
     return False
 
 
@@ -204,7 +285,12 @@ def _check(path: str | os.PathLike, verb: str) -> Path:
     if POLICY.mode is LocalFileAccess.OFF:
         raise LocalFileAccessError(_off_message())
     shown = os.fspath(path)
-    real = os.path.realpath(path)
+    try:
+        real = _realpath(shown)
+    except ValueError as e:
+        # A NUL byte: no file can have this name. A LocalFileAccessError, so a
+        # per-item site fails that one item rather than the whole call.
+        raise LocalFileAccessError(f"{shown!r} isn't a usable local path: {e}") from None
     if POLICY.mode is LocalFileAccess.ROOTS and not any(
         Path(real).is_relative_to(root_real) for _, root_real in POLICY.roots
     ):
@@ -222,11 +308,17 @@ def _check(path: str | os.PathLike, verb: str) -> Path:
 
 def check_read(path: str | os.PathLike) -> Path:
     """Refuse `path` unless this server's policy allows reading it, before any stat:
-    the refusal is the same whether or not the path exists. Returns the resolved path
-    to do the I/O on."""
+    the refusal is the same whether or not the path exists. Returns the resolved
+    path; using it narrows, but doesn't close, the window before the I/O."""
     return _check(path, "read")
 
 
 def check_write(path: str | os.PathLike) -> Path:
     """`check_read`'s counterpart for a path a tool writes or creates."""
     return _check(path, "written")
+
+
+def check_read_write(path: str | os.PathLike) -> Path:
+    """`check_read`'s counterpart for a path a tool may read or write, when which one
+    isn't known yet (e.g. a file on both sides of a bidirectional sync)."""
+    return _check(path, "read or written")

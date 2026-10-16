@@ -1,5 +1,6 @@
 """Tests for local_files.py, the local-file access policy (#796)."""
 
+import dataclasses
 import logging
 import os
 
@@ -65,39 +66,69 @@ class TestModeResolution:
 
 
 class TestConfigValidation:
-    def test_unknown_mode_exits(self):
-        with pytest.raises(SystemExit, match="LOCAL_FILE_ACCESS='everything' isn't valid"):
-            local_files.resolve_policy({"LOCAL_FILE_ACCESS": "everything"}, ["x"])
+    """An invalid setting never raises at import (QA round 1, finding 4): it resolves
+    to `off` with the reason in `error`, and only serving exits on it."""
+
+    def _invalid(self, monkeypatch, env, match):
+        policy = local_files.resolve_policy(env, ["x"])
+        assert policy.mode is LocalFileAccess.OFF
+        assert policy.roots == ()
+        assert match in policy.error
+        monkeypatch.setattr(local_files, "POLICY", policy)
+        assert local_files.registers_local_only_tools() is False
+        with pytest.raises(SystemExit) as exc:
+            local_files.exit_if_invalid()
+        assert str(exc.value) == f"mcp-gee-sweet: {policy.error}"
+        return policy
+
+    def test_unknown_mode(self, monkeypatch, tmp_path):
+        self._invalid(
+            monkeypatch,
+            {"LOCAL_FILE_ACCESS": "everything"},
+            "LOCAL_FILE_ACCESS='everything' isn't valid (use full, roots, or off)",
+        )
+        with pytest.raises(LocalFileAccessError) as exc:
+            local_files.check_read(tmp_path / "a.txt")
+        assert str(exc.value) == (
+            "local file access is disabled on this server: LOCAL_FILE_ACCESS='everything' "
+            "isn't valid (use full, roots, or off)"
+        )
 
     @pytest.mark.parametrize("roots", [None, "", os.pathsep])
-    def test_roots_mode_without_roots_exits(self, roots):
+    def test_roots_mode_without_roots(self, monkeypatch, roots):
         env = {"LOCAL_FILE_ACCESS": "roots"}
         if roots is not None:
             env["LOCAL_FILE_ROOTS"] = roots
-        with pytest.raises(SystemExit, match="needs LOCAL_FILE_ROOTS"):
-            local_files.resolve_policy(env, ["x"])
+        self._invalid(monkeypatch, env, "needs LOCAL_FILE_ROOTS")
 
-    def test_missing_root_exits(self, tmp_path):
+    def test_missing_root(self, monkeypatch, tmp_path):
         missing = tmp_path / "nope"
-        with pytest.raises(SystemExit, match="isn't an existing directory"):
-            local_files.resolve_policy(
-                {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": str(missing)}, ["x"]
-            )
+        self._invalid(
+            monkeypatch,
+            {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": str(missing)},
+            f"LOCAL_FILE_ROOTS entry {str(missing)!r} isn't an existing directory",
+        )
 
-    def test_file_root_exits(self, tmp_path):
+    def test_file_root(self, monkeypatch, tmp_path):
         f = tmp_path / "f.txt"
         f.write_text("x")
-        with pytest.raises(SystemExit, match="isn't an existing directory"):
-            local_files.resolve_policy(
-                {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": str(f)}, ["x"]
-            )
+        self._invalid(
+            monkeypatch,
+            {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": str(f)},
+            "isn't an existing directory",
+        )
+
+    def test_valid_policy_doesnt_exit(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        assert local_files.POLICY.error is None
+        local_files.exit_if_invalid()
 
     def test_roots_split_on_pathsep(self, tmp_path):
         a, b = tmp_path / "a", tmp_path / "b"
         a.mkdir()
         b.mkdir()
         policy = local_files.resolve_policy(
-            {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": f"{a}{os.pathsep}{b}"}, ["x"]
+            {"LOCAL_FILE_ACCESS": "roots", "LOCAL_FILE_ROOTS": f" {a} {os.pathsep}{b}"}, ["x"]
         )
         assert [spelling for spelling, _ in policy.roots] == [str(a), str(b)]
 
@@ -108,7 +139,67 @@ class TestConfigValidation:
             )
         assert policy.mode is LocalFileAccess.FULL
         assert policy.roots == ()
+        assert policy.error is None
         assert "LOCAL_FILE_ROOTS is set but ignored" in caplog.text
+
+
+class TestMalformedPath:
+    """QA round 1, finding 1: a NUL byte made os.path.realpath raise a plain
+    ValueError, which per-item sites didn't catch."""
+
+    def test_nul_byte_is_a_policy_refusal(self, monkeypatch):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        with pytest.raises(LocalFileAccessError, match="isn't a usable local path"):
+            local_files.check_read("/tmp/a\x00b.txt")
+
+
+class TestManyChecks:
+    """QA round 1, finding 6: a walk stats the deny-list once, not per entry."""
+
+    def test_deny_list_statted_once_for_the_block(self, monkeypatch, tmp_path):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        entries = set(local_files.POLICY.deny_list)
+        stat_calls = []
+        real_stat = os.stat
+
+        def counting_stat(path, *args, **kwargs):
+            if os.fspath(path) in entries:
+                stat_calls.append(path)
+            return real_stat(path, *args, **kwargs)
+
+        monkeypatch.setattr(local_files.os, "stat", counting_stat)
+        with local_files.many_checks():
+            for i in range(50):
+                local_files.check_read(tmp_path / f"f{i}.txt")
+        assert len(stat_calls) == len(entries)
+
+    def test_parent_cache_never_hides_a_symlink(self, monkeypatch, tmp_path):
+        root = tmp_path / "root"
+        (root / "sub").mkdir(parents=True)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("x")
+        (root / "link.txt").symlink_to(outside / "secret.txt")
+        (root / "escape").symlink_to(outside, target_is_directory=True)
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="roots", LOCAL_FILE_ROOTS=str(root))
+        with local_files.many_checks():
+            assert local_files.check_read(root / "a.txt") == root.resolve() / "a.txt"
+            for refused in (root / "link.txt", root / "escape" / "secret.txt"):
+                with pytest.raises(LocalFileAccessError, match="outside"):
+                    local_files.check_read(refused)
+            with pytest.raises(LocalFileAccessError, match="isn't a usable local path"):
+                local_files.check_read(root / "a\x00b")
+            assert local_files.check_read(root / "sub" / ".." / "a.txt") == (
+                root.resolve() / "a.txt"
+            )
+
+    def test_snapshot_still_refuses_a_deny_listed_path(self, monkeypatch, _isolated_deny_list):
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        with local_files.many_checks():
+            # Created after the snapshot: still matched by its path.
+            (_isolated_deny_list / "token.json").write_text("{}")
+            with pytest.raises(LocalFileAccessError, match="own credential"):
+                local_files.check_read(_isolated_deny_list / "token.json")
 
 
 class TestOffMode:
@@ -254,6 +345,37 @@ class TestDenyList:
     def test_case_variant_of_missing_token_refused(self, _isolated_deny_list):
         with pytest.raises(LocalFileAccessError):
             local_files.check_write(_isolated_deny_list / "Token.JSON")
+
+    def test_existing_distinct_case_variant_allowed_on_case_sensitive_fs(self, _isolated_deny_list):
+        # QA round 1, finding 5: a distinct Token.json beside token.json isn't the token.
+        (_isolated_deny_list / "token.json").write_text("{}")
+        other = _isolated_deny_list / "Token.json"
+        if other.exists():
+            pytest.skip("filesystem is case-insensitive: Token.json is the token")
+        other.write_text("mine")
+        assert local_files.check_read(other) == other.resolve()
+
+    def test_existing_target_isnt_casefold_matched(self, monkeypatch, tmp_path):
+        # The same rule emulated on any filesystem: the entry doesn't exist (a
+        # case-sensitive filesystem's distinct name), the target does.
+        target = tmp_path / "Token.json"
+        target.write_text("mine")
+        entry = os.path.join(os.path.realpath(tmp_path), "token.json")
+        policy = dataclasses.replace(local_files.POLICY, deny_list=(entry,))
+        monkeypatch.setattr(local_files, "POLICY", policy)
+        real_stat = os.stat
+
+        def stat(path, *args, **kwargs):
+            if os.fspath(path) == entry:
+                raise FileNotFoundError(path)
+            return real_stat(path, *args, **kwargs)
+
+        monkeypatch.setattr(local_files.os, "stat", stat)
+        assert local_files.check_read(target) == target.resolve()
+        # A target that doesn't exist yet is still matched case-insensitively.
+        target.unlink()
+        with pytest.raises(LocalFileAccessError):
+            local_files.check_write(tmp_path / "TOKEN.json")
 
     def test_dotenv(self):
         self._refused(os.path.join(os.path.dirname(local_files.__file__), ".env"))

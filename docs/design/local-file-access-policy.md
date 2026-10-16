@@ -107,7 +107,7 @@ Don't interpolate `TOKEN_PATH`'s value or other secret-named values into log lin
 
 ### 4. Configuration validation
 
-Done at import, alongside `ENABLED_TOOLS`. An invalid value raises `SystemExit` with a one-line message, so a misconfigured server never starts serving:
+Done at import, alongside `ENABLED_TOOLS`. An invalid value raises `SystemExit` with a one-line message, so a misconfigured server never starts serving (as implemented, the exit moved to `main()`'s serving path; see [As implemented](#as-implemented)):
 
 - `LOCAL_FILE_ACCESS` not in `full|roots|off` (case-insensitive).
 - `roots` with `LOCAL_FILE_ROOTS` empty or unset.
@@ -227,6 +227,11 @@ Where the implementation goes beyond the design above:
 - **An optional `local_path` is also checked at the tool's entry.** A live SSE run showed `get_sheet_data(local_path=...)` in `off` mode fetching first: a bad spreadsheet ID reported its 404 instead of the refusal, and a good one paid for a fetch it would then refuse to write. The ten tools with an optional `local_path` now call `check_write` before any API call. `write_capped_result_to_disk` keeps its own check as the backstop.
 - **`sync_folder` checks a download's target even when nothing exists locally.** §6 checks each local entry; a Drive-only file is checked at the path it would be written to, so a Drive file named `token.json` can't plant a token in the directory holding `TOKEN_PATH`. A name on one side only that the direction never touches (local-only under `download`, Drive-only under `upload`) is planned as the usual skip without a check (`_sync_policy_refusal`), the way `_unsafe_name_step` treats an unsafe name.
 - **The docstring note joins each local-only tool's first paragraph.** `gen_tool_docs.py` takes only the first paragraph, so a separate one wouldn't have reached `docs/tools.md`.
+- **An invalid setting doesn't exit at import (PR #1039 QA round 1, finding 4).** §4's import-time `SystemExit` also blocked `mcp-gee-sweet auth` and `gen_tool_docs.py`, neither of which serves, and a `roots` entry that isn't mounted yet blocked re-authorization. `resolve_policy` now resolves an invalid setting to `off`, the fail-safe for registration, with the reason in `Policy.error`. It logs one `ERROR` at import, and `main()`'s serving path exits on it with the same one-line message (`exit_if_invalid`).
+- **`sync_folder`'s verb follows the operation (finding 3).** `_sync_local_check` maps `(in_drive, in_local, direction)` to no check, `check_read`, `check_write`, or `check_read_write` for a both-sides entry under `bidirectional`, whose refusal says "can't be read or written". The sync root counts as a both-sides entry, and `_unsafe_name_step`'s skip rule uses the same helper.
+- **A NUL byte is a refusal, not a crash (finding 1).** `os.path.realpath` raises a plain `ValueError` for one, which the per-item sites didn't catch; `_check` turns it into a `LocalFileAccessError`, so that item fails alone, as a missing file did before.
+- **The case-insensitive compare applies only to a target that doesn't exist (finding 5).** An existing target matches by exact path or file identity, so on a case-sensitive filesystem a distinct `Token.json` beside `token.json` is allowed.
+- **`many_checks()` for walks (finding 6).** A check cost about 75µs, most of it `realpath`'s `lstat` per component plus a `stat` of every deny-list entry. Inside `many_checks()`, which wraps the walks in `upload_local_folder`, `download_folder` and `sync_folder`, the deny-list is statted once and each parent directory resolved once, leaving one `lstat` per entry: about 13µs.
 - **No CHANGELOG entry.** `CHANGELOG.md` stops at 0.8.1, so the breaking default for network transports goes in the PR body for the release notes instead.
 
 ## Known limitations

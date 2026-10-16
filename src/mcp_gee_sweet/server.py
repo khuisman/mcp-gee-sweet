@@ -669,6 +669,8 @@ def _serve_guarded(guarded_app: SingleResponseGuard) -> None:
 def main():
     if _is_auth_command(sys.argv[1:]):
         sys.exit(_auth_main(sys.argv[1:]))
+    # Serving only: an invalid LOCAL_FILE_ACCESS setting still lets `auth` run (#796).
+    local_files.exit_if_invalid()
 
     try:
         version = importlib.metadata.version("mcp-gee-sweet")
