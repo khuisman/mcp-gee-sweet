@@ -4562,8 +4562,8 @@ finally:
 
 **Result (2026-10-14) ✅ PASS — Kit, PR #1029 round 1 (`089f6ee`).** Ran in a scratch folder on the QA Shared Drive; the oversized PNG went under this job's scratch dir instead of `/tmp`, and `{DEFAULT_FOLDER_ID}` is the Shared Drive root (`DRIVE_FOLDER_ID`). Step 1's listing showed only `qa-oversized-909.png`; step 2's second listing added `qa-oversized-909.png (resized)` with ID `resized_file_id`. Step 3's listing was empty; step 4's second listing showed `{PIXEL_FILE_ID}` (`qa-fixture-pixel.png`). No `refresh_cache` anywhere. Step 5 returned the 403 "The caller does not have permission" error plus a new `resized_file_id`, different from step 2's. Cleanup done.
 
-### TC-DOC225: A writer the owner blocks from copying is refused by default, and replaces without a backup with `allow_no_backup=True` (#1035) ⚠️ destructive ⚠️ requires-oauth
-When a doc's owner sets `downloadRestrictions.itemDownloadRestriction.restrictedForWriters`, a writer's backup copy gets 403 `cannotCopyFile` (measured live, 2026-10-14). Unlike #1018's reasons (TC-DOC224), this one refuses by default and replaces without a backup only when the caller passes `allow_no_backup=True` (`docs/design/doc-replace-backup.md`, "The copy fails"). The same writer also gets 403 `cannotExportFile` on an export, so no other kind of backup is possible either. Same two-identity setup as TC-DOC224: the OAuth account owns the fixture, and the service account is the caller. The script runs from the checkout under test with no MCP server involved, so it needs both `token.json` and service-account credentials in `src/mcp_gee_sweet/.env`. Here the service account is a writer on both the folder and the doc, so the folder permission isn't what stops the copy.
+### TC-DOC225: A writer whose sharing settings block copying is refused by default, and replaces without a backup with `allow_no_backup=True` (#1035) ⚠️ destructive ⚠️ requires-oauth
+When `downloadRestrictions.itemDownloadRestriction.restrictedForWriters` is set on a doc, a writer's backup copy gets 403 `cannotCopyFile` (measured live, 2026-10-14). Unlike #1018's reasons (TC-DOC224), this one refuses by default and replaces without a backup only when the caller passes `allow_no_backup=True` (`docs/design/doc-replace-backup.md`, "The copy fails"). The same writer also gets 403 `cannotExportFile` on an export, so no other kind of backup is possible either. Same two-identity setup as TC-DOC224: the OAuth account owns the fixture, and the service account is the caller. The script runs from the checkout under test with no MCP server involved, so it needs both `token.json` and service-account credentials in `src/mcp_gee_sweet/.env`. Here the service account is a writer on both the folder and the doc, so the folder permission isn't what stops the copy.
 
 **Setup:** none. The script creates and deletes its own fixture.
 
@@ -4605,12 +4605,59 @@ finally:
 ```
 
 **Checks**
-- Line `A`'s `error` is "Couldn't back up the document before replacing its content (the document's owner doesn't allow this account to copy it), so it was left unchanged. To replace it without a backup, retry with allow_no_backup=True. Its previous content then can't be recovered with export_revision: Docs merges the revision from before the replace into the replace's own.", with no `backupId`. Its doc text is still `'TC-DOC225 before'`
-- Line `B` has `web_link` and `warning` "The document's previous content was replaced without a backup copy (the document's owner doesn't allow this account to copy it).", with no `error` or `backupId`. Its doc text is `'TC-DOC225 after'`
+- Line `A`'s `error` is "Couldn't back up the document before replacing its content (the document's sharing settings don't allow this account to copy it), so it was left unchanged. To replace it without a backup, retry with allow_no_backup=True. Its previous content then can't be recovered with export_revision: Docs merges the revision from before the replace into the replace's own.", with no `backupId`. Its doc text is still `'TC-DOC225 before'`
+- Line `B` has `web_link` and `warning` "The document's previous content was replaced without a backup copy (the document's sharing settings don't allow this account to copy it).", with no `error` or `backupId`. Its doc text is `'TC-DOC225 after'`
 - Line `C` lists only `TC-DOC225 doc`: no `(backup before replace)` copy was made
-- The log shows googleapiclient's `403 … "cannotCopyFile"` before each of `A` and `B`, and `Replacing doc … without a backup: the document's owner doesn't allow this account to copy it` before `B` only
+- The log shows googleapiclient's `403 … "cannotCopyFile"` before each of `A` and `B`, and `Replacing doc … without a backup: the document's sharing settings don't allow this account to copy it` before `B` only
 - `cleanup done` is printed
 
 **Cleanup:** the script deletes the folder, and the doc with it. If it stopped before `cleanup done`, `search_files(query="TC-DOC225")` on the OAuth server and delete what it finds.
 
 **Result (2026-10-16) ✅ PASS — Sky, PR #1042 round 1 (`4ba422c`).** Ran the script as written from this worktree. Line `A` returned the expected refusal with no `backupId`, and the doc text stayed `'TC-DOC225 before'`. Line `B` returned `web_link` and the expected `warning` with no `error` or `backupId`, and the doc text became `'TC-DOC225 after'`. Line `C` listed only `TC-DOC225 doc`. The log showed `403 … "cannotCopyFile"` before `A` and before `B`, and `Replacing doc … without a backup: the document's owner doesn't allow this account to copy it` before `B` only. `cleanup done` was printed. The case passes, but two extra probes in the same round found the refusal text wrong for callers this case doesn't cover. (1) A *reader* on a doc with `copyRequiresWriterPermission` also gets 403 `cannotCopyFile` (`capabilities.canCopy`/`canEdit` both false). It is told to retry with `allow_no_backup=True`, and that retry logs "Replacing … without a backup" and then fails at the clear with 403. (2) A writer on a Shared Drive doc with `restrictedForWriters` (the file has no `owners`) gets the same "the document's owner" wording. Both were sent back on the PR.
+
+### TC-DOC226: A reader blocked from copying is told it can't edit the doc, with or without `allow_no_backup` (#1035) ⚠️ destructive ⚠️ requires-oauth
+With `copyRequiresWriterPermission` set, a caller with only reader access also gets 403 `cannotCopyFile` on the backup copy. `allow_no_backup=True` can't help it, since the clear would fail, so after that copy failure the doc's `capabilities.canEdit` is read. When it's false, the call refuses with an error saying the account can't edit the doc, whatever the flag says (`docs/design/doc-replace-backup.md`, "The copy fails"; PR #1042 QA round 1). Before the fix, the default call said to retry with `allow_no_backup=True`, and that retry logged `Replacing doc … without a backup` and then failed at the clear with a 403. Same two-identity setup as TC-DOC225: the OAuth account owns the fixture, and the service account is the caller, here with reader access on the doc only.
+
+**Setup:** none. The script creates and deletes its own fixture.
+
+**Steps**
+1. Run from the checkout under test:
+```
+uv run python -I -c "
+import asyncio, json, time, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+oauth, sa = auth._oauth_creds(), auth._service_account_creds()
+od, odocs = build('drive', 'v3', credentials=oauth), build('docs', 'v1', credentials=oauth)
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=sa),
+    drive_service=build('drive', 'v3', credentials=sa), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+def text(d):
+    b = odocs.documents().get(documentId=d).execute()['body']['content']
+    return ''.join(r.get('textRun', {}).get('content', '') for e in b for r in e.get('paragraph', {}).get('elements', [])).strip()
+def run(d, html, allow):
+    return asyncio.run(c._replace_doc_content(lc, d, html, 'html', autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=allow))
+folder = od.files().create(body={'name': 'TC-DOC226 folder', 'mimeType': 'application/vnd.google-apps.folder'}, fields='id').execute()['id']
+try:
+    doc = od.files().create(body={'name': 'TC-DOC226 doc', 'mimeType': 'application/vnd.google-apps.document', 'parents': [folder]}, fields='id').execute()['id']
+    odocs.documents().batchUpdate(documentId=doc, body={'requests': [{'insertText': {'location': {'index': 1}, 'text': 'TC-DOC226 before\n'}}]}).execute()
+    od.permissions().create(fileId=doc, body={'type': 'user', 'role': 'reader', 'emailAddress': sa.service_account_email}, sendNotificationEmail=False).execute()
+    od.files().update(fileId=doc, body={'copyRequiresWriterPermission': True}).execute()
+    time.sleep(5)
+    print('A', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC226 default</p>', False).items() if k != 'docId'}), repr(text(doc)))
+    print('B', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC226 flag</p>', True).items() if k != 'docId'}), repr(text(doc)))
+finally:
+    od.files().delete(fileId=folder).execute()
+    print('cleanup done')
+"
+```
+
+**Checks**
+- Lines `A` and `B` each have exactly one key, `error`: "This account can't edit the document, so it was left unchanged (Drive also refused the backup copy: the document's sharing settings don't allow this account to copy it)." Neither mentions `allow_no_backup`. Each line's doc text is still `'TC-DOC226 before'`
+- The log shows googleapiclient's `403 … "cannotCopyFile"` before each of `A` and `B`, and no `Replacing doc … without a backup` line anywhere
+- `cleanup done` is printed
+
+**Cleanup:** the script deletes the folder, and the doc with it. If it stopped before `cleanup done`, `search_files(query="TC-DOC226")` on the OAuth server and delete what it finds.

@@ -3920,7 +3920,7 @@ class TestReplaceDocBackup:
     # owner set downloadRestrictions' restrictedForWriters. These replace without a
     # backup only with allow_no_backup=True.
     _OPT_IN_REASONS = (
-        ("cannotCopyFile", "the document's owner doesn't allow this account to copy it"),
+        ("cannotCopyFile", "the document's sharing settings don't allow this account to copy it"),
         (
             "activeItemCreationLimitExceeded",
             "this account is at its limit for creating Drive items",
@@ -3951,6 +3951,89 @@ class TestReplaceDocBackup:
         drive_svc.files.return_value.export.assert_not_called()
         drive_svc.files.return_value.export_media.assert_not_called()
         drive_svc.files.return_value.get_media.assert_not_called()
+
+    @staticmethod
+    def _capabilities(drive_svc, can_edit=None, error=None):
+        """files.get answers a capabilities read with `can_edit` (or raises
+        `error`), and the webViewLink lookup as usual."""
+
+        def get(**kwargs):
+            request = MagicMock()
+            if "capabilities" in kwargs.get("fields", ""):
+                if error is not None:
+                    request.execute.side_effect = error
+                else:
+                    request.execute.return_value = {"capabilities": {"canEdit": can_edit}}
+            else:
+                request.execute.return_value = {"webViewLink": "https://example.com"}
+            return request
+
+        drive_svc.files.return_value.get.side_effect = get
+
+    @pytest.mark.parametrize("allow_no_backup", [False, True])
+    @pytest.mark.parametrize(("reason", "why"), _OPT_IN_REASONS)
+    async def test_opt_in_reason_for_non_editor_says_it_cannot_edit(
+        self, reason, why, allow_no_backup
+    ):
+        # PR #1042 QA round 1: a reader gets cannotCopyFile under
+        # copyRequiresWriterPermission, and the flag can't help it.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        self._capabilities(drive_svc, can_edit=False)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1", content="<p>New</p>", allow_no_backup=allow_no_backup, ctx=ctx
+        )
+        assert result == {
+            "error": (
+                f"This account can't edit the document, so it was left unchanged "
+                f"(Drive also refused the backup copy: {why})."
+            ),
+            "docId": "doc1",
+        }
+        self._batch_update_execute(docs_svc).assert_not_called()
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_not_called()
+
+    @pytest.mark.parametrize("allow_no_backup", [False, True])
+    async def test_opt_in_reason_for_editor_follows_the_flag(self, allow_no_backup):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "cannotCopyFile"
+        )
+        self._capabilities(drive_svc, can_edit=True)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=allow_no_backup,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        if allow_no_backup:
+            assert "warning" in result and "error" not in result
+        else:
+            assert "retry with allow_no_backup=True" in result["error"]
+
+    async def test_unreadable_capabilities_fall_back_to_the_flag(self):
+        # The clear's own 4xx would still leave the doc unchanged for a non-editor.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "cannotCopyFile"
+        )
+        self._capabilities(drive_svc, error=self._reason_error(500, "backendError"))
+        result = await self._write(self._ctx(drive_svc, docs_svc))
+        assert "retry with allow_no_backup=True" in result["error"]
+
+    async def test_capabilities_not_read_for_automatic_or_successful_backup(self):
+        for side_effect in (None, self._reason_error(403, "insufficientFilePermissions")):
+            drive_svc, docs_svc = self._make_services()
+            if side_effect is not None:
+                drive_svc.files.return_value.copy.return_value.execute.side_effect = side_effect
+            await self._write(self._ctx(drive_svc, docs_svc))
+            fields = [
+                c.kwargs.get("fields") for c in drive_svc.files.return_value.get.call_args_list
+            ]
+            assert fields == ["webViewLink"]
 
     @pytest.mark.parametrize(("reason", "why"), _OPT_IN_REASONS)
     async def test_opt_in_reason_with_flag_replaces_with_warning(self, reason, why):
@@ -4078,7 +4161,7 @@ class TestReplaceDocBackup:
         if allow_no_backup:
             assert result["warning"] == (
                 "The document's previous content was replaced without a backup copy "
-                "(the document's owner doesn't allow this account to copy it)."
+                "(the document's sharing settings don't allow this account to copy it)."
             )
         else:
             assert "retry with allow_no_backup=True" in result["error"]

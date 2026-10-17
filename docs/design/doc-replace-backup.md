@@ -88,13 +88,23 @@ images, and tables survive, which a re-inserted snapshot wouldn't.
 
   Two more 403 reasons replace without a backup only when the caller passes
   `allow_no_backup=True` (`_opt_in_no_backup_reason`; maintainer decision, 2026-10-15, #1035):
-  - `cannotCopyFile`. The owner set `downloadRestrictions.itemDownloadRestriction.restrictedForWriters`,
-    and the caller is a writer. Measured live on 2026-10-14, with or without `parents`. On
+  - `cannotCopyFile`. `downloadRestrictions.itemDownloadRestriction.restrictedForWriters` is
+    set, and the caller is a writer. The reason text names the doc's sharing settings, not an
+    owner: a Shared Drive doc has no `owners`, and there a manager sets the restriction (PR
+    #1042 QA round 1). Measured live on 2026-10-14, with or without `parents`. On
     2026-10-16 the same writer also got 403 `cannotExportFile` from `files.export`, and its
-    `revisions.list` entries had no `exportLinks`. The owner chose to stop writers from copying
-    the file, so the backup is never made another way (an export or a download).
+    `revisions.list` entries had no `exportLinks`. Whoever set it chose to stop writers from
+    copying the file, so the backup is never made another way (an export or a download).
   - `activeItemCreationLimitExceeded`, the account's item-creation cap (a documented reason; it
     can't be produced in QA).
+
+  A reader gets `cannotCopyFile` too, when `copyRequiresWriterPermission` is set, and the flag
+  can't help it: the clear would fail. So for either reason the doc's `capabilities.canEdit`
+  is read after the copy fails (`_can_edit`). If it's false, the call refuses with an error
+  saying the account can't edit the doc, whatever the flag says (PR #1042 QA round 1). If it
+  can't be read, the call goes on by the flag; a non-editor's clear then gets a 4xx, which
+  still leaves the doc unchanged. The read only runs on these two reasons, so it costs
+  nothing on the normal path.
 
   Without the flag the call refuses, leaving the doc unchanged. The error names the reason
   and the flag, and says `export_revision` can't recover the previous content afterward. That
