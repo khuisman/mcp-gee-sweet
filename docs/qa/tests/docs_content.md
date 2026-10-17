@@ -4384,7 +4384,7 @@ lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
     drive_folder_cache=MagicMock(), folder_id=None)
 with patch.object(c, 'fill_tables', side_effect=RuntimeError('injected failure')):
     print(asyncio.run(c._replace_doc_content(lc, '{DOC_ID}', '<p>TC-DOC219 failed write</p>', 'html',
-        autolink_urls=True, revoke_sharing=True, auto_downscale=False)))
+        autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=False)))
 "
 ```
 5. `get_doc_content(file_id={BACKUP_ID})`, where `{BACKUP_ID}` is step 4's `backupId`. Part B's mock `doc_cache` leaves the server's cache stale, so call `refresh_cache(doc_id={DOC_ID})` before reading `{DOC_ID}` again.
@@ -4414,7 +4414,7 @@ async def after_commit(fn, service):
     return result
 with patch.object(c, 'execute_in_thread', after_commit):
     print(asyncio.run(c._replace_doc_content(lc, '{DOC_ID}', '<p>TC-DOC219 part C</p>', 'html',
-        autolink_urls=True, revoke_sharing=True, auto_downscale=False)))
+        autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=False)))
 "
 ```
 
@@ -4459,7 +4459,7 @@ def text(d):
     b = odocs.documents().get(documentId=d).execute()['body']['content']
     return ''.join(r.get('textRun', {}).get('content', '') for e in b for r in e.get('paragraph', {}).get('elements', [])).strip()
 def run(d, html):
-    return asyncio.run(c._replace_doc_content(lc, d, html, 'html', autolink_urls=True, revoke_sharing=True, auto_downscale=False))
+    return asyncio.run(c._replace_doc_content(lc, d, html, 'html', autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=False))
 folder = od.files().create(body={'name': 'TC-DOC224 folder', 'mimeType': 'application/vnd.google-apps.folder'}, fields='id').execute()['id']
 try:
     doc = od.files().create(body={'name': 'TC-DOC224 doc', 'mimeType': 'application/vnd.google-apps.document', 'parents': [folder]}, fields='id').execute()['id']
@@ -4561,3 +4561,54 @@ finally:
 **Cleanup:** unlock `{DOC_ID}` with the same script, using `body={'contentRestrictions': [{'readOnly': False}]}`. Trash both steps' `resized_file_id`, `{OVERSIZED_FILE_ID}`, `{ORIG_FOLDER_ID}`, `{PIXEL_FILE_ID}`, and `{DOC_ID}`. `rm /tmp/qa-oversized-909.png`
 
 **Result (2026-10-14) ✅ PASS — Kit, PR #1029 round 1 (`089f6ee`).** Ran in a scratch folder on the QA Shared Drive; the oversized PNG went under this job's scratch dir instead of `/tmp`, and `{DEFAULT_FOLDER_ID}` is the Shared Drive root (`DRIVE_FOLDER_ID`). Step 1's listing showed only `qa-oversized-909.png`; step 2's second listing added `qa-oversized-909.png (resized)` with ID `resized_file_id`. Step 3's listing was empty; step 4's second listing showed `{PIXEL_FILE_ID}` (`qa-fixture-pixel.png`). No `refresh_cache` anywhere. Step 5 returned the 403 "The caller does not have permission" error plus a new `resized_file_id`, different from step 2's. Cleanup done.
+
+### TC-DOC225: A writer the owner blocks from copying is refused by default, and replaces without a backup with `allow_no_backup=True` (#1035) ⚠️ destructive ⚠️ requires-oauth
+When a doc's owner sets `downloadRestrictions.itemDownloadRestriction.restrictedForWriters`, a writer's backup copy gets 403 `cannotCopyFile` (measured live, 2026-10-14). Unlike #1018's reasons (TC-DOC224), this one refuses by default and replaces without a backup only when the caller passes `allow_no_backup=True` (`docs/design/doc-replace-backup.md`, "The copy fails"). The same writer also gets 403 `cannotExportFile` on an export, so no other kind of backup is possible either. Same two-identity setup as TC-DOC224: the OAuth account owns the fixture, and the service account is the caller. The script runs from the checkout under test with no MCP server involved, so it needs both `token.json` and service-account credentials in `src/mcp_gee_sweet/.env`. Here the service account is a writer on both the folder and the doc, so the folder permission isn't what stops the copy.
+
+**Setup:** none. The script creates and deletes its own fixture.
+
+**Steps**
+1. Run from the checkout under test:
+```
+uv run python -I -c "
+import asyncio, json, time, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+oauth, sa = auth._oauth_creds(), auth._service_account_creds()
+od, odocs = build('drive', 'v3', credentials=oauth), build('docs', 'v1', credentials=oauth)
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=sa),
+    drive_service=build('drive', 'v3', credentials=sa), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+def text(d):
+    b = odocs.documents().get(documentId=d).execute()['body']['content']
+    return ''.join(r.get('textRun', {}).get('content', '') for e in b for r in e.get('paragraph', {}).get('elements', [])).strip()
+def run(d, html, allow):
+    return asyncio.run(c._replace_doc_content(lc, d, html, 'html', autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=allow))
+folder = od.files().create(body={'name': 'TC-DOC225 folder', 'mimeType': 'application/vnd.google-apps.folder'}, fields='id').execute()['id']
+try:
+    doc = od.files().create(body={'name': 'TC-DOC225 doc', 'mimeType': 'application/vnd.google-apps.document', 'parents': [folder]}, fields='id').execute()['id']
+    odocs.documents().batchUpdate(documentId=doc, body={'requests': [{'insertText': {'location': {'index': 1}, 'text': 'TC-DOC225 before\n'}}]}).execute()
+    for fid in (folder, doc):
+        od.permissions().create(fileId=fid, body={'type': 'user', 'role': 'writer', 'emailAddress': sa.service_account_email}, sendNotificationEmail=False).execute()
+    od.files().update(fileId=doc, body={'downloadRestrictions': {'itemDownloadRestriction': {'restrictedForWriters': True}}}).execute()
+    time.sleep(5)
+    print('A', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC225 refused</p>', False).items() if k != 'docId'}), repr(text(doc)))
+    print('B', json.dumps({k: v for k, v in run(doc, '<p>TC-DOC225 after</p>', True).items() if k != 'docId'}), repr(text(doc)))
+    print('C', [f['name'] for f in od.files().list(q=f\"'{folder}' in parents and trashed=false\", fields='files(name)').execute()['files']])
+finally:
+    od.files().delete(fileId=folder).execute()
+    print('cleanup done')
+"
+```
+
+**Checks**
+- Line `A`'s `error` is "Couldn't back up the document before replacing its content (the document's owner doesn't allow this account to copy it), so it was left unchanged. To replace it without a backup, retry with allow_no_backup=True. Its previous content then can't be recovered with export_revision: Docs merges the revision from before the replace into the replace's own.", with no `backupId`. Its doc text is still `'TC-DOC225 before'`
+- Line `B` has `web_link` and `warning` "The document's previous content was replaced without a backup copy (the document's owner doesn't allow this account to copy it).", with no `error` or `backupId`. Its doc text is `'TC-DOC225 after'`
+- Line `C` lists only `TC-DOC225 doc`: no `(backup before replace)` copy was made
+- The log shows googleapiclient's `403 … "cannotCopyFile"` before each of `A` and `B`, and `Replacing doc … without a backup: the document's owner doesn't allow this account to copy it` before `B` only
+- `cleanup done` is printed
+
+**Cleanup:** the script deletes the folder, and the doc with it. If it stopped before `cleanup done`, `search_files(query="TC-DOC225")` on the OAuth server and delete what it finds.

@@ -360,6 +360,20 @@ def _no_backup_reason(e: BaseException) -> str | None:
     return None
 
 
+def _opt_in_no_backup_reason(e: BaseException) -> str | None:
+    """Why a failed backup copy lets the replace go ahead without one only when the
+    caller passed allow_no_backup=True, or None (#1035). cannotCopyFile is what a
+    writer gets when the owner set downloadRestrictions' restrictedForWriters
+    (measured live, 2026-10-14); the same writer also gets cannotExportFile, so the
+    backup is never made another way. activeItemCreationLimitExceeded is the
+    account's item-creation cap (a documented reason; it can't be produced in QA)."""
+    if http_error_has_reason(e, 403, "cannotCopyFile"):
+        return "the document's owner doesn't allow this account to copy it"
+    if http_error_has_reason(e, 403, "activeItemCreationLimitExceeded"):
+        return "this account is at its limit for creating Drive items"
+    return None
+
+
 def _describe(e: BaseException) -> str:
     """str(e), or the exception's type name when that's empty (a TimeoutError)."""
     return str(e) or type(e).__name__
@@ -423,6 +437,7 @@ async def _replace_doc_content(
     autolink_urls: bool,
     revoke_sharing: bool,
     auto_downscale: bool,
+    allow_no_backup: bool,
 ) -> dict[str, Any]:
     """Shared body for write_doc_content / update_doc_from_file (#341): clears an
     existing doc's content, then replaces it via _apply_doc_content. Extracted so
@@ -430,7 +445,7 @@ async def _replace_doc_content(
     style-inheritance quirk below) has exactly one implementation instead of two
     copies that could drift out of sync.
 
-    The three flags are keyword-only (#567), here and in _apply_doc_content: as
+    The flags are keyword-only (#567), here and in _apply_doc_content: as
     positional bools, swapping two at a call site would type-check and silently do
     the wrong thing.
 
@@ -443,7 +458,10 @@ async def _replace_doc_content(
     doc untouched and returns an error, except for the reasons _no_backup_reason
     accepts (storage quota, no right to add to the doc's folder, a full Shared
     Drive; #1018): a caller who can edit the doc could write it before #878, so it
-    replaces without a backup, and both a success and a failure say so.
+    replaces without a backup, and both a success and a failure say so. The reasons
+    _opt_in_no_backup_reason accepts (the owner blocks copying, the account's
+    item-creation cap) do the same only with allow_no_backup=True, and otherwise
+    refuse with an error that names the flag (#1035).
 
     The doc is unchanged, and the copy removed, only when a step before the clear
     fails or the clear gets a 4xx. A clear that fails any other way (a 5xx, a
@@ -467,6 +485,21 @@ async def _replace_doc_content(
                 backup = await _copy_for_backup(drive_service, doc_id, backup_name)
             except Exception as e:
                 no_backup_reason = _no_backup_reason(e)
+                opt_in_reason = _opt_in_no_backup_reason(e)
+                if opt_in_reason is not None:
+                    if not allow_no_backup:
+                        return {
+                            "error": (
+                                f"Couldn't back up the document before replacing its "
+                                f"content ({opt_in_reason}), so it was left unchanged. To "
+                                f"replace it without a backup, retry with "
+                                f"allow_no_backup=True. Its previous content then can't be "
+                                f"recovered with export_revision: Docs merges the revision "
+                                f"from before the replace into the replace's own."
+                            ),
+                            "docId": doc_id,
+                        }
+                    no_backup_reason = opt_in_reason
                 if no_backup_reason is None:
                     error = (
                         f"Couldn't back up the document before replacing its content, "
@@ -1483,6 +1516,7 @@ def register(tool):
         autolink_urls: bool = True,
         revoke_sharing: bool = True,
         auto_downscale: bool = False,
+        allow_no_backup: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1514,6 +1548,10 @@ def register(tool):
                 link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False) — see create_doc's own docstring.
+            allow_no_backup: Replace the content even when Drive refuses the backup
+                copy (below) because the doc's owner doesn't allow this account to
+                copy it, or the account is at its item-creation limit (default
+                False: the call refuses and leaves the doc unchanged).
 
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
@@ -1525,12 +1563,15 @@ def register(tool):
             fails, nothing is changed and an error is returned, except when Drive
             refuses it for storage quota, because the account can't add a file to the
             doc's folder, or because the folder or Shared Drive is at its item limit:
-            the replace then goes ahead without a backup. If writing the new content
-            fails, returns {"error", "docId", "backupId", "images"} instead, with any
-            temporary image share already revoked: the doc may be empty or partly
-            written, and backupId is the kept copy of its previous content. When the
-            replace went ahead without a backup there's no backupId, and the error
-            says the previous content couldn't be backed up: it can't be recovered.
+            the replace then goes ahead without a backup. When the owner doesn't
+            allow copying or the account is at its item-creation limit, it goes
+            ahead without a backup only with allow_no_backup=True. If writing the
+            new content fails, returns {"error", "docId", "backupId", "images"}
+            instead, with any temporary image share already revoked: the doc may be
+            empty or partly written, and backupId is the kept copy of its previous
+            content. When the replace went ahead without a backup there's no
+            backupId, and the error says the previous content couldn't be backed
+            up: it can't be recovered.
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
@@ -1541,6 +1582,7 @@ def register(tool):
             autolink_urls=autolink_urls,
             revoke_sharing=revoke_sharing,
             auto_downscale=auto_downscale,
+            allow_no_backup=allow_no_backup,
         )
 
     @tool(
@@ -1554,6 +1596,7 @@ def register(tool):
         autolink_urls: bool = True,
         revoke_sharing: bool = True,
         auto_downscale: bool = False,
+        allow_no_backup: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1589,6 +1632,10 @@ def register(tool):
                 link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False) — see create_doc's own docstring.
+            allow_no_backup: Replace the content even when Drive refuses the backup
+                copy (below) because the doc's owner doesn't allow this account to
+                copy it, or the account is at its item-creation limit (default
+                False: the call refuses and leaves the doc unchanged).
 
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
@@ -1600,12 +1647,15 @@ def register(tool):
             fails, nothing is changed and an error is returned, except when Drive
             refuses it for storage quota, because the account can't add a file to the
             doc's folder, or because the folder or Shared Drive is at its item limit:
-            the replace then goes ahead without a backup. If writing the new content
-            fails, returns {"error", "docId", "backupId", "images"} instead, with any
-            temporary image share already revoked: the doc may be empty or partly
-            written, and backupId is the kept copy of its previous content. When the
-            replace went ahead without a backup there's no backupId, and the error
-            says the previous content couldn't be backed up: it can't be recovered.
+            the replace then goes ahead without a backup. When the owner doesn't
+            allow copying or the account is at its item-creation limit, it goes
+            ahead without a backup only with allow_no_backup=True. If writing the
+            new content fails, returns {"error", "docId", "backupId", "images"}
+            instead, with any temporary image share already revoked: the doc may be
+            empty or partly written, and backupId is the kept copy of its previous
+            content. When the replace went ahead without a backup there's no
+            backupId, and the error says the previous content couldn't be backed
+            up: it can't be recovered.
         """
         source = await asyncio.to_thread(
             _read_doc_source_file, local_path, content_format, format_overridable=True
@@ -1623,6 +1673,7 @@ def register(tool):
             autolink_urls=autolink_urls,
             revoke_sharing=revoke_sharing,
             auto_downscale=auto_downscale,
+            allow_no_backup=allow_no_backup,
         )
 
     @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))

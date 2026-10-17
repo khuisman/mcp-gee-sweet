@@ -85,6 +85,24 @@ images, and tables survive, which a re-inserted snapshot wouldn't.
   after the clear, the error says the content couldn't be backed up and why. In that case the
   original content can't be recovered, since the pre-clear revision is merged away at once
   (table above).
+
+  Two more 403 reasons replace without a backup only when the caller passes
+  `allow_no_backup=True` (`_opt_in_no_backup_reason`; maintainer decision, 2026-10-15, #1035):
+  - `cannotCopyFile`. The owner set `downloadRestrictions.itemDownloadRestriction.restrictedForWriters`,
+    and the caller is a writer. Measured live on 2026-10-14, with or without `parents`. On
+    2026-10-16 the same writer also got 403 `cannotExportFile` from `files.export`, and its
+    `revisions.list` entries had no `exportLinks`. The owner chose to stop writers from copying
+    the file, so the backup is never made another way (an export or a download).
+  - `activeItemCreationLimitExceeded`, the account's item-creation cap (a documented reason; it
+    can't be produced in QA).
+
+  Without the flag the call refuses, leaving the doc unchanged. The error names the reason
+  and the flag, and says `export_revision` can't recover the previous content afterward. That
+  was measured in the same 2026-10-16 run: after the writer's clear, the revisions were `1, 4`,
+  and the owner's export of both was empty. The flag has no effect on #1018's reasons above,
+  which replace without a backup either way, or on any other copy failure, which still refuses.
+  With the flag, the success `warning` and the after-clear failure text are the same as for
+  #1018's reasons.
 - **Cancellation:** the copy is created inside a shielded scope, so its ID is always recorded (the
   PR #877 rule). The scope is bounded by `_BACKUP_COPY_TIMEOUT` (60 s, all attempts together), per
   `CLAUDE.md`'s rule that a cancel waits for shielded work; a timeout is reported like a 5xx.

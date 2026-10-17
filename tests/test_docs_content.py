@@ -2801,7 +2801,7 @@ class TestUpdateDocFromFile:
         for fn, names in (
             (
                 content_module._replace_doc_content,
-                ("autolink_urls", "revoke_sharing", "auto_downscale"),
+                ("autolink_urls", "revoke_sharing", "auto_downscale", "allow_no_backup"),
             ),
             (
                 content_module._apply_doc_content,
@@ -3915,6 +3915,174 @@ class TestReplaceDocBackup:
             "The document's previous content was replaced without a backup copy "
             "(this account can't add a file to the document's folder)."
         )
+
+    # #1035: cannotCopyFile was measured live (2026-10-14): a writer on a doc whose
+    # owner set downloadRestrictions' restrictedForWriters. These replace without a
+    # backup only with allow_no_backup=True.
+    _OPT_IN_REASONS = (
+        ("cannotCopyFile", "the document's owner doesn't allow this account to copy it"),
+        (
+            "activeItemCreationLimitExceeded",
+            "this account is at its limit for creating Drive items",
+        ),
+    )
+
+    @pytest.mark.parametrize(("reason", "why"), _OPT_IN_REASONS)
+    async def test_opt_in_reason_refuses_by_default_and_names_the_flag(self, reason, why):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await self._write(ctx)
+        assert result == {
+            "error": (
+                f"Couldn't back up the document before replacing its content ({why}), so "
+                f"it was left unchanged. To replace it without a backup, retry with "
+                f"allow_no_backup=True. Its previous content then can't be recovered with "
+                f"export_revision: Docs merges the revision from before the replace into "
+                f"the replace's own."
+            ),
+            "docId": "doc1",
+        }
+        self._batch_update_execute(docs_svc).assert_not_called()
+        ctx.request_context.lifespan_context.doc_cache.mark_dirty.assert_not_called()
+        # Never backed up another way (export or download).
+        drive_svc.files.return_value.export.assert_not_called()
+        drive_svc.files.return_value.export_media.assert_not_called()
+        drive_svc.files.return_value.get_media.assert_not_called()
+
+    @pytest.mark.parametrize(("reason", "why"), _OPT_IN_REASONS)
+    async def test_opt_in_reason_with_flag_replaces_with_warning(self, reason, why):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=True,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert result == {
+            "docId": "doc1",
+            "web_link": "https://example.com",
+            "warning": (
+                f"The document's previous content was replaced without a backup copy ({why})."
+            ),
+        }
+        assert self._batch_update_execute(docs_svc).call_count == 2
+        drive_svc.files.return_value.copy.return_value.execute.assert_called_once()
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    @pytest.mark.parametrize(("reason", "why"), _OPT_IN_REASONS)
+    async def test_opt_in_reason_with_flag_then_failed_write_says_no_backup(self, reason, why):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        self._fail_content_write(docs_svc, RuntimeError("edit boom"))
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=True,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert result == {
+            "error": (
+                f"doc edit failed: edit boom. The document's previous content was cleared "
+                f"first and couldn't be backed up ({why}), so the document may be empty "
+                f"or partly written."
+            ),
+            "docId": "doc1",
+        }
+
+    async def test_opt_in_reason_with_other_status_still_refuses_with_flag(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            400, "cannotCopyFile"
+        )
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=True,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert result["error"].startswith(
+            "Couldn't back up the document before replacing its content, so it was left unchanged"
+        )
+        self._batch_update_execute(docs_svc).assert_not_called()
+
+    @pytest.mark.parametrize("reason", ["rateLimitExceeded", "userRateLimitExceeded"])
+    async def test_flag_does_not_widen_to_other_copy_failures(self, reason):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, reason
+        )
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=True,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert "allow_no_backup" not in result["error"]
+        assert result["error"].startswith(
+            "Couldn't back up the document before replacing its content, so it was left unchanged"
+        )
+        self._batch_update_execute(docs_svc).assert_not_called()
+
+    @pytest.mark.parametrize("allow_no_backup", [False, True])
+    async def test_flag_does_not_change_automatic_fallback(self, allow_no_backup):
+        # #1018's reasons replace without a backup whatever the flag says.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "insufficientFilePermissions"
+        )
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=allow_no_backup,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert result["warning"] == (
+            "The document's previous content was replaced without a backup copy "
+            "(this account can't add a file to the document's folder)."
+        )
+
+    async def test_flag_does_not_skip_a_backup_that_succeeds(self):
+        drive_svc, docs_svc = self._make_services()
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="<p>New</p>",
+            allow_no_backup=True,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        assert "warning" not in result
+        drive_svc.files.return_value.copy.return_value.execute.assert_called_once()
+        drive_svc.files.return_value.delete.return_value.execute.assert_called_once()
+
+    @pytest.mark.parametrize("allow_no_backup", [False, True])
+    async def test_update_doc_from_file_passes_allow_no_backup(self, tmp_path, allow_no_backup):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = self._reason_error(
+            403, "cannotCopyFile"
+        )
+        src = tmp_path / "doc.md"
+        src.write_text("# New\n", encoding="utf-8")
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1",
+            local_path=str(src),
+            allow_no_backup=allow_no_backup,
+            ctx=self._ctx(drive_svc, docs_svc),
+        )
+        if allow_no_backup:
+            assert result["warning"] == (
+                "The document's previous content was replaced without a backup copy "
+                "(the document's owner doesn't allow this account to copy it)."
+            )
+        else:
+            assert "retry with allow_no_backup=True" in result["error"]
+            self._batch_update_execute(docs_svc).assert_not_called()
 
     async def test_failed_write_after_clear_keeps_backup_and_names_it(self):
         drive_svc, docs_svc = self._make_services()
