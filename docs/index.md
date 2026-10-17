@@ -14,9 +14,9 @@ An MCP server that gives AI clients reliable, direct access to Google Workspace 
 
 This project started as a fork of [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and has since diverged substantially — full Sheets read/write/formulas/structure/formatting/charts plus a raw `batch_update` passthrough for anything a named tool doesn't cover, an AST-based Docs pipeline (HTML and Markdown input, theming, structural table editing), Drive file/sharing/sync operations, Calendar, and Gmail. See [Project Fork](decisions/decision-fork.md) for the original fork history.
 
-This project deliberately keeps its named-tool surface small. Related operations consolidate into fewer, more parameterized tools, with `batch_update` as the escape hatch for whatever doesn't fit a named tool — see [Design Principles](design.md) for the reasoning ("tool count is a cost").
+This project deliberately consolidates related operations into fewer, more parameterized tools, with `batch_update` as the escape hatch for whatever doesn't fit a named tool — see [Design Principles](design.md) for the reasoning ("tool count is a cost").
 
-Known gaps (comments, conditional formatting, protected ranges, multi-tab Docs, and more) are tracked as candidates in the [roadmap](roadmap.md), not silently ignored.
+Known gaps (full comments CRUD, conditional formatting, protected ranges, multi-tab Docs, and more) are tracked as candidates in the [roadmap](roadmap.md), not silently ignored.
 
 ## Key design decisions
 
