@@ -193,6 +193,52 @@ class TestManyChecks:
                 root.resolve() / "a.txt"
             )
 
+    def test_symlink_dotdot_resolves_as_the_kernel_does(self, monkeypatch, tmp_path):
+        # PR #1039 QA round 2: `link/..` is the parent of link's target, not the
+        # directory holding link. abspath's lexical collapse let a deny-listed file
+        # through inside many_checks().
+        denied = tmp_path / "denied"
+        (denied / "sub").mkdir(parents=True)
+        log = denied / "log.txt"
+        log.write_text("log")
+        scratch = tmp_path / "scratch"
+        scratch.mkdir()
+        (scratch / "link").symlink_to(denied / "sub", target_is_directory=True)
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full", LOG_FILE=str(log))
+        with local_files.many_checks():
+            with pytest.raises(LocalFileAccessError, match="own credential"):
+                local_files.check_write(f"{scratch}/link/../log.txt")
+            # The not-yet-existing case resolves the same way.
+            assert local_files.check_write(f"{scratch}/link/../new.txt") == (
+                denied.resolve() / "new.txt"
+            )
+
+    @pytest.mark.parametrize(
+        "spelling",
+        [
+            "{s}/link/../x.txt",
+            "{s}/link/./x.txt",
+            "{s}//link/x.txt",
+            "{s}/link/../../scratch/x.txt",
+            "{s}/real/../link/x.txt",
+            "{s}/x.txt",
+            "{s}/link/",
+            "{s}/link/..",
+        ],
+    )
+    def test_cached_realpath_matches_os_realpath(self, monkeypatch, tmp_path, spelling):
+        scratch = tmp_path / "scratch"
+        (scratch / "real").mkdir(parents=True)
+        target = tmp_path / "elsewhere" / "deep"
+        target.mkdir(parents=True)
+        (scratch / "link").symlink_to(target, target_is_directory=True)
+        path = spelling.format(s=scratch)
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
+        with local_files.many_checks():
+            # Twice: the second call is served from the parent cache.
+            for _ in range(2):
+                assert local_files._realpath(path) == os.path.realpath(path)
+
     def test_snapshot_still_refuses_a_deny_listed_path(self, monkeypatch, _isolated_deny_list):
         use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full")
         with local_files.many_checks():

@@ -230,11 +230,17 @@ def many_checks() -> Iterator[None]:
 def _realpath(path: str) -> str:
     """os.path.realpath, reusing a parent directory many_checks already resolved
     when the last component isn't a symlink: one lstat instead of one per component.
-    A NUL byte raises ValueError either way."""
+    A NUL byte raises ValueError either way.
+
+    Never normalizes lexically: `link/..` is the parent of link's *target*, as the
+    kernel resolves it, so the parent is resolved by realpath from its raw spelling
+    (PR #1039 QA round 2: `os.path.abspath` collapsed `link/..` first, and a write
+    landed in a deny-listed directory the check never saw). A relative path skips
+    the cache, since its meaning moves with the working directory."""
     cache = _dir_cache.get()
-    if cache is None or "\x00" in path:
+    if cache is None or "\x00" in path or not os.path.isabs(path):
         return os.path.realpath(path)
-    parent, name = os.path.split(os.path.abspath(path))
+    parent, name = os.path.split(path)
     if name in ("", ".", "..") or os.path.islink(path):
         return os.path.realpath(path)
     if (real_parent := cache.get(parent)) is None:

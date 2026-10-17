@@ -166,6 +166,60 @@ class TestDownloads:
         assert (tmp_path / "outside.txt").read_text() == "secret"
 
 
+class TestSymlinkDotDotWalk:
+    """PR #1039 QA round 2, Sky's live repro: a walk rooted at `<symlink>/..` must
+    check the directory the kernel actually writes into."""
+
+    @pytest.fixture
+    def layout(self, monkeypatch, tmp_path):
+        denied = tmp_path / "denied"
+        (denied / "sub").mkdir(parents=True)
+        log = denied / "log.txt"
+        log.write_text("original log")
+        scratch = tmp_path / "scratch"
+        scratch.mkdir()
+        (scratch / "link").symlink_to(denied / "sub", target_is_directory=True)
+        use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="full", LOG_FILE=str(log))
+        return scratch, log
+
+    async def test_download_folder_never_overwrites_the_deny_listed_file(self, layout):
+        scratch, log = layout
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [_drive_file("log.txt", "d1")]
+        }
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=f"{scratch}/link/..",
+            skip_if_exists=False,
+            ctx=_ctx(svc),
+        )
+
+        assert result["downloaded"] == []
+        assert [f["name"] for f in result["failed"]] == ["log.txt"]
+        assert "own credential" in result["failed"][0]["error"]
+        assert log.read_text() == "original log"
+        svc.files.return_value.get_media.assert_not_called()
+
+    async def test_sync_folder_never_overwrites_the_deny_listed_file(self, layout):
+        scratch, log = layout
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("log.txt", "d1", mtime="2099-01-01T00:00:00.000Z")]}
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=f"{scratch}/link/..",
+            direction="download",
+            ctx=_ctx(fs.svc),
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["log.txt"]
+        assert log.read_text() == "original log"
+        fs.svc.files.return_value.get_media.assert_not_called()
+
+
 class TestSyncFolder:
     async def test_off_refuses_before_any_call(self, off, tmp_path):
         fs = _FakeDriveFS({"root": []})

@@ -1468,7 +1468,7 @@ Fresh subprocess on this head. Step 1: nine listed, roots status as expected. St
 
 **Background:** In every mode, including stdio's default `full`, tools can't read or write the server's own `CREDENTIALS_PATH`, `TOKEN_PATH`, `SERVICE_ACCOUNT_PATH`, `.env`, ADC key files, cache DB, or log files. Files are matched by identity, so a hardlink or symlink to the token is refused too, and a write target that doesn't exist yet is still refused, so a download can't plant a token.
 
-**Setup:** a server whose `TOKEN_PATH` is a real OAuth token (a stdio server launched from this branch, e.g. via an MCP client config pointing at `uv run mcp-gee-sweet`). A Drive scratch folder holding a small text file named `token.json` (`QA_TOKEN_NAMED_FILE_ID`). A hardlink `<scratch>/innocent.json` to `TOKEN_PATH` (`ln <TOKEN_PATH> <scratch>/innocent.json`).
+**Setup:** a server whose `TOKEN_PATH` is a real OAuth token (a stdio server launched from this branch, e.g. via an MCP client config pointing at `uv run mcp-gee-sweet`). A Drive scratch folder holding a small text file named `token.json` (`QA_TOKEN_NAMED_FILE_ID`). A hardlink `<scratch>/innocent.json` to `TOKEN_PATH` (`ln <TOKEN_PATH> <scratch>/innocent.json`). For step 6: a subdirectory `<directory containing TOKEN_PATH>/sub`, a symlink `<scratch>/link` → that subdirectory (`ln -s <directory containing TOKEN_PATH>/sub <scratch>/link`), and a Drive subfolder of `QA_SCRATCH_FOLDER_ID` holding one copy of `QA_TOKEN_NAMED_FILE_ID` named exactly `TOKEN_PATH`'s basename (`copy_file`, then `move_file`).
 
 **Action**
 1. `upload_local_file(local_path=<TOKEN_PATH>, parent_folder_id=QA_SCRATCH_FOLDER_ID)`
@@ -1476,13 +1476,15 @@ Fresh subprocess on this head. Step 1: nine listed, roots status as expected. St
 3. `create_draft(to=<QA mailbox>, subject="TC-I58", body="x", attachments=[{"local_path": <TOKEN_PATH>}])`
 4. `download_file(file_id=QA_TOKEN_NAMED_FILE_ID, local_path=<directory containing TOKEN_PATH>)`
 5. `read_resource("server://auth-status")`
+6. `download_folder(folder_id=<the step-6 Drive subfolder>, local_path="<scratch>/link/..", skip_if_exists=false)`. The kernel resolves `link` before `..`, so this writes into `<directory containing TOKEN_PATH>`, not `<scratch>`
 
 **Checks**
 - 1–4: each fails with `<path> is one of this server's own credential, config, cache, or log files and can't be read by a tool` (`written` for step 4)
 - 1, 2: no file is created in `QA_SCRATCH_FOLDER_ID`. 3: no draft is created (check `list_messages` with `label_ids=["DRAFT"]`). 4: `TOKEN_PATH`'s content and mtime are unchanged
 - 5: `local_file_access` is `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`
+- 6: `downloaded` is empty and `failed` holds the one file, with the `... can't be written by a tool` refusal naming a path in `<directory containing TOKEN_PATH>`. `TOKEN_PATH`'s content and mtime are unchanged (PR #1039 QA round 2)
 
-**Cleanup:** `rm <scratch>/innocent.json` (the hardlink, not the token). Leave `QA_TOKEN_NAMED_FILE_ID` for re-runs.
+**Cleanup:** `rm <scratch>/innocent.json` (the hardlink, not the token) and `rm <scratch>/link` (the symlink); `rmdir <directory containing TOKEN_PATH>/sub`. Trash the step-6 Drive subfolder. Leave `QA_TOKEN_NAMED_FILE_ID` for re-runs.
 
 **Result (2026-10-15, PR #1039 round 1 @ fb49e7d, Sky) ⚠️ PARTIAL: steps 1, 2, 4 run against a deny-listed log file, not `TOKEN_PATH`; step 3 pending**
 This role's stdio `mcp-gee-sweet-sky` server (defaulted `full`). Claude Code's auto-mode classifier refused creating a hardlink to the real OAuth token, so the identity check was exercised with `LOG_FILE` (`/tmp/mcp-gee-sweet.log`), which goes through the same `_is_denied` path. Step 1 (`upload_local_file` on `LOG_FILE`): `... is one of this server's own credential, config, cache, or log files and can't be read by a tool`. Step 2 (a hardlink to `LOG_FILE` in a scratch dir, same inode confirmed with `ls -li`): the same refusal, naming the hardlink path. Step 4 (`download_file` of a Drive file named `mcp-gee-sweet.log` to `/tmp/`): `/tmp/mcp-gee-sweet.log is one of ... and can't be written by a tool`. Steps 1–2 added nothing to the scratch folder. Step 3 **pending**: the classifier also refused `create_draft` with an attachment, and this slot's token lacks the Gmail scope anyway. Step 5: `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`. Not yet run: steps 1, 2 and 4 against the real `TOKEN_PATH`.
