@@ -1429,6 +1429,9 @@ mcp 2.3.0, uvicorn 0.47.0, `uv run mcp-gee-sweet --transport sse`, SDK `sse_clie
 **Result (2026-10-15, PR #1039 round 2 @ 6ba5297, Sky) ✅ PASS**
 Same driver as round 1, fresh subprocess on this head. Steps 1–5 matched round 1 exactly: no local-only tools listed, `{"mode": "off", "explicit": false, ...}` with the nine sorted, both `get_sheet_data` calls refused with the defaulted-off text (no 404), `<scratch>` held only `x.png`, and the doc was created with the image's per-item refusal. Doc deleted.
 
+**Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
+Same driver, fresh subprocess on this head. Steps 1–5 matched round 2: no local-only tools listed, `{"mode": "off", "explicit": false, ...}` with the nine sorted, both `get_sheet_data` calls refused with the defaulted-off text (no 404), `<scratch>` held only `x.png`, and the doc was created with the image's per-item refusal. Scratch folder trashed.
+
 ---
 
 ### TC-I57: `LOCAL_FILE_ACCESS=roots` allows paths inside a root and refuses the rest, symlinks included (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1462,6 +1465,9 @@ Same driver as TC-I56, with `LOCAL_FILE_ACCESS=roots`, `LOCAL_FILE_ROOTS=<root>`
 **Result (2026-10-15, PR #1039 round 2 @ 6ba5297, Sky) ✅ PASS**
 Fresh subprocess on this head. Step 1: nine listed, roots status as expected. Step 2: `fileId`. Steps 3–5: the same `outside this server's LOCAL_FILE_ROOTS` refusal for each. Step 6: `escape.txt` → `local_read_fail`, `ok.txt` → `skip` / `in sync`. Step 7: `uploaded: ["ok.txt"]`, `failed: [escape.txt]`. Neither `secret.txt` nor `escape.txt` reached Drive. Scratch folder deleted.
 
+**Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
+Fresh subprocess on this head, in its own empty Drive folder. Step 1: nine listed, `{"mode": "roots", "explicit": true, "roots": ["<root>"], ...}`. Step 2: `fileId`. Steps 3–5: the `outside this server's LOCAL_FILE_ROOTS` refusal for each. Step 6: `escape.txt` → `local_read_fail`, `ok.txt` → `skip`. Step 7: `uploaded: ["ok.txt"]`, `failed: [escape.txt]`. A first run in a folder that already held a control `ok.txt` planned `collision` at step 6 (fixture, not product); this clean rerun is the one recorded. Scratch folder trashed.
+
 ---
 
 ### TC-I58: the server's own credential files are refused in `full` mode too (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1482,7 +1488,7 @@ Fresh subprocess on this head. Step 1: nine listed, roots status as expected. St
 - 1–4: each fails with `<path> is one of this server's own credential, config, cache, or log files and can't be read by a tool` (`written` for step 4)
 - 1, 2: no file is created in `QA_SCRATCH_FOLDER_ID`. 3: no draft is created (check `list_messages` with `label_ids=["DRAFT"]`). 4: `TOKEN_PATH`'s content and mtime are unchanged
 - 5: `local_file_access` is `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`
-- 6: `downloaded` is empty and `failed` holds the one file, with the `... can't be written by a tool` refusal naming a path in `<directory containing TOKEN_PATH>`. `TOKEN_PATH`'s content and mtime are unchanged (PR #1039 QA round 2)
+- 6: `downloaded` is empty and `failed` holds the one file, with the `... can't be written by a tool` refusal naming the path as passed (`<scratch>/link/../<TOKEN_PATH basename>`), which the kernel resolves into `<directory containing TOKEN_PATH>`. `TOKEN_PATH`'s content and mtime are unchanged (PR #1039 QA round 2)
 
 **Cleanup:** `rm <scratch>/innocent.json` (the hardlink, not the token) and `rm <scratch>/link` (the symlink); `rmdir <directory containing TOKEN_PATH>/sub`. Trash the step-6 Drive subfolder. Leave `QA_TOKEN_NAMED_FILE_ID` for re-runs.
 
@@ -1491,6 +1497,9 @@ This role's stdio `mcp-gee-sweet-sky` server (defaulted `full`). Claude Code's a
 
 **Result (2026-10-15, PR #1039 round 2 @ 6ba5297, Sky) ⚠️ PARTIAL: steps 1, 2, 4 against `LOG_FILE`; step 3 pending; a regression found outside the case's steps**
 Fresh SSE subprocess on this head with an explicit `LOCAL_FILE_ACCESS=full` and `LOG_FILE=<denied>/log.txt` (round 1's substitution, for the same reason). Step 1: `<denied>/log.txt ... can't be read by a tool`. Step 2 (hardlink `<scratch>/innocent-log.txt`): the same refusal. Step 4 (as `download_folder(local_path=<denied>)` of a Drive folder holding `log.txt`): `failed: [{log.txt, "... can't be written by a tool"}]`. Step 5: `{"mode": "full", "explicit": true, ...}`, as expected for the explicit setting. Step 3 still pending. **Outside the steps:** `download_folder(local_path="<scratch>/link/..", skip_if_exists=false)`, where `<scratch>/link` → `<denied>/sub`, *downloaded* `log.txt` and overwrote the deny-listed `LOG_FILE` with the Drive file's content. `many_checks()`' `_realpath` collapses `..` with `abspath` before resolving the symlink, so the check sees `<scratch>/log.txt`, while the write's `<scratch>/link/../log.txt` lands in `<denied>`. At round 1's head the plain `realpath` refused it. Sent back on the PR.
+
+**Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ⚠️ PARTIAL: steps 1, 2, 4, 6 against `LOG_FILE`; step 3 pending**
+Fresh SSE subprocess on this head, explicit `LOCAL_FILE_ACCESS=full`, `LOG_FILE=<denied>/log.txt` (the same substitution as rounds 1–2). Steps 1, 2, 4: the same refusals as round 2. Step 5: `{"mode": "full", "explicit": true, ...}`. Step 6, with `<scratch>/link` → `<denied>/sub` and a Drive folder holding `log.txt` plus the control files `a.txt` and `ok.txt`: `download_folder(local_path="<scratch>/link/..", skip_if_exists=false)` put `log.txt` in `failed` with `<scratch>/link/../log.txt is one of this server's own credential, config, cache, or log files and can't be written by a tool`. The same probe through `sync_folder(direction="download")` failed `log.txt` with the same refusal plus `; not synced`. `LOG_FILE`'s head was unchanged after both. The control files landed in `<denied>`, not `<scratch>`, so the walk really did go through the symlink. Step 3 still pending (the auto-mode classifier and the slot token's missing Gmail scope, as in round 1).
 
 ---
 
@@ -1527,6 +1536,9 @@ Run each with `uv run mcp-gee-sweet --transport sse` and `HOST=127.0.0.1`, `PORT
 **Result (2026-10-15, PR #1039 round 2 @ 6ba5297, Sky) ✅ PASS**
 Steps 1–3: exit 1 with the three one-line messages, no traceback, each preceded by `ERROR mcp_gee_sweet.local_files Local file access is off: <the same reason>`. Step 4: started, with the ignored-roots warning. Step 5: started, with the `ENABLED_TOOLS` warning, and `list_tools` returned `["get_sheet_data"]`. Step 6: exit 0, `usage: mcp-gee-sweet auth [-h] [--no-browser] [--include-tools INCLUDE_TOOLS]`. Step 7: exit 0, the `ERROR ... isn't valid` line, then `gen_tool_docs: docs already up to date`; `git status` clean.
 
+**Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
+Steps 1–3: exit 1 with the three one-line messages, each preceded by the `ERROR ... Local file access is off: <reason>` line, no traceback. Step 4: started, with the ignored-roots warning. Step 5: started, with the `ENABLED_TOOLS` warning; `list_tools` returned `["get_sheet_data"]`. Step 6: exit 0, `usage: mcp-gee-sweet auth [-h] [--no-browser] [--include-tools INCLUDE_TOOLS]`. Step 7: `gen_tool_docs: docs already up to date`, and `git status` showed no change outside this file.
+
 ---
 
 ### TC-I60: an HTTP request reaching a defaulted `full` policy is refused (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1550,3 +1562,6 @@ Steps 1–3: exit 1 with the three one-line messages, no traceback, each precede
 
 **Result (2026-10-15, PR #1039 round 2 @ 6ba5297, Sky) ✅ PASS**
 Same driver, fresh subprocesses on this head. Step 1: listed, both calls refused, exactly one tripwire warning in the run's stderr. Step 2: upload succeeded, no warning. Scratch folder deleted.
+
+**Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
+Same driver, fresh subprocesses on this head. Step 1: `upload_local_file` listed, both calls refused with `local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly`, and exactly one `Refusing local file access for an HTTP request` warning (the same record appears once in `LOG_FILE` and once in stderr). Step 2: upload succeeded, no warning. Scratch folder trashed.
