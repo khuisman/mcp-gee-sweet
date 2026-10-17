@@ -1,12 +1,12 @@
 # mcp-gee-sweet
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, Calendar, and Gmail.
+An MCP server that gives AI clients deep, direct access to Google Workspace — Sheets, Drive, Docs, Calendar, and Gmail.
 
 ## What it does
 
 - **Read and write Google Sheets** — cell values, formulas, sheet structure, batch updates
 - **Manage Google Drive** — list, search, upload, download, move, copy, and sync files and folders
-- **Work with Google Docs** — create documents, read content, write formatted content from HTML
+- **Work with Google Docs** — create documents, read content, write formatted content from HTML or Markdown
 - **Access Google Calendar** — list calendars and events, create and update events, find free slots
 - **Use Gmail** — search and read messages and threads, send and reply, manage drafts and labels (OAuth only)
 
@@ -14,7 +14,7 @@ An MCP server that gives AI clients reliable, direct access to Google Workspace 
 
 This project started as a fork of [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and has since diverged substantially — full Sheets read/write/formulas/structure/formatting/charts plus a raw `batch_update` passthrough for anything a named tool doesn't cover, an AST-based Docs pipeline (HTML and Markdown input, theming, structural table editing), Drive file/sharing/sync operations, Calendar, and Gmail. See [Project Fork](decisions/decision-fork.md) for the original fork history.
 
-This project deliberately consolidates related operations into fewer, more parameterized tools, with `batch_update` as the escape hatch for whatever doesn't fit a named tool — see [Design Principles](design.md) for the reasoning ("tool count is a cost").
+This project deliberately consolidates related operations into fewer, more parameterized tools, with `batch_update` as the escape hatch for whatever doesn't fit a named tool — see [Design Principles](design.md#tool-count-as-a-cost) for the reasoning ("Tool count as a cost").
 
 Known gaps (full comments CRUD, conditional formatting, protected ranges, multi-tab Docs, and more) are tracked as candidates in the [roadmap](roadmap.md), not silently ignored.
 

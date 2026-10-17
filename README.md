@@ -9,7 +9,7 @@
 
 <!-- mcp-name: io.github.khuisman/mcp-gee-sweet -->
 
-mcp-gee-sweet gives AI clients deep, direct access to Google Sheets, Docs, Drive, Calendar, and Gmail. It reads raw formulas like `=VLOOKUP()` directly, builds Docs structurally (colspan/rowspan tables, themes, named styles, an HTML/Markdown→AST→Docs pipeline), and covers Drive files, sharing, and sync alongside Calendar events and Gmail messages, threads, and drafts.
+mcp-gee-sweet gives AI clients deep, direct access to Google Sheets, Docs, Drive, Calendar, and Gmail. It reads raw formulas like `=VLOOKUP()`, builds Docs structurally (colspan/rowspan tables, themes, named styles, an HTML/Markdown→AST→Docs pipeline), and covers Drive files, sharing, and sync alongside Calendar events and Gmail messages, threads, and drafts.
 
 A few highlights:
 - **Caching** — repeated reads return in ~2ms from a local cache instead of a round-trip API call every time.
@@ -86,7 +86,7 @@ mcp-gee-sweet auth   # one-time browser login; `uvx mcp-gee-sweet auth` for a Py
 
 Pass the same `CREDENTIALS_PATH` and `TOKEN_PATH` in your MCP client's `env`. A stdio server with no token doesn't open a browser itself. Instead its first tool call offers you the Google consent link (or you run `mcp-gee-sweet auth`), and you retry the call. A token revoked mid-session is handled the same way, with no restart.
 
-Service accounts (recommended for headless server deployments — see Option B above; Gmail tools need OAuth), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
+Service accounts (recommended for headless server deployments, see Option B above), base64 credential injection, and Application Default Credentials are also supported. Gmail tools need OAuth. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
 
 ---
 

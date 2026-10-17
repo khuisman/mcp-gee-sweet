@@ -34,7 +34,7 @@ Not all in-scope services need to be implemented — the table above is the ceil
 
 A tool belongs here if it passes all three gates:
 
-1. **Requires Google API access** — the operation calls a Google API (Sheets, Drive, Docs, Calendar). Tools that only manipulate local data or do pure computation don't belong here.
+1. **Requires Google API access** — the operation calls a Google API (Sheets, Drive, Docs, Calendar, Gmail). Tools that only manipulate local data or do pure computation don't belong here.
 
 2. **Not already coverable** — the operation is not already expressible via an existing tool, including the `batch_update` passthrough, which is the intended escape hatch for raw Sheets API operations.
 
