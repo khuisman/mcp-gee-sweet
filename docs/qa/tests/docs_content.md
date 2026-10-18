@@ -959,6 +959,9 @@ Passes alone, but widths on any table after the first fail with 400 "table start
 **Result (2026-10-18) ✅ PASS — PR #1082 QA round 1 (Kit)**
 No API error. Playwright: "Narrow" visibly half the width of "Wide" (144:288).
 
+**Result (2026-10-18) ✅ PASS — PR #1082 QA round 2 (Kit)**
+No API error. Playwright: Narrow:Wide still 1:2 after the round-1 fix.
+
 ---
 
 ### TC-DOC36: `rowspan` produces vertically merged cells ⚠️ destructive
@@ -5309,3 +5312,6 @@ The scratch script needs a usable OAuth token (see DOC80).
 
 **Result (2026-10-18) ❌ FAIL — PR #1082 QA round 1 (Kit)**
 Step 1: no `error`, no `backupId`. Step 2: all three tables with their text. Playwright: second table Narrow:Wide is 1:2, third table narrower than the page, first table evenly distributed — the #1053 fix works. Fails only the yellow-background check: `html_parser` never parses `<td style="background-color:…">` (no write path sets a cell's `background_color`), so this check expects behavior the tool has never had. Test-case text needs correcting, not the code.
+
+**Result (2026-10-18) ✅ PASS — PR #1082 QA round 2 (Kit)**
+Step 1: no `error`, no `backupId`. Step 2: all four tables with their text. Playwright: second table Narrow:Wide 1:2; third table narrower than the page; fourth table (three `<col>`, two cells) has two equal columns narrower than the page, so the extra width was skipped instead of failing with "Invalid column index 2" as in round 1; first table evenly distributed.
