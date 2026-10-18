@@ -136,7 +136,10 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 ### TC-D14: List from explicit folder ID
 
-**Setup (#1054):** `create_spreadsheet(title="QA-Trashed-1054", folder_id={FOLDER_ID})`, then `delete_file(file_id=<its id>, permanent=False)`. `get_file_metadata(file_id=<its id>)` must report `trashed: true` before you continue.
+**Setup (#1054):**
+1. `create_spreadsheet(title="QA-Trashed-1054", folder_id={FOLDER_ID})`; note its id.
+2. Positive control: `list_spreadsheets(folder_id={FOLDER_ID})` and `search_spreadsheets(query="QA-Trashed-1054")` must each return an entry with that id. Drive's search index can lag a new file, so retry until both do; a negative check run before this proves nothing.
+3. `delete_file(file_id=<its id>, permanent=False)`. `get_file_metadata(file_id=<its id>)` must report `trashed: true` before you continue.
 
 **Prompt**
 > "List spreadsheets in folder {FOLDER_ID}"
@@ -144,7 +147,7 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Checks**
 - Returns spreadsheets from that specific folder
 - Results scoped to the given folder
-- `QA-Trashed-1054` is **not** in the results (#1054: trashed files were returned)
+- No result has `QA-Trashed-1054`'s id (#1054: trashed files were returned)
 
 **Cleanup:** `delete_file(file_id=<QA-Trashed-1054 id>, permanent=True)`, or leave it in the trash for a later `empty_trash` run. TC-D29 reuses it if run in the same pass, so clean up after TC-D29.
 
@@ -310,7 +313,7 @@ Run 1 (kai-oauth).
 
 ### TC-D29: Basic name search
 
-**Setup (#1054):** the trashed `QA-Trashed-1054` spreadsheet from TC-D14's setup. If TC-D14 didn't run in this pass, create and trash it the same way.
+**Setup (#1054):** the trashed `QA-Trashed-1054` spreadsheet from TC-D14's setup, whose positive control already covers `search_spreadsheets`. If TC-D14 didn't run in this pass, run its setup (all three steps).
 
 **Prompt**
 > "Search for spreadsheets with 'qa-fixtures' in the name"
@@ -318,7 +321,7 @@ Run 1 (kai-oauth).
 **Checks**
 - Returns at least one result including 'mcp-gee-sweet-qa-fixtures'
 - Each result has a name and ID
-- `search_spreadsheets(query="QA-Trashed-1054")` returns `[]` (#1054: trashed files were returned)
+- No result of `search_spreadsheets(query="QA-Trashed-1054")` has `QA-Trashed-1054`'s id (#1054: trashed files were returned). Match by id, not by an empty result: fullText search also matches any live doc that mentions the name, such as a QA run log.
 
 **Cleanup:** `delete_file(file_id=<QA-Trashed-1054 id>, permanent=True)`, or leave it in the trash for a later `empty_trash` run.
 
@@ -1201,7 +1204,10 @@ empty_trash on a whole trash; not run during a shared pass.
 
 ### TC-D75: Search by name across all MIME types
 
-**Setup (#1054):** `create_spreadsheet(title="QA-Trashed-1054-Sheet", folder_id={FOLDER_ID})` and `create_folder(name="QA-Trashed-1054-Folder", parent_folder_id={FOLDER_ID})`, then `delete_file(file_id=<id>, permanent=False)` on each. `get_file_metadata` must report `trashed: true` for both before you continue.
+**Setup (#1054):**
+1. `create_spreadsheet(title="QA-Trashed-1054-Sheet", folder_id={FOLDER_ID})` and `create_folder(name="QA-Trashed-1054-Folder", parent_folder_id={FOLDER_ID})`; note both ids.
+2. Positive control: `search_files(query="QA-Trashed-1054")`, `search_files(query="QA-Trashed-1054", mime_type="application/vnd.google-apps.folder")`, and `search_files(query="QA-Trashed-1054", folder_id={FOLDER_ID})` must each return the ids they should (both; the folder; both). Drive's search index can lag a new file, so retry until they do; a negative check run before this proves nothing.
+3. `delete_file(file_id=<id>, permanent=False)` on each. `get_file_metadata` must report `trashed: true` for both before you continue.
 
 **Prompt**
 > "Search files for 'QA' — no MIME type filter"
@@ -1209,7 +1215,7 @@ empty_trash on a whole trash; not run during a shared pass.
 **Checks**
 - Returns a mix of docs, spreadsheets, and folders created during QA
 - Each result has `id`, `name`, `mimeType`, `modified_time`, and `web_link`
-- `search_files(query="QA-Trashed-1054")` returns `[]`: neither the trashed spreadsheet nor the trashed folder (#1054)
+- No result of `search_files(query="QA-Trashed-1054")` or `search_files(query="QA-Trashed-1054", mime_type="application/vnd.google-apps.folder")` has either trashed fixture's id (#1054). Match by id, not by an empty result: fullText search also matches any live doc that mentions the name, such as a QA run log.
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both, or leave them in the trash for a later `empty_trash` run. TC-D77 reuses them if run in the same pass, so clean up after TC-D77.
 
@@ -1246,15 +1252,16 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
 ### TC-D77: Search with folder filter
 
+**Setup (#1054):** the trashed `QA-Trashed-1054-Sheet` and `QA-Trashed-1054-Folder` from TC-D75's setup, whose positive control already covers the `folder_id` search. If TC-D75 didn't run in this pass, run its setup (all three steps).
+
 **Prompt**
 > "Search for files with 'QA' in the name, but only in {FOLDER_ID}"
-
-**Setup (#1054):** the trashed `QA-Trashed-1054-Sheet` and `QA-Trashed-1054-Folder` from TC-D75's setup. If TC-D75 didn't run in this pass, create and trash them the same way.
 
 **Checks**
 - All results have `parent` matching `{FOLDER_ID}`
 - Files from other folders excluded
-- `search_files(query="QA-Trashed-1054", folder_id={FOLDER_ID})` returns `[]` (#1054: trashed files were returned)
+- No result of `search_files(query="QA-Trashed-1054", folder_id={FOLDER_ID})` has either trashed fixture's id (#1054: trashed files were returned)
+- A quote in `folder_id` can't reopen the query (#1054 round 1): `search_files(query="QA-Trashed-1054", folder_id="x' in parents or trashed=true or 'y")` returns either `[]` or an `{"error": ...}` item, and no result has either trashed fixture's id. Before the fix, the raw `'` closed the folder string and the `or trashed=true` brought the trashed fixtures back.
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both, or leave them in the trash for a later `empty_trash` run.
 

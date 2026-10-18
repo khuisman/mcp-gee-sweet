@@ -119,7 +119,11 @@ class TestSearchSpreadsheets:
         drive_svc = self._drive_service()
         ctx = _make_ctx(drive_service=drive_svc)
         await _drive_tools["search_spreadsheets"](query="budget", ctx=ctx)
-        assert "trashed=false" in self._captured_q(drive_svc)
+        # A top-level AND term, not ORed into the free-text group.
+        assert self._captured_q(drive_svc) == (
+            "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false and "
+            "(name contains 'budget' or fullText contains 'budget')"
+        )
 
 
 class TestSearchFiles:
@@ -195,19 +199,43 @@ class TestSearchFiles:
         assert "'folder1' in parents" in q
 
     @pytest.mark.parametrize(
-        "kwargs",
+        ("kwargs", "extra"),
         [
-            {},
-            {"mime_type": "application/vnd.google-apps.folder"},
-            {"folder_id": "folder1"},
+            ({}, ""),
+            (
+                {"mime_type": "application/vnd.google-apps.folder"},
+                " and mimeType='application/vnd.google-apps.folder'",
+            ),
+            ({"folder_id": "folder1"}, " and 'folder1' in parents"),
         ],
     )
-    async def test_query_excludes_trashed(self, kwargs):
-        """#1054: trashed files and folders came back from search_files."""
+    async def test_query_excludes_trashed(self, kwargs, extra):
+        """#1054: trashed files and folders came back from search_files. The term
+        must be a top-level AND, not ORed into the free-text group."""
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
         await _drive_tools["search_files"](query="budget", ctx=ctx, **kwargs)
-        assert "trashed=false" in self._captured_q(svc)
+        assert self._captured_q(svc) == (
+            "(name contains 'budget' or fullText contains 'budget') and trashed=false" + extra
+        )
+
+    async def test_folder_id_quote_cannot_break_out_of_string(self):
+        """#1054 round 1: an unescaped `'` in folder_id could close the string and
+        OR in `trashed=true`, bypassing the trashed filter."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](
+            query="budget", folder_id="x' in parents or trashed=true or 'y", ctx=ctx
+        )
+        assert self._captured_q(svc).endswith(
+            " and trashed=false and 'x\\' in parents or trashed=true or \\'y' in parents"
+        )
+
+    async def test_folder_id_backslash_escaped(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget", folder_id="a\\b", ctx=ctx)
+        assert self._captured_q(svc).endswith(" and 'a\\\\b' in parents")
 
     async def test_api_error_returns_error_dict_not_raised(self):
         """An API/auth failure must surface as [{"error": ...}], not propagate."""
@@ -871,6 +899,15 @@ class TestListFiles:
         fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
         assert "md5Checksum" in fields_arg
 
+    async def test_folder_id_quote_cannot_break_out_of_string(self):
+        """#1054 round 1: an unescaped `'` could OR in `trashed=true`."""
+        svc = self._drive_service()
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="x' in parents or trashed=true or 'y", ctx=ctx)
+        assert svc.files.return_value.list.call_args.kwargs["q"] == (
+            "'x\\' in parents or trashed=true or \\'y' in parents and trashed=false"
+        )
+
     async def test_result_includes_md5_checksum_for_binary_file(self):
         svc = self._drive_service(
             files=[
@@ -1053,6 +1090,18 @@ class TestListFolders:
         assert "in parents" not in q
         assert "'root'" not in q
 
+    async def test_parent_folder_id_quote_cannot_break_out_of_string(self):
+        """#1054 round 1: an unescaped `'` could OR in `trashed=true`."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](
+            parent_folder_id="x' in parents or trashed=true or 'y", ctx=ctx
+        )
+        assert self._captured_q(svc) == (
+            "mimeType='application/vnd.google-apps.folder' and trashed=false"
+            " and 'x\\' in parents or trashed=true or \\'y' in parents"
+        )
+
     async def test_result_shape_unchanged(self):
         svc = self._drive_service(
             files=[{"id": "f1", "name": "Sub", "parents": ["default_folder"]}]
@@ -1152,7 +1201,22 @@ class TestListSpreadsheets:
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc, folder_id=folder_id)
         await _drive_tools["list_spreadsheets"](ctx=ctx)
-        assert "trashed=false" in self._captured_q(svc)
+        expected = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+        if folder_id:
+            expected += f" and '{folder_id}' in parents"
+        assert self._captured_q(svc) == expected
+
+    async def test_folder_id_quote_cannot_break_out_of_string(self):
+        """#1054 round 1: an unescaped `'` in folder_id could OR in `trashed=true`."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](
+            folder_id="x' in parents or trashed=true or 'y", ctx=ctx
+        )
+        assert self._captured_q(svc) == (
+            "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+            " and 'x\\' in parents or trashed=true or \\'y' in parents"
+        )
 
 
 class TestGetFileMetadata:

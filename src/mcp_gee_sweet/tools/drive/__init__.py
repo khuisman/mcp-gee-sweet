@@ -44,3 +44,12 @@ def _escape_drive_query_mime_type(mime_type: str) -> str:
     needs the single-quote escape, not the backslash-then-quote pair.
     """
     return mime_type.replace("'", "\\'")
+
+
+def _escape_drive_query_value(value: str) -> str:
+    """Escape an arbitrary caller-supplied value (a search term, a folder ID) for a
+    quoted string in a Drive `files().list()` `q` string: backslash first, then the
+    single quote. Unescaped, a `'` in a folder ID could close the string and OR in
+    its own terms, e.g. `trashed=true` past the `trashed=false` filter (#1054).
+    """
+    return value.replace("\\", "\\\\").replace("'", "\\'")

@@ -17,7 +17,7 @@ from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
-from . import _escape_drive_query_mime_type, _quota_error_text
+from . import _escape_drive_query_mime_type, _escape_drive_query_value, _quota_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -409,7 +409,8 @@ def register(tool):
             max_results: Maximum number of results to return (default 100, max 1000).
 
         Returns:
-            List of spreadsheets with their ID and title
+            List of spreadsheets with their ID and title. Trashed files are excluded; to find one to restore, use
+            get_file_metadata or restore_file with its file ID.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
@@ -417,7 +418,7 @@ def register(tool):
 
         query = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
         if target_folder_id:
-            query += f" and '{target_folder_id}' in parents"
+            query += f" and '{_escape_drive_query_value(target_folder_id)}' in parents"
             logger.debug("Searching for spreadsheets in folder: %s", target_folder_id)
         else:
             logger.debug("Searching for spreadsheets across 'My Drive' and shared drives")
@@ -467,7 +468,7 @@ def register(tool):
 
         query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         if target_folder_id:
-            query += f" and '{target_folder_id}' in parents"
+            query += f" and '{_escape_drive_query_value(target_folder_id)}' in parents"
             logger.debug("Searching for folders in parent folder: %s", target_folder_id)
         else:
             logger.debug("Searching for folders across 'My Drive' and shared drives")
@@ -592,7 +593,7 @@ def register(tool):
         if cached is not None:
             return cached
 
-        query = f"'{folder_id}' in parents and trashed=false"
+        query = f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false"
         if mime_type:
             safe_mime = _escape_drive_query_mime_type(mime_type)
             query += f" and mimeType='{safe_mime}'"
@@ -667,12 +668,13 @@ def register(tool):
 
         Returns:
             List of matching files with id, name, mimeType, modified time, owners,
-            parent folder, webViewLink, and starred status.
+            parent folder, webViewLink, and starred status. Trashed files are excluded; to find one to restore, use
+            get_file_metadata or restore_file with its file ID.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         max_results = clamp_max_results(max_results, 100)
 
-        safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
+        safe_query = _escape_drive_query_value(query)
         parts = [
             f"(name contains '{safe_query}' or fullText contains '{safe_query}')",
             "trashed=false",
@@ -681,7 +683,7 @@ def register(tool):
             safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
         if folder_id:
-            parts.append(f"'{folder_id}' in parents")
+            parts.append(f"'{_escape_drive_query_value(folder_id)}' in parents")
 
         try:
             results = await execute_in_thread(
@@ -737,12 +739,13 @@ def register(tool):
 
         Returns:
             List of matching spreadsheets with their ID, name, metadata, and
-            starred status.
+            starred status. Trashed files are excluded; to find one to restore, use
+            get_file_metadata or restore_file with its file ID.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         max_results = clamp_max_results(max_results, 100)
 
-        safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
+        safe_query = _escape_drive_query_value(query)
         search_query = (
             f"mimeType='application/vnd.google-apps.spreadsheet' and trashed=false and "
             f"(name contains '{safe_query}' or fullText contains '{safe_query}')"
