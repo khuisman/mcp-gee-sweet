@@ -284,7 +284,7 @@ Round 3 of PR #1000 (`290f5bc`) got `qa-approved` while `Lint and test` was fail
 
 ### A send-back reports failing CI too
 
-Round 1 of PR #1079 (`ac33f711`) was sent back with ten findings, while all four `Lint and test` jobs were failing at `Format check`: ruff 0.16 formats Python code blocks inside Markdown, and two of the PR's fixtures had one. Only step 8 waited for CI, so the send-back never looked. The Dev fixed the ten findings, round 2 found the CI failure, and the PR took a third round. Step 7 now runs `gh pr checks --watch` on the verified head before commenting and lists each failing check as a `send-back:` line.
+Round 1 of PR #1079 (`ac33f711`) was sent back with ten findings, while all four `Lint and test` jobs were failing at `Format check`: ruff 0.16 formats Python code blocks inside Markdown, and two of the PR's fixtures had one. Only step 8 waited for CI, so the send-back never looked. The Dev fixed the ten findings, round 2 found the CI failure, and the PR took a third round. Step 7 now runs `gh pr checks --watch` before commenting and lists each failing check as a `send-back:` line. `gh pr checks` has no SHA option and reports the PR's current head, so the step says to note a head that moved after step 6. An absent `Lint and test` goes through step 8's `mergeable` check, since `--watch` exits clean on a check that never ran (Bob's prompt-QA round 1).
 
 ### Re-read this file when a `develop` merge changes it mid-pass
 
