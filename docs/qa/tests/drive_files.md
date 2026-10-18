@@ -154,6 +154,9 @@ list_spreadsheets(FOLDER_ID) returns exactly the 3 spreadsheets in that folder (
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-10-17) ✅ PASS — PR #1083 round 1 (Sky, `47db02a`)**
+OAuth, fixture folder on the Shared Drive. Positive control first: before trashing, `list_spreadsheets({FOLDER_ID})` listed `QA-Trashed-1054` (plus `QA-Trashed-1054-Sheet` and the fixture). After `delete_file(permanent=False)`, with `get_file_metadata` reporting `trashed: true`, the same call returned only `mcp-gee-sweet-qa-fixtures`. Cleaned up with `delete_file(permanent=True)`.
+
 ---
 
 ### TC-D15: List from root (no folder)
@@ -324,6 +327,9 @@ search_spreadsheets('qa-fixtures') returned 1 result: 'mcp-gee-sweet-qa-fixtures
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-10-17) ✅ PASS — PR #1083 round 1 (Sky, `47db02a`)**
+`search_spreadsheets('qa-fixtures')` → the fixture. Positive control: before trashing, `search_spreadsheets('QA-Trashed-1054')` returned both new spreadsheets. After trashing (`trashed: true` confirmed), it returned `[]`.
 
 ---
 
@@ -1213,6 +1219,9 @@ search_files('QA') no filter → mix of spreadsheets, docs, folders, text/plain;
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-10-17) ✅ PASS — PR #1083 round 1 (Sky, `47db02a`)**
+`search_files('QA')` → a mix of spreadsheets, docs, and a folder, each with id/name/mimeType/modified_time/web_link. Positive control: before trashing, `search_files('QA-Trashed-1054', folder_id={FOLDER_ID})` returned the sheet, the folder, and TC-D14's sheet. After trashing, `search_files('QA-Trashed-1054')` (unscoped) and the same call with `mime_type='application/vnd.google-apps.folder'` both returned `[]`.
+
 ---
 
 ### TC-D76: Search with MIME type filter
@@ -1254,6 +1263,9 @@ search_files('QA', folder_id=FOLDER_ID) → every result has parent = FOLDER_ID;
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-10-17) ✅ PASS — PR #1083 round 1 (Sky, `47db02a`)**
+`search_files('QA', folder_id={FOLDER_ID})` → 3 results, all with `parent` = `{FOLDER_ID}`. `search_files('QA-Trashed-1054', folder_id={FOLDER_ID})` returned all 3 fixtures before trashing and `[]` after.
 
 ---
 
