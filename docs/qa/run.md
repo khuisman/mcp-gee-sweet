@@ -242,6 +242,8 @@ Work through the test files in this order:
 14. `docs/qa/tests/calendar.md`
 15. `docs/qa/tests/gmail.md`
 
+`docs/qa/tests/docs_markdown.md` isn't in this sequence: it renders every case through eight entry points twice, so it runs on its own (`run_group` with `group: docs_markdown`), following that file's own "Running this suite" section.
+
 For each test case:
 
 1. Announce the TC number and title.
@@ -250,11 +252,14 @@ For each test case:
 4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome. Also save a screenshot via `browser_take_screenshot`, with `filename` set to `docs/qa/screenshots/<YYYY-MM-DD>-<tc-id>.png` (today's date, lowercase TC number — e.g. `tc-doc12.png`). The date prefix keeps each run's screenshots separate without overwriting a prior run's evidence, and avoids depending on a subfolder that `browser_take_screenshot` won't auto-create.
 5. Evaluate each item in the **Checks** list against the actual result.
 6. Record one of:
-   - **PASS** — every check met
+   - **PASS** — every check met, and the result describes no defect
    - **FAIL** — one or more checks failed; note exactly what was wrong
+   - **PARTIAL** — the checks that ran were met, but at least one listed check didn't run (including the Playwright check on a `**Playwright: required**` case); name each one that didn't
    - **SKIP** — with reason (e.g. "requires server restart", "skipped by user", "prerequisite TC failed")
+
+   A result that describes a defect is never a PASS. That includes wording like "matches the documented failure mode", "known gap", "pre-existing", "not a new regression", "out of scope", or "still fails": if the case's own output shows a defect, record FAIL, even when its Checks were written to accept it. A known limitation has to point to an **open** issue: if the one it names is closed, or it names none, file one (or add the evidence to an open one) and link it in the Result. A defect outside the case's own checks (a probe, a side observation) can sit beside a PASS only if the same Result names where it's tracked: sent back on the PR, or an open issue. "Not filed" next to a defect is never acceptable (#1044 audit, `docs/qa/results/2026-10-17-pass-audit.md`).
 7. For tests marked ⚠️ destructive: ask me before running. If I say skip, record SKIP(destructive-skipped).
-8. For tests marked 🔍 product decision: always record PASS and note the observed behavior.
+8. For tests marked 🔍 product decision: record PASS and note the observed behavior, unless that behavior is a defect or an untracked limitation; then the rule in step 6 applies.
 9. Track intermediate IDs as you go — some tests produce IDs (permissionId, eventId, fileId) needed by later tests. Record them in your working notes and substitute them when referenced.
 
 ## Step 2 — Save progress
