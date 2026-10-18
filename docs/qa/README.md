@@ -36,6 +36,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/docs_tables.md](tests/docs_tables.md) | Docs tables | TC-DOC## |
 | [tests/docs_style.md](tests/docs_style.md) | Docs style & theming | TC-DOC## |
 | [tests/docs_layout.md](tests/docs_layout.md) | Docs layout (headers/footers) | TC-DOC## |
+| [tests/docs_markdown.md](tests/docs_markdown.md) | Markdown → Docs rendering through every write path; the v0.9.3 release gate (#1044) | TC-MD### |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
 | [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 | [tests/gmail.md](tests/gmail.md) | Gmail tools | TC-GM## |

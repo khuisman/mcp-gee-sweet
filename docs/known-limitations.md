@@ -78,9 +78,10 @@ requires a marker *and* a space *and* content (`"- "` + text) to recognize a lin
 the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
 check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
 empty) list item (case 2). This fires regardless of indentation and is distinct from the
-already-documented `sane_lists` indentation-threshold bug (see `docs/qa/tests/docs_content.md`'s
-TC-DOC105/TC-DOC106 sections and tracked issue #334) — that bug is about sub-list nesting depth,
-not this marker-recognition gap. Working around this by changing how bare markers or Setext headings are
+`sane_lists` indentation-threshold defect (2- and 3-space nested lists don't nest; see
+`docs/qa/tests/docs_content.md`'s TC-DOC105 and `docs/qa/tests/docs_markdown.md`'s TC-MD106,
+tracked in #1071) — that bug is about sub-list nesting depth, not this marker-recognition
+gap. Working around this by changing how bare markers or Setext headings are
 parsed would change behavior for every other document using either construct, a much larger and
 riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
 warrants.
@@ -88,7 +89,38 @@ warrants.
 **Workaround:** Give the list item a non-breaking space instead of a bare `-` (i.e. `- ` followed
 by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (`<li></li>`)
 in both contexts above. Confirmed via direct execution of `_md_to_html` — a local, offline
-markdown→HTML conversion, not a live Google API round trip. Related: #692.
+markdown→HTML conversion, not a live Google API round trip. CommonMark does allow an empty list
+item, so this stays open as #1075 (#692, closed, is the earlier triage). Related:
+`docs/qa/tests/docs_markdown.md` TC-MD301.
+
+---
+
+### Images inside table cells are dropped
+
+**What:** An image in a table cell (Markdown `| ![alt](src) |` or HTML `<td><img …></td>`) is
+dropped: the cell renders empty, and the call reports no error and no per-image entry under
+`images`.
+
+**Why:** Image support (#333) covers body-level images only. The table fill
+(`emitter.py`'s `_fill_children_recursive`) has no handling for an `Image` among a cell's
+children, so the parser drops it before it gets there.
+
+**Workaround:** Insert the image into the cell afterwards with `insert_inline_image`, at the
+cell's `paragraphStartIndex` from `get_doc_structure`. Tracked in #1073;
+`docs/qa/tests/docs_markdown.md` IM-09 and `docs/qa/tests/docs_content.md` TC-DOC102/TC-DOC153
+cover it.
+
+---
+
+### `create_bookmark` doesn't create a bookmark Docs lists
+
+**What:** `create_bookmark` creates a one-character named range. It doesn't appear under
+Insert > Link > "Headings, bookmarks, and tabs", and no link can point to it.
+
+**Why:** The Docs API has no request that creates a bookmark; only the Docs UI can.
+
+**Workaround:** Link to a heading instead: every heading has a `headingId` (`get_doc_structure`)
+that a link can target. Tracked in #1076.
 
 ---
 

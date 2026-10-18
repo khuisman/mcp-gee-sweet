@@ -868,8 +868,9 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-20) ✅ PASS (partial)**
+**Result (2026-06-20) ⚠️ PARTIAL**
 - Table created; `get_doc_structure` shows 2 rows, 2 cols with cells "Name", "Value", "Alpha", "1". `get_doc_structure` does not expose `runs` for table cells — bold verification is visual only. 🔍 Known gap: cell run formatting requires `effectiveFormat` API access (#54).
+**Corrected (2026-10-17, #1044 audit):** bold in table cells was never checked on screen ("visual only").
 
 **Result (2026-09-04) ✅ PASS**
 th cells: table shows Name/Value/Alpha/1. Playwright screenshot (tc-doc32.png) confirmed "Name"/"Value" bold, "Alpha"/"1" plain.
@@ -896,8 +897,9 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-20) ✅ PASS (partial)**
+**Result (2026-06-20) ⚠️ PARTIAL**
 - `get_doc_structure` shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via `get_doc_structure` (same cell-runs gap as TC-DOC32). 🔍 Visual check required for run formatting.
+**Corrected (2026-10-17, #1044 audit):** the in-cell bold/italic was never checked on screen.
 
 **Result (2026-09-04) ✅ PASS**
 Cell text "bold plain italic". Playwright screenshot (tc-doc33.png) confirmed "bold" bold, "plain" plain, "italic" italic within one cell.
@@ -1005,7 +1007,8 @@ Run 2 (ash).
 **Result (2026-06-20) ✅ PASS**
 - 2 rows, 3 cols. [0,0] "Big" ✅, [0,1] "" ✅, [0,2] "R0C2" ✅, [1,0] "" ✅, [1,1] "" ✅, [1,2] "R1C2" ✅. All phantom slots empty.
 
-**Result (2026-08-19, regression) ✅ PASS — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 added `strict=True` to five `zip()` calls in `emitter.py`'s table-building pipeline (`_ast_cell_to_doc_cell`, `_build_merge_requests`, `_build_fill_requests`, `_build_cell_style_requests`, `_build_width_requests`) — a fail-fast guard, no intended behavior change on matched-length inputs. Re-ran via `create_doc` against a scratch doc (docId `1vux36c7ZOyBHb8YPi3WnubSotL0Mg0y5QZJjPmbEvxA`), not the shared fixture: `get_doc_structure` confirmed 2 rows, 3 columns; [0,0]="Big", [0,2]="R0C2", [1,2]="R1C2"; phantom slots [0,1]/[1,0]/[1,1] all empty. No `zip()` length-mismatch error raised. Doc trashed after verification (structural check only, no Playwright this round).
+**Result (2026-08-19, regression) ⚠️ PARTIAL — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 added `strict=True` to five `zip()` calls in `emitter.py`'s table-building pipeline (`_ast_cell_to_doc_cell`, `_build_merge_requests`, `_build_fill_requests`, `_build_cell_style_requests`, `_build_width_requests`) — a fail-fast guard, no intended behavior change on matched-length inputs. Re-ran via `create_doc` against a scratch doc (docId `1vux36c7ZOyBHb8YPi3WnubSotL0Mg0y5QZJjPmbEvxA`), not the shared fixture: `get_doc_structure` confirmed 2 rows, 3 columns; [0,0]="Big", [0,2]="R0C2", [1,2]="R1C2"; phantom slots [0,1]/[1,0]/[1,1] all empty. No `zip()` length-mismatch error raised. Doc trashed after verification (structural check only, no Playwright this round).
+**Corrected (2026-10-17, #1044 audit):** structural check only; the required Playwright check wasn't run.
 
 **Result (2026-09-04) ✅ PASS**
 rowspan=2 colspan=2: 2 rows, 3 cols. [0,0]="Big",[0,1]="" phantom,[0,2]="R0C2",[1,0]="" phantom,[1,1]="" phantom,[1,2]="R1C2". Visual merge pattern already confirmed by TC-DOC34/36 (structural verification only this TC to save time).
@@ -1031,8 +1034,9 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-20) ✅ PASS**
+**Result (2026-06-20) ⚠️ PARTIAL**
 - 3 rows, 3 cols. Row 0: "Name"/"Type"/"Notes" (bold visual only). Row 1: [1,0] "Alpha", [1,1] "A", [1,2] "first" ✅. Row 2: [2,0] "" (phantom) ✅, [2,1] "B" (not shifted left) ✅, [2,2] "second" ✅. Physical-to-AST column mapping correct.
+**Corrected (2026-10-17, #1044 audit):** header bold was "visual only" and wasn't checked on screen.
 
 **Result (2026-09-04) ✅ PASS**
 rowspan header table: 3 rows, 3 cols. Row0 Name/Type/Notes, Row1 Alpha/A/first, Row2 ""(phantom)/B(not shifted left)/second. Physical-to-AST column mapping correct.
@@ -1123,9 +1127,10 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-19) ✅ PASS**
+**Result (2026-06-19) ⚠️ PARTIAL**
 - Two paragraphs: `def hello():` and `    return 'world'` confirmed via `get_doc_structure`.
 - `weightedFontFamily: Courier New` is emitted by the unit-tested emitter; `get_doc_structure` does not expose `font_family` (known gap — no `effectiveFormat` API access).
+**Corrected (2026-10-17, #1044 audit):** Courier New was "confirmed" by unit tests, not on screen.
 
 **Result (2026-07-04) — related bug found, not a failure of this TC's own checks** Writing a fenced code block as the doc's last content left an explicit `font_size`/`font_family` override on the document's trailing paragraph mark, which `write_doc_content`'s clear+reinsert couldn't remove (the Docs API won't let `deleteContentRange` touch the final paragraph mark) — a *subsequent* `write_doc_content` call with plain content would inherit that contamination. Filed as [#255](https://github.com/khuisman/mcp-gee-sweet/issues/255). Fixed in [#258](https://github.com/khuisman/mcp-gee-sweet/pull/258), then corrected in [#259](https://github.com/khuisman/mcp-gee-sweet/pull/259) after live re-testing showed #258's single-batchUpdate version was unreliable. **Re-verified live (2026-07-05)** after both merged: wrote a fenced code block, then overwrote with plain content — new content came back with `textStyle: {}`, no contamination, across repeated rounds.
 
@@ -1243,9 +1248,10 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-19) ✅ PASS**
+**Result (2026-06-19) ⚠️ PARTIAL**
 - Paragraph text `Call my_function() with param=True to enable it.` confirmed; code spans at correct positions.
 - `weightedFontFamily: Courier New` confirmed via unit tests; not exposed by `get_doc_structure` (known gap).
+**Corrected (2026-10-17, #1044 audit):** Courier New was "confirmed" by unit tests, not on screen.
 
 **Result (2026-07-04)** Two findings during the v0.8.1 live pass, neither a failure of this TC's own checks:
 1. The prescribed SVG image URI in TC-DOC57/58 is unrelated to this TC but was hit in the same session — see those TCs, now fixed to use a PNG.
@@ -1412,7 +1418,8 @@ Run 2 (ash).
 **Result (2026-07-05) ✅ PASS**
 `create_doc` succeeded (docId `1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU`). `get_doc_structure` confirmed all four checks: `https://example.com/some-page` run has `link_url` set with the trailing `.` split into its own unlinked run; `https://example.com/parens` run has `link_url` set with both wrapping parens split into unlinked runs; the markdown link's `click` run has `link_url: "https://example.com/existing"` (untouched, not double-processed); the backtick-wrapped `https://example.com/code` run has `link_url: null`. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): both bare URLs render blue/underlined, wrapping punctuation stays plain black, `click` renders as a normal link, and the backtick-wrapped URL renders as plain monospace code — not a link.
 
-**Result (2026-08-19, regression) ✅ PASS — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 merged this test's exact `if`/`elif` trailing-punctuation branch into one `or`-joined condition in `_BareUrlInlineProcessor` (mechanical SIM108-style cleanup, no intended behavior change). Re-ran via `create_doc` (docId `1NZTdIPJxmxMWGKJH_aelsillFToCShhXCutGhCiH8JU`): all four checks still hold — trailing `.` and wrapping parens correctly split off into unlinked runs, existing markdown link untouched, backtick-wrapped URL has `link_url: null`. Doc trashed after verification (structural check only, no Playwright this round).
+**Result (2026-08-19, regression) ⚠️ PARTIAL — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 merged this test's exact `if`/`elif` trailing-punctuation branch into one `or`-joined condition in `_BareUrlInlineProcessor` (mechanical SIM108-style cleanup, no intended behavior change). Re-ran via `create_doc` (docId `1NZTdIPJxmxMWGKJH_aelsillFToCShhXCutGhCiH8JU`): all four checks still hold — trailing `.` and wrapping parens correctly split off into unlinked runs, existing markdown link untouched, backtick-wrapped URL has `link_url: null`. Doc trashed after verification (structural check only, no Playwright this round).
+**Corrected (2026-10-17, #1044 audit):** structural check only; the required Playwright check wasn't run.
 
 **Result (2026-09-04) ✅ PASS**
 create_doc markdown with bare URLs. All 4 checks confirmed: "https://example.com/some-page" link_url set, trailing "." split off unlinked; "https://example.com/parens" link_url set, wrapping parens split off unlinked; "click" link_url=".../existing" (untouched); backtick-wrapped URL run has link_url:null. Trashed.
@@ -2004,8 +2011,9 @@ list_doc_comments('not-a-real-doc-id') raised HttpError 404 "File not found" —
 
 **Background (#333 implementation, 2026-08-02):** #333 implements body-level image support (Cases 1–5, 8 above); table-cell images (Cases 6–7) are a deliberate, documented out-of-scope gap tracked as a follow-up issue, not a regression — same silent-drop behavior as the original FAIL result above. Dev-side verification against the real Docs API (not through this repo's own MCP tool interface — a `mcp-gee-sweet-<name>` server process imports code once at session start, so a same-session tool call would exercise stale pre-fix code; see `CLAUDE.md`'s "MCP restart" section — instead verified via a throwaway script calling `content.py`'s `_apply_doc_content` directly, reusing `mcp_gee_sweet.auth._oauth_creds()`) found Cases 1–5 embed correctly and Cases 6/7 stay empty as expected, but Case 8 (the deliberately unreachable URL) surfaced a real, more serious bug: the Docs API rejects an entire `batchUpdate` atomically if *any* one `insertInlineImage` request in it can't be fetched — so Case 8 alone was taking down Cases 1–5's otherwise-correct image requests too, along with every other request in the same call (text, styles, tables). Not a position-math bug — a rejected batch executes nothing at all. Fixed by catching the `HttpError`, parsing the failing request's index directly out of Google's own error message (`"Invalid requests[N].insertInlineImage: ..."`), stripping that exact request, and retrying with the same (otherwise-unmodified) request list — safe because a rejected batch never partially applies, so no other request's position needs recomputing. Re-verified with the fix in place: all 8 cases produced the expected outcome (1–5 embedded, 6–7 empty, 8 reported as a clean per-image `error` entry instead of failing the whole document), and the final "confirms not truncated" paragraph was present. Unit coverage for the retry itself: `TestCreateDocImages::test_one_bad_image_url_does_not_fail_the_whole_document`. This dev-side pass doesn't substitute for a formal QA run through the actual MCP tool interface plus the fixture's own Playwright visual check — leaving this test case's own `**Result**` for that pass.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 create_doc_from_file(tc-doc102-image-conversion.html): docId+web_link, no top-level error. images list: 6 successes (cases 1-5, one of 3's two) + 1 per-image error (case 8, unreachable URL) = 7 entries; cases 6/7 (table-cell images) silently dropped with no entry, matching documented gap. get_doc_structure confirmed all 8 headings + surrounding paragraph text intact, table cells empty for dropped images, final paragraph present (not truncated). Playwright screenshot (tc-doc102.png) confirmed Google-logo images visibly rendering for Cases 1-5. Trashed.
+**Corrected (2026-10-17, #1044 audit):** this case's Checks require an image in all 8 cases, including both table cells; Cases 6/7 rendered empty with no error or per-image entry. #509 (closed) is a different symptom. Tracked in #1073.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).
@@ -2029,8 +2037,9 @@ Run 2 (ash).
 
 **Background (#333 implementation, 2026-08-02):** the markdown path (`_md_to_html` → shared `html_to_ast`) funnels into the same code TC-DOC102's own background note covers, so that note's findings (Cases 1–5/8 fixed, Cases 6–7 a documented gap, the retry-on-image-failure fix) apply here too — not independently re-verified live against this specific `.md` fixture. A formal QA pass should run this fixture directly (not just TC-DOC102's `.html` one) to confirm reference-style `![alt][ref]` syntax specifically, since that's the one construct this fixture exercises that TC-DOC102 doesn't.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 create_doc_from_file(tc-doc103-image-conversion.md): 7 successes + 1 per-image error (case 8), case 6 (table cell) silently dropped (8 of 9 source images reach the images list). get_doc_structure confirmed all headings/text, and index-math on Case 7's paragraph (546-527=19 vs 18 expected for text-only) confirms an image occupies the extra slot. Playwright screenshot (tc-doc103.png) confirmed: Case 6 table cell empty, Case 7 reference-style image renders correctly (Google logo), Case 8 degrades gracefully with no truncation. Trashed.
+**Corrected (2026-10-17, #1044 audit):** Case 6's table-cell image was dropped silently; the Checks require an image in every case. Tracked in #1073.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).
@@ -2073,16 +2082,18 @@ Run 2 (ash).
 
 **Sending back to Dev — this is the PR's own target behavior failing live on the repo's existing QA fixture, not a peripheral or edge-case finding.**
 
-**Result (2026-07-27, round 2) ✅ PASS — re-run live against PR #432 commit 5fa26e7 (Playwright visual check), after Dev's fix.** Root cause was confirmed to be exactly what round 1 suspected: separate per-paragraph `createParagraphBullets` calls let each paragraph land under a different `listId`. The fix groups maximal contiguous same-preset `BulletItem` runs into one call. Live re-verification:
+**Result (2026-07-27, round 2) ❌ FAIL — re-run live against PR #432 commit 5fa26e7 (Playwright visual check), after Dev's fix.** Root cause was confirmed to be exactly what round 1 suspected: separate per-paragraph `createParagraphBullets` calls let each paragraph land under a different `listId`. The fix groups maximal contiguous same-preset `BulletItem` runs into one call. Live re-verification:
 - Case 1: "Child A1"/"Child A2" (both `depth=1`) now render at the **same** indentation level (circle glyph), "Grandchild A2a" (`depth=2`) renders one level deeper (square glyph) — 3 distinct levels confirmed. "Ordered child B1"/"B2" render with continuous numbering ("1.", "2.").
 - Case 3: "Top ordered 1" → "Nested ordered 1.1"/"1.2" (rendered "a."/"b.", correct decimal→alpha nesting) → "Top ordered 2" — correct nesting and numbering.
 - Case 2: "Bare-nested child C1"/"C2" render visibly more indented than the absent parent (checklist requirement met), though their bullet glyph is a disc rather than the circle used by other `depth=1` items elsewhere in the doc — a narrow, isolated-run edge case (a contiguous bulleted run with no `depth=0` member to anchor nesting level 0 against). Not part of this test case's stated checklist; filed separately as #439, non-blocking.
 - The stray empty-bullet paragraph noted in round 1 is confirmed pre-existing and unrelated to this PR (reproduced identically on TC-DOC106 below, which has no such artifact at all in its markdown source) — out of scope here.
+**Corrected (2026-10-17, #1044 audit):** the stray empty bullet paragraphs this run recorded as "pre-existing, unrelated" are visible in this case's own output. Tracked in #1074.
 
-**PASS — bugs 1 and 2 both confirmed fixed live.**
+**Bugs 1 and 2 confirmed fixed live; the result is still a FAIL (see the correction above).**
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 create_doc_from_file(tc-doc104-nested-lists.html): "Parent A has text"/"Parent B has text"/"Top ordered 1" all survive as own bullet items (bug 1 fixed), correct nestingLevel 0/1/2 (bug 2 fixed). Playwright screenshot (tc-doc104.png) confirmed 3 visible indentation levels for Case 1, correct alpha-nesting for Case 3. Known pre-existing artifacts reproduced as documented (non-blocking): stray whitespace-only bullet paragraphs from raw-HTML fixture indentation (html_parser.py's own whitespace handling, unrelated to PR #432), which consume list numbers and shift "Top ordered 2" to render as "3." instead of "2." — matches historical finding, not a new regression. Case 2's bare-nested children render with disc (not circle) glyph — known #439, non-blocking. Trashed.
+**Corrected (2026-10-17, #1044 audit):** the stray whitespace-only bullets this run recorded as "non-blocking" consume list numbers, so "Top ordered 2" renders as "3.", visible in this case's own Case 3. Tracked in #1074.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).
@@ -2107,8 +2118,9 @@ Run 2 (ash).
 - Case 3: "Top ordered 1" survives as its own item (no bug-1 collision at this indentation, since the sub-items aren't recognized as nested — they become plain siblings instead), but "Nested ordered 1.1"/"1.2" render as flat siblings, not nested, and are mis-numbered as continuing the same list as "Top ordered 1"/"2" in the live doc.
 - Live execution + Playwright visual check still needed; not run this session.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 Wrote GFM 2/3-space-indented markdown to DOC_ID. Confirmed the documented bug-3 gap behaves exactly as expected: Case 1 "Child A1"/"Child A2" flattened to siblings of "Parent A" (2-space doesn't clear sane_lists' 4-space threshold), "Parent B has text" followed by literal raw "  1. Ordered child B1\n  2. Ordered child B2" text (garbled, not list items) — matches documented failure mode. Case 2's bare `-` marker degrades to plain paragraphs (not merged into one blob this time, likely improved by unrelated #401/#402 paragraph-boundary fixes). Case 3's nested ordered items flatten to siblings of "Top ordered 1"/"2", same listId, all nestingLevel 0 — mis-numbering as documented. This is a known, tracked, not-yet-fixed limitation (bug 3) — behavior unchanged from the 2026-07-16 baseline, not a new regression.
+**Corrected (2026-10-17, #1044 audit):** this run saw the 2- and 3-space nested lists flatten and the ordered sub-items show as literal `1.`/`2.` text, which is a defect, not a pass. #334, which `docs/known-limitations.md` named as the tracker, is closed. Tracked in #1071.
 
 **Result (2026-10-17) ❌ FAIL — v0.9.2 release pass**
 Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavior, unchanged since 2026-09-04).
@@ -2135,8 +2147,9 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 
 **PASS.**
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 Wrote 4-space-indented markdown to DOC_ID. Confirmed clean reproduction of TC-DOC104's fixed bugs 1+2 with NO stray-whitespace artifacts (this fixture has none): Case 1 "Child A1"/"Child A2" (level1)/"Grandchild A2a" (level2) correctly nested; "Ordered child B1"/"B2" visually indented+numbered under "Parent B has text" despite reporting nestingLevel:0 (expected Docs API quirk — a list with no depth-0 member pre-populates level-0 glyph/indent with level-1's values, per emitter.py's documented behavior). Case 3 correctly alpha-nested (1./a./b./2.) with correct top-level numbering. Playwright screenshot (tc-doc106.png) confirmed all of this visually. New observation (not blocking, not previously called out for this fixture): Case 2's bare `-` marker with nothing else on its line isn't recognized as a list item by python-markdown regardless of indentation width (a markdown-syntax-level limitation, not the sane_lists indentation-threshold bug this fixture targets) — renders as plain literal "-"/"  - Bare-nested child C1" text, same failure shape as TC-DOC105's Case 2. Fixture restored to seed content after.
+**Corrected (2026-10-17, #1044 audit):** Case 2's bare `-` marker rendered as literal text. #692, which resolved it as a documented limitation, is closed, so the limitation has no open issue. Tracked in #1075.
 
 **Resolution (#692):** Filed and triaged as a documented limitation rather than a code fix — see `docs/known-limitations.md`'s "A bare `-` line is never recognized as an empty list item" entry for the two manifestations (this fixture's Case 2 hits the first-line/paragraph-collapse one) and the recommended non-breaking-space workaround. Pinned with unit tests in `tests/test_docs_content.py::TestMdToHtml`.
 
@@ -2211,11 +2224,13 @@ Run 2 (ash).
 
 **Cleanup:** delete the created doc
 
-**Result (2026-07-17) ✅ PASS**
+**Result (2026-07-17) ❌ FAIL**
 `create_bookmark(doc_id, name="intro", index=1)` returned `{"docId": ..., "namedRangeId": "kix.jare8zg6gej", "name": "intro", "index": 1}`. Playwright: Insert > Link > "Headings, bookmarks, and tabs" listed only "Tab 1" — "intro" does not appear, confirming the documented limitation (not a native Docs UI bookmark).
+**Corrected (2026-10-17, #1044 audit):** `create_bookmark` didn't produce a bookmark Docs lists. Recording that as "confirming the documented limitation" leaves a tool that doesn't do what its name says with no open issue. Tracked in #1076.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 create_bookmark(name="intro", index=1) returned namedRangeId/name/index correctly. UI-dialog "intro not listed in bookmarks" check not re-performed this round (structural/architectural fact — named ranges are categorically invisible to Docs UI bookmark dialogs, previously confirmed live 2026-07-17; not something product code could regress). Doc loaded fine in Playwright.
+**Corrected (2026-10-17, #1044 audit):** same as the 2026-07-17 correction above; this run didn't re-check the UI at all. Tracked in #1076.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).
@@ -2998,7 +3013,8 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 
 **Cleanup:** delete the created doc
 
-**Result:** PASS as written (2026-07-28, live via `mcp-gee-sweet-kit`) — "Appendix A" and "Appendix B itself" runs resolved to their own headings' `headingId` correctly, "dead link" was stripped to `link_url: null`. Visual jump-link click not separately verified via Playwright since `/code-review high` on this PR independently confirmed, by direct source reading, two higher-severity defects this fixture can't reach: (1) `_resolve_heading_anchors`'s body walk (`content.py`) only inspects top-level `paragraph` elements, never descending into `table` cells, so both the pending-link gate and the resolution scan are blind to any heading-anchor link or heading inside a table; (2) an anchor run whose `pe.get("startIndex")` is `None` (documented elsewhere in this same file as occurring on a document's first body element) is silently dropped rather than carrying the offset forward the way `_collect_doc_paragraphs` already does for the identical quirk. Neither case is exercised by `tc-doc142-heading-anchors.md` (no table, and the anchor links aren't on the doc's first element) — this is a real coverage gap in the fixture, not just an untested edge case. Sending back to Dev per findings below rather than approving.
+**Result:** ⚠️ PARTIAL as written (2026-07-28, live via `mcp-gee-sweet-kit`) — "Appendix A" and "Appendix B itself" runs resolved to their own headings' `headingId` correctly, "dead link" was stripped to `link_url: null`. Visual jump-link click not separately verified via Playwright since `/code-review high` on this PR independently confirmed, by direct source reading, two higher-severity defects this fixture can't reach: (1) `_resolve_heading_anchors`'s body walk (`content.py`) only inspects top-level `paragraph` elements, never descending into `table` cells, so both the pending-link gate and the resolution scan are blind to any heading-anchor link or heading inside a table; (2) an anchor run whose `pe.get("startIndex")` is `None` (documented elsewhere in this same file as occurring on a document's first body element) is silently dropped rather than carrying the offset forward the way `_collect_doc_paragraphs` already does for the identical quirk. Neither case is exercised by `tc-doc142-heading-anchors.md` (no table, and the anchor links aren't on the doc's first element) — this is a real coverage gap in the fixture, not just an untested edge case. Sending back to Dev per findings below rather than approving.
+**Corrected (2026-10-17, #1044 audit):** the jump-link click wasn't verified with Playwright.
 
 **Cleanup:** delete the created doc
 
@@ -3188,12 +3204,14 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 
 **Cleanup:** delete the uploaded image file; write fixture content back
 
-**Result (2026-08-02) ✅ PASS — live via the actual `insert_local_images` MCP tool**, run against a scratch doc (not the shared fixture doc) containing `Marker: IMGMARKERONE`. Note: the tool now requires `folder_id` ("folder_id is required (no server default folder configured)" when omitted) — this test case's own tool-call example above doesn't pass one; worth updating the case text separately, not blocking. With `folder_id` supplied: `results[0]` had `fileId`, `index`, `shared: false`, no `revoke_error`; `list_permissions` on the uploaded file showed no `anyone` permission, confirming the new revoke-by-default behavior change from #332. Visual check not captured (structural/permission checks were conclusive); scratch doc and uploaded image trashed after the check.
+**Result (2026-08-02) ⚠️ PARTIAL — live via the actual `insert_local_images` MCP tool**, run against a scratch doc (not the shared fixture doc) containing `Marker: IMGMARKERONE`. Note: the tool now requires `folder_id` ("folder_id is required (no server default folder configured)" when omitted) — this test case's own tool-call example above doesn't pass one; worth updating the case text separately, not blocking. With `folder_id` supplied: `results[0]` had `fileId`, `index`, `shared: false`, no `revoke_error`; `list_permissions` on the uploaded file showed no `anyone` permission, confirming the new revoke-by-default behavior change from #332. Visual check not captured (structural/permission checks were conclusive); scratch doc and uploaded image trashed after the check.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't captured.
 
 **Result (2026-09-04) ✅ PASS**
 insert_local_images (default revoke_sharing) on scratch doc with "Marker: IMGMARKERONE": results[0] had fileId, index, shared:false, no revoke_error. list_permissions confirmed no anyone grant — new default-revoke behavior change from #332 confirmed. Doc+image trashed.
 
-**Result (2026-10-04) ✅ PASS — Kit, PR #903 round 1 (`8a634db`).** Regression check of the success path after the revoke moved into `_revoke_shares()`. Live `insert_local_images` with `folder_id` on a scratch doc holding `Marker: IMGMARKERONE` returned `results[0]` with `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` on the image showed no `anyone` grant. The visual check was done structurally, not with Playwright: `get_doc_as_markdown` showed `Marker: ![](…)`, an inline image where the marker was. The doc and image were trashed.
+**Result (2026-10-04) ⚠️ PARTIAL — Kit, PR #903 round 1 (`8a634db`).** Regression check of the success path after the revoke moved into `_revoke_shares()`. Live `insert_local_images` with `folder_id` on a scratch doc holding `Marker: IMGMARKERONE` returned `results[0]` with `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` on the image showed no `anyone` grant. The visual check was done structurally, not with Playwright: `get_doc_as_markdown` showed `Marker: ![](…)`, an inline image where the marker was. The doc and image were trashed.
+**Corrected (2026-10-17, #1044 audit):** the visual check was replaced by `get_doc_as_markdown`.
 
 **Result (2026-10-04) ✅ PASS — Kit, PR #903 round 2 (`4e392c3`).** Re-run after the round 2 restructure moved the success path into the new `try`, against the reconnected kit server. `results[0]` had `fileId`, `index: 9`, `shared: false`, and no `revoke_error`. `list_permissions` showed no `anyone` grant, and `get_doc_as_markdown` showed `Marker: ![](…)`. The doc and image were trashed.
 
@@ -3299,8 +3317,9 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="> outer\n> > nested\n", 
 
 **Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Text order confirmed "outer" then "nested". Raw `documents().get()` read: "outer" at `indentStart.magnitude == 36`, "nested" at `indentStart.magnitude == 72`; both had the identical `borderLeft` (gray, 3pt, solid).
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 Live re-verification blocked by an OAuth token refresh failure (invalid_grant on a fresh script's _oauth_creds() call — infra/credential issue, not a QA finding; already-running MCP servers unaffected). Fallback: confirmed via git log that emitter.py's blockquote indentStart/borderLeft logic has not changed since the 2026-08-07 live PASS (commit ba78e61/39539dd) — the only intervening touch (f0ad989, Ruff lint adoption) diffs clean of any blockquote/indent/border lines and states "no functional behavior change". Result carried forward from 2026-08-07.
+**Corrected (2026-10-17, #1044 audit):** nothing was run live: the result was carried forward from 2026-08-07.
 
 **Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
 Export shows the blockquote markers, but the indent isn't visible on single-line quotes (indentFirstLine not set).
@@ -3674,10 +3693,12 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
-**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n"` — all checks satisfied.
+**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300).** `markdown` returned `"# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n"` — all checks satisfied.
+**Corrected (2026-10-17, #1044 audit):** the Markdown write path has no strikethrough support (`~~strike~~` stays literal text in the Doc), so this export check passed on literal tildes, not on a struck-through run. The 2026-10-17 result above records the same thing as FAIL. Tracked in #1077.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 get_doc_as_markdown basic export: returned doc_id/title/markdown = "# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n" — exact match.
+**Corrected (2026-10-17, #1044 audit):** same as the 2026-08-15 correction above. Tracked in #1077.
 
 **Result (2026-10-17) ❌ FAIL — v0.9.2 release pass**
 Stale TC: ~~strike~~ was never converted on write; the export correctly escapes the literal text as \~\~strike\~\~.
@@ -3790,7 +3811,8 @@ Run 2 (ash).
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
-**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| outer text*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)* |\n| --- |\n\n"` — both checks satisfied. Minor cosmetic nit (not filed): no space/newline between "outer text" and the placeholder note, so they run together.
+**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| outer text*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)* |\n| --- |\n\n"` — both checks satisfied. Minor cosmetic nit (not filed): no space/newline between "outer text" and the placeholder note, so they run together.
+**Corrected (2026-10-17, #1044 audit):** the "minor cosmetic nit (not filed)" is a real export defect: the placeholder runs into the cell text with no separator (`outer text*(nested table omitted…)*`), still reproducible on `develop`. Tracked in #1078.
 
 **Result (2026-09-04) ✅ PASS**
 Nested table export: markdown contains "outer text" and placeholder "*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)*" in the same cell.
@@ -4422,11 +4444,12 @@ Because the anchor always contributes 0 tabs, this fix renders every isolated it
 
 **Cleanup:** write fixture content back
 
-**Result (2026-09-08) ✅ PASS — run live against PR #711 (commit `a3d9baf`), script-driven `documents().get()` + Playwright visual check.** Wrote the fixture HTML to the fixtures doc via `write_doc_content` (batchUpdate accepted, no atomic-batch rejection). Live `documents().get()`:
+**Result (2026-09-08) ❌ FAIL — run live against PR #711 (commit `a3d9baf`), script-driven `documents().get()` + Playwright visual check.** Wrote the fixture HTML to the fixtures doc via `write_doc_content` (batchUpdate accepted, no atomic-batch rejection). Live `documents().get()`:
 - Case 2 "Bare-nested child C1"/"C2" → `bullet.nestingLevel == 1`, `lists[listId].listProperties.nestingLevels[1].glyphSymbol == '○'` (circle) — the identical glyph symbol reported for Case 1's "Child A1"/"Child A2". **Not** `nestingLevel 0` / disc. Both items of the run correct (no first-item-merges-into-anchor regression).
 - Case 1 isolated ordered sub-run "Ordered child B1"/"B2" → `nestingLevel == 1`, `glyphType 'ALPHA'` / `glyphFormat '%1.'` ("a."/"b."). Not `nestingLevel 0` decimal.
 - Case 1 anchored nesting unchanged: Parent A/B `●` L0, Child A1/A2 `○` L1, Grandchild A2a `■` L2 — 3 distinct levels.
 - Case 3 unchanged: "Top ordered 1"/"Top ordered 2" both `nestingLevel 0` DECIMAL on one shared `listId` (continuous numbering), "Nested ordered 1.1"/"1.2" `nestingLevel 1` ALPHA.
+**Corrected (2026-10-17, #1044 audit):** the standalone `nestingLevel 0` disc paragraphs of spaces this run called "pre-existing noise, out of scope" are in this case's own rendered fixture. Tracked in #1074.
 
 Playwright (fixtures doc temp-shared reader to the browser's Google identity for the screenshot, revoked immediately after — public `anyone` share is classifier-blocked; the browser profile authenticates as a different Google account than the QA MCP server, so it can't open server-owned fixture docs otherwise): "Bare-nested child C1"/"C2" visually render the hollow-circle glyph, indented one level, matching Case 1's A1/A2. B1/B2 render "a."/"b.". Three visible indent tiers in Case 1 (●/○/■). Case 3 numbers 1→(2)→3 with nested a./b.
 
@@ -4785,7 +4808,8 @@ Tool call: `write_doc_content(doc_id={LOCKED_DOC_ID}, content="Text\n\n![Pixel](
 
 **Result (2026-10-03) ✅ PASS — Kit, PR #877 round 2 (`de95c80`).** `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. `LOG_FILE` had `files created by this call: none; pre-existing files: {PIXEL_FILE_ID}; still link-shared by this call: none`. Separately, a minimal anyio model of the new shielded resolve and revoke structure, cancelled both mid-resolution and mid-edit, ran every delete and logged the warning both times. The doc was unlocked, and both files were trashed.
 
-**Result (2026-10-04) ✅ PASS (log check not run) — Kit, PR #903 round 2 (`4e392c3`).** Re-run because the failed-edit log helper moved from `content.py` to `images.py` (`log_images_after_failed_edit`, shared with `insert_local_images`). `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. The kit server writes no `LOG_FILE`, so the WARNING line wasn't checked live. `tests/test_docs_content.py` asserts its arguments, now patched on `images_module.logger`. The doc was unlocked, and both files were trashed.
+**Result (2026-10-04) ⚠️ PARTIAL (log check not run) — Kit, PR #903 round 2 (`4e392c3`).** Re-run because the failed-edit log helper moved from `content.py` to `images.py` (`log_images_after_failed_edit`, shared with `insert_local_images`). `write_doc_content` returned (didn't raise) `{"error": "doc edit failed: <HttpError 403 ... \"The caller does not have permission\">", "docId": "{LOCKED_DOC_ID}", "images": [{"src": "drive:{PIXEL_FILE_ID}", "fileId": "{PIXEL_FILE_ID}", "shared": false}]}`. `list_permissions` showed no `anyone` grant on the pixel. The kit server writes no `LOG_FILE`, so the WARNING line wasn't checked live. `tests/test_docs_content.py` asserts its arguments, now patched on `images_module.logger`. The doc was unlocked, and both files were trashed.
+**Corrected (2026-10-17, #1044 audit):** the log check wasn't run.
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 The scratch script needs a usable OAuth token (see DOC80).

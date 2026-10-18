@@ -529,8 +529,9 @@ anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after rem
 - `list_permissions` on the folder shows the new permission
 - A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+**Corrected (2026-10-17, #1044 audit):** the child-file inherited-access check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.

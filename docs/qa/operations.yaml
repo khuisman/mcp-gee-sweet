@@ -138,9 +138,11 @@ operations:
           calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
           gmail:         "Gmail tools (TC-GM##) — requires OAuth with gmail.modify and the seeded fixture set (setup.md Gmail section: TEST_GMAIL_* / TEST_MESSAGE_ID / TEST_THREAD_ID)"
           infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
+          docs_markdown: "Markdown → Docs rendering (TC-MD###) — every Markdown write path (create_doc/write_doc_content/create_doc_from_file/update_doc_from_file, the Drive convert paths, upload_file); Playwright is the verdict for every case; the v0.9.3 release gate (#1044)"
     preconditions:
       - "mcp-gee-sweet tools available in this session"
       - "Fixture ID(s) for the requested group present in .env (see fixture_keys)"
+      - "docs_markdown: TEST_FOLDER_ID, LOCAL_FILE_ACCESS=full on the server under test, and Playwright signed into the fixture-owning account (run.md)"
       - "sheets_read/sheets_write/sheets_mgmt/sheets_charts: TEST_SPREADSHEET_ID"
       - "drive: TEST_SPREADSHEET_ID + TEST_DOC_ID + TEST_FOLDER_ID"
       - "calendar: TEST_CALENDAR_ID + TEST_EVENT_ID"

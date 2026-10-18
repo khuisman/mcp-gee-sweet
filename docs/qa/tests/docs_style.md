@@ -26,8 +26,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed `namedStyleType: "HEADING_2"`. `requests: 1`.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual not verified (browser unauth). Restyled NORMAL_TEXT.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
@@ -363,8 +364,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Cleanup:** delete the table
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no error, requests:1. Per-edge border struct not independently verifiable via MCP tools (no raw documents().get() access; browser unauth) — response-level checks pass.
+**Corrected (2026-10-17, #1044 audit):** the per-edge border wasn't checked by any means.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Black 1pt equals the default border, so the API omits it; verified with a non-default red 1.5pt border. TC wording stale.
@@ -539,10 +541,12 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Cleanup:** delete the test paragraph
 
-**Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
+**Result:** ⚠️ PARTIAL (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_url:null on re-fetch. Visual not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Clearing the link also cleared the auto-added underline; TC wording stale.
@@ -592,6 +596,7 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    -
 **Cleanup:** write fixture content back
 
 **Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).** The prompt originally used a 2-space indent (`"- Top level item\n  - Nested item\n"`), which this codebase's `_md_to_html` (`sane_lists` extension, same as plain `python-markdown`) does not recognize as nested — both items render as a single flat `<ul>` with no nesting, so "Nested item" correctly reported `nestingLevel: 0` given that input; not a product bug, a test-case bug (`sane_lists`/`markdown` requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one `listId`, "Top level item" is `nestingLevel: 0`, "Nested item" is `nestingLevel: 1` — PASS.
+**Corrected (2026-10-17, #1044 audit):** the original FAIL was a product defect, not a test-case bug: 2-space nested Markdown should nest (TC-DOC105, TC-MD106). The PASS stands only for the rewritten 4-space prompt. Tracked in #1071.
 
 **Result (2026-09-04) ✅ PASS**
 write md (4-space nested); both list items bullet non-null, share listId kix.io6il1p3p40e; "Top level" nestingLevel 0, "Nested" nestingLevel 1.

@@ -489,8 +489,9 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 - Second call returns same results
 - Logs show `cache hit` for the second call
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ❌ FAIL**
 Two consecutive list_files(FOLDER_ID) calls returned byte-identical results (cache hit). CAVEAT: see TC-D40 — folder cache key omits max_results, so a prior small-max_results fetch poisoned the cache and both calls returned a truncated 2-item list until refresh_cache.
+**Corrected (2026-10-17, #1044 audit):** the CAVEAT records a real defect seen in this case: the folder cache served a truncated 2-item list. Fixed the next day by PR #697 (#688); see the 2026-09-05 result.
 
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #697 (issue #688)
 Caveat resolved — see TC-D40. Two consecutive list_files(FOLDER_ID) calls with no intervening small-max_results fetch still return byte-identical results.
@@ -1449,8 +1450,9 @@ Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
 
 **Result (2026-06-21) ✅** OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have `id`, `name`, `mime_type`, `modified_time`, `owners` (flat email list), `web_link`. Ordered by `modifiedTime desc`. SA: 5 files returned — files explicitly shared with the service account (Budget & Savings spreadsheet plus 4 folders).
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 list_shared_with_me() → `[]` cleanly, no error. The OAuth identity here is a Workspace-org QA account (kevin@mcpsuite.io, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
+**Corrected (2026-10-17, #1044 audit):** the fixture had no shared files, so the field and ordering checks weren't exercised.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
@@ -1469,8 +1471,9 @@ Run 1 (kai-oauth).
 
 **Result (2026-06-21) ✅** OAuth: 8 spreadsheets returned, all `application/vnd.google-apps.spreadsheet`. No other MIME types present.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 list_shared_with_me(mime_type=spreadsheet) → `[]` cleanly. Same env characteristic as TC-D152.
+**Corrected (2026-10-17, #1044 audit):** the fixture had no shared files, so the filter check wasn't exercised.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
@@ -1489,8 +1492,9 @@ Run 1 (kai-oauth).
 
 **Result (2026-06-21) ✅** OAuth: exactly 3 items returned — Budget & Savings, 2025 medical expenses, Tax Documents folder. Correct top-3 by `modifiedTime desc`.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 list_shared_with_me(max_results=3) → `[]` cleanly (≤3 trivially). Same env characteristic as TC-D152.
+**Corrected (2026-10-17, #1044 audit):** the fixture had no shared files, so the cap check wasn't exercised.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).

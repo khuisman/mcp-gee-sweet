@@ -922,8 +922,9 @@ No fixture setup needed — repeat the same tiny query (`{spreadsheet_id: {SPREA
 **Result (2026-09-04) ✅ PASS**
 local_path branch: 2 queries → {local_path, bytes_written 440, query_count 2}, file has full per-query results. Cap-trip check (200 queries → ValueError naming 40,000 cap) is stale: #519 raised default to 1,000,000, a ~150k-char 200-query response no longer trips it; cap mechanism itself verified via TC-R03c
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 local_path part passes; the 200-query cap check is stale since #519 and was not run.
+**Corrected (2026-10-17, #1044 audit):** the 200-query cap check wasn't run.
 
 ---
 

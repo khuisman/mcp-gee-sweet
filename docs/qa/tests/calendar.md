@@ -943,11 +943,13 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 - `status` is `confirmed`
 - `calendar_cache.mark_dirty` called — next `list_events` re-fetches
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 create_event timed on SACAL -> id, start/end RFC3339 w/ offset (2026-07-01T13:00:00-04:00, rendered in cal tz America/New_York = 10-11am PT), html_link present, status=confirmed, recurrence=null. Follow-up windowed list_events re-fetched and showed it (mark_dirty proxy). Playwright: OAuth-logged-in browser cannot see SA-owned-calendar events (cal not shared to/listed by OAuth user) — API used per shard fallback. EVENT_TIMED=dcfqjj57pv7kb1tpee7e61v65c
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run (the owner browser can't see SA-owned calendars).
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -965,8 +967,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 create_event all-day -> start="2026-07-02", end="2026-07-03", no "T" (date fields). Appears in windowed list_events for that day. EVENT_ALLDAY=9m4dfmdjnjl9742ui2hnt7oqm8
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1023,8 +1026,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 update_event summary -> "QA-Timed-Updated"; start/end unchanged (13:00-14:00-04:00); location/description still null.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1041,8 +1045,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 update_event start/end -> 17:00-18:00-04:00 (2pm-3pm PT); summary unchanged.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1060,8 +1065,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 update_event description="Updated desc", location="Room B". get_event confirms both; summary ("QA-Full-Test") and attendees ([]) unchanged.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1097,8 +1103,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 delete_event -> {"calendar_id":...,"event_id":"9m4dfmdjnjl9742ui2hnt7oqm8","action":"deleted"}. Absent from follow-up windowed list_events (empty).
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1400,8 +1407,9 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-09-04) ✅ PASS**
 create_event recurring weekly -> id dmp5oe7qd342n5odt7a0hqmnhk (no date suffix), recurrence ["RRULE:FREQ=WEEKLY;BYDAY=MO"], status confirmed, html_link present. get_event(master) recurrence non-null. list_events(expand=True) Jul7-28 -> 4 instances (Jul 7 [DTSTART], 13, 20, 27).
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1421,8 +1429,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 create_event daily COUNT=5 -> recurrence ["RRULE:FREQ=DAILY;COUNT=5"]. list_events(expand=True) Jul14-25 -> exactly 5 instances (Jul 14-18), none after. Each instance recurrence: null.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1442,8 +1451,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 create_event one-off QA-OneOff -> recurrence: null. list_events(expand_recurring=False) shows it with recurrence: null, single entry (not a series).
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1468,8 +1478,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 list_events(expand_recurring=False, query="QA-") -> masters QA-Weekly-Standup (WEEKLY/MO), QA-Daily-5x (DAILY/COUNT=5), QA-OneOff (null), plus non-recurring QA-Timed-Updated & QA-Full-Test. All master IDs suffix-free; no instance IDs present.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 
@@ -1491,8 +1502,9 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-09-04) ✅ PASS**
 list_events(expand_recurring=True default) Jul7-28 for QA-Weekly-Standup -> 4 individual instances, each id ends `_YYYYMMDDTHHMMSSZ`, recurrence: null on each.
 
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+**Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+**Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
 ---
 

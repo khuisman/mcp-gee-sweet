@@ -22,8 +22,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` from `fix
 
 **Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=fixture)` (no content). Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}`. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from `documentStyle.defaultHeaderId` — this is the expected fallback path.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 create_header (no content) -> {docId, headerId:"kix.4yrlc2k9cy3n"} non-empty; no error. Visual 🔍 not verified (browser unauth; headers also not visible in body snapshot per run.md limitation).
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
@@ -44,8 +45,9 @@ Run 2 (sa) on a throwaway doc.
 
 **Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=temp_doc, content="Confidential — Internal Only")`. Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}` with no `warning` key — both header creation (via `documentStyle` fallback) and content insertion at `index=0` succeeded.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 create_header content "Confidential — Internal Only" -> {docId, headerId} (same id via documentStyle fallback since header already existed); no error/warning key. Visual 🔍 not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
@@ -65,8 +67,9 @@ Run 2 (sa) on a throwaway doc.
 
 **Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=fixture)`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}`. Footer section visible in Google Docs.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 create_footer (no content) -> {docId, footerId:"kix.khcu7s4gsbju"} non-empty; no error. Visual 🔍 not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
@@ -86,8 +89,9 @@ Run 2 (sa) on a throwaway doc.
 
 **Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=temp_doc, content="Page 1")`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}` with no `warning` key — footer created and content inserted at `index=0`.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 create_footer content "Page 1" -> {docId, footerId}; no error/warning. Visual 🔍 not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
@@ -144,8 +148,9 @@ Run 2 (sa) on a throwaway doc.
 
 **Result (2026-06-22) ✅ PASS** Called `insert_doc_text` with `[{index: 0, text: "QA Test Header", segment_id: "kix.xxxxxxxxxx"}]`. Response: `{"docId": ..., "insertions": 1}`. Text "QA Test Header" appeared in fixture doc header. Same mechanism also confirmed for footer segment insertion (segment_id: "kix.xxxxxxxxxx", text: "Page 1").
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 insert_doc_text index 0, segment_id headerId -> {docId, insertions:1}; no API error. Visual 🔍 not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.

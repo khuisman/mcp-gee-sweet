@@ -245,8 +245,9 @@ Run 2 (sa) on a throwaway doc.
 **Result (2026-07-14) ✅ PASS** Inserted a 2×3 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}`. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched `get_doc_structure`: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via `delete_doc_range`.
 
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 merge_table_cells row0/col0 span 1x2 on 2x3 -> response matches exactly; re-fetch row 0 still 3 physical cells (distinct indices). Visual 🔍 not verified (browser unauth).
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (browser not signed in).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
@@ -268,8 +269,9 @@ Run 2 (sa) on a throwaway doc.
 **Result (2026-07-14) ✅ PASS** Inserted a 3×2 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}`. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via `delete_doc_range`.
 
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 merge_table_cells row0/col0 span 2x1 on 3x2 -> response matches exactly. Visual 🔍 not verified.
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.

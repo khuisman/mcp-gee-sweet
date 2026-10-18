@@ -117,8 +117,9 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F2 confirmed `userEnteredValue.stringValue` = "See the docs", `textFormatRuns` = `[{"format":{}}, {"startIndex":4,"format":{"link":{"uri":"https://example.com"},...}}]`, `userEnteredFormat.hyperlinkDisplayType` = "LINKED". 🔍 Visual check blocked by the documented "Chart-covered grid (Sales sheet)" limitation (`docs/qa/run.md`) — a floating chart from earlier `add_chart` runs covers rows 1–22 including F2; API response used as the confirmation source per that doc's guidance instead.
 
-**Result (2026-09-04) ✅ PASS**
+**Result (2026-09-04) ⚠️ PARTIAL**
 F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.uri "https://example.com"}]; hyperlinkDisplayType LINKED. Visual check blocked by documented Chart-covered-grid limitation → API used as confirmation source
+**Corrected (2026-10-17, #1044 audit):** the visual check wasn't run (chart-covered grid).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
