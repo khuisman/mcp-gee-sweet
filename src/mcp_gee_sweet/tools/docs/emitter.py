@@ -646,8 +646,13 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
          _fill_nested_cell_content) — text and tables in true source order,
          recursing into any depth of further nesting. Each nested table's own
          merges are handled by _fill_table_fully, mirroring phase 2 above (#109).
-      5. Emit updateTableColumnProperties for tables with col_widths
+      5. If any table has a non-None col_width: re-fetch, then emit
+         updateTableColumnProperties (skipping columns past the table's width)
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
+
+    Phases 5 and 6 must use a doc fetched after phases 3 and 4: the fill shifts the
+    startIndex of every table after the first, and a stale one is a 400 (#1053).
+    They share one post-fill fetch, since column-width changes move no indices.
 
     Nested table limitations: no col_widths inside nested tables. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
@@ -705,25 +710,28 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     if has_nested:
         await _fill_nested_cell_content(docs_service, doc_id, tables)
 
-    # Step 5: column widths — requires each table's startIndex from the live doc.
-    # Re-fetch first: steps 3 and 4 inserted text into every earlier table's cells, so
-    # the step-1 startIndex of any table after the first is stale (#1053).
-    width_requests: list[dict] = []
-    if any(t.col_widths for t in tables):
-        live_doc = await execute_in_thread(
+    # Steps 5 and 6 need each table's startIndex as it is after the fill. Steps 3 and 4
+    # inserted text into every earlier table's cells, so step 1's startIndex for any
+    # table after the first is stale (#1053). Fetch once, after the fill, and share the
+    # snapshot: updateTableColumnProperties moves no indices.
+    post_fill_doc: dict | None = None
+
+    # Step 5: column widths
+    if any(w is not None for t in tables for w in t.col_widths):
+        post_fill_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
             docs_service,
         )
-        width_requests = _build_width_requests(live_doc, tables)
-    if width_requests:
-        await execute_in_thread(
-            docs_service.documents()
-            .batchUpdate(documentId=doc_id, body={"requests": width_requests})
-            .execute,
-            docs_service,
-        )
+        width_requests = _build_width_requests(post_fill_doc, tables)
+        if width_requests:
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": width_requests})
+                .execute,
+                docs_service,
+            )
 
-    # Step 7: Phase 3 cell styling (background, padding, borders)
+    # Step 6: Phase 3 cell styling (background, padding, borders)
     has_cell_styles = any(
         cell.background_color is not None
         or cell.padding_top is not None
@@ -738,11 +746,12 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
     if has_cell_styles:
-        live_doc = await execute_in_thread(
-            docs_service.documents().get(documentId=doc_id).execute,
-            docs_service,
-        )
-        doc_tables = _top_level_tables(live_doc)
+        if post_fill_doc is None:
+            post_fill_doc = await execute_in_thread(
+                docs_service.documents().get(documentId=doc_id).execute,
+                docs_service,
+            )
+        doc_tables = _top_level_tables(post_fill_doc)
         cell_style_requests = _build_cell_style_requests(doc_tables, tables)
         if cell_style_requests:
             await execute_in_thread(
@@ -1349,7 +1358,13 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
         table_start = elem.get("startIndex")
         if table_start is None:
             continue
-        for col_idx, width_pt in enumerate(ast_table.col_widths):
+        # More <col> widths than cells is valid HTML, but an index past the table's
+        # last column is a 400 that fails the whole batch.
+        table = elem["table"]
+        num_cols = table.get("columns") or max(
+            (len(row.get("tableCells", [])) for row in table.get("tableRows", [])), default=0
+        )
+        for col_idx, width_pt in enumerate(ast_table.col_widths[:num_cols]):
             if width_pt is None:
                 continue
             requests.append(

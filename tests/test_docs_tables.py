@@ -680,17 +680,23 @@ class FakeDoc:
                 # to skip covered cells based on the AST's own colspan/rowspan.
                 pass
             elif "updateTableColumnProperties" in req:
-                self._check_table_start(req["updateTableColumnProperties"]["tableStartLocation"])
+                utcp = req["updateTableColumnProperties"]
+                table = self._check_table_start(utcp["tableStartLocation"])
+                # Mirrors the real API's 400 "Invalid column index N."
+                for col_idx in utcp["columnIndices"]:
+                    if col_idx >= len(table.rows[0]):
+                        raise ValueError(f"invalid column index {col_idx}")
             elif "updateTableCellStyle" in req:
                 loc = req["updateTableCellStyle"]["tableRange"]["tableCellLocation"]
                 self._check_table_start(loc["tableStartLocation"])
 
-    def _check_table_start(self, location: dict):
+    def _check_table_start(self, location: dict) -> "TableNode":
         # Mirrors the real API's 400 "The provided table start location is
         # invalid." for an index that isn't a top-level table's current start (#1053).
-        starts = {e["startIndex"] for e in self.get()["body"]["content"] if "table" in e}
-        if location["index"] not in starts:
-            raise ValueError(f"invalid table start location {location['index']}")
+        for obj, elem in zip(self.content, self.get()["body"]["content"], strict=True):
+            if isinstance(obj, TableNode) and elem["startIndex"] == location["index"]:
+                return obj
+        raise ValueError(f"invalid table start location {location['index']}")
 
     def get(self) -> dict:
         idx = 0
@@ -957,9 +963,10 @@ class TestNestedTableMerges:
 
 class TestFillTablesColumnWidths:
     """Drive the real fill_tables() against FakeDoc, which rejects a
-    tableStartLocation that isn't a table's current start index."""
+    tableStartLocation that isn't a table's current start index, and a
+    column index past the table's last column."""
 
-    async def _run(self, ast_tables: list[Table]) -> tuple[FakeDoc, list[list[dict]]]:
+    async def _run(self, ast_tables: list[Table]) -> tuple[FakeDoc, list[list[dict]], int]:
         doc = FakeDoc()
         content: list = [Para("")]
         for t in ast_tables:
@@ -981,7 +988,12 @@ class TestFillTablesColumnWidths:
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
         await fill_tables(svc, "doc1", ast_tables)
-        return doc, batches
+        fetches = svc.documents.return_value.get.return_value.execute.call_count
+        return doc, batches, fetches
+
+    async def _baseline_fetches(self) -> int:
+        _doc, _batches, fetches = await self._run([_table(_row(_cell("A")), _row(_cell("B")))])
+        return fetches
 
     @staticmethod
     def _width_starts(batches: list[list[dict]]) -> list[int]:
@@ -996,7 +1008,7 @@ class TestFillTablesColumnWidths:
         first = _table(_row(_cell("A")))
         second = _table(_row(_cell("Narrow"), _cell("Wide")))
         second.col_widths = [108.0, 216.0]
-        doc, batches = await self._run([first, second])
+        doc, batches, _fetches = await self._run([first, second])
 
         table_starts = [e["startIndex"] for e in doc.get()["body"]["content"] if "table" in e]
         assert self._width_starts(batches) == [table_starts[1], table_starts[1]]
@@ -1005,25 +1017,65 @@ class TestFillTablesColumnWidths:
         tables = [_table(_row(_cell(f"cell {i}"), _cell("x"))) for i in range(3)]
         for t in tables:
             t.col_widths = [72.0, None]
-        doc, batches = await self._run(tables)
+        doc, batches, _fetches = await self._run(tables)
 
         table_starts = [e["startIndex"] for e in doc.get()["body"]["content"] if "table" in e]
         assert self._width_starts(batches) == table_starts
 
-    async def test_cell_styles_after_widths_use_post_fill_start(self):
+    async def test_more_col_widths_than_columns_are_skipped(self):
+        # <col> x3 over a 2-cell row: a columnIndices entry of 2 is a 400 that
+        # clears the doc and keeps the backup.
+        table = _table(_row(_cell("a"), _cell("b")))
+        table.col_widths = [75.0, 75.0, 75.0]
+        _doc, batches, _fetches = await self._run([table])
+
+        indices = [
+            r["updateTableColumnProperties"]["columnIndices"]
+            for batch in batches
+            for r in batch
+            if "updateTableColumnProperties" in r
+        ]
+        assert indices == [[0], [1]]
+
+    async def test_cell_styles_after_widths_share_one_post_fill_fetch(self):
+        baseline = await self._baseline_fetches()
         first = _table(_row(_cell("A")))
         second = _table(_row(_cell("B")))
         second.col_widths = [144.0]
         second.rows[0].cells[0].background_color = RGBColor(1.0, 0.0, 0.0)
-        _doc, batches = await self._run([first, second])  # FakeDoc raises on a stale start
+        # FakeDoc raises on a stale start
+        _doc, batches, fetches = await self._run([first, second])
 
         assert any("updateTableCellStyle" in r for batch in batches for r in batch)
+        assert fetches == baseline + 1
 
-    async def test_no_extra_fetch_without_col_widths(self):
+    async def test_cell_styles_alone_fetch_after_fill(self):
+        baseline = await self._baseline_fetches()
         first = _table(_row(_cell("A")))
         second = _table(_row(_cell("B")))
-        _doc, batches = await self._run([first, second])
+        second.rows[0].cells[0].background_color = RGBColor(1.0, 0.0, 0.0)
+        _doc, batches, fetches = await self._run([first, second])
+
+        assert any("updateTableCellStyle" in r for batch in batches for r in batch)
+        assert fetches == baseline + 1
+
+    async def test_no_extra_fetch_without_col_widths(self):
+        baseline = await self._baseline_fetches()
+        first = _table(_row(_cell("A")))
+        second = _table(_row(_cell("B")))
+        _doc, batches, fetches = await self._run([first, second])
         assert self._width_starts(batches) == []
+        assert fetches == baseline
+
+    async def test_no_extra_fetch_when_every_col_width_is_none(self):
+        # <col> with a percentage or no width parses to None
+        baseline = await self._baseline_fetches()
+        first = _table(_row(_cell("A")))
+        second = _table(_row(_cell("B"), _cell("C")))
+        second.col_widths = [None, None]
+        _doc, batches, fetches = await self._run([first, second])
+        assert self._width_starts(batches) == []
+        assert fetches == baseline
 
 
 # ---------------------------------------------------------------------------

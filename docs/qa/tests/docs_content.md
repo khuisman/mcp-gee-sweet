@@ -5293,17 +5293,17 @@ The scratch script needs a usable OAuth token (see DOC80).
 ---
 
 ### TC-DOC227: Column widths on tables after the first ⚠️ destructive
-**Purpose:** Regression test for #1053. `fill_tables` built `updateTableColumnProperties` from the doc as it was before the cell fill, so widths on any table after the first failed with 400 "The provided table start location is invalid." and left the doc partly written. TC-DOC35 covers only a single table.
+**Purpose:** Regression test for #1053. `fill_tables` built `updateTableColumnProperties` from the doc as it was before the cell fill, so widths on any table after the first failed with 400 "The provided table start location is invalid." and left the doc partly written. TC-DOC35 covers only a single table. The fourth table covers the same partial-write failure through more `<col>` widths than the row has cells (400 "Invalid column index"), found in PR #1082 QA round 1.
 
 **Prompt**
 **Playwright: required**
-1. `write_doc_content(doc_id="{DOC_ID}", content='<p>intro</p><table><tr><td>first table text</td><td>more</td></tr></table><p>sep</p><table><col width="144"><col width="288"><tr><td>Narrow</td><td>Wide</td></tr></table><p>sep</p><table><col width="300"><tr><td style="background-color:#ffcc00">Third</td></tr></table>')`
+1. `write_doc_content(doc_id="{DOC_ID}", content='<p>intro</p><table><tr><td>first table text</td><td>more</td></tr></table><p>sep</p><table><col width="144"><col width="288"><tr><td>Narrow</td><td>Wide</td></tr></table><p>sep</p><table><col width="300"><tr><td>Third</td></tr></table><p>sep</p><table><col width="100"><col width="100"><col width="100"><tr><td>a</td><td>b</td></tr></table>')`
 2. `get_doc_as_markdown(doc_id="{DOC_ID}")`
 
 **Checks**
 - Step 1 returns no `error` key and no `backupId` key (a kept backup means the write failed partway)
-- Step 2 shows all three tables with their text: `first table text`/`more`, `Narrow`/`Wide`, `Third`
-- 🔍 Playwright: in the second table, the "Narrow" column is visibly about half the width of "Wide" (144:288). The third table's single column is narrower than the page's full text width, and its cell has a yellow background. The first table's columns are evenly distributed
+- Step 2 shows all four tables with their text: `first table text`/`more`, `Narrow`/`Wide`, `Third`, `a`/`b`
+- 🔍 Playwright: in the second table, the "Narrow" column is visibly about half the width of "Wide" (144:288). The third table's single column is narrower than the page's full text width. The fourth table has three `<col>` widths but only two cells: its two columns are equal and narrower than the page (the third width is skipped, not sent as an invalid column index). The first table's columns are evenly distributed
 
 **Cleanup:** write fixture content back
 
