@@ -705,8 +705,16 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     if has_nested:
         await _fill_nested_cell_content(docs_service, doc_id, tables)
 
-    # Step 5: column widths — requires table startIndex from live doc
-    width_requests = _build_width_requests(live_doc, tables)
+    # Step 5: column widths — requires each table's startIndex from the live doc.
+    # Re-fetch first: steps 3 and 4 inserted text into every earlier table's cells, so
+    # the step-1 startIndex of any table after the first is stale (#1053).
+    width_requests: list[dict] = []
+    if any(t.col_widths for t in tables):
+        live_doc = await execute_in_thread(
+            docs_service.documents().get(documentId=doc_id).execute,
+            docs_service,
+        )
+        width_requests = _build_width_requests(live_doc, tables)
     if width_requests:
         await execute_in_thread(
             docs_service.documents()

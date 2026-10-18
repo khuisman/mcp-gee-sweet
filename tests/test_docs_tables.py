@@ -9,6 +9,7 @@ from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
     Image,
+    RGBColor,
     Row,
     Run,
     Table,
@@ -23,6 +24,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _find_nth_table_in_cell,
     _text_offset_since_last_table,
     ast_to_requests,
+    fill_tables,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -677,6 +679,18 @@ class FakeDoc:
                 # so this simulator has nothing to mutate; the fill step already knows
                 # to skip covered cells based on the AST's own colspan/rowspan.
                 pass
+            elif "updateTableColumnProperties" in req:
+                self._check_table_start(req["updateTableColumnProperties"]["tableStartLocation"])
+            elif "updateTableCellStyle" in req:
+                loc = req["updateTableCellStyle"]["tableRange"]["tableCellLocation"]
+                self._check_table_start(loc["tableStartLocation"])
+
+    def _check_table_start(self, location: dict):
+        # Mirrors the real API's 400 "The provided table start location is
+        # invalid." for an index that isn't a top-level table's current start (#1053).
+        starts = {e["startIndex"] for e in self.get()["body"]["content"] if "table" in e}
+        if location["index"] not in starts:
+            raise ValueError(f"invalid table start location {location['index']}")
 
     def get(self) -> dict:
         idx = 0
@@ -934,6 +948,82 @@ class TestNestedTableMerges:
 
         with pytest.raises(RuntimeError, match="vanished"):
             await _apply_merges(svc, "doc1", [doc_table], [ast_table], lambda _live_doc: [])
+
+
+# ---------------------------------------------------------------------------
+# #1053 — column widths on a table after the first must use post-fill indices
+# ---------------------------------------------------------------------------
+
+
+class TestFillTablesColumnWidths:
+    """Drive the real fill_tables() against FakeDoc, which rejects a
+    tableStartLocation that isn't a table's current start index."""
+
+    async def _run(self, ast_tables: list[Table]) -> tuple[FakeDoc, list[list[dict]]]:
+        doc = FakeDoc()
+        content: list = [Para("")]
+        for t in ast_tables:
+            content += [TableNode(len(t.rows), len(t.rows[0].cells)), Para("sep")]
+        doc.content = content
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", ast_tables)
+        return doc, batches
+
+    @staticmethod
+    def _width_starts(batches: list[list[dict]]) -> list[int]:
+        return [
+            r["updateTableColumnProperties"]["tableStartLocation"]["index"]
+            for batch in batches
+            for r in batch
+            if "updateTableColumnProperties" in r
+        ]
+
+    async def test_widths_on_second_table_use_post_fill_start(self):
+        first = _table(_row(_cell("A")))
+        second = _table(_row(_cell("Narrow"), _cell("Wide")))
+        second.col_widths = [108.0, 216.0]
+        doc, batches = await self._run([first, second])
+
+        table_starts = [e["startIndex"] for e in doc.get()["body"]["content"] if "table" in e]
+        assert self._width_starts(batches) == [table_starts[1], table_starts[1]]
+
+    async def test_widths_on_every_table_after_text_filled_tables(self):
+        tables = [_table(_row(_cell(f"cell {i}"), _cell("x"))) for i in range(3)]
+        for t in tables:
+            t.col_widths = [72.0, None]
+        doc, batches = await self._run(tables)
+
+        table_starts = [e["startIndex"] for e in doc.get()["body"]["content"] if "table" in e]
+        assert self._width_starts(batches) == table_starts
+
+    async def test_cell_styles_after_widths_use_post_fill_start(self):
+        first = _table(_row(_cell("A")))
+        second = _table(_row(_cell("B")))
+        second.col_widths = [144.0]
+        second.rows[0].cells[0].background_color = RGBColor(1.0, 0.0, 0.0)
+        _doc, batches = await self._run([first, second])  # FakeDoc raises on a stale start
+
+        assert any("updateTableCellStyle" in r for batch in batches for r in batch)
+
+    async def test_no_extra_fetch_without_col_widths(self):
+        first = _table(_row(_cell("A")))
+        second = _table(_row(_cell("B")))
+        _doc, batches = await self._run([first, second])
+        assert self._width_starts(batches) == []
 
 
 # ---------------------------------------------------------------------------
