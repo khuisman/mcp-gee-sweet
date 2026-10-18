@@ -101,12 +101,21 @@ BLOCKS = {
     "HR": ("rule", ["***"], "a horizontal rule"),
 }
 
-# What a contained block looks like; a contained list nests one level below its item.
+# What a contained block looks like inside a list item: a contained list nests one
+# level below its item. Inside a blockquote the same lists are top-level (level 0)
+# lists within the quote, and a contained quote is one step deeper (C7).
 CONTAINED = {
     **{k: v[2] for k, v in BLOCKS.items()},
     "UL": "a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph",
     "OL": "a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3)",
     "TL": "a nested task list (☐ Task A, ☑ Task B) one level deeper",
+    "IMG": "the image",
+}
+CONTAINED_IN_QUOTE = {
+    **{k: v[2] for k, v in BLOCKS.items()},
+    "UL": "a 2-item bullet list at level 0 (● Bullet A, ● Bullet B)",
+    "OL": "a 2-item numbered list at level 0 (1. Number A, 2. Number B)",
+    "TL": "a 2-item task list at level 0 (☐ Task A, ☑ Task B)",
     "IMG": "the image",
 }
 
@@ -154,13 +163,18 @@ CONTAINERS = [
 
 CONTAINER_AFTER = {
     "UL0": 'then "Sibling after" as the next bullet at level 0, in the same list',
-    "UL1": 'then "Sibling after" back at level 1 and "Top after" at level 0, all one list',
-    "UL2": 'then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list',
+    "UL1": 'then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list',
+    "UL2": 'then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list',
     "OL0": 'then "Sibling after" numbered **2.** (numbering continues)',
     "OL1": 'then "Sibling after" numbered **b.** at level 1 and "Top after" numbered **2.** at level 0',
     "OL2": 'then "Sibling after" numbered **ii.** at level 2, "Mid after" **b.**, "Top after" **2.**',
-    "BQ1": "all inside the quote (same left border and indent)",
-    "BQ2": "all inside the inner quote (two levels of indent)",
+    "BQ1": "all inside the quote (depth 1: one step of indent and the left border)",
+    "BQ2": "all inside the inner quote (depth 2: two steps of indent)",
+}
+# A quote inside a quote is one step deeper than its container (C7).
+QUOTE_IN_QUOTE = {
+    "BQ1": 'the "Container quote line" at depth 1, then "Quoted line" as its own quote at depth 2',
+    "BQ2": '"Outer quote" at depth 1, the "Container quote line" at depth 2, then "Quoted line" at depth 3',
 }
 
 
@@ -195,10 +209,13 @@ def containment() -> tuple[str, list[str]]:
                 if not cid.startswith("BQ")
                 else "inside the quote"
             )
-            rows.append(
-                f"| {case} | {blabel} | {clabel} | {first}, then {CONTAINED[bid]} {where}, "
-                f"{CONTAINER_AFTER[cid]} |"
-            )
+            if cid.startswith("BQ") and bid == "BQ":
+                exp = QUOTE_IN_QUOTE[cid]
+            elif cid.startswith("BQ"):
+                exp = f"{first}, then {CONTAINED_IN_QUOTE[bid]} {where}, {CONTAINER_AFTER[cid]}"
+            else:
+                exp = f"{first}, then {CONTAINED[bid]} {where}, {CONTAINER_AFTER[cid]}"
+            rows.append(f"| {case} | {blabel} | {clabel} | {exp} |")
     return "\n".join(lines), rows
 
 
@@ -351,9 +368,14 @@ def inline_matrix() -> tuple[str, list[str]]:
         n += 1
         case = f"IN-{n:02d}"
         lines += [f"### {case} — every inline style inside a {name}", "", *build(SAMPLE), ""]
+        only = (
+            "every letter is bold (the header row is bold, C13), and each other style is only on its own letter"
+            if name == "table header cell"
+            else "each style only on its own letter"
+        )
         rows.append(
             f"| {case} | all five styles in a {name} | B bold, I italic, S struck through, C monospace, "
-            f"L a link; each style only on its own letter; the {name} itself renders correctly |"
+            f"L a link; {only}; the {name} itself renders correctly |"
         )
     return "\n".join(lines), rows
 

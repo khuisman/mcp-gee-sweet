@@ -11,6 +11,8 @@ wheels/
 
 .env
 docs/qa/fixtures.local.md
+# Placeholder-substituted fixture copies hold live resource IDs (docs_markdown.md "Running this suite")
+docs/qa/fixtures/**/*.local.md
 
 # Virtual environments
 .venv

@@ -9,7 +9,8 @@ Corrections are made in place: the Result header's verdict is changed and a `**C
 | Outcome | Results | What changed |
 |---|---:|---|
 | PASS that describes a product defect | 15 | header → ❌ FAIL, linked to an open issue (or to the fix, where one landed) |
-| PASS whose defect was resolved later, but the record didn't say so | 3 | correction note only |
+| PASS whose defect was resolved later, but the record didn't say so | 2 | correction note only |
+| Defect misfiled as a test-case bug; the defect is still open | 1 | correction note only (the PASS stands for the rewritten prompt) |
 | PASS although a required check didn't run | 47 | header → ⚠️ PARTIAL, naming the check |
 | Genuine PASS | the rest | none |
 
@@ -34,9 +35,14 @@ Corrections are made in place: the Result header's verdict is changed and a `**C
 
 | Case | Result | Note added |
 |---|---|---|
-| TC-DOC155 | 2026-08-06 | the original FAIL was the 2-space nesting defect, not a test-case bug (#1071) |
 | TC-S133 | 2026-10-11 r2 | BLANK/NOT_BLANK reaching the API: removed from the enum in round 3, verified by TC-S134 |
 | TC-D265 | 2026-09-24 | long `.md` names (#805/#806, closed): fix is in `_sync_level` via `_convert_properties` with unit tests; live re-check added as TC-MD303 |
+
+## Reclassified: defect still open → note only
+
+| Case | Result | Note added |
+|---|---|---|
+| TC-DOC155 | 2026-08-06 | the original FAIL was the 2-space nesting defect, not a test-case bug. The PASS stands only for the rewritten 4-space prompt; the defect is open as #1071 |
 
 ## PASS although a required check didn't run → PARTIAL
 

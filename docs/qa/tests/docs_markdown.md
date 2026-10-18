@@ -29,10 +29,12 @@ Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 
 | EP-2 | `write_doc_content(doc_id=<a blank Doc in {FOLDER_ID}>, content=<contents of F>, content_format="markdown")` | ours |
 | EP-3 | `create_doc_from_file(local_path=F, title="MD-<case>-EP3", folder_id="{FOLDER_ID}")` | ours |
 | EP-4 | `update_doc_from_file(doc_id=<a blank Doc in {FOLDER_ID}>, local_path=F)` | ours |
-| EP-5 | `upload_local_file(local_path=F, folder_id="{FOLDER_ID}", convert=True)` | Drive Markdown import |
-| EP-6 | `upload_local_folder(local_path=<a temp dir holding only F>, folder_id="{FOLDER_ID}", convert=True)` | Drive Markdown import |
-| EP-7 | `sync_folder(local_path=<a temp dir holding only F>, folder_id=<empty child of {FOLDER_ID}>, direction="upload", convert_markdown=True)` | Drive Markdown import |
+| EP-5 | `upload_local_file(local_path=F, parent_folder_id=<empty child of {FOLDER_ID} for EP-5>, convert=True)` | Drive Markdown import |
+| EP-6 | `upload_local_folder(local_path=<a temp dir holding only F>, parent_folder_id=<empty child of {FOLDER_ID} for EP-6>, convert=True)` | Drive Markdown import |
+| EP-7 | `sync_folder(local_path=<a temp dir holding only F>, folder_id=<empty child of {FOLDER_ID} for EP-7>, direction="upload", convert_markdown=True)` | Drive Markdown import |
 | EP-8 | `upload_file(name="<case>.md", content=<contents of F>, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)` | Python-Markdown `extra` + Drive HTML import |
+
+EP-5, EP-6 and EP-7 each get their own empty child folder: these tools skip a file whose converted Doc already exists in the target folder (`skip_if_exists` defaults to `True`), so a shared folder would turn a later entry point's render into a `skipped`.
 
 Not an entry point: no tool inserts Markdown at an index in an existing Doc (`insert_doc_text` takes plain text). The "insert at an index" state in #1044 is therefore N/A; if such a tool is added, it joins this table.
 
@@ -50,8 +52,8 @@ Markdown describes HTML, and Docs has no direct equivalent for some constructs. 
 | # | Construct | Expected on screen | Structural check when the screen is ambiguous |
 |---|---|---|---|
 | C1 | ATX/Setext heading level N | Docs "Heading N" style (font size and weight of that named style) | `get_doc_structure`: `namedStyleType == HEADING_N` |
-| C2 | Bullet list, levels 0/1/2 | Glyphs ● / ○ / ■, each level indented one step further | `bullet.nestingLevel` = 0/1/2, all items of one Markdown list share one `listId` |
-| C3 | Numbered list, levels 0/1/2 | `1.` `2.` … / `a.` `b.` … / `i.` `ii.` …; numbering never restarts inside one Markdown list, including after a nested block | same `listId` for all items of one Markdown list; the screen is the verdict for the number shown |
+| C2 | Bullet list, levels 0/1/2 | Glyphs ● / ○ / ■, each level indented one step further | `bullet.nestingLevel` = 0/1/2; contiguous same-type items of one Markdown list share one `listId` (a bullet run nested in a numbered list is its own Docs list) |
+| C3 | Numbered list, levels 0/1/2 | `1.` `2.` … / `a.` `b.` … / `i.` `ii.` …; numbering never restarts inside one Markdown list, including after a nested block | contiguous same-type items share one `listId`; the screen is the verdict for the number shown, since a nested block of the other type is a separate Docs list |
 | C4 | Task item | Bullet item whose text starts with `☐` (unchecked) or `☑` (checked); no literal `[ ]`/`[x]` | — |
 | C5 | Inline code | Courier New on exactly the code characters | `textStyle.weightedFontFamily.fontFamily == "Courier New"` on that run only |
 | C6 | Code block (fenced or indented) | One Courier New block; each source line on its own visual line; leading indentation and blank lines kept; no Markdown inside it interpreted | one paragraph (lines joined by soft breaks), all runs Courier New |
@@ -62,7 +64,7 @@ Markdown describes HTML, and Docs has no direct equivalent for some constructs. 
 | C11 | Image | The image itself is visible at its natural size (or scaled to page width); alt text is not shown as visible text | `inlineObjectElement` present |
 | C12 | Link | Link-styled text (blue, underlined) whose target is the Markdown URL | hover or `textStyle.link.url` |
 | C13 | Table | A Docs table, header row bold, cell text and inline formatting intact; column alignment from `:--`/`:-:`/`--:` applied to the cells of that column | `tableCells[].content[].paragraph.paragraphStyle.alignment` |
-| C14 | Block inside a list item (paragraph, code, quote, table, heading) | Shown under the item, indented to the item's text, not as a new top-level block and not as literal Markdown; the list continues after it (next item keeps the list's numbering and nesting) | following item keeps the same `listId` |
+| C14 | Block inside a list item (paragraph, code, quote, table, heading) | Shown under the item, indented to the item's text, not as a new top-level block and not as literal Markdown; the list continues after it (next item keeps the list's numbering and nesting) | the screen is the verdict: the next item shows the continued number or glyph; it shares the preceding items' `listId` when they're the same type |
 | C15 | Empty paragraph spacing | No visible empty paragraph that the source doesn't imply. The known collapsed blank paragraph before each table (`docs/known-limitations.md`, "Blank paragraph before every table") must stay invisible | — |
 
 Decisions where CommonMark/GFM and what a user means disagree, approved by the maintainer on 2026-10-17. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.
@@ -79,7 +81,7 @@ Anything CommonMark/GFM permits that the converter deliberately won't support go
 
 1. **Server and slot.** Use a server running the code under test with `LOCAL_FILE_ACCESS=full` (EP-3 to EP-7 are local-only tools). Use an OAuth identity, or a service account with a Shared Drive `{FOLDER_ID}`.
 2. **Throwaway folder.** Create a child folder of `TEST_FOLDER_ID` named `QA-MD-<date>-run<N>` and use it as `{FOLDER_ID}`. Everything this suite creates goes there. Trash the folder after the results are recorded.
-3. **Placeholders.** `md-images.md` contains `{QA_IMAGE_LOCAL_PATH}` and `{QA_IMAGE_DRIVE_ID}`. Copy the fixture to a temp file next to the original (so IM-05's relative path still resolves the same way), substitute the absolute path of `docs/qa/fixtures/qa-fixture-pixel.png` and the Drive ID of an uploaded copy of it, and use the copy. Never commit a substituted copy (no resource IDs in git).
+3. **Placeholders.** `md-images.md` contains `{QA_IMAGE_LOCAL_PATH}` and `{QA_IMAGE_DRIVE_ID}`. Copy the fixture to `docs/qa/fixtures/md/syntax/md-images.local.md` (next to the original, so IM-05's relative path still resolves the same way), substitute the absolute path of `docs/qa/fixtures/qa-fixture-pixel.png` and the Drive ID of an uploaded copy of it, and use the copy. `*.local.md` under `docs/qa/fixtures/` is ignored by version control, so the substituted copy (it holds a resource ID) can't be committed by accident.
 4. **One render per fixture per entry point.** Each syntax fixture holds many small cases, each under its own `### <ID> — <description>` heading, so one render covers them all and a failure still points at one construct. Phase 1 documents and the document-boundary files (`docstart/`) are one case per file.
 5. **Screenshots.** Open the Doc at `https://docs.google.com/document/d/<id>/edit` and take one screenshot per case, scrolled so the case's heading and its full content are in view. Name it `docs/qa/screenshots/md/<run>/<EP>/<case>.png` (the `screenshots/` tree is gitignored; keep the files until every issue filed from the run has them attached). Follow the Playwright mutex in [`run.md`](../run.md) §"Coordinating Playwright across parallel shards", and verify the account first per §"Verifying Playwright is signed into the right account".
 6. **Order.** Phase 1 first, and file its failures before starting Phase 2 (#1044, "obvious problems first"). Then Phase 2, then the document-state cases.
@@ -383,7 +385,7 @@ Every case expects the same shape:
 
 No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's type; level 1 the child's.
 
-**Structural:** `nestingLevel` 0/1/2 as in the table; all seven items share one `listId`.
+**Structural:** `nestingLevel` 0/1/2 as in the table. Contiguous same-type items share one `listId`: in the same-type cases (bullet in bullet, numbered in numbered) all seven items do; in the mixed cases the level-1 items are a separate Docs list, so `listId` can't show continuation there. The numbers on screen (**b.**, **2.**, **3.**) are the verdict for continuation in every case.
 
 ### TC-MD107: Loose lists and blocks inside list items ⚠️ destructive
 **Prompt**
@@ -601,26 +603,26 @@ Not expressible, so not in the matrix:
 | CT-08 | table | bullet item, level 0 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list |
 | CT-09 | image | bullet item, level 0 | "Container item", then the image indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list |
 | CT-10 | rule | bullet item, level 0 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list |
-| CT-11 | paragraph | bullet item, level 1 | "Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-12 | heading | bullet item, level 1 | "Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-13 | bullet list | bullet item, level 1 | "Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-14 | numbered list | bullet item, level 1 | "Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-15 | task list | bullet item, level 1 | "Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-16 | code block | bullet item, level 1 | "Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-17 | blockquote | bullet item, level 1 | "Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-18 | table | bullet item, level 1 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-19 | image | bullet item, level 1 | "Container item", then the image indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-20 | rule | bullet item, level 1 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, all one list |
-| CT-21 | paragraph | bullet item, level 2 | "Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-22 | heading | bullet item, level 2 | "Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-23 | bullet list | bullet item, level 2 | "Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-24 | numbered list | bullet item, level 2 | "Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-25 | task list | bullet item, level 2 | "Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-26 | code block | bullet item, level 2 | "Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-27 | blockquote | bullet item, level 2 | "Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-28 | table | bullet item, level 2 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-29 | image | bullet item, level 2 | "Container item", then the image indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
-| CT-30 | rule | bullet item, level 2 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, all one list |
+| CT-11 | paragraph | bullet item, level 1 | "Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-12 | heading | bullet item, level 1 | "Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-13 | bullet list | bullet item, level 1 | "Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-14 | numbered list | bullet item, level 1 | "Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-15 | task list | bullet item, level 1 | "Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-16 | code block | bullet item, level 1 | "Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-17 | blockquote | bullet item, level 1 | "Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-18 | table | bullet item, level 1 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-19 | image | bullet item, level 1 | "Container item", then the image indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-20 | rule | bullet item, level 1 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list |
+| CT-21 | paragraph | bullet item, level 2 | "Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-22 | heading | bullet item, level 2 | "Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-23 | bullet list | bullet item, level 2 | "Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-24 | numbered list | bullet item, level 2 | "Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-25 | task list | bullet item, level 2 | "Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-26 | code block | bullet item, level 2 | "Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-27 | blockquote | bullet item, level 2 | "Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-28 | table | bullet item, level 2 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-29 | image | bullet item, level 2 | "Container item", then the image indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
+| CT-30 | rule | bullet item, level 2 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list |
 | CT-31 | paragraph | numbered item, level 0 | "Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" numbered **2.** (numbering continues) |
 | CT-32 | heading | numbered item, level 0 | "Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" numbered **2.** (numbering continues) |
 | CT-33 | bullet list | numbered item, level 0 | "Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" numbered **2.** (numbering continues) |
@@ -651,26 +653,26 @@ Not expressible, so not in the matrix:
 | CT-58 | table | numbered item, level 2 | "Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" numbered **ii.** at level 2, "Mid after" **b.**, "Top after" **2.** |
 | CT-59 | image | numbered item, level 2 | "Container item", then the image indented under it as part of that item, then "Sibling after" numbered **ii.** at level 2, "Mid after" **b.**, "Top after" **2.** |
 | CT-60 | rule | numbered item, level 2 | "Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" numbered **ii.** at level 2, "Mid after" **b.**, "Top after" **2.** |
-| CT-61 | paragraph | blockquote | the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the quote (same left border and indent) |
-| CT-62 | heading | blockquote | the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the quote (same left border and indent) |
-| CT-63 | bullet list | blockquote | the "Container quote line", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph inside the quote, all inside the quote (same left border and indent) |
-| CT-64 | numbered list | blockquote | the "Container quote line", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) inside the quote, all inside the quote (same left border and indent) |
-| CT-65 | task list | blockquote | the "Container quote line", then a nested task list (☐ Task A, ☑ Task B) one level deeper inside the quote, all inside the quote (same left border and indent) |
-| CT-66 | code block | blockquote | the "Container quote line", then a monospace code block "code line" inside the quote, all inside the quote (same left border and indent) |
-| CT-67 | blockquote | blockquote | the "Container quote line", then a quote (indent + left border) "Quoted line" inside the quote, all inside the quote (same left border and indent) |
-| CT-68 | table | blockquote | the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the quote (same left border and indent) |
-| CT-69 | image | blockquote | the "Container quote line", then the image inside the quote, all inside the quote (same left border and indent) |
-| CT-70 | rule | blockquote | the "Container quote line", then a horizontal rule inside the quote, all inside the quote (same left border and indent) |
-| CT-71 | paragraph | nested blockquote (depth 2) | the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the inner quote (two levels of indent) |
-| CT-72 | heading | nested blockquote (depth 2) | the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the inner quote (two levels of indent) |
-| CT-73 | bullet list | nested blockquote (depth 2) | the "Container quote line", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph inside the quote, all inside the inner quote (two levels of indent) |
-| CT-74 | numbered list | nested blockquote (depth 2) | the "Container quote line", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) inside the quote, all inside the inner quote (two levels of indent) |
-| CT-75 | task list | nested blockquote (depth 2) | the "Container quote line", then a nested task list (☐ Task A, ☑ Task B) one level deeper inside the quote, all inside the inner quote (two levels of indent) |
-| CT-76 | code block | nested blockquote (depth 2) | the "Container quote line", then a monospace code block "code line" inside the quote, all inside the inner quote (two levels of indent) |
-| CT-77 | blockquote | nested blockquote (depth 2) | the "Container quote line", then a quote (indent + left border) "Quoted line" inside the quote, all inside the inner quote (two levels of indent) |
-| CT-78 | table | nested blockquote (depth 2) | the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the inner quote (two levels of indent) |
-| CT-79 | image | nested blockquote (depth 2) | the "Container quote line", then the image inside the quote, all inside the inner quote (two levels of indent) |
-| CT-80 | rule | nested blockquote (depth 2) | the "Container quote line", then a horizontal rule inside the quote, all inside the inner quote (two levels of indent) |
+| CT-61 | paragraph | blockquote | the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-62 | heading | blockquote | the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-63 | bullet list | blockquote | the "Container quote line", then a 2-item bullet list at level 0 (● Bullet A, ● Bullet B) inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-64 | numbered list | blockquote | the "Container quote line", then a 2-item numbered list at level 0 (1. Number A, 2. Number B) inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-65 | task list | blockquote | the "Container quote line", then a 2-item task list at level 0 (☐ Task A, ☑ Task B) inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-66 | code block | blockquote | the "Container quote line", then a monospace code block "code line" inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-67 | blockquote | blockquote | the "Container quote line" at depth 1, then "Quoted line" as its own quote at depth 2 |
+| CT-68 | table | blockquote | the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-69 | image | blockquote | the "Container quote line", then the image inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-70 | rule | blockquote | the "Container quote line", then a horizontal rule inside the quote, all inside the quote (depth 1: one step of indent and the left border) |
+| CT-71 | paragraph | nested blockquote (depth 2) | the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-72 | heading | nested blockquote (depth 2) | the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-73 | bullet list | nested blockquote (depth 2) | the "Container quote line", then a 2-item bullet list at level 0 (● Bullet A, ● Bullet B) inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-74 | numbered list | nested blockquote (depth 2) | the "Container quote line", then a 2-item numbered list at level 0 (1. Number A, 2. Number B) inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-75 | task list | nested blockquote (depth 2) | the "Container quote line", then a 2-item task list at level 0 (☐ Task A, ☑ Task B) inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-76 | code block | nested blockquote (depth 2) | the "Container quote line", then a monospace code block "code line" inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-77 | blockquote | nested blockquote (depth 2) | "Outer quote" at depth 1, the "Container quote line" at depth 2, then "Quoted line" at depth 3 |
+| CT-78 | table | nested blockquote (depth 2) | the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-79 | image | nested blockquote (depth 2) | the "Container quote line", then the image inside the quote, all inside the inner quote (depth 2: two steps of indent) |
+| CT-80 | rule | nested blockquote (depth 2) | the "Container quote line", then a horizontal rule inside the quote, all inside the inner quote (depth 2: two steps of indent) |
 <!-- /generated:CT -->
 
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
@@ -935,7 +937,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | IN-26 | all five styles in a numbered item, level 0 | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the numbered item, level 0 itself renders correctly |
 | IN-27 | all five styles in a numbered item, level 2 | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the numbered item, level 2 itself renders correctly |
 | IN-28 | all five styles in a task item | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the task item itself renders correctly |
-| IN-29 | all five styles in a table header cell | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the table header cell itself renders correctly |
+| IN-29 | all five styles in a table header cell | B bold, I italic, S struck through, C monospace, L a link; every letter is bold (the header row is bold, C13), and each other style is only on its own letter; the table header cell itself renders correctly |
 | IN-30 | all five styles in a table body cell | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the table body cell itself renders correctly |
 | IN-31 | all five styles in a blockquote | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the blockquote itself renders correctly |
 | IN-32 | all five styles in a nested blockquote | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the nested blockquote itself renders correctly |

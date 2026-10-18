@@ -37,6 +37,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/mcp_gee_sweet/tools/.*\.py|docs/tools\.md|docs/configuration\.md)$
+      - id: qa-md-fixtures
+        name: Check generated Markdown QA fixtures are current
+        entry: uv run --frozen python scripts/qa_gen_md_fixtures.py --check
+        language: system
+        pass_filenames: false
+        files: ^(docs/qa/fixtures/md/.*|docs/qa/tests/docs_markdown\.md|scripts/qa_gen_md_fixtures\.py)$
       - id: check-supports-all-drives
         name: Check supportsAllDrives on Drive API calls
         entry: uv run --frozen python scripts/check_supports_all_drives.py

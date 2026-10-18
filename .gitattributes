@@ -1,0 +1,2 @@
+# TC-MD301 DS-13 tests CRLF input: keep this fixture's line endings byte-for-byte.
+docs/qa/fixtures/md/syntax/docstart/ds-13-crlf-line-endings.md -text
