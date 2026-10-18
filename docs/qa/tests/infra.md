@@ -48,6 +48,9 @@ Set `CACHE_TTL=10` (10 seconds) in your server config, restart the server.
 **Result (2026-09-04) ⏭️ SKIP**
 requires CACHE_TTL=10 + server restart — pre-approved, unit-tested (tests/test_cache.py TTL expiry)
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a CACHE_TTL/CACHE_DB_PATH change or a restart.
+
 ---
 
 ### TC-I02: SQLite WAL mode — concurrent reads during a write
@@ -62,6 +65,9 @@ This is a timing-dependent test needing two genuinely simultaneous requests to o
 
 **Result (2026-09-04) ✅ PASS**
 Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations: subagent a wrote a per-iteration sentinel to Empty!A1 (25/25 succeeded), subagent b concurrently read Sales!A1:C3 (25/25 succeeded, zero database is locked / SQLITE_BUSY / OperationalError / empty / SSL errors). LOG_FILE grepped over the run window for locking errors — none found. #280 WAL busy_timeout fix holds under 25 concurrent write+read pairs.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Two-subagent barrier, 20/20 iterations: every write succeeded, every concurrent read returned data, 0 "database is locked" in the log.
 
 ---
 
@@ -80,6 +86,9 @@ Set `CACHE_DB_PATH=/tmp/qa_test_cache.db` and restart the server.
 
 **Result (2026-09-04) ⏭️ SKIP**
 requires CACHE_DB_PATH env + restart — pre-approved, unit-tested (tests/test_cache.py db_path override)
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a CACHE_TTL/CACHE_DB_PATH change or a restart.
 
 ---
 
@@ -101,6 +110,9 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 
 **Result (2026-09-04) ⏭️ SKIP**
 requires server restart to test cache persistence — pre-approved (SQLite file property, not server)
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a CACHE_TTL/CACHE_DB_PATH change or a restart.
 
 ---
 
@@ -135,6 +147,9 @@ Ran all 5 steps live against `TEST_SPREADSHEET_ID`. Step 0: `get_cache_ttl` → 
 **Result (2026-09-04) ✅ PASS**
 Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` → `{"ttl_seconds":3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3 `get_cache_ttl` → `{"ttl_seconds":3}` (immediate readback). Step 4 (after ~5s wait): log showed `DEBUG mcp_gee_sweet.cache Cache TTL expired for 1dBzY4Wuufx8OtHbQsYO8PQNGV-z5g0Vr_TnKzNCXZYs, marking dirty` then a fresh `list_sheets` 200 — lowered TTL applied retroactively to the already-cached entry, no restart. Restored: `set_cache_ttl(1800)` → `WARNING ... 3s -> 1800s`; `get_cache_ttl` → `{"ttl_seconds":1800}`. (Step-1 cold-miss check not isolatable — entry was already warm from TC-I21 on the shared process; step-4 retroactive-expiry is the load-bearing #99 behavior and is confirmed.)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I23: `CACHE_VALIDATE_MODIFIED_TIME` — external edit invalidates cache before TTL expires (issue #99)
@@ -166,6 +181,9 @@ TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see 
 **Result (2026-09-04) ⏭️ SKIP**
 Requires an edit to the fixture spreadsheet made OUTSIDE this process's tool surface (Playwright tab-rename) to bump Drive modifiedTime without calling mark_dirty. Unsafe this pass: other shards were concurrently issuing `update_cells` against the same fixture (seen in live log), and HARD RULE limits me to `mcp__mcp-gee-sweet-sa__` so I can't use another server process as the external editor either. Unit-tested (tests/test_cache.py modified-time path) + live-passed 2026-07-08.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)
@@ -183,6 +201,9 @@ A single client session awaits each tool result before issuing the next, so it c
 
 **Result (2026-09-04) ✅ PASS**
 Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations, two distinct spreadsheets. 24/25 (subagent a) and 23/25 (subagent b) valid data points after self-inflicted param-syntax errors in the first 1-2 iterations self-corrected (not transport errors). Every result-a-* held only {SPREADSHEET_ID} data, every result-b-* only the second spreadsheet's — zero cross-contamination across 47 valid calls, zero SSL/connection-error signature (record layer failure / Connection reset by peer / Remote end closed connection). #183 shared-transport fix holds.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Two-subagent barrier, 20/20 iterations on kai-sa: no cross-contamination, no SSL/connection errors (server pre-warmed to rule out the stale-connection defect).
 
 ---
 
@@ -211,6 +232,9 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this serve
 **Result (2026-09-04) ✅ PASS**
 `server://auth-status` read through the real SDK resource dispatch (`MCPServer.read_resource("server://auth-status")`, mcp==2.0.0) inside the real `spreadsheet_lifespan` under `AUTH_METHOD=service_account`: returned valid JSON, no AttributeError/ValueError, `auth_method: "service_account"` matches configured. Exercises the #175/#363 static-resource path (`get_lifespan_context()` singleton, no `get_context()`). Cross-checked: `_auth_status_json("oauth")` full-access branch → `limited_tools:[]`, `limitations:[]`. NOTE: no `ReadMcpResourceTool` in this session, so this is the SDK's in-process `read_resource` dispatch, not a JSON-RPC wire read.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I27: `server://auth-status` reports per-tool limitation categories, not one shared reason (issue #447)
@@ -235,6 +259,9 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that serve
 **Result (2026-09-04) ✅ PASS**
 Same live service_account resource read as TC-I25. All checks: `limited_tools` includes `transfer_ownership`; `limitations` is a 2-entry list, each with category/tools/reason/alternatives; `no_personal_drive_identity` → `tools==["transfer_ownership"]`, reason mentions "identity" (not "storage quota"), alternatives has no ADC mention; `no_drive_storage_quota` → the original 7 tools (create_spreadsheet, create_doc, copy_file, upload_file, upload_local_file, upload_local_folder, sync_folder), excludes transfer_ownership; oauth/full-access branch → `limited_tools:[]`, `limitations:[]`.
 
+**Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
+SA checks pass; the OAuth sub-check needs a different auth method.
+
 ---
 
 ### TC-I28: `sync_folder` reports as a literal, exact `limited_tools` entry (issue #516)
@@ -255,6 +282,9 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that serve
 
 **Result (2026-09-04) ✅ PASS**
 Same live service_account resource read. `"sync_folder" in limited_tools` is exact-True (bare name, not the old `"sync_folder (upload and bidirectional directions)"` string). `no_drive_storage_quota` reason text ends: "For sync_folder, this only applies to its upload and bidirectional directions."
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 
 ---
 
@@ -280,6 +310,9 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 
 **Result (2026-09-04) ⏭️ SKIP**
 `spreadsheet://{id}/info` is a template resource; in-process `MCPServer.read_resource(...)` raises `ValueError: Context is not available outside of a request` by design (needs a live MCP request context), and this session has no `ReadMcpResourceTool` to do a real protocol read. Underlying path IS live-healthy: `mcp-gee-sweet-sa`'s `context.sheets_service` + `execute_in_thread` served every Sheets call this shard made. Unit test `tests/test_server.py::TestResourcesReadLifespanContext::test_get_spreadsheet_info_reads_sheets_service_via_injected_context` PASSES on release commit 756eb89; live-passed 2026-08-21 post-#175. Needs a resource-capable conductor session to close live.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 
 ---
 
@@ -307,6 +340,9 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 **Result (2026-09-04) ⏭️ SKIP**
 `server.json` registry manifest — not reachable via any MCP tool; needs `mcp-publisher` CLI + a real publish to registry.modelcontextprotocol.io. Identity/consistency unit-tested in tests/test_server_json.py. Re-run only after a stable release that bumps server.json version.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs the mcp-publisher CLI and a registry publish.
+
 ---
 
 ### TC-I30: `server://auth-status` distinguishes a real-user ADC session from a service-account-backed one (issue #506)
@@ -329,6 +365,9 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against each serve
 **Result (2026-09-04) ⏭️ SKIP**
 Needs an environment where ADC resolves to a service-account-backed credential (AUTH_METHOD=adc + GOOGLE_APPLICATION_CREDENTIALS key file / metadata identity). Running server is `AUTH_METHOD=service_account` directly, not ADC; no such server provisioned. Unit-tested in tests/test_auth.py::TestIsServiceAccountCredential + tests/test_server.py::TestAuthStatusResource.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an ADC-backed SA environment.
+
 ---
 
 ## Tool filtering (`ENABLED_TOOLS`)
@@ -348,6 +387,9 @@ Start server with: `uv run mcp-gee-sweet --include-tools get_sheet_data,list_she
 **Result (2026-09-04) ⏭️ SKIP**
 requires `--include-tools` CLI restart — pre-approved, unit-tested (_parse_enabled_tools)
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a tool-filtered restart.
+
 ---
 
 ### TC-I06: ENABLED_TOOLS env var — same behavior as CLI flag
@@ -365,6 +407,9 @@ Set `ENABLED_TOOLS=get_sheet_data,list_sheets` and restart the server.
 **Result (2026-09-04) ⏭️ SKIP**
 requires ENABLED_TOOLS env + restart — pre-approved, unit-tested
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a tool-filtered restart.
+
 ---
 
 ### TC-I07: Unlisted tool called by name
@@ -381,6 +426,9 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).
 
 **Result (2026-09-04) ⏭️ SKIP**
 requires tool-filtered server restart — pre-approved, unit-tested
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a tool-filtered restart.
 
 ---
 
@@ -405,6 +453,9 @@ requires tool-filtered server restart — pre-approved, unit-tested
 **Result (2026-09-04) ✅ PASS**
 `list_sheets(spreadsheet_id=<fixture>, bogus_kwarg="test")` raised: `1 validation error for list_sheetsArguments / bogus_kwarg / Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]`. Clean call (spreadsheet_id only) succeeded → `["Sales","Empty","Notes & Misc"]`. Both checks met.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ## Auth fallback chain
@@ -425,6 +476,9 @@ Set only `CREDENTIALS_CONFIG` (base64-encoded service account JSON). Remove all 
 **Result (2026-09-04) ⏭️ SKIP**
 requires CREDENTIALS_CONFIG-only auth env + restart — pre-approved, unit-tracked (#98)
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a different auth environment and a restart.
+
 ---
 
 ### TC-I09: SERVICE_ACCOUNT_PATH
@@ -441,6 +495,9 @@ Set only `SERVICE_ACCOUNT_PATH` (path to service account JSON file). Remove `CRE
 
 **Result (2026-09-04) ⏭️ SKIP**
 requires SERVICE_ACCOUNT_PATH-only auth env + restart — pre-approved, unit-tracked (#98). (Note: running server IS service-account-authed via SERVICE_ACCOUNT_PATH and all SA tool calls succeeded this shard.)
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a different auth environment and a restart.
 
 ---
 
@@ -460,6 +517,9 @@ Set `CREDENTIALS_PATH` and `TOKEN_PATH`. Remove service account env vars. If no 
 **Result (2026-09-04) ⏭️ SKIP**
 requires OAuth-only auth env + restart — pre-approved
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a different auth environment and a restart.
+
 ---
 
 ### TC-I11: Application Default Credentials (ADC)
@@ -477,6 +537,9 @@ Run `gcloud auth application-default login` first. Remove all other auth env var
 **Result (2026-09-04) ⏭️ SKIP**
 requires ADC-only auth env + restart — pre-approved, unit-tracked (#98)
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a different auth environment and a restart.
+
 ---
 
 ### TC-I12: No credentials — server fails to start with clear error
@@ -491,6 +554,9 @@ Remove all auth env vars. Start the server.
 
 **Result (2026-09-04) ⏭️ SKIP**
 requires starting server with no creds — pre-approved
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs a different auth environment and a restart.
 
 ---
 
@@ -513,6 +579,9 @@ Run `uv run mcp-gee-sweet` (default stdio transport). Connect from an MCP client
 **Result (2026-09-04) ⏭️ SKIP**
 stdio transport — pre-approved. (Implicitly exercised: this session's entire MCP connection to `mcp-gee-sweet-sa` is stdio; every tool call below rode it. list_sheets returned ["Sales","Empty","Notes & Misc"].)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I14: SSE transport
@@ -532,6 +601,9 @@ Run `uv run mcp-gee-sweet --transport sse` or `make start`. Connect from Claude 
 
 **Result (2026-09-04) ⏭️ SKIP**
 SSE transport requires launching a separate `--transport sse` server process — this shard cannot start/reconfigure servers. Live-passed 2026-08-21 post-#175 (real SDK sse_client round trip).
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
 
 ---
 
@@ -558,6 +630,9 @@ Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log` in `src/mcp_gee_sw
 **Result (2026-09-04) ✅ PASS**
 Live `/tmp/mcp-gee-sweet.log` shows both levels differentiated by logger name: `DEBUG mcp_gee_sweet.cache` (cache open at startup — confirmed via fresh-process run: 5x "sheet_structure/sheet_data/... cache opened: /tmp/mcp_gee_sweet.db"; plus runtime "Cache hit"/"Cache TTL expired" lines) AND `INFO mcp_gee_sweet.access "-" - "TOOL <name>" <status> <elapsed>s`. My own calls logged with exact documented format, e.g. `"-" - "TOOL list_sheets" 200 0.714s`, `"-" - "TOOL get_cache_ttl" 200 0.000s`. Both 200 and 500 statuses seen in the wild.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines
@@ -577,6 +652,9 @@ Set `DEBUG_LEVEL=INFO` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the server
 **Result (2026-09-04) ⏭️ SKIP**
 Running server is at DEBUG_LEVEL=DEBUG; the INFO-only (no-DEBUG-lines) variant needs an `.env` edit + restart this shard can't perform. Previously live-passed 2026-06-23.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs DEBUG_LEVEL=INFO and a restart.
+
 ---
 
 ### TC-I18: LOG_FILE — server output written to file
@@ -593,6 +671,9 @@ Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the serve
 
 **Result (2026-09-04) ✅ PASS**
 `LOG_FILE=/tmp/mcp-gee-sweet.log` exists (~297KB), actively appended (mtime = now), contains startup cache-open DEBUG lines + per-call `INFO mcp_gee_sweet.access` lines. `make dev-logs` is a plain `tail -f` of this file — verified the file directly instead.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 
 ---
 
@@ -614,6 +695,9 @@ Set `DEBUG_LEVEL=DEBUG`, `LOG_FILE=/tmp/mcp-gee-sweet.log`, and `ACCESS_LOG_FILE
 **Result (2026-09-04) ✅ PASS**
 `ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log` contains ONLY nginx-style access lines (`<ts> "-" - "TOOL x" <status> <elapsed>s`) — no DEBUG noise, no `INFO mcp_gee_sweet.access` logger prefix. Same call appears once in each file: e.g. my `get_cache_ttl` at 22:31:07 in access log AND in main LOG_FILE (with the `INFO mcp_gee_sweet.access` prefix, alongside DEBUG lines).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
 ---
 
 ### TC-I20: .env file loaded at startup
@@ -630,6 +714,9 @@ Add `DEBUG_LEVEL=DEBUG` to `src/mcp_gee_sweet/.env` (no shell export, no MCP cli
 
 **Result (2026-09-04) ✅ PASS**
 `.mcp.json` sets NO DEBUG_LEVEL/LOG_FILE for any server (only AUTH_METHOD/SERVICE_ACCOUNT_PATH), yet debug+access logging is fully active → `src/mcp_gee_sweet/.env` (main checkout) is loaded at startup by `__init__.py` dotenv. Confirmed `.env` keys: DEBUG_LEVEL=DEBUG, LOG_FILE, ACCESS_LOG_FILE, DRIVE_FOLDER_ID. 🔍 shell-precedence sub-check (shell DEBUG_LEVEL=WARNING overriding .env) NOT executed — needs a restart with a conflicting shell var; recorded PASS per 🔍 rule, that sub-behavior unobserved this run.
+
+**Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
+.env values are active with no .mcp.json override; shell precedence needs a restart.
 
 ---
 
@@ -648,6 +735,9 @@ Make a trivial change to a source file (e.g. add a space and save).
 
 **Result (2026-09-04) ⏭️ SKIP**
 SSE hot-reload — pre-approved, manual/live-only known uvicorn+SSE limitation
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
 
 ---
 
@@ -668,6 +758,9 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against the servic
 - The entry's `alternatives` names OAuth and does not mention ADC
 - The existing `no_drive_storage_quota` and `no_personal_drive_identity` entries are unchanged (TC-I27)
 - On the OAuth server (whose token includes `gmail.modify`; otherwise see TC-I32): `limited_tools: []`, `limitations: []`
+
+**Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
+SA checks pass; the OAuth sub-check needs a different auth method.
 
 ---
 
@@ -706,6 +799,9 @@ Then call, in order:
 **Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
 Ran against this worktree's code with a real `mcp` SDK stdio client (`stdio_client` + `ClientSession`, a genuine MCP round trip) instead of a registered Claude Code server. Token copy = the team QA token as of 2026-09-25 (4 base scopes, no `gmail.modify`), `expiry` forced to 2000-01-01. `AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` also set so a silent SA fallback would have been possible, no `ENABLED_TOOLS` (139 tools registered, Gmail included). Server connected; no browser, no `Please visit` prompt. Log: `WARNING mcp_gee_sweet.auth Gmail tools disabled: ...`, then `Refreshing expired OAuth token...`, then `Waterfall: using OAuth` (not the service account). `list_spreadsheets(max_results=1)` → 200, no error (empty list: the fixture folder has no spreadsheets at its root). `list_labels` and `send_message(to=nobody@example.com, ...)` each returned `{"error": "The OAuth token at '<copy>' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/gmail.modify. Delete '<copy>' and restart the server (or run scripts/oauth_setup.py) to re-authorize. The Gmail tools are what need them: to run without Gmail instead, leave the Gmail tools out of ENABLED_TOOLS / --include-tools."}` in 0.000s (no API call, nothing sent). `auth-status`: `auth_method: "oauth"`, one `gmail_not_authorized` limitation listing all 11 Gmail tools, and those 11 are the whole of `limited_tools`. Token copy afterwards: `expiry` advanced (refresh succeeded), `scopes` unchanged with no `gmail.*`.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I33: with the Gmail tools filtered out, a pre-Gmail OAuth token keeps working and no Gmail scope is requested (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -738,6 +834,9 @@ Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with 
 **Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
 Same real-SDK stdio client; separate token copy (4 base scopes, `expiry` forced to 2000-01-01), `AUTH_METHOD=oauth`, `ENABLED_TOOLS=list_spreadsheets,get_cache_ttl`. Connected with 2 tools registered (no Gmail) and no browser consent. `list_spreadsheets(max_results=1)` → 200, no error. `auth-status`: `auth_method: "oauth"`, `limited_tools: []`, `limitations: []`. Token copy afterwards: `expiry` advanced (refreshed), `scopes` still the 4 base scopes, no `gmail.*`. Log has 0 `Gmail`/`MissingOAuth` lines.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I34: an OAuth token missing a base (non-Gmail) scope still fails at startup, logs the reason, and never opens a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -767,6 +866,9 @@ Repeat once with `AUTH_METHOD=oauth`.
 
 **Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
 Token copy: `calendar` removed from `scopes` (`spreadsheets`, `drive`, `drive.activity.readonly`, `gmail.modify` kept), `expiry` in the future. Waterfall run (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` set): exit 1 after ~2s. stderr has `MissingOAuthScopesError: The OAuth token at '<copy>' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/calendar. Delete '<copy>' and restart the server (or run scripts/oauth_setup.py) ...`. LOG_FILE has `ERROR mcp_gee_sweet.auth OAuth startup failed: <same message>`, 0 `Waterfall: using service account` lines, 0 `Please visit` prompts. `AUTH_METHOD=oauth` run: identical (exit 1 after ~2s, same stderr + log line). Token copy's sha1 unchanged across both runs.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -811,6 +913,9 @@ Same as round 1: `initialize` 1.8s, error result with the instructions (now endi
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 `initialize` 1.7s, 0 `Please visit`. `list_spreadsheets`: `No usable OAuth token at '<nonexistent>'.`, then the link, then the CLI alternative ending `then retry the call: the server picks up the new token without a restart.`. No restart wording. `auth-status` `none` / `["*"]` / one `oauth_not_authorized`. The log has `Starting without Google access:` and `"TOOL list_spreadsheets" 401`. The token path still doesn't exist.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem
@@ -835,6 +940,9 @@ Run 1 (team SA key): `initialize` 1.7s, `list_spreadsheets` normal result (`is_e
 
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 Run 1: `list_spreadsheets` normal, `auth_method: "service_account"`, `OAuth needs consent` → `using service account`. Run 2: degraded as TC-I35; the warning now ends `The fallbacks weren't usable either: no service account key file at SERVICE_ACCOUNT_PATH ('<nonexistent>'); ADC failed (File <nonexistent> was not found.).` Extra probe (not a check here): a *malformed* SA key file or `CREDENTIALS_CONFIG` still fails startup outright (stdio client sees `Connection closed`) with the SA exception, since the waterfall's SA step has no try, same as before this PR. That's not masking, so it's not a finding.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -867,6 +975,9 @@ Step 1 (killed before consent): printed `Credentials :`, `Token target:`, `Scope
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 Playwright signed-in check passed (fixture doc title). Step 1: `Credentials :` / `Token target:` / `Scopes      :` (4 base scopes, no `gmail.modify`) + `Please visit` URL. Step 2: chose the Workspace fixture account, Allow → callback `?state=...&code=...&scope=<4 base scopes>`. Command printed `Saved the token to <scratch>. Restart the server to pick it up.`, exit 0; `stat -f %Lp` = `600`; token `scopes` = the 4 base scopes. Step 3: stdio `list_spreadsheets` normal result, `auth-status` `auth_method: "oauth"`, no limitations. Step 4 (deny): Cancel → callback `?error=access_denied`; exit 1, stderr `ERROR: AccessDeniedError: (access_denied) `, 0 `Traceback`, no token file. Same OAuth client + account as the existing grant, so no separate permissions entry to revoke.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I38: over SSE, a missing token still runs the consent flow, with its prompt on stderr only (issue #811) ⚠️ local-filesystem
@@ -893,6 +1004,9 @@ stdout 0 bytes; stderr has the `Please visit ... https://accounts.google.com/o/o
 **Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
 Stopped with SIGTERM, not SIGKILL. stdout had 0 `Please visit` lines, only uvicorn access lines (`GET /sse 200`, `POST /messages/ 202`). stderr had `Please visit this URL to authorize this application: https://accounts.google.com/...`. Server exited on SIGTERM and the port was released.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I39: `mcp-gee-sweet auth` argument handling and pre-consent checks (issue #811) ⚠️ local-filesystem
@@ -918,6 +1032,9 @@ Stopped with SIGTERM, not SIGKILL. stdout had 0 `Please visit` lines, only uvico
 
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 1: `Credentials :`, `Scopes      :` with the 4 base scopes, `Please visit` URL (the auth command, not a server). 2: exit 2, `mcp-gee-sweet auth: error: unrecognized arguments: --no-browswer`. 3: exit 1, `ERROR: RuntimeError: The directory for TOKEN_PATH ('<scratch>/no-such-dir/t.json') doesn't exist. Create it first.`, 0 `Please visit`, 0 `Traceback`. 4: 0 `Credentials :` lines; stderr has `WARNING mcp_gee_sweet.auth Starting without Google access: ...` (a stdio server's lifespan), exited on stdin EOF. No token file left in `<scratch>`.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -959,6 +1076,9 @@ Run 1: A 4.10s with `within 4s`; B 0.01s with `an earlier browser consent ... di
 **Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
 Run 1: A 4.08s with `within 4s`; B 0.01s with `an earlier browser consent ... didn't complete`; A again still `within 4s`; 1 `Please visit`. Run 2: init 0.01s after the stray request, `the browser consent failed`. SIGTERM exits 0.29s / 0.27s, and `lsof` was empty.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem
@@ -985,6 +1105,9 @@ Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty 
 **Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
 Re-ran step 1 against the guarded settings.json command: Stop `hook_response` exit 0 with `Lane context is ~39k tokens (warning threshold 1k). ... /clear, then /team-member Kit.` and one `Stop says:` line. Round 1 finding (missing script): a scratch project whose Stop hook uses the same guarded command with no `scripts/lane_context_hook.py` now gives exit 0, `outcome: "success"`, empty output and stderr (round 1's unguarded command: exit 2, `outcome: "error"`, `can't open file`).
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Claude Code hook tests need headless claude -p from a lane worktree.
+
 ---
 
 ### TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
@@ -1008,6 +1131,9 @@ Claude Code 2.1.287, `kit` worktree. Old session: a ~43k-token `kit` transcript 
 
 **Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS**
 Re-ran step 1 (same 2026-09-29 session) after the `type(cost) in (int, float)` change: `SessionStart:fork` exit 0, `output` `Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). ... /clear, then /team-member Kit is cheaper.` The cost clause, which round 1's `int | float` check dropped under Python 3.9, is present. `tests/test_lane_context_hook.py::TestRunsUnderPython39` ran (not skipped) against `/usr/bin/python3` 3.9.6. All 46 tests in the file pass. Step 2 not re-run: the warm-cache path is unchanged by the fix.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Claude Code hook tests need headless claude -p from a lane worktree.
 
 ---
 
@@ -1048,6 +1174,9 @@ Step 2: POST `404` in 0.015s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit 0.6
 **Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
 Step 2: `404` in 0.013s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit 0.65s, the shut-down message was logged, and `lsof` was empty for both ports. The earlier probes still pass: a silent `<cb>` connection degrades at 5.2s; the waterfall shows 1 prompt across two connections; with the refresh hanging, a POST answers in 0.017s and SIGTERM exits in 0.44s. All four states of the shared consent attempt were checked with standalone scripts against the real `_oauth_creds_async`. **Running:** joins it (`test_concurrent_connections_share_one_consent`). **Failed:** consent-off error, no new attempt. **Succeeded, with a token load in flight across the success:** that load re-reads the token, 1 consent in total; `18c839e` ran 2. **Succeeded, then the token deleted:** a new consent runs, as intended. **Stopped (the last waiter cancelled):** the next connection starts a new attempt and gets creds.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
+
 ---
 
 ### TC-I44: over SSE, an auth failure starts the connection without Google access, and SIGTERM still exits (PR #867) ⚠️ local-filesystem
@@ -1075,6 +1204,9 @@ Step 1: `initialize` OK; the tool error is `The OAuth token at ... wasn't author
 
 **Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
 Step 1: missing-scopes tool error plus the `ERROR ... Starting without Google access` line; SIGTERM 0.23s. Step 2: 10 of 10 POSTs `202`, SIGTERM 0.50–0.60s. Step 3: same error, SIGTERM 0.18s. Stdio with the same token still exits with code 1.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
 
 ---
 
@@ -1117,6 +1249,9 @@ mcp 2.3.0, bogus scratch client JSON, expired token with a bogus refresh token. 
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 mcp 2.3.0. Same as round 1: `is_error: True`, starts `Error executing tool get_storage_quota: No usable OAuth token at '<scratch token>'.`, with the `mcp-gee-sweet auth` / `uvx mcp-gee-sweet auth` alternative naming the scratch paths. Not the bare text.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I46: on mcp 2.3+, a Google API error a tool raises keeps its text, for a tool and for `spreadsheet://{id}/info` (issue #872)
@@ -1140,6 +1275,9 @@ Live `mcp-gee-sweet-sky` server, OAuth, mcp 2.3.0. 1: `Error executing tool list
 
 **Result (2026-10-04, PR #905 round 2 @ 42ab5e6, Sky) ✅ PASS**
 Live `mcp-gee-sweet-sky` server, mcp 2.3.0: steps 1 and 2 return the same `HttpError 404 ... Requested entity was not found.` text as round 1. Extra check over a stdio subprocess with the same credentials (`DEBUG_LEVEL=INFO`): the server logs `WARNING mcp_gee_sweet.server Reporting HttpError to the client: ...` with the full traceback through `execute_in_thread`, and the access line is `"TOOL list_sheets" 500`.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 
 ---
 
@@ -1170,6 +1308,9 @@ uvicorn 0.47.0, run through `uv run` (so the parent's exit code is uv's 143 afte
 
 **Result (2026-10-05, PR #911 round 2 @ 1f138a5, Sky) ✅ PASS**
 Same drivers as round 1. Steps 2–3 (three plain runs plus one `--reload`): each log has `Dropping a second response on /sse during shutdown (#868)` and none of the three error strings. The server exits 0.2–0.6s after SIGTERM, every SSE response reads to a clean EOF, and the ports are free. The drop line and uvicorn's `Shutting down` were logged in either order across these runs, so I changed step 4's check from an ordering check to an absence check. Step 4: `initialize` and `list_tools` (139 tools) succeed, and the log has no `Dropping` line and no ASGI error. So after an ordinary client disconnect, the late `Response()` now reaches uvicorn, which ignores it without error. Plain `--transport sse` now launches via `anyio.run(uvicorn.Server(config).serve)` and behaves the same as `--reload`.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
 
 ---
 
@@ -1213,6 +1354,9 @@ BROWSER=/usr/bin/false
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 Both texts as specified, with time left `119s` and `118s` (not the full 120). The CLI alternative ends `... without a restart.`. 1 (`list_files`) ends `The call may have partly completed before the token was rejected; the tool reported: [{"error": "List files failed: ('invalid_grant: Bad Request', {...})"}]`. The tuple repr appears only inside that reported result, never before it. 2 (`list_sheets`) has no such sentence. Same link for both, and its port is open. Step 1 three more times: each `401` in 0.09s, 0 `Token refresh failed` lines in total (this token isn't expired, so the reload never refreshes, and the unchanged file is skipped), and only the startup `Gmail tools disabled` line (1 in the log, against one per reload in round 1). 0 `Please visit`.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I49: a client with URL elicitation gets a `-32042` error carrying the consent link (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1235,6 +1379,9 @@ With an `elicitation_callback` (returns cancel; never invoked, since the server 
 
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 Same as round 1: both calls `-32042`, the same `elicitation_id` and `url`, port open, `401` access lines, 0 `Please visit`.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -1260,6 +1407,9 @@ Step 1: the first `list_files` gave the consent-link error (`401`). After copyin
 
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 Step 1: `401` with the link, then after the copy `OAuth credentials reloaded ...` once, `list_files` `200` and `list_sheets` `200`. Step 2: `401` with the link, then after the copy `... The server has since loaded a newer OAuth token; retry the call.` (`401`), then `200`. Side observation on step 2's first post-copy call: it now ends `The call may have partly completed ...; the tool reported: ["Sales", "Notes & Misc", "Empty"]`. `list_sheets` actually succeeded from the structure cache (the cache's `modifiedTime` check is where the revoked refresh failed and was recorded), and `_timed` replaced that success with the retry message. That's the design (a recorded failure replaces the result, now carried in the text), not a defect.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -1288,6 +1438,9 @@ Step 1: `401` with the link, then after the copy `OAuth credentials reloaded ...
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 Same flow as round 1 (Playwright under the mutex, Workspace account, **Allow**): the callback page completed, the scratch token's `refresh_token` changed with mode `0o600`, the callback port then closed, and `OAuth credentials reloaded ...` was followed by `list_files` `200` and `list_sheets` `200`. 0 `Please visit`.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ---
 
 ### TC-I52: in Claude Code, a revoked token shows the consent prompt instead of an error (issue #873) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1310,6 +1463,9 @@ Needs a human driving an interactive Claude Code session; a lane QA session can'
 
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ⏭️ NOT RUN**
 Same reason as round 1: needs a human in an interactive Claude Code session.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -1338,6 +1494,9 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 **Result (2026-10-06, PR #925 round 2 @ a3af056, Sky) ✅ PASS**
 SSE on `127.0.0.1:8937`, `OAUTH_CONSENT_TIMEOUT_SECONDS=25`. A: `initialize` 0.2s, then the TC-I48 link with `within 24s`. After expiring the token: B and C each `initialize` in 0.1s (not 25s), and each `list_files` starts `No usable OAuth token at '<scratch token>'. To re-authorize, open this link ... within 24s` with the *same* link A got. The log has 0 `Please visit`, 0 `earlier browser consent`, and 2 `Starting without Google access: ... a re-authorization link a tool call offered is still open` lines. SIGTERM exited cleanly. B's and C's `auth-status` have no `restart the server`. A's does, from its `gmail_not_authorized` limitation: the team token lacks `gmail.modify`, and a missing scope still needs a restart by design. So I narrowed that check's wording to the `oauth_not_authorized` limitation.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+
 ### TC-I54: replacing a nearly expired tool-call link leaves the old link working until its stated deadline (PR #925 QA round 2) ⚠️ requires-oauth ⚠️ local-filesystem
 
 **Background:** a tool call's own consent attempt with less than `min(60, timeout/2)` seconds left isn't offered again; the next failing call gets a fresh link. In round 2 that replacement also stopped the old attempt, so link 1's callback port closed while its offer still promised it several more seconds, and a user on link 1's consent page landed on a dead localhost redirect. Now the old attempt keeps listening until its own deadline. The two attempts share a group: whichever completes publishes the token and sends `elicitation/complete` to both attempts' clients (unit-tested in `tests/test_reauth.py::TestUserConsent::test_either_link_completes_and_notifies_both_clients`).
@@ -1364,6 +1523,9 @@ Start a stdio session against `uv run mcp-gee-sweet` with `AUTH_METHOD=oauth`, `
 **Result (2026-10-08, PR #925 round 3 @ e5f6fed, Sky) ✅ PASS**
 mcp 2.3.0, stdio, fresh `CACHE_DB_PATH`. Step 1: `Google rejected the OAuth token refresh: invalid_grant ...`, link 1 `within 24s`, port 63319. Step 2 at +16.1s: a different link, port 63322, `within 24s`. Step 3 at +18.1s: both ports open (round 2 had link 1 closed by now). Step 4 at +26.0s (link 1's deadline +24s): link 1 refused, link 2 open. 0 `Please visit`.
 Extra check (the fix's "either link completes" claim, TC-I51-style): `OAUTH_CONSENT_TIMEOUT_SECONDS=120` (threshold 60s). Link 1 `within 119s`. At +61.6s a second `list_files` gave link 2 (a different port), with both ports open. Playwright, under the mutex, after the fixture-doc sign-in check, then completed consent through **link 1** (the replaced one): account chooser, the Workspace account, **Allow**, and the callback page on link 1's port read `The authentication flow has completed. You may close this window.` The scratch token's `refresh_token` changed and its mode is `0o600`. Link 1's port then closed, and the retried `list_files` succeeded. Link 2's port stayed open after the consent completed, as designed: it listens until its own deadline. 0 `Please visit`. Scratch files deleted.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 ---
 
@@ -1398,6 +1560,9 @@ uvicorn 0.47.0, mcp 2.3.0, run through `uv run` (exit code 143 is uv forwarding 
 **Result (2026-10-10, PR #975 round 2 @ f5987b8, Sky) ✅ PASS**
 Same driver as round 1 (uvicorn 0.47.0, mcp 2.3.0, `uv run`). Steps 1–3 (three plain runs): `initialize` 200, `notifications/initialized` 202, `GET /mcp` 200. Each GET read to a clean EOF (0 bytes), and each log has the `#917` close line and none of the three error strings. The servers exited 0.60–0.61s after SIGTERM, with no listener left. Step 3 `--reload` run: `Started reloader process ... using StatReload`, the same `#917` close line, a clean EOF, and exit 0.76s (uvicorn's reloader exits 0). Extra check: touching `src/mcp_gee_sweet/sse_shutdown.py` under `--reload` logged `StatReload detected changes ... Reloading...` and started a new server process, so the reload works and isn't only a banner. Step 4: SDK session, 139 tools, no close line and no ASGI error, exit 0.23s. Step 5: `mcp-gee-sweet: unknown --transport 'websocket' (use stdio, sse, or streamable-http)`, exit 1, no traceback. Extra check: `--reload` with stdio logs `WARNING ... --reload applies only to the sse and streamable-http transports; ignoring it`. TC-I47 recheck: steps 1–2 once (`#868` drop line, clean EOF, exit 0.60s, port free).
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs an SSE/streamable-http server or SIGTERM.
+
 ---
 
 ### TC-I56: over SSE with `LOCAL_FILE_ACCESS` unset, local-only tools aren't registered and an optional `local_path` is refused before any fetch (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1431,6 +1596,9 @@ Same driver as round 1, fresh subprocess on this head. Steps 1–5 matched round
 
 **Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
 Same driver, fresh subprocess on this head. Steps 1–5 matched round 2: no local-only tools listed, `{"mode": "off", "explicit": false, ...}` with the nine sorted, both `get_sheet_data` calls refused with the defaulted-off text (no 404), `<scratch>` held only `x.png`, and the doc was created with the image's per-item refusal. Scratch folder trashed.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
 
 ---
 
@@ -1468,6 +1636,9 @@ Fresh subprocess on this head. Step 1: nine listed, roots status as expected. St
 **Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
 Fresh subprocess on this head, in its own empty Drive folder. Step 1: nine listed, `{"mode": "roots", "explicit": true, "roots": ["<root>"], ...}`. Step 2: `fileId`. Steps 3–5: the `outside this server's LOCAL_FILE_ROOTS` refusal for each. Step 6: `escape.txt` → `local_read_fail`, `ok.txt` → `skip`. Step 7: `uploaded: ["ok.txt"]`, `failed: [escape.txt]`. A first run in a folder that already held a control `ok.txt` planned `collision` at step 6 (fixture, not product); this clean rerun is the one recorded. Scratch folder trashed.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
+
 ---
 
 ### TC-I58: the server's own credential files are refused in `full` mode too (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1500,6 +1671,9 @@ Fresh SSE subprocess on this head with an explicit `LOCAL_FILE_ACCESS=full` and 
 
 **Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ⚠️ PARTIAL: steps 1, 2, 4, 6 against `LOG_FILE`; step 3 pending**
 Fresh SSE subprocess on this head, explicit `LOCAL_FILE_ACCESS=full`, `LOG_FILE=<denied>/log.txt` (the same substitution as rounds 1–2). Steps 1, 2, 4: the same refusals as round 2. Step 5: `{"mode": "full", "explicit": true, ...}`. Step 6, with `<scratch>/link` → `<denied>/sub` and a Drive folder holding `log.txt` plus the control files `a.txt` and `ok.txt`: `download_folder(local_path="<scratch>/link/..", skip_if_exists=false)` put `log.txt` in `failed` with `<scratch>/link/../log.txt is one of this server's own credential, config, cache, or log files and can't be written by a tool`. The same probe through `sync_folder(direction="download")` failed `log.txt` with the same refusal plus `; not synced`. `LOG_FILE`'s head was unchanged after both. The control files landed in `<denied>`, not `<scratch>`, so the walk really did go through the symlink. Step 3 still pending (the auto-mode classifier and the slot token's missing Gmail scope, as in round 1).
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+requires-oauth; step 5 covered by server://auth-status local_file_access mode "full".
 
 ---
 
@@ -1539,6 +1713,9 @@ Steps 1–3: exit 1 with the three one-line messages, no traceback, each precede
 **Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
 Steps 1–3: exit 1 with the three one-line messages, each preceded by the `ERROR ... Local file access is off: <reason>` line, no traceback. Step 4: started, with the ignored-roots warning. Step 5: started, with the `ENABLED_TOOLS` warning; `list_tools` returned `["get_sheet_data"]`. Step 6: exit 0, `usage: mcp-gee-sweet auth [-h] [--no-browser] [--include-tools INCLUDE_TOOLS]`. Step 7: `gen_tool_docs: docs already up to date`, and `git status` showed no change outside this file.
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
+
 ---
 
 ### TC-I60: an HTTP request reaching a defaulted `full` policy is refused (issue #796) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1565,3 +1742,6 @@ Same driver, fresh subprocesses on this head. Step 1: listed, both calls refused
 
 **Result (2026-10-16, PR #1039 round 3 @ b8d0ced, Sky) ✅ PASS**
 Same driver, fresh subprocesses on this head. Step 1: `upload_local_file` listed, both calls refused with `local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly`, and exactly one `Refusing local file access for an HTTP request` warning (the same record appears once in `LOG_FILE` and once in stderr). Step 2: upload succeeded, no warning. Scratch folder trashed.
+
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.

@@ -30,6 +30,9 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 - No `next_page_token` (the fixture set fits in one page of 50)
 - No `error` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM02: Invalid label filter returns API error
@@ -40,6 +43,9 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
 - The error text comes from the Gmail API (mentions the label)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -65,6 +71,9 @@ The 7 `page-N` fixtures share the subject prefix `[mcp-qa:page]`, and each is it
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, #795's shared `_list_kwargs`/`_list_page`)**: via `mcp-gee-sweet-kit`. `list_messages` and `list_threads` both paged 3/3/1 with `next_page_token` on the first two pages only, and the 7 IDs were distinct. Thread items carry `id`, `snippet`, and `history_id`. `max_results: 0` returned exactly 1 message, and `9999` returned all 7 with no token.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM35: Spam and trash are excluded unless asked for
@@ -84,6 +93,9 @@ The `spam` and `trash` fixtures are inserted already labeled `SPAM` / `TRASH`.
 
 (Steps 1–2 confirmed live 2026-09-26 while writing this case: 0 then 1.)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `get_message`
@@ -101,6 +113,9 @@ The `spam` and `trash` fixtures are inserted already labeled `SPAM` / `TRASH`.
 - `label_ids` includes `{TEST_GMAIL_LABEL_ID}`
 - No `error` or `body_decode_errors` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM04: Non-existent message ID
@@ -110,6 +125,9 @@ The `spam` and `trash` fixtures are inserted already labeled `SPAM` / `TRASH`.
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -174,6 +192,9 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 
 **Result** (2026-09-26, PR #816 round 2 at `1daec0a`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Step 1: `body_plain` = `Café crème, naïve`, `body_html` = `<p>こんにちは世界</p>`. Step 2: the one message has identical bodies. Step 3: `body_plain` = `“Smart quotes” – 5`. No mojibake, no `�`, and no `error` or `body_decode_errors` field in any response. Both fixtures trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 
 ---
 
@@ -188,6 +209,9 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 - `body_html` contains `Grüße aus <b>Zürich</b> — naïve café, 日本語, emoji 🎉🚀.`
 - No mojibake (`Ã`, `â€`) and no `�` in any header or body
 - No `error` or `body_decode_errors` field
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "*Zürich*". The TC's expected value is stale.
 
 ---
 
@@ -204,6 +228,9 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 - Step 2: `body_html` contains `cid:mcp-qa-inline-png`
 - Step 2: `attachments` has one entry with `mime_type: "image/png"`, `filename: null`, and a non-null `attachment_id`. Gmail stores the nameless inline image by `attachmentId` (plan §5 P3, live 2026-09-26), so it is listed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM29: A forwarded message doesn't replace the outer body
@@ -217,6 +244,9 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 - No `error` field
 
 Depends on how Gmail stores delivered mail (plan §5 P2). In a release pass, repeat on a second, freshly sent seed.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -320,6 +350,9 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Result** (2026-09-26, PR #829 round 3 at `dca6ce4`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Scoped re-verification of the size-floor fix: steps 1, 3, 7 and 8 were re-run. Steps 2, 4, 5 and 6 are unaffected by the fix's diff and passed in round 2. Steps 1 and 3: `would be at least 6037989 characters`, so the floor still fires for the ASCII fixture. Step 7: `“Smart” – quotes` and `<p>Café “UTF-8”`, with no C1 controls, `Ã`/`â€`, `�` or error keys (decoding now goes through `_codec_for`). Step 8: the UTF-16 fixture returned **inline** (589,674 characters, no size-cap error). `body_plain` is 570,000 characters and starts `UTF-16 body line for TC-GM30.`, with no `�` and no error keys. Both inserted fixtures trashed and `{OUT_DIR}` deleted.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM32: Latin-1 body decodes correctly (seeded companion to TC-GM26)
@@ -332,6 +365,9 @@ Record the printed ID as `{UTF16_ID}`.
 **Checks**
 - `body_plain` is `Café, niño, façade - ISO-8859-1 body (#792).` (ignore trailing whitespace)
 - No mojibake (`CafÃ©`), no `�`, no `body_decode_errors` field
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -351,6 +387,9 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Result** (2026-10-04, PR #885 round 2 at `48bf23f`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS (regression)**. The output matches round 1 field for field. The fix's `metadataHeaders` filter can't be seen through shaping, so it was checked against the raw API instead (see TC-GM31's round 2 result).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `list_threads`
@@ -365,6 +404,9 @@ Record the printed ID as `{UTF16_ID}`.
 - Every item has `id`; `snippet` and `history_id` keys are present
 - No `next_page_token`, no `error` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM06: Invalid label filter returns API error
@@ -374,6 +416,9 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -389,6 +434,9 @@ Record the printed ID as `{UTF16_ID}`.
 - Every message has `id`, `thread_id`, `label_ids`, `headers`, `body_plain`, `body_html`, and `attachments`, shaped like `get_message`
 - No `error` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM08: Non-existent thread ID
@@ -398,6 +446,9 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -421,6 +472,9 @@ Record the printed ID as `{UTF16_ID}`.
 
 **Result** (2026-10-04, PR #885 round 2 at `48bf23f`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Steps 1–3 matched round 1 exactly (1,275,124-character cap error with the `include_body=False` hint; 3 metadata-only messages; step 3 via `local_path`, 424,899 bytes). The `metadataHeaders` filter was checked with a fresh-interpreter raw `threads.get` on the same thread using this slot's token. Plain `format=metadata` returned 24,591 bytes and 88 headers (ARC-*, DKIM-Signature, Received, X-Gm-*, and others). `_get_format_kwargs(False)` returned 3,003 bytes and 19 headers, all from the shaped set (Date, From, In-Reply-To, Message-ID, References, Subject, To).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM33: Thread order and reply headers
@@ -438,6 +492,9 @@ Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM4
 - M2 `headers.in_reply_to` equals M1 `headers.message_id`
 - M3 `headers.in_reply_to` equals M2 `headers.message_id`, and M3 `headers.references` contains both M1's and M2's `message_id`, in that order
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `list_labels`
@@ -453,11 +510,17 @@ Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM4
 - Every item has `id`, `name`, `type`
 - No `error` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM10: (retired)
 
 Retired by #822. The Gmail-scope failure path is covered deterministically by TC-I32 (`infra.md`), which uses a scope-less token copy. Don't reuse this ID.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -477,6 +540,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` `{GM36_ID}`.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `send_message`
@@ -494,6 +560,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` `{GM11_ID}`.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM12: Invalid recipient returns an error
@@ -504,6 +573,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception, and no `id`
 - If it returns an `id` instead, record FAIL and trash that ID
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -528,6 +600,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-07, PR #928 round 2) ✅ PASS**: via `mcp-gee-sweet-kit` at `1d3c7cf`. Both bodies matched. There were 2 attachments: `mcp-qa-tc-gm38.csv` (`text/csv`, 18 bytes) and `note.txt` (`text/plain`, guessed, 18 bytes). The message was trashed and the local file deleted.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM39: `cc` and `bcc` as lists ⚠️ destructive
@@ -543,6 +618,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` the step-1 `id`.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM40: A newline in the subject is rejected (header injection) ⚠️ destructive
@@ -557,6 +635,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 - Step 3: `messages` is empty, so nothing was sent
 
 **Cleanup:** none expected. If step 3 finds anything, record FAIL and trash it.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -594,6 +675,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-07, PR #928 after the `develop` merge `548e691`) ✅ PASS**: via `mcp-gee-sweet-kit`, after reconnecting to the merge, which brought in #925's OAuth re-authorization. All 6 attachments came back with the same `mime_type`s as before, with no `error`. The message was trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `create_draft`
@@ -610,6 +694,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** TC-GM15 sends this draft. If TC-GM15 isn't run, `qa_gmail_fixtures.py reset` deletes it (the tools can't delete a draft).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM14: Invalid attachment shape
@@ -621,6 +708,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 - Returns `{"error": "..."}` that mentions `local_path` and `content_base64`, and no draft `id`
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, error now raised inside `_compose_raw`'s thread)**: returned `{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}`, with no draft `id`.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -642,6 +732,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, `create_draft`/`send_draft` via `_compose_raw` and `_message_summary`)**: step 2 had one attachment, `gm41.txt` (`text/plain`, 18 bytes), and `label_ids` `DRAFT`. `send_draft` returned `id`, `thread_id`, and `label_ids` (`SENT`, no `DRAFT`). Step 4's bodies and attachment `filename`/`mime_type`/`size` equal step 2's. Trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## `send_draft`
@@ -662,6 +755,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Cleanup:** `trash_message` the step-1 `id`.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM16: Non-existent draft
@@ -671,6 +767,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -699,6 +798,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-07, PR #928 after the `develop` merge `548e691`) ✅ PASS**: via `mcp-gee-sweet-kit`, run right after `refresh_cache()` (`{"invalidated": "all"}`) on the merged code. The reply has the original's `thread_id` and no `warning`. `in_reply_to` and `references` are the original's Message-ID, the subject is `Re: [mcp-qa:tc-gm17] reply original`, and `to` is the `+tc-gm17` address. Both messages were trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM18: Reply to non-existent message
@@ -708,6 +810,9 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -756,6 +861,9 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 
 **Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the plain reply and reply-all both go `to` = `+tc-gm23` only. The bare mailbox and `noreply@example.invalid` appear nowhere. Trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
@@ -778,6 +886,9 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 **Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit`. Step 2: `label_ids` includes `SENT`. Step 4: `to` = `+tc-gm24` address, not the bare mailbox; `thread_id` matches. Both trashed. **Scope note:** this case covers only a single-recipient `To`. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. `To: <mailbox>, <mailbox>+tc-f3` replied `To: <mailbox>, <mailbox>+tc-f3`, so you get a copy of your own reply. `Cc`-only (no `To`) replied `To: <mailbox>` and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.
 
 **Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the reply goes `to` = `+tc-gm24`, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -803,6 +914,9 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 
 **Result (2026-09-26, PR #815 round 2) ✅ PASS** — via `mcp-gee-sweet-kit` after `/mcp reconnect`, against fix `45530d7`. Step 2: `to` = `+tc-gm25a` only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with `to: []`): both `to` = `+tc-gm25b`, `cc` empty. Step 6 (to-self + Cc): plain reply and reply-all both `to` = `+tc-gm25c`, `cc` empty. Also confirmed live with the same token that `users.settings.sendAs.list` succeeds under `gmail.modify` and returns the primary address (1 entry, `isPrimary: true`), so `_own_addresses` takes its alias-list path rather than the `getProfile` fallback. All fixtures and replies trashed.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 
 ---
 
@@ -820,6 +934,9 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 - Both replies share their original's `thread_id`
 
 **Cleanup:** `trash_message` `{GM42_A}`, `{GM42_B}`, and both reply IDs. `{GM42_A}` and its reply have no `[mcp-qa` subject, so `reset` won't sweep them; trash them by ID.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -840,6 +957,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 - Step 3: `headers.to` is `{SENDER}`
 
 **Cleanup:** `trash_message` the step-2 `id`. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy (`Re: [mcp-qa:thread]`, body `mcp-gee-sweet TC-GM43 reply from the middle`) through `mcp__mcp-gee-sweet__trash_message`.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -865,6 +985,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 
 **Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, `modify_labels` message branch via `_message_summary`)**: the message branch returned `id`, `thread_id`, and `label_ids`. `UNREAD` was added, then removed. On the thread, `STARRED` was added to every message, then removed from every message. There was no `error` in any response. The fixture started `UNREAD`, and `UNREAD` was restored.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM20: Validation errors
@@ -878,6 +1001,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 - Steps 1 and 2: `{"error": "Provide exactly one of message_id or thread_id."}`
 - Step 3: `{"error": "Provide at least one of add_label_ids or remove_label_ids."}`
 - `{TEST_MESSAGE_ID}`'s labels are unchanged (no API call was made)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -893,6 +1019,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 - Step 2: `action` is `"trashed"`, `label_ids` includes `TRASH`, `id` matches step 1
 - No `error` field
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM22: Trash non-existent message
@@ -902,6 +1031,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 
 **Checks**
 - Returns `{"error": "..."}`, not a tool exception
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ---
 
@@ -924,6 +1056,9 @@ Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the re
 
 **Cleanup:** `trash_message` `{GM37_ID}` (a no-op if it's still in trash).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ## Cross-mailbox delivery
@@ -944,6 +1079,9 @@ These cases prove what the recipient actually receives, which plus-address cases
 
 **Cleanup:** QA: `trash_message` the step-1 `id`. Sender: `mcp__mcp-gee-sweet__trash_message` the delivered reply only. Leave the sender's original: it's the `plain` fixture's source.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
 ---
 
 ### TC-GM45: Bcc is stripped from the delivered copy ⚠️ destructive ⚠️ cross-mailbox
@@ -958,3 +1096,6 @@ These cases prove what the recipient actually receives, which plus-address cases
 - Step 3: the QA mailbox's own copy keeps `headers.bcc` (as in TC-GM39)
 
 **Cleanup:** QA: `trash_message` `{GM45_ID}`. Sender: `mcp__mcp-gee-sweet__trash_message` the delivered copy.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.

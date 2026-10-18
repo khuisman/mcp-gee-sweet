@@ -28,6 +28,9 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 **Result (2026-09-04) ✅ PASS**
 add_chart(COLUMN, A1:D5, title="Sales by Quarter") → chartId 77030586, basicChart.chartType COLUMN. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C02: BAR chart
@@ -46,6 +49,9 @@ add_chart(COLUMN, A1:D5, title="Sales by Quarter") → chartId 77030586, basicCh
 **Result (2026-09-04) ✅ PASS**
 add_chart(BAR, A1:D5) → chartId 82345835, chartType BAR. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C03: LINE chart
@@ -62,6 +68,9 @@ add_chart(BAR, A1:D5) → chartId 82345835, chartType BAR. Deleted after
 **Result (2026-09-04) ✅ PASS**
 add_chart(LINE, A1:D5) → chartId 1210688378, chartType LINE. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C04: AREA chart
@@ -77,6 +86,9 @@ add_chart(LINE, A1:D5) → chartId 1210688378, chartType LINE. Deleted after
 
 **Result (2026-09-04) ✅ PASS**
 add_chart(AREA, A1:D5) → chartId 1920190609, chartType AREA. Deleted after
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -95,6 +107,9 @@ add_chart(AREA, A1:D5) → chartId 1920190609, chartType AREA. Deleted after
 **Result (2026-09-04) ✅ PASS**
 add_chart(PIE, A1:B5) → chartId 132308391, response uses "pieChart" key (dedicated pie code path, not basicChart w/ axis/domain splitting). Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C06: SCATTER chart
@@ -110,6 +125,9 @@ add_chart(PIE, A1:B5) → chartId 132308391, response uses "pieChart" key (dedic
 
 **Result (2026-09-04) ✅ PASS**
 add_chart(SCATTER, B1:C5) → chartId 1210711819, chartType SCATTER. Deleted after
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -127,6 +145,9 @@ add_chart(SCATTER, B1:C5) → chartId 1210711819, chartType SCATTER. Deleted aft
 **Result (2026-09-04) ✅ PASS**
 add_chart(COMBO, A1:D5) → chartId 1496649436, chartType COMBO, per-series "type" field (COLUMN/COLUMN/LINE). Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C08: HISTOGRAM chart
@@ -143,6 +164,9 @@ add_chart(COMBO, A1:D5) → chartId 1496649436, chartType COMBO, per-series "typ
 **Result (2026-09-04) ✅ PASS**
 add_chart(HISTOGRAM, B2:B5) → chartId 2013613202, "histogramChart" key. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C09: Invalid chart type
@@ -157,6 +181,9 @@ add_chart(HISTOGRAM, B2:B5) → chartId 2013613202, "histogramChart" key. Delete
 
 **Result (2026-09-04) ✅ PASS**
 add_chart(chart_type="DONUT") → {"error":"Invalid chart type 'DONUT'. Must be one of: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM"}, no chart created
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -174,6 +201,9 @@ add_chart(chart_type="DONUT") → {"error":"Invalid chart type 'DONUT'. Must be 
 **Result (2026-09-04) ✅ PASS**
 add_chart(chart_type="column" lowercase) → succeeded, chartId 148233447, normalized to COLUMN. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C11: Sheet not found
@@ -187,6 +217,9 @@ add_chart(chart_type="column" lowercase) → succeeded, chartId 148233447, norma
 
 **Result (2026-09-04) ✅ PASS**
 add_chart(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found in spreadsheet"}, no chart created
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -206,6 +239,9 @@ add_chart(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found in sp
 **Result (2026-09-04) ✅ PASS**
 add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 1652849479, overlayPosition={offsetXPixels:100,offsetYPixels:200,widthPixels:400,heightPixels:300} — confirms values are pixels (field names say so directly). Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 ---
 
 ### TC-C13: Range with no end column is rejected (#954)
@@ -220,6 +256,9 @@ add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 
 
 **Result (2026-10-11) ✅ PASS** (PR #983 @ 5b85357)
 add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; add_chart needs explicit column bounds (e.g. 'A1:C10' or 'A:C')"}; add_chart(data_range="1:5") → same error naming '1:5'. Neither response carries a chartId
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -240,6 +279,9 @@ add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domai
 **Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8, round 2 regression)
 add_chart(COLUMN, data_range="A:D") → chartId 915893384; domains = col 0, series = cols 1, 2, 3. Deleted after
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
 
 ---
 
@@ -255,6 +297,9 @@ add_chart(COLUMN, data_range="A:D") → chartId 915893384; domains = col 0, seri
 
 **Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8)
 add_chart(PIE, "A1:D5") → {"error":"data_range 'A1:D5' spans 4 column(s); a PIE chart needs exactly 2 (labels, then values)"}; add_chart(PIE, "B1:B5") → same error with "spans 1 column(s)". No chartId in either. Regression: add_chart(PIE, "A1:B5") still succeeds (chartId 774316831, domain col 0, series col 1). Deleted after
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
 ---
 
@@ -272,3 +317,6 @@ add_chart(PIE, "A1:D5") → {"error":"data_range 'A1:D5' spans 4 column(s); a PI
 
 **Result (2026-10-11) ✅ PASS** (PR #983 @ af3fea8)
 add_chart(COLUMN, "B2:B5") → {"error":"data_range 'B2:B5' spans 1 column; a COLUMN chart needs at least 2 (the first column is the domain, the rest are series)"}, no chartId. add_chart(HISTOGRAM, "B2:B5") → chartId 1594431116, spec.histogramChart.series = 1 source (col 1, rows 1–5). Deleted after
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.

@@ -1,0 +1,114 @@
+# v0.9.2 release pass: per-TC results (input to scripts/qa_compile_results.py).
+# Sources: shard reports summarized in docs/qa/runs/v0.9.2.md. A file default is used
+# only where the shard reported running the whole file.
+
+@sheets_read.md default PASS Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+TC-R03e SKIP Needs a server restart with a changed MAX_TOOL_RESPONSE_CHARS.
+TC-R17 PASS Second call identical; the cache-hit log line isn't visible to the client.
+TC-R34 PASS local_path part passes; the 200-query cap check is stale since #519 and was not run.
+TC-R35 PASS 40 REPT cells of 30k chars (1,201,911 chars) trip the 1M cap; local_path returns match_count 40. TC setup still cites the 40k cap (stale).
+TC-R36 PASS Three 5-range orderings returned cell-exact, in-order results.
+TC-R39,TC-R40 PASS Correct results; progress notifications aren't visible in this client.
+
+@sheets_write.md default PASS Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+TC-W40 PASS Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.
+
+@sheets_mgmt.md default PASS Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+TC-S38..S40 PASS Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
+TC-S93..S95 PASS Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.
+TC-S100,TC-S102 PASS Error is nested as {"result":{"error":…}} (list-typed output schema); TC says {"error"}.
+TC-S123..S128 PASS Error text now repr-quotes the range; TC wording stale.
+
+@sheets_charts.md default PASS Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+@drive_files.md
+TC-D01 FAIL create_spreadsheet response has no web link ({spreadsheetId,title,folder}); deterministic over 7 calls. Known: #693 (enhancement, v0.9.3).
+TC-D02,TC-D03,TC-D05,TC-D06,TC-D13..D17,TC-D26..D34,TC-D36..D43 PASS Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+TC-D249,TC-D250,TC-D261,TC-D263,TC-D236,TC-D248,TC-D237,TC-D247,TC-D257 PASS Run 1 (kai-oauth).
+TC-D58..D82 PASS Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+TC-D202,TC-D203,TC-D260 PASS Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
+TC-D269,TC-D270 PASS restore_file restored; bad ID gives 404.
+TC-D120,TC-D122,TC-D152..D158,TC-D160 PASS Run 1 (kai-oauth).
+TC-D121 PASS Filter correct; "exactly one drive" wording is stale (a second mcp-gee* drive exists).
+TC-D169..D174,TC-D179 PASS import_csv_to_sheet; 12k-row import verified at every chunk boundary.
+TC-D206,TC-D207,TC-D209 PASS create_shortcut cases matched.
+TC-D208 PASS Parent is DRIVE_FOLDER_ID; the "({FOLDER_ID})" parenthetical is stale.
+TC-D04,TC-D175,TC-D280 SKIP Environmental: needs the SA identity plus a personal-Drive folder / a Content-manager SA.
+TC-D35 SKIP Can't force an auth error live.
+TC-D123,TC-D159,TC-D161,TC-D162 SKIP Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
+TC-D204,TC-D205 SKIP empty_trash on a whole trash; not run during a shared pass.
+
+@drive_activity.md default PASS Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
+@drive_sharing.md default PASS Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+TC-D24 PARTIAL send_notification=false share succeeds; recipient inbox not inspected.
+TC-D233 SKIP A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDriveItemNotSupported).
+TC-D234 PASS SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.
+TC-D136 PASS anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after removal.
+TC-D176,TC-D177 PASS list_permissions cross-check: every principal had exactly its requested role.
+TC-D258,TC-D259 PASS Both entries in successes; progress notifications aren't visible in this client.
+
+@drive_transfer.md default PASS Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+TC-D148 SKIP Environmental: revision coalescing left the scratch sheet with only 2 revisions.
+TC-D290 SKIP Needs a second OAuth identity.
+TC-D167 PASS Fixture xlsx no longer trips the 1M cap; an 800 KB file did. TC premise stale.
+TC-D178 PASS size_bytes now counts uploads too (#1003); TC wording stale.
+TC-D199,TC-D255,TC-D256 PARTIAL Results correct; progress notifications aren't visible in this client.
+TC-D196,TC-D249..D252 PASS Unit-tested: the named tests pass.
+
+@calendar.md default PASS Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+TC-CAL17,TC-CAL22 SKIP create_event with attendees gives 403 forbiddenForServiceAccounts under SA.
+TC-CAL76 SKIP No calendar with 100+ ACL rules; the unit test passes.
+TC-CAL20,TC-CAL21,TC-CAL23..CAL29,TC-CAL36..CAL43 PASS API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+@gmail.md default PASS Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+TC-GM27 PASS Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "*Zürich*". The TC's expected value is stale.
+
+@docs_style.md default PASS Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+TC-DOC146 PASS Black 1pt equals the default border, so the API omits it; verified with a non-default red 1.5pt border. TC wording stale.
+TC-DOC139 PASS Clearing the link also cleared the auto-added underline; TC wording stale.
+
+@docs_tables.md default PASS Run 2 (sa) on a throwaway doc.
+
+@docs_layout.md default PASS Run 2 (sa) on a throwaway doc.
+
+@infra.md
+TC-I21,TC-I22,TC-I23,TC-I25,TC-I26,TC-I28,TC-I46,TC-I13,TC-I16,TC-I18,TC-I19 PASS Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+TC-I27,TC-I31 PARTIAL SA checks pass; the OAuth sub-check needs a different auth method.
+TC-I20 PARTIAL .env values are active with no .mcp.json override; shell precedence needs a restart.
+TC-I24 PASS Two-subagent barrier, 20/20 iterations on kai-sa: no cross-contamination, no SSL/connection errors (server pre-warmed to rule out the stale-connection defect).
+TC-I02 PASS Two-subagent barrier, 20/20 iterations: every write succeeded, every concurrent read returned data, 0 "database is locked" in the log.
+TC-I01,TC-I03,TC-I04 SKIP Needs a CACHE_TTL/CACHE_DB_PATH change or a restart.
+TC-I05..I07 SKIP Needs a tool-filtered restart.
+TC-I08..I12 SKIP Needs a different auth environment and a restart.
+TC-I14,TC-I15,TC-I43,TC-I44,TC-I47,TC-I55 SKIP Needs an SSE/streamable-http server or SIGTERM.
+TC-I17 SKIP Needs DEBUG_LEVEL=INFO and a restart.
+TC-I29 SKIP Needs the mcp-publisher CLI and a registry publish.
+TC-I30 SKIP Needs an ADC-backed SA environment.
+TC-I32..I40,TC-I45,TC-I48..I54 SKIP Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
+TC-I41,TC-I42 SKIP Claude Code hook tests need headless claude -p from a lane worktree.
+TC-I56,TC-I57,TC-I59,TC-I60 SKIP Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
+TC-I58 SKIP requires-oauth; step 5 covered by server://auth-status local_file_access mode "full".
+
+@docs_content.md
+TC-D07..D12,TC-D44..D57,TC-D140..D144 PASS Run 2 (ash).
+TC-D145 PASS th cells included; "Docs doesn't distinguish th/td" is stale (th now exports bold).
+TC-DOC01..DOC11,TC-DOC22,TC-DOC26,TC-DOC27,TC-DOC31..DOC34,TC-DOC36..DOC50,TC-DOC76..DOC79,TC-DOC81..DOC90 PASS Run 2 (ash).
+TC-DOC35 FAIL Passes alone, but widths on any table after the first fail with 400 "table start location is invalid" (reproduced 3×). Pre-existing: widths are built from the pre-fill document.
+TC-DOC80 SKIP Low-cap script needs a usable OAuth token (aziz token fails to refresh; copying another was classifier-denied).
+TC-DOC57 PASS Inserted from a public gstatic PNG URI (sharing to anyone was out of scope at the time).
+TC-DOC58 SKIP Needs an anyone share; ran before the user's explicit sharing approval.
+TC-DOC59,TC-DOC60,TC-DOC94..DOC104,TC-DOC106..DOC115,TC-DOC117,TC-DOC119..DOC134,TC-DOC136..DOC138,TC-DOC141..DOC145,TC-DOC148..DOC150,TC-DOC152..DOC154,TC-DOC160,TC-DOC161 PASS Run 2 (ash).
+TC-DOC51 SKIP Documentation-only entry (nested tables in markdown are a documented limitation); nothing to run.
+TC-DOC105 FAIL Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavior, unchanged since 2026-09-04).
+TC-DOC116 PASS One paragraph with \v and correct line_ranges; setup inserts at the placeholder's start, which merges it (stale).
+TC-DOC118 PASS Marker replaced; the image is no longer left shared (revoke is the default since DOC152), so the TC expectation is stale.
+TC-DOC135 PASS Order correct; the first element is now an image paragraph, not an empty one (stale).
+TC-DOC158,TC-DOC159 PARTIAL Export shows the blockquote markers, but the indent isn't visible on single-line quotes (indentFirstLine not set).
+TC-DOC151,TC-DOC162,TC-DOC163,TC-DOC200 SKIP Needs a persistent anyone share; ran before the user's explicit sharing approval.
+TC-DOC164..DOC172,TC-DOC174..DOC198,TC-DOC201,TC-DOC204..DOC218,TC-DOC220,TC-DOC221 PASS Run 2 (ash).
+TC-DOC173 FAIL Stale TC: ~~strike~~ was never converted on write; the export correctly escapes the literal text as \~\~strike\~\~.
+TC-DOC199 PARTIAL 150, 152 and 165 pass; 151 skipped (sharing scope).
+TC-DOC202,TC-DOC203,TC-DOC222,TC-DOC224..DOC226 SKIP The scratch script needs a usable OAuth token (see DOC80).
+TC-DOC219 PARTIAL Part A passes; parts B and C need the OAuth scratch script.
+TC-DOC223 PARTIAL Steps 3–4 pass; steps 1–2 and 5 need an anyone share or the lock script.

@@ -29,6 +29,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-09-04) ✅ PASS**
 Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual not verified (browser unauth). Restyled NORMAL_TEXT.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
@@ -50,6 +53,9 @@ Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual n
 **Result (2026-09-04) ✅ PASS**
 bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyle only).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
@@ -66,6 +72,9 @@ bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyl
 **Result (2026-09-04) ✅ PASS**
 HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC15: No recognised style fields returns error
@@ -80,6 +89,9 @@ HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.
 
 **Result (2026-09-04) ✅ PASS**
 Range with no style fields -> {"error":"no recognised style fields in any range"}.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -104,6 +116,9 @@ Range with no style fields -> {"error":"no recognised style fields in any range"
 **Result (2026-09-04) ✅ PASS**
 grey background visible
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC19: Apply borders and padding ⚠️ destructive
@@ -123,6 +138,9 @@ grey background visible
 **Result (2026-09-04) ✅ PASS**
 borders visible on all 4 cells; padding not independently visible (empty cells) but no rendering issue
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC20: Empty cells list returns error
@@ -137,6 +155,9 @@ borders visible on all 4 cells; padding not independently visible (empty cells) 
 
 **Result (2026-09-04) ✅ PASS**
 Empty cells list -> {"error":"cells list is empty"}.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -155,6 +176,9 @@ Empty cells list -> {"error":"cells list is empty"}.
 
 **Result (2026-09-04) ✅ PASS**
 One styled cell + one no-style cell; requests:1 (no-style cell skipped).
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -180,6 +204,9 @@ One styled cell + one no-style cell; requests:1 (no-style cell skipped).
 **Result (2026-09-04) ✅ PASS**
 light blue background visible, distinct from TC-DOC18's grey
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ## `get_doc_theme` / `get_doc_named_styles` / `apply_theme`
@@ -200,6 +227,9 @@ light blue background visible, distinct from TC-DOC18's grey
 **Result (2026-09-04) ✅ PASS**
 get_doc_named_styles returned Google default entries (9 keys), no error key — expected for standard doc.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
@@ -218,6 +248,9 @@ get_doc_named_styles returned Google default entries (9 keys), no error key — 
 **Result (2026-09-04) ✅ PASS**
 get_doc_theme on inherited-style doc returned {} — expected, no error.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
@@ -235,6 +268,9 @@ get_doc_theme on inherited-style doc returned {} — expected, no error.
 
 **Result (2026-09-04) ✅ PASS**
 apply_theme HEADING_1+NORMAL_TEXT -> {docId, requests:2} = key count; no error.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -256,6 +292,9 @@ apply_theme HEADING_1+NORMAL_TEXT -> {docId, requests:2} = key count; no error.
 **Result (2026-09-04) ✅ PASS**
 Georgia 22pt heading / Verdana body confirmed both visually and via toolbar readout
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
@@ -276,6 +315,9 @@ Georgia 22pt heading / Verdana body confirmed both visually and via toolbar read
 **Result (2026-09-04) ✅ PASS**
 grey header row, black borders, visible padding
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
@@ -293,6 +335,9 @@ grey header row, black borders, visible padding
 
 **Result (2026-09-04) ✅ PASS**
 round-tripped Georgia/Roboto fonts render distinctly
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -321,6 +366,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result (2026-09-04) ✅ PASS**
 style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no error, requests:1. Per-edge border struct not independently verifiable via MCP tools (no raw documents().get() access; browser unauth) — response-level checks pass.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Black 1pt equals the default border, so the API omits it; verified with a non-default red 1.5pt border. TC wording stale.
+
 ---
 
 ### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
@@ -345,6 +393,9 @@ style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no
 **Result (2026-09-04) ✅ PASS**
 apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -> {docId, requests:3}; no error. Also verified {"border_bottom":null} -> clean {"error":...}, no raise. Raw struct read unavailable via MCP.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ## `style_doc_range` — additional coverage
@@ -365,6 +416,9 @@ apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -> {
 **Result (2026-09-04) ✅ PASS**
 strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC29: Apply font_size ⚠️ destructive
@@ -383,6 +437,9 @@ strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.
 
 **Result (2026-09-04) ✅ PASS**
 font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -404,6 +461,9 @@ font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.
 
 **Result (2026-09-04) ✅ PASS**
 link_url https://example.com on "example" [7,14]; requests:1; run split — "Visit "(null), "example"(link_url set, underline:true auto), "\n"(null).
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -428,6 +488,9 @@ link_url https://example.com on "example" [7,14]; requests:1; run split — "Vis
 **Result (2026-09-04) ✅ PASS**
 style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test heading\n" unchanged. Restyled NORMAL_TEXT + deleted.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
@@ -450,6 +513,9 @@ style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test h
 
 **Result (2026-09-04) ✅ PASS**
 style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType NORMAL_TEXT unchanged.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -478,6 +544,9 @@ style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType 
 **Result (2026-09-04) ✅ PASS**
 link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_url:null on re-fetch. Visual not verified.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Clearing the link also cleared the auto-added underline; TC wording stale.
+
 ---
 
 ### TC-DOC140: `insert_softbreak_paragraph`'s `link_url: null` also clears rather than erroring (shared helper)
@@ -498,6 +567,9 @@ link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_
 
 **Result (2026-09-04) ✅ PASS**
 insert_softbreak_paragraph index 1, line link_url:null; no error; line_ranges 1 entry; inserted run link_url:null.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -523,6 +595,9 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    -
 
 **Result (2026-09-04) ✅ PASS**
 write md (4-space nested); both list items bullet non-null, share listId kix.io6il1p3p40e; "Top level" nestingLevel 0, "Nested" nestingLevel 1.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -558,6 +633,9 @@ Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 **Result (2026-09-04) ✅ PASS**
 1./2./3. + nested a./b./c., "Click Restore" still "3." — #334 fix holds
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
 ---
 
 ### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
@@ -584,6 +662,9 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 
 **Result (2026-09-04) ✅ PASS**
 3-item list; delete_paragraph_bullets "Second item" [12,24] -> requests:1; First/Third keep bullet, Second bullet:null, Second text "Second item\n" unchanged.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
 
@@ -618,5 +699,8 @@ Note: sharing the fixture doc to the Playwright browser's own Google identity (T
 **Result (2026-09-12) ✅ PASS (re-verification, fix `31d5dd2`, PR #735)** — Ash's fix drops the redundant `min_nesting` seed, computing it once via `min(u["nesting_level"] for u in run)`. Re-ran the tool-call steps: `create_paragraph_bullets` → 7 requests, no error; second `get_doc_structure` shows all three items sharing one new `listId`, `nestingLevel: 1`, text/indices unchanged, no leaked artifacts — identical outcome to the pre-fix run. `tests/test_docs_style.py`/`tests/test_docs_indices.py` (79 tests) pass. Fixture restored.
 
 **Cleanup:** write fixture content back to the documented baseline (`docs/qa/setup.md`), NOT the Alpha/Beta/Gamma test content used above — an earlier version of this line told the next run to restore Alpha/Beta/Gamma itself, which would have permanently overwritten the real fixture baseline: `write_doc_content(doc_id={DOC_ID}, content='<h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>')`.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---

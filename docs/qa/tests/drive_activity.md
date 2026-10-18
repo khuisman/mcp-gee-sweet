@@ -25,6 +25,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-09-04) ✅ PASS**
 list_file_activity({DOC_ID}) -> file_id matches; activities is a list of 5; every entry has timestamp/action/actors; actions observed: edit, move, create (all in allowed set); no `error` key. drive.activity.readonly scope is granted.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
 ---
 
 ### TC-D164: Known-user actor structure
@@ -42,6 +45,9 @@ list_file_activity({DOC_ID}) -> file_id matches; activities is a list of 5; ever
 **Result (2026-09-04) ✅ PASS**
 Each actor: type:"user", person_name:"people/108427788683920971958", is_current_user:true (boolean). At least one user actor with a person_name field present. (All activity on this fixture is by the current user; no second/system actor in the current 5-entry window.)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
 ---
 
 ### TC-D165: Pagination — next_page_token present when results exceed page_size
@@ -58,6 +64,9 @@ Each actor: type:"user", person_name:"people/108427788683920971958", is_current_
 **Result (2026-09-04) ✅ PASS**
 list_file_activity({DOC_ID}, page_size=1) -> 2 activities returned (Drive Activity API groups related events, does not hard-clip to 1) and `next_page_token` present.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
 ---
 
 ### TC-D166: Invalid file ID returns error (unit test)
@@ -70,6 +79,9 @@ list_file_activity({DOC_ID}, page_size=1) -> 2 activities returned (Drive Activi
 **Result (2026-09-04) ⏭️ SKIP**
 Unit-test-only check (HTTP 403/404 -> {"error": ...}); no live fixture that is readable-but-activity-forbidden. Separately, live HttpError propagation for the sibling sharing tools was confirmed clean in TC-D126/D129/D131/D235.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
 ---
 
 ### TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)
@@ -80,5 +92,8 @@ Unit-test-only check (HTTP 403/404 -> {"error": ...}); no live fixture that is r
 
 **Result (2026-09-04) ✅ PASS**
 N/A by design (#242 decision doc). Sanity: list_file_activity({SPREADSHEET_ID}, page_size=5) returned a normal 8-entry activity list, no cap ValueError, no regression. Cap-trigger path is unit-tested only.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
 ---

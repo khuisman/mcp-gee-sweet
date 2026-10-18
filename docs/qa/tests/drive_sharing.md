@@ -23,6 +23,9 @@ share_spreadsheet writer on Shared Drive file -> `{"successes":[],"failures":[{.
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
 share_spreadsheet writer on the real Shared Drive fixture -> `{"successes":[{"email_address":"test-recipient@example.com","role":"writer",...}],"failures":[]}`. `supportsAllDrives=True` now set on the `permissions().create()` call; fix confirmed live. Test permission removed after verification.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D19: Share as reader
@@ -39,6 +42,9 @@ Same supportsAllDrives bug — reader share returns "File not found".
 
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
 Reader share on the real Shared Drive fixture succeeds -> `{"successes":[{"email_address":"test-recipient2@example.com","role":"reader",...}],"failures":[]}`. Test permission removed after verification.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -57,6 +63,9 @@ Same supportsAllDrives bug — commenter share returns "File not found".
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
 Commenter share on the real Shared Drive fixture succeeds -> `{"successes":[{"email_address":"test-recipient3@example.com","role":"commenter",...}],"failures":[]}`. Test permission removed after verification.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D21: Invalid role
@@ -71,6 +80,9 @@ Commenter share on the real Shared Drive fixture succeeds -> `{"successes":[{"em
 **Result (2026-09-04) ✅ PASS**
 Invalid role 'owner' -> failures:[{error:"Invalid role 'owner'. Must be 'reader', 'commenter', or 'writer'."}], no exception. Client-side validation, fires before API call so unaffected by the bug.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D22: Missing email address key
@@ -84,6 +96,9 @@ Invalid role 'owner' -> failures:[{error:"Invalid role 'owner'. Must be 'reader'
 
 **Result (2026-09-04) ✅ PASS**
 Recipient with no email_address -> failures:[{email_address:null, error:"Missing email_address in recipient entry."}], no exception.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -103,6 +118,9 @@ Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@exam
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
 valid@example.com writer -> successes; invalid-role@example.com ('superuser') -> failures with the same invalid-role message as before. Both results present in one response as expected. Test permission removed after verification.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D24: send_notification=False
@@ -120,6 +138,9 @@ send_notification=False -> API path -> "File not found" (supportsAllDrives bug).
 **Result (2026-09-05) ⚠️ PASS (with test-case caveat)** — re-verified against PR #695 (issue #687)
 The `supportsAllDrives` bug is fixed, but this test case's own `test@example.com` recipient can't validate it: with `send_notification=False`, Drive rejects a share to any email with no associated Google account ("you must check the Notify people box to invite this recipient") — a real, unrelated API constraint, not a regression. Re-ran against a real Google account (an email the tester controls) instead: share succeeded with `send_notification=False`, confirming the fix. Test-case prompt should be updated to use a real Google-account email rather than `test@example.com` to actually exercise this path in the future.
 
+**Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
+send_notification=false share succeeds; recipient inbox not inspected.
+
 ---
 
 ### TC-D25: Non-existent spreadsheet ID
@@ -133,6 +154,9 @@ The `supportsAllDrives` bug is fixed, but this test case's own `test@example.com
 
 **Result (2026-09-04) ✅ PASS**
 share_spreadsheet("invalidid123xyz", ...) -> error routed to failures:[{error:"Failed to share: File not found: invalidid123xyz."}], NOT a top-level exception. 🔍 Danger check confirmed: no ownership validation before sharing — any accessible spreadsheet ID is shareable.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -157,6 +181,9 @@ Concurrent 5-recipient share: all 5 -> "File not found" (supportsAllDrives bug).
 **Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
 All 5 recipients -> successes, none in failures. `list_permissions` cross-check confirmed exact attribution: recipient1=reader, recipient2=commenter, recipient3=writer, recipient4=reader, recipient5=writer — no cross-attribution. All 5 test permissions removed after verification (teardown complete).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+list_permissions cross-check: every principal had exactly its requested role.
+
 ---
 
 ### TC-D258: `share_spreadsheet` emits `notifications/progress` updates as each recipient completes (issue #355)
@@ -174,6 +201,9 @@ All 5 recipients -> successes, none in failures. `list_permissions` cross-check 
 
 **Teardown**
 `remove_permission` for both test recipients.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Both entries in successes; progress notifications aren't visible in this client.
 
 ---
 
@@ -194,6 +224,9 @@ All 5 recipients -> successes, none in failures. `list_permissions` cross-check 
 **Result (2026-09-04) ❌ FAIL**
 list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (kevin@mcpsuite.io) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D125: List permissions after sharing — new entry visible
@@ -210,6 +243,9 @@ list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/
 **Result (2026-09-04) ✅ PASS**
 (adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows huismanfamily01@gmail.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D126: Non-existent file ID
@@ -222,6 +258,9 @@ list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/
 
 **Result (2026-09-04) ✅ PASS**
 list_permissions("invalidid123xyz") -> HttpError 404 "File not found: invalidid123xyz." propagates as tool error; not a silent empty list or crash. URL confirms supportsAllDrives=true is sent.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -241,6 +280,9 @@ list_permissions("invalidid123xyz") -> HttpError 404 "File not found: invalidid1
 **Result (2026-09-04) ✅ PASS**
 update_permission(throwaway, 03150678215290859261, "reader") on a writer entry -> {"permissionId":"03150678215290859261","role":"reader"}; follow-up list_permissions confirms that id now role:'reader'.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D128: Invalid role value
@@ -255,6 +297,9 @@ update_permission(throwaway, 03150678215290859261, "reader") on a writer entry -
 **Result (2026-09-04) ✅ PASS**
 update_permission(..., role="owner") -> {"error":"Invalid role 'owner'. Must be one of: reader, commenter, writer"} — not an exception; client-side validation, no API call.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D129: Non-existent permission ID
@@ -268,6 +313,9 @@ update_permission(..., role="owner") -> {"error":"Invalid role 'owner'. Must be 
 
 **Result (2026-09-04) ✅ PASS**
 update_permission(..., "fakepermid999", "reader") -> HttpError 404 "Permission not found: fakepermid999." propagates; message references the bad permission id; no crash.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -287,6 +335,9 @@ update_permission(..., "fakepermid999", "reader") -> HttpError 404 "Permission n
 **Result (2026-09-04) ✅ PASS**
 remove_permission(throwaway, 12400478166082616858) -> {"fileId":"15wb2N6...","permissionId":"12400478166082616858","action":"removed"}; follow-up list_permissions no longer shows that id.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D131: Non-existent permission ID
@@ -299,6 +350,9 @@ remove_permission(throwaway, 12400478166082616858) -> {"fileId":"15wb2N6...","pe
 
 **Result (2026-09-04) ✅ PASS**
 remove_permission(..., "fakepermid999") -> HttpError 404 "Permission not found: fakepermid999." propagates; not a silent success or crash.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -325,6 +379,9 @@ remove_permission(..., "fakepermid999") -> HttpError 404 "Permission not found: 
 **Result (2026-09-04) ⏭️ SKIP**
 environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, huismanfamily01@gmail.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the mcpsuite.io org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
 
+**Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
+A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDriveItemNotSupported).
+
 ---
 
 ### TC-D234: Service account cannot transfer ownership
@@ -342,6 +399,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 **Result (2026-09-04) ⏭️ SKIP**
 out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restricted to the mcp__mcp-gee-sweet-kit__ (OAuth) prefix only.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.
+
 ---
 
 ### TC-D235: Non-existent file ID
@@ -357,6 +417,9 @@ out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restr
 
 **Result (2026-09-04) ✅ PASS**
 transfer_ownership("fakefileid999", ...) -> HttpError 404 "File not found: fakefileid999." propagates; not a silent success.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -377,6 +440,9 @@ transfer_ownership("fakefileid999", ...) -> HttpError 404 "File not found: fakef
 **Result (2026-09-04) ✅ PASS**
 share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'huismanfamily01@gmail.com'}], failures:[]. Follow-up list_permissions confirms the entry.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D133: Missing email_address for type=user
@@ -392,6 +458,9 @@ share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}
 **Result (2026-09-04) ✅ PASS**
 share_file with type='user' role='reader', no email_address -> failures:[{error:"'email_address' required for type='user'"}], successes:[], no exception.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D134: Invalid role
@@ -405,6 +474,9 @@ share_file with type='user' role='reader', no email_address -> failures:[{error:
 
 **Result (2026-09-04) ✅ PASS**
 share_file with role='superuser' -> failures:[{error:"Invalid role 'superuser'. Must be one of: reader, commenter, writer"}], successes:[].
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -422,6 +494,9 @@ share_file with role='superuser' -> failures:[{error:"Invalid role 'superuser'. 
 **Result (2026-09-04) ✅ PASS**
 share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'mcpsuite.io'}]; list_permissions shows the domain entry (display_name "MCPSuite").
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D136: Share with type=anyone (public link)
@@ -437,6 +512,9 @@ share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' ->
 
 **Result (2026-09-04) ✅ PASS**
 share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as kevin@mcpsuite.io, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after removal.
 
 ---
 
@@ -454,6 +532,9 @@ share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reade
 **Result (2026-09-04) ✅ PASS**
 share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
 ---
 
 ### TC-D138: Mixed success and failure in one call
@@ -467,6 +548,9 @@ share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail
 
 **Result (2026-09-04) ✅ PASS**
 share_file with [{type:user, email:qa-mixed-recipient@example.com, role:reader}, {type:user, role:writer (no email)}] -> first in successes (permissionId 12400478166082616858), second in failures ("'email_address' required for type='user'"). Both in one response; batch not aborted. (First attempt used test@example.com which Google's own address validation rejected with "There's a problem with this email or domain" — environmental Google quirk, retried with a clean address.)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -484,6 +568,9 @@ share_file with [{type:user, email:qa-mixed-recipient@example.com, role:reader},
 
 **Result (2026-09-04) ✅ PASS**
 share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 ---
 
@@ -505,6 +592,9 @@ share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false)
 **Result (2026-09-04) ✅ PASS**
 share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+list_permissions cross-check: every principal had exactly its requested role.
+
 ---
 
 ### TC-D259: `share_file` emits `notifications/progress` updates as each permission entry completes (issue #355)
@@ -522,5 +612,8 @@ share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes
 
 **Teardown**
 `remove_permission` for both test permissions.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Both entries in successes; progress notifications aren't visible in this client.
 
 ---

@@ -32,6 +32,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-09-04) ✅ PASS**
 insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), tableEndIndex=18, rows:2, columns:3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty para at 1, table at 2.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
@@ -51,6 +54,9 @@ insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), ta
 
 **Result (2026-09-04) ✅ PASS**
 insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text "Cell content"; no index errors.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -75,6 +81,9 @@ insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text
 **Result (2026-09-04) ✅ PASS**
 insert_table_row row_index=0 insert_below=True on 2x2 -> {docId, table_start_index:2, row_index:0}; re-fetch 3 rows.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC62: Insert a row above an existing row ⚠️ destructive
@@ -95,6 +104,9 @@ insert_table_row row_index=0 insert_below=True on 2x2 -> {docId, table_start_ind
 
 **Result (2026-09-04) ✅ PASS**
 insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -117,6 +129,9 @@ insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.
 **Result (2026-09-04) ✅ PASS**
 delete_table_row row_index=1 on 3-row -> {docId, table_start_index:2, row_index:1}; re-fetch 2 rows.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC64: Insert a column to the right ⚠️ destructive
@@ -138,6 +153,9 @@ delete_table_row row_index=1 on 3-row -> {docId, table_start_index:2, row_index:
 **Result (2026-09-04) ✅ PASS**
 insert_table_column column_index=0 insert_right=True on 2x2 -> {docId, table_start_index:2, column_index:0}; re-fetch 3 columns.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC65: Insert a column to the left ⚠️ destructive
@@ -157,6 +175,9 @@ insert_table_column column_index=0 insert_right=True on 2x2 -> {docId, table_sta
 
 **Result (2026-09-04) ✅ PASS**
 insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -179,6 +200,9 @@ insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns
 **Result (2026-09-04) ✅ PASS**
 delete_table_column column_index=1 on 2x3 -> {docId, table_start_index:2, column_index:1}; re-fetch 2 columns.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC67: API error returned gracefully (out of bounds row)
@@ -195,6 +219,9 @@ delete_table_column column_index=1 on 2x3 -> {docId, table_start_index:2, column
 
 **Result (2026-09-04) ✅ PASS**
 delete_table_row row_index=99 -> {"error":"<HttpError 400 ... row index 99 should be less than the total number of rows 2>"}; no exception.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -221,6 +248,9 @@ delete_table_row row_index=99 -> {"error":"<HttpError 400 ... row index 99 shoul
 **Result (2026-09-04) ✅ PASS**
 merge_table_cells row0/col0 span 1x2 on 2x3 -> response matches exactly; re-fetch row 0 still 3 physical cells (distinct indices). Visual 🔍 not verified (browser unauth).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ### TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
 **Setup:** insert a 3×2 table; note its `tableStartIndex`
 
@@ -241,6 +271,9 @@ merge_table_cells row0/col0 span 1x2 on 2x3 -> response matches exactly; re-fetc
 **Result (2026-09-04) ✅ PASS**
 merge_table_cells row0/col0 span 2x1 on 3x2 -> response matches exactly. Visual 🔍 not verified.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ### TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
@@ -257,5 +290,8 @@ merge_table_cells row0/col0 span 2x1 on 3x2 -> response matches exactly. Visual 
 
 **Result (2026-09-04) ✅ PASS**
 merge_table_cells span 1x99 -> {"error":"<HttpError 400 ... table range extends outside the bounds of the table>"}; no exception.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---

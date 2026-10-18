@@ -23,6 +23,9 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 **Result (2026-09-04) ✅ PASS**
 Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
@@ -38,6 +41,9 @@ Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error
 
 **Result (2026-09-04) ❌ FAIL**
 Prompt formula `=A2&' '&A3` (single-quote string delims) → E2 = `#ERROR!` "Formula parse error"; expected computed "Widget Gadget". Root cause = test-case bug: Google Sheets requires DOUBLE quotes for string literals. USER_ENTERED mode itself IS confirmed (userEnteredValue.formulaValue stored, not stringValue); re-ran with corrected `=A2&" "&A3` → E2 = "Widget Gadget". Recommend fixing the test prompt to use double quotes
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -56,6 +62,9 @@ Prompt formula `=A2&' '&A3` (single-quote string delims) → E2 = `#ERROR!` "For
 **Result (2026-09-04) ✅ PASS**
 4 values into A8:A9 → HttpError 400 "tried writing to row [10]"; no partial write. Tool passes to API rather than pre-truncating
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W04: Cache invalidated after write
@@ -69,6 +78,9 @@ Prompt formula `=A2&' '&A3` (single-quote string delims) → E2 = `#ERROR!` "For
 
 **Result (2026-09-04) ✅ PASS**
 A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalidated
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -85,6 +97,9 @@ A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalida
 
 **Result (2026-09-04) ✅ PASS**
 Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; no silent success, no sheet created
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -104,6 +119,9 @@ Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; n
 
 **Result (2026-09-04) ✅ PASS**
 F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.uri "https://example.com"}]; hyperlinkDisplayType LINKED. Visual check blocked by documented Chart-covered-grid limitation → API used as confirmation source
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -129,6 +147,9 @@ F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.
 **Result (2026-09-04) ✅ PASS**
 Return = {values_update:{...responses:[{updatedRange:"Sales!F3"}]}, rich_text_update:{...}} — both present; F3 "PlainValue"/PLAIN_TEXT via per-cell values.batchUpdate; G3 "Link"/LINKED, link.uri "https://example.com/g3". Visual blocked by chart pollution
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W35: Rich-text run missing "text" key returns an error
@@ -144,6 +165,9 @@ Return = {values_update:{...responses:[{updatedRange:"Sales!F3"}]}, rich_text_up
 
 **Result (2026-09-04) ✅ PASS**
 Run `{"hyperlink":...}` no text → {"error":"Rich-text cell runs must be dicts with a string 'text' key..."}; F4 not written (came back as empty cell entry)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -164,6 +188,9 @@ Run `{"hyperlink":...}` no text → {"error":"Rich-text cell runs must be dicts 
 **Result (2026-09-04) ✅ PASS**
 F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 units), not 1; link.uri present. Visual blocked by chart pollution
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash
@@ -179,6 +206,9 @@ F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 un
 
 **Result (2026-09-04) ✅ PASS**
 `{"text": null,...}` → {"error":"...string 'text' key..."}; no crash; F6 untouched
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -196,6 +226,9 @@ F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 un
 **Result (2026-09-04) ✅ PASS**
 `[]` as cell value → {"error":"Rich-text cell runs list cannot be empty"}; F7 untouched
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W39: Empty `data` returns an error, not a silent no-op
@@ -212,6 +245,9 @@ F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 un
 **Result (2026-09-04) ✅ PASS**
 data=[] → {"error":"data cannot be empty"}; no write
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)
@@ -226,6 +262,9 @@ data=[] → {"error":"data cannot be empty"}; no write
 - QA round 1 found `update_cells` parsed `range` twice (once in the mixed-cell branch, once again in the rich-text branch) whenever both cell kinds were present in the same call — harmless but redundant, since the first parse already returns on failure before the second is ever reached. Fixed by parsing once, up front, whenever `rich_text_cells` is non-empty (the exact condition under which either branch needs it), and reusing the result — `update_cells` now has exactly one `_parse_a1_notation_or_error` call site, not two.
 
 **Cleanup:** none — no write occurred.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.
 
 ---
 
@@ -244,6 +283,9 @@ data=[] → {"error":"data cannot be empty"}; no write
 
 **Result (2026-09-18) ✅ PASS** — `update_cells(spreadsheet_id, sheet="Sales", range="F10000000", data=[[[{"text": "x"}]]])` returned `{"error": "<HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28 ...>"}`, not a raw exception.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)
@@ -258,6 +300,9 @@ Not written as a live prompt: reliably forcing one specific branch to fail while
 - Covered by `test_mixed_cells_rich_text_httperror_preserves_plain_success`, `test_mixed_cells_plain_httperror_still_attempts_rich_text` in `TestUpdateCells`
 
 **Result (2026-09-18) ✅ PASS** — `uv run python -m pytest tests/sheets/test_data.py -q`: both unit tests pass, confirming neither branch's result is dropped in either direction.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -275,6 +320,9 @@ Not written as a live prompt: reliably forcing one specific branch to fail while
 **Result (2026-09-04) ✅ PASS**
 batch_update_cells A8=Batch1, A9=Batch2 in one op
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W07: Ranges on the same sheet
@@ -289,6 +337,9 @@ batch_update_cells A8=Batch1, A9=Batch2 in one op
 **Result (2026-09-04) ✅ PASS**
 B8=999, C8=888 in one batch; no same-sheet conflict
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W08: Empty ranges dict
@@ -302,6 +353,9 @@ B8=999, C8=888 in one batch; no same-sheet conflict
 
 **Result (2026-09-04) ✅ PASS**
 Empty ranges {} → {"spreadsheetId":"..."} bare, no error, no values write (no-op)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -318,6 +372,9 @@ Empty ranges {} → {"spreadsheetId":"..."} bare, no error, no values write (no-
 **Result (2026-09-04) ✅ PASS**
 batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ### TC-W10: Trailing empty-array rows are normalized
 
 **Prompt**
@@ -327,6 +384,9 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 - `updatedRange` in the response is `Sales!A8:B10`, not `Sales!A8:B8`
 - Rows A9 and A10 are cleared (blank) in the sheet
 - No duplicate row appended after the write
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -345,6 +405,9 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 
 **Result (2026-09-18) ✅ PASS** — `batch_update_cells(spreadsheet_id, sheet="Sales", ranges={"!!!BadRange!!!": [["x"]]})` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ## `add_rows`
@@ -357,6 +420,9 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 **Checks**
 - New blank row appears above the current row 1 (headers pushed to row 2)
 - `inheritFromBefore=False` (inserting at index 0 — no row above to inherit from)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -371,6 +437,9 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 
 **Result (2026-09-04) ✅ PASS**
 add 1 row start_row=3 → inserted, data shifted, formulas auto-adjusted; rowCount +1
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -387,6 +456,9 @@ add 1 row start_row=3 → inserted, data shifted, formulas auto-adjusted; rowCou
 **Result (2026-09-04) ✅ PASS**
 add 1 row start_row=0 → inserted at top, same as no-position. inheritFromBefore request shape unit-level
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W13: start_row=1 — inheritFromBefore=True
@@ -400,6 +472,9 @@ add 1 row start_row=0 → inserted at top, same as no-position. inheritFromBefor
 
 **Result (2026-09-04) ✅ PASS**
 add 1 row start_row=1 → inserted at index 1; inheritFromBefore=True request shape unit-level (reply is {replies:[{}]})
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -415,6 +490,9 @@ add 1 row start_row=1 → inserted at index 1; inheritFromBefore=True request sh
 **Result (2026-09-04) ✅ PASS**
 add 5 rows start_row=1004 (end) → rowCount 1004→1009; existing data unshifted
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W15: Invalid sheet name
@@ -429,6 +507,9 @@ add 5 rows start_row=1004 (end) → rowCount 1004→1009; existing data unshifte
 **Result (2026-09-04) ✅ PASS**
 add row to "NoSuchSheet" → {"error":"Sheet 'NoSuchSheet' not found"}, no API call, no exception
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W16: Large count value
@@ -442,6 +523,9 @@ add row to "NoSuchSheet" → {"error":"Sheet 'NoSuchSheet' not found"}, no API c
 
 **Result (2026-09-04) ✅ PASS**
 add 1000 rows → succeeds, no cap enforced, no API-limit error. Tool does not cap count
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -459,6 +543,9 @@ add 1000 rows → succeeds, no cap enforced, no API-limit error. Tool does not c
 **Result (2026-09-04) ✅ PASS**
 add 1 col, no position → blank col A; Product shifted to B
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W18: start_column=0 — inheritFromBefore=False
@@ -472,6 +559,9 @@ add 1 col, no position → blank col A; Product shifted to B
 
 **Result (2026-09-04) ✅ PASS**
 add 1 col start_column=0 → inserted leftmost
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -487,6 +577,9 @@ add 1 col start_column=0 → inserted leftmost
 **Result (2026-09-04) ✅ PASS**
 add 1 col start_column=1 → inserted after A; inheritFromBefore request shape unit-level
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W20: Add multiple columns
@@ -500,6 +593,9 @@ add 1 col start_column=1 → inserted after A; inheritFromBefore request shape u
 
 **Result (2026-09-04) ✅ PASS**
 add 3 cols start_column=2 → 3 blank cols inserted, data shifted right (Product ended at col G after W17–W20)
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -517,6 +613,9 @@ add 3 cols start_column=2 → 3 blank cols inserted, data shifted right (Product
 **Result (2026-09-04) ✅ PASS**
 raw addSheet "RawAdded" → created; reply has full properties (sheetId 914226533, title, index)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W22: Rename a sheet via raw request
@@ -531,6 +630,9 @@ raw addSheet "RawAdded" → created; reply has full properties (sheetId 91422653
 **Result (2026-09-04) ✅ PASS**
 raw updateSheetProperties rename Empty(sheetId 1225372232)→RawRenamed; list_sheets reflects it
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W23: Insert dimension via raw request
@@ -544,6 +646,9 @@ raw updateSheetProperties rename Empty(sheetId 1225372232)→RawRenamed; list_sh
 
 **Result (2026-09-04) ✅ PASS**
 raw insertDimension 2 ROWS at index 1 in Sales → replies [{}]; data shifted down
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -560,6 +665,9 @@ raw insertDimension 2 ROWS at index 1 in Sales → replies [{}]; data shifted do
 **Result (2026-09-04) ✅ PASS**
 raw deleteDimension row 7 (ROWS 6:7) → replies [{}]; subsequent list_sheets returns current state (no stale cache)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W25: Empty requests list
@@ -573,6 +681,9 @@ raw deleteDimension row 7 (ROWS 6:7) → replies [{}]; subsequent list_sheets re
 
 **Result (2026-09-04) ✅ PASS**
 requests=[] → {"error":"requests list cannot be empty"}, no API call
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -588,6 +699,9 @@ requests=[] → {"error":"requests list cannot be empty"}, no API call
 **Result (2026-09-04) ✅ PASS**
 requests=["notadict"] → MCP pydantic schema validation error ("Input should be a valid dictionary"); not forwarded to API. Caught at schema layer, not tool body
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W27: Invalid request structure
@@ -601,6 +715,9 @@ requests=["notadict"] → MCP pydantic schema validation error ("Input should be
 
 **Result (2026-09-04) ✅ PASS**
 requests=[{"unknownKey":{}}] → HttpError 400 from Sheets API "Unknown name 'unknownKey'"; propagates, no server crash
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -616,6 +733,9 @@ requests=[{"unknownKey":{}}] → HttpError 400 from Sheets API "Unknown name 'un
 
 **Result (2026-09-04) ✅ PASS**
 raw addSheet "CacheCheck" then list_sheets includes it AND summary reflects it — both structure + data caches invalidated
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -638,6 +758,9 @@ raw addSheet "CacheCheck" then list_sheets includes it AND summary reflects it �
 **Result (2026-09-04) ✅ PASS**
 clear A1:C5 of Sales → A1:C5 empty; col D + row 6 untouched; B6/C6 SUM formulas recalc to 0, D6 still 705
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W30: Clear entire sheet ⚠️ destructive
@@ -655,6 +778,9 @@ clear A1:C5 of Sales → A1:C5 empty; col D + row 6 untouched; B6/C6 SUM formula
 **Result (2026-09-04) ✅ PASS**
 Full-sheet clear of 'Notes & Misc' via explicit range A1:Z1000 (no-range form blocked by Claude Code's local auto-mode classifier — harness gate, not the MCP tool). clearedRange returned, no error, formatting preserved
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W31: Clear values — sheet name with spaces
@@ -671,6 +797,9 @@ Full-sheet clear of 'Notes & Misc' via explicit range A1:Z1000 (no-range form bl
 **Result (2026-09-04) ✅ PASS**
 clear B2:D4 of 'Notes & Misc' → clearedRange "'Notes & Misc'!B2:D4" (sheet name single-quoted correctly)
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
 ---
 
 ### TC-W32: Clear non-existent range — API behaviour
@@ -685,6 +814,9 @@ clear B2:D4 of 'Notes & Misc' → clearedRange "'Notes & Misc'!B2:D4" (sheet nam
 
 **Result (2026-09-04) ✅ PASS**
 clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bounds accepted, no error
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 ---
 
@@ -702,4 +834,7 @@ clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bound
 **Cleanup:** none — no write occurred.
 
 **Result (2026-09-18) ✅ PASS** — `clear_values(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 

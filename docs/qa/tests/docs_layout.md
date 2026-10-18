@@ -25,6 +25,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` from `fix
 **Result (2026-09-04) ✅ PASS**
 create_header (no content) -> {docId, headerId:"kix.4yrlc2k9cy3n"} non-empty; no error. Visual 🔍 not verified (browser unauth; headers also not visible in body snapshot per run.md limitation).
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC69: Create a header with content ⚠️ destructive
@@ -44,6 +47,9 @@ create_header (no content) -> {docId, headerId:"kix.4yrlc2k9cy3n"} non-empty; no
 **Result (2026-09-04) ✅ PASS**
 create_header content "Confidential — Internal Only" -> {docId, headerId} (same id via documentStyle fallback since header already existed); no error/warning key. Visual 🔍 not verified.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC70: Create a default page footer ⚠️ destructive
@@ -61,6 +67,9 @@ create_header content "Confidential — Internal Only" -> {docId, headerId} (sam
 
 **Result (2026-09-04) ✅ PASS**
 create_footer (no content) -> {docId, footerId:"kix.khcu7s4gsbju"} non-empty; no error. Visual 🔍 not verified.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -80,6 +89,9 @@ create_footer (no content) -> {docId, footerId:"kix.khcu7s4gsbju"} non-empty; no
 **Result (2026-09-04) ✅ PASS**
 create_footer content "Page 1" -> {docId, footerId}; no error/warning. Visual 🔍 not verified.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC72: Invalid header_type returns error
@@ -94,6 +106,9 @@ create_footer content "Page 1" -> {docId, footerId}; no error/warning. Visual �
 **Result (2026-09-04) ✅ PASS**
 create_header header_type='INVALID' -> {"error":"Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}; no API call.
 
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
+
 ---
 
 ### TC-DOC73: Invalid footer_type returns error
@@ -107,6 +122,9 @@ create_header header_type='INVALID' -> {"error":"Invalid header_type 'INVALID'. 
 
 **Result (2026-09-04) ✅ PASS**
 create_footer footer_type='INVALID' -> {"error":"Invalid footer_type 'INVALID'. Use DEFAULT or FIRST_PAGE_FOOTER"}; no API call.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
@@ -128,6 +146,9 @@ create_footer footer_type='INVALID' -> {"error":"Invalid footer_type 'INVALID'. 
 
 **Result (2026-09-04) ✅ PASS**
 insert_doc_text index 0, segment_id headerId -> {docId, insertions:1}; no API error. Visual 🔍 not verified.
+
+**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
+Run 2 (sa) on a throwaway doc.
 
 ---
 
