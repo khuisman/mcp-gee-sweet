@@ -34,7 +34,7 @@ Two attempts to copy an OAuth token, and one unprompted attempt to upload `.env`
 - **Open:** tracking spend across releases (a planned follow-up).
 
 ### 4. The hotfix tag confused the audit baseline
-v0.9.1 was cut from `main`, so `git describe` pointed the audit at a tag `develop` never contained. **Fixed:** step 1 now picks the newest stable tag that is an ancestor of `develop`.
+v0.9.1 was a hotfix cut from `main`. `git describe` gave v0.9.1, and the audit was re-baselined by hand. The `git log` range wasn't the real problem: the hotfix was merged back into `develop`, so `v0.9.1..develop` and `v0.9.0..develop` differ only by the hotfix's own three commits. What a hotfix tag breaks is the PR search: `merged:>=<v0.9.1 date>` drops every PR merged between v0.9.0 and the hotfix. **Fixed:** step 1 takes the PR-search date from the last tag cut by a `develop` → `main` release, skipping hotfix tags.
 
 ### 5. Stale-connection defect masked as concurrency failures
 #1052 makes an idle server fail one request per worker thread with `Connection reset by peer`, which is exactly TC-I24's failure signature. **Fixed:** `run.md` now says to warm the server until a fan-out comes back fully clean before the barrier loop. Drop that step once #1052 is fixed.
@@ -52,10 +52,10 @@ v0.9.1 was cut from `main`, so `git describe` pointed the audit at a tag `develo
 | Up-front scoped write approval; one write first per shard | `aziz.md` preconditions (this PR) |
 | Session-budget plan; resume with `SendMessage`; Resource usage section | `aziz.md` preconditions (this PR) |
 | Credential/secret rule; shared shard-rules file | `aziz.md` step 5 (this PR) |
-| Baseline = newest stable tag that is an ancestor of `develop` | `aziz.md` step 1 (this PR) |
+| PR-search date from the last release tag, skipping hotfix tags | `aziz.md` step 1 (this PR) |
 | Lane reuse via a `src/` diff; `git worktree list` instead of `git -C` | `aziz.md` precondition + step 3 (this PR) |
 | Warm the server before the barrier loop; `printf` shell form | `run.md` concurrency section (this PR) |
 | Worktree `.env` and token pre-flight | `aziz.md` step 1 (this PR) |
-| Make the compile script a standard release step | follow-up after the v0.9.2 tag |
-| Track release-QA spend over time | follow-up after the v0.9.2 tag |
+| Make the compile script a standard release step | #1067 |
+| Track release-QA spend over time | #1068 |
 | Product findings | #1052–#1060 |
