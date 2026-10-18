@@ -100,6 +100,7 @@ Aziz (never a lane session — this runs during the release pass, see `.claude/t
 
 Per iteration, the two subagents rendezvous at a filesystem barrier so both `.execute()` calls hit the wire within a few milliseconds of each other:
 
+- **Before the loop: warm the target server.** Until #1052 is fixed, each worker thread's cached connection dies after a few minutes idle, and the first request on it fails once with `Connection reset by peer`. That is TC-I24's own failure signature, so an idle server produces false TC-I24 failures. Right before spawning the two subagents, Aziz calls `get_multiple_sheet_data` on the target prefix with about 12–24 single-cell queries, repeating until one call comes back fully clean, and notes the warm-up in the run file. In v0.9.2, `kai-sa` lost one query on each of two warm-up calls before a 24/24 clean one. Then spawn at once, so the server doesn't go idle again.
 - **Barrier dir:** `/tmp/mcp-gee-sweet-qa-barrier` (created once by Aziz before spawning; distinct from the Playwright lock). Markers are files inside it.
 - **A background release watcher** (Aziz starts one `run_in_background` shell loop before spawning the subagents) does, for each iteration `i` from 1 to N:
   - wait until both `ready-a-<i>` and `ready-b-<i>` exist,
@@ -113,6 +114,7 @@ Per iteration, the two subagents rendezvous at a filesystem barrier so both `.ex
   5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-<i>`
 - **Loop count:** N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.
 - **Teardown:** Aziz `rm -rf /tmp/mcp-gee-sweet-qa-barrier` after collecting results.
+- **Shell form.** The worktree-isolation guard refuses a Bash call that uses a shell variable (`$i` included) or a heredoc. In every command of the prompt template below, replace `$i` with the iteration number and use the literal absolute path, and write a result with a plain `printf '%s\n' '<result>' >> /tmp/mcp-gee-sweet-qa-barrier/result-<id>-<i>.json` (both v0.9.2 workers lost their first iteration's write to this). A result containing `'` breaks that quoting: write the error text, or the result with each `'` replaced, rather than dropping the line.
 
 The subagent's job is to run the calls and write result files — **it must not edit any tracked repo file**. Only Aziz reads the `result-*` files back, diffs them, and writes the `**Result**` entries (see `.claude/team-roles/aziz.md`, the Compile step).
 
@@ -137,7 +139,7 @@ Give each of the two subagents a prompt of this shape (fill the bracketed parts;
 > 1. `touch /tmp/mcp-gee-sweet-qa-barrier/ready-<id>-$i`
 > 2. Spin with a tight shell poll until `/tmp/mcp-gee-sweet-qa-barrier/go-$i` exists.
 > 3. The instant it exists, call **exactly this tool, once**: `[full tool name + params, e.g. mcp__mcp-gee-sweet-kai-sa__get_sheet_data(spreadsheet_id="…", range="Sales!A1:C3")]`. Do nothing else first — no other tool call, no reasoning step, between the spin ending and this call.
-> 4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-$i.json`.
+> 4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-$i.json`. Use a plain `printf` with the literal absolute path, with `$i` replaced by the iteration number (see "Shell form" above).
 > 5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-$i`
 >
 > Call **only** `mcp__mcp-gee-sweet-kai-sa__*` tools. Do **not** edit, create, or delete any file inside the git repo — your only writes are to `/tmp/mcp-gee-sweet-qa-barrier/`. When the loop finishes, report back: for each `i`, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.
