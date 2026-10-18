@@ -136,12 +136,17 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 ### TC-D14: List from explicit folder ID
 
+**Setup (#1054):** `create_spreadsheet(title="QA-Trashed-1054", folder_id={FOLDER_ID})`, then `delete_file(file_id=<its id>, permanent=False)`. `get_file_metadata(file_id=<its id>)` must report `trashed: true` before you continue.
+
 **Prompt**
 > "List spreadsheets in folder {FOLDER_ID}"
 
 **Checks**
 - Returns spreadsheets from that specific folder
 - Results scoped to the given folder
+- `QA-Trashed-1054` is **not** in the results (#1054: trashed files were returned)
+
+**Cleanup:** `delete_file(file_id=<QA-Trashed-1054 id>, permanent=True)`, or leave it in the trash for a later `empty_trash` run. TC-D29 reuses it if run in the same pass, so clean up after TC-D29.
 
 **Result (2026-09-04) ✅ PASS**
 list_spreadsheets(FOLDER_ID) returns exactly the 3 spreadsheets in that folder (fixtures + QA-Cache-Check + QA-Create-Explicit), scoped correctly.
@@ -302,12 +307,17 @@ Run 1 (kai-oauth).
 
 ### TC-D29: Basic name search
 
+**Setup (#1054):** the trashed `QA-Trashed-1054` spreadsheet from TC-D14's setup. If TC-D14 didn't run in this pass, create and trash it the same way.
+
 **Prompt**
 > "Search for spreadsheets with 'qa-fixtures' in the name"
 
 **Checks**
 - Returns at least one result including 'mcp-gee-sweet-qa-fixtures'
 - Each result has a name and ID
+- `search_spreadsheets(query="QA-Trashed-1054")` returns `[]` (#1054: trashed files were returned)
+
+**Cleanup:** `delete_file(file_id=<QA-Trashed-1054 id>, permanent=True)`, or leave it in the trash for a later `empty_trash` run.
 
 **Result (2026-09-04) ✅ PASS**
 search_spreadsheets('qa-fixtures') returned 1 result: 'mcp-gee-sweet-qa-fixtures' with id + name + metadata.
@@ -1185,12 +1195,17 @@ empty_trash on a whole trash; not run during a shared pass.
 
 ### TC-D75: Search by name across all MIME types
 
+**Setup (#1054):** `create_spreadsheet(title="QA-Trashed-1054-Sheet", folder_id={FOLDER_ID})` and `create_folder(name="QA-Trashed-1054-Folder", parent_folder_id={FOLDER_ID})`, then `delete_file(file_id=<id>, permanent=False)` on each. `get_file_metadata` must report `trashed: true` for both before you continue.
+
 **Prompt**
 > "Search files for 'QA' — no MIME type filter"
 
 **Checks**
 - Returns a mix of docs, spreadsheets, and folders created during QA
 - Each result has `id`, `name`, `mimeType`, `modified_time`, and `web_link`
+- `search_files(query="QA-Trashed-1054")` returns `[]`: neither the trashed spreadsheet nor the trashed folder (#1054)
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both, or leave them in the trash for a later `empty_trash` run. TC-D77 reuses them if run in the same pass, so clean up after TC-D77.
 
 **Result (2026-09-04) ✅ PASS**
 search_files('QA') no filter → mix of spreadsheets, docs, folders, text/plain; each entry has id, name, mimeType, modified_time, web_link (also owners=[], parent).
@@ -1225,9 +1240,14 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Prompt**
 > "Search for files with 'QA' in the name, but only in {FOLDER_ID}"
 
+**Setup (#1054):** the trashed `QA-Trashed-1054-Sheet` and `QA-Trashed-1054-Folder` from TC-D75's setup. If TC-D75 didn't run in this pass, create and trash them the same way.
+
 **Checks**
 - All results have `parent` matching `{FOLDER_ID}`
 - Files from other folders excluded
+- `search_files(query="QA-Trashed-1054", folder_id={FOLDER_ID})` returns `[]` (#1054: trashed files were returned)
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both, or leave them in the trash for a later `empty_trash` run.
 
 **Result (2026-09-04) ✅ PASS**
 search_files('QA', folder_id=FOLDER_ID) → every result has parent = FOLDER_ID; files from other folders excluded.

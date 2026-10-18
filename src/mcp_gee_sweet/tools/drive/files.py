@@ -415,7 +415,7 @@ def register(tool):
         target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
         max_results = clamp_max_results(max_results, 1000)
 
-        query = "mimeType='application/vnd.google-apps.spreadsheet'"
+        query = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
         if target_folder_id:
             query += f" and '{target_folder_id}' in parents"
             logger.debug("Searching for spreadsheets in folder: %s", target_folder_id)
@@ -673,7 +673,10 @@ def register(tool):
         max_results = clamp_max_results(max_results, 100)
 
         safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
-        parts = [f"(name contains '{safe_query}' or fullText contains '{safe_query}')"]
+        parts = [
+            f"(name contains '{safe_query}' or fullText contains '{safe_query}')",
+            "trashed=false",
+        ]
         if mime_type:
             safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
@@ -741,7 +744,7 @@ def register(tool):
 
         safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
         search_query = (
-            f"mimeType='application/vnd.google-apps.spreadsheet' and "
+            f"mimeType='application/vnd.google-apps.spreadsheet' and trashed=false and "
             f"(name contains '{safe_query}' or fullText contains '{safe_query}')"
         )
 

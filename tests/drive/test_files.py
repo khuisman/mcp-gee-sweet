@@ -114,6 +114,13 @@ class TestSearchSpreadsheets:
         result = await _drive_tools["search_spreadsheets"](query="budget", ctx=ctx)
         assert result[0]["starred"] is True
 
+    async def test_query_excludes_trashed(self):
+        """#1054: trashed spreadsheets came back from search_spreadsheets."""
+        drive_svc = self._drive_service()
+        ctx = _make_ctx(drive_service=drive_svc)
+        await _drive_tools["search_spreadsheets"](query="budget", ctx=ctx)
+        assert "trashed=false" in self._captured_q(drive_svc)
+
 
 class TestSearchFiles:
     def _drive_service(self, files=None):
@@ -186,6 +193,21 @@ class TestSearchFiles:
         await _drive_tools["search_files"](query="budget", folder_id="folder1", ctx=ctx)
         q = self._captured_q(svc)
         assert "'folder1' in parents" in q
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"mime_type": "application/vnd.google-apps.folder"},
+            {"folder_id": "folder1"},
+        ],
+    )
+    async def test_query_excludes_trashed(self, kwargs):
+        """#1054: trashed files and folders came back from search_files."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget", ctx=ctx, **kwargs)
+        assert "trashed=false" in self._captured_q(svc)
 
     async def test_api_error_returns_error_dict_not_raised(self):
         """An API/auth failure must surface as [{"error": ...}], not propagate."""
@@ -1123,6 +1145,14 @@ class TestListSpreadsheets:
         ctx = _make_ctx(drive_service=svc, folder_id=None)
         await _drive_tools["list_spreadsheets"](max_results=0, ctx=ctx)
         assert self._captured_page_size(svc) == 1
+
+    @pytest.mark.parametrize("folder_id", [None, "folder1"])
+    async def test_query_excludes_trashed(self, folder_id):
+        """#1054: trashed spreadsheets came back from list_spreadsheets."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=folder_id)
+        await _drive_tools["list_spreadsheets"](ctx=ctx)
+        assert "trashed=false" in self._captured_q(svc)
 
 
 class TestGetFileMetadata:
