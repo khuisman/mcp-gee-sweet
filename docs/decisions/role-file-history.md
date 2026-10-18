@@ -428,6 +428,12 @@ Friction Kai typically hits during coordination, and where it goes — see `/ret
   3. `joy.md` and `kai.md` step 4: a non-lane code PR gets exactly one QA reviewer (Sky or Kit), assigned by Kai.
   4. `merge-pr.md` step 2, `bob.md` step 2, `qa.md`, `dev.md`, `kai.md`: a code-doc hunk (a three-part definition in `merge-pr.md` step 2: inside a per-module `## Architecture` entry, every sentence about this PR's `src/` code, no agent-process instruction touched) needs only `qa-approved`. QA checks it against the code and lists each hunk as a `code-doc hunk:` line in its approval, so the classification is written down, not judged at merge time (Bob's round 1 on PR #1021). This is a deliberate, user-approved narrowing of the 2026-07-21 "no fast path" rule. Every other prompt-file change still goes through Bob. Bob's #1016 findings were factual claims about the code (a false sentence, two missing invariants), which QA can check against that code.
 
+### v0.9.2 release: README links, the sign-off PR's label, and a fast-forward merge-back
+
+- **The README check covered images only.** Before tagging v0.9.2 (2026-10-17), the user asked whether anyone had checked docs links and media. `release.md` step 4's check, added after #706, passed: both images were absolute. But four repo-relative links (`CONTRIBUTING.md`, `docs/qa/runs`, `docs/qa/README.md`, `LICENSE`) would have 404'd on the PyPI page, which can't be changed after publish. They were caught by hand and fixed in PR #1063 (#1062) before the `main` merge. `release.md` now checks every link and image, and runs the check in step 1 on `develop`, where a fix is one PR. Step 4 keeps it as the backstop on `main`.
+- **Aziz's sign-off PR had no label path.** PR #1051 carried no `qa-approved`, and nobody is assigned to add one: Aziz has no QA partner, and it doesn't touch `src/`. `kai.md` said not to merge without the label, and `merge-pr.md` step 2 only requires it on lane branches. Kai asked the user, who approved. `kai.md` now says the user's go-ahead is the approval, recorded by Kai applying the label.
+- **The merge-back fast-forwarded.** Nothing landed on `develop` between the release PR merge and step 8, so `git merge origin/main` fast-forwarded with no merge commit. `git describe --tags origin/develop` printed exactly `v0.9.2`, which step 9's example (`vX.Y.Z-N-g<hash>`) didn't cover. `release.md` steps 8–10 now name that case as correct.
+
 ## `bob.md`
 
 ### Why this role exists
