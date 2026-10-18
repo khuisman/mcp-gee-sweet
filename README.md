@@ -137,11 +137,11 @@ See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](docs/qa/README.md) for the QA workflow.
+See [CONTRIBUTING.md](https://github.com/khuisman/mcp-gee-sweet/blob/main/CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](https://github.com/khuisman/mcp-gee-sweet/tree/main/docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/qa/README.md) for the QA workflow.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/khuisman/mcp-gee-sweet/blob/main/LICENSE).
 
 ## Credits
 
