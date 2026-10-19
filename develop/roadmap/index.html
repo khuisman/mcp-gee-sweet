@@ -2088,7 +2088,7 @@
 <li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>)</li>
 <li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>)</li>
 <li>[ ] Markdown strikethrough (~~text~~) and HTML <del> aren't converted (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1077">#1077</a>)</li>
-<li>[ ] Blockquote indent invisible on single-line quotes (no <code>indentFirstLine</code>) — <code>wrong/narrow, observed</code>; #1044-relevant — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1056">#1056</a>)</li>
+<li>[x] Blockquote indent invisible on single-line quotes (no <code>indentFirstLine</code>) — <code>wrong/narrow, observed</code>; #1044-relevant — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1056">#1056</a>) (PR #1089)</li>
 <li>[ ] Loose list items (<li><p>…</p></li>) lose their bullet — lane A, html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1111">#1111</a>)</li>
 <li>[ ] Markdown soft line breaks become paragraph breaks — html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1093">#1093</a>)</li>
 <li>[ ] Write side: <br> in a prose paragraph becomes a paragraph break, not a soft break — html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1091">#1091</a>)</li>
@@ -2189,6 +2189,7 @@
 </ul>
 <p><strong>Triaged in 2026-10-18</strong></p>
 <ul>
+<li>[ ] <code>create_paragraph_bullets</code> drops a blockquoted paragraph's quote indent — <code>wrong/narrow</code>, observed; from PR #1089's review, after v0.9.3's lock (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1090">#1090</a>)</li>
 <li>[ ] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1032">#1032</a>)</li>
 <li>[ ] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1030">#1030</a>)</li>
 <li>[ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1087">#1087</a>)</li>
