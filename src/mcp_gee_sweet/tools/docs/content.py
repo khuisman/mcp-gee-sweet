@@ -1737,7 +1737,9 @@ def register(tool):
             Paragraphs also include namedStyleType, text, headingId (Google's internal
             ID for this heading, present only when namedStyleType is HEADING_1..6 —
             e.g. "h.abc123"; null otherwise), a runs list (each run has text,
-            bold, italic, underline, strikethrough, font_size, link_url), and
+            bold, italic, underline, strikethrough, font_size, link_url; an
+            inline image is a run with type "inlineObject", its inlineObjectId,
+            and its own startIndex/endIndex, and empty text), and
             bullet (null for a non-list paragraph; otherwise {listId,
             nestingLevel} — nestingLevel is 0 for a top-level list item, absent
             from the raw API response in that case, normalized to 0 here so
@@ -1785,6 +1787,26 @@ def register(tool):
                 )
                 runs = []
                 for pe in para.get("elements", []):
+                    if "inlineObjectElement" in pe:
+                        # #1070: an inline image occupies one index but has no text.
+                        # Report it with its own index so edits can target it.
+                        ioe = pe["inlineObjectElement"]
+                        runs.append(
+                            {
+                                "type": "inlineObject",
+                                "inlineObjectId": ioe.get("inlineObjectId"),
+                                "startIndex": pe.get("startIndex", 0),
+                                "endIndex": pe.get("endIndex", 0),
+                                "text": "",
+                                "bold": None,
+                                "italic": None,
+                                "underline": None,
+                                "strikethrough": None,
+                                "font_size": None,
+                                "link_url": None,
+                            }
+                        )
+                        continue
                     tr = pe.get("textRun")
                     if not tr:
                         continue
