@@ -26,7 +26,7 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 
 Tier 4 items remain backlog with no assigned version.
 
-**Queued versions are named, not numbered** (#1085). A version is a named feature set plus a locked fill. Until it's in flight, its section below is headed by its name and its tickets carry a `planned: <name>` label, so queued versions can be reordered and a hotfix doesn't renumber them. Only the in-flight version gets a number (the next tag in sequence); at that point its `planned:` label becomes `vX.Y.Z` and its section heading takes the number. The full rules are in `.claude/team-roles/kai.md` §"Release scoping".
+**Queued versions are named, not numbered** (#1085). A version is a named feature set plus a locked fill. Until it's in flight, its section below is headed by its name and its tickets carry a `planned: <name>` label, so queued versions can be reordered and a hotfix doesn't renumber them. Only the in-flight version gets a number (the next tag in sequence); at that point its `planned:` label becomes `vX.Y.Z` and its section heading becomes `vX.Y.Z — <Name>`. The full rules are in `.claude/team-roles/kai.md` §"Release scoping".
 
 ---
 
