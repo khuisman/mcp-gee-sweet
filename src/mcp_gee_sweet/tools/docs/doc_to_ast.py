@@ -26,7 +26,6 @@ from .ast import (
     Table,
 )
 from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, list_level_indents
-from .indices import decode_code_run_text
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -199,7 +198,11 @@ def _text_run_to_run(text: str, ts: dict, link_url: str | None = None) -> Run:
     fg = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
     bg = ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
     baseline = ts.get("baselineOffset")
-    text = decode_code_run_text(text, ts)
+    # A soft break ("\v") is a line break inside the paragraph, whatever
+    # wrote it: emitter.py's code-block line breaks (#719) or
+    # insert_softbreak_paragraph in prose (#1057). The AST spells a line break
+    # inside a run "\n", the same as html_parser.py's <br>.
+    text = text.replace("\v", "\n")
     return Run(
         text=text,
         bold=ts.get("bold"),
