@@ -1791,6 +1791,7 @@
 </tbody>
 </table>
 <p>Tier 4 items remain backlog with no assigned version.</p>
+<p><strong>Queued versions are named, not numbered</strong> (#1085). A version is a named feature set plus a locked fill. Until it's in flight, its section below is headed by its name and its tickets carry a <code>planned: &lt;name&gt;</code> label, so queued versions can be reordered and a hotfix doesn't renumber them. Only the in-flight version gets a number (the next tag in sequence); at that point its <code>planned:</code> label becomes <code>vX.Y.Z</code> and its section heading becomes <code>vX.Y.Z — &lt;Name&gt;</code>. The full rules are in <code>.claude/team-roles/kai.md</code> §"Release scoping".</p>
 <hr />
 <h2 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h2>
 <h3 id="tier-1-high-value-frequently-needed-target-v080">Tier 1 — High value, frequently needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8">v0.8.0</a>)</em><a class="headerlink" href="#tier-1-high-value-frequently-needed-target-v080" title="Permanent link">&para;</a></h3>
