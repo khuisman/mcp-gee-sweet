@@ -108,6 +108,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Action items: ☐/☑ glyphs, no literal `[ ]`/`[x]`; the bold names stay bold.
 - The closing italic line is italic.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1056, #1098, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD002: Project plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -120,6 +122,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Timeline table: four rows, en-dash date ranges intact.
 - `**30%**` bold in the overview.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD003: Spec / PRD ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -131,6 +135,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Requirements table: the Priority column is centered (`:--------:`), ID and Requirement left-aligned.
 - `http` code block: monospace, blank line inside it kept, JSON line intact.
 - Appendix links: both link to their URLs; the titled link shows no title text.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1093, #1095, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD004: README ⚠️ destructive
 **Prompt**
@@ -145,6 +151,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - The `> **Note:**` blockquote spans both source lines, with "Note:" bold.
 - `©` renders.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1099, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD005: Status report ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -155,6 +163,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - "Mitigation:" bullet has two nested bullets at level 1 (2-space indentation).
 - Performance table: three right-aligned numeric columns.
 - Asks: numbered 1–2.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1095, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD006: How-to with numbered steps and code ⚠️ destructive
 **Prompt**
@@ -169,6 +179,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - `<http://localhost:8000>` is a link.
 - Troubleshooting: the bold lead-in paragraphs are bold, and the OS bullet list follows.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1072, #1071, #1056, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -178,6 +190,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - "At a glance" table: empty top-left header cell; provider columns centered; ✅/❌ emoji in cells.
 - Scoring table: Weight/A/B/C right-aligned; the bold "Weighted total" row bold in every cell.
 - Each provider's **Pros** / **Cons** bold paragraphs followed by their own bullet lists (separate lists).
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD008: Research summary with quotes and links ⚠️ destructive
 **Prompt**
@@ -190,6 +204,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - The bare URL in "Related reading" is a link.
 - The data table's two numeric columns right-aligned.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1098, #1056, #1095, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD009: Changelog ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -199,6 +215,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Version headings `[2.4.0] - 2026-10-15` show as headings in which "2.4.0" links to its compare URL: the reference definitions at the bottom make `[2.4.0]` a shortcut reference link (CommonMark). No brackets shown, and the three definition lines at the bottom aren't shown at all.
 - The fenced code block nested in the "Added" bullet stays under that bullet.
 - "**Breaking:**" bold.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD010: Checklist-heavy task plan ⚠️ destructive
 **Prompt**
@@ -211,6 +229,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - The blockquote with a bold first line and a bullet list inside it: the list stays a list inside the quote (C7).
 - `5% → 20% → 50% → 100%` bold, arrows intact.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1056, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD011: Incident postmortem ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -221,6 +241,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Timeline table and Action items table intact; `pool_size × replicas` monospace inside its cell.
 - The `yaml` code block keeps its indentation and comments.
 - Lessons: 1–2 numbered; three nested bullets under item 2.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive
 **Prompt**
@@ -234,6 +256,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - "After the interview": numbered 1–3, "**one hour**" bold.
 - `résumé` renders.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD013: API reference ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -244,6 +268,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - The `bash` block keeps its backslash line continuation; the `json` block its indentation.
 - Body list: `items` with two nested bullets at level 1.
 - Query-parameter table: the Required column centered.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1071, #1097, #1098, #1056, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD014: Study notes ⚠️ destructive
 **Prompt**
@@ -256,6 +282,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - The table with an empty top-left header cell.
 - Questions: numbered 1–3.
 
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
 ### TC-MD015: Travel itinerary ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -266,6 +294,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Saturday's bullets with a nested level under "Afternoon".
 - Packing task list, budget table with right-aligned amounts and a bold total row.
 - Accented Portuguese names render.
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1097, #1095, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
@@ -279,6 +309,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Logistics table intact.
 
 ---
+
+**Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 ## Phase 2 — Syntax coverage
 

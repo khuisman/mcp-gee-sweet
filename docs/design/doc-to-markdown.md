@@ -82,6 +82,11 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
 - **Trailing paragraph newline**: every paragraph's content ends with a `"\n"` in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors `html_parser.py`'s own `<pre>`-close trailing-newline handling.
+- **Soft breaks** (#1057): a `"\v"` in any run is a line break inside the paragraph, whoever
+  wrote it: `emitter.py`'s code-block line breaks (#719) or `insert_softbreak_paragraph` in
+  prose. `_text_run_to_run` reads it back as `"\n"`, the same character an explicit `<br>`
+  produces on write. Only the raw-text views (`get_doc_structure`, `find_in_doc`) keep a prose
+  soft break as `"\v"`, via `indices.decode_code_run_text`.
 - **Table cells are flat, not per-paragraph**: `Cell.children` (`ast.py`) has no paragraph
   structure of its own — the write side never produces one (`html_parser.py`'s table-cell
   handling treats a `<td>` as flat inline content). Multiple paragraphs within one live Docs
@@ -125,6 +130,13 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   link. Only a link that actually renders counts: a linked run that is only line breaks renders
   as bare `<br>`, so it keeps the fence (PR #976 QA round 1). A linked image doesn't trigger
   this either, since images render outside the fence anyway.
+- **Line breaks in plain text** (#1057): a `"\n"` inside a non-code run renders as `<br>`, the
+  same as in a code run or a table cell. A raw newline would be a Markdown soft break, joining
+  the lines, and could start a new block mid-paragraph ("# x" on the next line). A trailing
+  backslash hard break would end an ATX heading or a list item's line instead. A run's edges, up
+  to its outermost line break and including any whitespace beside it, render outside its link,
+  emphasis, and code span (`_split_edge_breaks`, shared by plain and code runs; a space beside the
+  break kept it inside the link until PR #1088 QA round 1).
 - **Linked images** (#951): Docs puts an image's link on its `inlineObjectElement`'s own
   `textStyle.link`, the same as a text run (confirmed live). `doc_to_ast` reads it into
   `Image.link_url`, and every image renders through `_render_image` as `[![alt](src)](url)`, in

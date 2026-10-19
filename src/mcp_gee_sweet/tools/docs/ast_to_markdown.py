@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 import string
+from dataclasses import replace
 
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Run, Table
 from .emitter import _build_phantom_set
@@ -107,15 +108,16 @@ def _is_code_block(node: Paragraph) -> bool:
 
     A fenced block's content is literal, so it can't carry a link. A paragraph
     with any linked run renders as inline code spans instead, which can (#951).
-    Only a link `_render_code_run` would actually write counts: a linked run
-    that is only line breaks renders as bare <br>, so giving up the fence for
-    it would lose the block and still export no link (PR #976 QA round 1). A
-    linked Image doesn't count either: images render outside the fence."""
+    Only a link `_render_run` would actually write counts: a linked run that
+    is only whitespace and line breaks renders as bare <br>, so giving up the
+    fence for it would lose the block and still export no link (PR #976 QA
+    round 1). A linked Image doesn't count either: images render outside the
+    fence."""
     runs = [r for r in node.runs if isinstance(r, Run)]
     return (
         bool(runs)
         and all(r.font_family == "Courier New" for r in runs)
-        and not any(r.link_url and r.text.strip("\n") for r in runs)
+        and not any(r.link_url and _split_edge_breaks(r.text)[1] for r in runs)
     )
 
 
@@ -305,29 +307,58 @@ def _coalesce_code_runs(items: list) -> list:
 
 def _render_run(run: Run, in_table: bool = False) -> str:
     """Markdown for one run. `in_table` makes the result safe inside a
-    pipe-table cell (see `_table_safe`)."""
+    pipe-table cell (see `_table_safe`).
+
+    A line break inside a run (a Docs soft break, #1057) renders as <br>, as
+    in a code run or a table cell. A raw newline would be a Markdown soft
+    break, which joins the lines, and could start a new block mid-paragraph;
+    a trailing backslash would end an ATX heading or a list item's line.
+    The run's edges, up to its outermost line break, render outside its link,
+    emphasis, and code span (see `_split_edge_breaks`)."""
     if run.text == "":
         return ""
+    lead, inner, trail = _split_edge_breaks(run.text)
+    if not inner:
+        return _render_breaks(run.text, in_table)
     if run.font_family == "Courier New":
-        return _render_code_run(run, in_table)
-    body = _render_plain_run(run)
-    return _table_safe(body) if in_table else body
+        body = _render_code_run(replace(run, text=inner), in_table)
+    else:
+        body = _render_breaks(_render_plain_run(replace(run, text=inner)), in_table)
+    return f"{_render_breaks(lead, in_table)}{body}{_render_breaks(trail, in_table)}"
+
+
+def _split_edge_breaks(text: str) -> tuple[str, str, str]:
+    """Split `text` into (lead, inner, trail), where lead runs through the
+    last line break in the leading whitespace and trail starts at the first
+    line break in the trailing whitespace. Those edges render outside the
+    run's link, so a cell's paragraph break (a leading "\n" from doc_to_ast)
+    or an edge soft break never becomes a <br> inside the <a>, even with a
+    space beside it (PR #1088 QA round 1). Whitespace on the inner side of a
+    break stays with the run, as before. A run that is only whitespace with a
+    break in it is all lead, with an empty inner."""
+    if "\n" in text and not text.strip():
+        return text, "", ""
+    leading_ws = text[: len(text) - len(text.lstrip())]
+    lead = leading_ws[: leading_ws.rfind("\n") + 1]
+    rest = text[len(lead) :]
+    trailing_ws = rest[len(rest.rstrip()) :]
+    cut = trailing_ws.find("\n")
+    trail = trailing_ws[cut:] if cut != -1 else ""
+    return lead, rest[: len(rest) - len(trail)], trail
+
+
+def _render_breaks(text: str, in_table: bool) -> str:
+    # Rendered non-code Markdown with each "\n" as a <br>.
+    return _table_safe(text) if in_table else text.replace("\n", "<br>")
 
 
 def _render_code_run(run: Run, in_table: bool) -> str:
-    # Line breaks at either end go outside the link, so a cell's paragraph
-    # break (a leading "\n" from doc_to_ast) or a trailing soft break doesn't
-    # render as a <br> inside the <a>.
-    inner = run.text.strip("\n")
-    if not inner:
-        return "<br>" * len(run.text)
-    lead = "<br>" * (len(run.text) - len(run.text.lstrip("\n")))
-    trail = "<br>" * (len(run.text) - len(run.text.rstrip("\n")))
-    body = _render_code_run_text(inner, in_table)
+    # `run` has no line break at either edge; _render_run renders those.
+    body = _render_code_run_text(run.text, in_table)
     if run.link_url:
         dest = _md_link_dest(run.link_url)
         body = f"[{body}]({_table_safe(dest) if in_table else dest})"
-    return f"{lead}{body}{trail}"
+    return body
 
 
 def _render_plain_run(run: Run) -> str:
