@@ -5419,3 +5419,6 @@ Run on a scratch doc in the Shared Drive QA folder instead of the fixture. Step 
 
 **Result (2026-10-18) ✅ PASS — PR #1089 QA round 2 (Kit) @ c118bdd**
 Run on a scratch doc in the Shared Drive QA folder instead of the fixture. Same result as round 1: "plain" (18, 36) and "plain nested" (54, 72) with no `borderLeft`; "Quoted item one", "Quoted item two", and "Quoted numbered" (54, 72) and "Quoted nested" (90, 108), each with a `borderLeft`. Step 2 printed each quoted item with exactly one `>`. Playwright: each quoted glyph sits to the right of the unquoted one at the same level, with the gray bar to its left.
+
+**Result (2026-10-18) ✅ PASS — PR #1089 QA round 3 (Kit) @ 85bbf00**
+Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scratch doc in the Shared Drive QA folder, via `create_doc` with the same Markdown. Raw read, Markdown export, and Playwright were all the same as round 2: plain (18, 36) and (54, 72) with no border, quoted level-0 items (54, 72), "Quoted nested" (90, 108), each quoted item with a `borderLeft` and exactly one `>`.
