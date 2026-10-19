@@ -1426,6 +1426,11 @@ best-effort — see below), and an opt-in comments section.</p>
 <li><strong>Trailing paragraph newline</strong>: every paragraph's content ends with a <code>"\n"</code> in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors <code>html_parser.py</code>'s own <code>&lt;pre&gt;</code>-close trailing-newline handling.</li>
+<li><strong>Soft breaks</strong> (#1057): a <code>"\v"</code> in any run is a line break inside the paragraph, whoever
+  wrote it: <code>emitter.py</code>'s code-block line breaks (#719) or <code>insert_softbreak_paragraph</code> in
+  prose. <code>_text_run_to_run</code> reads it back as <code>"\n"</code>, the same character an explicit <code>&lt;br&gt;</code>
+  produces on write. Only the raw-text views (<code>get_doc_structure</code>, <code>find_in_doc</code>) keep a prose
+  soft break as <code>"\v"</code>, via <code>indices.decode_code_run_text</code>.</li>
 <li><strong>Table cells are flat, not per-paragraph</strong>: <code>Cell.children</code> (<code>ast.py</code>) has no paragraph
   structure of its own — the write side never produces one (<code>html_parser.py</code>'s table-cell
   handling treats a <code>&lt;td&gt;</code> as flat inline content). Multiple paragraphs within one live Docs
@@ -1469,6 +1474,13 @@ best-effort — see below), and an opt-in comments section.</p>
   link. Only a link that actually renders counts: a linked run that is only line breaks renders
   as bare <code>&lt;br&gt;</code>, so it keeps the fence (PR #976 QA round 1). A linked image doesn't trigger
   this either, since images render outside the fence anyway.</li>
+<li><strong>Line breaks in plain text</strong> (#1057): a <code>"\n"</code> inside a non-code run renders as <code>&lt;br&gt;</code>, the
+  same as in a code run or a table cell. A raw newline would be a Markdown soft break, joining
+  the lines, and could start a new block mid-paragraph ("# x" on the next line). A trailing
+  backslash hard break would end an ATX heading or a list item's line instead. A run's edges, up
+  to its outermost line break and including any whitespace beside it, render outside its link,
+  emphasis, and code span (<code>_split_edge_breaks</code>, shared by plain and code runs; a space beside the
+  break kept it inside the link until PR #1088 QA round 1).</li>
 <li><strong>Linked images</strong> (#951): Docs puts an image's link on its <code>inlineObjectElement</code>'s own
   <code>textStyle.link</code>, the same as a text run (confirmed live). <code>doc_to_ast</code> reads it into
   <code>Image.link_url</code>, and every image renders through <code>_render_image</code> as <code>[![alt](src)](url)</code>, in
