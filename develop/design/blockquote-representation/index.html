@@ -1416,6 +1416,11 @@ premise live before implementing — see CLAUDE.md's <code>tabStops</code>/#404 
 (<code>_blockquote_style_request</code> in <code>emitter.py</code>):</p>
 <ul>
 <li><code>indentStart</code>: <code>36pt × blockquote_depth</code> — scales with nesting.</li>
+<li><code>indentFirstLine</code>: the same value as <code>indentStart</code> (#1056). The Docs API's
+  <code>indentFirstLine</code> is absolute, measured from the margin like <code>indentStart</code>, not an
+  offset from it. Left unset, it stays 0, so a single-line quote's only line sat at the
+  margin and only wrapped continuation lines were indented: the quote showed nothing but
+  its border, and a nested quote looked no deeper than its parent.</li>
 <li><code>borderLeft</code>: a constant gray (<code>0.6, 0.6, 0.6</code>), 3pt solid line, 8pt padding — a visual
   "quote bar," independent of depth.</li>
 </ul>
@@ -1428,19 +1433,33 @@ would override or conflict with a run's own explicit formatting decisions (e.g. 
 quoted verbatim should stay bold, not be silently forced italic too) — the border + indent
 already give a strong, unambiguous "this is a quote" visual without touching text styling
 at all.</p>
-<p><strong>Interaction with list nesting (not a bug, documented for the next person surprised by
-it):</strong> a blockquote-wrapped list item can end up with a visually deeper indent than
-<code>36pt × blockquote_depth</code> alone would suggest, when Markdown's <code>sane_lists</code> extension
-parses the quoted item as also being one level deeper in list nesting (lazy continuation of
-a preceding list, e.g. <code>- Item\n&gt; - Quoted item</code> with no blank line between). In that case
-the item's <code>BulletItem.depth</code> (list nesting) and <code>blockquote_depth</code> (quote nesting) are both</p>
-<blockquote>
-<p>0, and their two indent contributions — the list preset's own per-level indent (applied
-via <code>createParagraphBullets</code>, a separate mechanism) and this feature's explicit
-<code>indentStart</code> — are genuinely orthogonal API properties that both apply. Confirmed live;
-not something this feature should try to compensate for, since the extra depth accurately
-reflects two real, independent kinds of nesting.</p>
-</blockquote>
+<p><strong>Quoted list items (#1056).</strong> <code>createParagraphBullets</code> writes the list preset's own
+<code>indentStart</code>/<code>indentFirstLine</code> onto every paragraph it bullets, overwriting whatever was
+there. The bullet pass runs after the per-node styling pass, so a quoted list item's quote
+indent was silently replaced and a quoted list sat at exactly an unquoted list's indent,
+with only the border to tell them apart. (This section used to say the two indents "both
+apply"; live reads show they didn't. The deeper indent it described came from list
+nesting alone.)</p>
+<p>So a <code>BulletItem</code>'s blockquote request is emitted after the whole bullet pass, not in
+the per-node pass, and before the combined table/image insert pass. By then every
+synthetic depth-tab in the doc has been consumed, so its range maps through
+<code>_after_bullet_pass</code> exactly like the table and image positions do: the start moves back
+by the tabs ahead of the item, the end also by the item's own. Paragraph styling doesn't
+shift anything, so the inserts that follow are unaffected. (PR #1089 round 1 first put
+each request inside its own run's bullet requests, with a third hand-built copy of the
+tab-shift arithmetic; QA asked for one mapping, and the whole-pass placement allows it.)</p>
+<p>Its indents are the list level's own plus the quote's: <code>indentStart = 36 + 36n + 36d</code> and
+<code>indentFirstLine = 18 + 36n + 36d</code> for nesting level <code>n</code> and quote depth <code>d</code>, keeping the
+glyph's hanging indent (<code>emitter.list_level_indents</code>). The level geometry (18/36 at level
+0, +36 per level) is the same for both presets the emitter uses,
+<code>BULLET_DISC_CIRCLE_SQUARE</code> and <code>NUMBERED_DECIMAL_ALPHA_ROMAN</code>, confirmed live. Docs caps
+<code>nestingLevel</code> at 8: an item with more leading tabs lands at level 8, so <code>n</code> is capped at
+8 too. Uncapped, items nested 9 and 10 deep got indents for levels that don't exist and
+read back as quoted two and three times (PR #1089 QA round 1, live).</p>
+<p><code>doc_to_ast.py</code>'s <code>_infer_blockquote_depth</code> subtracts the list level's own <code>indentStart</code>
+(read from the doc's <code>lists</code> map, falling back to the preset value) before dividing by
+36, so a level-1 item quoted once reads back as quote depth 1, not 2. A bordered list item
+written before #1056, with only the level's own indent, still reads as depth 1.</p>
 <h2 id="qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration">QA round 1 (PR #546): two gaps in the interrupt/resume integration<a class="headerlink" href="#qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration" title="Permanent link">&para;</a></h2>
 <p>Reproduced directly against parser output (<code>html_to_ast</code>), no live Google API calls
 needed — both were pure AST-construction bugs.</p>
@@ -1477,12 +1496,11 @@ Retro section), rather than a blockquote-specific patch that would have left the
 identical defect reachable through <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> at top level.</p>
 <h2 id="what-this-does-not-do">What this does NOT do<a class="headerlink" href="#what-this-does-not-do" title="Permanent link">&para;</a></h2>
 <ul>
-<li>No reverse conversion (Doc → Markdown/HTML <code>blockquote</code> output) — this project has no
-  Doc-to-source export path at all currently, matching the existing precedent for other
-  one-way conversions (e.g. <code>anchors.py</code>'s heading-anchor resolution).</li>
-<li>Does not attempt to detect an <em>existing</em> Google Doc's manually-applied indent+border as
-  "this was a blockquote" on any round-trip read — there is no such round-trip path in this
-  codebase (AST flows one direction, HTML/Markdown → Docs), so this concern doesn't arise.</li>
+<li>At the time of #476 there was no Doc → Markdown read path. One exists now
+  (<code>get_doc_as_markdown</code>, <code>docs/design/doc-to-markdown.md</code>): <code>doc_to_ast.py</code>'s
+  <code>_infer_blockquote_depth</code> reads a paragraph as quoted only when it carries both a
+  <code>borderLeft</code> and an <code>indentStart</code> beyond its list level's own (see "Quoted list items"
+  above), so a hand-indented paragraph without a border isn't mistaken for a quote.</li>
 <li>No comprehensive multi-construct fixture — tracked separately as
   <a href="https://github.com/khuisman/mcp-gee-sweet/issues/477">#477</a>, which explicitly depended on
   this issue landing first.</li>
