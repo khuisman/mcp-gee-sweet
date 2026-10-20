@@ -1769,3 +1769,6 @@ Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP tr
 - 4: the same on the second server
 
 **Cleanup:** `delete_file` each `TC-I61 idle write` folder.
+
+**Result (2026-10-19) ⚠️ PARTIAL — PR #1126 round 1 (Sky) @ 9cc9baa6**
+OAuth server (`mcp-gee-sweet-sky`), warmed at 22:12 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (22:22): 12/12 cells correct, no `error`, returned in under a second. Step 2 (22:33): 24/24 correct, no `error`, under a second. Step 3 (22:44): `create_folder` succeeded on the first call; folder trashed afterwards. The server log has no live `Resending` line, so the idle close alone handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
