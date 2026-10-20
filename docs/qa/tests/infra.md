@@ -1751,7 +1751,7 @@ Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP tr
 
 ---
 
-### TC-I61: the first calls after a long idle don't fail on a stale connection (issue #1052)
+### TC-I65: the first calls after a long idle don't fail on a stale connection (issue #1052)
 
 **Background:** `thread_http` caches one transport per worker thread, and a thread's pooled keep-alive connection sits unused while the server is idle. Before #1052, the first request on a connection Google had since dropped failed with no retry: `[Errno 54] Connection reset by peer` at once, or `[Errno 60] Operation timed out` after 50–200 s. In a wide `get_multiple_sheet_data` call that showed up as one per-query `error` among otherwise correct results. Now a pooled connection idle longer than `_IDLE_RECONNECT_SECONDS` (wall-clock time, so a laptop's sleep counts) is closed before reuse, a connection that fails is closed rather than left pooled, and a read (GET, HEAD, or a method-override GET) or a token refresh that still hits a dead connection is resent once. Writes are never resent, so step 3 checks that a write after idle succeeds on its first attempt. The mocked unit tests can't show what Google's front end actually does to an idle connection, so this needs a live server and real idle time.
 
@@ -1760,7 +1760,7 @@ Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP tr
 **Action**
 1. After the idle wait, call `get_multiple_sheet_data` with 12 single-cell queries: `queries` = `[{"spreadsheet_id": "{SPREADSHEET_ID}", "sheet": "Sales", "range": "A1"}, …]` over `A1`, `B1`, `C1`, `A2`, `B2`, `C2`, `A3`, `B3`, `C3`, `A4`, `B4`, `C4`. Time the call
 2. Idle again, then repeat step 1 with 24 queries, one per cell of `A1:D6`
-3. Idle again, then `create_folder` with `name: "TC-I61 idle write"` and `parent_folder_id: QA_SCRATCH_FOLDER_ID`
+3. Idle again, then `create_folder` with `name: "TC-I65 idle write"` and `parent_folder_id: QA_SCRATCH_FOLDER_ID`
 4. Run steps 1–3 on a second server prefix too (both OAuth and service account, if both are available)
 
 **Checks**
@@ -1768,7 +1768,7 @@ Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP tr
 - 3: the folder is created on the first call, with no `Connection reset by peer`, `Broken pipe`, or `Operation timed out` error
 - 4: the same on the second server
 
-**Cleanup:** `delete_file` each `TC-I61 idle write` folder.
+**Cleanup:** `delete_file` each `TC-I65 idle write` folder.
 
 **Result (2026-10-19) ⚠️ PARTIAL — PR #1126 round 1 (Sky) @ 9cc9baa6**
 OAuth server (`mcp-gee-sweet-sky`), warmed at 22:12 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (22:22): 12/12 cells correct, no `error`, returned in under a second. Step 2 (22:33): 24/24 correct, no `error`, under a second. Step 3 (22:44): `create_folder` succeeded on the first call; folder trashed afterwards. The server log has no live `Resending` line, so the idle close alone handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
