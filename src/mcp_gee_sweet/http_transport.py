@@ -2,7 +2,9 @@ import asyncio
 import contextlib
 import contextvars
 import logging
+import ssl
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -73,17 +75,75 @@ def _note_refresh_failure(error: RefreshError) -> None:
         state.refresh_error = error
 
 
-class _RefreshTrackingHttp(AuthorizedHttp):
-    """AuthorizedHttp that records a failed token refresh before raising it. Every
-    request goes through here: `.execute()` via execute_in_thread, and the media
-    downloads that set `request.http = thread_http(...)` themselves."""
+# Measured 2026-10-19: Google's front end closes a keep-alive connection after 240 s
+# idle. A FIN that arrives is harmless (httplib2 reconnects on the empty read), but one
+# lost or delayed on the way, or a NAT/VPN entry that expires sooner, leaves a dead
+# socket the client still thinks is open. Reconnecting well inside that window costs one
+# TLS handshake after a minute of quiet.
+_IDLE_RECONNECT_SECONDS = 60.0
 
-    def request(self, *args: Any, **kwargs: Any) -> Any:
+# Methods safe to resend after a connection-level failure. A write isn't resent: the
+# server may have applied it before the connection died, and a repeated create or
+# append would land twice.
+_RESENDABLE_METHODS = frozenset({"GET", "HEAD"})
+
+# What a dead keep-alive connection raises on reuse: ECONNRESET/EPIPE (ConnectionError),
+# ETIMEDOUT or a socket timeout (TimeoutError), or a TLS EOF.
+_CONNECTION_ERRORS = (ConnectionError, TimeoutError, ssl.SSLEOFError)
+
+
+class _RefreshTrackingHttp(AuthorizedHttp):
+    """AuthorizedHttp that records a failed token refresh before raising it, and that
+    doesn't reuse a keep-alive connection Google has likely dropped (#1052). Every
+    request goes through here: `.execute()` via execute_in_thread, and the media
+    downloads that set `request.http = thread_http(...)` themselves.
+
+    A transport is cached per worker thread, so its pooled connections sit unused
+    whenever the server is idle. Once an idle connection has died without the client
+    seeing the close, the first request on it fails with
+    ECONNRESET or hangs until the OS times it out (ETIMEDOUT, 50-200 s). httplib2
+    retries neither. So a transport idle longer than _IDLE_RECONNECT_SECONDS closes its
+    connections before the next request, and a GET or HEAD that still hits a dead
+    connection is resent once on a fresh one.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._last_used: float | None = None
+
+    def request(self, uri: str, method: str = "GET", *args: Any, **kwargs: Any) -> Any:
+        if "_credential_refresh_attempt" in kwargs:
+            # AuthorizedHttp re-entering after a 401 refresh: the outer call already
+            # handles reconnecting and resending.
+            return self._request_noting_refresh(uri, method, *args, **kwargs)
+        if (
+            self._last_used is not None
+            and time.monotonic() - self._last_used > _IDLE_RECONNECT_SECONDS
+        ):
+            self._close_connections()
+        try:
+            return self._request_noting_refresh(uri, method, *args, **kwargs)
+        except _CONNECTION_ERRORS as e:
+            if method.upper() not in _RESENDABLE_METHODS:
+                raise
+            logger.info("Resending %s on a new connection after %r", method, e)
+            self._close_connections()
+            return self._request_noting_refresh(uri, method, *args, **kwargs)
+        finally:
+            self._last_used = time.monotonic()
+
+    def _request_noting_refresh(self, *args: Any, **kwargs: Any) -> Any:
         try:
             return super().request(*args, **kwargs)
         except RefreshError as e:
             _note_refresh_failure(e)
             raise
+
+    def _close_connections(self) -> None:
+        connections, self.http.connections = self.http.connections, {}
+        for conn in connections.values():
+            with contextlib.suppress(Exception):
+                conn.close()
 
 
 def thread_http(service: Any) -> AuthorizedHttp:

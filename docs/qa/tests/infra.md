@@ -1748,3 +1748,24 @@ Same driver, fresh subprocesses on this head. Step 1: `upload_local_file` listed
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
+
+---
+
+### TC-I61: the first calls after a long idle don't fail on a stale connection (issue #1052)
+
+**Background:** `thread_http` caches one transport per worker thread, and a thread's pooled keep-alive connection sits unused while the server is idle. Before #1052, the first request on a connection Google had since dropped failed with no retry: `[Errno 54] Connection reset by peer` at once, or `[Errno 60] Operation timed out` after 50–200 s. In a wide `get_multiple_sheet_data` call that showed up as one per-query `error` among otherwise correct results. Now a transport idle longer than `_IDLE_RECONNECT_SECONDS` (60 s) closes its connections before the next request, and a GET or HEAD that still hits a dead connection is resent once. Writes are never resent, so step 3 checks that a write after idle succeeds on its first attempt. The mocked unit tests can't show what Google's front end actually does to an idle connection, so this needs a live server and real idle time.
+
+**Setup:** a server that has already made a few calls, so its worker threads hold pooled connections. Before each step, leave it idle (no tool calls at all) for **at least 10 minutes**, the idle time that reproduced the defect in the v0.9.2 pass.
+
+**Action**
+1. After the idle wait, call `get_multiple_sheet_data` with 12 single-cell queries: `queries` = `[{"spreadsheet_id": "{SPREADSHEET_ID}", "sheet": "Sales", "range": "A1"}, …]` over `A1`, `B1`, `C1`, `A2`, `B2`, `C2`, `A3`, `B3`, `C3`, `A4`, `B4`, `C4`. Time the call
+2. Idle again, then repeat step 1 with 24 queries, one per cell of `A1:D6`
+3. Idle again, then `create_folder` with `name: "TC-I61 idle write"` and `parent_folder_id: QA_SCRATCH_FOLDER_ID`
+4. Run steps 1–3 on a second server prefix too (both OAuth and service account, if both are available)
+
+**Checks**
+- 1, 2: every query returns its cell's data, none has an `error` field, and the call returns in a few seconds (no 50–200 s stall)
+- 3: the folder is created on the first call, with no `Connection reset by peer`, `Broken pipe`, or `Operation timed out` error
+- 4: the same on the second server
+
+**Cleanup:** `delete_file` each `TC-I61 idle write` folder.
