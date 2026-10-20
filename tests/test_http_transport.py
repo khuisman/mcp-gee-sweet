@@ -11,10 +11,12 @@ import time
 from unittest.mock import MagicMock, patch
 
 import anyio
-import httplib2
 import pytest
 
 from mcp_gee_sweet import http_transport
+
+# Captured before the autouse fixture below swaps thread_http out.
+_real_thread_http = http_transport.thread_http
 
 
 @pytest.fixture(autouse=True)
@@ -183,11 +185,27 @@ def resetting_server():
 
 def _transport():
     # A real httplib2.Http, so the dead pooled connection is a real socket.
-    return http_transport._RefreshTrackingHttp(MagicMock(), http=httplib2.Http())
+    return http_transport._RefreshTrackingHttp(
+        MagicMock(), http=http_transport._StaleConnectionHttp()
+    )
+
+
+@pytest.fixture
+def quiet_server():
+    # Never resets: every reconnect it sees is the client's own doing.
+    server = _ResettingServer(idle_reset=60)
+    yield server
+    server.close()
 
 
 class TestStaleConnections:
     """#1052: a per-thread transport's pooled connection dies while the server idles."""
+
+    def test_thread_http_builds_the_stale_aware_transport(self):
+        http = _real_thread_http(MagicMock())
+        assert isinstance(http, http_transport._RefreshTrackingHttp)
+        assert isinstance(http.http, http_transport._StaleConnectionHttp)
+        assert isinstance(http._request, http_transport._ResendingRefreshRequest)
 
     def test_idle_transport_reconnects_instead_of_reusing(self, resetting_server):
         http = _transport()
@@ -219,6 +237,89 @@ class TestStaleConnections:
         with pytest.raises(http_transport._CONNECTION_ERRORS):
             http.request(resetting_server.url, "POST", body="x")
         assert resetting_server.requests == [b"GET"]
+
+    def test_failed_write_does_not_leave_its_dead_connection_pooled(self, resetting_server):
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)
+        with pytest.raises(http_transport._CONNECTION_ERRORS):
+            http.request(resetting_server.url, "POST", body="x")
+        # The next write reconnects instead of failing on the same dead socket.
+        assert http.request(resetting_server.url, "POST", body="x")[0].status == 200
+        assert resetting_server.connections == 2
+
+    def test_method_override_read_is_resent(self, resetting_server):
+        # googleapiclient turns a GET with a URI over 2048 characters into this.
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)
+        response, _ = http.request(
+            resetting_server.url,
+            "POST",
+            body="q=...",
+            headers={"X-HTTP-Method-Override": "GET"},
+        )
+        assert response.status == 200
+        assert resetting_server.requests == [b"GET", b"POST"]
+
+    def test_idle_time_counts_system_sleep(self, quiet_server):
+        # time.monotonic() stops while a laptop sleeps; a wall-clock jump of an hour
+        # with no monotonic movement must still count as idle.
+        http = _transport()
+        http.request(quiet_server.url)
+        now = time.time()
+        with patch.object(http_transport.time, "time", return_value=now + 3600):
+            http.request(quiet_server.url)
+        assert quiet_server.connections == 2
+
+    def test_clock_jumping_backward_also_reconnects(self, quiet_server):
+        http = _transport()
+        http.request(quiet_server.url)
+        now = time.time()
+        with patch.object(http_transport.time, "time", return_value=now - 3600):
+            http.request(quiet_server.url)
+        assert quiet_server.connections == 2
+
+    def test_idle_is_tracked_per_connection(self, quiet_server):
+        # A transport kept busy on one host still reconnects a second host's
+        # connection that has sat idle, e.g. the token endpoint's between refreshes.
+        other = _ResettingServer(idle_reset=60)
+        try:
+            http = _transport()
+            with patch.object(http_transport, "_IDLE_RECONNECT_SECONDS", 0.3):
+                http.request(other.url)
+                for _ in range(5):
+                    http.request(quiet_server.url)
+                    time.sleep(0.1)
+                http.request(other.url)
+            assert quiet_server.connections == 1
+            assert other.connections == 2
+        finally:
+            other.close()
+
+    def test_refresh_on_a_dead_connection_is_resent_before_a_write(self, quiet_server):
+        # The refresh runs before the write is sent, so resending it is safe even
+        # though the write itself is never resent.
+        token_server = _ResettingServer()
+        refresh = {"due": True}
+
+        def before_request(request, method, uri, headers):
+            if refresh["due"]:
+                request(token_server.url, method="POST", body="grant_type=refresh_token")
+
+        creds = MagicMock()
+        creds.before_request.side_effect = before_request
+        try:
+            http = http_transport._RefreshTrackingHttp(
+                creds, http=http_transport._StaleConnectionHttp()
+            )
+            http.request(quiet_server.url, "POST", body="x")
+            time.sleep(0.6)  # the token server resets its idle connection
+            assert http.request(quiet_server.url, "POST", body="x")[0].status == 200
+            assert token_server.connections == 2
+            assert quiet_server.requests == [b"POST", b"POST"]
+        finally:
+            token_server.close()
 
     @pytest.mark.parametrize(
         "error",
