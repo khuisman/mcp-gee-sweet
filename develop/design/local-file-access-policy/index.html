@@ -1438,7 +1438,7 @@
 <td>ADC's fallback when <code>GOOGLE_APPLICATION_CREDENTIALS</code> is unset; a user refresh token</td>
 </tr>
 <tr>
-<td><code>CACHE_DB_PATH</code> and its SQLite WAL sidecars (<code>-wal</code>, <code>-shm</code>; <code>cache.py</code> sets <code>journal_mode=WAL</code>)</td>
+<td><code>CACHE_DB_PATH</code> and its SQLite WAL sidecars (<code>-wal</code>, <code>-shm</code>; <code>cache.py</code> sets <code>journal_mode=WAL</code>). With the default location, the whole <code>mcp-gee-sweet</code> cache directory (<code>Policy.deny_dirs</code>), since only the server writes there. Also the pre-0.9.3 default <code>/tmp/mcp_gee_sweet.db</code> and its sidecars, which stay on disk (GHSA-8jqx-w7j8-6xwm)</td>
 <td>reading exposes cached Drive/Sheets/Docs data; overwriting corrupts the cache</td>
 </tr>
 <tr>
