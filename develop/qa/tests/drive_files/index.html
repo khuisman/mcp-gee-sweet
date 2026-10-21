@@ -1424,6 +1424,8 @@ Environmental: needs the SA identity plus a personal-Drive folder / a Content-ma
 Created 'QA-Cache-Check' in FOLDER_ID; immediately visible in list_files(FOLDER_ID) with no manual refresh — folder cache mark_dirty confirmed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): <code>create_spreadsheet("QA-Cache-Check")</code> logged <code>Marked drive folder cache dirty</code>; next <code>list_files</code> re-fetched (<code>Cached 8 files</code>) and listed it. File trashed.</p>
 <hr />
 <h3 id="tc-d06-resulting-spreadsheet-has-expected-title-requires-oauth">TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth<a class="headerlink" href="#tc-d06-resulting-spreadsheet-has-expected-title-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1452,6 +1454,10 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 list_spreadsheets(default) returns a valid list, each entry has name+ID. BUT does NOT include 'mcp-gee-sweet-qa-fixtures': default folder resolves to Shared Drive root (DRIVE_FOLDER_ID) and the fixtures spreadsheet lives in the FOLDER_ID subfolder, not the root. Stale TC post-#305 Shared-Drive migration. Ticket candidate.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
+<p><strong>Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>list_spreadsheets()</code> returned <code>[]</code> with no error, on the service account and on an OAuth server (kit): the default folder is the Shared Drive root, which holds no spreadsheets. Not checked: "each entry has a name and ID" (no entries).</p>
+<p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>list_spreadsheets()</code> → <code>[]</code>, no error (no spreadsheets in the Shared Drive root); per-entry checks had nothing to run on.</p>
 <hr />
 <h3 id="tc-d14-list-from-explicit-folder-id">TC-D14: List from explicit folder ID<a class="headerlink" href="#tc-d14-list-from-explicit-folder-id" title="Permanent link">&para;</a></h3>
 <p><strong>Setup (#1054):</strong>
@@ -1475,6 +1481,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 OAuth, fixture folder on the Shared Drive. Positive control first: before trashing, <code>list_spreadsheets({FOLDER_ID})</code> listed <code>QA-Trashed-1054</code> (plus <code>QA-Trashed-1054-Sheet</code> and the fixture). After <code>delete_file(permanent=False)</code>, with <code>get_file_metadata</code> reporting <code>trashed: true</code>, the same call returned only <code>mcp-gee-sweet-qa-fixtures</code>. Cleaned up with <code>delete_file(permanent=True)</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — PR #1083 round 2 (Sky, <code>35a1839</code>)</strong>
 Ran the revised 3-step setup with fresh fixtures. Step 2 positive control: <code>list_spreadsheets({FOLDER_ID})</code> and <code>search_spreadsheets('QA-Trashed-1054')</code> both returned the new id on the first try. After trashing (<code>trashed: true</code>), no <code>list_spreadsheets({FOLDER_ID})</code> result had that id; only the fixture remained.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: Setup: <code>QA-Trashed-1054</code> created in the run folder. Positive controls returned its id on the first try: <code>list_spreadsheets(run folder)</code> and <code>search_spreadsheets("QA-Trashed-1054")</code>. It was then trashed (<code>trashed: true</code> confirmed). After trashing: <code>list_spreadsheets({FOLDER_ID})</code> returned only the fixture (scoped correctly), and <code>list_spreadsheets(run folder)</code> returned [], so the trashed id is absent.</p>
 <hr />
 <h3 id="tc-d15-list-from-root-no-folder">TC-D15: List from root (no folder)<a class="headerlink" href="#tc-d15-list-from-root-no-folder" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1607,6 +1615,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 <code>search_spreadsheets('qa-fixtures')</code> → the fixture. Positive control: before trashing, <code>search_spreadsheets('QA-Trashed-1054')</code> returned both new spreadsheets. After trashing (<code>trashed: true</code> confirmed), it returned <code>[]</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — PR #1083 round 2 (Sky, <code>35a1839</code>)</strong>
 <code>search_spreadsheets('qa-fixtures')</code> → the fixture. With TC-D14's setup (positive control passed), no <code>search_spreadsheets('QA-Trashed-1054')</code> result had the trashed id after trashing (it returned <code>[]</code>).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>search_spreadsheets("qa-fixtures")</code> returned the fixture with id and name. After trashing, <code>search_spreadsheets("QA-Trashed-1054")</code> returned [], so no trashed id.</p>
 <hr />
 <h3 id="tc-d30-content-search">TC-D30: Content search<a class="headerlink" href="#tc-d30-content-search" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1714,6 +1724,10 @@ Can't force an auth error live.</p>
 list_files(FOLDER_ID) unfiltered returned both spreadsheets and Google Docs (qa-fixtures-doc, qa-large-doc); each entry has id, name, mime_type, web_link; no trashed items.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>list_files({FOLDER_ID})</code> returned the spreadsheet, 2 docs and the run folder, each with id/name/mime_type. No trashed items.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>list_files(TEST_FOLDER_ID)</code> returned 6 entries with id/name/mime_type, no trashed items.</p>
 <hr />
 <h3 id="tc-d37-filter-by-mime-type">TC-D37: Filter by MIME type<a class="headerlink" href="#tc-d37-filter-by-mime-type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1745,6 +1759,8 @@ Two consecutive list_files(FOLDER_ID) calls returned byte-identical results (cac
 Caveat resolved — see TC-D40. Two consecutive list_files(FOLDER_ID) calls with no intervening small-max_results fetch still return byte-identical results.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>Cached 6 files for folder …</code> then <code>Drive folder cache hit: …</code>. The OAuth server's first call missed although the service account had cached the same folder 45 s earlier: rows are now per identity (GHSA-8jqx).</p>
 <hr />
 <h3 id="tc-d39-mime_typenone-cache-key">TC-D39: mime_type=None cache key<a class="headerlink" href="#tc-d39-mime_typenone-cache-key" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1825,6 +1841,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 Created 'QA-ListFilesCache' in FOLDER_ID; immediately present in list_files(FOLDER_ID) with no manual refresh — folder cache mark_dirty fired after create_spreadsheet.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): warm listing, then <code>create_spreadsheet</code> logged <code>Marked drive folder cache dirty</code>, and the next <code>list_files</code> re-fetched (<code>Cached 7 files</code>) with the new file listed. File trashed.</p>
 <hr />
 <h3 id="tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem">TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem<a class="headerlink" href="#tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>list_files</code> now surfaces Drive's <code>md5Checksum</code> field so callers can diff content directly instead of inferring change from <code>modifiedTime</code> alone, which upload paths like <code>upload_local_file</code> don't always keep in sync with actual content (see <code>drive_transfer.md</code> TC-D226's follow-up finding). <code>{FOLDER_ID}</code> already contains both <code>{SPREADSHEET_ID}</code> and <code>{DOC_ID}</code> (per <code>setup.md</code>), so no new Workspace fixture needs creating here.</p>
@@ -2271,6 +2289,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 <code>search_files('QA')</code> → a mix of spreadsheets, docs, and a folder, each with id/name/mimeType/modified_time/web_link. Positive control: before trashing, <code>search_files('QA-Trashed-1054', folder_id={FOLDER_ID})</code> returned the sheet, the folder, and TC-D14's sheet. After trashing, <code>search_files('QA-Trashed-1054')</code> (unscoped) and the same call with <code>mime_type='application/vnd.google-apps.folder'</code> both returned <code>[]</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — PR #1083 round 2 (Sky, <code>35a1839</code>)</strong>
 Revised setup with fresh fixtures. Step 2 positive controls returned the expected ids on the first try: unscoped → both (plus TC-D14's sheet), <code>mime_type=folder</code> → the folder, <code>folder_id={FOLDER_ID}</code> → both. After trashing (<code>trashed: true</code> on both), no result of the unscoped or <code>mime_type=folder</code> search had either id.</p>
+<p><strong>Result (2026-10-19) ❌ FAIL — v0.9.3 release pass</strong>
+<code>kai-sa</code>: The #1054 checks pass: positive controls found both QA-Trashed-1054 fixtures, and after trashing neither appears in <code>search_files("QA-Trashed-1054")</code> (also with mime_type=folder). Failing check: "Returns a mix of docs, spreadsheets, and folders": under the service account, unscoped <code>search_files("QA")</code> returned only the fixture spreadsheet; the folder-scoped search finds them all, and an OAuth server finds them unscoped. Not a regression (no <code>corpora</code> before or after #1054). Tracked in #1127.</p>
 <hr />
 <h3 id="tc-d76-search-with-mime-type-filter">TC-D76: Search with MIME type filter<a class="headerlink" href="#tc-d76-search-with-mime-type-filter" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2307,6 +2327,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 <code>search_files('QA', folder_id={FOLDER_ID})</code> → 3 results, all with <code>parent</code> = <code>{FOLDER_ID}</code>. <code>search_files('QA-Trashed-1054', folder_id={FOLDER_ID})</code> returned all 3 fixtures before trashing and <code>[]</code> after.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — PR #1083 round 2 (Sky, <code>35a1839</code>)</strong>
 <code>search_files('QA', folder_id={FOLDER_ID})</code> → 3 results, all with <code>parent</code> = <code>{FOLDER_ID}</code>. No result of the <code>folder_id</code> search for <code>QA-Trashed-1054</code> had either trashed id. Injection check: <code>folder_id="x' in parents or trashed=true or 'y"</code> returned a single <code>{"error": "Search failed: &lt;HttpError 404 … File not found: .&gt;"}</code> item. The request URL shows the escaped query (<code>'x\' in parents or trashed=true or \'y' in parents</code>), so Drive read the whole value as one folder ID, and no trashed fixture came back. <code>list_spreadsheets</code> with the same <code>folder_id</code> raised the same 404 as a tool error (that tool has no try/except, which is pre-existing).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>search_files("QA", folder_id={FOLDER_ID})</code> returned 4 results, all with parent = FOLDER_ID. <code>search_files("QA-Trashed-1054", folder_id=run folder)</code> returned [] after trashing. The injection <code>folder_id="x' in parents or trashed=true or 'y"</code> returned one <code>{"error": "Search failed: HttpError 404 File not found"}</code> item. The URL shows the escaped query, and no trashed id came back.</p>
 <hr />
 <h3 id="tc-d78-query-with-single-quote">TC-D78: Query with single quote<a class="headerlink" href="#tc-d78-query-with-single-quote" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2336,6 +2358,10 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 get_file_metadata(SPREADSHEET_ID): mimeType spreadsheet; name/parents/created_time/modified_time/owners/web_link all present; no <code>size</code> key; trashed=false. Note: owners=[] (Shared Drive files report no owners) — key present, empty list.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>get_file_metadata(fixture)</code>: mimeType is spreadsheet. name, parents, created_time, modified_time, owners ([] on the Shared Drive) and web_link are all present. No <code>size</code>; <code>trashed</code> is false.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): spreadsheet metadata with name, parents, created/modified time, owners <code>[]</code> (Shared Drive), web_link; no <code>size</code>.</p>
 <hr />
 <h3 id="tc-d80-metadata-for-a-google-doc">TC-D80: Metadata for a Google Doc<a class="headerlink" href="#tc-d80-metadata-for-a-google-doc" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2473,6 +2499,10 @@ list_shared_with_me() → <code>[]</code> cleanly, no error. The OAuth identity 
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the fixture had no shared files, so the field and ordering checks weren't exercised.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
+<p><strong>Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>list_shared_with_me()</code> returned [] with no error, which is expected for a service account. With nothing returned, the field and owners checks had nothing to check. The "query includes sharedWithMe/trashed" check can't be seen from the tool surface.</p>
+<p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>list_shared_with_me()</code> → <code>[]</code>, no error; per-entry checks had nothing to run on.</p>
 <hr />
 <h3 id="tc-d153-filter-shared-files-by-mime-type">TC-D153: Filter shared files by MIME type<a class="headerlink" href="#tc-d153-filter-shared-files-by-mime-type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2623,6 +2653,10 @@ Run 1 (kai-oauth).</p>
 get_storage_quota() → email "kevin@mcpsuite.io", display_name "Kevin Huisman", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>get_storage_quota()</code> returned email and display_name as the SA address, <code>limit_bytes</code> 0, and the usage fields as the int 0. All keys present.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account): SA address, all byte fields int 0. <code>kai-oauth</code> (OAuth): the fixture account, limit 32212254720, usage fields int.</p>
 <hr />
 <h3 id="tc-d161-fields-requested-include-storagequota-and-user">TC-D161: Fields requested include storageQuota and user<a class="headerlink" href="#tc-d161-fields-requested-include-storagequota-and-user" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>

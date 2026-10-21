@@ -2021,6 +2021,10 @@
 Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>update_cells(Sales, A7:D7, [[Test,A,B,C]])</code> updated 4 cells with no error. Re-read: row 7 = Test/A/B/C, rows 1–6 unchanged.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>update_cells(Sales, A7:D7)</code> updated 4 cells, rows 1–6 unchanged, <code>Marked all sheet data dirty</code> logged.</p>
 <hr />
 <h3 id="tc-w02-write-a-formula-via-user_entered-destructive">TC-W02: Write a formula via USER_ENTERED ⚠️ destructive<a class="headerlink" href="#tc-w02-write-a-formula-via-user_entered-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2063,6 +2067,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalidated</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): after a warm summary, <code>update_cells(A7)</code> logged <code>Marked all sheet data dirty</code>, and the next summary re-fetched (<code>Cached sheet data …</code>) and showed the new value. Stale wording: the summary needs <code>rows_to_fetch</code> ≥ 7 to reach A7 (10 used); the default 5 doesn't.</p>
 <hr />
 <h3 id="tc-w05-non-existent-sheet-name">TC-W05: Non-existent sheet name<a class="headerlink" href="#tc-w05-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> The 2026-09-04 result below found <code>update_cells</code>' plain-only branch leaked a raw <code>HttpError</code> instead of the <code>{"error": ...}</code> shape every other validation failure in these tools returns — this is <code>update_cells</code>' own instance of issue #757 (no local validation on the raw range string handed to the plain-cells <code>values().update()</code> call). Fixed via <code>try/except HttpError</code> around that call — see TC-W41 for the sibling <code>clear_values</code> fix. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.</p>
@@ -2240,6 +2246,10 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 batch_update_cells A8=Batch1, A9=Batch2 in one op</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: One <code>batch_update_cells(Sales, {A8:[[Batch1]], A9:[[Batch2]]})</code> call updated both cells (totalUpdatedCells 2). Re-read: A8=Batch1, A9=Batch2.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): one <code>batch_update_cells</code> call wrote A8=Batch1, A9=Batch2 (totalUpdatedCells 2).</p>
 <hr />
 <h3 id="tc-w07-ranges-on-the-same-sheet">TC-W07: Ranges on the same sheet<a class="headerlink" href="#tc-w07-ranges-on-the-same-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>

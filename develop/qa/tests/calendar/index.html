@@ -2691,6 +2691,10 @@
 list_calendars returned [] initially (SA has zero subscriptions); after create_calendar it returns 1 entry with id/summary/time_zone/access_role/primary. Fixture {CALENDAR_ID} not shared with SA so used SA-owned cal.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: After <code>refresh_cache</code> (the first call returned a cached result from another server): <code>list_calendars</code> returned 3 calendars including the primary and <code>mcp-gee-sweet-qa</code>, each with id/summary/time_zone/access_role/primary. The service-account run (kai-sa) had no subscribed calendars.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): 3 calendars, each with id, summary, time_zone, access_role, primary; fixture calendar listed.</p>
 <hr />
 <h3 id="tc-cal02-primary-flag">TC-CAL02: primary flag<a class="headerlink" href="#tc-cal02-primary-flag" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2718,6 +2722,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 Two list_calendars calls returned byte-identical results. Cache-hit log not observable from this harness.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): <code>Cached calendar list (3 entries)</code>, then <code>Calendar list cache hit</code>, same 3 calendars.</p>
 <hr />
 <h3 id="tc-cal04-empty-subscription-list">TC-CAL04: Empty subscription list<a class="headerlink" href="#tc-cal04-empty-subscription-list" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a service account with no calendar subscriptions</p>
@@ -3213,6 +3219,10 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 list_events no time filter on SACAL -&gt; {"result":[]} (all seeded events are before "now" 2026-09-04, correctly excluded — confirms default time_min=now, no past events). Field/ordering checks validated via July-windowed call: 3 events correctly ordered by start, each with id/summary/start/end/status.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).</p>
+<p><strong>Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass</strong>
+<code>kit</code>: No-filter <code>list_events</code> on {CALENDAR_ID} returned [] (no events seeded after now). A July window returned the TC-CAL20 event with id/summary/start/end/status. Not checked: ordering, with only one event in range.</p>
+<p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): no future events on the fixture calendar (<code>[]</code>); a July window returned the TC-CAL20 event with the required fields. Ordering not checkable with one event.</p>
 <hr />
 <h3 id="tc-cal10-time_min-time_max-window">TC-CAL10: time_min + time_max window<a class="headerlink" href="#tc-cal10-time_min-time_max-window" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3371,6 +3381,10 @@ create_event timed on SACAL -&gt; id, start/end RFC3339 w/ offset (2026-07-01T13
 <p><strong>Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass</strong>
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: <code>create_event</code> 2026-07-01 10:00–11:00 PT: RFC 3339 start/end with offset, <code>html_link</code>, status confirmed; a July <code>list_events</code> re-fetched it. Playwright (<code>2026-10-19-tc-cal20.png</code>): the event opens from <code>html_link</code> on Jul 1, 5–6pm in the GMT+0 browser (10–11am PT). Event deleted.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): event created with correct start/end and html_link, <code>Marked calendar cache dirty</code> logged, then deleted. API checks only. Stale wording: <code>list_events</code> isn't cached, so there's no re-fetch line to see.</p>
 <hr />
 <h3 id="tc-cal21-all-day-event-destructive">TC-CAL21: All-day event ⚠️ destructive<a class="headerlink" href="#tc-cal21-all-day-event-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>

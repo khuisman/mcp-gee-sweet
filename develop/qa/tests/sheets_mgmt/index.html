@@ -3266,6 +3266,10 @@
 list_sheets → Sales/Empty/Notes &amp; Misc (3 tabs), no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>list_sheets</code> returned Sales / Notes &amp; Misc / Empty (3 tabs), no error.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): Sales / Notes &amp; Misc / Empty, no error.</p>
 <hr />
 <h3 id="tc-s02-cache-hit-on-second-call">TC-S02: Cache hit on second call<a class="headerlink" href="#tc-s02-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice in the same session)</p>
@@ -3279,6 +3283,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 2nd call same list; cache-hit not verifiable from QA session (no log access)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): both calls logged <code>Cache hit: N sheets for &lt;copy&gt;</code>.</p>
 <hr />
 <h3 id="tc-s03-cache-invalidated-after-rename">TC-S03: Cache invalidated after rename<a class="headerlink" href="#tc-s03-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3292,6 +3298,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Empty→WasEmpty, list_sheets reflects rename immediately (mark_dirty confirmed); renamed back to Empty in teardown</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>rename_sheet(Empty→WasEmpty)</code> logged <code>Marked cache dirty</code>, and the next <code>list_sheets</code> re-fetched and showed WasEmpty. On <code>kai-oauth</code> (OAuth) that <code>list_sheets</code> took 9.8 s (every other one under 1 s); the log shows no cause, not reproduced.</p>
 <hr />
 <h2 id="copy_sheet"><code>copy_sheet</code><a class="headerlink" href="#copy_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s04-copy-within-same-spreadsheet">TC-S04: Copy within same spreadsheet<a class="headerlink" href="#tc-s04-copy-within-same-spreadsheet" title="Permanent link">&para;</a></h3>
@@ -3555,6 +3563,10 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create_sheet(title="BrandNew") → {sheetId(int), title, index(int), spreadsheetId} all present; list_sheets reflects it</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>create_sheet("BrandNew")</code> returned sheetId 917700788, title, index 3 and spreadsheetId. The next <code>list_sheets</code> included BrandNew.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>create_sheet("BrandNew")</code> returned sheetId/title/index 3; <code>Marked cache dirty</code>, then the next <code>list_sheets</code> re-fetched 4 sheets.</p>
 <hr />
 <h3 id="tc-s16-duplicate-tab-title">TC-S16: Duplicate tab title<a class="headerlink" href="#tc-s16-duplicate-tab-title" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3643,6 +3655,10 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 refresh_cache(spreadsheet_id) → {"invalidated":["spreadsheet:<id>"]}, scoped correctly</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>refresh_cache(spreadsheet_id)</code> returned <code>{"invalidated":["spreadsheet:&lt;id&gt;"]}</code>, and a following <code>list_sheets</code> returned the current tabs. Not run: the "next call is a cache miss in the logs" check, because the rules forbid reading logs.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>refresh_cache(spreadsheet_id)</code> → <code>invalidated: [spreadsheet:&lt;copy&gt;]</code>, both caches marked dirty, next <code>list_sheets</code> a miss (<code>Cached 4 sheets</code>).</p>
 <hr />
 <h3 id="tc-s21-refresh-by-doc-id-only">TC-S21: Refresh by doc ID only<a class="headerlink" href="#tc-s21-refresh-by-doc-id-only" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3682,6 +3698,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 refresh_cache() no args → {"invalidated":"all"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account): <code>refresh_cache()</code> → <code>invalidated: all</code>; the log names all five caches (sheet_structure, sheet_data, drive_folder, doc_content, calendar), and the next <code>list_sheets</code>, <code>get_doc_content</code> and <code>list_files</code> each re-fetched. Stale wording: five caches now, not four.</p>
 <hr />
 <h3 id="tc-s24-cache-re-populated-after-refresh">TC-S24: Cache re-populated after refresh<a class="headerlink" href="#tc-s24-cache-re-populated-after-refresh" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3695,6 +3713,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 refresh_cache(spreadsheet_id) then get_multiple_spreadsheet_summary → correct re-fetched data including tabs created moments earlier (BrandNew/ShapeTest/CacheNewSheet), confirming no stale cache</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account): after <code>refresh_cache(spreadsheet_id)</code> a summary re-fetched (<code>Cached 4 sheets</code>, then <code>Cached sheet data …</code> per tab) and returned current data.</p>
 <hr />
 <h2 id="delete_sheet"><code>delete_sheet</code><a class="headerlink" href="#delete_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s25-delete-an-existing-sheet-tab-destructive">TC-S25: Delete an existing sheet tab ⚠️ destructive<a class="headerlink" href="#tc-s25-delete-an-existing-sheet-tab-destructive" title="Permanent link">&para;</a></h3>

@@ -2165,6 +2165,10 @@
 - No <code>error</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: <code>list_labels</code> confirmed the Gmail scope. <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages (19 fixtures; threads hold the rest) including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}, each with id and thread_id; no next_page_token; no error.</p>
+<p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): <code>list_labels</code> confirmed the Gmail scope; <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages including <code>{TEST_MESSAGE_ID}</code>, no next_page_token, no error. <code>TEST_GMAIL_LATIN1_ID</code> isn't a key in Aziz's worktree <code>.env</code>, so that ID wasn't checked.</p>
 <hr />
 <h3 id="tc-gm02-invalid-label-filter-returns-api-error">TC-GM02: Invalid label filter returns API error<a class="headerlink" href="#tc-gm02-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2539,6 +2543,10 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM11_ID}</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: <code>send_message</code> to {QA+tc-gm11} returned id, thread_id and label_ids including SENT; <code>list_messages("subject:(mcp-qa tc-gm11)")</code> found it. Trashed.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): <code>send_message</code> to the QA plus-address returned id/thread_id with <code>SENT</code> in label_ids; <code>list_messages</code> found it; trashed.</p>
 <hr />
 <h3 id="tc-gm12-invalid-recipient-returns-an-error">TC-GM12: Invalid recipient returns an error<a class="headerlink" href="#tc-gm12-invalid-recipient-returns-an-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>

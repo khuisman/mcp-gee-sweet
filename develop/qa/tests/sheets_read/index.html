@@ -2054,6 +2054,10 @@
 6 rows, 4 cols; Totals computed 650/670/705, not formula strings; no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>get_sheet_data(Sales)</code> returned 6 rows × 4 columns (Product/Q1/Q2/Q3). The Totals row came back computed as 650/670/705, not as formula strings. No error.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth), each on its own copy of the fixture spreadsheet: <code>Sales</code> header plus data rows, Totals computed as 650/670/705, no error.</p>
 <hr />
 <h3 id="tc-r02-explicit-range">TC-R02: Explicit range<a class="headerlink" href="#tc-r02-explicit-range" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2254,6 +2258,10 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Row 6 → =SUM(B2:B5)/=SUM(C2:C5)/=SUM(D2:D5); data rows literal ints</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>get_sheet_formulas(Sales)</code> returned row 6 as <code>=SUM(B2:B5)</code>/<code>=SUM(C2:C5)</code>/<code>=SUM(D2:D5)</code>. Data rows came back as literal ints (100, 200, …).</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): row 6 returned as <code>=SUM(B2:B5)</code>/<code>=SUM(C2:C5)</code>/<code>=SUM(D2:D5)</code>, data rows as literals.</p>
 <hr />
 <h3 id="tc-r09-sheet-with-no-formulas">TC-R09: Sheet with no formulas<a class="headerlink" href="#tc-r09-sheet-with-no-formulas" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2411,6 +2419,10 @@ Correct results; progress notifications aren't visible in this client.</p>
 All 3 sheets; Sales headers + first rows; Empty headers [] / first_rows []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>get_multiple_spreadsheet_summary([fixture])</code> returned all 3 sheets. Sales had headers Product/Q1/Q2/Q3 plus 4 first rows; Empty had headers [] and first_rows [].</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): all 3 sheets summarized (Sales headers Product/Q1/Q2/Q3; Notes &amp; Misc Date/Note; Empty <code>[]</code>).</p>
 <hr />
 <h3 id="tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183">TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)<a class="headerlink" href="#tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-R16 exercises the <em>inner</em> per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the <em>outer</em> per-spreadsheet loop, which is the part that actually became concurrent via <code>asyncio.gather()</code>. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.</p>
@@ -2443,6 +2455,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 2nd call returns identical data (server log cache-hit line not checkable from QA session)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Second call identical; the cache-hit log line isn't visible to the client.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account): second summary logged four <code>Sheet data cache hit: &lt;copy&gt;/&lt;sheetId&gt;</code> lines. <code>kai-oauth</code> (OAuth): three <code>Sheet data cache hit</code> lines, 0.32 s against 1.06 s uncached. Same data both times. Log lines now read <code>Sheet data cache hit: …</code> in <code>/tmp/mcp-gee-sweet.log</code>, not <code>make logs</code>.</p>
 <hr />
 <h3 id="tc-r18-rows_to_fetch1-only-header-returned">TC-R18: rows_to_fetch=1 — only header returned<a class="headerlink" href="#tc-r18-rows_to_fetch1-only-header-returned" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2542,6 +2556,10 @@ Correct results; progress notifications aren't visible in this client.</p>
 Sales A3 "Gadget" (row 3)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kai-sa</code>: <code>find_in_spreadsheet("Gadget", sheet=Sales)</code> returned one match: Sales A3 "Gadget" (row 3).</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>find_in_spreadsheet("Gadget", Sales)</code> → Sales A3.</p>
 <hr />
 <h3 id="tc-r24-match-across-all-sheets">TC-R24: Match across all sheets<a class="headerlink" href="#tc-r24-match-across-all-sheets" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
