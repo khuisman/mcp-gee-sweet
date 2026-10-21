@@ -1558,11 +1558,30 @@ class TestBuildBlankParaBeforeTableCollapses:
         assert ps["paragraphStyle"]["spaceAbove"] == {"magnitude": 0, "unit": "PT"}
         assert ps["paragraphStyle"]["spaceBelow"] == {"magnitude": 0, "unit": "PT"}
         assert ps["paragraphStyle"]["lineSpacing"] == 1
-        assert ps["fields"] == "spaceAbove,spaceBelow,lineSpacing"
+        assert ps["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
+        assert ps["fields"] == "spaceAbove,spaceBelow,lineSpacing,namedStyleType"
         ts = result[1]["updateTextStyle"]
         assert ts["range"] == rng
         assert ts["textStyle"]["fontSize"] == {"magnitude": 1, "unit": "PT"}
         assert ts["fields"] == "fontSize"
+
+    def test_heading_blank_para_before_table_reset_to_normal_text(self):
+        # #1092: the displaced initial paragraph inherits the preceding heading's style,
+        # so a "## Decisions" + table doc left an empty HEADING_2 paragraph behind.
+        heading = {
+            "startIndex": 1,
+            "endIndex": 12,
+            "paragraph": {
+                "elements": [{"textRun": {"content": "Decisions\n"}}],
+                "paragraphStyle": {"namedStyleType": "HEADING_2"},
+            },
+        }
+        doc = self._doc([heading, self._blank_para(12, 13), self._table_elem(13)])
+        result = _build_blank_para_before_table_collapses(doc)
+        ps = result[0]["updateParagraphStyle"]
+        assert ps["range"] == {"startIndex": 12, "endIndex": 13}
+        assert ps["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
+        assert "namedStyleType" in ps["fields"].split(",")
 
     def test_non_blank_para_before_table_not_collapsed(self):
         doc = self._doc([self._text_para(1, 8, "Hello\n\n"), self._table_elem(8)])

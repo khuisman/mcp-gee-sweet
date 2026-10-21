@@ -1449,7 +1449,9 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
     stranded between the preceding content and the table.  deleteContentRange is rejected by
     the Docs API for these paragraphs (a paragraph before a table is structurally required),
     so we shrink them instead: spaceAbove/Below = 0, lineSpacing = 1 (1% of normal),
-    fontSize = 1 pt.  Only paragraphs whose sole content is a newline are affected.
+    fontSize = 1 pt, namedStyleType = NORMAL_TEXT (the displaced paragraph inherits the
+    preceding heading's style, #1092).  Only paragraphs whose sole content is a newline are
+    affected.
     """
     content = live_doc.get("body", {}).get("content", [])
     requests: list[dict] = []
@@ -1477,8 +1479,9 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
                         "spaceAbove": {"magnitude": 0, "unit": "PT"},
                         "spaceBelow": {"magnitude": 0, "unit": "PT"},
                         "lineSpacing": 1,
+                        "namedStyleType": "NORMAL_TEXT",
                     },
-                    "fields": "spaceAbove,spaceBelow,lineSpacing",
+                    "fields": "spaceAbove,spaceBelow,lineSpacing,namedStyleType",
                 }
             }
         )
