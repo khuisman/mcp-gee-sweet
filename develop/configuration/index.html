@@ -524,6 +524,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#http-transport-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTP transport authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#local-file-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1579,13 +1590,23 @@
 </tr>
 <tr>
 <td><code>HOST</code> (or <code>FASTMCP_HOST</code>)</td>
-<td>Bind address for SSE transport. <code>FASTMCP_HOST</code> is a fallback if <code>HOST</code> isn't set</td>
-<td><code>0.0.0.0</code></td>
+<td>Bind address for the SSE and streamable HTTP transports. <code>FASTMCP_HOST</code> is a fallback if <code>HOST</code> isn't set. Any address other than loopback needs <code>MCP_SERVER_TOKEN</code>. See <a href="#http-transport-authentication">HTTP transport authentication</a></td>
+<td><code>127.0.0.1</code></td>
 </tr>
 <tr>
 <td><code>PORT</code> (or <code>FASTMCP_PORT</code>)</td>
-<td>Port for SSE transport. <code>FASTMCP_PORT</code> is a fallback if <code>PORT</code> isn't set</td>
+<td>Port for the SSE and streamable HTTP transports. <code>FASTMCP_PORT</code> is a fallback if <code>PORT</code> isn't set</td>
 <td><code>8000</code></td>
+</tr>
+<tr>
+<td><code>MCP_SERVER_TOKEN</code></td>
+<td>Bearer token every SSE and streamable HTTP request must send. See <a href="#http-transport-authentication">HTTP transport authentication</a></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ALLOW_UNAUTHENTICATED_HTTP</code></td>
+<td><code>1</code> or <code>true</code> lets a non-loopback <code>HOST</code> serve with no token, for a deployment behind an authenticating reverse proxy. Ignored when <code>MCP_SERVER_TOKEN</code> is set</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>DEBUG_LEVEL</code></td>
@@ -1656,6 +1677,29 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>list_messages,get_message,list_threads,get_thread,list_labels,send_message,create_draft,send_draft,reply_to_message,modify_labels,trash_message
 </code></pre></div></p>
 <p>See <a href="../tools/">Tools</a> for the full list of tool names.</p>
+<h2 id="http-transport-authentication">HTTP transport authentication<a class="headerlink" href="#http-transport-authentication" title="Permanent link">&para;</a></h2>
+<p>Under <code>--transport sse</code> or <code>--transport streamable-http</code>, the server listens on <code>127.0.0.1</code> by default, so only this machine can reach it. stdio is unaffected by everything in this section.</p>
+<p>To serve on any other address (<code>HOST=0.0.0.0</code>, a LAN address, a hostname), set <code>MCP_SERVER_TOKEN</code> to a long random value, for example from <code>python3 -c "import secrets; print(secrets.token_urlsafe(32))"</code>. Every request must then send it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Authorization: Bearer &lt;token&gt;
+</code></pre></div>
+<p>A request with a missing or wrong token gets <code>401 Unauthorized</code> with <code>WWW-Authenticate: Bearer</code>, the same response either way. The server logs the client address and path of each rejected request, and never logs the token or the <code>Authorization</code> header. A token set on a loopback <code>HOST</code> is enforced there too.</p>
+<p><strong>Refusing to start.</strong> The server stops at startup, before it serves, with a one-line message naming the setting to fix when:</p>
+<ul>
+<li><code>HOST</code> isn't a loopback address (<code>127.0.0.0/8</code>, <code>::1</code>, or <code>localhost</code>) and <code>MCP_SERVER_TOKEN</code> is unset or empty, or</li>
+<li><code>ALLOW_UNAUTHENTICATED_HTTP</code> is set to anything other than <code>1</code> or <code>true</code>.</li>
+</ul>
+<p><code>mcp-gee-sweet auth</code> still runs either way.</p>
+<p><strong>With no token, the server still fails closed per request</strong>, however it was launched (<code>uvicorn mcp_gee_sweet.server:app</code> directly included). It serves a request only when the connection arrived on a loopback address and its <code>Host</code> header is <code>localhost</code> or a loopback IP such as <code>127.0.0.1</code> or <code>[::1]</code> (with or without a port), or, on a non-loopback <code>HOST</code>, when <code>ALLOW_UNAUTHENTICATED_HTTP</code> is <code>1</code> or <code>true</code>. Everything else gets the same <code>401</code>. The <code>Host</code> check stops a web page from reaching a local server through DNS rebinding. The first such rejection is logged as a warning naming <code>MCP_SERVER_TOKEN</code>, and later ones only at <code>DEBUG</code>.</p>
+<p><strong>Behind an authenticating reverse proxy</strong>, set <code>ALLOW_UNAUTHENTICATED_HTTP=1</code> to serve a non-loopback <code>HOST</code> without a token. The server then accepts every request it receives, so make sure only the proxy can reach it. It also has no DNS-rebinding protection on a non-loopback <code>HOST</code>. The setting does nothing on a loopback <code>HOST</code>, and is ignored, with a warning, when <code>MCP_SERVER_TOKEN</code> is set.</p>
+<p><strong>A proxy forwarding to a loopback <code>HOST</code></strong>, with or without a token, must pass <code>Host</code> as <code>localhost</code> or <code>127.0.0.1</code> (with the port). mcp checks the <code>Host</code> and <code>Origin</code> headers itself when <code>HOST</code> is <code>127.0.0.1</code>, <code>localhost</code> or <code>::1</code>, and answers anything else with <code>421 Invalid Host header</code>; with no token, the server also answers <code>401</code> to a <code>Host</code> that isn't <code>localhost</code> or a loopback IP.</p>
+<p><strong>Docker.</strong> The image sets <code>HOST=0.0.0.0</code> so a published port reaches the server, so a container needs <code>MCP_SERVER_TOKEN</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:8000:8000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">MCP_SERVER_TOKEN</span><span class="o">=</span>&lt;token&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CREDENTIALS_CONFIG</span><span class="o">=</span>&lt;base64&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span>mcp-gee-sweet
+</code></pre></div>
+<p><code>docker-compose.yml</code> reads <code>MCP_SERVER_TOKEN</code> from a <code>.env</code> file next to it, falling back to <code>src/mcp_gee_sweet/.env</code> when that one doesn't set it, and publishes port 47000 on <code>127.0.0.1</code> only. See <a href="../client-setup/#sse-docker">Client Setup</a> for the matching client config.</p>
+<p>A token doesn't change <a href="#local-file-access">local file access</a>: an HTTP transport still defaults to <code>off</code>.</p>
 <h2 id="local-file-access">Local file access<a class="headerlink" href="#local-file-access" title="Permanent link">&para;</a></h2>
 <p>Some tools read or write files on the machine the server runs on: uploads, downloads, <code>sync_folder</code>, <code>create_doc_from_file</code>, Gmail attachments, local images in Markdown, and the <code>local_path</code> destination that large results can be written to. <code>LOCAL_FILE_ACCESS</code> decides which files they may use:</p>
 <table>
@@ -1686,12 +1730,13 @@
 <p>During a folder walk (<code>upload_local_folder</code>, <code>download_folder</code>, <code>sync_folder</code>), each file and subfolder is checked, not just the top directory. A refused entry is listed under <code>failed</code>, and the rest of the walk continues.</p>
 <p><code>server://auth-status</code> reports the active policy under <code>local_file_access</code>: its <code>mode</code>, whether it was set <code>explicit</code>ly, the <code>roots</code> in <code>roots</code> mode, and the <code>unregistered_tools</code> that <code>off</code> mode left out.</p>
 <p>Docker example, with the host's <code>./data</code> directory as the only one tools may use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/data:/data&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOCAL_FILE_ACCESS</span><span class="o">=</span>roots<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOCAL_FILE_ROOTS</span><span class="o">=</span>/data<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CREDENTIALS_CONFIG</span><span class="o">=</span>&lt;base64&gt;<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span>mcp-gee-sweet
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:8000:8000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/data:/data&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">MCP_SERVER_TOKEN</span><span class="o">=</span>&lt;token&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOCAL_FILE_ACCESS</span><span class="o">=</span>roots<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOCAL_FILE_ROOTS</span><span class="o">=</span>/data<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CREDENTIALS_CONFIG</span><span class="o">=</span>&lt;base64&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span>mcp-gee-sweet
 </code></pre></div>
 <p>An invalid <code>LOCAL_FILE_ACCESS</code> value, <code>roots</code> mode without <code>LOCAL_FILE_ROOTS</code>, or a root that isn't an existing directory stops the server at startup, before it serves. <code>mcp-gee-sweet auth</code> still runs, so a root that isn't mounted yet doesn't block re-authorization. Design: <a href="../design/local-file-access-policy/">local-file-access-policy.md</a>.</p>
 <h2 id="caching">Caching<a class="headerlink" href="#caching" title="Permanent link">&para;</a></h2>
