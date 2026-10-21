@@ -944,10 +944,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#v093-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v093" class="md-nav__link">
+  <a href="#v093-target-v093" class="md-nav__link">
     <span class="md-ellipsis">
       
-        v0.9.3 — Markdown fidelity, comments, Gmail sending safety, launch readiness (target: v0.9.3)
+        v0.9.3 (target: v0.9.3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.4 — Markdown fidelity, comments, Gmail sending safety, launch readiness (target: v0.9.4)
       
     </span>
   </a>
@@ -2077,21 +2088,34 @@
 - [x] QA test-doc cross-reference cleanup after the <code>drive.md</code>/<code>docs.md</code> split (PR #582) — triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/590">#590</a>) (PR #851)
 - [x] Stale "upload_local_file doesn't stamp modifiedTime" premise remains after #898; TC-D238 no longer reliably reproduces its drift. Routed to Amy (<code>documentation</code>); community PR #933 closed unmerged 2026-10-10, and its diff has a working TC-D238 setup. Touches <code>transfer.py</code> docstrings alongside lane A's #930/#916; the reworked TC-D238 needs a live run by QA (#956 closed as a duplicate) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/913">#913</a>) (PR 973)</p>
 <p><strong>Backlog triage, 2026-09-11 (Kai orchestrator session):</strong> open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled <code>backlog</code> with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (now v0.9.2) (the sections above marked "triaged out of <code>backlog</code>"), one comments-API cleanup went to v0.9.2 (now v0.9.3) (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. <code>backlog</code> (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.</p>
-<h3 id="v093-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v093">v0.9.3 — Markdown fidelity, comments, Gmail sending safety, launch readiness <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3">v0.9.3</a>)</em><a class="headerlink" href="#v093-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v093" title="Permanent link">&para;</a></h3>
+<h3 id="v093-target-v093">v0.9.3 <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3">v0.9.3</a>)</em><a class="headerlink" href="#v093-target-v093" title="Permanent link">&para;</a></h3>
+<p>Ships ahead of the Markdown-fidelity feature set (now v0.9.4, below): what merged since v0.9.2, plus #1052 and #1124. Maintainer decision 2026-10-19.</p>
+<ul>
+<li>[x] Blockquote indent invisible on single-line quotes (no <code>indentFirstLine</code>) — <code>wrong/narrow, observed</code>; #1044-relevant — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1056">#1056</a>) (PR #1089)</li>
+<li>[x] Stale per-thread HTTP connection fails the first call after idle (<code>Errno 54</code>/<code>Errno 60</code>), with no retry. Placed in v0.9.3 by the user 2026-10-17; re-read 2026-10-18 as <code>severe</code> (a call can hang for minutes), observed: urgent in-flight, exempt from the fill lock; lane A after #1057 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1052">#1052</a>) (PR #1126)</li>
+<li>[x] <code>get_doc_as_markdown</code> emits a raw <code>\u000b</code> for a soft line break in non-code text — <code>wrong/narrow, observed</code>; #1044-relevant — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1057">#1057</a>) (PR #1088)</li>
+<li>[ ] Publish dev and stable releases from one workflow file, so PyPI stops flagging every stable release with a "Change of provenance" warning. Added to the locked fill by the maintainer 2026-10-19; lane A after #1052; maintainer adds the new trusted publisher on PyPI before merge (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1124">#1124</a>)</li>
+<li>[x] Release-scoping rules in <code>kai.md</code>: a version is a named feature set plus a locked 10–15-item fill, ships when the feature set is done; <code>planned: &lt;name&gt;</code> labels until in flight; feature-placement order; <code>needs-version-call</code> circuit breaker. Process ticket, v0.9.3 by the release-gate test: v0.9.3's fill is to be set under these rules. Kai writes it, Bob reviews (prompt-QA). The backlog re-triage is separate and maintainer-led (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1085">#1085</a>) (PR #1106)</li>
+<li>[x] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/662">#662</a>) (PR #978)</li>
+<li>[x] <code>html_parser</code>: the <code>&lt;/a&gt;</code> of an href-less anchor nested in a linked one pops the outer link, so text or an image after it is written unlinked. Found in PR #992's QA, which sent back the same bug in its new <code>_bare_link_url</code> stack; may close with PR #992 — lane A; moved from v0.9.2 2026-10-11 (pre-existing, invalid nested HTML only) (PR #992) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/994">#994</a>)</li>
+<li>[x] <code>list_spreadsheets</code>, <code>search_files</code>, <code>search_spreadsheets</code> return trashed files — <code>wrong/common</code> — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1054">#1054</a>) (PR #1083)</li>
+<li>[x] Table column widths fail on any table after the first in a written doc (stale <code>startIndex</code> in <code>fill_tables</code>) — <code>loud/narrow</code>, observed — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1053">#1053</a>) (PR #1082)</li>
+<li>[x] <code>style_doc_range</code> has no <code>font_family</code> parameter — can't apply monospace to an existing range — community PR #1026 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/720">#720</a>) (PR #1026)</li>
+</ul>
+<h3 id="v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094">v0.9.4 — Markdown fidelity, comments, Gmail sending safety, launch readiness <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4">v0.9.4</a>)</em><a class="headerlink" href="#v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094" title="Permanent link">&para;</a></h3>
 <p>Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1085">#1085</a>. The release ships when the feature set is done and passes release QA. <strong>Locked 2026-10-18</strong>, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way. The comments work follows <a href="../decisions/decision-comments-first-class/"><code>docs/decisions/decision-comments-first-class.md</code></a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>) and ships a breaking rename that the release notes must call out.</p>
-<p><strong>Renumbering, 2026-10-19 (maintainer):</strong> 0.9.3 ships ahead of this feature set, carrying what's already merged plus #1052 and #1124. This feature set becomes <strong>v0.9.4</strong>. Tickets move to the <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4"><code>v0.9.4</code></a> label as they're confirmed not to ship in 0.9.3 (marked <em>→ v0.9.4</em> below); the rest move when 0.9.3 is tagged, and this section is retitled then.</p>
+<p><strong>Renumbering, 2026-10-19/20 (maintainer):</strong> this feature set was v0.9.3. 0.9.3 now ships ahead of it (section above), so it is v0.9.4; every open ticket here moved to the <code>v0.9.4</code> label on 2026-10-20, and its shipped items moved to the v0.9.3 section.</p>
 <p><strong>Feature set: Markdown → Docs fidelity</strong></p>
 <ul>
 <li>[ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1044">#1044</a>)</li>
-<li>[ ] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>) <em>→ v0.9.4</em></li>
-<li>[ ] A numbered list restarts its numbering after a nested bullet list (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>) <em>→ v0.9.4</em></li>
-<li>[ ] Images inside table cells are dropped silently (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1073">#1073</a>) <em>→ v0.9.4</em></li>
-<li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>) <em>→ v0.9.4</em></li>
-<li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>) <em>→ v0.9.4</em></li>
-<li>[ ] Markdown strikethrough (~~text~~) and HTML <del> aren't converted (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1077">#1077</a>) <em>→ v0.9.4</em></li>
-<li>[ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1128">#1128</a>) <em>→ v0.9.4</em></li>
-<li>[ ] search_files/search_spreadsheets/list_spreadsheets miss Shared Drive files under a service account when no folder is given. <code>wrong/narrow</code>, observed in the 0.9.3 release-QA pass; v0.9.3's fill is locked (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1127">#1127</a>) <em>→ v0.9.4</em></li>
-<li>[x] Blockquote indent invisible on single-line quotes (no <code>indentFirstLine</code>) — <code>wrong/narrow, observed</code>; #1044-relevant — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1056">#1056</a>) (PR #1089)</li>
+<li>[ ] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>)</li>
+<li>[ ] A numbered list restarts its numbering after a nested bullet list (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>)</li>
+<li>[ ] Images inside table cells are dropped silently (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1073">#1073</a>)</li>
+<li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>)</li>
+<li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>)</li>
+<li>[ ] Markdown strikethrough (~~text~~) and HTML <del> aren't converted (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1077">#1077</a>)</li>
+<li>[ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1128">#1128</a>)</li>
+<li>[ ] search_files/search_spreadsheets/list_spreadsheets miss Shared Drive files under a service account when no folder is given. <code>wrong/narrow</code>, observed in the 0.9.3 release-QA pass; v0.9.3's fill is locked (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1127">#1127</a>)</li>
 <li>[ ] Loose list items (<li><p>…</p></li>) lose their bullet — lane A, html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1111">#1111</a>)</li>
 <li>[ ] Markdown soft line breaks become paragraph breaks — html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1093">#1093</a>)</li>
 <li>[ ] Write side: <br> in a prose paragraph becomes a paragraph break, not a soft break — html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1091">#1091</a>)</li>
@@ -2123,30 +2147,15 @@
 </ul>
 <p><strong>Fill</strong> <em>(rank order, locked 2026-10-18)</em></p>
 <ul>
-<li>[x] Stale per-thread HTTP connection fails the first call after idle (<code>Errno 54</code>/<code>Errno 60</code>), with no retry. Placed in v0.9.3 by the user 2026-10-17; re-read 2026-10-18 as <code>severe</code> (a call can hang for minutes), observed: urgent in-flight, exempt from the fill lock; lane A after #1057 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1052">#1052</a>) (PR #1126)</li>
 <li>[ ] transfer.py interpolates folder IDs unescaped into Drive queries (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1084">#1084</a>)</li>
 <li>[ ] get_doc_structure hides inline images, so an image's index can't be found (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1070">#1070</a>)</li>
 <li>[ ] create_paragraph_bullets adds the requested nesting level to an item's current level instead of setting it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1069">#1069</a>)</li>
-<li>[x] <code>get_doc_as_markdown</code> emits a raw <code>\u000b</code> for a soft line break in non-code text — <code>wrong/narrow, observed</code>; #1044-relevant — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1057">#1057</a>) (PR #1088)</li>
 <li>[ ] <code>transfer_ownership(send_notification=False)</code> can never succeed — <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1055">#1055</a>)</li>
-<li>[ ] create_bookmark doesn't create a bookmark Docs lists — docstring fix (option 2) now (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1076">#1076</a>) <em>→ v0.9.4</em></li>
+<li>[ ] create_bookmark doesn't create a bookmark Docs lists — docstring fix (option 2) now (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1076">#1076</a>)</li>
 <li>[ ] <strong>Docstrings, one item:</strong> Tool docstrings: strip internal issue refs again, and add a guard test (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1045">#1045</a>), Docstrings: 'Requires OAuth or ADC auth' is wrong for a service account on a Shared Drive (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1046">#1046</a>), list_spreadsheets docstring sends callers to list_files for a result cap it now has (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1047">#1047</a>), Docstring fixes: named-style resets, and set_cache_ttl's transport claim (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1058">#1058</a>), Docstrings: create_paragraph_bullets carries internal API-quirk mechanics plus residual bare issue refs in style.py tool docstrings (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/683">#683</a>)</li>
 <li>[ ] <strong><code>font_family</code>, one item:</strong> Document <code>font_family</code> on <code>insert_softbreak_paragraph</code> and widen the style_doc_range font test (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1037">#1037</a>), Harden <code>font_family</code> in Docs text-style requests: preserve weight, reject empty values, share one builder (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1038">#1038</a>)</li>
 <li>[ ] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>)</li>
 <li>[ ] <strong>Bundle:</strong> CI tidy (on deck, no lane), one PR closing <a href="https://github.com/khuisman/mcp-gee-sweet/issues/536">#536</a>, <a href="https://github.com/khuisman/mcp-gee-sweet/issues/619">#619</a>, <a href="https://github.com/khuisman/mcp-gee-sweet/issues/308">#308</a>, <a href="https://github.com/khuisman/mcp-gee-sweet/issues/708">#708</a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/897">#897</a>)</li>
-</ul>
-<p><strong>Release process</strong></p>
-<ul>
-<li>[ ] Publish dev and stable releases from one workflow file, so PyPI stops flagging every stable release with a "Change of provenance" warning. Added to the locked fill by the maintainer 2026-10-19; lane A after #1052; maintainer adds the new trusted publisher on PyPI before merge (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1124">#1124</a>)</li>
-<li>[x] Release-scoping rules in <code>kai.md</code>: a version is a named feature set plus a locked 10–15-item fill, ships when the feature set is done; <code>planned: &lt;name&gt;</code> labels until in flight; feature-placement order; <code>needs-version-call</code> circuit breaker. Process ticket, v0.9.3 by the release-gate test: v0.9.3's fill is to be set under these rules. Kai writes it, Bob reviews (prompt-QA). The backlog re-triage is separate and maintainer-led (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1085">#1085</a>) (PR #1106)</li>
-</ul>
-<p><strong>Shipped this cycle</strong></p>
-<ul>
-<li>[x] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/662">#662</a>) (PR #978)</li>
-<li>[x] <code>html_parser</code>: the <code>&lt;/a&gt;</code> of an href-less anchor nested in a linked one pops the outer link, so text or an image after it is written unlinked. Found in PR #992's QA, which sent back the same bug in its new <code>_bare_link_url</code> stack; may close with PR #992 — lane A; moved from v0.9.2 2026-10-11 (pre-existing, invalid nested HTML only) (PR #992) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/994">#994</a>)</li>
-<li>[x] <code>list_spreadsheets</code>, <code>search_files</code>, <code>search_spreadsheets</code> return trashed files — <code>wrong/common</code> — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1054">#1054</a>) (PR #1083)</li>
-<li>[x] Table column widths fail on any table after the first in a written doc (stale <code>startIndex</code> in <code>fill_tables</code>) — <code>loud/narrow</code>, observed — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1053">#1053</a>) (PR #1082)</li>
-<li>[x] <code>style_doc_range</code> has no <code>font_family</code> parameter — can't apply monospace to an existing range — community PR #1026 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/720">#720</a>) (PR #1026)</li>
 </ul>
 <p>Moved out 2026-10-18: <a href="https://github.com/khuisman/mcp-gee-sweet/issues/379">#379</a> (unversioned, Joy decides whether to do it); <a href="https://github.com/khuisman/mcp-gee-sweet/issues/378">#378</a> closed (ASYNC240 stays off). Everything else formerly here is under <em>ankylosaurus</em> below.</p>
 <h3 id="ankylosaurus-hardening-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight">ankylosaurus — hardening <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22"><code>planned: ankylosaurus</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#ankylosaurus-hardening-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
