@@ -1,6 +1,21 @@
-name: Publishing
+# Every PyPI upload (dev and stable) comes from this one file. PyPI flags a
+# release whose trusted-publisher workflow differs from the previous
+# release's ("Change of provenance"), and a dev build always precedes a
+# stable release, so the two tracks must share a workflow file (#1124).
+# PyPI's trusted publisher is registered for this exact filename: don't
+# rename it without registering the new name on PyPI first.
+name: Publish
 
 on:
+  # Dev track: every qualifying push to develop publishes a .devN version.
+  push:
+    branches: ["develop"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  # Stable track: publishing a GitHub release publishes its tag's version.
   release:
     types: [published]
 
@@ -9,7 +24,7 @@ permissions:
 
 jobs:
   test:
-    name: Run tests before release
+    name: Run tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,14 +41,14 @@ jobs:
       - name: Run tests
         run: uv run python -m pytest --tb=short
 
-  release-build:
+  build:
     name: Build distribution
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # full history so uv-dynamic-versioning can read tags
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.0
@@ -49,23 +64,22 @@ jobs:
 
       - name: Upload distribution
         uses: actions/upload-artifact@v7
-
         with:
-          name: release-dists
+          name: dists
           path: dist/
 
   pypi-publish:
-    name: Upload release to PyPI
+    name: Upload to PyPI
     runs-on: ubuntu-latest
-    needs: release-build
+    needs: build
     permissions:
-      id-token: write  # For trusted publishing
+      id-token: write  # for OIDC trusted publishing
 
     steps:
-      - name: Download release dists
+      - name: Download dists
         uses: actions/download-artifact@v8
         with:
-          name: release-dists
+          name: dists
           path: dist/
 
       - name: Publish to PyPI

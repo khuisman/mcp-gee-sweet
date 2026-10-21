@@ -26,6 +26,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0). ✅ Live re-verified post-migration against the real SDK — see Result entries below |
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 | TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
+| TC-I66 (single publish workflow, issue #1124) | Not reachable via any MCP tool or unit test: it checks a GitHub Actions run and PyPI's attestation record. Manual / live QA only, once after #1124 merges and once at the next stable release — see TC-I66 below |
 
 ---
 
@@ -1775,3 +1776,27 @@ OAuth server (`mcp-gee-sweet-sky`), warmed at 22:12 with a 12-query fan-out, the
 
 **Result (2026-10-20) ⚠️ PARTIAL — PR #1126 round 2 (Sky) @ 4e854115**
 Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth server (`mcp-gee-sweet-sky`). Warmed at 23:28 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (23:39): 12/12 correct, no `error`, under a second. Step 2 (23:50): 24/24 correct, no `error`, under a second. Step 3 (00:01): `create_folder` succeeded on the first call; folder trashed afterwards. No live `Resending` line in the server log, so the per-connection idle close handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
+
+### TC-I66: dev and stable releases both publish through `publish.yml`, with no PyPI provenance warning (issue #1124)
+
+**Background:** PyPI flags a release whose trusted-publisher workflow differs from the previous release's with a "Change of provenance" warning on its page. Dev builds came from `publish-dev.yml` and stable releases from `release.yml`, and a dev build always precedes a stable release, so v0.9.2's page carried the warning. #1124 merges both tracks into `.github/workflows/publish.yml`. No MCP tool or unit test reaches a GitHub Actions run or PyPI's attestation record, so this is a manual check after merge and after the next stable release.
+
+**Setup**
+- PyPI has a trusted publisher registered for `publish.yml` in this repo (the maintainer step on #1124).
+- For checks 1–2: a push to `develop` touching `src/**`, `tests/**`, `pyproject.toml`, or `uv.lock` has landed since #1124 merged.
+- For checks 3–5: a stable GitHub Release has been published since #1124 merged.
+
+**Action**
+1. `gh run list --workflow=publish.yml --event push --limit 1`, then `gh run view <run-id>`. Note the published `X.Y.Z.devN` version from the build log or `pip index versions mcp-gee-sweet --pre`.
+2. Read the dev wheel's provenance: `curl -s https://pypi.org/pypi/mcp-gee-sweet/<version>/json` for the `.whl` filename in `urls[]`, then `curl -s "https://pypi.org/integrity/mcp-gee-sweet/<version>/<filename>/provenance"`.
+3. `gh run list --workflow=publish.yml --event release --limit 1`, then `gh run view <run-id>`.
+4. Repeat step 2 for the stable version's wheel.
+5. Open `https://pypi.org/project/mcp-gee-sweet/<stable version>/`.
+
+**Checks**
+- 1, 3: the run completed with `success`; its jobs are `Run tests`, `Build distribution`, and `Upload to PyPI`, and `Upload to PyPI` ran.
+- 2, 4: every `attestation_bundles[].publisher` is `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", ...}`. `release.yml` or `publish-dev.yml` there means the upload didn't go through the new file.
+- 5: the release page shows no "Change of provenance" warning.
+- `gh run list --workflow=publish-dev.yml --limit 1` and `gh run list --workflow=release.yml --limit 1` show no run after #1124 merged.
+
+**Re-run cadence:** once after #1124 merges (checks 1–2), and once at the v0.9.3 release (checks 3–5). After that, only if `publish.yml` is renamed or split.
