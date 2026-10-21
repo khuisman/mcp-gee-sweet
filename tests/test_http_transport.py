@@ -160,12 +160,29 @@ class _ResettingServer:
 
     def _handle(self, conn):
         conn.settimeout(self.idle_reset)
+        buffer = b""
         try:
             while True:
-                data = conn.recv(65536)
-                if not data:
-                    return
-                self.requests.append(data.split(b" ", 1)[0])
+                # One request is its headers plus Content-Length bytes of body,
+                # however the client splits them across TCP segments.
+                while b"\r\n\r\n" not in buffer:
+                    data = conn.recv(65536)
+                    if not data:
+                        return
+                    buffer += data
+                head, buffer = buffer.split(b"\r\n\r\n", 1)
+                length = 0
+                for line in head.split(b"\r\n")[1:]:
+                    name, _, value = line.partition(b":")
+                    if name.strip().lower() == b"content-length":
+                        length = int(value)
+                while len(buffer) < length:
+                    data = conn.recv(65536)
+                    if not data:
+                        return
+                    buffer += data
+                buffer = buffer[length:]
+                self.requests.append(head.split(b" ", 1)[0])
                 conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
         except TimeoutError:
             conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
@@ -196,6 +213,19 @@ def quiet_server():
     server = _ResettingServer(idle_reset=60)
     yield server
     server.close()
+
+
+def test_resetting_server_counts_a_split_post_once(quiet_server):
+    # http.client can send a POST's body in its own segment; the fixture must still
+    # see one request, or the `requests` assertions below flake.
+    port = int(quiet_server.url.rsplit(":", 1)[1].strip("/"))
+    with socket.create_connection(("127.0.0.1", port)) as client:
+        client.sendall(b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\n")
+        time.sleep(0.05)
+        client.sendall(b"hello")
+        assert client.recv(65536).startswith(b"HTTP/1.1 200")
+        time.sleep(0.1)  # let a miscounted body land before checking
+    assert quiet_server.requests == [b"POST"]
 
 
 class TestStaleConnections:
