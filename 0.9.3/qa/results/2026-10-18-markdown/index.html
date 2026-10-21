@@ -1,0 +1,1768 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/qa/results/2026-10-18-markdown/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Markdown rendering baseline, Phase 1 — 2026-10-18 (#1044) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#markdown-rendering-baseline-phase-1-2026-10-18-1044" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Markdown rendering baseline, Phase 1 — 2026-10-18 (#1044)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="markdown-rendering-baseline-phase-1-2026-10-18-1044">Markdown rendering baseline, Phase 1 — 2026-10-18 (#1044)<a class="headerlink" href="#markdown-rendering-baseline-phase-1-2026-10-18-1044" title="Permanent link">&para;</a></h1>
+<p>The first live run of <a href="../../tests/docs_markdown/"><code>docs/qa/tests/docs_markdown.md</code></a>, Phase 1 only (TC-MD001–016, the 16 realistic documents). Per the suite's "Running this suite" step 6, Phase 1's failures are filed before Phase 2 starts.</p>
+<p><strong>Result: 0 of 128 case × entry-point cells pass.</strong> Each of the 16 documents went through all 8 entry points, twice (Run 1, Run 2). 125 cells rendered identically in both runs; 3 (EP-8 of TC-MD004, TC-MD011, TC-MD013) changed between runs, which fails Rule 4 on its own.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Code under test:</strong> <code>develop</code> at <code>504a5b2b</code>. The four servers used all run from the main checkout, whose <code>src/</code>, <code>pyproject.toml</code> and <code>uv.lock</code> matched <code>develop</code> exactly. <code>LOCAL_FILE_ACCESS</code> was the stdio default, <code>full</code>.</li>
+<li><strong>Servers (one shard each):</strong> <code>mcp-gee-sweet-kai-oauth</code> (A), <code>mcp-gee-sweet-oauth</code> (B), <code>mcp-gee-sweet-kai-sa</code> (C), <code>mcp-gee-sweet-sa</code> (D). Two OAuth and two service-account identities, all writing to the fixture Shared Drive. The lane servers weren't used: lanes A and B were mid-ticket (#1057, #1056).</li>
+<li><strong>Shards:</strong> A: TC-MD001/005/009/013; B: 002/006/010/014; C: 003/007/011/015; D: 004/008/012/016. Same assignment in both runs.</li>
+<li><strong>Folders:</strong> <code>QA-MD-2026-10-18-run1</code> and <code>-run2</code> under <code>TEST_FOLDER_ID</code>, each with one subfolder per shard holding that shard's <code>ep5</code>/<code>ep6</code>/<code>ep7</code> children. Trashed after recording.</li>
+<li><strong>Playwright:</strong> verified signed into the fixture-owning account before spawning (fixture doc title matched). One 1400×2200 viewport showed each whole Doc (one or two pages), so each cell has one JPEG screenshot, <code>docs/qa/screenshots/md/run&lt;N&gt;/EP-&lt;n&gt;/&lt;TC&gt;-1.jpeg</code> (gitignored, kept until the issues below are fixed).</li>
+<li><strong>Determinism check:</strong> every Run 2 screenshot was pixel-compared with its Run 1 pair (grayscale, threshold 40, Docs chrome and text caret masked). 96 pairs: 0 changed pixels. 29 pairs: 3–9 scattered JPEG pixels. 3 pairs: 3,174–11,141 pixels, all in an EP-8 code block (below).</li>
+</ul>
+<h2 id="grid">Grid<a class="headerlink" href="#grid" title="Permanent link">&para;</a></h2>
+<p>Cells: ❌ with the issues that make the cell fail. Every row fails in both runs. ⚠️ND marks a cell whose rendering changed between runs.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1 to EP-4 (our converter: <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>)</th>
+<th>EP-5 to EP-7 (Drive Markdown import: <code>upload_local_file</code>, <code>upload_local_folder</code>, <code>sync_folder</code>)</th>
+<th>EP-8 (<code>upload_file</code> markdown)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-MD001 Meeting notes</td>
+<td>❌ #1071, #1093, #1056, #1098</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD002 Project plan</td>
+<td>❌ #1071, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD003 Spec / PRD</td>
+<td>❌ #1093, #1095, #1096</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD004 README</td>
+<td>❌ #1094, #1093, #1099</td>
+<td>❌ #1101, #1099</td>
+<td>❌ #1102, #1099, ⚠️ND</td>
+</tr>
+<tr>
+<td>TC-MD005 Status report</td>
+<td>❌ #1071, #1095, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD006 How-to</td>
+<td>❌ #1094, #1072, #1071, #1056, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD007 Comparison</td>
+<td>❌ #1095, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD008 Research summary</td>
+<td>❌ #1071, #1093, #1098, #1056, #1095</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD009 Changelog</td>
+<td>❌ #1094, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD010 Task plan</td>
+<td>❌ #1071, #1056</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD011 Postmortem</td>
+<td>❌ #1071, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102, ⚠️ND</td>
+</tr>
+<tr>
+<td>TC-MD012 Interview guide</td>
+<td>❌ #1071, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD013 API reference</td>
+<td>❌ #1095, #1071, #1097, #1098, #1056, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102, ⚠️ND</td>
+</tr>
+<tr>
+<td>TC-MD014 Study notes</td>
+<td>❌ #1071, #1093</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD015 Travel itinerary</td>
+<td>❌ #1071, #1097, #1095</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+<tr>
+<td>TC-MD016 Planning notes</td>
+<td>❌ #1071, #1093, #1100</td>
+<td>❌ #1101</td>
+<td>❌ #1102</td>
+</tr>
+</tbody>
+</table>
+<p>EP-1 to EP-4 rendered identically to each other in every case, and so did EP-5 to EP-7: the wrappers add no differences of their own. The three columns are three engines.</p>
+<h2 id="issues">Issues<a class="headerlink" href="#issues" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Defect</th>
+<th>Engine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>#1071 (existing)</td>
+<td>2/3-space sub-lists don't nest; with #1093 each literal-dash sub-item becomes its own numbered item (r16's Agenda: 1–10 instead of 1–4, the #1044 report)</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1072 (existing)</td>
+<td>numbering restarts after a nested block (r06)</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1056 (existing, lane B)</td>
+<td>blockquote has a border but no visible indent; depth 2 not deeper</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1093</td>
+<td>soft line breaks become paragraph breaks; continuation lines become list items</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1094</td>
+<td>fenced code / second paragraph inside a list item breaks the list; <code>&lt;ol start&gt;</code> ignored</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1095</td>
+<td>GFM column alignment ignored</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1096</td>
+<td><code>---</code> renders as an empty paragraph</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1097</td>
+<td>a table takes on the style of the following block (cells bold; table indented under a quote)</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1098</td>
+<td>adjacent quotes merge, consecutive code blocks merge, no spacing around quotes</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1099</td>
+<td>an image Docs can't fetch (SVG badge) leaves an empty paragraph</td>
+<td>all</td>
+</tr>
+<tr>
+<td>#1100</td>
+<td>a document ending in a table can get a blank last page</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1101</td>
+<td>Drive's Markdown import: <code>-</code> bullets, code not monospace, quotes without border, nested numbering <code>1.</code>/1-2-2, numbered tasks lose numbers</td>
+<td>Drive import</td>
+</tr>
+<tr>
+<td>#1102</td>
+<td>EP-8: nesting flattened, inline code plain, literal <code>[ ]</code>, header not bold, quotes plain, bare URLs unlinked, nondeterministic code font</td>
+<td>EP-8</td>
+</tr>
+<tr>
+<td>#1103</td>
+<td>(read side) <code>get_doc_as_markdown</code> exports the pre-table spacer as an empty heading</td>
+<td>—</td>
+</tr>
+<tr>
+<td>#1104</td>
+<td>(read side) <code>get_doc_as_markdown</code> exports Drive-imported lists as <code>&gt; 1.</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="nondeterminism-ep-8">Nondeterminism (EP-8)<a class="headerlink" href="#nondeterminism-ep-8" title="Permanent link">&para;</a></h2>
+<p>The same fixture rendered through <code>upload_file(source_format="markdown", convert_to_doc=True)</code> sets its fenced code blocks in a monospace font one time and in Arial the next:</p>
+<table>
+<thead>
+<tr>
+<th>Fixture</th>
+<th>Run 1</th>
+<th>Run 2</th>
+<th>Extra renders</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r04</td>
+<td>monospace</td>
+<td>Arial</td>
+<td>—</td>
+</tr>
+<tr>
+<td>r11</td>
+<td>Arial</td>
+<td>"Courier" (font box, read in the live Doc)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>r13</td>
+<td>monospace</td>
+<td>Arial</td>
+<td>3 more, all Arial (1 of 5 monospace)</td>
+</tr>
+<tr>
+<td>r03, r16</td>
+<td>monospace</td>
+<td>monospace</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Each shard re-shot the changed cell after a reload to rule out a font-loading race. <code>get_doc_as_markdown</code> exports the Arial renders without a fence, consistent with the runs not being Courier New. Text, line breaks and indentation were identical across runs. Filed under #1102.</p>
+<h2 id="findings-that-werent-filed">Findings that weren't filed<a class="headerlink" href="#findings-that-werent-filed" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Pagination in Drive-imported Docs</strong> (EP-5 to EP-7): tables split with a repeated header row, and a heading moves to the next page with its table. Ordinary Docs pagination, not a rendering defect.</li>
+<li><strong>Uneven column widths</strong> in r11's action-items table (EP-1 to EP-4): auto-sized columns; column widths are #809's territory.</li>
+<li><strong>Drive's task items</strong> render as native Docs checklists rather than <code>● ☐</code> text. Equivalent on screen; recorded under #1101 as an engine difference, not as a failure of its own.</li>
+</ul>
+<h2 id="process-notes">Process notes<a class="headerlink" href="#process-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Lock slip (Run 1, shard A):</strong> one acquire and a <code>browser_navigate</code> went out in the same parallel batch, so a navigate ran at 15:38:50Z while another shard held the Playwright lock. The screenshots taken around that moment (TC-MD006 EP-1 at 15:38:45Z, TC-MD008 EP-1 at 15:38:57Z) show the right Docs. Run 2's rules required the acquire in its own call before any Playwright call; no recurrence.</li>
+<li><strong>Aziz's worktree token is a personal Gmail account</strong>, not the fixture owner, so it can't read the Shared Drive. The pre-flight in <code>aziz.md</code> checks only that the token refreshes. The mechanical structure diff planned for this run was dropped for the pixel comparison above; structural questions went through <code>get_doc_structure</code> on <code>kai-oauth</code>.</li>
+<li><strong>Worktree-isolation guard:</strong> shards had a few Bash calls refused (shell variables, <code>$((…))</code>, compound commands) and re-ran them as plain commands or scratch scripts. One shard's <code>rm -rf</code> of its own scratch dir was blocked by the safety check; it removed the empty dirs with <code>rmdir</code>. No classifier denials of any approved write.</li>
+<li><strong>#1052:</strong> no connection resets in either run.</li>
+</ul>
+<h2 id="resource-usage">Resource usage<a class="headerlink" href="#resource-usage" title="Permanent link">&para;</a></h2>
+<p>Token figures are each shard's <code>subagent_tokens</code> at its final stop.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shard</th>
+<th>Prefix</th>
+<th>Tokens</th>
+<th>Tool uses</th>
+<th>Wall time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A</td>
+<td><code>kai-oauth</code></td>
+<td>363,283</td>
+<td>287</td>
+<td>~27 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>B</td>
+<td><code>oauth</code></td>
+<td>338,032</td>
+<td>231</td>
+<td>~27 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>C</td>
+<td><code>kai-sa</code></td>
+<td>329,121</td>
+<td>181</td>
+<td>~19 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>D</td>
+<td><code>sa</code></td>
+<td>339,798</td>
+<td>228</td>
+<td>~27 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A</td>
+<td><code>kai-oauth</code></td>
+<td>280,406</td>
+<td>251</td>
+<td>~30 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>B</td>
+<td><code>oauth</code></td>
+<td>267,609</td>
+<td>217</td>
+<td>~24 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>C</td>
+<td><code>kai-sa</code></td>
+<td>291,651</td>
+<td>251</td>
+<td>~32 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>D</td>
+<td><code>sa</code></td>
+<td>451,788</td>
+<td>270</td>
+<td>~30 min</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Aziz (setup, repeats, compare, compile, filing)</td>
+<td>—</td>
+<td><em>not measured per step</em></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Total across shards: about 2.66M tokens. The user reported 6% of a 5-hour session used before the shards started.</p>
+<h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
+<p>Phase 2 (TC-MD101–117, the matrices TC-MD201–204), then TC-MD301–303 and TC-MD401–404, once the user gives the go-ahead. Phase 2 needs a share approval for the image cases (IM-04 to IM-06) that Phase 1 didn't.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

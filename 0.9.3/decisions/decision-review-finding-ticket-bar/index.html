@@ -1,0 +1,1468 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/decisions/decision-review-finding-ticket-bar/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Decision: Ticket Bar for Review Findings, Enforced at Merge - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#decision-ticket-bar-for-review-findings-enforced-at-merge" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Decision: Ticket Bar for Review Findings, Enforced at Merge
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="decision-ticket-bar-for-review-findings-enforced-at-merge">Decision: Ticket Bar for Review Findings, Enforced at Merge<a class="headerlink" href="#decision-ticket-bar-for-review-findings-enforced-at-merge" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-10-04
+<strong>Snapshot commit:</strong> branch <code>develop</code></p>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>A PR's code review or live QA turns up findings. Each one can go back to the Dev in the same branch, or become a new ticket. A new ticket throws away context the Dev already has loaded, and a later session has to rebuild it from scratch. A default of filing tickets also keeps the open-issue count from ever falling.</p>
+<p><code>qa.md</code> tightened this rule three times (2026-09-11, 09-13, 09-14; history below). It didn't hold. On 2026-10-04, open issues were back at 111. Over the prior month 75 were opened and 77 closed, and about half of the new ones were spun off PR reviews or retros. Of the 23 spin-off tickets filed after the 09-14 tightening, only 2 named a bar (#757, #878). These counts come from a keyword search of issue bodies, so they're approximate. The clearest case: PR #884's round-1 comment had a "Not blocking (filed as #887)" heading, with no bar named, for small fixes inside the function the PR itself added.</p>
+<h2 id="why-the-earlier-tightenings-didnt-stick">Why the earlier tightenings didn't stick<a class="headerlink" href="#why-the-earlier-tightenings-didnt-stick" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Wrong place.</strong> The rule lived in <code>qa.md</code>'s Retro section, a log of lessons learned. The numbered steps QA follows when it writes a verdict (3, 7, 8) never mentioned it, so nothing raised the question at the moment of filing.</li>
+<li><strong>More words, same place.</strong> Each tightening lengthened the same bullet, which grew to roughly 1,500 words. None changed what QA sees at the decision point.</li>
+<li><strong>Self-graded.</strong> The agent deciding a finding was "not blocking" was the only one who checked.</li>
+<li><strong>A second unguarded path.</strong> <code>retro.md</code>'s Ticket category had no bar at all (#883 came in that way).</li>
+<li><strong>Never measured.</strong> No tightening was checked against real filings afterward.</li>
+</ol>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>The rule moves into the procedure.</strong> <code>qa.md</code> step 3 requires a finding list in the PR comment. Every finding is <code>send-back</code>, <code>ticket — bar N: &lt;reason&gt; (#issue)</code>, or <code>dropped: &lt;why it isn't a real defect&gt;</code>. No "non-blocking" category exists. A drop is only for a false positive, a non-reproducible finding, or intended behavior; otherwise it would become the next escape hatch once filing costs a named bar (Bob's round-1 review of PR #889). A <code>send-back</code> routes the round to step 7.</li>
+<li><strong>Kai enforces it at merge.</strong> <code>merge-pr.md</code> step 2 reads the QA comments. A filed ticket with no <code>bar N:</code> reason, or a drop justified by size or priority, blocks the merge and goes back to QA. The ticket query doesn't filter on <code>from-review</code>: a ticket that skipped the bar skips the label too (#887 has neither). Kai is a second agent with no stake in the PR. A bar that's named but plainly doesn't fit goes to the user rather than being decided by Kai alone.</li>
+<li><strong>Bar 2 is restated as "outside this PR's diff."</strong> The rationale is loaded context. A finding in a function the diff doesn't touch is a fair ticket, because the Dev has no context for it either (#876 is that case). The copy of a pattern inside the diff is still a <code>send-back</code>. Narrowed by decision 9: the boundary is now the file or directly called function, not the function.</li>
+<li><strong>Retro tickets use the same bars.</strong> <code>retro.md</code>'s Ticket category points to them. One exception: once the PR has merged there's no send-back left, so an observed failure is filed as <code>defect</code> with <code>from-review</code> and "merged" as its reason; anything else that clears no bar is recorded in the retro's report, not filed (Bob's round-1 review of PR #889, user decision 2026-10-04).</li>
+<li><strong>Measured.</strong> Every ticket filed under a bar gets the <code>from-review</code> label. Check the rate two weeks out (around 2026-10-18): <code>gh issue list --label from-review --state all --search "created:&gt;=2026-10-04"</code>, compared with the number of merged lane PRs. That checkpoint also covers decisions 9, 10, and 11 (counts by impact × reach cell): count how many <code>from-review</code> tickets were filed for findings in a file the PR modified or a function its code called, and how many went into the in-flight release's label.</li>
+<li><strong>Bar 2 gets a value test (2026-10-04, after PRs #903 and #905).</strong> Being outside the diff explains why a finding can't be fixed now. It doesn't show the finding is worth tracking. A bar-2 ticket needs behavior impact: an observed failure, or a concrete path to wrong output, a crash, a hang, a leak, or misleading output. A refactor or dedup finding with no behavior impact is dropped, and "outside this diff, no behavior impact" is a valid drop reason.</li>
+<li><strong>Search covers planned fixes, not only matching defects.</strong> An open issue whose design would also fix the finding absorbs it as a comment, even when its title describes a different symptom.</li>
+<li>
+<p><strong>Dev-filed follow-ups use the same bars.</strong> <code>dev.md</code> step 6 applies <code>qa.md</code> step 3's triage to findings a Dev makes while implementing. The Dev files any ticket after opening the PR, cites the PR number in it, and lists it in the PR body as a <code>ticket — bar N:</code> line; unfiled findings go in as <code>dropped:</code> lines. Filing after the PR matters because Kai's merge-check search only finds tickets created after the PR that cite its number (Bob's round-1 review of PR #910). Kai's merge check reads the PR body as well as QA's comments.</p>
+</li>
+<li>
+<p><strong>Bar 2 is measured per file or called function, not per function (2026-10-12, #995).</strong> "Inside the diff" now means every file the diff modifies plus every function the diff's new or changed code calls directly. A finding there with behavior impact is a <code>send-back</code> unless bar 1, 3, or 4 applies. Bar 4 uses the same boundary. Decision 3's loaded-context argument holds less well than it looked: a Dev changing a file has its neighbors loaded, and a helper on the PR's new path is where the PR's own QA sees the failure. A finding in an untouched function with no behavior impact is dropped, so the wider boundary doesn't pull refactors into the PR. No size limit was added (#995 proposed "a few lines plus a unit test"): size is the kind of description decision 1 already rejects as a reason, and bar 4 covers the fixes that actually grow a PR.</p>
+</li>
+<li><strong>Review tickets aren't labeled for the in-flight release by default (2026-10-12, #995).</strong> <code>kai.md</code>'s triage section gives a <code>from-review</code> ticket the in-flight release's label only if a commit after the last stable tag introduced the defect, or a failure was actually observed (wrong output, a crash, a data exposure). Everything else goes to the next version. Superseded by decision 11's rubric.</li>
+<li><strong>Version labels by impact × reach, measured by cell (2026-10-13, #1024).</strong> Decision 10's two conditions are folded into <code>kai.md</code>'s impact × reach rubric, which applies to every path into a version, not only <code>from-review</code> (<code>decision-impact-reach-triage.md</code>). Decision 5's 2026-10-18 checkpoint also classifies each <code>from-review</code> ticket created since 2026-10-04 by its cell (<code>severe</code>/<code>wrong</code>/<code>loud</code>/<code>hygiene</code> × <code>common</code>/<code>narrow</code>/<code>rare</code>) and reports the count per cell, not only the overall rate. Tickets filed before the rubric don't name a cell, so classify those by hand from the issue text, the way #1024's table was built.</li>
+</ol>
+<h2 id="history-moved-from-qamds-retro-section-2026-10-04">History (moved from <code>qa.md</code>'s Retro section, 2026-10-04)<a class="headerlink" href="#history-moved-from-qamds-retro-section-2026-10-04" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Raise the bar on what counts as non-blocking — if a finding is worth writing up, it's worth sending back to the Dev to fix now, in the same pass, using the context already loaded — not filing a ticket that discards it.</strong> A code-review or live-QA finding defaults to <em>blocking</em>: comment on the PR and send it back to the Dev in the same branch, the same pass — input-validation gaps, duplicated helpers, a style inconsistency the new code merely repeats from an existing convention, a docstring the PR's own diff made inaccurate. The old default (label these "minor/systemic," approve anyway, file a ticket) was generating far more tickets than the team could close — a single PR's review routinely spun off 1-2 backlog issues nobody would revisit, all describing something that was, by definition, already fully understood and small enough to fix in the moment; filing a ticket for it just discards that context so someone has to re-derive it later. Every new ticket cycle is new context a Dev has to reconstruct from scratch (re-open the file, re-derive the finding, re-load the surrounding code) — a cost paid in tokens and turnaround that a same-round send-back skips entirely, since the Dev already has the file and the finding loaded right now. Optimize for that: fixing it now, in the branch already open, is strictly cheaper than fixing it later in a new one.</li>
+</ul>
+<p><strong>A ticket is the exception, and the exception must be named, not implied.</strong> Only file a ticket when the finding clears one of exactly four bars — and the PR comment/ticket body must say which one, explicitly, not just assert "non-blocking" or "low priority" and stop there:
+  1. It needs a maintainer/product decision — a real design or scope call the Dev is structurally blocked from making (changes user-facing behavior, trades off cost/risk only the maintainer can accept, or sets precedent for how the codebase should work beyond this PR). Multiple reasonable ways to <em>implement</em> a fix existing is not evidence of this bar by itself — a Dev picking one of several correct engineering options (which test to add, how much to refactor, whether a comment suffices) is ordinary PR work, not a maintainer decision (see Retro, 2026-09-14).
+  2. It's a genuinely cross-cutting change spanning far more of the codebase than this PR touches — not just "the same pattern also appears elsewhere," but a multi-call-site sweep the PR's own diff didn't create the need for (e.g. #737: 6+ call sites the PR never touched).
+  3. It needs infrastructure/access this pass doesn't have.
+  4. It's a defect already on <code>develop</code> that this PR's ticket doesn't cover, and fixing it would move code to a different thread, or change what awaits what, inside a function this PR's diff already modifies. However short the diff, a fix like that opens new races for the next round to find (see Retro, PR #867). A pre-existing defect whose fix doesn't change threading or await order is not bar 4: send it back.</p>
+<p>"Narrow," "contrived repro," "low priority," or "not blocking <code>qa-approved</code>" are <em>descriptions</em>, not exceptions — none of them alone justifies a ticket. If a finding doesn't obviously match one of the four bars above, the default action is to send it back to the Dev in this round, not to file a ticket "to be safe." When a ticket is still warranted, classify it <code>enhancement</code>/<code>backlog</code> (or <code>defect</code> only if a failure was actually observed), same as before. And if a finding genuinely isn't worth fixing at all — not just small, actually not worth anyone's time — don't file a ticket for that either; note it in the PR comment for the record and let it go, rather than manufacturing backlog. Don't hold a PR hostage over a pre-existing convention the PR didn't introduce and can't reasonably fix in isolation — that's the one case that still ships as-is, filed only if it clears the bar above.</p>
+<p><strong>Search before filing, every time.</strong> Once a finding clears a bar, run <code>gh issue list --state open --search "&lt;function or file name&gt; &lt;symptom&gt;"</code> immediately before <code>gh issue create</code>. Earlier rounds of the same pass, or another lane, may already have ticketed it. If an open issue already describes the same defect (same code path and same failure, not just a shared keyword), comment the new evidence on that issue instead of filing. This applies to every ticket QA files, not only fixture pollution.
+- <strong>Minor/systemic code-review findings judged non-blocking still need to actually get filed</strong> — PR #406 round 1's <code>/code-review</code> surfaced two legitimate but non-blocking findings (a readability nit in <code>_emit_block_node</code>'s early-return condition, and a <code>_block_had_unsupported_content</code> reset gap on one block-open path) that correctly didn't hold up <code>qa-approved</code> per this file's own "minor/systemic findings are tickets, not blockers" entry above — but they sat unfiled through two more QA rounds until a <code>/retro</code> pass caught the gap and filed them as #417. Command decision: when a round's code-review or live-QA turns up a finding judged non-blocking, file its ticket in the same pass that makes the non-blocking call, not deferred to "later" — "not blocking <code>qa-approved</code>" and "filed" are two separate actions, and only the first one has a step number in this file forcing it to happen.
+- <strong>Don't file a GitHub issue for a finding that's blocking and going back to the Dev in the same review cycle — only non-blocking/deferred findings get a ticket.</strong> PR #455 (issue #158): filed #457 for the one blocking finding (missing <code>calendar_cache.mark_dirty</code> calls on the new ACL tools), then had to close it as redundant once realizing this file's own blocking-finding process (comment on the PR, stop, hand back to the Dev) has no ticket step — the PR comment plus the Dev's own fix commit is already the durable record, and a ticket for something about to be fixed in the same PR cycle just gets closed the moment the fix lands. Command decision: before running <code>gh issue create</code> for a code-review or live-QA finding, classify blocking vs. non-blocking first (per this file's own guidance above) — only non-blocking findings get a ticket; a blocking one gets a PR comment and nothing else.
+- <strong>The "minor/systemic findings are tickets" default was itself the problem, not individual mis-classifications.</strong> 2026-09-11 (Kai orchestrator session): user flagged that open issues were growing roughly 2:1 against closures (37 opened vs. 20 closed over the prior 14 days, 60 of 128 open issues sitting in unscheduled <code>backlog</code>), and traced it to this file's own prior guidance — every dev-lane PR's <code>/code-review</code> pass was correctly following the old rule (classify as non-blocking, approve, file a ticket) and correctly producing a steady drip of single-PR-follow-up tickets nobody was coming back for (#718, #724, #726, #727 — four in a row, one per recent merge). User's framing: "if it's worth filing, it's worth using the existing context to fix" — the fix was never QA doing unrelated Dev-shaped work (that boundary, above, is unchanged), it's that "non-blocking" had far too low a bar, routing things back to the ticket queue that a Dev could just fix in the PR already open. Rewrote the bullet above to default to blocking; a ticket is now the exception, not the default outcome of a code-review pass.
+- <strong>The rewritten rule still had an escape hatch wide enough to walk right back through it.</strong> 2026-09-13 (Kai orchestrator session): checking tickets filed genuinely <em>after</em> the 2026-09-11 rewrite (commit <code>dd28221</code>, merged 06:48:49 UTC that day) — #724 and #726 are the same pre-rewrite motivating evidence the entry above already covers (created 2026-09-10 05:18 and 2026-09-11 05:35 UTC, both before the rewrite landed; an earlier version of this entry double-counted them as new post-rewrite failures, caught in Bob's prompt-QA review of PR #742) — the real post-rewrite record is #732 (Ash's own QA-round finding on PR #730, cited "low priority, narrow, contrived repro," not one of the three named exceptions) vs. #737 (PR #736, correctly named the cross-cutting exception — 6+ untouched call sites — and was legitimately ticketed). One-for-two is thinner evidence than "the ratio hadn't improved," but #732 alone still shows the soft wording being walked straight through: the 2026-09-11 rewrite described the <em>right default</em> but still let "non-blocking" stand on its own as a reason, with nothing forcing a session to check its finding against the three exceptions before reaching for <code>gh issue create</code>. Tightened further: a ticket now requires the PR comment/ticket body to name which of the three bars it clears, and "narrow"/"low priority"/"not blocking" are called out explicitly as descriptions, not exceptions, so there's no unnamed middle ground to file into. Also folded in the user's efficiency framing directly into the rule's own rationale (a new ticket cycle means a Dev reconstructing context from scratch, which a same-round send-back skips) so the "why" travels with the rule instead of living only in this retro log.
+- <strong>Naming a bar isn't the same as clearing it — bar 1's "maintainer/product decision" framing was itself soft enough to absorb an ordinary engineering choice.</strong> 2026-09-14 (Kai orchestrator session): #751 (PR #750's <code>/code-review</code>, issue #366) satisfied the 2026-09-13 tightening's literal requirement — it named bar 1 explicitly ("fixing it well needs a design decision, not a mechanical fix"). But the ticket's own "options to weigh" were a cheap key-set-parity test, a cross-reference comment, or a fuller doc-generation refactor — ordinary engineering picks a Dev makes routinely in the course of a PR, not a call requiring maintainer authority. Contrast a real bar-1 case like #519 (response-cap re-evaluation, routed to Joy for an actual architecture decision that genuinely needed ownership beyond the PR at hand) — #751 had no equivalent blocker; any of its three options could have shipped in the same round. Command decision: bar 1 now excludes "multiple viable implementation approaches exist" as qualifying evidence on its own, and adds a concrete test — would sending this back right now let the Dev just pick a reasonable option and ship it? If yes, it's not bar 1. User's call on disposition: let #751 ride as already filed rather than rework or close it retroactively — this fixes the rule for the next case, not a re-litigation of this one.
+- <strong>Search open issues before filing any ticket, not just fixture-pollution ones.</strong> PR #800, 2026-09-24: round 2 filed #806 five minutes after #805 covered the same gap, and Kai closed #806 as a duplicate. Nothing required searching outside the fixture case. Command decision: the search-before-filing step in the ticket-exception block above.
+- <strong>A one-line fix for a pre-existing defect cost three extra rounds.</strong> PR #867 (#833) round 1: the code review also flagged that the token refresh ran on the event loop. That was already true on <code>develop</code>, and #833 (moving the consent wait off the loop) didn't cover it. Sky sent it back as blocking under "Raise the bar." The fix moved the token load onto a thread. That changed when the lifespan raises relative to the SSE <code>endpoint</code> event, which caused round 2's intermittent SIGTERM hang (python-sdk#3616). It also opened a stale-read window between the thread's "consent needed" decision and the event loop, which caused the CI-flake race (failure side) and round 4's race (success side). Five rounds in total, three of them from this one send-back. Command decision: bar 4 under "Raise the bar." The user chose it over broadening the pre-existing carve-out to every defect.
+- <strong>The rule worked as written, and two of four follow-up tickets still shouldn't have existed, while a third skipped the rule.</strong> 2026-10-04, first PRs reviewed under decisions 1–5 (#905 for #872, #903 for #883). Round 1 sent back 7 findings on #905 and 2 on #903, all fixed in-branch, which is the behavior decision 1 asked for. Every filed ticket named a bar, and the merge check passed them. But of the four tickets the two PRs produced, two shouldn't have been filed. #908 (bar 2) was a dedup refactor: it fit "outside this diff" but had no behavior impact. #906 (bar 2) was already covered by #873's planned design, which the same-defect search didn't look for. #907 (bar 4: a real pre-existing defect whose fix changes await order) was needed. #904 was filed by the Dev at PR creation with no bar named. It does clear bar 2 (a sibling function with the same cancel race), but nothing checked it. #906 was closed into #873, and #904/#907/#908 were folded into bundle #909. User's read: "we tweaked the criteria and immediately have four new tickets." Command decision: decisions 6–8 above. Each tightening so far has closed one gap and exposed the next layer down. Decision 5's two-week measurement should count Dev-filed tickets too.
+- <strong>A followed rule still produced a ticket per merged PR (2026-10-11, #995).</strong> 7 of the 8 issues opened that day came from PR reviews. Since 2026-10-04, 22 of 45 new tickets were <code>from-review</code> (10 bundle tickets not counted). Every ticket named a bar that fit as written, so compliance wasn't the problem; bar 2's per-function boundary was. #993 (<code>_render_block</code>, the module and escaping helper PR #991 changed) was filed and then fixed inside #991 anyway. #994 (<code>handle_endtag</code> in <code>html_parser.py</code>, which PR #992 modifies) was the same bug QA sent back in the PR's new code that round. #990 (<code>write_capped_result_to_disk</code>, the helper PR #988's new <code>local_path</code> path writes through) was observed in that PR's own QA. Separately, Kai labeled every review ticket for v0.9.2, and #987 (docstring only) and #994 (pre-existing, only on invalid nested HTML) were moved to v0.9.3 afterward. Command decision: decisions 9 and 10.
+- <strong>A stale process doc isn't behavior impact (2026-10-13, PR #1006).</strong> Kit filed #1014 under bar 2: CLAUDE.md's <code>transfer.py</code> invariant still said every quota site renders <code>_SA_QUOTA_ERROR</code>, which the PR had made false. CLAUDE.md wasn't in the diff, and edits to it go through Bob's prompt-QA gate, so "outside the diff" fit. The value test didn't. Stale agent guidance changes no tool output, and the argued path (an agent "fixing" a site back) was speculative. Kai caught it after merge, and the finding line was corrected to <code>dropped</code>. The user kept #1014 open for other reasons: it now carries the GHSA-hx2f <code>_safe_local_dest</code> CLAUDE.md rule. Command decision: bar 2's value test in <code>qa.md</code> step 3 now names this case, limited to the Bob-gated files (root <code>CLAUDE.md</code>, <code>.claude/team-roles/*.md</code>, <code>.claude/commands/*.md</code>) so the drop can't stretch to user-facing or generated docs (Bob's prompt-QA round 1). Open question, not decided here: a PR that makes a CLAUDE.md invariant false has no bar that tracks the fix.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

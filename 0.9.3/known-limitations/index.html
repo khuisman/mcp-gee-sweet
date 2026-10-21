@@ -1,0 +1,1701 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/known-limitations/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Known Limitations - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#known-limitations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Known Limitations
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h1>
+<p>Constraints imposed by the Google Docs/Drive/Sheets APIs or by current implementation scope.
+Each entry describes what the limitation is, why it exists, and the available workaround (if any).</p>
+<hr />
+<h2 id="google-docs">Google Docs<a class="headerlink" href="#google-docs" title="Permanent link">&para;</a></h2>
+<h3 id="blank-paragraph-before-every-table">Blank paragraph before every table<a class="headerlink" href="#blank-paragraph-before-every-table" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A blank paragraph always appears in the document structure immediately before each
+table, even when none was written in the source HTML/Markdown.</p>
+<p><strong>Why:</strong> <code>insertTable</code> is a structural Docs API operation that requires at least one paragraph
+before the table. When phase-1 <code>insertText</code> is used to write document content, it displaces the
+document's initial empty paragraph to the position just before the table. Attempting to remove
+this paragraph via <code>deleteContentRange</code> is rejected by the API ("Invalid deletion range") because
+the paragraph is a required structural element — even though the Google Docs UI allows the
+equivalent manual deletion.</p>
+<p><strong>Workaround:</strong> The emitter collapses the blank paragraph to zero visual height using
+<code>updateParagraphStyle</code> (<code>spaceAbove/spaceBelow = 0</code>, <code>lineSpacing = 1</code>) and <code>updateTextStyle</code>
+(<code>fontSize = 1pt</code>). The paragraph remains in the document structure but is invisible in the
+rendered output. Related: #190.</p>
+<hr />
+<h3 id="get_doc_structure-top-level-body-elements-only"><code>get_doc_structure</code> — top-level body elements only<a class="headerlink" href="#get_doc_structure-top-level-body-elements-only" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>get_doc_structure</code> reports elements in the document body at the top level only.
+Content inside nested table cells (tables within table cells) is not exposed.</p>
+<p><strong>Why:</strong> The tool walks the body content array one level deep. Deeply nested structures require
+recursive traversal that is not currently implemented.</p>
+<p><strong>Workaround:</strong> For inspecting nested cell content, fetch the raw document via the Docs API
+<code>documents.get</code> endpoint (accessible via <code>batch_update</code> passthrough or by reading the raw API
+response). Related: #133.</p>
+<hr />
+<h3 id="nested-tables-not-supported-via-markdown-input">Nested tables not supported via Markdown input<a class="headerlink" href="#nested-tables-not-supported-via-markdown-input" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Markdown content passed to <code>create_doc</code>/<code>write_doc_content</code> (<code>content_format='markdown'</code>)
+or <code>create_doc_from_file</code> (<code>.md</code> files) cannot produce a nested table — a table inside a table
+cell.</p>
+<p><strong>Why:</strong> The Python <code>markdown</code> library's <code>tables</code> extension has no syntax for a table nested
+inside another table's cell.</p>
+<p><strong>Workaround:</strong> Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
+(see #109). Related: <code>docs/qa/tests/docs_content.md</code> TC-DOC51.</p>
+<hr />
+<h3 id="a-bare-line-is-never-recognized-as-an-empty-list-item">A bare <code>-</code> line is never recognized as an empty list item<a class="headerlink" href="#a-bare-line-is-never-recognized-as-an-empty-list-item" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> In Markdown input, a line containing only <code>-</code> (optionally with trailing whitespace) is
+never recognized as an empty list item, regardless of indentation. What happens instead depends
+on what precedes it:</p>
+<ol>
+<li><strong>As the first line of a would-be list</strong> (e.g. right after a heading, as in the
+   <code>tc-doc106-nested-lists-4space.md</code> fixture's Case 2 — a bare <code>-</code> meant to hold only a nested
+   sub-list): the whole block, including the following well-formed list-item lines, collapses
+   into a single plain paragraph of literal text. No list is produced at all.
+   <code>"-\n- item two\n- item three\n"</code> → <code>&lt;p&gt;-\n- item two\n- item three&lt;/p&gt;</code>.</li>
+<li><strong>Immediately following a text line</strong> (e.g. <code>"- item one\n-\n- item three\n"</code>): it's instead
+   consumed together with the preceding line as a Setext-style H2 heading, since a line of only
+   <code>-</code> characters is also CommonMark/Setext heading-underline syntax. Renders
+   <code>&lt;h2&gt;- item one&lt;/h2&gt;</code> followed by a list containing only <code>"item three"</code> — the first item's
+   bullet and the empty second item are both silently lost.</li>
+</ol>
+<p><strong>Why:</strong> This is a Python <code>markdown</code> library parsing-priority issue, not something this
+project's own HTML→AST pipeline controls. The list-item regex (<code>sane_lists</code> and core alike)
+requires a marker <em>and</em> a space <em>and</em> content (<code>"- "</code> + text) to recognize a line as a list item
+— a bare <code>-</code> with nothing after it never matches, so it falls through to whatever else can claim
+the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
+check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
+empty) list item (case 2). This fires regardless of indentation and is distinct from the
+<code>sane_lists</code> indentation-threshold defect (2- and 3-space nested lists don't nest; see
+<code>docs/qa/tests/docs_content.md</code>'s TC-DOC105 and <code>docs/qa/tests/docs_markdown.md</code>'s TC-MD106,
+tracked in #1071) — that bug is about sub-list nesting depth, not this marker-recognition
+gap. Working around this by changing how bare markers or Setext headings are
+parsed would change behavior for every other document using either construct, a much larger and
+riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
+warrants.</p>
+<p><strong>Workaround:</strong> Give the list item a non-breaking space instead of a bare <code>-</code> (i.e. <code>-</code> followed
+by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (<code>&lt;li&gt;&lt;/li&gt;</code>)
+in both contexts above. Confirmed via direct execution of <code>_md_to_html</code> — a local, offline
+markdown→HTML conversion, not a live Google API round trip. CommonMark does allow an empty list
+item, so this stays open as #1075 (#692, closed, is the earlier triage). Related:
+<code>docs/qa/tests/docs_markdown.md</code> TC-MD301.</p>
+<hr />
+<h3 id="images-inside-table-cells-are-dropped">Images inside table cells are dropped<a class="headerlink" href="#images-inside-table-cells-are-dropped" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> An image in a table cell (Markdown <code>| ![alt](src) |</code> or HTML <code>&lt;td&gt;&lt;img …&gt;&lt;/td&gt;</code>) is
+dropped: the cell renders empty, and the call reports no error and no per-image entry under
+<code>images</code>.</p>
+<p><strong>Why:</strong> Image support (#333) covers body-level images only. The table fill
+(<code>emitter.py</code>'s <code>_fill_children_recursive</code>) has no handling for an <code>Image</code> among a cell's
+children, so the parser drops it before it gets there.</p>
+<p><strong>Workaround:</strong> Insert the image into the cell afterwards with <code>insert_inline_image</code>, at the
+cell's <code>paragraphStartIndex</code> from <code>get_doc_structure</code>. Tracked in #1073;
+<code>docs/qa/tests/docs_markdown.md</code> IM-09 and <code>docs/qa/tests/docs_content.md</code> TC-DOC102/TC-DOC153
+cover it.</p>
+<hr />
+<h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
+Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to it.</p>
+<p><strong>Why:</strong> The Docs API has no request that creates a bookmark; only the Docs UI can.</p>
+<p><strong>Workaround:</strong> Link to a heading instead: every heading has a <code>headingId</code> (<code>get_doc_structure</code>)
+that a link can target. Tracked in #1076.</p>
+<hr />
+<h3 id="get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity"><code>get_doc_as_markdown</code> — nested tables, temporary image URLs, and inline-vs-block code ambiguity<a class="headerlink" href="#get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>get_doc_as_markdown</code> (#300) has three read-side gaps, each rooted in a genuine
+Markdown-format or Docs-API constraint rather than missing implementation:</p>
+<ol>
+<li>A table nested inside another table's cell has no Markdown table syntax to express — the
+   mirror image of the write-side limitation above. That cell renders a placeholder note
+   (<code>*(nested table omitted...)*</code>) instead.</li>
+<li>An inline image resolves to Drive's temporary <code>contentUri</code>, which expires (roughly 30
+   minutes). The exported Markdown's <code>![alt](url)</code> links go stale if consumed well after
+   generation.</li>
+<li>Both inline code (<code>`x`</code>) and a fenced code block (<code>```...```</code>) are written to the Docs
+   API identically — a run (or every run in a paragraph) with <code>font_family="Courier New"</code> — see
+   <code>docs/design/markdown-support.md</code>'s mapping table. There is no other marker to tell them
+   apart on read. <code>get_doc_as_markdown</code> treats a paragraph as a fenced block only when <em>every</em>
+   run in it is code-styled; a paragraph containing nothing but a single inline code span (no
+   surrounding text) is indistinguishable from a one-line code block and renders as a fenced
+   block either way. An all-code paragraph with a linked run renders as inline code spans
+   instead, since a fenced block can't carry a link.</li>
+</ol>
+<p><strong>Why:</strong> (1) and (3) are Docs-representation-level ambiguities, not gaps in this tool's
+traversal; (2) is inherent to how Drive serves inline image bytes.</p>
+<p><strong>Workaround:</strong> For full fidelity on any of these three cases, use <code>get_doc_structure</code> (or the
+raw Docs API via <code>batch_update</code> passthrough) instead. Related: docs/design/doc-to-markdown.md.</p>
+<hr />
+<h3 id="export_revision-on-a-google-doc-links-images-and-vanishing-revision-ids"><code>export_revision</code> on a Google Doc — links, images, and vanishing revision IDs<a class="headerlink" href="#export_revision-on-a-google-doc-links-images-and-vanishing-revision-ids" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>export_revision</code> (#959) returns a Doc revision as Markdown through the same converter
+as <code>get_doc_as_markdown</code>, with these differences and gaps:</p>
+<ol>
+<li>A link to a heading renders as a GitHub-style <code>#slug</code> anchor, not as a docs.google.com URL.
+   A link to a bookmark, or to a heading that doesn't render as one (a bulleted heading, or one
+   in a table cell), is dropped and leaves its text. An image renders as
+   <code>image:sha256-&lt;hash&gt;</code>, with no viewable URL: the temporary Doc's image URLs stop working
+   once it's deleted, so an old revision's images can't be viewed this way.</li>
+<li>The export doesn't include comments, which aren't part of a revision.</li>
+<li>A revision ID from <code>list_revisions</code> can stop existing: Docs folds a recent revision into the
+   next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
+   The export then fails with an error saying to list revisions again.</li>
+<li>Each call creates and removes a temporary Google Doc holding the revision's full content,
+   which takes several seconds. A user identity (OAuth, or ADC with user credentials) creates it
+   in My Drive root, not shared with anyone. That needs room in My Drive and permission to
+   create files there, even when <code>DRIVE_FOLDER_ID</code> is a Shared Drive with room: a full My Drive,
+   or a Workspace policy that blocks creating files in My Drive, makes the export fail. A service
+   account has no My Drive storage, so it uses the default folder, which must be a Shared Drive.
+   The source Doc's own sharing doesn't limit who can see that copy:</li>
+<li>Every member of the Shared Drive can open it while the export runs, including the image
+     downloads.</li>
+<li>A Content manager can only trash it, not delete it, so it stays in the Shared Drive's
+     trash for 30 days, where the drive's managers can see it.</li>
+<li>If removal fails, the copy stays live, and the result's <code>warning</code> names the Doc to delete
+     by hand.</li>
+</ol>
+<p><strong>Why:</strong> The Docs API reads only a document's current state, so the revision is exported as DOCX
+and imported into a temporary Doc to be read. That Doc's ID, heading IDs, and image URLs are new
+on every import, so (1) replaces them with values that stay the same between exports and keep
+diffs clean. A bookmark has no text to make a stable anchor from, and an invented one could be
+matched to the wrong heading if the Markdown is written back. (3) is how Drive keeps Docs
+revision history. (4) follows from that import: a service account can create files only in a
+Shared Drive, and member access there is inherited, so the copy's permissions can't be narrowed.</p>
+<p><strong>Workaround:</strong> For (1), diff one revision's export against another's, not against
+<code>get_doc_as_markdown</code> output. For (3), export a revision only after editing has settled. For
+(4), when a revision's content shouldn't reach the Shared Drive's members, export it with a user
+identity (OAuth), or point <code>DRIVE_FOLDER_ID</code> at a Shared Drive whose membership matches the
+source Doc's audience.
+Related: docs/design/doc-revision-export.md.</p>
+<hr />
+<h2 id="google-drive">Google Drive<a class="headerlink" href="#google-drive" title="Permanent link">&para;</a></h2>
+<h3 id="service-account-cannot-create-files-in-personal-drive">Service account cannot create files in personal Drive<a class="headerlink" href="#service-account-cannot-create-files-in-personal-drive" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> When authenticated as a service account (<code>AUTH_METHOD=service_account</code>), tools that
+create new files (<code>create_doc</code>, <code>create_doc_from_file</code>, <code>create_spreadsheet</code>) will fail with a
+permission error if the target folder is in a personal Google Drive.</p>
+<p><strong>Why:</strong> Service accounts have their own Drive storage quota separate from any user's personal
+Drive. They can only create files in shared drives or in folders explicitly shared with the
+service account.</p>
+<p><strong>Workaround:</strong> Manually create the file in Drive and share it with the service account, then
+use <code>write_doc_content</code> or <code>update_cells</code> to populate it. Alternatively, use OAuth authentication
+(<code>AUTH_METHOD=oauth</code>) which authenticates as the user and has full personal Drive access.
+Related: project memory <code>service_account_limit</code>.</p>
+<h3 id="sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it"><code>sync_folder</code> — renaming a long-named <code>convert_markdown</code> Doc in Drive unlinks it<a class="headerlink" href="#sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>sync_folder(convert_markdown=True)</code> normally keeps matching a converted Doc to its
+local <code>.md</code> file even after the Doc is renamed in Drive. That doesn't hold for a <code>.md</code> filename
+longer than 103 UTF-8 bytes, <code>.md</code> included: 101+ ASCII characters, or 34+ CJK characters,
+before the <code>.md</code>. (Drive's 124-byte cap, minus the 21-byte <code>geeSweetConvertSource</code> key.)
+Names of 103 bytes or less still survive a rename. If a Doc converted from a longer name
+is renamed in Drive, the next sync no longer recognizes it. The local file then reads as "local
+only" and is uploaded again as a new Doc, and the renamed one is left as an ordinary,
+unrelated Doc.</p>
+<p><strong>Why:</strong> <code>sync_folder</code> records the source filename in a Drive custom property, and Drive caps
+each property's key + value at 124 bytes. A name too long to fit is stored as a <code>sha256:</code>
+digest, which can't be read back. The source name is then taken from the Doc's own display
+name, which keeps its <code>.md</code> suffix, and checked against the digest. After a rename, the two no
+longer agree (#805).</p>
+<p><strong>Workaround:</strong> Don't rename these Docs in Drive. To change the name, rename the local file and
+delete the old Doc in Drive; the next sync converts the file again under its new name. Renaming
+both sides to the same new name doesn't restore the link, because the digest still records the
+old name.</p>
+<h3 id="sync_folder-a-convert_markdown-doc-edited-in-drive-needs-a-manual-resolve"><code>sync_folder</code> — a <code>convert_markdown</code> Doc edited in Drive needs a manual resolve<a class="headerlink" href="#sync_folder-a-convert_markdown-doc-edited-in-drive-needs-a-manual-resolve" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Once a converted Doc is edited in Drive, every <code>sync_folder</code> run reports it under
+<code>conflicts</code>, including after the local <code>.md</code> is edited too. Editing or touching the local file
+doesn't clear the conflict. Clearing it takes a call that names the Doc in <code>resolve</code>.</p>
+<p><strong>Why:</strong> There's no reverse conversion (Doc → Markdown), so the Drive edit can't be downloaded,
+and uploading the local file would overwrite it. <code>sync_folder</code> used to do that silently and now
+refuses (#814), so which side wins is the caller's choice.</p>
+<p><strong>Workaround:</strong> Name the Doc in <code>resolve</code>. The right choice depends on whether the local file has
+edits of its own:</p>
+<ul>
+<li><strong>Only the Doc was edited:</strong> copy the Drive edits into the local <code>.md</code> by hand, so the two
+  match, then sync with <code>resolve={"&lt;name&gt;": "keep_drive"}</code>. Nothing in Drive changes.</li>
+<li><strong>Both were edited:</strong> merge the Drive edits into the local <code>.md</code>, then sync with
+  <code>resolve={"&lt;name&gt;": "keep_local"}</code>, which uploads the merged file in place. Don't use
+  <code>keep_drive</code> here. It records the local file as matching the Doc, so its own edits would never
+  reach Drive.</li>
+<li><strong>To discard the Drive edit:</strong> sync with <code>"keep_local"</code> without merging. The edit stays in
+  the Doc's version history.</li>
+</ul>
+<p>Either way the Doc keeps its file ID, sharing, comments, and links. Preview the call with
+<code>dry_run=True</code> first.</p>
+<h3 id="sync_folder-a-convert_markdown-doc-from-before-814-can-stay-stuck-in-conflicts"><code>sync_folder</code> — a <code>convert_markdown</code> Doc from before #814 can stay stuck in <code>conflicts</code><a class="headerlink" href="#sync_folder-a-convert_markdown-doc-from-before-814-can-stay-stuck-in-conflicts" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A converted Doc created before #814 has none of the properties #814's change
+detection uses, so it stays on the old <code>modifiedTime</code> comparison until it's next re-uploaded. If
+Drive's late <code>modifiedTime</code> update overwrote its restamp (the bug #814 fixed), it reads as
+"Drive newer" and is reported under <code>conflicts</code> on every sync. A conflict never uploads, so it
+never picks up the properties that would fix it.</p>
+<p><strong>Why:</strong> Migrating such a Doc means choosing a baseline revision for it. While it reads as Drive
+newer, <code>sync_folder</code> can't tell a lagging timestamp from a real Drive edit, so it doesn't guess.</p>
+<p><strong>Workaround:</strong> Sync once with <code>resolve={"&lt;name&gt;": "keep_drive"}</code>. That stamps the properties
+without changing the Doc's content, and from then on the Doc uses the new detection. Use it only
+when the local file matches the Doc: if the Doc <em>was</em> edited in Drive, copy those edits into the
+local file first. If the local file has edits of its own, merge and use <code>"keep_local"</code> instead,
+which re-uploads in place and stamps the same properties.</p>
+<h3 id="downloads-and-sync_folder-skip-names-that-arent-a-single-filename">Downloads and <code>sync_folder</code> skip names that aren't a single filename<a class="headerlink" href="#downloads-and-sync_folder-skip-names-that-arent-a-single-filename" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Drive allows <code>/</code> in a file or folder name, and a name of <code>.</code> or <code>..</code>. <code>download_file</code>
+(with a directory as <code>local_path</code>), <code>download_folder</code>, and <code>sync_folder</code> refuse such a name
+instead of writing it, and report it under <code>failed</code> (<code>download_file</code> raises an error). A name
+containing <code>\</code> is refused too, on every OS. That includes a local file or folder whose name
+contains <code>\</code>, which macOS and Linux allow: <code>sync_folder</code> won't upload it.</p>
+<p><strong>Why:</strong> A Drive name is used as the local filename. One that isn't a single ordinary filename
+would land somewhere other than the requested folder. <code>\</code> is a separator on Windows, so it's
+refused everywhere, which means the same names are refused as path separators on every OS.
+(Other Windows filename rules, such as <code>:</code> or reserved names like <code>CON</code>, aren't checked here.)</p>
+<p><strong>Workaround:</strong> Rename the file or folder in Drive (or locally). For a single file,
+<code>download_file</code> with a full file path as <code>local_path</code> downloads it under that name.</p>
+<h3 id="downloads-replace-the-local-file-rather-than-rewriting-it">Downloads replace the local file rather than rewriting it<a class="headerlink" href="#downloads-replace-the-local-file-rather-than-rewriting-it" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>download_file</code>, <code>download_folder</code>, and <code>sync_folder</code> write a download to a temporary
+<code>.gee-sweet-partial-*</code> file next to the destination, then rename it over the old file. The
+replacement is a new file, so:</p>
+<ul>
+<li>It keeps the old file's permission bits, and its owner and group only when the server may set
+  them (running as root, as the Docker image does). Running as a regular user, a file owned by
+  someone else becomes owned by the server's user; its group is kept if the server's user
+  belongs to that group. ACLs, extended attributes (macOS Finder tags,
+  the quarantine flag), and the creation time aren't carried over.</li>
+<li>Another hard link to the old file keeps the old content.</li>
+<li>The server needs write permission on the destination's <em>folder</em>, not just on the file. A
+  writable file inside a read-only folder can't be downloaded over.</li>
+<li>A FIFO or socket at the destination is refused instead of written to. A device such as
+  <code>/dev/null</code> is still written directly.</li>
+</ul>
+<p>A download the server is killed partway through leaves its <code>.gee-sweet-partial-*</code> file behind.
+<code>sync_folder</code> and <code>upload_local_folder</code> never upload one and list it under <code>skipped</code>; they
+don't delete it, since it may belong to a download that's still running.</p>
+<p><strong>Why:</strong> Writing into the existing file left a truncated file behind when a download failed
+partway, with a fresh mtime that made <code>sync_folder</code> upload it over the intact Drive copy (#844).
+A rename means the destination only ever holds the old content or the complete new content.</p>
+<p><strong>Workaround:</strong> Re-apply ACLs, tags, or ownership after downloading, if they matter. Delete a
+leftover <code>.gee-sweet-partial-*</code> file once no download into that folder is running.</p>
+<h2 id="local-file-access">Local file access<a class="headerlink" href="#local-file-access" title="Permanent link">&para;</a></h2>
+<h3 id="local_file_accessroots-checks-a-path-before-its-used-not-as-its-used"><code>LOCAL_FILE_ACCESS=roots</code> checks a path before it's used, not as it's used<a class="headerlink" href="#local_file_accessroots-checks-a-path-before-its-used-not-as-its-used" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A path is resolved, symlinks included, and checked against <code>LOCAL_FILE_ROOTS</code> just
+before the tool opens it. If a symlink inside a root is swapped to point outside it between
+that check and the open, the tool follows the new link.</p>
+<p><strong>Why:</strong> Closing the gap fully means descriptor-relative I/O (<code>openat</code>) through every local
+read and write, which is out of proportion here. No tool can create a symlink (downloads write
+regular files and <code>sync_folder</code> never creates links), so a remote caller can't stage the swap.
+It takes a local user with write access inside a root.</p>
+<p><strong>Workaround:</strong> Don't give untrusted local users write access to a directory listed in
+<code>LOCAL_FILE_ROOTS</code>.</p>
+<h3 id="roots-mode-can-refuse-a-path-spelled-in-a-different-case-on-macos"><code>roots</code> mode can refuse a path spelled in a different case on macOS<a class="headerlink" href="#roots-mode-can-refuse-a-path-spelled-in-a-different-case-on-macos" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> On a case-insensitive filesystem (macOS's default), a path whose directories are
+spelled with a different case than the configured root, such as <code>/Data/x.csv</code> under the root
+<code>/data</code>, can be refused even though it names a file inside the root.</p>
+<p><strong>Why:</strong> Containment is a test on the resolved path's text, and resolving keeps the caller's
+spelling of existing directories. A case mismatch can therefore refuse a path inside a root,
+but never allows one outside it. The always-refused credential files are matched by file
+identity instead, so a case variant of one of them is still refused.</p>
+<p><strong>Workaround:</strong> Spell paths with the same case as the <code>LOCAL_FILE_ROOTS</code> entry.</p>
+<h3 id="only-the-servers-own-files-are-protected">Only the server's own files are protected<a class="headerlink" href="#only-the-servers-own-files-are-protected" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> In every mode, tools can't read or write the server's own credential, config, cache,
+and log files. Any other secret is readable in <code>full</code> mode, or in <code>roots</code> mode when it's
+inside a root.</p>
+<p><strong>Why:</strong> The server can't know which other files are sensitive. <code>roots</code> mode is how an
+operator limits tools to directories meant for them.</p>
+<p><strong>Workaround:</strong> Use <code>LOCAL_FILE_ACCESS=roots</code> with roots that hold only files meant for the
+server.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

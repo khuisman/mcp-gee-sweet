@@ -1,0 +1,2974 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/qa/tests/gmail/">
+      
+      
+        <link rel="prev" href="../calendar/">
+      
+      
+        <link rel="next" href="../infra/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Gmail - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gmail-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Gmail
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_messages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_messages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm01-list-the-fixture-set-by-label" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM01: List the fixture set by label
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm02-invalid-label-filter-returns-api-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM02: Invalid label filter returns API error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm34-pagination-and-max_results-clamping-list_messages-list_threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM34: Pagination and max_results clamping (list_messages + list_threads)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm35-spam-and-trash-are-excluded-unless-asked-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM35: Spam and trash are excluded unless asked for
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm03-fetch-the-plain-fixture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM03: Fetch the plain fixture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm04-non-existent-message-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM04: Non-existent message ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm26-non-utf-8-labeled-bodies-still-decode-correctly-issue-792-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM26: Non-UTF-8-labeled bodies still decode correctly (issue #792) ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm27-unicode-subject-and-bodies-decode-intact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM27: Unicode subject and bodies decode intact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm28-attachment-metadata-including-a-nameless-inline-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM28: Attachment metadata, including a nameless inline image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm29-a-forwarded-message-doesnt-replace-the-outer-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM29: A forwarded message doesn't replace the outer body
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm30-large-bodies-gmail-delivers-by-attachmentid-are-fetched-capped-and-writable-via-local_path-issue-825-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM30: Large bodies Gmail delivers by attachmentId are fetched, capped, and writable via local_path (issue #825) ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm32-latin-1-body-decodes-correctly-seeded-companion-to-tc-gm26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM32: Latin-1 body decodes correctly (seeded companion to TC-GM26)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM46: include_body: false returns headers without body or attachments (issue #793)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_threads
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_threads">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm05-list-the-fixture-threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM05: List the fixture threads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm06-invalid-label-filter-returns-api-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM06: Invalid label filter returns API error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_thread
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_thread">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm07-fetch-the-thread-fixture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM07: Fetch the thread fixture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm08-non-existent-thread-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM08: Non-existent thread ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM31: An over-cap thread returns the size-cap error, and include_body: false lists it (issue #793)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm33-thread-order-and-reply-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM33: Thread order and reply headers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_labels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_labels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm09-list-system-and-user-labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM09: List system and user labels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm10-retired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM10: (retired)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm36-add-and-remove-a-user-label-by-id-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM36: Add and remove a user label by ID ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#send_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        send_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="send_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm11-send-to-a-plus-address-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM11: Send to a plus-address ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm12-invalid-recipient-returns-an-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM12: Invalid recipient returns an error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm38-html-body-with-attachments-from-both-sources-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM38: HTML body with attachments from both sources ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm39-cc-and-bcc-as-lists-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM39: cc and bcc as lists ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm40-a-newline-in-the-subject-is-rejected-header-injection-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM40: A newline in the subject is rejected (header injection) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM47: An attachment without mime_type gets its type from the filename extension (issue #802) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_draft
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_draft">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm13-create-a-draft-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM13: Create a draft ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm14-invalid-attachment-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM14: Invalid attachment shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM41: Draft with HTML and an attachment survives send_draft ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#send_draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        send_draft
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="send_draft">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm15-send-an-existing-draft-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM15: Send an existing draft ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm16-non-existent-draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM16: Non-existent draft
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reply_to_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reply_to_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="reply_to_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm17-reply-in-thread-with-correct-threading-headers-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM17: Reply in-thread with correct threading headers ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm18-reply-to-non-existent-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM18: Reply to non-existent message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm42-reply-subject-normalization-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM42: Reply subject normalization ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM43: Reply from the middle of a thread chains References ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modify_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        modify_labels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="modify_labels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm19-toggle-unread-on-a-message-and-starred-on-a-thread-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM19: Toggle UNREAD on a message and STARRED on a thread ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm20-validation-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM20: Validation errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trash_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        trash_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="trash_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm21-trash-a-throwaway-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM21: Trash a throwaway ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm22-trash-non-existent-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM22: Trash non-existent message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm37-trash-twice-then-try-to-restore-by-label-destructive-product-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM37: Trash twice, then try to restore by label ⚠️ destructive 🔍 product decision
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-mailbox-delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-mailbox delivery
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-mailbox delivery">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm44-a-reply-threads-in-the-recipients-mailbox-destructive-cross-mailbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM44: A reply threads in the recipient's mailbox ⚠️ destructive ⚠️ cross-mailbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm45-bcc-is-stripped-from-the-delivered-copy-destructive-cross-mailbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM45: Bcc is stripped from the delivered copy ⚠️ destructive ⚠️ cross-mailbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="gmail-tools-qa-test-cases">Gmail Tools — QA Test Cases<a class="headerlink" href="#gmail-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/gmail.py</code>. Plan of record: <a href="../../gmail-test-plan/"><code>gmail-test-plan.md</code></a>.</p>
+<blockquote>
+<p><strong>Auth:</strong> every case here is ⚠️ requires-oauth. Before running, call <code>list_labels</code> on the slot you'll use. If it returns the <code>gmail.modify</code> re-authorize error or <code>403 accessNotConfigured</code>, the slot can't run Gmail: record <code>SKIP(no-gmail-scope)</code>, not FAIL. The service-account path is covered only by TC-I31 (<code>infra.md</code>).</p>
+</blockquote>
+<h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Fixtures.</strong> Read cases use the seeded fixture set, never real inbox contents. Seed it with <code>scripts/qa_gmail_fixtures.py</code> (setup.md §"Gmail fixture setup") and run its <code>status</code> command first. Placeholders in <code>{TEST_…}</code> form are the <code>.env</code> keys that script writes. Every fixture carries the user label <code>mcp-qa-fixture</code> (<code>{TEST_GMAIL_LABEL_ID}</code>) and a <code>[mcp-qa:&lt;key&gt;]</code> subject.</li>
+<li><strong>Addresses.</strong> <code>{QA}</code> is <code>TEST_GMAIL_ADDRESS</code>. <code>{QA+tag}</code> is its plus-address (<code>qa@example.com</code> → <code>qa+tag@example.com</code>). <code>{SENDER}</code> is <code>TEST_GMAIL_SENDER_ADDRESS</code>. Write cases send only to <code>{QA+tc-gmNN}</code> addresses, except the cross-mailbox cases (TC-GM44–45), which also send to <code>{SENDER}</code>. Nothing else is ever a recipient.</li>
+<li><strong>Subjects.</strong> Every message a case sends or drafts has a subject starting <code>[mcp-qa:tc-gmNN]</code>, so <code>qa_gmail_fixtures.py reset</code> sweeps anything a failed run leaves behind. (TC-GM42's empty-subject message is the one exception; its Cleanup trashes it by ID.)</li>
+<li><strong>Sending to yourself is one message.</strong> Mail to <code>{QA+tag}</code> comes back as one ID labeled <code>SENT</code>+<code>INBOX</code>, not a sent copy plus a delivered copy. Cleanup trashes that one ID.</li>
+<li><strong>Don't break fixtures.</strong> Never trash a fixture, and never remove <code>mcp-qa-fixture</code> from one. Cases that change a fixture's labels (TC-GM19) restore them in the same case.</li>
+<li><strong>Sender mailbox.</strong> TC-GM44–45 read the sender mailbox through the global <code>mcp-gee-sweet</code> server (<code>mcp__mcp-gee-sweet__*</code>). It's a personal inbox. Touch only <code>[mcp-qa</code>-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.</li>
+<li><strong>Sharding.</strong> Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.</li>
+<li><strong>Order.</strong> Run TC-GM33 (reads the <code>thread</code> fixture) before TC-GM43 (replies into it).</li>
+</ul>
+<hr />
+<h2 id="list_messages"><code>list_messages</code><a class="headerlink" href="#list_messages" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm01-list-the-fixture-set-by-label">TC-GM01: List the fixture set by label<a class="headerlink" href="#tc-gm01-list-the-fixture-set-by-label" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>list_messages</code> with <code>query: "label:mcp-qa-fixture"</code>, <code>max_results: 50</code></p>
+<p><strong>Checks</strong>
+- <code>messages</code> includes <code>{TEST_MESSAGE_ID}</code> and <code>{TEST_GMAIL_LATIN1_ID}</code>
+- Every item has <code>id</code> and <code>thread_id</code>
+- No <code>next_page_token</code> (the fixture set fits in one page of 50)
+- No <code>error</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: <code>list_labels</code> confirmed the Gmail scope. <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages (19 fixtures; threads hold the rest) including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}, each with id and thread_id; no next_page_token; no error.</p>
+<p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth): <code>list_labels</code> confirmed the Gmail scope; <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages including <code>{TEST_MESSAGE_ID}</code>, no next_page_token, no error. <code>TEST_GMAIL_LATIN1_ID</code> isn't a key in Aziz's worktree <code>.env</code>, so that ID wasn't checked.</p>
+<hr />
+<h3 id="tc-gm02-invalid-label-filter-returns-api-error">TC-GM02: Invalid label filter returns API error<a class="headerlink" href="#tc-gm02-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>list_messages</code> with <code>label_ids: ["TOTALLY_INVALID_LABEL_XYZ"]</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception
+- The error text comes from the Gmail API (mentions the label)</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm34-pagination-and-max_results-clamping-list_messages-list_threads">TC-GM34: Pagination and <code>max_results</code> clamping (<code>list_messages</code> + <code>list_threads</code>)<a class="headerlink" href="#tc-gm34-pagination-and-max_results-clamping-list_messages-list_threads" title="Permanent link">&para;</a></h3>
+<p>The 7 <code>page-N</code> fixtures share the subject prefix <code>[mcp-qa:page]</code>, and each is its own thread. Confirmed live 2026-09-26 that this query matches exactly those 7.</p>
+<p><strong>Action</strong>
+1. <code>list_messages</code> with <code>query: "label:mcp-qa-fixture subject:(mcp-qa page)"</code>, <code>max_results: 3</code>
+2. Same, plus <code>page_token</code> from step 1
+3. Same, plus <code>page_token</code> from step 2
+4. Repeat steps 1–3 with <code>list_threads</code> and the same params
+5. <code>list_messages</code> with the same query and <code>max_results: 0</code>
+6. <code>list_messages</code> with the same query and <code>max_results: 9999</code></p>
+<p><strong>Checks</strong>
+- Steps 1 and 2: 3 items each, <code>next_page_token</code> present, no ID in both pages
+- Step 3: 1 item, no <code>next_page_token</code>. The 7 IDs across steps 1–3 are all distinct.
+- Step 4: same shape for <code>threads</code> (3, 3, 1), each item with <code>id</code>, <code>snippet</code>, <code>history_id</code>
+- Step 5: exactly 1 message (clamped up to 1), no <code>error</code>
+- Step 6: all 7 messages, no <code>next_page_token</code>, no <code>error</code> (clamped down to 500)
+- Don't check <code>result_size_estimate</code>. It's Gmail's estimate, not a count: live 2026-09-26, step 1 reported <code>201</code> for this 7-message query.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, #795's shared <code>_list_kwargs</code>/<code>_list_page</code>)</strong>: via <code>mcp-gee-sweet-kit</code>. <code>list_messages</code> and <code>list_threads</code> both paged 3/3/1 with <code>next_page_token</code> on the first two pages only, and the 7 IDs were distinct. Thread items carry <code>id</code>, <code>snippet</code>, and <code>history_id</code>. <code>max_results: 0</code> returned exactly 1 message, and <code>9999</code> returned all 7 with no token.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm35-spam-and-trash-are-excluded-unless-asked-for">TC-GM35: Spam and trash are excluded unless asked for<a class="headerlink" href="#tc-gm35-spam-and-trash-are-excluded-unless-asked-for" title="Permanent link">&para;</a></h3>
+<p>The <code>spam</code> and <code>trash</code> fixtures are inserted already labeled <code>SPAM</code> / <code>TRASH</code>.</p>
+<p><strong>Action</strong>
+1. <code>list_messages</code> with <code>query: "label:mcp-qa-fixture subject:(mcp-qa spam)"</code>
+2. Step 1 again with <code>include_spam_trash: true</code>
+3. <code>list_messages</code> with <code>query: "label:mcp-qa-fixture subject:(mcp-qa trash)"</code>
+4. Step 3 again with <code>include_spam_trash: true</code></p>
+<p><strong>Checks</strong>
+- Steps 1 and 3: <code>messages</code> is empty
+- Steps 2 and 4: exactly 1 message each
+- No <code>error</code> field in any response</p>
+<p>(Steps 1–2 confirmed live 2026-09-26 while writing this case: 0 then 1.)</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="get_message"><code>get_message</code><a class="headerlink" href="#get_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm03-fetch-the-plain-fixture">TC-GM03: Fetch the plain fixture<a class="headerlink" href="#tc-gm03-fetch-the-plain-fixture" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code></p>
+<p><strong>Checks</strong>
+- <code>headers.subject</code> is <code>[mcp-qa:plain] plain text</code>
+- <code>headers.from</code> contains <code>{SENDER}</code>; <code>headers.to</code> contains <code>{QA}</code>
+- <code>headers.message_id</code> is non-empty
+- <code>body_plain</code> is <code>mcp-gee-sweet plain fixture.</code> (ignore trailing whitespace); <code>body_html</code> is <code>null</code>; <code>attachments</code> is <code>[]</code>
+- <code>label_ids</code> includes <code>{TEST_GMAIL_LABEL_ID}</code>
+- No <code>error</code> or <code>body_decode_errors</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm04-non-existent-message-id">TC-GM04: Non-existent message ID<a class="headerlink" href="#tc-gm04-non-existent-message-id" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "totally-invalid-message-id-xyz"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm26-non-utf-8-labeled-bodies-still-decode-correctly-issue-792-requires-oauth">TC-GM26: Non-UTF-8-labeled bodies still decode correctly (issue #792) ⚠️ requires-oauth<a class="headerlink" href="#tc-gm26-non-utf-8-labeled-bodies-still-decode-correctly-issue-792-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #792 assumed <code>get_message</code>/<code>get_thread</code> garble ISO-8859-1 / Windows-1252 / Shift_JIS mail because they decode <code>body.data</code> as UTF-8 regardless of the part's <code>Content-Type</code> charset. PR #816 round 1 showed live that the premise is false. The Gmail API already transcodes every text part's <code>body.data</code> to UTF-8 but keeps the original charset label, so the UTF-8-only decode is correct and decoding with the declared charset garbles. This case now guards that: a part labeled with a non-UTF-8 charset must still come back as the right text. The fixtures are built from raw bytes, not <code>MIMEText</code>. <code>MIMEText(..., 'shift_jis')</code> silently emits <code>charset="iso-2022-jp"</code>, which never exercised Shift_JIS. The fixtures are <em>inserted</em> (not sent), so nothing leaves the QA mailbox.</p>
+<p><strong>Setup:</strong> insert both fixtures with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include <code>gmail.modify</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="s">import base64</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="s">from googleapiclient.discovery import build</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="s">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="s">def mime(subject, parts):</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s">    out = [</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s">        b&quot;MIME-Version: 1.0&quot;,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s">        b&quot;To: qa@example.invalid&quot;,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">        b&quot;Subject: &quot; + subject,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s">        b&#39;Content-Type: multipart/alternative; boundary=&quot;tcgm26&quot;&#39;,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s">        b&quot;&quot;,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s">    ]</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s">    for ctype, cte, body in parts:</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="s">        out += [b&quot;--tcgm26&quot;, b&quot;Content-Type: &quot; + ctype, b&quot;Content-Transfer-Encoding: &quot; + cte, b&quot;&quot;, body]</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="s">    out += [b&quot;--tcgm26--&quot;, b&quot;&quot;]</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="s">    return b&quot;\r\n&quot;.join(out)</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="s"># A: iso-8859-1 quoted-printable plain part + genuine Shift_JIS base64 html part.</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="s">a = mime(b&quot;TC-GM26 charset fixture A&quot;, [</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="s">    (b&quot;text/plain; charset=iso-8859-1&quot;, b&quot;quoted-printable&quot;, b&quot;Caf=E9 cr=E8me, na=EFve&quot;),</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="s">    (b&quot;text/html; charset=shift_jis&quot;, b&quot;base64&quot;, base64.b64encode(&quot;&lt;p&gt;こんにちは世界&lt;/p&gt;&quot;.encode(&quot;shift_jis&quot;))),</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="s">])</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="s"># B: windows-1252 8bit plain part (smart quotes and en dash are cp1252-only bytes).</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="s">b = mime(b&quot;TC-GM26 charset fixture B&quot;, [</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="s">    (b&quot;text/plain; charset=windows-1252&quot;, b&quot;8bit&quot;, &quot;“Smart quotes” – 5&quot;.encode(&quot;cp1252&quot;)),</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="s">])</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="s">g = build(&quot;gmail&quot;, &quot;v1&quot;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="s">for label, raw in ((&quot;A&quot;, a), (&quot;B&quot;, b)):</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="s">    r = g.users().messages().insert(userId=&quot;me&quot;, body={&quot;raw&quot;: base64.urlsafe_b64encode(raw).decode()}).execute()</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="s">    print(label, r[&quot;id&quot;], r[&quot;threadId&quot;])</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="s">EOF</span>
+</code></pre></div>
+<p>Record fixture A's IDs as <code>{CHARSET_FIXTURE_A_ID}</code> / <code>{CHARSET_THREAD_A_ID}</code>, and fixture B's message ID as <code>{CHARSET_FIXTURE_B_ID}</code>.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{CHARSET_FIXTURE_A_ID}"</code>
+2. <code>get_thread</code> with <code>thread_id: "{CHARSET_THREAD_A_ID}"</code>
+3. <code>get_message</code> with <code>message_id: "{CHARSET_FIXTURE_B_ID}"</code></p>
+<p><strong>Checks</strong>
+- Step 1: <code>body_plain</code> is <code>Café crème, naïve</code> and <code>body_html</code> is <code>&lt;p&gt;こんにちは世界&lt;/p&gt;</code> (ignore trailing whitespace), with no mojibake (<code>CafÃ©</code>, <code>縺薙ｓ…</code>) and no <code>�</code> replacement characters
+- Step 2: the one message in <code>messages</code> has the same <code>body_plain</code> / <code>body_html</code> as step 1
+- Step 3: <code>body_plain</code> is <code>“Smart quotes” – 5</code> (ignore trailing whitespace)
+- No <code>error</code> or <code>body_decode_errors</code> field in any response</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> both fixtures.</p>
+<p><strong>Result</strong> (2026-09-26, PR #816 round 1, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>FAIL</strong>. Step 1 <code>body_plain</code> = <code>CafÃ© crÃ¨me, naÃ¯ve</code> (mojibake). <code>body_html</code> = <code>&lt;p&gt;こんにちは世界&lt;/p&gt;</code> (correct). Step 2 identical. No <code>error</code> field. Root cause, confirmed via raw <code>format=full</code> vs <code>format=raw</code> inspection: the Gmail API already transcodes every text part's <code>body.data</code> to UTF-8, while the part's <code>Content-Type</code> header keeps the original charset label. Wire bytes <code>Caf=E9</code> (iso-8859-1 QP) arrive in <code>body.data</code> as <code>Caf\xc3\xa9</code>, so decoding with the declared charset double-decodes. Note: Python's <code>MIMEText(..., 'shift_jis')</code> actually emits <code>charset="iso-2022-jp"</code>, so the fixture's HTML part never exercised Shift_JIS. A second probe with a raw base64 <code>charset=shift_jis</code> part and an 8bit <code>charset=windows-1252</code> part showed the same UTF-8 transcoding. <code>get_message</code> returned the Shift_JIS part as <code>縺薙ｓ縺ｫ縺｡縺ｯ荳也阜</code> (UTF-8 bytes that happen to be valid Shift_JIS). The cp1252 part came out correct only because byte <code>0x9d</code> is undefined in cp1252, which forced the UTF-8 fallback. The pre-#792 UTF-8-only decode was correct for all three. Both fixtures trashed.</p>
+<p><strong>Result</strong> (2026-09-26, PR #816 round 2 at <code>1daec0a</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Step 1: <code>body_plain</code> = <code>Café crème, naïve</code>, <code>body_html</code> = <code>&lt;p&gt;こんにちは世界&lt;/p&gt;</code>. Step 2: the one message has identical bodies. Step 3: <code>body_plain</code> = <code>“Smart quotes” – 5</code>. No mojibake, no <code>�</code>, and no <code>error</code> or <code>body_decode_errors</code> field in any response. Both fixtures trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm27-unicode-subject-and-bodies-decode-intact">TC-GM27: Unicode subject and bodies decode intact<a class="headerlink" href="#tc-gm27-unicode-subject-and-bodies-decode-intact" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_UNICODE_ID}"</code></p>
+<p><strong>Checks</strong>
+- <code>headers.subject</code> is <code>[mcp-qa:alt-unicode] Ünïcødé ✓ 🎉 subject</code>
+- <code>body_plain</code> is <code>Grüße aus Zürich — naïve café, 日本語, emoji 🎉🚀.</code> (ignore trailing whitespace)
+- <code>body_html</code> contains <code>Grüße aus &lt;b&gt;Zürich&lt;/b&gt; — naïve café, 日本語, emoji 🎉🚀.</code>
+- No mojibake (<code>Ã</code>, <code>â€</code>) and no <code>�</code> in any header or body
+- No <code>error</code> or <code>body_decode_errors</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "<em>Zürich</em>". The TC's expected value is stale.</p>
+<hr />
+<h3 id="tc-gm28-attachment-metadata-including-a-nameless-inline-image">TC-GM28: Attachment metadata, including a nameless inline image<a class="headerlink" href="#tc-gm28-attachment-metadata-including-a-nameless-inline-image" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_ATTACH_ID}"</code>
+2. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_INLINE_ID}"</code></p>
+<p><strong>Checks</strong>
+- Step 1: <code>body_plain</code> is <code>mcp-gee-sweet attachments fixture: a PDF and a CSV.</code>
+- Step 1: <code>attachments</code> has exactly 2 entries: <code>filename: "mcp-qa.pdf"</code> with <code>mime_type: "application/pdf"</code>, and <code>filename: "mcp-qa.csv"</code> with <code>mime_type: "text/csv"</code>. Each has a positive <code>size</code> and a non-null <code>attachment_id</code>.
+- Step 1: the CSV's content does <strong>not</strong> leak into <code>body_plain</code> (it's an attachment, not a second text body)
+- Step 2: <code>body_html</code> contains <code>cid:mcp-qa-inline-png</code>
+- Step 2: <code>attachments</code> has one entry with <code>mime_type: "image/png"</code>, <code>filename: null</code>, and a non-null <code>attachment_id</code>. Gmail stores the nameless inline image by <code>attachmentId</code> (plan §5 P3, live 2026-09-26), so it is listed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm29-a-forwarded-message-doesnt-replace-the-outer-body">TC-GM29: A forwarded message doesn't replace the outer body<a class="headerlink" href="#tc-gm29-a-forwarded-message-doesnt-replace-the-outer-body" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_FWD_ID}"</code></p>
+<p><strong>Checks</strong>
+- <code>body_plain</code> starts with <code>outer body — the forwarder's own note.</code> and does <strong>not</strong> contain <code>inner body</code>
+- <code>attachments</code> includes an entry with <code>filename: "forwarded.eml"</code> and <code>mime_type: "message/rfc822"</code>
+- No <code>error</code> field</p>
+<p>Depends on how Gmail stores delivered mail (plan §5 P2). In a release pass, repeat on a second, freshly sent seed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm30-large-bodies-gmail-delivers-by-attachmentid-are-fetched-capped-and-writable-via-local_path-issue-825-requires-oauth">TC-GM30: Large bodies Gmail delivers by <code>attachmentId</code> are fetched, capped, and writable via <code>local_path</code> (issue #825) ⚠️ requires-oauth<a class="headerlink" href="#tc-gm30-large-bodies-gmail-delivers-by-attachmentid-are-fetched-capped-and-writable-via-local_path-issue-825-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Gmail returns a large text body (somewhere between ~400 KB and 3 MB) from <code>messages.get(format=full)</code> as a nameless part carrying <code>body.attachmentId</code>, with no inline <code>data</code>. Before #825, <code>get_message</code>/<code>get_thread</code> listed such parts as nameless attachments and returned <code>body_plain</code>/<code>body_html</code> as <code>null</code>. The fix fetches them with <code>users.messages.attachments.get</code>. That endpoint returns the part's raw bytes in its declared charset, unlike inline <code>body.data</code>, which Gmail transcodes to UTF-8 (TC-GM26), so the fetched bytes decode with the part's own charset. A ~6 MB message exceeds the default <code>MAX_TOOL_RESPONSE_CHARS</code>, so it hits the normal size-cap error, and <code>local_path</code> bypasses the cap. The parts' own decoded sizes are a lower bound on the response, so without <code>local_path</code> the error is raised before anything is downloaded (PR #829 round 2). Round 2 also remaps two common charset mislabels before decoding a fetched body: <code>us-ascii</code> is decoded as UTF-8 and <code>iso-8859-1</code> as windows-1252. Step 7 checks that. The early size check counts only parts whose charset guarantees at least one serialized character per byte, so a UTF-16 part over 1,000,000 bytes that serializes under the cap still comes back inline (PR #829 round 3); step 8 checks that. Fetch-failure reporting (<code>attachment_id</code> in <code>body_fetch_errors</code>, errors copied into the <code>local_path</code> manifest, a later inline part used as the fallback), a missing <code>data</code> field, and the bounded fetch concurrency can't be forced against the live API; unit tests cover them. Steps 1–4 use the seeded <code>large-body</code> fixture (<code>TEST_GMAIL_LARGE_ID</code>, a real delivery: both its 3 MB <code>text/plain</code> and <code>text/html</code> parts arrive by <code>attachmentId</code>; check with <code>uv run python scripts/qa_gmail_fixtures.py inspect</code>). Steps 5 and 7 use <em>inserted</em> fixtures: <code>messages.insert</code> produces the same <code>attachmentId</code> layout, confirmed live on #825.</p>
+<p><strong>Setup:</strong> confirm the server under test runs with the default <code>MAX_TOOL_RESPONSE_CHARS</code> (1,000,000). Pick a scratch directory <code>{OUT_DIR}</code> outside the repo. Insert the charset fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include <code>gmail.modify</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="s">import base64</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">from email.mime.multipart import MIMEMultipart</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">from email.mime.text import MIMEText</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">from googleapiclient.discovery import build</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">m = MIMEMultipart(&quot;alternative&quot;)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">m.attach(MIMEText(&quot;Café crème brûlée TC-GM30.\n&quot; * 110_000, &quot;plain&quot;, &quot;iso-8859-1&quot;))</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">m.attach(MIMEText(&quot;&lt;p&gt;こんにちは TC-GM30&lt;/p&gt;\n&quot; * 200_000, &quot;html&quot;, &quot;shift_jis&quot;))</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">m[&quot;To&quot;] = &quot;qa@example.invalid&quot;</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">m[&quot;Subject&quot;] = &quot;TC-GM30 large charset fixture&quot;</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="s">g = build(&quot;gmail&quot;, &quot;v1&quot;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="s">r = g.users().messages().insert(userId=&quot;me&quot;, body={&quot;raw&quot;: base64.urlsafe_b64encode(m.as_bytes()).decode()}).execute()</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="s">print(r[&quot;id&quot;])</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="s">EOF</span>
+</code></pre></div>
+<p>Record the printed ID as <code>{LARGE_CHARSET_ID}</code>. (Python's <code>MIMEText</code> emits the <code>shift_jis</code> part as <code>charset="iso-2022-jp"</code>, per TC-GM26's note. Either way it's a non-UTF-8 charset that <code>attachments.get</code> returns untranscoded.)</p>
+<p>Insert the mislabel fixture the same way. Its bytes are built by hand, since <code>MIMEText</code> always labels its charset correctly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s">import base64</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="s">from googleapiclient.discovery import build</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s">plain = &quot;\u201cSmart\u201d \u2013 quotes TC-GM30.\n&quot; * 120_000  # windows-1252 bytes, labeled iso-8859-1</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s">html = &quot;&lt;p&gt;Caf\u00e9 \u201cUTF-8\u201d TC-GM30&lt;/p&gt;\n&quot; * 120_000  # UTF-8 bytes, labeled us-ascii</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s">lines = [b&quot;MIME-Version: 1.0&quot;, b&quot;To: qa@example.invalid&quot;, b&quot;Subject: TC-GM30 mislabel fixture&quot;,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s">         b&#39;Content-Type: multipart/alternative; boundary=&quot;tcgm29&quot;&#39;, b&quot;&quot;]</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">for ctype, body in ((b&quot;text/plain; charset=iso-8859-1&quot;, plain.encode(&quot;cp1252&quot;)),</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="s">                    (b&quot;text/html; charset=us-ascii&quot;, html.encode(&quot;utf-8&quot;))):</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="s">    lines += [b&quot;--tcgm29&quot;, b&quot;Content-Type: &quot; + ctype, b&quot;Content-Transfer-Encoding: base64&quot;, b&quot;&quot;,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="s">              base64.encodebytes(body)]</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="s">lines += [b&quot;--tcgm29--&quot;, b&quot;&quot;]</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="s">g = build(&quot;gmail&quot;, &quot;v1&quot;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="s">r = g.users().messages().insert(userId=&quot;me&quot;, body={&quot;raw&quot;: base64.urlsafe_b64encode(b&quot;\r\n&quot;.join(lines)).decode()}).execute()</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="s">print(r[&quot;id&quot;])</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="s">EOF</span>
+</code></pre></div>
+<p>Record the printed ID as <code>{MISLABEL_ID}</code>.</p>
+<p>Insert the UTF-16 fixture: about 1.14 MB of UTF-16 bytes that serialize to under 600,000 characters, so it fits under the default cap even though its byte size doesn't (PR #829 QA round 2):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s">import base64</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s">from googleapiclient.discovery import build</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="s">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="s">body = (&quot;UTF-16 body line for TC-GM30.\n&quot; * 19_000).encode(&quot;utf-16&quot;)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="s">raw = (b&quot;MIME-Version: 1.0\r\nTo: qa@example.invalid\r\nSubject: TC-GM30 utf-16 fixture\r\n&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="s">       b&quot;Content-Type: text/plain; charset=utf-16\r\nContent-Transfer-Encoding: base64\r\n\r\n&quot;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="s">       + base64.encodebytes(body))</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="s">g = build(&quot;gmail&quot;, &quot;v1&quot;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="s">r = g.users().messages().insert(userId=&quot;me&quot;, body={&quot;raw&quot;: base64.urlsafe_b64encode(raw).decode()}).execute()</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="s">print(r[&quot;id&quot;])</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="s">EOF</span>
+</code></pre></div>
+<p>Record the printed ID as <code>{UTF16_ID}</code>.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_LARGE_ID}"</code>
+2. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_LARGE_ID}"</code>, <code>local_path: "{OUT_DIR}"</code>, then read the JSON file at the returned <code>local_path</code> and record its <code>thread_id</code> as <code>{LARGE_THREAD_ID}</code>
+3. <code>get_thread</code> with <code>thread_id: "{LARGE_THREAD_ID}"</code>
+4. <code>get_thread</code> with <code>thread_id: "{LARGE_THREAD_ID}"</code>, <code>local_path: "{OUT_DIR}/thread.json"</code>, then read that file
+5. <code>get_message</code> with <code>message_id: "{LARGE_CHARSET_ID}"</code>, <code>local_path: "{OUT_DIR}/charset.json"</code>, then read that file
+6. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_ATTACH_ID}"</code>
+7. <code>get_message</code> with <code>message_id: "{MISLABEL_ID}"</code>, <code>local_path: "{OUT_DIR}/mislabel.json"</code>, then read that file
+8. <code>get_message</code> with <code>message_id: "{UTF16_ID}"</code> (no <code>local_path</code>)</p>
+<p><strong>Checks</strong>
+- Step 1: the call fails with the size-cap error: it reads <code>get_message: the response would be at least 6037989 characters</code> (the two parts' decoded sizes) and says <code>Pass local_path to write the result to disk</code>. It returns in about a second, since nothing is downloaded. Not a dropped connection, not a truncated body
+- Step 2: the response is exactly <code>{local_path, bytes_written, message_id}</code>, with <code>local_path</code> ending in <code>message_{TEST_GMAIL_LARGE_ID}.json</code>. In the file: <code>body_plain</code> is 3,000,002 characters and starts <code>mcp-gee-sweet large-body fixture line.</code>, <code>body_html</code> is 3,037,987 characters and starts <code>&lt;pre&gt;mcp-gee-sweet large-body fixture line.</code>, <code>attachments</code> is <code>[]</code>, and there is no <code>body_fetch_errors</code> or <code>body_decode_errors</code> key
+- Step 3: the same pre-download error, naming <code>get_thread</code> (<code>would be at least 6037989 characters</code>) and <code>local_path</code>
+- Step 4: the response has <code>thread_id</code> = <code>{LARGE_THREAD_ID}</code> and <code>message_count</code> = 1, and the file's one message has the same <code>body_plain</code> length as step 2
+- Step 5: in the file, <code>body_plain</code> starts <code>Café crème brûlée TC-GM30.</code> and <code>body_html</code> starts <code>&lt;p&gt;こんにちは TC-GM30&lt;/p&gt;</code>. Neither contains mojibake (<code>CafÃ©</code>) or <code>�</code>, and <code>attachments</code> is <code>[]</code>
+- Step 6 (regression, real attachments unchanged): the PDF and CSV are still listed in <code>attachments</code> with their filenames and <code>attachment_id</code>s
+- Step 7: the manifest has no <code>body_fetch_errors</code> or <code>body_decode_errors</code> key. In the file, <code>body_plain</code> starts <code>“Smart” – quotes TC-GM30.</code> (real curly quotes and an en dash, not C1 control characters such as <code>\u0093</code>), <code>body_html</code> starts <code>&lt;p&gt;Café “UTF-8” TC-GM30&lt;/p&gt;</code> (no <code>Ã©</code> or <code>â€œ</code>), and <code>attachments</code> is <code>[]</code>
+- Step 8: returns inline, <strong>not</strong> the size-cap error, even though the part is over 1,000,000 bytes. <code>body_plain</code> starts <code>UTF-16 body line for TC-GM30.</code> and contains no <code>�</code>; no <code>body_fetch_errors</code> or <code>body_decode_errors</code> key</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> with <code>message_id: "{LARGE_CHARSET_ID}"</code>, then <code>{MISLABEL_ID}</code>, then <code>{UTF16_ID}</code>. Delete <code>{OUT_DIR}</code>. Leave the seeded <code>large-body</code> fixture in place.</p>
+<p><strong>Result</strong> (2026-09-26, PR #829 round 1 at <code>e30c2d1</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong> on every listed check. Step 1: size-cap error naming <code>get_message</code>, 6,190,675 characters, and <code>Pass local_path</code>. Step 2: manifest <code>{local_path, bytes_written: 6190675, message_id}</code>, file named <code>message_{TEST_GMAIL_LARGE_ID}.json</code>. <code>body_plain</code> is 3,000,002 characters and <code>body_html</code> is 3,037,987 characters, both with the expected prefixes. <code>attachments</code> = <code>[]</code>, no error keys. The thread ID equals the message ID. Step 3: size-cap error naming <code>get_thread</code>, 6,190,757 characters. Step 4: <code>message_count</code> = 1, and the file's <code>body_plain</code> is 3,000,002 characters. Step 5: <code>body_plain</code> (2,970,000 characters) starts <code>Café crème brûlée TC-GM29.</code> and <code>body_html</code> (4,200,000 characters) starts <code>&lt;p&gt;こんにちは TC-GM29&lt;/p&gt;</code>. Neither contains <code>Ã</code> or <code>�</code>, and <code>attachments</code> = <code>[]</code>. Step 6: <code>mcp-qa.pdf</code> and <code>mcp-qa.csv</code> are both still listed, with <code>attachment_id</code>s. Charset fixture trashed and <code>{OUT_DIR}</code> deleted. The PR still went back to the Dev for code-review findings that this case doesn't exercise (fetch-failure reporting, concurrency, charset mislabels, the manifest omitting errors). See the PR #829 comment.</p>
+<p><strong>Result</strong> (2026-09-26, PR #829 round 2 at <code>04dd085</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>FAIL</strong>. All 7 listed steps passed. Steps 1 and 3: <code>would be at least 6037989 characters</code>, returned without downloading. Steps 2 and 4: the same lengths as round 1, with no error keys. Step 5: clean iso-8859-1 and iso-2022-jp bodies. Step 6: PDF and CSV still listed. Step 7: <code>“Smart” – quotes</code>, <code>&lt;p&gt;Café “UTF-8”</code>, no C1 controls, no <code>Ã</code>/<code>â€</code>/<code>�</code>, no error keys. The case fails on an unlisted probe of the new pre-download check. <code>_deferred_body_bytes</code> treats <code>body.size</code> (bytes in the part's own charset) as a lower bound on serialized characters, which is false for UTF-16, UTF-32 and iso-2022-jp. An inserted single-part <code>text/plain; charset=utf-16</code> message with a 1,188,002-byte body decodes correctly to 594,000 characters, and written via <code>local_path</code> it is 612,717 characters. Without <code>local_path</code>, <code>get_message</code> still refuses it: <code>the response would be at least 1188002 characters, over the 1000000-character safety cap</code>. Sent back to the Dev on PR #829. All three inserted fixtures trashed and <code>{OUT_DIR}</code> deleted.</p>
+<p><strong>Result</strong> (2026-09-26, PR #829 round 3 at <code>dca6ce4</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Scoped re-verification of the size-floor fix: steps 1, 3, 7 and 8 were re-run. Steps 2, 4, 5 and 6 are unaffected by the fix's diff and passed in round 2. Steps 1 and 3: <code>would be at least 6037989 characters</code>, so the floor still fires for the ASCII fixture. Step 7: <code>“Smart” – quotes</code> and <code>&lt;p&gt;Café “UTF-8”</code>, with no C1 controls, <code>Ã</code>/<code>â€</code>, <code>�</code> or error keys (decoding now goes through <code>_codec_for</code>). Step 8: the UTF-16 fixture returned <strong>inline</strong> (589,674 characters, no size-cap error). <code>body_plain</code> is 570,000 characters and starts <code>UTF-16 body line for TC-GM30.</code>, with no <code>�</code> and no error keys. Both inserted fixtures trashed and <code>{OUT_DIR}</code> deleted.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm32-latin-1-body-decodes-correctly-seeded-companion-to-tc-gm26">TC-GM32: Latin-1 body decodes correctly (seeded companion to TC-GM26)<a class="headerlink" href="#tc-gm32-latin-1-body-decodes-correctly-seeded-companion-to-tc-gm26" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #792 closed with the finding that Gmail transcodes every text part's <code>body.data</code> to UTF-8 (see TC-GM26). The <code>latin1</code> fixture is a <code>charset=iso-8859-1</code> part that needs no setup script, so this case is a cheap regression check for the same behavior. Expected to <strong>pass</strong>.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_LATIN1_ID}"</code></p>
+<p><strong>Checks</strong>
+- <code>body_plain</code> is <code>Café, niño, façade - ISO-8859-1 body (#792).</code> (ignore trailing whitespace)
+- No mojibake (<code>CafÃ©</code>), no <code>�</code>, no <code>body_decode_errors</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793">TC-GM46: <code>include_body: false</code> returns headers without body or attachments (issue #793)<a class="headerlink" href="#tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>include_body: false</code> fetches with Gmail's <code>format='metadata'</code>, which returns headers but no payload parts (confirmed live 2026-10-04). So the result omits attachment metadata as well as the body.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_ATTACH_ID}"</code>, <code>include_body: false</code></p>
+<p><strong>Checks</strong>
+- <code>id</code> is <code>{TEST_GMAIL_ATTACH_ID}</code>; <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>internal_date</code>, and a positive <code>size_estimate</code> are present
+- <code>headers.subject</code> starts <code>[mcp-qa:</code>, <code>headers.from</code> contains <code>{SENDER}</code>, <code>headers.message_id</code> is non-empty
+- No <code>body_plain</code>, <code>body_html</code>, <code>attachments</code>, <code>body_decode_errors</code>, <code>body_fetch_errors</code>, or <code>error</code> key</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 1 at <code>47937d8</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. <code>id</code>, <code>thread_id</code>, <code>snippet</code> (<code>mcp-gee-sweet attachments fixture: a PDF and a CSV.</code>), <code>label_ids</code>, <code>internal_date</code> and <code>size_estimate</code> = 7893 present. <code>headers.subject</code> = <code>[mcp-qa:attachments] PDF + CSV</code>, <code>headers.from</code> = <code>{SENDER}</code>, <code>headers.message_id</code> non-empty. No body, attachment, error-list or <code>error</code> keys. The PR still went back to the Dev for code-review findings this case doesn't exercise; see the PR #885 comment.</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS (regression)</strong>. The output matches round 1 field for field. The fix's <code>metadataHeaders</code> filter can't be seen through shaping, so it was checked against the raw API instead (see TC-GM31's round 2 result).</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="list_threads"><code>list_threads</code><a class="headerlink" href="#list_threads" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm05-list-the-fixture-threads">TC-GM05: List the fixture threads<a class="headerlink" href="#tc-gm05-list-the-fixture-threads" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>list_threads</code> with <code>query: "label:mcp-qa-fixture"</code>, <code>max_results: 50</code></p>
+<p><strong>Checks</strong>
+- <code>threads</code> includes <code>{TEST_THREAD_ID}</code> and <code>{TEST_GMAIL_BIG_THREAD_ID}</code>
+- Every item has <code>id</code>; <code>snippet</code> and <code>history_id</code> keys are present
+- No <code>next_page_token</code>, no <code>error</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm06-invalid-label-filter-returns-api-error">TC-GM06: Invalid label filter returns API error<a class="headerlink" href="#tc-gm06-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>list_threads</code> with <code>label_ids: ["TOTALLY_INVALID_LABEL_XYZ"]</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="get_thread"><code>get_thread</code><a class="headerlink" href="#get_thread" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm07-fetch-the-thread-fixture">TC-GM07: Fetch the thread fixture<a class="headerlink" href="#tc-gm07-fetch-the-thread-fixture" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_thread</code> with <code>thread_id: "{TEST_THREAD_ID}"</code></p>
+<p><strong>Checks</strong>
+- <code>id</code> is <code>{TEST_THREAD_ID}</code>; <code>messages</code> has at least 3 entries
+- Every message has <code>id</code>, <code>thread_id</code>, <code>label_ids</code>, <code>headers</code>, <code>body_plain</code>, <code>body_html</code>, and <code>attachments</code>, shaped like <code>get_message</code>
+- No <code>error</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm08-non-existent-thread-id">TC-GM08: Non-existent thread ID<a class="headerlink" href="#tc-gm08-non-existent-thread-id" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_thread</code> with <code>thread_id: "totally-invalid-thread-id-xyz"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793">TC-GM31: An over-cap thread returns the size-cap error, and <code>include_body: false</code> lists it (issue #793)<a class="headerlink" href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the <code>over-cap-thread</code> fixture is 3 messages of ~400 KB each, which is over the default <code>MAX_TOOL_RESPONSE_CHARS</code> in full format but under it per message. The full fetch should refuse cleanly rather than drop the connection or truncate. Since #793, <code>include_body: false</code> fetches only metadata, which is small enough to list the thread's message IDs.</p>
+<p><strong>Action</strong>
+1. <code>get_thread</code> with <code>thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"</code>
+2. <code>get_thread</code> with <code>thread_id: "{TEST_GMAIL_BIG_THREAD_ID}"</code>, <code>include_body: false</code>
+3. <code>get_message</code> with <code>message_id</code> set to the first message ID from step 2</p>
+<p><strong>Checks</strong>
+- Step 1: the tool call fails with an error containing <code>get_thread: the response is</code> and <code>safety cap</code>. The error suggests <code>include_body=False</code> followed by <code>get_message</code> on individual IDs. The session stays connected: the next call works.
+- Step 1: no partial or truncated thread is returned
+- Step 2: no <code>error</code>. <code>id</code> is <code>{TEST_GMAIL_BIG_THREAD_ID}</code>, and <code>messages</code> has 3 entries, each with <code>id</code>, <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>size_estimate</code>, and <code>headers</code> (<code>headers.subject</code> contains <code>[mcp-qa:over-cap-thread]</code>)
+- Step 2: no message has a <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code> key, and the whole response is a few KB, not ~1.2 MB
+- Step 3: succeeds, with a <code>body_plain</code> that starts <code>mcp-gee-sweet over-cap-thread message</code></p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 1 at <code>47937d8</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Step 1: <code>get_thread: the response is 1275124 characters, over the 1000000-character safety cap</code>, with the hint naming <code>include_body=False</code> then <code>get_message</code> on individual IDs; no partial thread, and the next call worked. Step 2: no <code>error</code>, 3 messages, each with <code>id</code>, <code>thread_id</code>, <code>snippet</code>, <code>label_ids</code>, <code>size_estimate</code> (~412 KB each) and <code>headers</code> (subjects contain <code>[mcp-qa:over-cap-thread]</code>; <code>in_reply_to</code>/<code>references</code> chain correctly), no body or attachment keys; the response was about 3 KB. Step 3: run with <code>local_path</code> to keep ~425 KB out of the QA session's context (424,899 bytes written); <code>body_plain</code> starts <code>mcp-gee-sweet over-cap-thread message 1.</code>. The thread-level <code>snippet</code> is <code>null</code>, the same as the full format (<code>threads.get</code> returns none).</p>
+<p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Steps 1–3 matched round 1 exactly (1,275,124-character cap error with the <code>include_body=False</code> hint; 3 metadata-only messages; step 3 via <code>local_path</code>, 424,899 bytes). The <code>metadataHeaders</code> filter was checked with a fresh-interpreter raw <code>threads.get</code> on the same thread using this slot's token. Plain <code>format=metadata</code> returned 24,591 bytes and 88 headers (ARC-<em>, DKIM-Signature, Received, X-Gm-</em>, and others). <code>_get_format_kwargs(False)</code> returned 3,003 bytes and 19 headers, all from the shaped set (Date, From, In-Reply-To, Message-ID, References, Subject, To).</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm33-thread-order-and-reply-headers">TC-GM33: Thread order and reply headers<a class="headerlink" href="#tc-gm33-thread-order-and-reply-headers" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_thread</code> with <code>thread_id: "{TEST_THREAD_ID}"</code></p>
+<p>Ignore any message whose <code>label_ids</code> includes <code>TRASH</code> (left by an earlier TC-GM43 run). Call the remaining three M1, M2, M3, identified by their body text in the checks below.</p>
+<p><strong>Checks</strong>
+- Exactly 3 non-trashed messages, with non-decreasing <code>internal_date</code>. M2 and M3 can share a value (sent in the same second; seen live 2026-09-26), so the order is proven by the <code>in_reply_to</code> chain below, not by the timestamps.
+- M1 <code>body_plain</code> starts <code>Sender opens the thread fixture (message 1).</code>; M2 starts <code>QA mailbox reply (thread fixture, message 2).</code>; M3 starts <code>Sender reply (thread fixture, message 3).</code>
+- M1 and M3 <code>headers.from</code> contain <code>{SENDER}</code>; M2 <code>headers.from</code> contains <code>{QA}</code> and its <code>label_ids</code> includes <code>SENT</code>
+- M1 <code>headers.in_reply_to</code> is <code>null</code>
+- M2 <code>headers.in_reply_to</code> equals M1 <code>headers.message_id</code>
+- M3 <code>headers.in_reply_to</code> equals M2 <code>headers.message_id</code>, and M3 <code>headers.references</code> contains both M1's and M2's <code>message_id</code>, in that order</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="list_labels"><code>list_labels</code><a class="headerlink" href="#list_labels" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm09-list-system-and-user-labels">TC-GM09: List system and user labels<a class="headerlink" href="#tc-gm09-list-system-and-user-labels" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>list_labels</code></p>
+<p><strong>Checks</strong>
+- Includes <code>INBOX</code>, <code>UNREAD</code>, <code>SENT</code>, <code>DRAFT</code>, <code>TRASH</code>, and <code>SPAM</code>, each with <code>type: "system"</code>
+- Includes an entry with <code>name: "mcp-qa-fixture"</code>, <code>type: "user"</code>, and <code>id</code> equal to <code>{TEST_GMAIL_LABEL_ID}</code>
+- Every item has <code>id</code>, <code>name</code>, <code>type</code>
+- No <code>error</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm10-retired">TC-GM10: (retired)<a class="headerlink" href="#tc-gm10-retired" title="Permanent link">&para;</a></h3>
+<p>Retired by #822. The Gmail-scope failure path is covered deterministically by TC-I32 (<code>infra.md</code>), which uses a scope-less token copy. Don't reuse this ID.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm36-add-and-remove-a-user-label-by-id-destructive">TC-GM36: Add and remove a user label by ID ⚠️ destructive<a class="headerlink" href="#tc-gm36-add-and-remove-a-user-label-by-id-destructive" title="Permanent link">&para;</a></h3>
+<p>Uses a throwaway, not a fixture: removing <code>mcp-qa-fixture</code> from a fixture would hide it from every read case.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm36}"</code>, <code>subject: "[mcp-qa:tc-gm36] user label"</code>, <code>body: "mcp-gee-sweet TC-GM36"</code>. Record <code>id</code> as <code>{GM36_ID}</code>.
+2. <code>modify_labels</code> with <code>message_id: "{GM36_ID}"</code>, <code>add_label_ids: ["{TEST_GMAIL_LABEL_ID}"]</code>
+3. <code>modify_labels</code> with <code>message_id: "{GM36_ID}"</code>, <code>remove_label_ids: ["{TEST_GMAIL_LABEL_ID}"]</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>label_ids</code> includes <code>{TEST_GMAIL_LABEL_ID}</code>
+- Step 3: <code>label_ids</code> no longer includes it
+- No <code>error</code> field in any response</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM36_ID}</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="send_message"><code>send_message</code><a class="headerlink" href="#send_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm11-send-to-a-plus-address-destructive">TC-GM11: Send to a plus-address ⚠️ destructive<a class="headerlink" href="#tc-gm11-send-to-a-plus-address-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm11}"</code>, <code>subject: "[mcp-qa:tc-gm11] send_message"</code>, <code>body: "mcp-gee-sweet TC-GM11"</code>. Record <code>id</code> as <code>{GM11_ID}</code>.
+2. <code>list_messages</code> with <code>query: "subject:(mcp-qa tc-gm11)"</code></p>
+<p><strong>Checks</strong>
+- Step 1: returns <code>id</code>, <code>thread_id</code>, and <code>label_ids</code>, and <code>label_ids</code> includes <code>SENT</code>
+- Step 2: <code>messages</code> includes <code>{GM11_ID}</code>
+- No <code>error</code> field</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM11_ID}</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>kit</code>: <code>send_message</code> to {QA+tc-gm11} returned id, thread_id and label_ids including SENT; <code>list_messages("subject:(mcp-qa tc-gm11)")</code> found it. Trashed.</p>
+<p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
+<code>kai-oauth</code> (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): <code>send_message</code> to the QA plus-address returned id/thread_id with <code>SENT</code> in label_ids; <code>list_messages</code> found it; trashed.</p>
+<hr />
+<h3 id="tc-gm12-invalid-recipient-returns-an-error">TC-GM12: Invalid recipient returns an error<a class="headerlink" href="#tc-gm12-invalid-recipient-returns-an-error" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "not-an-email"</code>, <code>subject: "[mcp-qa:tc-gm12] invalid recipient"</code>, <code>body: "x"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception, and no <code>id</code>
+- If it returns an <code>id</code> instead, record FAIL and trash that ID</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm38-html-body-with-attachments-from-both-sources-destructive-local-filesystem">TC-GM38: HTML body with attachments from both sources ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-gm38-html-body-with-attachments-from-both-sources-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>printf 'name,qty\nwidget,3\n' &gt; /tmp/mcp-qa-tc-gm38.csv</code> on the machine running the server.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm38}"</code>, <code>subject: "[mcp-qa:tc-gm38] html + attachments"</code>, <code>body: "mcp-gee-sweet TC-GM38 plain"</code>, <code>body_html: "&lt;p&gt;mcp-gee-sweet &lt;b&gt;TC-GM38&lt;/b&gt; html&lt;/p&gt;"</code>, and <code>attachments</code>:
+   - <code>{"local_path": "/tmp/mcp-qa-tc-gm38.csv", "mime_type": "text/csv"}</code>
+   - <code>{"content_base64": "aGVsbG8gZnJvbSBUQy1HTTM4", "filename": "note.txt"}</code> (no <code>mime_type</code>; decodes to <code>hello from TC-GM38</code>)
+2. <code>get_message</code> with the <code>id</code> from step 1</p>
+<p><strong>Checks</strong>
+- Step 2: <code>body_plain</code> is <code>mcp-gee-sweet TC-GM38 plain</code>; <code>body_html</code> contains <code>&lt;b&gt;TC-GM38&lt;/b&gt;</code>
+- Step 2: <code>attachments</code> has exactly 2 entries: <code>filename: "mcp-qa-tc-gm38.csv"</code> (the file's own name, since no <code>filename</code> was passed) with <code>mime_type: "text/csv"</code>, and <code>filename: "note.txt"</code>
+- Step 2: <code>note.txt</code>'s <code>mime_type</code> is <code>text/plain</code>, guessed from its extension since no <code>mime_type</code> was passed (#802; it was <code>application/octet-stream</code> before #896). TC-GM47 covers more extensions.</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>; delete <code>/tmp/mcp-qa-tc-gm38.csv</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>. Both bodies matched. There were 2 attachments: <code>mcp-qa-tc-gm38.csv</code> (<code>text/csv</code>, 18 bytes, read through <code>_compose_raw</code>'s off-loop thread) and <code>note.txt</code>, whose <code>mime_type</code> was <code>text/plain</code>, guessed. The message was trashed and the local file deleted.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code> at <code>1d3c7cf</code>. Both bodies matched. There were 2 attachments: <code>mcp-qa-tc-gm38.csv</code> (<code>text/csv</code>, 18 bytes) and <code>note.txt</code> (<code>text/plain</code>, guessed, 18 bytes). The message was trashed and the local file deleted.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm39-cc-and-bcc-as-lists-destructive">TC-GM39: <code>cc</code> and <code>bcc</code> as lists ⚠️ destructive<a class="headerlink" href="#tc-gm39-cc-and-bcc-as-lists-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm39}"</code>, <code>cc: ["{QA+tc-gm39-cc1}", "{QA+tc-gm39-cc2}"]</code>, <code>bcc: ["{QA+tc-gm39-bcc}"]</code>, <code>subject: "[mcp-qa:tc-gm39] cc and bcc lists"</code>, <code>body: "mcp-gee-sweet TC-GM39"</code>
+2. <code>get_message</code> with the <code>id</code> from step 1</p>
+<p><strong>Checks</strong>
+- <code>headers.cc</code> contains both cc addresses, comma-separated, and nothing else
+- <code>headers.bcc</code> contains <code>{QA+tc-gm39-bcc}</code> (the sender's own copy keeps Bcc; TC-GM45 checks that the delivered copy doesn't)
+- <code>headers.to</code> is <code>{QA+tc-gm39}</code></p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm40-a-newline-in-the-subject-is-rejected-header-injection-destructive">TC-GM40: A newline in the subject is rejected (header injection) ⚠️ destructive<a class="headerlink" href="#tc-gm40-a-newline-in-the-subject-is-rejected-header-injection-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm40}"</code>, <code>subject: "[mcp-qa:tc-gm40] a\nBcc: {QA+tc-gm40-injected}"</code>, <code>body: "should not send"</code> (the <code>\n</code> is a real newline in the JSON string)
+2. <code>send_message</code> with <code>to: "{QA+tc-gm40}"</code>, <code>subject: "[mcp-qa:tc-gm40] line one\nline two"</code>, <code>body: "should not send"</code>
+3. <code>list_messages</code> with <code>query: "subject:(mcp-qa tc-gm40)"</code>, <code>include_spam_trash: true</code></p>
+<p><strong>Checks</strong>
+- Steps 1 and 2: each returns <code>{"error": "..."}</code> and no <code>id</code>. A local probe (2026-09-26) raises <code>HeaderParseError</code> for step 1 and <code>HeaderWriteError</code> for step 2, both inside the tool's <code>try</code>.
+- Step 3: <code>messages</code> is empty, so nothing was sent</p>
+<p><strong>Cleanup:</strong> none expected. If step 3 finds anything, record FAIL and trash it.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive">TC-GM47: An attachment without <code>mime_type</code> gets its type from the filename extension (issue #802) ⚠️ destructive<a class="headerlink" href="#tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> an attachment passed without <code>mime_type</code> used to go out as <code>application/octet-stream</code> whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, using Python's built-in table only, so the result doesn't depend on the server host's own MIME database. A compressed file (<code>.gz</code>) gets the compression type, not the type of what's inside it. PR #928 round 2 added two rules. A guessed <code>message/*</code> type (<code>.eml</code>, <code>.mht</code>) falls back to <code>application/octet-stream</code>, since base64, which every attachment uses, is forbidden on <code>message/rfc822</code>. A guessed <code>text/*</code> type gets <code>charset=utf-8</code> when its bytes are valid UTF-8, and falls back to <code>application/octet-stream</code> when they aren't. <code>get_message</code> doesn't show the charset, so that part is unit-tested only (<code>TestBuildRawMessageAttachments</code>).</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm47}"</code>, <code>subject: "[mcp-qa:tc-gm47] attachment mime guess"</code>, <code>body: "mcp-gee-sweet TC-GM47"</code>, and <code>attachments</code> (none has <code>mime_type</code>):
+   - <code>{"content_base64": "JVBERi0xLjQK", "filename": "gm47.pdf"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.csv.gz"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.zzzunknown"}</code>
+   - <code>{"content_base64": "aGVsbG8=", "filename": "gm47.png", "mime_type": "text/plain"}</code> (explicit type wins)
+   - <code>{"content_base64": "RnJvbTogYUBleGFtcGxlLmNvbQ0KU3ViamVjdDogVEMtR000NyBpbm5lcg0KDQpoaQ0K", "filename": "gm47.eml"}</code> (a small RFC 822 message)
+   - <code>{"content_base64": "aMOpbGxvCg==", "filename": "gm47.txt"}</code> (UTF-8 <code>héllo</code>)
+2. <code>get_message</code> with the <code>id</code> from step 1</p>
+<p><strong>Checks</strong>
+- Step 2: <code>attachments</code> has exactly 6 entries, with <code>mime_type</code> by filename:
+  - <code>gm47.pdf</code> → <code>application/pdf</code>
+  - <code>gm47.csv.gz</code> → <code>application/gzip</code>
+  - <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>
+  - <code>gm47.png</code> → <code>text/plain</code>
+  - <code>gm47.eml</code> → <code>application/octet-stream</code> (not <code>message/rfc822</code>)
+  - <code>gm47.txt</code> → <code>text/plain</code>
+- No <code>error</code> field</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (as written), with send-back findings out of scope for this case</strong>: via <code>mcp-gee-sweet-kit</code>. The 4 attachments came back as <code>gm47.pdf</code> → <code>application/pdf</code>, <code>gm47.csv.gz</code> → <code>application/gzip</code>, <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>, and <code>gm47.png</code> → <code>text/plain</code> (explicit wins), with no <code>error</code>. A probe in the same round showed two regressions the case's extensions don't reach. <code>fwd.eml</code> with no <code>mime_type</code> was guessed as <code>message/rfc822</code> but still built as a base64 <code>MIMEApplication</code>, which RFC 2046 §5.2.1 forbids. Python's parser decodes that payload to <code>None</code>. A UTF-8 <code>notes.txt</code> (<code>héllo</code>) was guessed as <code>text/plain</code> with no <code>charset</code>, so per RFC 2046 it reads as US-ASCII. Gmail accepted both. The part headers were confirmed by running the branch's <code>_build_raw_message</code> locally. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS (as written), with a send-back finding out of scope for this case</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to <code>1d3c7cf</code>. All 6 attachments came back as expected: <code>gm47.pdf</code> → <code>application/pdf</code>, <code>gm47.csv.gz</code> → <code>application/gzip</code>, <code>gm47.zzzunknown</code> → <code>application/octet-stream</code>, <code>gm47.png</code> → <code>text/plain</code> (explicit wins), <code>gm47.eml</code> → <code>application/octet-stream</code>, <code>gm47.txt</code> → <code>text/plain</code>. No <code>error</code>. A probe in the same round sent an explicit <code>mime_type</code> with one empty half: <code>"application/"</code> and <code>"/pdf"</code> passed <code>_attachment_part</code>'s malformed-type check, and Gmail stored them verbatim as the attachments' <code>mime_type</code> (<code>application/</code>, <code>/pdf</code>). Before #896 these became <code>application/octet-stream</code> and <code>application/pdf</code>. An explicit <code>message/rfc822</code> <code>fwd.eml</code> with an 8-bit UTF-8 body came back as <code>message/rfc822</code> (115 bytes). Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 3) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to <code>542f548</code>. All 6 attachments came back with the same <code>mime_type</code>s as round 2, with no <code>error</code>. Re-running round 2's probe, <code>send_message</code> with an explicit <code>mime_type</code> of <code>"application/"</code> and then <code>"/pdf"</code> each returned <code>{"error": "Attachment mime_type '...' isn't a type/subtype such as 'application/pdf'."}</code> and no <code>id</code>. A <code>list_messages</code> search with <code>include_spam_trash: true</code> found nothing sent. The TC-GM47 message was trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to the merge, which brought in #925's OAuth re-authorization. All 6 attachments came back with the same <code>mime_type</code>s as before, with no <code>error</code>. The message was trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="create_draft"><code>create_draft</code><a class="headerlink" href="#create_draft" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm13-create-a-draft-destructive">TC-GM13: Create a draft ⚠️ destructive<a class="headerlink" href="#tc-gm13-create-a-draft-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm13}"</code>, <code>subject: "[mcp-qa:tc-gm13] draft"</code>, <code>body: "mcp-gee-sweet TC-GM13"</code>. Record <code>id</code> as <code>{GM13_DRAFT_ID}</code>.
+2. <code>get_message</code> with <code>message_id</code> set to <code>message.id</code> from step 1</p>
+<p><strong>Checks</strong>
+- Step 1: returns <code>id</code> and <code>message.id</code>, no <code>error</code>
+- Step 2: <code>label_ids</code> includes <code>DRAFT</code> and not <code>SENT</code></p>
+<p><strong>Cleanup:</strong> TC-GM15 sends this draft. If TC-GM15 isn't run, <code>qa_gmail_fixtures.py reset</code> deletes it (the tools can't delete a draft).</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm14-invalid-attachment-shape">TC-GM14: Invalid attachment shape<a class="headerlink" href="#tc-gm14-invalid-attachment-shape" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm14}"</code>, <code>subject: "[mcp-qa:tc-gm14] bad attachment"</code>, <code>body: "x"</code>, <code>attachments: [{}]</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> that mentions <code>local_path</code> and <code>content_base64</code>, and no draft <code>id</code></p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, error now raised inside <code>_compose_raw</code>'s thread)</strong>: returned <code>{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}</code>, with no draft <code>id</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive">TC-GM41: Draft with HTML and an attachment survives <code>send_draft</code> ⚠️ destructive<a class="headerlink" href="#tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm41}"</code>, <code>subject: "[mcp-qa:tc-gm41] draft round trip"</code>, <code>body: "mcp-gee-sweet TC-GM41 plain"</code>, <code>body_html: "&lt;p&gt;mcp-gee-sweet &lt;i&gt;TC-GM41&lt;/i&gt;&lt;/p&gt;"</code>, <code>attachments: [{"content_base64": "VEMtR000MSBhdHRhY2htZW50", "filename": "gm41.txt", "mime_type": "text/plain"}]</code>
+2. <code>get_message</code> with <code>message_id</code> set to <code>message.id</code> from step 1. Record its <code>attachments</code>.
+3. <code>send_draft</code> with <code>draft_id</code> from step 1
+4. <code>get_message</code> with the <code>id</code> from step 3</p>
+<p><strong>Checks</strong>
+- Step 2: one attachment, <code>filename: "gm41.txt"</code>, <code>mime_type: "text/plain"</code>
+- Step 4: <code>label_ids</code> includes <code>SENT</code>, not <code>DRAFT</code>
+- Step 4: <code>body_plain</code> and <code>body_html</code> match step 2's
+- Step 4: the attachment's <code>filename</code>, <code>mime_type</code>, and <code>size</code> equal step 2's</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-3 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>create_draft</code>/<code>send_draft</code> via <code>_compose_raw</code> and <code>_message_summary</code>)</strong>: step 2 had one attachment, <code>gm41.txt</code> (<code>text/plain</code>, 18 bytes), and <code>label_ids</code> <code>DRAFT</code>. <code>send_draft</code> returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code> (<code>SENT</code>, no <code>DRAFT</code>). Step 4's bodies and attachment <code>filename</code>/<code>mime_type</code>/<code>size</code> equal step 2's. Trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="send_draft"><code>send_draft</code><a class="headerlink" href="#send_draft" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm15-send-an-existing-draft-destructive">TC-GM15: Send an existing draft ⚠️ destructive<a class="headerlink" href="#tc-gm15-send-an-existing-draft-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{GM13_DRAFT_ID}</code> from TC-GM13</p>
+<p><strong>Action</strong>
+1. <code>send_draft</code> with <code>draft_id: "{GM13_DRAFT_ID}"</code>
+2. <code>get_message</code> with the <code>id</code> from step 1
+3. <code>send_draft</code> with <code>draft_id: "{GM13_DRAFT_ID}"</code> again</p>
+<p><strong>Checks</strong>
+- Step 1: returns <code>id</code>, <code>thread_id</code>, <code>label_ids</code>, and <code>label_ids</code> includes <code>SENT</code>
+- Step 2: <code>label_ids</code> doesn't include <code>DRAFT</code>; <code>headers.subject</code> is <code>[mcp-qa:tc-gm13] draft</code>
+- Step 3: returns <code>{"error": "..."}</code>. The draft is gone, which is the only way the tools can show it left the drafts list.</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm16-non-existent-draft">TC-GM16: Non-existent draft<a class="headerlink" href="#tc-gm16-non-existent-draft" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_draft</code> with <code>draft_id: "totally-invalid-draft-id-xyz"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="reply_to_message"><code>reply_to_message</code><a class="headerlink" href="#reply_to_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm17-reply-in-thread-with-correct-threading-headers-destructive">TC-GM17: Reply in-thread with correct threading headers ⚠️ destructive<a class="headerlink" href="#tc-gm17-reply-in-thread-with-correct-threading-headers-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm17}"</code>, <code>subject: "[mcp-qa:tc-gm17] reply original"</code>, <code>body: "mcp-gee-sweet TC-GM17 original"</code>. Record <code>id</code> as <code>{GM17_ORIG}</code>.
+2. <code>get_message</code> with <code>message_id: "{GM17_ORIG}"</code>. Record <code>headers.message_id</code> as <code>{GM17_MID}</code>.
+3. <code>reply_to_message</code> with <code>message_id: "{GM17_ORIG}"</code>, <code>body: "mcp-gee-sweet TC-GM17 reply"</code>
+4. <code>get_message</code> with the <code>id</code> from step 3</p>
+<p><strong>Checks</strong>
+- Step 3: <code>thread_id</code> equals <code>{GM17_ORIG}</code>'s <code>thread_id</code>
+- Step 3: no <code>warning</code> field. One appears only when the mailbox's own addresses couldn't be looked up (#802), which a healthy token never hits; the failure path is unit-tested only.
+- Step 4: <code>headers.in_reply_to</code> equals <code>{GM17_MID}</code>, and <code>headers.references</code> ends with <code>{GM17_MID}</code>
+- Step 4: <code>headers.subject</code> is exactly <code>Re: [mcp-qa:tc-gm17] reply original</code> (one <code>Re:</code>)
+- Step 4: <code>headers.to</code> is <code>{QA+tc-gm17}</code> (a reply to your own sent message goes to its original <code>To</code>, per TC-GM24)</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM17_ORIG}</code> and the step-3 <code>id</code>.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>. Step 3's <code>thread_id</code> equals the original's, and there was no <code>warning</code> field. Step 4: <code>in_reply_to</code> and <code>references</code> are both the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code> (one <code>Re:</code>), and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code> at <code>1d3c7cf</code>, run right after <code>refresh_cache()</code> with no arguments (which now also clears the cached own-address set), so the reply re-read the send-as aliases. <code>refresh_cache</code> returned <code>{"invalidated": "all"}</code>. Step 3's <code>thread_id</code> equals the original's, and there was no <code>warning</code> field. Step 4: <code>in_reply_to</code> and <code>references</code> are the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code>, and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
+<p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, run right after <code>refresh_cache()</code> (<code>{"invalidated": "all"}</code>) on the merged code. The reply has the original's <code>thread_id</code> and no <code>warning</code>. <code>in_reply_to</code> and <code>references</code> are the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code>, and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm18-reply-to-non-existent-message">TC-GM18: Reply to non-existent message<a class="headerlink" href="#tc-gm18-reply-to-non-existent-message" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>reply_to_message</code> with <code>message_id: "totally-invalid-message-id-xyz"</code>, <code>body: "hi"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth">TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>reply_to_message</code> used to always reply to <code>From</code>, so mail with a <code>Reply-To</code> (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves <code>Reply-To</code> over <code>From</code>, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is <em>inserted</em> (not sent) with a fake <code>From</code> and a <code>Reply-To</code> pointing at a plus-address of the QA mailbox itself.</p>
+<p><strong>Setup:</strong> there's no tool for inserting a message, so insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include <code>gmail.modify</code>). Replace <code>&lt;mailbox&gt;</code> with the QA mailbox address, e.g. <code>qa@example.com</code> → <code>qa+tc-gm23@example.com</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">import base64</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">from email.mime.text import MIMEText</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">from googleapiclient.discovery import build</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s2">m = MIMEText(&#39;mcp-gee-sweet TC-GM23 fixture&#39;)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s2">m[&#39;From&#39;] = &#39;No Reply &lt;noreply@example.invalid&gt;&#39;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s2">m[&#39;Reply-To&#39;] = &#39;&lt;mailbox local part&gt;+tc-gm23@&lt;mailbox domain&gt;&#39;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="s2">m[&#39;To&#39;] = &#39;&lt;mailbox&gt;&#39;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="s2">m[&#39;Subject&#39;] = &#39;TC-GM23 reply-to fixture&#39;</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="s2">g = build(&#39;gmail&#39;, &#39;v1&#39;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="s2">r = g.users().messages().insert(userId=&#39;me&#39;, body={&#39;raw&#39;: base64.urlsafe_b64encode(m.as_bytes()).decode(), &#39;labelIds&#39;: [&#39;INBOX&#39;]}).execute()</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="s2">print(r[&#39;id&#39;])</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<p>Record the printed ID as <code>{REPLY_TO_FIXTURE_ID}</code>.</p>
+<p><strong>Seeded alternative:</strong> the <code>reply-to</code> fixture (<code>{TEST_GMAIL_REPLYTO_ID}</code>, setup.md Gmail section) has the same shape. Use it as <code>{REPLY_TO_FIXTURE_ID}</code> instead of running the script, and leave it out of Cleanup: trash only the two replies, since other runs reuse the fixture.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{REPLY_TO_FIXTURE_ID}"</code>
+2. <code>reply_to_message</code> with <code>message_id: "{REPLY_TO_FIXTURE_ID}"</code>, <code>body: "mcp-gee-sweet TC-GM23 reply"</code>
+3. <code>get_message</code> with <code>message_id</code> set to the <code>id</code> returned by step 2
+4. <code>reply_to_message</code> again with <code>reply_all: true</code>, same <code>message_id</code>, <code>body: "mcp-gee-sweet TC-GM23 reply-all"</code>, then <code>get_message</code> on its returned <code>id</code></p>
+<p><strong>Checks</strong>
+- Step 1: <code>headers.reply_to</code> is the <code>+tc-gm23</code> address and <code>headers.from</code> is <code>noreply@example.invalid</code>
+- Step 3: <code>headers.to</code> is the <code>+tc-gm23</code> address only; <code>noreply@example.invalid</code> appears nowhere in <code>to</code>/<code>cc</code>
+- Step 4: <code>headers.to</code> contains the <code>+tc-gm23</code> address and does <strong>not</strong> contain the bare QA mailbox address (the authenticated mailbox is excluded from reply-all); <code>noreply@example.invalid</code> appears nowhere
+- The step-2 reply arrives in the QA inbox (it was addressed to the mailbox's own plus-address), in the same <code>thread_id</code> as the fixture</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the fixture, both replies, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 1) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code> (token has <code>gmail.modify</code>), fixture inserted with the setup script. Step 1: <code>reply_to</code> = <code>+tc-gm23</code> address, <code>from</code> = <code>noreply@example.invalid</code>. Step 3: <code>to</code> = <code>+tc-gm23</code> address only. Step 4 (reply-all): <code>to</code> = <code>+tc-gm23</code> address only; the bare mailbox was excluded, and <code>noreply@example.invalid</code> appears nowhere. Both replies share the fixture's <code>thread_id</code>. A reply to your own plus-address is one message labeled <code>SENT</code>+<code>INBOX</code>, not a separate delivered copy, so cleanup is just the fixture plus the two replies. All trashed.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the plain reply and reply-all both go <code>to</code> = <code>+tc-gm23</code> only. The bare mailbox and <code>noreply@example.invalid</code> appear nowhere. Trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth">TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a plain reply (<code>reply_all: false</code>) to a message the mailbox itself sent used to set <code>To</code> to the mailbox's own address. #791 replies to that message's original <code>To</code> instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "&lt;mailbox local part&gt;+tc-gm24@&lt;mailbox domain&gt;"</code>, <code>subject: "TC-GM24 own-sent fixture"</code>, <code>body: "mcp-gee-sweet TC-GM24 fixture"</code>. Record its <code>id</code> as <code>{OWN_SENT_ID}</code>.
+2. <code>get_message</code> with <code>message_id: "{OWN_SENT_ID}"</code>
+3. <code>reply_to_message</code> with <code>message_id: "{OWN_SENT_ID}"</code>, <code>body: "mcp-gee-sweet TC-GM24 reply"</code>
+4. <code>get_message</code> with <code>message_id</code> set to the <code>id</code> returned by step 3</p>
+<p><strong>Checks</strong>
+- Step 2: <code>label_ids</code> includes <code>SENT</code>
+- Step 4: <code>headers.to</code> is the <code>+tc-gm24</code> address, <strong>not</strong> the bare QA mailbox address
+- Step 4: <code>thread_id</code> matches <code>{OWN_SENT_ID}</code>'s thread</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the fixture, the reply, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 1) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code>. Step 2: <code>label_ids</code> includes <code>SENT</code>. Step 4: <code>to</code> = <code>+tc-gm24</code> address, not the bare mailbox; <code>thread_id</code> matches. Both trashed. <strong>Scope note:</strong> this case covers only a single-recipient <code>To</code>. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+tc-f3</code> replied <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+tc-f3</code>, so you get a copy of your own reply. <code>Cc</code>-only (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the reply goes <code>to</code> = <code>+tc-gm24</code>, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth">TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+x</code> replied to both, so you got a copy of your own reply. A <code>Cc</code>-only message (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's <code>Cc</code> when nobody else is in <code>To</code>. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: ["&lt;mailbox&gt;", "&lt;mailbox local part&gt;+tc-gm25a@&lt;mailbox domain&gt;"]</code>, <code>subject: "TC-GM25 multi-recipient fixture"</code>, <code>body: "mcp-gee-sweet TC-GM25 fixture A"</code>. Record its <code>id</code> as <code>{GM25_A}</code>.
+2. <code>reply_to_message</code> with <code>message_id: "{GM25_A}"</code>, <code>body: "mcp-gee-sweet TC-GM25 reply A"</code>, then <code>get_message</code> on the returned <code>id</code>.
+3. <code>send_message</code> with <code>to: ""</code>, <code>cc: "&lt;mailbox local part&gt;+tc-gm25b@&lt;mailbox domain&gt;"</code>, <code>subject: "TC-GM25 Cc-only fixture"</code>, <code>body: "mcp-gee-sweet TC-GM25 fixture B"</code> (the round-1 Cc-only repro). Record its <code>id</code> as <code>{GM25_B}</code>.
+4. <code>reply_to_message</code> with <code>message_id: "{GM25_B}"</code>, <code>body: "mcp-gee-sweet TC-GM25 reply B"</code>, then <code>get_message</code> on the returned <code>id</code>.
+5. <code>reply_to_message</code> with <code>message_id: "{GM25_B}"</code>, <code>reply_all: true</code>, <code>body: "mcp-gee-sweet TC-GM25 reply-all B"</code>, then <code>get_message</code> on the returned <code>id</code>.
+6. Repeat steps 3–5 with <code>to: "&lt;mailbox&gt;"</code> instead of <code>to: ""</code> and <code>+tc-gm25c</code> as the Cc (a message to yourself that also Cc's someone).</p>
+<p><strong>Checks</strong>
+- Step 2: <code>headers.to</code> is exactly the <code>+tc-gm25a</code> address. The bare mailbox address appears nowhere in <code>to</code>/<code>cc</code>.
+- Step 4: <code>headers.to</code> is exactly the <code>+tc-gm25b</code> address, not the bare mailbox. <code>cc</code> is empty.
+- Step 5: <code>headers.to</code> is exactly the <code>+tc-gm25b</code> address. The bare mailbox appears nowhere in <code>to</code>/<code>cc</code>.
+- Step 6: same as steps 4–5, with the <code>+tc-gm25c</code> address.</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> all three fixtures, all five replies, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code> after <code>/mcp reconnect</code>, against fix <code>45530d7</code>. Step 2: <code>to</code> = <code>+tc-gm25a</code> only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with <code>to: []</code>): both <code>to</code> = <code>+tc-gm25b</code>, <code>cc</code> empty. Step 6 (to-self + Cc): plain reply and reply-all both <code>to</code> = <code>+tc-gm25c</code>, <code>cc</code> empty. Also confirmed live with the same token that <code>users.settings.sendAs.list</code> succeeds under <code>gmail.modify</code> and returns the primary address (1 entry, <code>isPrimary: true</code>), so <code>_own_addresses</code> takes its alias-list path rather than the <code>getProfile</code> fallback. All fixtures and replies trashed.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm42-reply-subject-normalization-destructive">TC-GM42: Reply subject normalization ⚠️ destructive<a class="headerlink" href="#tc-gm42-reply-subject-normalization-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm42}"</code>, <code>subject: ""</code>, <code>body: "mcp-gee-sweet TC-GM42 no subject"</code>. Record <code>id</code> as <code>{GM42_A}</code>.
+2. <code>reply_to_message</code> with <code>message_id: "{GM42_A}"</code>, <code>body: "mcp-gee-sweet TC-GM42 reply A"</code>, then <code>get_message</code> on the returned <code>id</code>
+3. <code>send_message</code> with <code>to: "{QA+tc-gm42}"</code>, <code>subject: "RE: [mcp-qa:tc-gm42] upper-case prefix"</code>, <code>body: "mcp-gee-sweet TC-GM42 RE"</code>. Record <code>id</code> as <code>{GM42_B}</code>.
+4. <code>reply_to_message</code> with <code>message_id: "{GM42_B}"</code>, <code>body: "mcp-gee-sweet TC-GM42 reply B"</code>, then <code>get_message</code> on the returned <code>id</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>headers.subject</code> is exactly <code>Re:</code>
+- Step 4: <code>headers.subject</code> is exactly <code>RE: [mcp-qa:tc-gm42] upper-case prefix</code> (no <code>Re: RE:</code>)
+- Both replies share their original's <code>thread_id</code></p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM42_A}</code>, <code>{GM42_B}</code>, and both reply IDs. <code>{GM42_A}</code> and its reply have no <code>[mcp-qa</code> subject, so <code>reset</code> won't sweep them; trash them by ID.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive">TC-GM43: Reply from the middle of a thread chains References ⚠️ destructive<a class="headerlink" href="#tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive" title="Permanent link">&para;</a></h3>
+<p>Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the reply goes to its original <code>To</code>: the sender mailbox. That's an allowed recipient (plan §3.1).</p>
+<p><strong>Action</strong>
+1. <code>get_thread</code> with <code>thread_id: "{TEST_THREAD_ID}"</code>. Take M2 as in TC-GM33 and record its <code>id</code>, <code>headers.message_id</code>, and <code>headers.references</code>.
+2. <code>reply_to_message</code> with <code>message_id</code> set to M2's <code>id</code>, <code>body: "mcp-gee-sweet TC-GM43 reply from the middle"</code>
+3. <code>get_message</code> with the <code>id</code> from step 2</p>
+<p><strong>Checks</strong>
+- Step 2: <code>thread_id</code> is <code>{TEST_THREAD_ID}</code>
+- Step 3: <code>headers.in_reply_to</code> equals M2's <code>message_id</code>
+- Step 3: <code>headers.references</code> equals M2's <code>references</code> followed by a space and M2's <code>message_id</code>, so it names M1 then M2
+- Step 3: <code>headers.subject</code> is <code>Re: [mcp-qa:thread] two-party thread</code> (one <code>Re:</code>)
+- Step 3: <code>headers.to</code> is <code>{SENDER}</code></p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-2 <code>id</code>. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy (<code>Re: [mcp-qa:thread]</code>, body <code>mcp-gee-sweet TC-GM43 reply from the middle</code>) through <code>mcp__mcp-gee-sweet__trash_message</code>.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="modify_labels"><code>modify_labels</code><a class="headerlink" href="#modify_labels" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm19-toggle-unread-on-a-message-and-starred-on-a-thread-destructive">TC-GM19: Toggle UNREAD on a message and STARRED on a thread ⚠️ destructive<a class="headerlink" href="#tc-gm19-toggle-unread-on-a-message-and-starred-on-a-thread-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code>. Note whether <code>label_ids</code> includes <code>UNREAD</code>.
+2. <code>modify_labels</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code>, <code>add_label_ids: ["UNREAD"]</code>
+3. <code>modify_labels</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code>, <code>remove_label_ids: ["UNREAD"]</code>
+4. <code>modify_labels</code> with <code>thread_id: "{TEST_THREAD_ID}"</code>, <code>add_label_ids: ["STARRED"]</code>
+5. <code>modify_labels</code> with <code>thread_id: "{TEST_THREAD_ID}"</code>, <code>remove_label_ids: ["STARRED"]</code></p>
+<p><strong>Checks</strong>
+- Step 2: returns <code>id</code>, <code>thread_id</code>, <code>label_ids</code>, with <code>UNREAD</code> in <code>label_ids</code>
+- Step 3: <code>UNREAD</code> is not in <code>label_ids</code>
+- Step 4: returns <code>id</code> (<code>{TEST_THREAD_ID}</code>) and <code>messages</code>; <strong>every</strong> entry in <code>messages</code> has <code>STARRED</code> in <code>label_ids</code>
+- Step 5: <strong>no</strong> entry in <code>messages</code> has <code>STARRED</code>
+- No <code>error</code> field in any response</p>
+<p><strong>Cleanup:</strong> if step 1 showed <code>UNREAD</code>, add it back with <code>modify_labels</code> so the fixture ends as it started.</p>
+<p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>modify_labels</code> message branch via <code>_message_summary</code>)</strong>: the message branch returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code>. <code>UNREAD</code> was added, then removed. On the thread, <code>STARRED</code> was added to every message, then removed from every message. There was no <code>error</code> in any response. The fixture started <code>UNREAD</code>, and <code>UNREAD</code> was restored.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm20-validation-errors">TC-GM20: Validation errors<a class="headerlink" href="#tc-gm20-validation-errors" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>modify_labels</code> with <code>add_label_ids: ["STARRED"]</code> and neither <code>message_id</code> nor <code>thread_id</code>
+2. <code>modify_labels</code> with <code>add_label_ids: ["STARRED"]</code>, <code>message_id: "{TEST_MESSAGE_ID}"</code>, and <code>thread_id: "{TEST_THREAD_ID}"</code>
+3. <code>modify_labels</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code> and neither <code>add_label_ids</code> nor <code>remove_label_ids</code></p>
+<p><strong>Checks</strong>
+- Steps 1 and 2: <code>{"error": "Provide exactly one of message_id or thread_id."}</code>
+- Step 3: <code>{"error": "Provide at least one of add_label_ids or remove_label_ids."}</code>
+- <code>{TEST_MESSAGE_ID}</code>'s labels are unchanged (no API call was made)</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="trash_message"><code>trash_message</code><a class="headerlink" href="#trash_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm21-trash-a-throwaway-destructive">TC-GM21: Trash a throwaway ⚠️ destructive<a class="headerlink" href="#tc-gm21-trash-a-throwaway-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm21}"</code>, <code>subject: "[mcp-qa:tc-gm21] trash me"</code>, <code>body: "mcp-gee-sweet TC-GM21"</code>
+2. <code>trash_message</code> with <code>message_id</code> set to the <code>id</code> from step 1</p>
+<p><strong>Checks</strong>
+- Step 2: <code>action</code> is <code>"trashed"</code>, <code>label_ids</code> includes <code>TRASH</code>, <code>id</code> matches step 1
+- No <code>error</code> field</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm22-trash-non-existent-message">TC-GM22: Trash non-existent message<a class="headerlink" href="#tc-gm22-trash-non-existent-message" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>trash_message</code> with <code>message_id: "totally-invalid-message-id-xyz"</code></p>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code>, not a tool exception</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm37-trash-twice-then-try-to-restore-by-label-destructive-product-decision">TC-GM37: Trash twice, then try to restore by label ⚠️ destructive 🔍 product decision<a class="headerlink" href="#tc-gm37-trash-twice-then-try-to-restore-by-label-destructive-product-decision" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the tools have no <code>untrash</code>. Whether <code>modify_labels(remove_label_ids=["TRASH"])</code> restores a message is unverified (plan §2 item 3). This case records the answer. It isn't pass/fail on the restore question: record what happened and update plan §2 item 3 with it.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm37}"</code>, <code>subject: "[mcp-qa:tc-gm37] trash twice"</code>, <code>body: "mcp-gee-sweet TC-GM37"</code>. Record <code>id</code> as <code>{GM37_ID}</code>.
+2. <code>trash_message</code> with <code>message_id: "{GM37_ID}"</code>
+3. <code>trash_message</code> with <code>message_id: "{GM37_ID}"</code> again
+4. <code>modify_labels</code> with <code>message_id: "{GM37_ID}"</code>, <code>remove_label_ids: ["TRASH"]</code>
+5. <code>get_message</code> with <code>message_id: "{GM37_ID}"</code>
+6. <code>list_messages</code> with <code>query: "subject:(mcp-qa tc-gm37)"</code> (no <code>include_spam_trash</code>)</p>
+<p><strong>Checks</strong>
+- Step 2: <code>action: "trashed"</code>, <code>TRASH</code> in <code>label_ids</code>
+- Step 3: either the same success shape (idempotent) or a clean <code>{"error": ...}</code>. <strong>Record which.</strong> Either is acceptable; a tool exception is a FAIL.
+- Steps 4–6: <strong>record</strong> whether step 4 errors, whether <code>TRASH</code> is gone from step 5's <code>label_ids</code>, which other labels it has (<code>INBOX</code>? <code>SENT</code>?), and whether step 6 lists <code>{GM37_ID}</code></p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM37_ID}</code> (a no-op if it's still in trash).</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="cross-mailbox-delivery">Cross-mailbox delivery<a class="headerlink" href="#cross-mailbox-delivery" title="Permanent link">&para;</a></h2>
+<p>These cases prove what the recipient actually receives, which plus-address cases can't show. The QA-side call is the one under test. Sender-side calls go through <code>mcp__mcp-gee-sweet__*</code> and only observe. Read, and afterwards trash, only the <code>[mcp-qa</code>-subject messages each case names in the sender mailbox.</p>
+<h3 id="tc-gm44-a-reply-threads-in-the-recipients-mailbox-destructive-cross-mailbox">TC-GM44: A reply threads in the recipient's mailbox ⚠️ destructive ⚠️ cross-mailbox<a class="headerlink" href="#tc-gm44-a-reply-threads-in-the-recipients-mailbox-destructive-cross-mailbox" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. QA: <code>reply_to_message</code> with <code>message_id: "{TEST_MESSAGE_ID}"</code>, <code>body: "mcp-gee-sweet TC-GM44 reply"</code>. The <code>plain</code> fixture is from <code>{SENDER}</code>, so the reply goes there. Record the returned <code>id</code>.
+2. Sender, after ~30 s: <code>mcp__mcp-gee-sweet__list_messages</code> with <code>query: "subject:(mcp-qa plain)"</code>, <code>max_results: 10</code>. Retry up to 3 times, 30 s apart, until two messages share a <code>thread_id</code>.
+3. Sender: <code>mcp__mcp-gee-sweet__get_message</code> on each returned ID</p>
+<p><strong>Checks</strong>
+- Step 1: returns <code>id</code>, <code>thread_id</code> equal to <code>{TEST_MESSAGE_ID}</code>'s thread, <code>SENT</code> in <code>label_ids</code>
+- Step 3: the sender mailbox holds its original <code>[mcp-qa:plain] plain text</code> (labeled <code>SENT</code>) and the delivered <code>Re: [mcp-qa:plain] plain text</code> with body <code>mcp-gee-sweet TC-GM44 reply</code>, and <strong>both have the same <code>thread_id</code></strong>
+- Step 3: the delivered reply's <code>headers.in_reply_to</code> equals the original's <code>headers.message_id</code></p>
+<p><strong>Cleanup:</strong> QA: <code>trash_message</code> the step-1 <code>id</code>. Sender: <code>mcp__mcp-gee-sweet__trash_message</code> the delivered reply only. Leave the sender's original: it's the <code>plain</code> fixture's source.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h3 id="tc-gm45-bcc-is-stripped-from-the-delivered-copy-destructive-cross-mailbox">TC-GM45: Bcc is stripped from the delivered copy ⚠️ destructive ⚠️ cross-mailbox<a class="headerlink" href="#tc-gm45-bcc-is-stripped-from-the-delivered-copy-destructive-cross-mailbox" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. QA: <code>send_message</code> with <code>to: "{SENDER}"</code>, <code>cc: "{QA+tc-gm45-cc}"</code>, <code>bcc: "{QA+tc-gm45-bcc}"</code>, <code>subject: "[mcp-qa:tc-gm45] bcc stripping"</code>, <code>body: "mcp-gee-sweet TC-GM45"</code>. Record <code>id</code> as <code>{GM45_ID}</code>.
+2. Sender, after ~30 s: <code>mcp__mcp-gee-sweet__list_messages</code> with <code>query: "subject:(mcp-qa tc-gm45)"</code>. Retry as in TC-GM44. Then <code>mcp__mcp-gee-sweet__get_message</code> on the result.
+3. QA: <code>get_message</code> with <code>message_id: "{GM45_ID}"</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>headers.cc</code> is <code>{QA+tc-gm45-cc}</code> and <code>headers.bcc</code> is <code>null</code>. A delivered copy that shows Bcc is a FAIL: it leaks the blind recipient.
+- Step 3: the QA mailbox's own copy keeps <code>headers.bcc</code> (as in TC-GM39)</p>
+<p><strong>Cleanup:</strong> QA: <code>trash_message</code> <code>{GM45_ID}</code>. Sender: <code>mcp__mcp-gee-sweet__trash_message</code> the delivered copy.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

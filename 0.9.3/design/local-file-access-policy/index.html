@@ -1,0 +1,1712 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/design/local-file-access-policy/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Local-File Access Policy - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#local-file-access-policy" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Local-File Access Policy
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="local-file-access-policy">Local-File Access Policy<a class="headerlink" href="#local-file-access-policy" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-10-10 · <strong>Issue:</strong> <a href="https://github.com/khuisman/mcp-gee-sweet/issues/796">#796</a> · <strong>Modules:</strong> new <code>src/mcp_gee_sweet/local_files.py</code>; <code>server.py</code>; the local-I/O sites under <code>tools/</code></p>
+<p>This doc is the implementation design for the policy approved on #796 (2026-10-04). It doesn't revisit the decision. Where carrying the decision out raised a question it didn't answer, the maintainer settled it on 2026-10-10; see <a href="#questions-resolved-during-scoping">Questions resolved during scoping</a>.</p>
+<h2 id="the-decision-restated">The decision, restated<a class="headerlink" href="#the-decision-restated" title="Permanent link">&para;</a></h2>
+<ul>
+<li>One setting, <code>LOCAL_FILE_ACCESS=full|roots|off</code>.</li>
+<li><code>full</code>: any local path (today's behavior).</li>
+<li><code>roots</code>: a path must resolve, symlinks included, under a directory listed in <code>LOCAL_FILE_ROOTS</code>.</li>
+<li><code>off</code>: no local file access.</li>
+<li>Default: <code>full</code> under stdio, <code>off</code> under SSE or streamable HTTP.</li>
+<li>Every local read and write goes through one shared check.</li>
+<li>Always blocked, in every mode: the server's own <code>CREDENTIALS_PATH</code>, <code>TOKEN_PATH</code>, <code>SERVICE_ACCOUNT_PATH</code>, and <code>.env</code>.</li>
+<li>In <code>off</code> mode, local-only tools aren't registered. Tools whose only local I/O is an optional <code>local_path</code> stay registered and return a clear error when it's used.</li>
+<li>Gmail's attachment read moves off the event loop.</li>
+<li>Out of scope: remote-safe replacements (binary upload, image bytes, large-result destinations, downloads) and input size limits.</li>
+</ul>
+<h2 id="what-changed-since-the-ticket-was-filed">What changed since the ticket was filed<a class="headerlink" href="#what-changed-since-the-ticket-was-filed" title="Permanent link">&para;</a></h2>
+<p>Checked against <code>develop</code> at <code>f899708</code>:</p>
+<ul>
+<li><strong>Gmail's attachment read is already off the loop.</strong> PR #928 (#896) moved <code>_read_attachment_bytes</code> inside <code>_compose_raw</code>, which runs <code>_build_raw_message</code> via <code>asyncio.to_thread</code>. The last synchronous local read under <code>tools/</code> is <code>docs/content.py</code>'s <code>_read_doc_source_file</code> (Sky's comment on #796). That one is now this ticket's off-loop item.</li>
+<li><strong>Streamable HTTP is a third transport</strong> (#917). The default rule reads "anything but stdio", not "SSE".</li>
+<li><strong>Markdown/HTML image sources are a local read the ticket didn't list.</strong> <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code> and <code>update_doc_from_file</code> resolve <code>![](path)</code> / <code>&lt;img src&gt;</code> through <code>_resolve_image_source</code>, which uploads any local path. The shared check has to cover it.</li>
+<li><strong><code>export_file</code> and <code>export_revision</code> don't touch disk.</strong> They return bytes in-memory. "Downloads and exports" in the decision means <code>download_file</code>, <code>download_folder</code> and <code>sync_folder</code>.</li>
+</ul>
+<h2 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h2>
+<h3 id="1-one-module-srcmcp_gee_sweetlocal_filespy">1. One module: <code>src/mcp_gee_sweet/local_files.py</code><a class="headerlink" href="#1-one-module-srcmcp_gee_sweetlocal_filespy" title="Permanent link">&para;</a></h3>
+<p>It's a top-level module beside <code>http_transport.py</code>, not under <code>tools/</code>, because <code>server.py</code> needs it at import time for registration and every tool domain needs it at call time. It owns:</p>
+<ul>
+<li><code>LocalFileAccess</code>: a <code>str, Enum</code> with <code>FULL</code>, <code>ROOTS</code>, <code>OFF</code> (not <code>StrEnum</code>, which needs Python 3.11; the package supports 3.10).</li>
+<li><code>POLICY</code>: the process's resolved policy (mode, roots, deny-list), computed once at import.</li>
+<li><code>check_read(path) -&gt; Path</code> and <code>check_write(path) -&gt; Path</code>: the one shared check. Each returns the resolved <code>Path</code> to use for the I/O, or raises <code>LocalFileAccessError</code>.</li>
+<li><code>LocalFileAccessError(ValueError)</code>: a <code>ValueError</code> subclass, so <code>_timed</code>'s error-visibility allowlist (<code>decision-tool-error-visibility.md</code>) passes its message to the client unchanged. Sites that report errors as <code>{"error": ...}</code> or as per-item <code>failed</code> entries catch it and use <code>str(e)</code>.</li>
+<li><code>registers_local_only_tools() -&gt; bool</code>: <code>False</code> in <code>off</code> mode.</li>
+</ul>
+<p>It imports the credential paths from <code>auth.py</code>. <code>auth.py</code> imports nothing from <code>tools/</code> or from this module, so there's no cycle.</p>
+<h3 id="2-resolving-the-mode-at-import-and-the-fail-safe">2. Resolving the mode at import, and the fail-safe<a class="headerlink" href="#2-resolving-the-mode-at-import-and-the-fail-safe" title="Permanent link">&para;</a></h3>
+<p>Tool registration runs at import (<code>register_all(tool)</code> in <code>server.py</code>), before <code>main()</code> parses <code>--transport</code>. <code>off</code> mode decides which tools register, so the mode must be known at import too. <code>ENABLED_TOOLS</code> already solves this by reading <code>sys.argv</code> at import (<code>_parse_enabled_tools</code>). The policy does the same:</p>
+<ol>
+<li>Extract <code>_cli_transport(argv) -&gt; str</code> from <code>main()</code> (default <code>"stdio"</code>). <code>main()</code> and the policy resolver both call it, so the two can't disagree.</li>
+<li><code>LOCAL_FILE_ACCESS</code> set: use it. Not set: <code>full</code> if the CLI transport is <code>stdio</code>, else <code>off</code>.</li>
+<li>Record whether the mode was explicit or defaulted (<code>POLICY.explicit</code>).</li>
+</ol>
+<p><code>--reload</code> is covered. uvicorn's reload worker is a <code>multiprocessing</code> spawn child, and a spawn child inherits the parent's <code>sys.argv</code>. Confirmed with a scratch script: the child saw <code>--transport sse</code>. So <code>docker-compose.yml</code>'s <code>--transport sse --reload</code> resolves to <code>off</code> in the worker that actually serves.</p>
+<p><strong>The gap argv can't close.</strong> <code>mcp_gee_sweet.server:app</code> is a module-level ASGI object. An operator who points uvicorn at it directly (<code>uvicorn mcp_gee_sweet.server:app</code>) never passes <code>--transport</code>, so argv resolution says stdio and the default would be <code>full</code> on a network-facing server. That launch isn't documented, but nothing stops it, and the decision's default exists precisely for network-facing servers. So, a runtime tripwire:</p>
+<ul>
+<li><code>_timed</code> already reads <code>ctx.request_context.request</code> for the access log. It's a Starlette <code>Request</code> under SSE and streamable HTTP, and <code>None</code> under stdio.</li>
+<li><code>_timed</code> sets a <code>ContextVar</code>, <code>local_files.request_over_http</code>, for the duration of the call.</li>
+<li><code>check_read</code> / <code>check_write</code> refuse every path when <code>POLICY.mode is FULL and not POLICY.explicit and request_over_http.get()</code>, with an error naming <code>LOCAL_FILE_ACCESS</code>. The first such refusal logs one <code>WARNING</code>.</li>
+</ul>
+<p>An explicit <code>LOCAL_FILE_ACCESS=full</code> over HTTP is honored, because the operator chose it. The tripwire catches only a stdio default leaking onto an HTTP request. In that misconfigured launch the local-only tools are still registered, but every call they make is refused, so the failure is closed.</p>
+<h3 id="3-the-check">3. The check<a class="headerlink" href="#3-the-check" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>check_read(path) / check_write(path):
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  1. tripwire (§2)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  2. mode OFF   -&gt; refuse
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  3. p = Path(os.path.realpath(path))        # relative paths resolve against cwd, as open() does
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  4. mode ROOTS -&gt; refuse unless p.is_relative_to(r) for some resolved root r
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  5. deny-list  -&gt; refuse if p is a credential file (below)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  6. return p
+</code></pre></div>
+<p><strong>Check before any <code>stat</code>.</strong> Several sites currently call <code>Path(x).is_file()</code> / <code>.exists()</code> first and return <code>"No file found at ..."</code>. In <code>roots</code> and <code>off</code> mode, that ordering is an existence oracle for paths outside the roots. The check must run first, and its refusal message must be the same whether or not the path exists. <code>realpath</code> needs no existing target: it resolves the existing prefix, so writes to new files work.</p>
+<p><strong>Use the returned path.</strong> A site does its I/O on the <code>Path</code> the check returned, not on the caller's string. This narrows the window between check and use, though it doesn't close it (see Known limitations).</p>
+<p><strong>Containment is a string test on resolved paths, and it fails closed.</strong> On a case-insensitive filesystem (macOS APFS default), <code>realpath</code> keeps the caller's spelling of components that exist. Confirmed: <code>realpath("dir/TOKEN.json") != realpath("dir/token.json")</code> for one file. So a differently-cased path can fail the <code>is_relative_to</code> test for a file that really is inside a root (a false refusal), but it can never pass the test for a file outside one.</p>
+<p><strong>What's on the deny-list.</strong> The decision's four entries, plus the process-level files the maintainer added on 2026-10-10 (open question 2 below):</p>
+<table>
+<thead>
+<tr>
+<th>Entry</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CREDENTIALS_PATH</code>, <code>TOKEN_PATH</code>, <code>SERVICE_ACCOUNT_PATH</code></td>
+<td>the server's own credentials (decision)</td>
+</tr>
+<tr>
+<td><code>Path(mcp_gee_sweet.__file__).parent / ".env"</code></td>
+<td>runtime config, may hold <code>CREDENTIALS_CONFIG</code> (decision)</td>
+</tr>
+<tr>
+<td><code>GOOGLE_APPLICATION_CREDENTIALS</code>, when set</td>
+<td>an ADC key file: the same class of secret as <code>SERVICE_ACCOUNT_PATH</code></td>
+</tr>
+<tr>
+<td>gcloud's default ADC file: <code>$CLOUDSDK_CONFIG/application_default_credentials.json</code>, else <code>~/.config/gcloud/…</code> (POSIX) or <code>%APPDATA%\gcloud\…</code> (Windows)</td>
+<td>ADC's fallback when <code>GOOGLE_APPLICATION_CREDENTIALS</code> is unset; a user refresh token</td>
+</tr>
+<tr>
+<td><code>CACHE_DB_PATH</code> and its SQLite WAL sidecars (<code>-wal</code>, <code>-shm</code>; <code>cache.py</code> sets <code>journal_mode=WAL</code>). With the default location, the whole <code>mcp-gee-sweet</code> cache directory (<code>Policy.deny_dirs</code>), since only the server writes there. Also the pre-0.9.3 default <code>/tmp/mcp_gee_sweet.db</code> and its sidecars, which stay on disk (GHSA-8jqx-w7j8-6xwm)</td>
+<td>reading exposes cached Drive/Sheets/Docs data; overwriting corrupts the cache</td>
+</tr>
+<tr>
+<td><code>LOG_FILE</code>, <code>ACCESS_LOG_FILE</code>, when set</td>
+<td>a download could overwrite or truncate them (plain <code>FileHandler</code>, no rotated copies to cover)</td>
+</tr>
+</tbody>
+</table>
+<p>Entries are included whether or not the file exists yet; an unset optional entry is skipped.</p>
+<p><strong>The deny-list compares file identity, not strings.</strong> For the same reason, a string compare would let <code>TOKEN.json</code> through on macOS. A hardlink to the token would also slip past it, inside a root or not. At import, resolve each deny-listed path with <code>realpath</code>. Relative defaults like <code>token.json</code> resolve against the startup cwd, which is what <code>auth.py</code> reads. Then a target is refused if:</p>
+<ul>
+<li>it exists and <code>os.path.samefile(p, entry)</code> holds for an entry that exists (this catches case variants, hardlinks and bind mounts), or</li>
+<li>it doesn't exist and its <code>realpath</code> equals an entry's <code>realpath</code> under <code>os.path.normcase</code> and <code>casefold()</code>. This is the write case. A download to a <code>TOKEN_PATH</code> that hasn't been written yet would otherwise plant a token the server then loads.</li>
+</ul>
+<p>The deny-list applies in <code>full</code> mode too. There it guards a local user against an LLM-composed <code>send_message(attachments=[{local_path: "token.json"}])</code> or a <code>sync_folder</code> run over the config directory, not against a hostile caller.</p>
+<p><strong>Refusal messages</strong> name the setting. The only configured values they carry are the roots, so a caller can pick a valid path on the next try (§9):</p>
+<ul>
+<li><code>off</code>: <code>"local file access is disabled on this server (LOCAL_FILE_ACCESS=off)"</code></li>
+<li><code>roots</code>: <code>"&lt;path&gt; is outside this server's LOCAL_FILE_ROOTS. Allowed directories: &lt;root&gt;, &lt;root&gt;"</code>. Each root is listed by its configured spelling, the one the containment test matches (§3).</li>
+<li>deny-list: <code>"&lt;path&gt; is one of this server's own credential, config, cache, or log files and can't be read or written by a tool"</code></li>
+<li>tripwire: <code>"local file access is disabled for HTTP requests unless LOCAL_FILE_ACCESS is set explicitly"</code></li>
+</ul>
+<p>Don't interpolate <code>TOKEN_PATH</code>'s value or other secret-named values into log lines (CodeQL <code>py/clear-text-logging-sensitive-data</code>; see root <code>CLAUDE.md</code>). Echoing the caller's own <code>path</code> back is fine.</p>
+<h3 id="4-configuration-validation">4. Configuration validation<a class="headerlink" href="#4-configuration-validation" title="Permanent link">&para;</a></h3>
+<p>Done at import, alongside <code>ENABLED_TOOLS</code>. An invalid value raises <code>SystemExit</code> with a one-line message, so a misconfigured server never starts serving (as implemented, the exit moved to <code>main()</code>'s serving path; see <a href="#as-implemented">As implemented</a>):</p>
+<ul>
+<li><code>LOCAL_FILE_ACCESS</code> not in <code>full|roots|off</code> (case-insensitive).</li>
+<li><code>roots</code> with <code>LOCAL_FILE_ROOTS</code> empty or unset.</li>
+<li>A <code>LOCAL_FILE_ROOTS</code> entry that doesn't exist or isn't a directory.</li>
+<li><code>LOCAL_FILE_ROOTS</code> set while the mode isn't <code>roots</code>: log a <code>WARNING</code> that it's ignored, but don't exit.</li>
+</ul>
+<p><code>LOCAL_FILE_ROOTS</code> is split on <code>os.pathsep</code> (<code>:</code> on POSIX, <code>;</code> on Windows), like <code>PATH</code>/<code>PYTHONPATH</code>, rather than on the comma <code>ENABLED_TOOLS</code> uses: tool names can't contain commas, but paths can. Each root is resolved with <code>realpath</code> once, at import.</p>
+<h3 id="5-site-inventory-and-choke-points">5. Site inventory and choke points<a class="headerlink" href="#5-site-inventory-and-choke-points" title="Permanent link">&para;</a></h3>
+<p>Each local read or write gets exactly one check, placed at the narrowest shared function. Function names are given rather than line numbers, since line numbers move.</p>
+<table>
+<thead>
+<tr>
+<th>Tool(s)</th>
+<th>Local I/O</th>
+<th>Check site</th>
+<th>Op</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>upload_local_file</code>, <code>upload_local_folder</code> (per file), <code>insert_local_images</code> and Markdown/HTML local images (via <code>upload_and_share_local_image</code>)</td>
+<td>open + <code>MediaFileUpload</code></td>
+<td><code>transfer._upload_local_file</code>, at the top</td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>insert_local_images</code>, Markdown/HTML local images</td>
+<td><code>stat</code>, image header read, resize read (<code>check_image_file</code>, <code>prepare_local_image</code>) <em>before</em> the upload</td>
+<td><code>images.upload_and_share_local_image</code>, at the top, before <code>prepare_local_image</code>. Also replace <code>insert_local_images</code>'s own <code>Path(local_path).is_file()</code> pre-check and <code>content._resolve_image_source</code>'s with the check (ordering rule, §3)</td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>upload_local_folder</code></td>
+<td><code>iterdir</code> of the folder</td>
+<td>the folder itself, in the tool, before <code>is_dir()</code></td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>create_doc_from_file</code>, <code>update_doc_from_file</code></td>
+<td><code>read_text</code></td>
+<td><code>content._read_doc_source_file</code>, at the top, before <code>exists()</code></td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>import_csv_to_sheet</code></td>
+<td><code>open</code></td>
+<td>the tool, before <code>path.open</code></td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>send_message</code>, <code>create_draft</code> (attachments)</td>
+<td><code>read_bytes</code></td>
+<td><code>gmail._read_attachment_bytes</code> (already in a worker thread; the <code>ValueError</code> propagates out of <code>_compose_raw</code> as today's missing-field error does)</td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>download_file</code></td>
+<td><code>_write_atomically</code>, <code>mkdir</code></td>
+<td>the tool, before <code>response_limits.validate_local_destination</code> (that helper <code>stat</code>s parents)</td>
+<td>write</td>
+</tr>
+<tr>
+<td><code>download_folder</code>, <code>sync_folder</code> (downloads)</td>
+<td><code>mkdir</code>, <code>_write_atomically</code> per file</td>
+<td>the destination root in the tool, before <code>mkdir</code>, plus each file (§6)</td>
+<td>write</td>
+</tr>
+<tr>
+<td><code>sync_folder</code> (uploads, <code>use_checksum</code> hashing, <code>stat</code>)</td>
+<td><code>MediaFileUpload</code>, <code>_local_md5</code>, <code>stat</code></td>
+<td>each local entry where <code>_sync_level</code> builds <code>local_map</code> / <code>local_folder_map</code> (§6)</td>
+<td>read</td>
+</tr>
+<tr>
+<td><code>sync_folder</code>, <code>upload_local_folder</code>, <code>download_folder</code>: the <code>local_path</code> root</td>
+<td><code>mkdir</code> / <code>iterdir</code></td>
+<td>the tool, at entry</td>
+<td>read for upload-only, write for any direction that can download</td>
+</tr>
+<tr>
+<td>9 tools with the response-cap bypass (<code>get_sheet_data</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>, <code>find_in_spreadsheet</code>, <code>get_doc_content</code>, <code>find_in_doc</code>, <code>get_doc_as_markdown</code>, <code>get_message</code>, <code>get_thread</code>) and <code>sync_folder(result_local_path=)</code></td>
+<td><code>mkdir</code>, <code>_write_atomically</code></td>
+<td><code>response_limits.write_capped_result_to_disk</code>, at the top, before <code>validate_local_destination</code>. Check the final <code>dest</code> after the directory join too, since <code>default_filename</code> changes the target. For <code>result_local_path</code>, also <code>sync_folder</code>'s own early <code>validate_local_destination(result_local_path, ...)</code>, which runs before any transfer and before <code>local_path</code>'s <code>mkdir</code> (#990)</td>
+<td>write</td>
+</tr>
+</tbody>
+</table>
+<p><code>sync_folder</code>'s existing "<code>result_local_path</code> inside <code>local_path</code>" <code>ValueError</code> stays as it is and runs after the policy check. The two are independent.</p>
+<h3 id="6-folder-walks-check-each-entry-not-just-the-root">6. Folder walks: check each entry, not just the root<a class="headerlink" href="#6-folder-walks-check-each-entry-not-just-the-root" title="Permanent link">&para;</a></h3>
+<p><code>iterdir()</code> followed by <code>is_file()</code> / <code>is_dir()</code> follows symlinks. A symlink inside an allowed root that points at <code>/etc</code> or at the token file is uploaded today, and a pre-existing symlink in a download destination is written through (<code>_write_atomically</code> deliberately writes through a symlinked <code>dest</code>). Checking only the root would miss both, so:</p>
+<ul>
+<li><strong>Local reads during a walk.</strong> <code>_sync_level</code> runs <code>check_read</code> on each <code>p</code> as it builds <code>local_map</code>. A refused file follows the <code>unsafe_names</code> precedent beside it: it doesn't enter <code>local_map</code>, and it surfaces as one <code>local_read_fail</code> step carrying the refusal reason, so <code>dry_run</code> previews it and a real run reports it in <code>failed</code>. That needs no new plan-action kind. <code>local_folder_map</code> gets the same treatment for symlinked subdirectories, so recursion never descends outside a root. <code>upload_local_folder</code>'s per-file <code>_upload_local_file</code> call already gets its check from §5; a refusal lands in <code>failed</code> like any other per-file error.</li>
+<li><strong>Local writes during a walk.</strong> Every <code>_write_atomically</code> call site in <code>download_folder</code> and <code>_sync_level</code>'s download branch runs <code>check_write(dest_file)</code> before streaming. A refusal goes to <code>failed</code>. Don't put the check inside <code>_write_atomically</code>: its callers already handle per-file errors differently, and the error should be reported before the Drive download starts, not after.</li>
+<li><strong>Drive-supplied names</strong> can't escape the destination root on their own (<code>_safe_local_dest</code> / <code>_unsafe_name_reason</code>). The per-file check is for symlinks and the deny-list, not for traversal.</li>
+</ul>
+<p>A refused entry never aborts the whole walk. That matches how every other per-file failure in these tools is reported.</p>
+<h3 id="7-registration-in-off-mode">7. Registration in <code>off</code> mode<a class="headerlink" href="#7-registration-in-off-mode" title="Permanent link">&para;</a></h3>
+<p>Add a <code>local_only: bool = False</code> keyword to <code>server.tool()</code>. Mark the tools at their own decorator (<code>@tool(local_only=True)</code>), not in a central list of names, because a renamed tool silently drops out of a central list. That's the failure <code>gen_tool_docs.py</code>'s <code>SUBSETS</code> check exists to catch.</p>
+<p><code>tool()</code> skips registration when <code>local_only and not local_files.registers_local_only_tools()</code>, the same way it skips a tool missing from <code>ENABLED_TOOLS</code>. If <code>ENABLED_TOOLS</code> names a tool that <code>off</code> mode drops, log one <code>WARNING</code> at startup listing the dropped names, so an operator who asked for <code>sync_folder</code> learns why it's missing.</p>
+<p>Nine tools are local-only: the decision's seven (<code>sync_folder</code>, <code>upload_local_file</code>, <code>upload_local_folder</code>, <code>download_folder</code>, <code>insert_local_images</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>), plus <code>download_file</code> and <code>import_csv_to_sheet</code>, which take a <strong>required</strong> <code>local_path</code> and were added by the maintainer on 2026-10-10 (open question 1 below).</p>
+<p>Every other tool with local I/O stays registered and reaches the check at call time:</p>
+<ul>
+<li>the nine response-cap <code>local_path</code> tools</li>
+<li><code>send_message</code> / <code>create_draft</code> (<code>attachments[].local_path</code>; <code>content_base64</code> still works in <code>off</code> mode)</li>
+<li><code>create_doc</code> / <code>write_doc_content</code> (local image sources fail per image through the existing image-outcome path, and the doc is still written)</li>
+</ul>
+<p>Each local-only tool's docstring gains one sentence, "Not available when the server runs with <code>LOCAL_FILE_ACCESS=off</code>.", so <code>docs/tools.md</code> (generated) says so too.</p>
+<h3 id="8-off-loop-read">8. Off-loop read<a class="headerlink" href="#8-off-loop-read" title="Permanent link">&para;</a></h3>
+<p><code>_read_doc_source_file</code> keeps its signature. Both callers wrap it as <code>await asyncio.to_thread(_read_doc_source_file, ...)</code>. The policy check runs inside it, at the top, so it runs on the worker thread with the read. Nothing else under <code>tools/</code> reads file contents on the loop (<code>grep -rn "read_text\|read_bytes" src/mcp_gee_sweet/tools</code>). The cheap <code>stat</code> calls that remain on the loop (the check's <code>realpath</code>/<code>samefile</code>, <code>is_dir()</code>) are in the same cost class as the <code>is_file()</code> pre-checks that already run there, so they don't move.</p>
+<h3 id="9-reporting-the-policy-to-callers">9. Reporting the policy to callers<a class="headerlink" href="#9-reporting-the-policy-to-callers" title="Permanent link">&para;</a></h3>
+<p>A model working in <code>roots</code> mode otherwise has to guess paths until one passes. The MCP reference filesystem server addresses the same problem with a <code>list_allowed_directories</code> tool. Here the information goes in two places that already exist, so no new tool is added:</p>
+<ul>
+<li><strong>The <code>roots</code> refusal message</strong> lists the allowed directories (§3). It reaches the model exactly when it hits the boundary, including in clients that never surface resources.</li>
+<li><strong><code>server://auth-status</code></strong> gains a top-level <code>local_file_access</code> object, set identically in all three of <code>_auth_status_json</code>'s return branches (unauthorized, service account, full access):</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;local_file_access&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;roots&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;explicit&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;roots&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/data&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;/srv/exports&quot;</span><span class="p">],</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;unregistered_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>mode</code>: the resolved mode.</li>
+<li><code>explicit</code>: whether <code>LOCAL_FILE_ACCESS</code> was set (§2). A defaulted <code>full</code> over HTTP is refused per call by the tripwire. The resource is static and can't see the reading request's transport, so <code>explicit: false</code> with <code>mode: "full"</code> is the signal a client gets.</li>
+<li><code>roots</code>: the configured roots in <code>roots</code> mode; an empty list otherwise.</li>
+<li><code>unregistered_tools</code>: in <code>off</code> mode, the local-only tools this policy kept from registering, i.e. those <code>ENABLED_TOOLS</code> would otherwise have allowed. Empty otherwise. This is separate from <code>limited_tools</code>/<code>limitations</code>, which describe registered tools that fail for auth reasons.</li>
+</ul>
+<p>The resource's docstring gains a sentence describing the field.</p>
+<p>Publishing the roots discloses directory paths, which can hint at the host's layout, but only paths the caller is already allowed to read and write. There's no setting to hide them. One can be added if an operator asks.</p>
+<h3 id="10-docs-and-release-notes">10. Docs and release notes<a class="headerlink" href="#10-docs-and-release-notes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>docs/configuration.md</code>: <code>LOCAL_FILE_ACCESS</code> and <code>LOCAL_FILE_ROOTS</code> in the environment-variable table, plus a short section with the transport defaults, the always-blocked list, and a Docker bind-mount example (<code>LOCAL_FILE_ACCESS=roots</code>, <code>LOCAL_FILE_ROOTS=/data</code>).</li>
+<li><code>src/mcp_gee_sweet/.env.template</code>: both settings, commented out.</li>
+<li><code>CHANGELOG.md</code>: a <strong>Breaking</strong> entry. An SSE or streamable-HTTP server that relied on local-path tools must now set <code>LOCAL_FILE_ACCESS</code>.</li>
+<li><code>docs/known-limitations.md</code>: the limitations below.</li>
+<li>Root <code>CLAUDE.md</code>: a one-paragraph invariant entry ("every local read/write goes through <code>local_files.check_read</code>/<code>check_write</code>; local-only tools take <code>@tool(local_only=True)</code>"), since a future tool that forgets the check is the regression this design is most exposed to.</li>
+<li><code>docker-compose.yml</code> needs no change. It mounts no data directory, so <code>off</code> is the right default for it, and its service-account key is deny-listed anyway.</li>
+</ul>
+<h3 id="11-tests">11. Tests<a class="headerlink" href="#11-tests" title="Permanent link">&para;</a></h3>
+<p>Unit tests only for the policy itself; it has no Google API surface.</p>
+<ul>
+<li><code>tests/test_local_files.py</code>:</li>
+<li>The mode matrix: <code>LOCAL_FILE_ACCESS</code> unset/each value × <code>--transport</code> absent/<code>stdio</code>/<code>sse</code>/<code>streamable-http</code>.</li>
+<li>Validation exits (§4).</li>
+<li><code>roots</code> containment with <code>tmp_path</code>: inside, outside, <code>..</code> traversal, a symlink inside a root pointing outside, a symlink outside pointing inside.</li>
+<li>The deny-list: a case variant (skip unless the filesystem is case-insensitive), a hardlink, a non-existent <code>TOKEN_PATH</code> as a write target, <code>.env</code>, the cache's <code>-wal</code> sidecar, <code>CLOUDSDK_CONFIG</code> overriding the ADC default, an unset <code>LOG_FILE</code> adding no entry.</li>
+<li>The tripwire: defaulted <code>full</code> + HTTP request refuses; explicit <code>full</code> + HTTP request allows; stdio allows.</li>
+<li>Identical refusal text for existing vs. missing paths outside a root, listing the configured roots.</li>
+<li><code>tests/test_server.py</code>, <code>server://auth-status</code>: <code>local_file_access</code> is present in all three <code>_auth_status_json</code> branches, with <code>roots</code> filled only in <code>roots</code> mode and <code>unregistered_tools</code> only in <code>off</code> mode (and narrowed by <code>ENABLED_TOOLS</code>). Extend <code>TestResourcesReadLifespanContext</code>'s pattern; <code>docs/qa/tests/infra.md</code> gets a TC next to TC-I27 for a live resource read.</li>
+<li><code>tests/test_server.py</code>: in <code>off</code> mode the nine tools aren't registered and the rest are; the <code>ENABLED_TOOLS</code> warning. Follow the existing <code>ENABLED_TOOLS</code> tests' <code>monkeypatch</code> of <code>sys.argv</code> and the module attribute rather than re-importing <code>server</code>.</li>
+<li>One test per §5 choke point: in <code>off</code> mode the tool returns the refusal and the filesystem is untouched (no file created, no <code>mkdir</code>, no Drive call made).</li>
+<li><code>sync_folder</code> / <code>upload_local_folder</code> / <code>download_folder</code>: a walked directory with one symlink escaping the root. The other files transfer, and the escaping one is a <code>failed</code> / <code>local_read_fail</code> entry, under <code>dry_run</code> as well.</li>
+<li>A guard test: every <code>@tool</code> function with a parameter named <code>local_path</code> or <code>result_local_path</code>, or <code>attachments</code>/<code>images</code>, appears in an explicit allowlist of tools whose checks are covered above. A new local-path tool then fails CI until someone decides where its check goes.</li>
+</ul>
+<p>Live QA: the policy makes no Google API calls of its own, so live QA is limited to confirming the real launch paths. One stdio and one SSE subprocess run through <code>tests/integration/</code> (<code>decision-local-fs-test-harness.md</code>): under SSE with no setting, <code>sync_folder</code> is absent from <code>tools/list</code>; with <code>LOCAL_FILE_ACCESS=roots</code>, <code>upload_local_file</code> works inside the root and is refused outside it.</p>
+<h2 id="as-implemented">As implemented<a class="headerlink" href="#as-implemented" title="Permanent link">&para;</a></h2>
+<p>Where the implementation goes beyond the design above:</p>
+<ul>
+<li><strong>The <code>off</code> refusal says why when the mode was defaulted.</strong> An explicit <code>off</code> reads as in §3. A defaulted one reads <code>local file access is disabled on this server: LOCAL_FILE_ACCESS is unset, which means off for the &lt;transport&gt; transport</code>, since <code>(LOCAL_FILE_ACCESS=off)</code> would name a setting the operator never made. The deny-list message ends <code>can't be read by a tool</code> or <code>can't be written by a tool</code>, depending on the operation.</li>
+<li><strong>An optional <code>local_path</code> is also checked at the tool's entry.</strong> A live SSE run showed <code>get_sheet_data(local_path=...)</code> in <code>off</code> mode fetching first: a bad spreadsheet ID reported its 404 instead of the refusal, and a good one paid for a fetch it would then refuse to write. The ten tools with an optional <code>local_path</code> now call <code>check_write</code> before any API call. <code>write_capped_result_to_disk</code> keeps its own check as the backstop.</li>
+<li><strong><code>sync_folder</code> checks a download's target even when nothing exists locally.</strong> §6 checks each local entry; a Drive-only file is checked at the path it would be written to, so a Drive file named <code>token.json</code> can't plant a token in the directory holding <code>TOKEN_PATH</code>. A name on one side only that the direction never touches (local-only under <code>download</code>, Drive-only under <code>upload</code>) is planned as the usual skip without a check (<code>_sync_policy_refusal</code>), the way <code>_unsafe_name_step</code> treats an unsafe name.</li>
+<li><strong>The docstring note joins each local-only tool's first paragraph.</strong> <code>gen_tool_docs.py</code> takes only the first paragraph, so a separate one wouldn't have reached <code>docs/tools.md</code>.</li>
+<li><strong>An invalid setting doesn't exit at import (PR #1039 QA round 1, finding 4).</strong> §4's import-time <code>SystemExit</code> also blocked <code>mcp-gee-sweet auth</code> and <code>gen_tool_docs.py</code>, neither of which serves, and a <code>roots</code> entry that isn't mounted yet blocked re-authorization. <code>resolve_policy</code> now resolves an invalid setting to <code>off</code>, the fail-safe for registration, with the reason in <code>Policy.error</code>. It logs one <code>ERROR</code> at import, and <code>main()</code>'s serving path exits on it with the same one-line message (<code>exit_if_invalid</code>).</li>
+<li><strong><code>sync_folder</code>'s verb follows the operation (finding 3).</strong> <code>_sync_local_check</code> maps <code>(in_drive, in_local, direction)</code> to no check, <code>check_read</code>, <code>check_write</code>, or <code>check_read_write</code> for a both-sides entry under <code>bidirectional</code>, whose refusal says "can't be read or written". The sync root counts as a both-sides entry, and <code>_unsafe_name_step</code>'s skip rule uses the same helper.</li>
+<li><strong>A NUL byte is a refusal, not a crash (finding 1).</strong> <code>os.path.realpath</code> raises a plain <code>ValueError</code> for one, which the per-item sites didn't catch; <code>_check</code> turns it into a <code>LocalFileAccessError</code>, so that item fails alone, as a missing file did before.</li>
+<li><strong>The case-insensitive compare applies only to a target that doesn't exist (finding 5).</strong> An existing target matches by exact path or file identity, so on a case-sensitive filesystem a distinct <code>Token.json</code> beside <code>token.json</code> is allowed.</li>
+<li><strong><code>many_checks()</code> for walks (finding 6).</strong> A check cost about 75µs, most of it <code>realpath</code>'s <code>lstat</code> per component plus a <code>stat</code> of every deny-list entry. Inside <code>many_checks()</code>, which wraps the walks in <code>upload_local_folder</code>, <code>download_folder</code> and <code>sync_folder</code>, the deny-list is statted once and each parent directory resolved once, leaving one <code>lstat</code> per entry: about 13µs. The parent cache is keyed by the path's raw spelling and never normalizes lexically (QA round 2): <code>os.path.abspath</code> collapsed <code>&lt;symlink&gt;/..</code> before the symlink was resolved, so a walk rooted there checked one directory and wrote into another. A relative path bypasses the cache.</li>
+<li><strong>No CHANGELOG entry.</strong> <code>CHANGELOG.md</code> stops at 0.8.1, so the breaking default for network transports goes in the PR body for the release notes instead.</li>
+</ul>
+<h2 id="known-limitations">Known limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Check-then-use race.</strong> A symlink swapped between the check and the <code>open</code> defeats <code>roots</code>. A remote caller can't create symlinks through any tool (downloads write regular files and <code>sync_folder</code> never creates links), so exploiting it needs a local actor with write access inside a root. Closing it fully would mean <code>openat</code>-style descriptor-relative I/O through every site, which is out of proportion here.</li>
+<li><strong><code>roots</code> false refusals on case-insensitive filesystems</strong> when the caller's spelling of a directory differs from the root's (§3). This fails closed. Callers should use the root's spelling.</li>
+<li><strong>Deny-list scope.</strong> Only the server's own files (§3's table) are protected. Another secret inside an allowed root, or anywhere in <code>full</code> mode, is readable by design. <code>roots</code> is the tool for limiting that.</li>
+</ul>
+<h2 id="questions-resolved-during-scoping">Questions resolved during scoping<a class="headerlink" href="#questions-resolved-during-scoping" title="Permanent link">&para;</a></h2>
+<p>These came out of carrying the decision through. The maintainer answered all three on 2026-10-10.</p>
+<ol>
+<li>~~<strong><code>download_file</code> and <code>import_csv_to_sheet</code> in <code>off</code> mode.</strong>~~ <strong>Resolved 2026-10-10: unregistered.</strong> Each takes a required <code>local_path</code>, so registered it could only ever return the refusal. Folded into §7.</li>
+<li>~~<strong>More deny-list candidates.</strong>~~ <strong>Resolved 2026-10-10: all added.</strong> <code>GOOGLE_APPLICATION_CREDENTIALS</code>, gcloud's default ADC file, <code>CACHE_DB_PATH</code> (with its WAL sidecars), <code>LOG_FILE</code>, <code>ACCESS_LOG_FILE</code>. Folded into §3.</li>
+<li>~~<strong>Telling callers about the policy.</strong>~~ <strong>Resolved 2026-10-10: report it.</strong> The mode is always shown in <code>server://auth-status</code>, and in <code>roots</code> mode the roots are shown both there and in the refusal message. No hide setting. See §9.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1453 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.3/design/module-history/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Module implementation history - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#module-implementation-history" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Module implementation history
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="module-implementation-history">Module implementation history<a class="headerlink" href="#module-implementation-history" title="Permanent link">&para;</a></h1>
+<p>Per-PR history behind the rules in the root <a href="../../CLAUDE.md"><code>CLAUDE.md</code></a>: review rounds, reversed approaches, live-QA findings, and the incident behind each rule. It was moved here verbatim from <code>CLAUDE.md</code> in #849 so that file could hold only the lasting rules and invariants, which cost every session ~24k tokens at its old size.</p>
+<p>Each section below is the full original text of one <code>CLAUDE.md</code> entry, under the name <code>CLAUDE.md</code> uses for it. Entries short enough to have no history stayed in <code>CLAUDE.md</code> unchanged and aren't repeated here. Read the section for a module before changing that module's behavior: the invariants in <code>CLAUDE.md</code> are the summary, and the reasoning and edge cases are here.</p>
+<p>Issue and PR numbers are as they were at the move (2026-09-29). Later history belongs in the module's own design or decision doc, not appended here.</p>
+<h2 id="toolsdrivefilespy"><code>tools/drive/files.py</code><a class="headerlink" href="#toolsdrivefilespy" title="Permanent link">&para;</a></h2>
+<p><code>tools/drive/files.py</code> — file/folder operations (<code>create_spreadsheet</code>, <code>import_csv_to_sheet</code>, <code>list_spreadsheets</code>, <code>list_files</code>, <code>search_files</code>, <code>create_folder</code>, <code>create_shortcut</code>, <code>copy_file</code>, <code>move_file</code>, <code>rename_file</code>, <code>star_file</code>, <code>unstar_file</code>, <code>delete_file</code>, <code>restore_file</code>, <code>empty_trash</code>, <code>list_shared_with_me</code>, <code>list_recent_files</code>, <code>get_storage_quota</code>, etc.). <code>star_file</code>/<code>unstar_file</code> (#139) set <code>starred</code> via <code>files().update</code> — <code>get_file_metadata</code>, <code>list_files</code>, <code>search_files</code>, and <code>search_spreadsheets</code> all surface the <code>starred</code> field back (#388), and <code>star_file</code>/<code>unstar_file</code> mark the file's parent folder(s) dirty in <code>drive_folder_cache</code> the same way <code>rename_file</code> does, so a subsequent <code>list_files</code> reflects the new state without a manual <code>refresh_cache</code> (see TC-D202/203/260 in <code>docs/qa/tests/drive_files.md</code>). Both <code>list_files</code> and <code>get_file_metadata</code> now surface Drive's <code>md5Checksum</code> field as <code>md5_checksum</code> (#274) — <code>None</code> for Google Workspace files (Docs/Sheets/Slides have no fixed byte content, so the Drive API omits the field for them), a real hash for binary files. Exists so callers can detect real content drift instead of inferring it from <code>modifiedTime</code>, which sync/upload paths don't always keep faithful to actual content (see <code>transfer.py</code>'s <code>sync_folder</code> <code>use_checksum</code> param below, the primary consumer of this).</p>
+<h2 id="toolsdrivetransferpy"><code>tools/drive/transfer.py</code><a class="headerlink" href="#toolsdrivetransferpy" title="Permanent link">&para;</a></h2>
+<p><code>tools/drive/transfer.py</code> — upload/download/sync/export/revisions; <code>_upload_local_file</code> (the core behind the <code>upload_local_file</code> tool) is a module-level helper so <code>docs/images.py</code>'s <code>insert_local_images</code> can call it directly, imported cross-package the same way <code>docs/content.py</code> imports <code>_SA_QUOTA_ERROR</code> from <code>tools/drive/__init__.py</code>. <code>upload_local_file</code>'s <code>convert</code> param (#188) requests Drive's <em>native</em> import conversion — CSV/XLSX→Sheets, DOCX/MD/HTML→Docs, PPTX→Slides — by uploading with the source format's mimeType while setting the destination's <code>mimeType</code> metadata to the target Google Workspace type (<code>_CONVERT_MIME</code> maps extension → (source mime, target mime)). This is a different mechanism from <code>docs/content.py</code>'s <code>create_doc_from_file</code>, which parses the file locally and rebuilds it via Docs API requests instead of Drive's importer — don't conflate the two when adding new conversion paths. <code>sync_folder</code>'s <code>convert_markdown</code> param (#211) applies the same native-conversion mechanism to local <code>.md</code> files during sync uploads. Because the converted Doc keeps its <code>.md</code> name in Drive, <code>_sync_level</code>'s drive_map-building loop matches it back to the local <code>.md</code> file directly (bypassing the export_format-suffix scheme normal Workspace files need) so resyncs settle into "in sync" instead of re-uploading a duplicate every run — this also reopens matching for a drive-only converted Doc with no local counterpart and no <code>export_format</code> (previously unreachable, since such files were always excluded from <code>drive_map</code>) — the plan-building loop classifies that case as a <code>conflict</code> (a convert_markdown Doc has no reverse conversion) before it ever reaches the download branch, so the download branch's own <code>_EXPORT_MIME[None]</code> guard is defensive-only dead code in the current implementation, not a reachable path (confirmed live: TC-D221). There is no reverse conversion (Doc → markdown). A converted Doc is recognized on every later sync via a Drive <code>properties</code> marker (<code>_CONVERT_MARKDOWN_SOURCE_PROP</code>) stamped at creation time by both <code>_sync_level</code>'s own upload path and <code>_upload_local_file</code>'s <code>convert=True</code> path (#414 rounds 2-3) — recognition is deliberately independent of whether the <em>current</em> call passes <code>convert_markdown</code>/<code>convert</code>, since the Doc's own persisted property is what matters, not this call's flag. Both paths stamp through the shared <code>_convert_properties</code> helper, which keeps every value within Drive's 124-byte per-property cap: <code>_CONVERT_MARKDOWN_SOURCE_PROP</code> holds the raw name only when it fits, and the generic <code>_CONVERT_SOURCE_PROP</code> marker (#769) falls back to a <code>sha256:</code> digest. <code>_sync_level</code> used to stamp the raw name directly, so a <code>.md</code> name over 95 bytes failed <code>create()</code> with <code>403 propertyLengthLimitExceeded</code> after Drive had already made the Doc, leaving an orphan on every run (#805). Recognition goes through <code>_converted_md_source_name</code>, which accepts either key. The legacy markdown key is still honored, so Docs converted before #805 keep matching. The generic marker counts only for a <code>.md</code> source, and a digest is resolved against the Doc's own display name, which keeps its <code>.md</code> suffix. Because of that, a digest-marked Doc (a name over 103 UTF-8 bytes, <code>.md</code> included) stops matching if it's renamed in Drive; see <code>docs/known-limitations.md</code>. Three further edge cases from that round-3 review shipped as issue #422: the <code>drive_map</code>-building loop now detects (rather than silently resolving) a name collision between a plain file and a converted Doc, reporting it under <code>failed</code> instead of letting whichever is listed last win the slot and make the other invisible to the sync; <code>_upload_local_file</code> now stamps <code>modifiedTime</code> from the local file's mtime on a converted Doc (via <code>create()</code> then a metadata-only <code>update()</code>, mirroring <code>_sync_level</code>'s own create() branch, since Drive's native import-conversion overwrites the create()-time value once conversion finishes) so a subsequent <code>sync_folder</code> lands in <code>skipped</code> rather than <code>conflicts</code>; and the drive-only branch now checks <code>direction</code> before <code>_is_converted_md</code>, so <code>direction='upload'</code> reports a plain <code>skip</code> like any other drive-only file instead of always reporting <code>conflict</code>. PR #433's own review round found the collision guard needed to go further: it originally only fired when the two colliding entries' <code>_is_converted_md</code> differed (a plain file vs. a converted Doc, #422's own reported shape), silently overwriting a same-type collision (two plain files, or two converted Docs, sharing a name) the exact same way; it now fires on any duplicate name regardless of type. The collision case is also now routed through the normal <code>plan</code>/<code>action</code> machinery (a new <code>"collision"</code> action, mapped to <code>conflict</code> during <code>dry_run</code> and to a real <code>failed</code> entry — <code>kind: "collision_fail"</code> — once execution is actually attempted) rather than writing to <code>failed</code> directly from the <code>drive_map</code>-building loop: that direct write both leaked into <code>failed</code> during <code>dry_run</code> (breaking the "dry_run never reports failures, only previews" invariant the pre-existing folder-collision failure path already upholds) and silently dropped a <em>local</em> file sharing the colliding name from every result list, since the plan loop's bare <code>continue</code> skipped it with zero acknowledgment. Separately, <code>_upload_local_file</code>'s <code>create()</code>+<code>update()</code> pair now shares one broad <code>except Exception</code> returning <code>{"error": ...}</code> (matching <code>_sync_level._run_one</code>'s own create+update pattern) instead of only catching quota <code>HttpError</code>s and letting everything else — including a failure in the new metadata-only restamp <code>update()</code>, after <code>create()</code> already succeeded — propagate uncaught to <code>upload_local_file</code>, which has no try/except of its own. Issue #420 found that same broad <code>except</code> still lost information on the restamp-failure path specifically: a bare <code>{"error": ...}</code> (or, for <code>_sync_level._run_one</code>'s own mirrored pair, a bare <code>upload_fail</code>) gave no way to find the Doc that <code>create()</code> had already genuinely made in Drive before the restamp failed — an untracked orphan. Fixed in both places by giving the restamp <code>update()</code> its own dedicated <code>try</code>/<code>except</code> that reports the created file's own ID alongside the error — <code>_upload_local_file</code> as <code>{"error": ..., "fileId": ...}</code>, <code>_run_one</code> as <code>{"kind": "upload_fail", "name": ..., "error": ..., "fileId": ...}</code> — while a <code>create()</code> failure still reports no <code>fileId</code>, correctly, since nothing was created. The two functions structure this differently: <code>_run_one</code>'s restamp <code>try</code>/<code>except</code> sits nested inside its one broad outer <code>try</code> (which also covers <code>create()</code> and the <code>if name in drive_map</code> update branch above it), while <code>_upload_local_file</code>'s is a separate, sequential <code>try</code>/<code>except</code> reached only after the <code>create()</code> <code>try</code>/<code>except</code> has already returned successfully — not nested inside it (PR #645 QA round 1 caught this file's prose originally describing both as nested). PR #650 factored the two restamp-failure branches' shared shape — the <code>created Drive file {id!r} but failed to restamp its modifiedTime</code> message plus <code>storageQuotaExceeded</code>→<code>_SA_QUOTA_ERROR</code> rendering — into a module-level <code>_restamp_failure_result(file_id, exc)</code> returning <code>{"error": ..., "fileId": ...}</code>; <code>_run_one</code> spreads that and layers its own <code>kind</code>/<code>name</code> keys on top. Before this only the <code>create()</code> except recognized a quota error — the restamp except caught bare <code>Exception</code> and would have leaked a raw <code>str(e)</code> for a quota failure there, unlike every other quota-error site in the file. <code>sync_folder</code>'s and <code>upload_local_folder</code>'s own <code>failed</code>-list aggregation steps (which previously narrowed each per-item result down to just <code>{name, error}</code>) were updated to carry <code>fileId</code> through when present, or the fix would have been invisible by the time a caller saw the result — and, since a <code>fileId</code>-carrying failure means <code>create()</code> genuinely changed the folder's contents, all three call sites (<code>_sync_level</code>, the <code>upload_local_file</code> tool, <code>upload_local_folder</code>) also had to treat that case as cache-dirtying, the same as a real success: none of them originally did (same QA round), since a <code>fileId</code>-carrying result still fell into each site's own success-only cache-invalidation gate's "false" branch. <code>sync_folder</code>'s <code>use_checksum</code> param (#274) adds a content check ahead of <code>_sync_level</code>'s mtime comparison for names present on both sides: when the local file's md5 (<code>_local_md5</code>, streamed in 1 MiB chunks) matches Drive's own <code>md5Checksum</code> (now fetched by <code>_list_drive_children</code>), the pair is treated as in sync regardless of <code>modifiedTime</code> drift — this is what actually fixes <code>upload_local_file</code> not stamping <code>modifiedTime</code> (unlike <code>_sync_level</code>'s own upload path) causing a spurious re-download of identical content on the next sync, not just a same-mtime coincidence. Only applies where Drive returns a real <code>md5Checksum</code> — Workspace files and <code>convert_markdown</code> Docs have none and always fall back to mtime-only comparison, flag or no flag. A checksum <em>mismatch</em> doesn't force any decision by itself; it just falls through to the same mtime-based upload/download/conflict logic used when <code>use_checksum=False</code>, since content differing doesn't by itself say which side is newer. PR #472's own review round found four issues in this first version: the checksum comparison ran unconditionally, before the (cheap) mtime diff, including for pairs already within <code>_SYNC_MTIME_TOLERANCE</code> and even during <code>dry_run=True</code> — fixed by moving the mtime diff first and gating the hash read on <code>use_checksum and not dry_run and abs(diff) &gt; _SYNC_MTIME_TOLERANCE</code>, so an already-in-sync pair or a dry_run preview never pays for a read it can't change the outcome of (#716 later dropped the <code>abs(diff)</code> part of that gate; see below); <code>_local_md5</code> had no try/except unlike every other per-item operation in this module, so a file that became unreadable (deleted, permission-denied) between the directory scan and the hash read raised uncaught out of the whole <code>sync_folder</code> call instead of degrading to one <code>failed</code> entry — fixed via a new plan action (now <code>"local_read_fail"</code>, which since PR #841 also covers the plan's own <code>stat()</code>) mirroring the existing <code>"collision"</code> pattern; and <code>_upload_local_file</code>'s plain (non-<code>convert</code>) branch was identified as the actual root cause worth fixing directly — it never stamped <code>modifiedTime</code> the way the <code>convert_mime</code> branch three lines above already did (and <code>#422</code> already established for that branch), so a file uploaded through it always read as "Drive newer" on the very next <code>sync_folder</code> regardless of content — now stamped unconditionally in the <code>create()</code> body for every upload (no follow-up <code>update()</code> needed for the plain case, since Drive only overwrites <code>modifiedTime</code> when import-conversion is involved). <code>use_checksum</code> remains valuable beyond that root-cause fix for causes of drift the mtime stamp doesn't cover (e.g. a local overwrite that happens to preserve mtime). One review finding was accepted as a known tradeoff rather than fixed: a checksum mismatch that resolves to <code>'upload'</code> reads the local file twice (once to hash, once via <code>MediaFileUpload</code> for the actual transfer) — avoiding it would mean buffering the whole file in memory to share across both reads, a worse tradeoff for large files than one extra (likely page-cache-warm) disk read. Issue #659 covered the inverse of <code>use_checksum</code>'s target failure mode — <strong>false sameness</strong>, where the two mtimes agree but the content has diverged (classic cause: a rename-in-place, since <code>mv</code> preserves mtime), which short-circuited to <code>"in sync"</code> before the hash block (then guarded on <code>abs(diff) &gt; _SYNC_MTIME_TOLERANCE</code>) could run, so <code>use_checksum=True</code> couldn't reach it by construction (until #716, below). Fixed with a near-free discriminator in <code>_sync_level</code>'s both-sides branch: <code>size</code> is now also fetched by <code>_list_drive_children</code>, and a within-tolerance mtime pair whose local <code>st_size</code> disagrees with Drive's reported <code>size</code> is not skipped — it is reported as a <code>conflict</code> for <strong>every</strong> direction, never an auto-transfer (PR #712 QA round 1): the mtimes agree so recency is unknown, and the <code>diff</code>-based branches already report <code>conflict</code> rather than overwrite a target they <em>can</em> tell is newer, so this branch — which knows less — must be at least as cautious. The byte-size check is one <code>stat()</code> and no read, so unlike the hash block it runs during <code>dry_run</code> too. Non-Workspace files only (<code>size</code>, like <code>md5Checksum</code>, is absent for Workspace/<code>convert_markdown</code> files). A same-size content edit that also preserves mtime still reads as <code>"in sync"</code> under the default <code>use_checksum=False</code>. Issue #716 closed that gap for an explicit <code>use_checksum=True</code>: it now hashes every both-sides pair with a Drive <code>md5Checksum</code>, within tolerance or not (a size mismatch is still settled from the <code>stat()</code> alone, first). A within-tolerance hash mismatch is a <code>conflict</code> for every direction, the same as the size mismatch; both come from <code>_diverged_same_mtime_step</code>. The hashes run after the plan loop, concurrently, capped at <code>_SYNC_HASH_CONCURRENCY</code>, each filling in a placeholder step that holds the mtime-only fallback from <code>_mtime_step</code>. <code>dry_run</code> still never hashes, and an affected step's reason ends in <code>(checksum not verified in dry_run)</code>, since the real run can decide differently. <code>upload_local_folder</code> (#411) used to have its own independent inline upload loop with no <code>convert</code> param, unreachable from <code>_upload_local_file</code>'s conversion mechanism — bulk-importing a folder of CSV/DOCX/PPTX into native Workspace formats required falling back to per-file <code>upload_local_file</code> calls. Fixed by routing each candidate through <code>_upload_local_file</code> itself, gaining the same <code>convert</code> param and its semantics (an unsupported extension lands in <code>failed</code> rather than uploading as-is, matching <code>upload_local_file</code>'s own error-not-silent-fallback behavior). The existing bulk <code>skip_if_exists</code> pre-check (one <code>list()</code> call for the whole folder, not one per file — TC-D100) is preserved rather than replaced by <code>_upload_local_file</code>'s own per-call check: the folder loop now fetches each existing file's <code>mimeType</code> alongside its name in that same single call, decides skip-worthiness itself (name-only match when <code>convert=False</code>; name <em>and</em> target-mimeType match when <code>convert=True</code>, mirroring <code>_upload_local_file</code>'s own convert-aware duplicate check), and then calls <code>_upload_local_file</code> with <code>skip_if_exists=False</code> for whatever survives — so existence is never checked twice. <code>sync_folder(dry_run=True)</code>'s response used to duplicate every <code>skip</code>/<code>conflict</code> name into both a flat list (<code>skipped</code>/<code>conflicts</code>) and a full <code>{name, action, reason}</code> entry in <code>actions</code>, deterministically tripping the response-size cap on a moderately-sized, mostly-in-sync folder even though <code>actions</code> alone (name + action-type + reason for every item, including upload/download entries the flat lists never populated during <code>dry_run</code> in the first place) was already a complete, non-redundant picture (issue #512). Fixed by leaving <code>uploaded</code>/<code>downloaded</code>/<code>skipped</code>/<code>conflicts</code>/<code>failed</code> empty during <code>dry_run</code> rather than trimming or toggling <code>actions</code> itself. Separately, <code>sync_folder</code> previously had no response-size-cap bypass at all (<code>local_path_available=False</code>) unlike every other capped tool except <code>export_file</code>/<code>list_file_activity</code> (both deliberately, per the decision doc below) — its own <code>local_path</code> param already means the sync destination, so it can't double as a dump target the way <code>get_sheet_data</code>'s <code>local_path</code> does. Fixed by adding a separate <code>result_local_path</code> param following the same unconditional-if-passed <code>write_capped_result_to_disk</code> pattern as every other capped tool with a bypass; <code>enforce_response_size_cap</code> gained a <code>local_path_param</code> override so its error message names the right parameter instead of hardcoding <code>local_path</code>. PR #518's own QA review round live-caught a gap in that first version: <code>result_local_path</code> had no guard against pointing at or inside <code>local_path</code> — since <code>local_path</code> is scanned as sync input on every call (unlike every other capped tool's local_path/result_local_path, which are pure output destinations), a manifest written there showed up as a new local-only file on the very next sync and would have been uploaded to Drive on a real run. Fixed by rejecting the call up front (<code>ValueError</code>, before any Drive API call) when <code>Path(result_local_path).resolve()</code> equals or is a descendant of the resolved <code>local_path</code>. <code>upload_file</code>'s <code>convert_to_doc</code> param implements the identical native-import-conversion trick as <code>_upload_local_file</code>'s <code>convert</code>/<code>_CONVERT_MIME</code> above, independently — raw text/markdown/html content instead of a local file, always targeting a Doc since there's no file extension to dispatch Sheets/Slides on — with no cross-reference between the two (issue #412). Fixed by sharing <code>_GOOGLE_DOC_MIME</code> as the single source of truth for the target mimeType literal both mechanisms write, plus explicit docstring cross-references at both call sites; the two code paths themselves stayed separate rather than being merged, since their actual upload semantics (raw content vs. local file, single target vs. extension-dispatched) differ enough that unifying them would cost more complexity than it'd save. Issue #424 (folded #421's two extra findings in) was pure hardening on this same <code>convert_markdown</code> matching logic, no behavior change: the synthetic <code>"_is_converted_md"</code> key spread into every <code>drive_map</code> entry (previously read directly at 5 separate call sites — the pattern PR #433's own review round flagged as having already caused one missed site) was replaced with <code>_is_converted_md_entry(f)</code>, a helper that recomputes the classification on demand from the resource's own <code>mimeType</code>/<code>properties</code> rather than caching it — <code>drive_map</code> is now a plain passthrough of Drive's file resource shape again, and every call site (the build loop, both plan conflict branches, the upload-execution reimport check, the download-execution guard) shares one place to agree with when this classification's rules change. The three independently-hand-written "no reverse conversion" messages (drive-only plan conflict, drive-newer plan conflict, download-execution guard) now interpolate a shared <code>_NO_REVERSE_CONVERSION_CLAUSE</code> constant instead. The dead <code>assert convert_source is not None</code> fell out naturally once the build loop's <code>local_name</code> derivation was rewritten against the new helper. The upload-execution branch's <code>_CONVERT_MIME[".md"]</code> unpack moved inside the <code>convert_this</code> check so it's only looked up for an actual <code>.md</code> conversion, not unconditionally for every upload. The doubled create()+update() latency on every new converted-<code>.md</code> upload (both here and in <code>_upload_local_file</code>'s <code>convert=True</code> path) was reviewed and left as an accepted tradeoff, not fixed — Drive's import-conversion finishes asynchronously after <code>create()</code> already returns, so there's no single call that can request both the upload and the post-conversion <code>modifiedTime</code> restamp together, and polling for conversion completion before restamping would trade one predictable extra call for an unpredictable number of slower ones. Issue #814 took converted <code>.md</code> Docs off the <code>modifiedTime</code> comparison entirely: Drive updates a Doc's <code>modifiedTime</code> from the Docs backend asynchronously, minutes behind, which both overwrote the restamp (an unedited Doc sat in <code>conflicts</code>) and hid real Drive edits for minutes. Every converted-<code>.md</code> upload now stamps <code>_CONVERTED_MD_SOURCE_MTIME_PROP</code> (the local mtime), a re-upload also stamps <code>_CONVERTED_MD_BASELINE_REV_PROP</code> (the Doc's latest revision, read just before the <code>update()</code>) and clears <code>_CONVERTED_MD_IMPORT_REV_PROP</code>, and the first sync afterward records the import's revision ID there. <code>_sync_level</code> then judges the local side against the stamped mtime and the Drive side from <code>revisions.list</code> (<code>_converted_md_drive_state</code>/<code>_converted_md_step</code>, fetched concurrently after the plan loop and capped at <code>_SYNC_REVISION_CONCURRENCY</code>, during <code>dry_run</code> too). A Drive edit is always a <code>conflict</code>, including when the local file changed too (previously an upload over the Drive edit). A revision-read failure is a <code>"drive_read_fail"</code> plan action. A Doc without the stamp (converted before #814) keeps the <code>modifiedTime</code> path until its next re-upload. The restamp stays, now cosmetic for these Docs, and the import-revision write re-sends the stamped <code>modifiedTime</code>, since a property-only update bumps it to "now" (seen live). PR #854 QA round 1 tightened it: the source-mtime stamp keeps microsecond precision and is compared exactly (<code>_CONVERTED_MD_STAMP_TOLERANCE</code>), since the 5s Drive clock-skew tolerance hid a local save made within 5s of the upload. The import-revision write always re-sends a <code>modifiedTime</code>, since a property write bumps it to "now": the stamped source mtime for an unedited Doc, and Drive's own listed value for a Drive-edited one (re-sending the source mtime there erased the edit's timestamp). It also marks the folder cache dirty. An empty revision history is a <code>drive_read_fail</code>, not an edit. A local change under <code>direction='download'</code> is a conflict even while the import is pending. The upload path's fresh revision read now aborts the upload as a <code>conflict</code> if the latest revision moved since planning. Every upload also stamps <code>_CONVERTED_MD_UPLOADED_AT_PROP</code>, so a pruned baseline falls back to finding the import by timestamp, and a candidate import more than <code>_CONVERTED_MD_IMPORT_WINDOW</code> after the upload is read as the import merged into a later edit (<code>changed</code>). Legacy Docs already stuck in the drift conflict are unstuck by touching the local file (<code>docs/known-limitations.md</code>). Design: <code>docs/decisions/decision-converted-doc-change-detection.md</code>; other conversion types are #818.</p>
+<h2 id="toolsdocscontentpy"><code>tools/docs/content.py</code><a class="headerlink" href="#toolsdocscontentpy" title="Permanent link">&para;</a></h2>
+<p><code>docs/content.py</code> — helpers (<code>_md_to_html</code>, <code>_to_doc_requests</code>, <code>_html_to_doc_requests</code>) and tools (<code>create_doc</code>, <code>get_doc_content</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>, <code>get_doc_structure</code>, <code>find_in_doc</code>). <code>insert_doc_text</code>/<code>delete_doc_range</code>/<code>insert_page_break</code>/<code>insert_softbreak_paragraph</code> moved to <code>docs/editing.py</code>, and <code>insert_inline_image</code>/<code>insert_local_images</code> moved into <code>docs/images.py</code> (#372, following #371's extraction of <code>named_ranges.py</code>) — <code>_collect_doc_paragraphs</code> moved alongside them into <code>docs/indices.py</code>, next to its own sibling low-level helper <code>utf16_len</code>, and the dead <code>_html_to_text</code> helper (no callers anywhere in the codebase, confirmed via a repo-wide grep before deleting it) was dropped rather than moved. <code>update_doc_from_file</code> (#341) combines <code>create_doc_from_file</code>'s server-side file reading (extension inference to markdown/html, or an explicit <code>content_format</code> override) with <code>write_doc_content</code>'s in-place clear+replace — the clear-then-insert mechanism (including the same-batch <code>insertText</code> style-inheritance quirk described below) was extracted out of <code>write_doc_content</code> into a shared <code>_replace_doc_content</code> helper so both tools have exactly one implementation of it, the same way <code>_apply_doc_content</code> is already shared by <code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code>. <code>find_in_doc</code> searches paragraph text (including table cells) and returns <code>start_index</code>/<code>end_index</code> offsets in UTF-16 code units usable directly with <code>style_doc_range</code> — <code>_collect_doc_paragraphs</code> is a generator (so a caller can stop early once <code>max_results</code> is hit) that walks the Docs API body, trusting each <code>ParagraphElement</code>'s own <code>startIndex</code> when present and otherwise carrying the running offset forward rather than dropping that element, since the API doesn't always populate it (seen on a document's first element). <code>get_doc_structure</code> now also surfaces each paragraph's <code>headingId</code> (<code>paragraphStyle.headingId</code>) — confirmed live present on the default single-tab <code>documents.get()</code> response for both <code>TITLE</code>/<code>SUBTITLE</code> and <code>HEADING_1</code>..<code>6</code> paragraphs, no <code>includeTabsContent</code> needed. <code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code> now run an automatic second pass (<code>_resolve_heading_anchors</code>, gated by the cheap <code>_has_pending_anchor_links</code> check so content with no <code>#</code>-links skips the extra API round trip entirely) after any conversion that left a GitHub/GitLab-style <code>#slug</code> heading-anchor link behind (issue #409): it resolves the anchor against the doc's own real headings via <code>anchors.resolve_heading_anchor</code> and rewrites it to a working <code>.../edit?tab=t.0#heading=&lt;headingId&gt;</code> jump link (an ordinary URL is sufficient — no <code>Link.headingId</code> API field needed, confirmed live), or strips the link (keeping the text plain) when no heading matches with reasonable confidence — a link silently pointing at the wrong section is worse than a plain, unlinked mention. This was a deliberate product decision to resolve anchors automatically rather than only exposing <code>headingId</code> and leaving matching to the calling agent — see <code>docs/design/heading-anchor-resolution.md</code> for the full rationale. PR #453's own QA round (<code>/code-review high</code> + live testing against a fixture with no table and no anchor on the doc's first element) caught two correctness bugs the first version's hand-rolled body walk had: it only inspected top-level <code>paragraph</code> elements (a heading or anchor link living inside a table cell was invisible to both <code>_has_pending_anchor_links</code> and <code>_resolve_heading_anchors</code>), and it required a run's own <code>pe.get("startIndex")</code>/<code>endIndex</code> to both be non-<code>None</code> (silently dropping an anchor that is, or is part of, the document's first body element — the Docs API omits <code>startIndex</code> there, the same quirk <code>_collect_doc_paragraphs</code> already handles). Fixed by <code>_walk_headings_and_anchor_runs</code>, a dedicated recursive walker mirroring <code>_collect_doc_paragraphs</code>'s own two correctness properties (table-cell recursion; carrying the running offset forward via character-by-character advance rather than trusting a run's own possibly-inconsistent <code>endIndex</code>) rather than reusing <code>_collect_doc_paragraphs</code> itself, since that generator's yielded shape (text + char-indices only) doesn't carry per-run link URLs or heading-paragraph style info and is used elsewhere (<code>find_in_doc</code>) in a way not worth risking a signature change for. <code>_has_pending_anchor_links</code> gained a second parameter (<code>tables: list[Table]</code>, walked via <code>_table_has_pending_anchor_link</code>, recursing into nested tables) since <code>fill_tables()</code> builds and executes table-cell requests separately from <code>content_requests</code>, invisible to the original single-argument guard. <code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code> now support inline images in markdown (<code>![alt](src)</code>) and HTML (<code>&lt;img&gt;</code>) conversion (issue #333) via a shared <code>_apply_doc_content</code> helper: <code>src</code> may be a local filesystem path (uploaded to Drive), a <code>drive:&lt;file_id&gt;</code> reference to an already-uploaded file, or a public <code>http(s)://</code> URL (used directly) — resolved by <code>_resolve_image_source</code>, sharing local-path/<code>drive:</code> sources <code>anyone:reader</code> the same way <code>insert_local_images</code> already does, then (per explicit product decision, and now also <code>insert_local_images</code>'s own default — a behavior change from its original #332 shipped version) revoking that temporary share once the image is embedded, unless <code>revoke_sharing=False</code>. The Docs API rejects an entire <code>batchUpdate</code> atomically if any one <code>insertInlineImage</code> request in it can't be fetched (confirmed live via TC-DOC102's own deliberately-unreachable-URL case) — <code>_apply_doc_content</code> retries with the failing request stripped (its index is parsed directly out of Google's own error message) rather than losing every other request in the same call; see <code>docs/design/image-conversion.md</code> for the full design, including why <code>Image</code> is a zero-width AST node (not a marker) and the deliberate table-cell-image gap.</p>
+<h2 id="toolsdocseditingpy"><code>tools/docs/editing.py</code><a class="headerlink" href="#toolsdocseditingpy" title="Permanent link">&para;</a></h2>
+<p><code>docs/editing.py</code> — tools (<code>insert_doc_text</code>, <code>delete_doc_range</code>, <code>insert_page_break</code>, <code>insert_softbreak_paragraph</code>), extracted out of <code>content.py</code> (#372) as <code>content.py</code>'s text-range editing primitives, distinct from that file's remaining whole-document create/read/write concern. <code>insert_softbreak_paragraph</code> joins multiple lines with a literal <code>"\v"</code> (vertical tab) character in a single <code>insertText</code> call — confirmed live that the Docs API stores this as one paragraph element rather than splitting it, matching the Docs UI's own Shift+Enter soft-break convention — and sets <code>namedStyleType</code> explicitly over the inserted span rather than leaving it to whatever the insertion point would otherwise inherit.</p>
+<h2 id="toolsdocsimagespy"><code>tools/docs/images.py</code><a class="headerlink" href="#toolsdocsimagespy" title="Permanent link">&para;</a></h2>
+<p><code>docs/images.py</code> — tools (<code>insert_inline_image</code>, <code>insert_local_images</code>) plus inline-image size validation/downscaling/error-clarification shared by every <code>insertInlineImage</code> call site (issue #400). The two tools moved here from <code>content.py</code> (#372) rather than into a differently-named module — issue #372 predates #400's creation of this file, and by the time it was picked up, <code>images.py</code> already existed here for the size-validation helpers, so merging avoided colliding with a newly-invented module name (an earlier version of this rationale claimed the two tools were already this module's "primary callers"; that doesn't hold up — <code>content.py</code>'s own <code>_resolve_image_source</code>, which stays there, depends on the same shared helpers just as heavily). <code>insert_local_images</code> uploads local image files and swaps each into the doc at a plain-text marker in one call; confirmed live that <code>insertInlineImage</code> with a <code>drive_file_id</code> fails with "There was a problem retrieving the image" unless the file is first shared <code>anyone</code>/<code>reader</code> — the Docs backend fetches the image as an anonymous HTTP request, so being accessible to the authenticated user alone is not enough (this also applies to <code>insert_inline_image</code>'s own <code>drive_file_id</code> path). Google Docs rejects any inline image over ~25 megapixels or ~50MB with a bare <code>HttpError 400 "...The provided image is too large."</code> naming neither the actual limit nor the image's own size (confirmed against Google's documented ceiling: <a href="https://developers.google.com/workspace/docs/api/how-tos/images">https://developers.google.com/workspace/docs/api/how-tos/images</a>, 25 megapixels / 50MB / PNG-JPEG-GIF only). <code>check_dimensions</code>/<code>check_image_file</code> pre-validate and return a clear <code>{"error": ...}</code> naming the limit and the image's actual size before any upload/share/embed call happens; <code>downscale_image_bytes</code> (Pillow — see <code>docs/decisions/decision-pillow-image-dependency.md</code> for why it was added as a dependency) resizes in place, preserving format, and declines (<code>None</code>) rather than corrupting an animated GIF (<code>Image.resize</code> only touches the current frame). <code>check_image_file</code> (then <code>check_image_bytes</code>, a bytes-in predecessor replaced in #560) originally only enforced the megapixel limit, not the byte-size one the module's own docstring already cited — a low-compressibility image (e.g. noise data) could be well under 25 megapixels but still over 50MB, passing pre-validation silently and only failing at the real <code>batchUpdate</code> call (issue #562, confirmed live via a real ~75MB-but-24-megapixel PNG). Fixed by adding <code>check_file_size</code>/<code>too_large_bytes_message</code> (the byte-size counterpart to <code>check_dimensions</code>/<code>too_large_message</code>) into it, and extending <code>downscale_image_bytes</code> with a bounded iterative shrink loop for the case where the megapixel-based scale factor alone is a no-op (the image is already within that limit) but the encoded result is still over the byte limit — unlike pixel count, encoded byte size isn't predictable from a single scale factor since it depends on compression, not just dimensions. The two Drive-metadata-only size checks (<code>insert_inline_image</code>'s <code>drive_file_id</code> path here, <code>_resolve_image_source</code>'s <code>drive:</code> path in <code>content.py</code>) were consolidated into one shared <code>check_drive_image_metadata</code> helper reading both <code>imageMediaMetadata</code> and Drive's own <code>size</code> field, replacing what had been the same <code>check_dimensions</code>-only pattern duplicated across both files. PR #580's own QA round 1 caught that <code>rewrite_too_large_error</code> — the fallback for <code>uri</code>-sourced images, which skip pre-validation entirely — still only named the 25-megapixel limit, even though a byte-size-caused rejection could now reach it too; since Google's raw error text doesn't say which limit was actually hit and this call site never fetched the bytes to check, the message was made limit-agnostic (names both ceilings) rather than guessing which one applies. <code>insert_inline_image</code>'s <code>drive_file_id</code> path, <code>insert_local_images</code>' <code>local_path</code> entries, and <code>_resolve_image_source</code>'s <code>drive:</code>/local-path branches (<code>content.py</code>) all gained an opt-in <code>auto_downscale</code> param (default <code>False</code>, fail-fast with the clear error) wired to this module — a <code>drive_file_id</code>/<code>drive:</code> source that gets downscaled creates a new <code>" (resized)"</code>-suffixed copy alongside the original via <code>downscale_drive_file</code> (the original file is never mutated), while a local-path source just uploads the resized bytes directly via <code>upload_and_share_image</code> instead of the original file, since there's no pre-existing Drive artifact to avoid colliding with. Issue #560 deduplicated those call sites: <code>downscale_drive_file</code> takes the source's own Drive metadata and owns the resized copy's parent-folder fallback, and <code>prepare_local_image</code> owns the local-path check→downscale→upload sequence, so <code>insert_inline_image</code>, <code>insert_local_images</code>, and <code>_resolve_image_source</code> each only record the outcome. <code>check_image_file</code> reads just <code>stat()</code> and the image header, never the full file or its pixels, so an under-limit local image is read from disk once, by the upload itself. For PNG/JPEG/GIF it constructs Pillow's format plugin directly instead of going through <code>Image.open</code>, whose decompression-bomb guard would otherwise make a header claiming more than ~179 megapixels unreadable and silently skip pre-validation (PR #801 QA round 1); the file itself is opened outside the best-effort guard, so an unreadable file still reports a read error rather than passing as "not an image." <code>downscale_image_bytes</code> runs via <code>asyncio.to_thread</code>, since a full decode + resize + re-encode is CPU-heavy. Deliberately out of scope: a bare <code>http(s)://</code> image source (either <code>insert_inline_image</code>'s own <code>uri</code> param or a markdown/HTML <code>![alt](http://...)</code>/<code>&lt;img src="http://..."&gt;</code>) — pre-validating or auto-downscaling it would mean fetching arbitrary external content just to check it, and re-hosting a resized copy somewhere Google can fetch it from is a bigger behavior change than this fix warrants. That source kind instead gets <code>rewrite_too_large_error</code>'s fallback: Google's own "too large" <code>HttpError</code> message is caught and rewritten with the same limit/size explanation once the embed actually fails, rather than staying opaque.</p>
+<h2 id="toolsdocsanchorspy"><code>tools/docs/anchors.py</code><a class="headerlink" href="#toolsdocsanchorspy" title="Permanent link">&para;</a></h2>
+<p><code>docs/anchors.py</code> — <code>resolve_heading_anchor</code>, the pure slug-matching logic behind the anchor-resolution pass above. Tries GitHub's non-collapsing hyphen convention (hand-rolled — no known Python package reproduces it) and GitLab's collapsing convention (delegated to <code>python-markdown</code>'s own <code>toc</code> extension <code>slugify</code>, already a project dependency, confirmed live to collapse hyphens the same way) against the document's full heading list, with GitHub/GitLab-style numeric <code>-1</code>/<code>-2</code> duplicate-heading disambiguation applied before matching; falls back to normalized word-token comparison for a slug that doesn't exactly match either scheme. Deliberately does not try to detect which generator produced a given anchor up front — see the design doc for why. Has an inline <code>TODO(#409 follow-up)</code> flagging the cascading try-each-scheme approach as a first pass, not the most precise/efficient possible mechanism. The same QA round (PR #453) found the fuzzy fallback could silently resolve to the <em>wrong</em> heading: it unconditionally stripped a trailing <code>-&lt;digits&gt;</code> from the anchor before comparing, even when those digits were genuine heading wording rather than a dedup suffix, and its match loop returned the <em>first</em> heading with matching normalized tokens with no regard for which duplicate a stripped suffix actually pointed at — directly contradicting the feature's own "a wrong link is worse than no link" design goal. Fixed via <code>_fuzzy_match</code>/<code>_match_tokens_at_occurrence</code>: the anchor's literal tokens (with any trailing digits intact) are tried first at occurrence 0 — safe, since GitHub/GitLab give a duplicate heading's <em>first</em> occurrence the bare/unsuffixed slug, so a suffix-free anchor naming a duplicated heading still resolves correctly without ever needing to strip anything — and only if that fails, and the anchor ends in <code>-&lt;digits&gt;</code>, is the suffix stripped and its number used as the required occurrence index among headings sharing the same normalized tokens; a requested occurrence that doesn't exist (e.g. a claimed 3rd duplicate when only one heading matches) returns <code>None</code> rather than guessing the nearest candidate.</p>
+<h2 id="toolsdocsstylepy"><code>tools/docs/style.py</code><a class="headerlink" href="#toolsdocsstylepy" title="Permanent link">&para;</a></h2>
+<p><code>docs/style.py</code> — helpers (<code>_NAMED_STYLE_TYPES</code>, <code>_read_body_styles</code>, <code>_read_named_styles</code>, <code>_build_named_style_requests</code>, <code>_text_style_and_fields</code>) and tools (<code>style_doc_range</code>, <code>style_doc_table_cells</code>, <code>create_paragraph_bullets</code>, <code>delete_paragraph_bullets</code>, <code>get_doc_theme</code>, <code>get_doc_named_styles</code>, <code>apply_theme</code>). <code>create_paragraph_bullets</code>/<code>delete_paragraph_bullets</code> (#334) wrap the Docs API's <code>createParagraphBullets</code>/<code>deleteParagraphBullets</code> requests, previously only used internally by <code>emitter.py</code>'s markdown-to-Doc conversion, as caller-facing tools for fixing list membership/nesting on paragraphs already in a doc — <code>get_doc_structure</code> had no way to even detect a flattened nested list (the AST emitter's own conversion bug from the same issue), and there was no way to fix one afterward short of delete-and-retype as plain text. <code>createParagraphBullets</code> has no <code>nestingLevel</code> field of its own — same constraint the emitter already works around (see that file's own long comment) — the API infers a paragraph's depth purely from its own leading tab characters at call time, consuming them once applied; <code>create_paragraph_bullets</code> reproduces that mechanism per range (<code>insertText</code>-ing <code>nesting_level</code> tab characters before the range, then extending the range's <code>endIndex</code> to cover them) rather than exposing a fake <code>nestingLevel</code> parameter that doesn't correspond to any real request field. <code>get_doc_structure</code> (<code>content.py</code>) now also surfaces each paragraph's <code>bullet</code> field (<code>{listId, nestingLevel}</code> or <code>null</code>), normalizing a top-level item's absent <code>nestingLevel</code> to <code>0</code> so every list paragraph reports a level — this is what makes the flattened-list defect (#334's original report) detectable at all, and is the read half <code>create_paragraph_bullets</code>/<code>delete_paragraph_bullets</code> fix on the write side. PR #524's QA round found <code>create_paragraph_bullets</code>'s first version didn't work at all on its own flagship use case (nesting paragraphs already in an existing list, #334's original repro): live-verified two compounding causes — <code>createParagraphBullets</code> is a no-op on a paragraph that's already part of a list (doesn't change its level, doesn't consume the signaling tab, which is left behind as literal text), and even after a <code>deleteParagraphBullets</code>+recreate, the API infers a paragraph's depth only relative to whatever else is included in that <em>same</em> call — a paragraph adjacent to an untouched, already-listed neighbor gets silently pulled back to that neighbor's level regardless of its own tabs (the same class of bug PR #432 fixed in <code>emitter.py</code>, confirmed live to also apply here). Fixed by always <code>deleteParagraphBullets</code>-ing a target paragraph first (harmless even if it wasn't previously listed), and — for a paragraph that's already part of a list — expanding the affected span to include its full contiguous run of same-<code>listId</code> neighbors (preserving each neighbor's own current <code>nestingLevel</code> unchanged) before issuing one <code>createParagraphBullets</code> call per contiguous same-preset run, mirroring <code>emitter.py</code>'s own established grouping pattern. Confirmed live against the real API for both the multi-paragraph-range case (TC-DOC156) and an isolated single-paragraph target whose only same-list neighbor sits outside the requested range. A second QA round on the same PR caught a follow-on regression from that fix, also live-verified (Playwright): merging context/neighbor paragraphs into the run and applying one <code>bulletPreset</code> to the whole call meant an already-numbered list, repaired without the caller re-passing <code>bullet_preset="NUMBERED_DECIMAL_ALPHA_ROMAN"</code> explicitly, silently converted its untouched siblings to plain bullets — the tool's own hardcoded default (<code>BULLET_DISC_CIRCLE_SQUARE</code>) always won. Fixed by reading the document's own <code>lists</code> map (<code>document["lists"][listId]["listProperties"]["nestingLevels"][level]</code>) to detect an already-listed paragraph's real style before choosing a run's preset — <code>glyphType</code> present means numbered, <code>glyphSymbol</code> present means bulleted, confirmed live for both — and preferring that inferred style over the hardcoded default whenever the caller didn't pass <code>bullet_preset</code> explicitly on any paragraph in the run; an explicit caller-supplied preset still always wins. Since context paragraphs no longer carry a fixed preset up front (it's resolved once per formed run, after grouping), a preset mismatch only forces a run split when it's between two paragraphs the caller <em>explicitly</em> gave conflicting presets to and they're immediately adjacent with no non-explicit paragraph bridging them; a conflict bridged by a shared context paragraph (both explicit ends expand into the same run via a same-<code>listId</code> neighbor between them) is instead reported as an <code>{"error": ...}</code> rather than silently picking one side. Issue #713 (a follow-up filed during PR #711's QA) found <code>create_paragraph_bullets</code> still had the exact <code>nestingLevel 0</code> collapse <code>emitter.py</code> carried under #439: a formed run in which <em>every</em> paragraph sits at <code>nesting_level &gt;= 1</code> (no level-0 member — either only such <code>ranges</code> were passed, or the same-<code>listId</code> neighbor expansion pulled in only level-≥1 paragraphs) collapsed to <code>nestingLevel 0</code> with the depth-0 disc glyph, indent bumped so it still <em>looked</em> nested. Fixed by porting emitter.py's #439 fix verbatim: such a run is wrapped with a throwaway 0-tab anchor paragraph (<code>insertText "\n"</code> at <code>run_start</code> → <code>createParagraphBullets</code> over the range extended by 1 → <code>deleteContentRange</code> the anchor), so the real items land at their true level; the insert (+1) and delete (−1) cancel, leaving positions outside the run untouched and the descending-run application order intact. <code>_text_style_and_fields</code> (shared by <code>style_doc_range</code> and <code>editing.py</code>'s <code>insert_softbreak_paragraph</code>) used to clear a hyperlink by setting <code>textStyle.link = {}</code> — the Docs API rejects an empty <code>Link</code> object outright ("must include at least one type"), confirmed live, so <code>link_url: null</code> always failed instead of clearing (#408). Fixed by omitting the <code>link</code> key from <code>textStyle</code> entirely while still naming <code>"link"</code> in the field mask, the correct way to reset a nested message field to its default (no link) per Docs API <code>fields</code>-mask semantics — confirmed live this actually clears an existing link. Both call sites' own <code>if text_style: requests.append(...)</code> guard had to change to <code>if fields:</code> too: a link-clear-only call now legitimately produces an empty <code>text_style</code> dict with a non-empty <code>fields</code> list (<code>["link"]</code>), and the old guard would have silently skipped sending the request at all. Issue #448 factored the omit-key-but-mask-field trick itself out of <code>_text_style_and_fields</code>'s inline <code>link_url</code> handling into a small, general <code>_add_or_clear_field(text_style, fields, api_field, value)</code> helper — <code>content.py</code>'s heading-anchor-link resolve/strip code (<code>_resolve_heading_anchors</code>) had independently hand-rolled the identical two-line pattern for the same reason, with only a comment pointing back at <code>style.py</code>'s prose to explain it; both now call the one shared helper, so a future nullable nested field (e.g. <code>foreground_color: null</code>) has a place to reuse this instead of a third hand-rolled copy, and the "why" lives in exactly one docstring instead of two comments that could drift out of sync.</p>
+<h2 id="toolsdocsdoc_to_astpy-docsast_to_markdownpy-docsmarkdown_exportpy"><code>tools/docs/doc_to_ast.py</code> / <code>docs/ast_to_markdown.py</code> / <code>docs/markdown_export.py</code><a class="headerlink" href="#toolsdocsdoc_to_astpy-docsast_to_markdownpy-docsmarkdown_exportpy" title="Permanent link">&para;</a></h2>
+<p><code>docs/doc_to_ast.py</code> / <code>docs/ast_to_markdown.py</code> / <code>docs/markdown_export.py</code> — the read-side counterpart to the Markdown write path above (issue #300): <code>doc_to_ast.py</code> walks a <code>documents().get()</code> response into the same AST (<code>docs/ast.py</code>) the write pipeline produces (headings, styled runs, nested/ordered/checked bullets via the same <code>document["lists"][listId]</code> glyph-info lookup <code>style.py</code>'s <code>create_paragraph_bullets</code> already established, blockquotes inferred from the emitter's own <code>indentStart</code>+<code>borderLeft</code> signal, images via <code>document["inlineObjects"]</code>, and tables including nesting via <code>tableCellStyle.columnSpan</code>/<code>rowSpan</code>); <code>ast_to_markdown.py</code> serializes that AST to Markdown, the inverse of <code>html_parser.py</code>'s HTML→AST direction; <code>markdown_export.py</code> wires both into the <code>get_doc_as_markdown</code> tool, with an opt-in <code>include_comments</code> param that appends every non-resolved comment (author, quoted anchor, content, replies) via the same Drive <code>comments</code> resource <code>comments.py</code> uses. Deliberately built as a third AST pass rather than converting <code>export_file(export_format='html')</code>'s output through an HTML-to-Markdown library — Google's own Docs HTML export is heavily styled (redundant inline spans), which would need fragile cleanup heuristics to convert cleanly, whereas walking into this project's own AST reuses the exact mapping <code>markdown-support.md</code> already documents, just inverted. Both inline code and a fenced code block are written to the Docs API identically (a run, or every run in a paragraph, with <code>font_family="Courier New"</code> — no other marker), so <code>ast_to_markdown.py</code> treats a <code>Paragraph</code> as a fenced block only when <em>every</em> run in it is code-styled; a paragraph containing nothing but one inline code span (no other text) is genuinely indistinguishable from a one-line code block and renders as a fenced block either way — a documented format-level ambiguity, not a bug (see <code>docs/known-limitations.md</code>'s <code>get_doc_as_markdown</code> entry). A nested table (a table inside a table cell) has no Markdown table syntax to express — the mirror image of <code>markdown-support.md</code>'s identical write-side gap — so that cell renders a placeholder note instead of silently losing the inner table's content. Live round-trip verification (build a Doc via the existing write pipeline from a Markdown source covering every construct in scope, then read it back and diff) caught two bugs neither the hand-written unit tests nor a docs-API-shape assumption alone would have: a naive <code>f"**{text}**"</code> wrapper breaks CommonMark's emphasis-flanking rule when <code>text</code> has trailing whitespace (<code>"**Bold **"</code> doesn't close, renders as literal asterisks) — fixed by moving leading/trailing whitespace outside the style markers; and joining every block (including consecutive list items) with a blank line produced a needlessly "loose" list — fixed by joining consecutive <code>BulletItem</code> nodes with a single newline instead (CommonMark parses a loose list as the same list either way; this is a readability polish, not a correctness fix). See <code>docs/design/doc-to-markdown.md</code> for the full design writeup. PR #591 QA round 1 found two further narrow silent-content-loss gaps (#594), both in constructs the initial round-trip verification's fixture happened not to exercise: <code>_is_code_block</code> filters <code>node.runs</code> to <code>Run</code> items only before checking <code>font_family</code>, so an <code>Image</code> sitting in an otherwise all-Courier-New paragraph is invisible to the check — the paragraph still correctly renders as a fenced block, but the fenced-block render path then built its text from <code>Run</code> items only, dropping the <code>Image</code> with no trace. Fixed via <code>_render_code_block</code>, which walks <code>node.runs</code> in source order and renders each contiguous run of code text as its own fence with any interleaved <code>Image</code> rendered on its own line outside any fence (Markdown has no way to embed an image inside a fenced block), rather than silently losing whichever <code>Image</code> items were present. Separately, <code>doc_to_ast.py</code>'s <code>_cell_content_to_children</code> used to <code>continue</code> past any table-cell paragraph with empty <code>runs</code> entirely — a deliberate blank-line spacer paragraph between two lines of real text (the identical <code>runs=[]</code> shape <code>document_to_ast</code> already produces for a body-level blank line, see <code>test_paragraph_that_is_only_a_newline_becomes_empty_runs</code>) silently merged its neighbors together with a single <code>"\n"</code> joiner instead of two, indistinguishable from a cell with no spacer at all. Fixed by no longer skipping an empty-runs paragraph in the seen_content/joiner bookkeeping: it contributes no text of its own but still counts as content once seen, so the next real paragraph still gets its own separate joiner on top of the blank paragraph's own — preserving the spacer as a second newline (rendered as a doubled <code>&lt;br&gt;</code> in <code>_render_cell</code>'s pipe-table output) rather than collapsing it away. PR #599's own QA round 1 (live QA, not just code review) found that round-1 fix was still incomplete at cell edges: <code>doc_to_ast.py</code> already represented a <em>leading or trailing</em> spacer paragraph correctly, as a leading/trailing <code>"\n"</code> on the cell's joined text (confirmed via local AST inspection), but <code>ast_to_markdown.py</code>'s <code>_render_cell</code> did <code>text = "".join(parts).strip()</code> <em>before</em> converting <code>"\n"</code> to <code>"&lt;br&gt;"</code> — <code>.strip()</code> silently ate exactly that edge newline, so only a spacer sandwiched between two real lines (the shape round 1's own new tests happened to cover) ever survived to the rendered Markdown. Fixed by reordering <code>_render_cell</code> to convert <code>"\n"</code> → <code>"&lt;br&gt;"</code> first and <code>.strip()</code> second: <code>"&lt;br&gt;"</code> isn't whitespace, so a spacer that's already been turned into a <code>&lt;br&gt;</code> marker survives the strip, while genuine incidental whitespace at the true edges still gets trimmed as before.</p>
+<h2 id="toolsdocshtml_parserpy"><code>tools/docs/html_parser.py</code><a class="headerlink" href="#toolsdocshtml_parserpy" title="Permanent link">&para;</a></h2>
+<p><code>docs/html_parser.py</code> — HTML→AST. <code>_AstParser.handle_data</code> only buffers text while a block context is open (<code>&lt;p&gt;</code>/<code>&lt;li&gt;</code>/heading/table cell) — text with no wrapping block tag was silently dropped (#343). Fixed via a generic <code>_tag_depth</code> counter tracking open non-block tags: bare top-level text (depth 0, e.g. <code>"hello world"</code> with zero surrounding tags) now gets an implicit paragraph wrap, while text merely wrapped in an inline tag with no block ancestor (e.g. <code>&lt;span&gt;no blocks&lt;/span&gt;</code>, depth 1) stays an intentional no-op, matching <code>test_inline_only_html_skips_batchupdate</code>. <code>_finalize()</code> (called once after <code>parser.feed()</code> in <code>html_to_ast</code>) flushes whatever block is still open at end-of-input, since the implicit paragraph never gets a real closing tag. <code>_tag_depth</code> excludes tags in <code>_VOID_TAGS</code> (<code>br</code>, <code>img</code>, <code>hr</code>, <code>input</code>, <code>meta</code>, <code>link</code>, <code>area</code>, <code>base</code>, <code>embed</code>, <code>source</code>, <code>track</code>, <code>wbr</code>, <code>col</code>) — Python's stdlib <code>HTMLParser</code> never synthesizes a close-tag call for a void element written without a self-closing slash (e.g. plain <code>&lt;img src="x"&gt;</code>), so counting it would leave <code>_tag_depth</code> permanently stuck above 0 and silently re-drop all bare text for the rest of the document (caught in PR #385's own review round — the initial fix only excluded <code>br</code> by name). <code>_emit_block_node</code> (shared by the normal close-tag path, <code>_interrupt_open_block</code>, and <code>_finalize</code>) used to silently drop the <em>entire</em> node — not just the unsupported content — whenever a closed block's buffered runs came back completely empty (e.g. a <code>&lt;p&gt;</code> whose only child was an unhandled <code>&lt;img&gt;</code>), collapsing the paragraph boundary between its neighbors (#401). Fixed via a <code>preserve_if_empty</code> flag: the block's own first/only close now keeps an empty node (<code>runs=[]</code>) instead of dropping it, while a resumed frame's re-close (<code>_block_resumed</code>, set by <code>_resume_interrupted_block</code>) still uses the old skip-if-empty behavior, since an empty result there just means "no trailing text after the nested construct that interrupted this block," not "this tag was empty" — conflating the two reintroduced a spurious empty <code>BulletItem</code> for every <code>&lt;li&gt;text&lt;ul&gt;...&lt;/ul&gt;&lt;/li&gt;</code> (no trailing text after the nested list), caught by the existing <code>test_parent_text_survives_alongside_nested_list</code> regression test. A bare top-level <code>&lt;hr&gt;</code> (python-markdown's rendering of both <code>---</code> and <code>___</code> thematic breaks) never opens a block at all, so it's handled separately in <code>handle_starttag</code>: when no block is currently open, it appends an empty <code>Paragraph</code> node directly rather than falling through the inline-tag no-op path. <code>emitter.py</code>'s <code>ast_to_requests</code> makes the matching <code>runs</code>-empty-vs-whitespace-only distinction, since its own <code>if not text.strip(): continue</code> guard would otherwise skip the now-empty node's contribution to <code>full_text</code> and lose the boundary anyway. Whitespace-only paragraphs (e.g. <code>&lt;p&gt;   &lt;/p&gt;</code> or a lone <code>&amp;nbsp;</code>) were deliberately left dropped by that #401 fix as a separate, not-yet-fixed case — fixed under #402: markdown authors commonly write a standalone <code>&amp;nbsp;</code> line as a deliberate blank-line spacer (a literal blank line collapses <em>between paragraphs</em>), so a <em>freshly</em>-closed <code>&lt;p&gt;</code> (opened and closed with nothing in between, e.g. <code>&lt;p&gt;&amp;nbsp;&lt;/p&gt;</code>) now always keeps its whitespace-only-but-non-empty <code>runs</code>, unconditional on <code>preserve_if_empty</code> — there's real (if invisible) content here to lose, not just a boundary. This is deliberately scoped to <code>tag == "p"</code> specifically, not every tag <code>_emit_block_node</code> dispatches on: PR #441's own QA round live-caught a first version of the fix with no such scoping, which also preserved whitespace-only <code>&lt;li&gt;</code>/heading content — <code>&lt;li&gt;Real&lt;/li&gt;&lt;li&gt;&amp;nbsp;&lt;/li&gt;&lt;li&gt;More&lt;/li&gt;</code> rendered a real bullet glyph with only invisible content between two genuine list items, same for headings — since the blank-line-spacer convention this fix targets doesn't apply to list items or headings the same way. A resumed <code>&lt;p&gt;</code>'s own whitespace-only trailing flush also does NOT get the fresh-<code>&lt;p&gt;</code> treatment: an earlier version of this fix that didn't check <code>self._block_resumed</code> regressed <code>test_nested_list_via_markdown_preserves_parent_text</code>, since a resumed block's trailing whitespace (e.g. the indentation newline python-markdown emits between a nested list's <code>&lt;/ul&gt;</code> and the outer <code>&lt;li&gt;</code>'s own <code>&lt;/li&gt;</code>) is markup-formatting noise, not authored content. <code>self._block_resumed</code> (tracked since #401 but, per that fix's own history in <code>docs/qa/tests/docs_content.md</code> TC-DOC136, no longer gating anything there — <code>preserve_if_empty</code>/<code>_block_had_unsupported_content</code> replaced it for that purpose) is read again here for this new purpose. Both the non-<code>&lt;p&gt;</code> and resumed-<code>&lt;p&gt;</code> cases fall back to the same <code>preserve_if_empty</code> gate the <code>runs=[]</code> case already used. <code>emitter.py</code> was simplified to match: it no longer special-cases whitespace text at all, just emits whatever text a kept node carries — the empty-string (<code>runs=[]</code>) case still contributes only its trailing <code>"\n"</code>. A resumed block's <em>genuine</em> trailing <code>&amp;nbsp;</code> (not markup-formatting noise) is a known, documented remaining gap — tracked as #444, not fixed here. <code>handle_endtag</code>'s <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close-tag handling used to pop <code>self._list_ordered</code> (the stack <code>BulletItem.depth</code>/<code>.ordered</code> are computed from) only when the closing tag's implied type matched the stack's own top entry — a mismatched pair (e.g. an <code>&lt;ol&gt;</code> closed by a stray <code>&lt;/ul&gt;</code>, confirmed live to occur in real-world malformed source HTML) silently skipped the pop instead of performing it, permanently leaving the stack one level too deep for the rest of the document and bleeding a bogus off-by-one depth into every subsequent list, including completely unrelated, later, well-formed ones (#382). <code>_resume_interrupted_block</code> already handles the equivalent node-<em>type</em> correctness concern for this same malformed-tag scenario unconditionally (it's called for both <code>&lt;ol&gt;</code> and <code>&lt;ul&gt;</code> closes regardless of which opened the interrupted block); the fix applies the identical unconditional-pop principle to <code>_list_ordered</code> itself — any <code>&lt;/ol&gt;</code> or <code>&lt;/ul&gt;</code> means one fewer list is open, popped by count rather than gated on matching the popped entry's own type. Well-formed (correctly matched) nesting is unaffected, since the gate was already true in that case. <code>_resume_interrupted_block</code> itself had the same class of gap one level up (#450, surfaced during PR #449's QA pass on #382 and confirmed pre-existing, not a regression from that PR): it matched a <code>_BlockFrame</code> only by comparing its <code>interrupted_by</code> tag against the exact closing tag, so a mismatched <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> pair left the frame stuck on <code>_block_stack</code> rather than resolving it either way — a later, unrelated, well-formed list could then close with a tag that happened to match the stale frame's <code>interrupted_by</code> value, incorrectly restoring <code>self._block_tag</code> to the original (long-since-closed) outer block and mistyping subsequent bare trailing text as that stale block type. Fixed by giving <code>_BlockFrame</code> a <code>list_depth</code> field (the <code>_list_ordered</code> depth recorded at interrupt time, set only for list-category frames) and matching list interruptions by returning to that depth rather than by tag identity: the frame is always popped once the depth is reached, even on a mismatch, but the outer block is only actually <em>resumed</em> (<code>self._block_tag</code> restored) on an exact tag match — a mismatched close proves the interrupting list ended but never proves the outer block's own close tag was seen, so restoring it would be guessing. This requires <code>_list_ordered</code>'s own unconditional pop (the #382 fix above) to run <em>before</em> <code>_resume_interrupted_block</code> for the same closing tag rather than after, since the depth check needs the post-pop count. PR #478's own review round caught a second, related bug in the same function, live-reproduced: bare top-level text directly inside a still-open <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> (not wrapped in its own <code>&lt;li&gt;</code>) opens an <em>implicit</em> paragraph via <code>handle_data</code>'s bare-text path (#343) without going through <code>_interrupt_open_block</code>, so it has no frame of its own on <code>_block_stack</code> — resuming an outer interrupted frame while that implicit paragraph was still open unconditionally overwrote <code>self._block_tag</code> and cleared <code>self._run_buf</code>, silently destroying its text (<code>&lt;h1&gt;Start&lt;ol&gt;&lt;li&gt;B&lt;ul&gt;&lt;li&gt;C&lt;/li&gt;&lt;/ol&gt;D&lt;/ol&gt;E</code> dropped "D" entirely and mistyped "E" as a new heading instead of resuming "Start"'s own paragraph). Fixed by flushing whatever block is currently open, exactly the way <code>_interrupt_open_block</code> already does, before actually resuming — a no-op for every other call site into <code>_resume_interrupted_block</code> (table/pre/block-tag closes), since each of those already guarantees nothing is open at that point; only the list-close sites can reach it with something open. The same edit collapsed the function's two branches' duplicate <code>self._block_stack.pop()</code> call into one, per the same review round's non-blocking nit. The <code>&lt;pre&gt;</code> close-tag handler builds its <code>Paragraph</code> directly rather than going through <code>_emit_block_node</code>, so the #401/#402 fresh-vs-resumed whitespace distinction didn't automatically extend to it — a resumed <code>&lt;pre&gt;</code> (interrupted by a nested construct, e.g. a <code>&lt;table&gt;</code>) kept its trailing whitespace-only flush unconditionally, producing a spurious visible-space paragraph (#443). Fixed by applying the same fresh-vs-resumed check directly in the <code>&lt;pre&gt;</code> handler, while still keeping a <em>fresh</em> <code>&lt;pre&gt;</code>'s own whitespace unconditionally (every character inside <code>&lt;pre&gt;</code> is normally significant, unlike <code>&lt;p&gt;</code>); a resumed <code>&lt;pre&gt;</code> that dropped genuinely unsupported content (e.g. a <code>&lt;hr&gt;</code> inside <code>&lt;pre&gt;</code>) still gets a boundary node via the same <code>preserve_if_empty</code> guarantee every other block type gets, caught in PR #515's own QA round. <code>&lt;blockquote&gt;</code> (#476) plugs into the existing interrupt/resume machinery the same way <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code>/<code>&lt;table&gt;</code>/<code>&lt;pre&gt;</code> already do — <code>self._blockquote_depth</code> increments/decrements on open/close, and <code>_emit_block_node</code> reads it directly when building each node's <code>blockquote_depth</code> field (a flat integer on <code>Heading</code>/<code>Paragraph</code>/<code>BulletItem</code>/<code>NamedBlock</code>, mirroring how <code>BulletItem.depth</code> encodes list nesting rather than a wrapper node — see <code>docs/design/blockquote-representation.md</code> for the representation decision and why a wrapper node was rejected). PR #546's own QA round 1 found two gaps: three <code>Paragraph</code>-construction sites (bare <code>&lt;hr&gt;</code>, bare <code>&lt;img&gt;</code>, <code>&lt;pre&gt;</code>'s own close handler) built their node directly rather than through <code>_emit_block_node</code>, so each silently defaulted to <code>blockquote_depth=0</code> — fixed by passing <code>blockquote_depth=self._blockquote_depth</code> explicitly at each site. Separately, <code>_resume_interrupted_block</code>'s PR #478 flush-before-resume step (described two sentences above) was only reachable from inside the "a frame exists and will be resumed" branch — a wrapper construct that opened with <em>nothing</em> outer to interrupt (so <code>_interrupt_open_block</code> pushed no frame at all) whose own inner content was left open at close time skipped the flush entirely, confirmed to reproduce identically for plain <code>&lt;ul&gt;text&lt;/ul&gt;after</code> with no blockquote involved (a pre-existing gap in the shared mechanism, not something new to blockquote). Fixed by moving the flush to run unconditionally at the top of the function, before the <code>if not self._block_stack: return</code> check — closing the gap for every wrapper construct at once rather than patching blockquote's own manifestation of it.</p>
+<h2 id="toolsdocsemitterpy"><code>tools/docs/emitter.py</code><a class="headerlink" href="#toolsdocsemitterpy" title="Permanent link">&para;</a></h2>
+<p><code>docs/emitter.py</code> — AST→Docs API requests + multi-phase table fill including nested table and cell styling support. <code>ast_to_requests</code>'s <code>BulletItem</code> handling (#336) emits nesting level (<code>BulletItem.depth</code>, correctly computed by <code>html_parser.py</code> but previously never read here) as leading <code>"\t"</code> characters on each paragraph's own text — <code>createParagraphBullets</code> is the only Docs API mechanism for setting a bullet's nesting level, and it works by inferring each covered paragraph's level from, then consuming (removing), that paragraph's leading tab characters at the time the request executes. <strong>One call per contiguous same-preset run, not one call per paragraph</strong> — confirmed live (PR #432 QA round 1) that issuing a separate <code>createParagraphBullets</code> call per paragraph lets call order/adjacency to an already-bulleted neighbor override the tab-encoded depth: a live <code>documents.get</code> on the result showed sibling paragraphs at the identical AST depth landing under <em>different</em> <code>listId</code>s (each an independent, newly-created list) instead of one shared list with per-paragraph <code>nestingLevel</code>, and ordered lists lost continuous numbering as a result. The fix — confirmed correct via a live round-trip against the real API (shared <code>listId</code>, correct explicit <code>nestingLevel</code> per paragraph, continuous numbering) — groups maximal contiguous runs of same-<code>ordered</code>-value <code>BulletItem</code>s (a preset change, e.g. an <code>&lt;ol&gt;</code> nested inside a <code>&lt;ul&gt;</code>, ends a run) into exactly one <code>createParagraphBullets</code> call spanning the whole run, so the API computes every paragraph's level from the tabs <em>within that one call</em> rather than relative to whatever's already rendered from a prior, separate call. A run with no depth-0 paragraph of its own (e.g. a preset-boundary child list, or issue #336's own "bare parent" case — a bare <code>&lt;li&gt;</code> holding only a nested <code>&lt;ul&gt;</code>, whose empty parent <code>&lt;li&gt;</code> <code>html_parser.py</code> drops) is "isolated": <code>createParagraphBullets</code> sets each covered paragraph's <code>nestingLevel</code> to <code>(its leading-tab count) − (the minimum leading-tab count across the whole call's range)</code>, so with no 0-tab paragraph the entire run collapses to <code>nestingLevel 0</code>. The original #432 fix left the per-level indent bumped so such a run still <em>looked</em> one level deep, but it rendered the depth-0 glyph (● disc) instead of the correct nested glyph (○ circle at depth 1) — issue #439. Now fixed: an isolated run is wrapped with a throwaway 0-tab anchor paragraph — <code>insertText</code> <code>"\n"</code> at <code>run_start</code>, <code>createParagraphBullets</code> over the range extended by 1, then <code>deleteContentRange</code> the anchor — so the real items land at their true <code>nestingLevel</code> and its glyph (confirmed live, any depth: a min-depth-2 run resolves to <code>nestingLevel 2</code>). This is deliberate, not an accident of the anchor mechanic: because the anchor always contributes 0 tabs, <code>nestingLevel</code> for every item in an isolated run always equals its own depth exactly, with no clamp — a <code>min_depth == 2</code> fragment (e.g. two levels of empty parent <code>&lt;li&gt;</code>s dropped, leaving only <code>depth=2</code> children) renders two indent tiers deep with no visible parent above it. Issue #714 confirmed this is the intended behavior over clamping to depth 1: the converter renders the source's true structure faithfully rather than second-guessing a fragment whose ancestors were dropped only for having no text of their own. The anchor insert (+1) and delete (−1) cancel, so every position outside <code>[run_start, run_end]</code> — later bullet runs, the <code>insertTable</code>/image pass — is left exactly where an ordinary single <code>createParagraphBullets</code> call would leave it, and the descending-document-order application still holds (a lower run's net-zero anchor pair plus tab consumption never touches a higher, not-yet-processed run's range). Each <code>bullet_run_requests</code> entry is therefore a <em>list</em> of requests, not a single request. Because each grouped call still consumes tab characters (shifting every later document position backward by the run's total tab count), it can't run inline with the rest of the per-node request loop (which otherwise assumes no position ever shifts, true for every other request type) — it's deferred into a separate pass appended after all other per-node requests but before the <code>insertTable</code> pass, applied latest-document-position-first so consuming one run's tabs never invalidates the still-to-run range of an earlier, not-yet-processed run. <code>insertTable</code> positions are computed the same way they always were (as if the tabs were still present, since that's the coordinate space they were captured in while walking <code>nodes</code>) and then decremented by the cumulative tab count of every run positioned before that table, since by the time <code>insertTable</code> actually runs, all of those tabs have already been removed. A document with no nested (depth&gt;0) bullets produces exactly the same one-call-per-contiguous-run shape it always would have, just now also merging what used to be separate same-preset flat-list calls into one — harmless, since a multi-paragraph call with zero tabs anywhere still assigns every paragraph level 0. Blockquote content (#476, any node with <code>blockquote_depth &gt; 0</code>) gets one additional <code>updateParagraphStyle</code> request setting <code>indentStart</code> (36pt × depth) and <code>borderLeft</code> (a constant gray solid line) — the closest visual equivalent to a real blockquote the Docs API's <code>ParagraphStyle</code> exposes, since there's no native blockquote <code>namedStyleType</code>. <code>borderLeft</code> was live-verified writable via a scratch-doc round trip before implementing (per this file's own "Verify a ticket's API premise live" rule) rather than trusted from the discovery schema's silence on read-only status alone — the same class of field <code>tabStops</code> (#404) turned out NOT to be despite looking identical on paper. Issue #719: <code>ast_to_requests</code> used to join a code-block <code>Paragraph</code>'s <code>Run</code> text (which legitimately contains embedded <code>"\n"</code> line breaks for a multi-line fenced block, per <code>html_parser.py</code>'s <code>&lt;pre&gt;</code> handling) straight into the shared <code>insertText</code> call — but the Docs API treats every <code>"\n"</code> in inserted text as a new paragraph boundary regardless of styling, so a single multi-line code block silently fragmented into one <code>NORMAL_TEXT</code> Docs paragraph per line, contradicting <code>markdown-support.md</code>'s own documented mapping of a fenced block to one "monospace paragraph" (confirmed live both ways: creation still applied <code>Courier New</code> to every fragment correctly, but <code>get_doc_as_markdown</code>'s round-trip then re-rendered each fragment as its own tiny separate fence instead of one — reproducing identically for plain code content, not just HTML-tag content despite the issue's original title). Fixed via <code>_is_code_paragraph</code> (mirrors <code>ast_to_markdown.py</code>'s <code>_is_code_block</code>, duplicated rather than imported to avoid a write/read circular import): a code-styled <code>Paragraph</code>'s <em>internal</em> <code>"\n"</code> breaks are substituted with <code>"\v"</code> (the same soft-line-break convention <code>insert_softbreak_paragraph</code> already uses) before insertion, keeping the whole block one Docs paragraph while still rendering each line on its own visual line; the node's own trailing separator <code>"\n"</code> to the next AST node is untouched. <code>doc_to_ast.py</code>'s <code>_text_run_to_run</code> reverses the substitution (<code>"\v"</code> → <code>"\n"</code>) for any run whose <code>weightedFontFamily</code> is <code>Courier New</code> specifically, so the reversal can't misinterpret an unrelated genuine soft break in non-code content — which currently has no reverse conversion of its own and round-trips as a literal <code>"\v"</code> character, a separate, pre-existing gap left out of scope here. Issue #434 (7 non-blocking findings from <code>/code-review high</code> on PR #432, never previously acted on) was resolved, across two PR #768 rounds, as: finding 1 fixed — a literal leading tab in a <code>BulletItem</code>'s own source text (indistinguishable from the synthesized depth-tabs once concatenated) is stripped from its joined run text before combining with <code>tabs</code>, since left in place it both nests the item one level too deep and silently under-counts <code>cumulative_tabs</code>, desyncing any later table/image position (TC-DOC193); finding 3 fixed — an orphan <code>&lt;li&gt;</code> outside any <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> (<code>node.depth</code> would otherwise be <code>-1</code>) is clamped to a minimum of <code>0</code> at the actual source, <code>html_parser.py::_make_bullet_item</code>'s <code>depth = len(self._list_ordered) - 1</code>, rather than by 3 separate downstream <code>emitter.py</code> call sites each independently remembering to — so it takes the same 1-request <code>min_depth == 0</code> path a normal depth-0 item does instead of the 3-request isolated-wrap path purely because of an unclamped sign (TC-DOC194, unit-test-only; both converge on the identical rendered <code>nestingLevel 0</code>, so this is an efficiency/consistency fix with no observable output change); finding 4 fixed alongside 3 — the 3 now-redundant <code>max(node.depth, 0)</code> clamps in <code>emitter.py</code> were removed once the source-level clamp made them unreachable; findings 5+7 fixed — the three separately-appended parallel lists (<code>tables</code>/<code>table_positions</code>/<code>table_tab_offsets</code>) were consolidated into one <code>pending_tables: list[_PendingTable]</code> (a small local dataclass), and the previously-inlined <code>table_positions[i] - table_tab_offsets[i]</code> position correction is now a named <code>position</code> variable at its one call site, closing finding 7 as a byproduct; finding 6 fixed — <code>ast_to_requests</code>'s docstring now documents all 3 ordering-sensitive request stages, and the previously-untyped positional <code>segment_meta</code> 5-tuple became a typed <code>_SegmentMeta</code> dataclass, mirroring <code>_PendingTable</code>'s own rationale; finding 2 was already moot — the cited <code>cumulative_tabs += len(tabs)</code> never actually shipped that way (PR #432's own merged commit already used <code>utf16_len(tabs)</code>, confirmed via <code>git show</code>); finding 4's <em>original</em> ask (generalizing the deferred-request mechanism into a reusable "this request consumes/shifts positions" abstraction, framed by its own filing as speculative future-proofing rather than a described defect) was deliberately left unimplemented, per this repo's standing guidance against designing for hypothetical future requirements — note this is a <em>different</em> "finding 4" than QA round 2's own locally-numbered findings, described next. PR #768's own QA round 1 (Kit) caught that the first version of finding 1's fix only stripped the leading tab from the <em>concatenated</em> <code>run_text</code> string used to build the inserted text, not the underlying <code>Run</code>/<code>Image</code> objects the per-run style/position offset loop iterates over afterward — a styled run's <code>updateTextStyle</code> range, and an <code>Image</code>'s <code>insertInlineImage</code> position, both still counted via <code>utf16_len(item.text)</code> on the <em>unstripped</em> original text, overrunning by however many tab characters were actually stripped but never inserted (live-confirmed: a <code>depth=0</code> <code>BulletItem(runs=[Run('\tHello', bold=True)])</code>'s own bold range came back <code>{startIndex: 1, endIndex: 7}</code> when "Hello" — the only text actually inserted — occupies indices 1-6). Fixed by extracting the strip into <code>_strip_bullet_leading_tabs</code>, a pure, non-mutating helper (returns a new <code>Run</code>/<code>Image</code> sequence via <code>dataclasses.replace</code>, never touching the caller's own AST objects — this function must stay side-effect-free on caller-owned input, unlike <code>html_parser.py::_make_bullet_item</code>'s in-place <code>runs[0].text = ...</code> mutation, which is safe only because it always operates on a list it just built from its own fresh buffer) and threading that stripped sequence through as <code>_SegmentMeta.runs</code>, which the offset loop now walks instead of <code>node.runs</code> directly. The same QA round also flagged that the strip's own content-loss tradeoff (a genuinely-authored leading tab, not just hand-formatting whitespace, is silently dropped — unconditional on depth, since even a depth-0 item's own literal leading tab is still misread as a nesting signal relative to the rest of its <code>createParagraphBullets</code> call) had no test covering depth 0 specifically and no comment calling out that it <em>is</em> content loss, not just a reinterpretation; both addressed with an explicit callout in the strip's own comment and a dedicated depth=0 regression test.</p>
+<h2 id="async-execution">Async execution<a class="headerlink" href="#async-execution" title="Permanent link">&para;</a></h2>
+<p><strong>Async execution</strong> (<code>execute_in_thread</code> + <code>thread_http</code>, in <code>http_transport.py</code>): every <code>@tool()</code>-registered function is <code>async def</code>, and <code>_timed</code>'s wrapper is unconditionally <code>async def wrapper(...): return await func(...)</code> — so <strong>any new tool must be <code>async def</code></strong>, even one with no Google API calls (see <code>tools/cache.py</code>'s <code>get_cache_ttl</code>/<code>set_cache_ttl</code>/<code>refresh_cache</code> for an example with an empty <code>await</code>-free body; a plain <code>def</code> there raises <code>TypeError</code> at call time since <code>await</code>ing a sync return value fails — <code>test_server.py::TestAllToolsAreAsync</code> guards against this recurring). Every <code>.execute()</code> call is wrapped <code>await execute_in_thread(chain.execute, service)</code> (<code>http_transport.py</code>, re-exported from <code>auth.py</code> for existing imports) — <strong>do not</strong> write <code>asyncio.to_thread(chain.execute, http=thread_http(service))</code> directly: <code>thread_http(service)</code> as an eagerly-evaluated kwarg resolves on the event-loop thread before the worker thread starts, so concurrent calls end up sharing one transport across threads (a real, live-reproduced bug, fixed in #183's follow-up round — see the decision doc). <code>execute_in_thread</code> defers the <code>thread_http()</code> call into the thread itself via a lambda. <code>thread_http()</code> hands each worker thread its own <code>AuthorizedHttp</code> transport built from the shared credentials, since the lifespan-scoped <code>sheets_service</code>/<code>drive_service</code>/etc. objects each carry one <code>httplib2</code> transport that isn't safe for concurrent use across threads. Six multi-call tools (<code>sync_folder</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>, <code>import_csv_to_sheet</code>, <code>share_spreadsheet</code>, <code>share_file</code>) parallelize their per-item work via <code>asyncio.gather(..., return_exceptions=True)</code> instead of looping serially. <code>cache.py</code>'s SQLite I/O deliberately stays synchronous, not <code>to_thread</code>-wrapped — see the comment in <code>cache.py::_open()</code>; the module's two Google-API-calling helpers (<code>get_modified_time</code>, <code>fetch_sheets</code>) are <code>async def</code> and do use <code>execute_in_thread</code> for their own <code>.execute()</code> calls. <code>_BaseCache.snapshot_epoch()</code>/<code>store(..., epoch=...)</code> guard against a <code>refresh_cache()</code> call landing mid-fetch and having its invalidation silently overwritten — wired up for <code>SheetStructureCache</code>/<code>SheetDataCache</code>/<code>DriveFolderCache</code> (not <code>DocContentCache</code>/<code>CalendarCache</code>), and scoped per key: a store is skipped only if an invalidation covering its own key, <code>&lt;id&gt;:</code> prefix, or the whole namespace landed after its snapshot (TTL expiry doesn't count). Size-bounded caches (<code>max_results</code>/<code>rows_to_fetch</code>) share <code>_BaseCache._get_sized</code>/<code>_store_sized</code> rather than re-implementing the <code>rows_fetched</code> sufficiency check (#698). Full rationale: <code>docs/decisions/decision-async-tool-execution.md</code>. When unit-testing genuine cross-thread concurrency (not just correctness) with a <code>threading.Barrier</code> or similar, the block must live inside the mocked <code>.execute()</code> call, not <code>.list()</code>/<code>.create()</code>/etc. — those are evaluated eagerly on the event-loop thread while building the call chain, before <code>execute_in_thread</code> ever hands off to a worker thread, so blocking there freezes the single-threaded event loop instead of proving concurrency (see <code>tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently</code>). <code>download_folder</code>/<code>sync_folder</code> (#316/#319) added <code>ctx.report_progress()</code> calls from inside each item's own per-item coroutine so updates stream as concurrent transfers complete rather than arriving in one burst after the whole <code>gather</code> resolves — any future tool adding progress reporting to a gather-based batch (tracked for the remaining <code>asyncio.gather</code> tools in #355) must wrap that <code>report_progress</code> call in its own try/except: it's awaited <em>after</em> the item's real work already succeeded or failed, with no other guard around it, so a report_progress exception (e.g. a dropped client session) would otherwise propagate out, get caught by the outer <code>gather(..., return_exceptions=True)</code>, and overwrite an already-successful result with a spurious failure — confirmed live and fixed in PR #351's review round.</p>
+<h2 id="sheets-api-textformatrunstartindex-is-also-utf-16-code-units">Sheets API TextFormatRun.startIndex is also UTF-16 code units<a class="headerlink" href="#sheets-api-textformatrunstartindex-is-also-utf-16-code-units" title="Permanent link">&para;</a></h2>
+<p><strong>Sheets API <code>TextFormatRun.startIndex</code> is also UTF-16 code units</strong> (confirmed via the API reference, same gotcha class as the Docs API note above): <code>update_cells</code> (<code>tools/sheets/data.py</code>) accepts a rich-text cell as a list of <code>{"text": str, "hyperlink": str | None}</code> run dicts for partial (rich-text) hyperlinks within a single cell (issue #89) — <code>_build_rich_text_cell</code> computes each run's <code>startIndex</code> via <code>_utf16_len</code> (<code>sheets/helpers.py</code>, which delegates to <code>docs/indices.py</code>'s <code>utf16_len</code> rather than duplicating its per-character logic), not <code>len()</code>, so a run following an astral-plane character (emoji, some CJK/math symbols) lands at the correct offset. A <code>data</code> array with no rich-text cells still goes through the original whole-range <code>values().update()</code> USER_ENTERED path unchanged. A <code>data</code> array that mixes plain and rich-text cells does <strong>not</strong> — an earlier version wrote the whole range via <code>values().update()</code> with rich-text positions blanked to <code>""</code>, relying on the second <code>batchUpdate</code> pass (the one that writes the rich-text <code>updateCells</code> requests) to overwrite those blanks back; if that second call failed, the blank was never restored and the rich-text cells' prior content was lost (live-confirmed via TC-W34 review, PR #380). The fixed version writes only the actual plain-cell positions via a per-cell <code>values().batchUpdate()</code> instead, so the two passes never touch each other's cells and a failure in one can't corrupt the other's data. Because they're now two independent API calls whenever both plain and rich-text cells are present, the tool returns <code>{"values_update": ..., "rich_text_update": ...}</code> in that case rather than silently dropping one result — only a call with just one kind of cell returns that single call's raw response.</p>
+<h2 id="mcp-resources">MCP resources<a class="headerlink" href="#mcp-resources" title="Permanent link">&para;</a></h2>
+<p><strong>MCP resources</strong>: Two resources are registered — <code>server://auth-status</code> (active auth method and Drive capability limits) and <code>spreadsheet://{spreadsheet_id}/info</code> (sheet list and grid properties). Under mcp v1, neither took a <code>ctx</code> argument the way tools do — both fetched it explicitly via <code>mcp.get_context().request_context.lifespan_context</code> (<code>FastMCP</code> had no <code>get_lifespan_context()</code> method, confirmed absent as far back as <code>mcp==1.27.1</code>, so calling that nonexistent method was never a regression from #350's SDK bump; it was a pre-existing bug invisible to unit tests since <code>TestAuthStatusResource</code> only exercised <code>_auth_status_json()</code> directly, never the resource function itself — fixed in #363). Under mcp v2 (<code>mcp.server.mcpserver.MCPServer</code>, since #175), <code>get_context()</code> no longer exists at all, and Context injection for a <em>static</em> (non-templated) resource like <code>server://auth-status</code> isn't supported by the framework (confirmed live against mcp==2.0.0 — the decorator raises <code>ValueError</code> outright). The two resources now use different mechanisms accordingly: <code>get_spreadsheet_info</code> is a <em>template</em> resource (<code>{spreadsheet_id}</code> in its URI), where v2 <em>does</em> support Context injection the same way tools already get it — it takes <code>ctx: Context</code> as an ordinary parameter and reads <code>ctx.request_context.lifespan_context</code>. <code>get_auth_status</code> is static, so it reads the process-wide <code>auth.get_lifespan_context()</code> singleton described above instead — see <code>docs/decisions/decision-mcp-v2-resource-context-access.md</code> for the full rationale.</p>
+<h2 id="mcp-restart">MCP restart<a class="headerlink" href="#mcp-restart" title="Permanent link">&para;</a></h2>
+<p><strong>MCP restart</strong>: After <code>docker compose restart mcp-gee-sweet</code>, Claude Code does not automatically reconnect to the SSE server — you must restart Claude Code too to re-establish the connection. The same staleness applies to a team role's own stdio <code>mcp-gee-sweet-&lt;name&gt;</code> server (confirmed while fixing #336): it's a single long-running subprocess that imports this package's code once at session start, so editing <code>.py</code> files afterward does <strong>not</strong> get picked up by that already-running process — a live tool call (e.g. <code>create_doc</code>) made after a mid-session edit silently exercises the <em>pre-edit</em> code, which can look exactly like a real live-rendering bug (it reproduced one that had already been fixed on disk). <code>uv run python3 -c "..."</code> invocations in the same worktree are unaffected (fresh interpreter, fresh import each time) and are the reliable way to live-verify a same-session code change against the real API without restarting the whole session — reuse <code>mcp_gee_sweet.auth._oauth_creds()</code> plus <code>googleapiclient.discovery.build(...)</code> directly (the same construction <code>spreadsheet_lifespan</code> uses) to get a real <code>docs</code>/<code>drive</code> service in a throwaway script. This is also the only way to inspect fields no tool surfaces, like <code>documents().get()</code>'s raw <code>paragraph.bullet</code>/<code>lists</code> — what actually pinned down PR #432's live nesting behavior.</p>
+<h2 id="regression-vs-pre-existing-bug-after-a-dependency-bump">Regression vs. pre-existing bug after a dependency bump<a class="headerlink" href="#regression-vs-pre-existing-bug-after-a-dependency-bump" title="Permanent link">&para;</a></h2>
+<p><strong>Regression vs. pre-existing bug after a dependency bump</strong>: when a bug report asks "is this a regression from the recent SDK bump" (e.g. issue #363 against #350's <code>mcp&gt;=1.28.1</code> change), don't answer from memory or by reading changelogs alone — install the <em>old</em> pinned version in a scratch venv and check the specific API surface directly against it (e.g. <code>python3 -m venv /tmp/x &amp;&amp; ./x/bin/pip install "mcp==1.27.1" &amp;&amp; ./x/bin/python -c "from mcp.server.fastmcp import FastMCP; print(hasattr(FastMCP, 'get_lifespan_context'))"</code>). Confirmed in #363: <code>FastMCP.get_lifespan_context()</code> looked like it could've been removed by the bump, but it never existed even at <code>1.27.1</code> — the scratch-venv check settled the question in seconds instead of guessing from a diff.</p>
+<h2 id="verify-a-tickets-api-premise-live-before-implementing-not-after">Verify a ticket's API premise live before implementing, not after<a class="headerlink" href="#verify-a-tickets-api-premise-live-before-implementing-not-after" title="Permanent link">&para;</a></h2>
+<p><strong>Verify a ticket's API premise live before implementing, not after.</strong> An issue's ask can rest on an unverified assumption that a specific Google API field or request is settable, just because that field appears in the API's discovery schema — a schema documents read-only fields as ordinary properties, so presence alone doesn't mean writable. Before building a feature around a Google API capability not already confirmed live elsewhere in this codebase, run the same scratch-script check described above under "MCP restart" (<code>uv run python3 -c "..."</code> with <code>mcp_gee_sweet.auth._oauth_creds()</code> + <code>googleapiclient.discovery.build(...)</code>) against the live discovery document <em>first</em> — read the target field's own <code>description</code> for a "read-only" note, and confirm at least one request type in the schema actually references it for writing — before writing any implementation. Confirmed the hard way on issue #404/PR #471: <code>style_doc_range</code> shipped a full <code>tab_stops</code> implementation, unit tests, and QA test cases before QA's live round hit <code>HttpError 400 ... "Unallowed field: tabStops"</code>. A follow-up discovery-schema check took two minutes and confirmed <code>ParagraphStyle.tabStops</code>'s own description reads "This property is read-only," with no request type anywhere in the Docs API able to set it — the same check, run before implementation instead of after QA sent it back, would have caught this without costing a full dev+QA cycle. Closed as infeasible rather than fixed (issue #404, PR #471, follow-up #473 filed for the documented workaround).</p>
+<h2 id="procedural-feedback-the-governing-command-file-not-memory">Procedural feedback → the governing command file, not memory<a class="headerlink" href="#procedural-feedback-the-governing-command-file-not-memory" title="Permanent link">&para;</a></h2>
+<p><strong>Procedural feedback → the governing command file, not memory.</strong> If the human's feedback corrects or refines a repeatable team-workflow step that a <code>.claude/team-roles/*.md</code> or <code>.claude/commands/*.md</code> file already governs (or should) — as opposed to project context, an external-system pointer, or a one-off judgment call specific to the current conversation — that's a command decision (<code>.claude/commands/retro.md</code>'s disposition), not a memory entry: edit the file directly, through Bob's prompt-QA gate (<code>.claude/team-roles/bob.md</code>), rather than trusting memory to carry it. A memory-only fix is retrieved heuristically and competes with whatever the loaded prompt already says instead of reliably overriding it — confirmed the hard way on PR #456: two separate memory-only fixes for QA's <code>/mcp reconnect</code>+<code>/code-review</code> batching (<code>qa.md</code> step 2) each got silently re-broken by a later session before the rule was hard-coded into <code>qa-kickoff.md</code> instead. Memory is still the right home for what's genuinely outside the team's tracked process — it just isn't a substitute for a rule a command file is meant to enforce every time.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
