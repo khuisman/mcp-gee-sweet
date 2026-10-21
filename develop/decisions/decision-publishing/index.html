@@ -1523,7 +1523,7 @@ Status: <strong>draft / under consideration</strong></p>
 </table>
 <h3 id="stable-track">Stable track<a class="headerlink" href="#stable-track" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Triggered by a GitHub release being published (current <code>release.yml</code> already handles this)</li>
+<li>Triggered by a GitHub release being published (<code>release.yml</code> handled this when this proposal was written; since #1124, both the stable and dev tracks publish from <code>.github/workflows/publish.yml</code>, so PyPI sees one trusted-publisher workflow and doesn't flag a "Change of provenance")</li>
 <li>Requires tests to pass before build (added in this PR)</li>
 <li>Semantic versioning: <code>MAJOR.MINOR.PATCH</code></li>
 <li>Promotion path: <code>edge</code> → RC tag on edge → verify → merge to <code>main</code> → tag stable release</li>
