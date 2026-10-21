@@ -1779,12 +1779,12 @@ Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth s
 
 ### TC-I66: dev and stable releases both publish through `publish.yml`, with no PyPI provenance warning (issue #1124)
 
-**Background:** PyPI flags a release whose trusted-publisher workflow differs from the previous release's with a "Change of provenance" warning on its page. Dev builds came from `publish-dev.yml` and stable releases from `release.yml`, and a dev build always precedes a stable release, so v0.9.2's page carried the warning. #1124 merges both tracks into `.github/workflows/publish.yml`. No MCP tool or unit test reaches a GitHub Actions run or PyPI's attestation record, so this is a manual check after merge and after the next stable release.
+**Background:** PyPI flags a release whose trusted-publisher workflow differs from the previous release's with a "Change of provenance" warning on its page. Dev builds came from `publish-dev.yml` and stable releases from `release.yml`, and a dev build always precedes a stable release, so v0.9.2's page carried the warning. PyPI compares against the previous *upload*, not the previous stable release: v0.9.1's page carries the warning although v0.9.0 and v0.9.1 both came from `release.yml`, because a `publish-dev.yml` dev build came between them. #1124 merges both tracks into `.github/workflows/publish.yml`. The first upload through `publish.yml` follows a `publish-dev.yml` build, so it's expected to carry the warning once; that's the transition, not a failure. No MCP tool or unit test reaches a GitHub Actions run or PyPI's attestation record, so this is a manual check after merge and after the next stable release.
 
 **Setup**
 - PyPI has a trusted publisher registered for `publish.yml` in this repo (the maintainer step on #1124).
 - For checks 1–2: a push to `develop` touching `src/**`, `tests/**`, `pyproject.toml`, or `uv.lock` has landed since #1124 merged.
-- For checks 3–5: a stable GitHub Release has been published since #1124 merged.
+- For checks 3–5: a stable GitHub Release has been published since #1124 merged, **and** at least one dev build published through `publish.yml` before it (checks 1–2 passed first). Merging #1124 alone publishes nothing, since it touches no `src/**`. If the release's predecessor upload is still a `publish-dev.yml` build, check 5 fails while the workflow is behaving correctly: record SKIP for check 5, not FAIL.
 
 **Action**
 1. `gh run list --workflow=publish.yml --event push --limit 1`, then `gh run view <run-id>`. Note the published `X.Y.Z.devN` version from the build log or `pip index versions mcp-gee-sweet --pre`.
@@ -1797,6 +1797,5 @@ Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth s
 - 1, 3: the run completed with `success`; its jobs are `Run tests`, `Build distribution`, and `Upload to PyPI`, and `Upload to PyPI` ran.
 - 2, 4: every `attestation_bundles[].publisher` is `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", ...}`. `release.yml` or `publish-dev.yml` there means the upload didn't go through the new file.
 - 5: the release page shows no "Change of provenance" warning.
-- `gh run list --workflow=publish-dev.yml --limit 1` and `gh run list --workflow=release.yml --limit 1` show no run after #1124 merged.
 
-**Re-run cadence:** once after #1124 merges (checks 1–2), and once at the v0.9.3 release (checks 3–5). After that, only if `publish.yml` is renamed or split.
+**Re-run cadence:** once after the first qualifying `develop` push following #1124's merge (checks 1–2), and once at the first stable release after that (checks 3–5). After that, only if `publish.yml` is renamed or split.
