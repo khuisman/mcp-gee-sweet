@@ -26,6 +26,12 @@ list_sheets → Sales/Empty/Notes & Misc (3 tabs), no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `list_sheets` returned Sales / Notes & Misc / Empty (3 tabs), no error.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): Sales / Notes & Misc / Empty, no error.
+
 ---
 
 ### TC-S02: Cache hit on second call
@@ -43,6 +49,9 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): both calls logged `Cache hit: N sheets for <copy>`.
+
 ---
 
 ### TC-S03: Cache invalidated after rename
@@ -59,6 +68,9 @@ Empty→WasEmpty, list_sheets reflects rename immediately (mark_dirty confirmed)
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `rename_sheet(Empty→WasEmpty)` logged `Marked cache dirty`, and the next `list_sheets` re-fetched and showed WasEmpty. On `kai-oauth` (OAuth) that `list_sheets` took 9.8 s (every other one under 1 s); the log shows no cause, not reproduced.
 
 ---
 
@@ -408,6 +420,12 @@ create_sheet(title="BrandNew") → {sheetId(int), title, index(int), spreadsheet
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `create_sheet("BrandNew")` returned sheetId 917700788, title, index 3 and spreadsheetId. The next `list_sheets` included BrandNew.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `create_sheet("BrandNew")` returned sheetId/title/index 3; `Marked cache dirty`, then the next `list_sheets` re-fetched 4 sheets.
+
 ---
 
 ### TC-S16: Duplicate tab title
@@ -527,6 +545,12 @@ refresh_cache(spreadsheet_id) → {"invalidated":["spreadsheet:<id>"]}, scoped c
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass**
+`kai-sa`: `refresh_cache(spreadsheet_id)` returned `{"invalidated":["spreadsheet:<id>"]}`, and a following `list_sheets` returned the current tabs. Not run: the "next call is a cache miss in the logs" check, because the rules forbid reading logs.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `refresh_cache(spreadsheet_id)` → `invalidated: [spreadsheet:<copy>]`, both caches marked dirty, next `list_sheets` a miss (`Cached 4 sheets`).
+
 ---
 
 ### TC-S21: Refresh by doc ID only
@@ -578,6 +602,9 @@ refresh_cache() no args → {"invalidated":"all"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account): `refresh_cache()` → `invalidated: all`; the log names all five caches (sheet_structure, sheet_data, drive_folder, doc_content, calendar), and the next `list_sheets`, `get_doc_content` and `list_files` each re-fetched. Stale wording: five caches now, not four.
+
 ---
 
 ### TC-S24: Cache re-populated after refresh
@@ -594,6 +621,9 @@ refresh_cache(spreadsheet_id) then get_multiple_spreadsheet_summary → correct 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account): after `refresh_cache(spreadsheet_id)` a summary re-fetched (`Cached 4 sheets`, then `Cached sheet data …` per tab) and returned current data.
 
 ---
 

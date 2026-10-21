@@ -151,6 +151,9 @@ Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` →
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 
+**Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account): step 0 → 1800; step 1 was a hit (warmed by TC-S23), so its miss check couldn't be seen; `set_cache_ttl(3)` → 3 with the process-wide warning; readback 3; after 5 s `Cache TTL expired for <copy>, marking dirty` and a re-fetch. Restored to 1800.
+
 ---
 
 ### TC-I23: `CACHE_VALIDATE_MODIFIED_TIME` — external edit invalidates cache before TTL expires (issue #99)
@@ -1937,6 +1940,9 @@ OAuth server (`mcp-gee-sweet-sky`), warmed at 22:12 with a 12-query fan-out, the
 **Result (2026-10-20) ⚠️ PARTIAL — PR #1126 round 2 (Sky) @ 4e854115**
 Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth server (`mcp-gee-sweet-sky`). Warmed at 23:28 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (23:39): 12/12 correct, no `error`, under a second. Step 2 (23:50): 24/24 correct, no `error`, under a second. Step 3 (00:01): `create_folder` succeeded on the first call; folder trashed afterwards. No live `Resending` line in the server log, so the per-connection idle close handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
 
+**Result (2026-10-20) ✅ PASS — v0.9.3 release pass (Aziz) @ b60f0391 (#1052 merged; `http_transport.py` identical at the c90b88d3 release candidate)**
+Both main-checkout servers at once: `mcp-gee-sweet-sa` (service account) and `mcp-gee-sweet-oauth` (OAuth), processes started 22:37 after #1052's merge. Warmed at 23:02 with the 12-query fan-out (12/12 each), then no calls to either server for 10.5 min before each step. Step 1 (23:13): 12/12 correct on each, no `error`, 1.8 s and 1.5 s. Step 2 (23:24): 24/24 (`A1:D6`) correct on each, no `error`, 1.9 s and 1.5 s. Step 3 (23:35): `create_folder` in `TEST_FOLDER_ID` succeeded on the first call on each (1.9 s, 1.5 s); both folders trashed afterwards. Check 4 met: the service-account run Sky's lane couldn't do. The shared server log has no `Resending`, `Connection reset`, `Broken pipe` or `timed out` line since the servers started. Stale wording: `QA_SCRATCH_FOLDER_ID` isn't defined in `.env.template` or anywhere else; `TEST_FOLDER_ID` was used.
+
 ### TC-I66: dev and stable releases both publish through `publish.yml`, with no PyPI provenance warning (issue #1124)
 
 **Background:** PyPI flags a release whose trusted-publisher workflow differs from the previous release's with a "Change of provenance" warning on its page. Dev builds came from `publish-dev.yml` and stable releases from `release.yml`, and a dev build always precedes a stable release, so v0.9.2's page carried the warning. PyPI compares against the previous *upload*, not the previous stable release: v0.9.1's page carries the warning although v0.9.0 and v0.9.1 both came from `release.yml`, because a `publish-dev.yml` dev build came between them. #1124 merges both tracks into `.github/workflows/publish.yml`. The first upload through `publish.yml` follows a `publish-dev.yml` build, so it's expected to carry the warning once; that's the transition, not a failure. No MCP tool or unit test reaches a GitHub Actions run or PyPI's attestation record, so this is a manual check after merge and after the next stable release.
@@ -1959,3 +1965,6 @@ Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth s
 - 5: the release page shows no "Change of provenance" warning.
 
 **Re-run cadence:** once after the first qualifying `develop` push following #1124's merge (checks 1–2), and once at the first stable release after that (checks 3–5). After that, only if `publish.yml` is renamed or split.
+
+**Result (2026-10-20) ✅ PASS (checks 1–2) — v0.9.3 release pass (Aziz) @ c90b88d3**
+Check 1: the two `publish.yml` push runs after #1124's merge, 39553304435 (746136d4, the GHSA-mpw3 merge) and 39553920594 (c90b88d3, the GHSA-8jqx merge), both concluded `success`, with jobs `Run tests`, `Build distribution` and `Upload to PyPI`, all `success`. Check 2: the wheels for `0.9.3.dev34` and `0.9.3.dev35` each carry one attestation bundle whose publisher is `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", "environment": null}`. So PyPI's last upload before the stable 0.9.3 comes through `publish.yml`. Checks 3–5 run after 0.9.3 is published.

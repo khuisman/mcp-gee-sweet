@@ -31,6 +31,12 @@ add_chart(COLUMN, A1:D5, title="Sales by Quarter") → chartId 77030586, basicCh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `add_chart(COLUMN, A1:D5, "Sales by Quarter")` returned chartId 516837778 with `basicChart.chartType` COLUMN. Playwright screenshot `2026-10-19-tc-c01.png` shows the column chart on Sales (Q1/Q2/Q3 grouped by product). Chart then deleted with `deleteEmbeddedObject`.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `add_chart(COLUMN, A1:D5)` returned a chartId with `chartType` COLUMN; chart deleted. API checks only (no Playwright in this re-check).
+
 ---
 
 ### TC-C02: BAR chart

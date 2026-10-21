@@ -26,6 +26,12 @@ Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `update_cells(Sales, A7:D7, [[Test,A,B,C]])` updated 4 cells with no error. Re-read: row 7 = Test/A/B/C, rows 1–6 unchanged.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `update_cells(Sales, A7:D7)` updated 4 cells, rows 1–6 unchanged, `Marked all sheet data dirty` logged.
+
 ---
 
 ### TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
@@ -81,6 +87,9 @@ A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalida
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): after a warm summary, `update_cells(A7)` logged `Marked all sheet data dirty`, and the next summary re-fetched (`Cached sheet data …`) and showed the new value. Stale wording: the summary needs `rows_to_fetch` ≥ 7 to reach A7 (10 used); the default 5 doesn't.
 
 ---
 
@@ -323,6 +332,12 @@ batch_update_cells A8=Batch1, A9=Batch2 in one op
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: One `batch_update_cells(Sales, {A8:[[Batch1]], A9:[[Batch2]]})` call updated both cells (totalUpdatedCells 2). Re-read: A8=Batch1, A9=Batch2.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): one `batch_update_cells` call wrote A8=Batch1, A9=Batch2 (totalUpdatedCells 2).
 
 ---
 

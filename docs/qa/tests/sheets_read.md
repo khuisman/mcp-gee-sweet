@@ -25,6 +25,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `get_sheet_data(Sales)` returned 6 rows × 4 columns (Product/Q1/Q2/Q3). The Totals row came back computed as 650/670/705, not as formula strings. No error.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth), each on its own copy of the fixture spreadsheet: `Sales` header plus data rows, Totals computed as 650/670/705, no error.
+
 ---
 
 ### TC-R02: Explicit range
@@ -306,6 +312,12 @@ Row 6 → =SUM(B2:B5)/=SUM(C2:C5)/=SUM(D2:D5); data rows literal ints
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `get_sheet_formulas(Sales)` returned row 6 as `=SUM(B2:B5)`/`=SUM(C2:C5)`/`=SUM(D2:D5)`. Data rows came back as literal ints (100, 200, …).
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): row 6 returned as `=SUM(B2:B5)`/`=SUM(C2:C5)`/`=SUM(D2:D5)`, data rows as literals.
+
 ---
 
 ### TC-R09: Sheet with no formulas
@@ -519,6 +531,12 @@ All 3 sheets; Sales headers + first rows; Empty headers [] / first_rows []
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `get_multiple_spreadsheet_summary([fixture])` returned all 3 sheets. Sales had headers Product/Q1/Q2/Q3 plus 4 first rows; Empty had headers [] and first_rows [].
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): all 3 sheets summarized (Sales headers Product/Q1/Q2/Q3; Notes & Misc Date/Note; Empty `[]`).
+
 ---
 
 ### TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)
@@ -561,6 +579,9 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Second call identical; the cache-hit log line isn't visible to the client.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account): second summary logged four `Sheet data cache hit: <copy>/<sheetId>` lines. `kai-oauth` (OAuth): three `Sheet data cache hit` lines, 0.32 s against 1.06 s uncached. Same data both times. Log lines now read `Sheet data cache hit: …` in `/tmp/mcp-gee-sweet.log`, not `make logs`.
 
 ---
 
@@ -692,6 +713,12 @@ Sales A3 "Gadget" (row 3)
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: `find_in_spreadsheet("Gadget", sheet=Sales)` returned one match: Sales A3 "Gadget" (row 3).
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account) and `kai-oauth` (OAuth): `find_in_spreadsheet("Gadget", Sales)` → Sales A3.
 
 ---
 
