@@ -517,7 +517,9 @@ class TestGetMultipleSpreadsheetSummary:
         the short cached result."""
         ctx = self._ctx(self._spreadsheet_meta(), [])
         lc = ctx.request_context.lifespan_context
-        lc.sheet_data_cache = SheetDataCache(db_path=str(tmp_path / "c.db"), ttl=60)
+        lc.sheet_data_cache = SheetDataCache(
+            db_path=str(tmp_path / "c.db"), ttl=60, principal="test"
+        )
         values_get = lc.sheets_service.spreadsheets.return_value.values.return_value.get
         values_get.return_value.execute.side_effect = [
             {"values": [["H"], ["r2"]]},  # A1:5 — rows 3-5 empty

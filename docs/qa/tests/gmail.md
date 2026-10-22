@@ -33,6 +33,12 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kit`: `list_labels` confirmed the Gmail scope. `list_messages("label:mcp-qa-fixture", 50)` returned 21 messages (19 fixtures; threads hold the rest) including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}, each with id and thread_id; no next_page_token; no error.
+
+**Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth): `list_labels` confirmed the Gmail scope; `list_messages("label:mcp-qa-fixture", 50)` returned 21 messages including `{TEST_MESSAGE_ID}`, no next_page_token, no error. `TEST_GMAIL_LATIN1_ID` isn't a key in Aziz's worktree `.env`, so that ID wasn't checked.
+
 ---
 
 ### TC-GM02: Invalid label filter returns API error
@@ -562,6 +568,12 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kit`: `send_message` to {QA+tc-gm11} returned id, thread_id and label_ids including SENT; `list_messages("subject:(mcp-qa tc-gm11)")` found it. Trashed.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): `send_message` to the QA plus-address returned id/thread_id with `SENT` in label_ids; `list_messages` found it; trashed.
 
 ---
 

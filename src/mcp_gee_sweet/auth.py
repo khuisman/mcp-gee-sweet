@@ -209,6 +209,10 @@ class SpreadsheetContext:
     # read (time.monotonic()), cached by gmail._own_addresses once fully resolved
     # (#802) and cleared by refresh_cache and by apply_oauth_credentials. Per connection, like the rest.
     gmail_own_addresses: tuple[frozenset[str], float] | None = None
+    # The Google identity the caches below are bound to (ensure_cache_principal), or
+    # None while unbound: every cache read misses and no write lands, so one identity
+    # never reads another's cached data (GHSA-8jqx-w7j8-6xwm).
+    cache_principal: str | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
@@ -915,9 +919,10 @@ def adopt_published_credentials(context: SpreadsheetContext) -> bool:
 
 def apply_oauth_credentials(context: SpreadsheetContext, creds: Credentials, generation: int):
     """Swap `context` onto `creds` in place, so the connection recovers without a restart
-    or reconnect. The caches stay: they hold Google data, not credentials. The
-    mailbox's own addresses are the exception, since the new token may be a different
-    account."""
+    or reconnect. The new token may be a different account, so the caches are swapped
+    for unbound ones (the next call's ensure_cache_principal binds them; the same
+    account gets its cached entries back) and the mailbox's own addresses are
+    cleared."""
     services = _build_services(creds)
     context.sheets_service = services["sheets"]
     context.drive_service = services["drive"]
@@ -931,7 +936,91 @@ def apply_oauth_credentials(context: SpreadsheetContext, creds: Credentials, gen
     context.unauthorized_message = None
     context.oauth_generation = generation
     context.gmail_own_addresses = None
+    _bind_caches(context, None)
     logger.info("OAuth credentials reloaded; this connection is authorized again")
+
+
+_CACHE_FIELDS = {
+    "cache": SheetStructureCache,
+    "sheet_data_cache": SheetDataCache,
+    "drive_folder_cache": DriveFolderCache,
+    "doc_cache": DocContentCache,
+    "calendar_cache": CalendarCache,
+}
+
+
+def _bind_caches(context: SpreadsheetContext, principal: str | None) -> None:
+    """Replace all five caches with new instances bound to `principal` (None: unbound).
+    Never mutates the old ones: a fetch in flight holds one, and must store under the
+    principal it was fetched as. Each replacement keeps the old one's TTL
+    (set_cache_ttl) and shares its invalidation record, so an invalidation on the new
+    instance still stops the old one's in-flight store (#698). The old one isn't
+    closed here, since that fetch may still use it; it closes its connection when
+    it's garbage-collected (`_BaseCache.__del__`)."""
+    for name, cls in _CACHE_FIELDS.items():
+        old = getattr(context, name)
+        setattr(
+            context,
+            name,
+            cls(ttl=old.get_ttl(), principal=principal, invalidations=old.invalidations),
+        )
+    context.cache_principal = principal
+
+
+async def _resolve_cache_principal(context: SpreadsheetContext, in_lifespan: bool) -> str | None:
+    """The identity to key this context's cache entries by: `drive:<permissionId>`
+    from Drive's about(), for any auth method, else a service account's
+    `sa:<email>`, else None. Never derived from a refresh token, which changes
+    when the same account re-consents."""
+    drive = context.drive_service
+    if drive is not None:
+        try:
+            request = drive.about().get(fields="user(permissionId)")
+            if in_lifespan:
+                # Lifespan rule (#833): nothing in the auth phase waits on the loop
+                # without watching for shutdown.
+                future = _run_in_daemon_thread(
+                    asyncio.get_running_loop(),
+                    lambda: request.execute(http=thread_http(drive)),
+                    "mcp-gee-sweet-cache-principal",
+                )
+                about = await _await_unless_shutdown(future, "Server is shutting down")
+            else:
+                about = await execute_in_thread(request.execute, drive)
+            permission_id = (about.get("user") or {}).get("permissionId")
+            if isinstance(permission_id, str) and permission_id:
+                return f"drive:{permission_id}"
+        except Exception as e:
+            logger.debug(
+                "Couldn't read the Drive identity for the cache (%s: %s)", type(e).__name__, e
+            )
+    email = getattr(context.credentials, "service_account_email", None)
+    # Compute Engine credentials report "default" until their first refresh.
+    if isinstance(email, str) and email and email != "default":
+        return f"sa:{email}"
+    return None
+
+
+async def ensure_cache_principal(context: SpreadsheetContext, in_lifespan: bool = False) -> None:
+    """Bind `context`'s caches to its Google identity if they aren't bound yet.
+    Best-effort: if the identity can't be read, the caches stay unbound (no cache
+    hits, nothing stored) and the next call tries again. Never raises."""
+    if context.cache_principal is not None or context.unauthorized_message is not None:
+        return
+    credentials = context.credentials
+    try:
+        principal = await _resolve_cache_principal(context, in_lifespan)
+    except Exception as e:
+        logger.debug("Couldn't resolve the cache identity (%s: %s)", type(e).__name__, e)
+        return
+    # While this waited, another call may have bound the caches, or a re-authorization
+    # (apply_oauth_credentials) swapped in another account's token: then this identity
+    # is the old token's, not the context's.
+    if principal is None or context.cache_principal is not None:
+        return
+    if context.credentials is not credentials:
+        return
+    _bind_caches(context, principal)
 
 
 def _check_client_secrets() -> None:
@@ -1238,7 +1327,7 @@ async def _build_context() -> SpreadsheetContext:
         logger.debug("ADC resolved to a service-account-backed credential")
 
     services = _build_services(creds)
-    return SpreadsheetContext(
+    context = SpreadsheetContext(
         sheets_service=services["sheets"],
         drive_service=services["drive"],
         docs_service=services["docs"],
@@ -1251,8 +1340,10 @@ async def _build_context() -> SpreadsheetContext:
         oauth_reauthorizable=resolved == "oauth",
         credentials=creds,
         oauth_generation=_oauth_generation,
-        cache=SheetStructureCache(),
     )
+    # Best-effort: unbound, the first tool call tries again (reauth.before_call).
+    await ensure_cache_principal(context, in_lifespan=True)
+    return context
 
 
 _SERVICE_VERSIONS = {

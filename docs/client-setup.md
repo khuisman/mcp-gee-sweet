@@ -32,18 +32,23 @@ Before the first connection, log in once from a terminal with the same paths: `C
 
 ### SSE — Docker
 
-Start the server first (`make start`), then point Claude Desktop at the SSE endpoint:
+The container serves over the network interface, so it needs a bearer token (see [HTTP transport authentication](configuration.md#http-transport-authentication)). Put `MCP_SERVER_TOKEN=<token>` in a `.env` file next to `docker-compose.yml`, start the server (`make start`), then point Claude Desktop at the SSE endpoint with the same token:
 
 ```json
 {
   "mcpServers": {
     "mcp-gee-sweet": {
       "transport": "sse",
-      "url": "http://localhost:47000/sse"
+      "url": "http://localhost:47000/sse",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      }
     }
   }
 }
 ```
+
+For Claude Code: `claude mcp add --transport sse mcp-gee-sweet http://localhost:47000/sse --header "Authorization: Bearer <token>"`.
 
 ## Claude Code (this project's own MCP config)
 

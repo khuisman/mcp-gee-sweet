@@ -42,4 +42,9 @@ COPY --from=builder /app/dist/*.whl /app/
 
 RUN uv pip install /app/*.whl
 
+# Listen on every interface so a published port reaches the server. A non-loopback
+# address needs MCP_SERVER_TOKEN, so a container started without one refuses to
+# start instead of serving unauthenticated.
+ENV HOST=0.0.0.0
+
 CMD ["uv", "run", "mcp-gee-sweet", "--transport", "sse"]

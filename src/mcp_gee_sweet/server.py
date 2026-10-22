@@ -82,7 +82,11 @@ from mcp.server.mcpserver.exceptions import ResourceError, ToolError  # noqa: E4
 from mcp.types import ToolAnnotations  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 
-from . import local_files, reauth  # noqa: E402
+from . import (  # noqa: E402
+    http_auth,
+    local_files,
+    reauth,
+)
 from .auth import (  # noqa: E402
     MissingOAuthScopesError,
     execute_in_thread,
@@ -95,6 +99,7 @@ from .auth import (  # noqa: E402
     set_raise_auth_failures,
     spreadsheet_lifespan,
 )
+from .http_auth import BearerAuth  # noqa: E402
 from .http_transport import track_refresh_failures  # noqa: E402
 from .sse_shutdown import SingleResponseGuard  # noqa: E402
 
@@ -115,7 +120,8 @@ def _parse_enabled_tools() -> set | None:
 
 ENABLED_TOOLS = _parse_enabled_tools()
 
-_resolved_host = os.environ.get("HOST") or os.environ.get("FASTMCP_HOST") or "0.0.0.0"
+# Loopback by default: any other address needs MCP_SERVER_TOKEN (http_auth.check_startup).
+_resolved_host = os.environ.get("HOST") or os.environ.get("FASTMCP_HOST") or "127.0.0.1"
 _resolved_port_str = os.environ.get("PORT") or os.environ.get("FASTMCP_PORT") or "8000"
 try:
     _resolved_port = int(_resolved_port_str)
@@ -132,7 +138,9 @@ mcp = MCPServer(
 # sse_app()/run_sse_async()/run() itself (confirmed live against mcp==2.0.0, issue #175).
 # SingleResponseGuard keeps a SIGTERM with an open SSE stream from logging an ASGI
 # traceback (#868); main() serves this app for every SSE launch so the guard applies.
-app = SingleResponseGuard(mcp.sse_app(host=_resolved_host))
+# BearerAuth sits inside the guard, on the app itself, so --reload's import-string
+# launch gets it too.
+app = SingleResponseGuard(BearerAuth(mcp.sse_app(host=_resolved_host), host=_resolved_host))
 
 
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
@@ -645,7 +653,9 @@ def _streamable_http_app() -> SingleResponseGuard:
     installs the server's session manager. Also uvicorn's ``factory=True`` import
     target for ``--reload``.
     """
-    return SingleResponseGuard(mcp.streamable_http_app(host=_resolved_host))
+    return SingleResponseGuard(
+        BearerAuth(mcp.streamable_http_app(host=_resolved_host), host=_resolved_host)
+    )
 
 
 def _serve_guarded(guarded_app: SingleResponseGuard) -> None:
@@ -691,6 +701,11 @@ def main():
         sys.exit(
             f"mcp-gee-sweet: unknown --transport {transport!r} (use stdio, sse, or streamable-http)"
         )
+
+    if transport != "stdio":
+        # Before either launch below, and never at import, so stdio, `auth` and the
+        # doc generator are unaffected.
+        http_auth.check_startup(_resolved_host, transport)
 
     if reload and transport == "stdio":
         logger.warning(

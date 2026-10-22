@@ -26,6 +26,7 @@ from uvicorn.importer import import_from_string
 
 from mcp_gee_sweet import auth as auth_module
 from mcp_gee_sweet import local_files, server
+from mcp_gee_sweet.http_auth import BearerAuth
 from mcp_gee_sweet.server import (
     _auth_status_json,
     _parse_enabled_tools,
@@ -791,7 +792,8 @@ class TestMainAuthAndTransport:
         assert serve.__func__ is uvicorn.Server.serve
         config = serve.__self__.config
         assert isinstance(config.app, SingleResponseGuard)
-        assert config.app.app is built
+        assert isinstance(config.app.app, BearerAuth)
+        assert config.app.app.app is built
         assert (config.host, config.port, config.log_level) == ("127.0.0.9", 47123, "debug")
         assert auth_module._interactive_consent is True
         assert auth_module._raise_auth_failures is False
@@ -840,7 +842,8 @@ class TestMainAuthAndTransport:
         factory = import_from_string("mcp_gee_sweet.server:_streamable_http_app")
         guarded = factory()
         assert isinstance(guarded, SingleResponseGuard)
-        assert guarded.app is built
+        assert isinstance(guarded.app, BearerAuth)
+        assert guarded.app.app is built
 
     def test_reload_with_stdio_warns_and_runs_stdio(self, monkeypatch, caplog):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--reload"])
@@ -852,6 +855,144 @@ class TestMainAuthAndTransport:
         uvicorn_run.assert_not_called()
         mcp_run.assert_called_once_with(transport="stdio")
         assert "--reload applies only to the sse and streamable-http transports" in caplog.text
+
+
+class TestHttpAuthAtStartup:
+    """The HTTP transports need a bearer token, or a loopback bind, to start; stdio never
+    runs the check."""
+
+    def test_default_host_is_loopback(self):
+        env = {k: v for k, v in os.environ.items() if k not in ("HOST", "FASTMCP_HOST")}
+        # Set but empty, so a developer's .env can't supply one (dotenv doesn't override).
+        env.update(HOST="", FASTMCP_HOST="")
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from mcp_gee_sweet import server; print(server._resolved_host)",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip().splitlines()[-1] == "127.0.0.1"
+
+    def test_sse_app_is_wrapped_in_bearer_auth_inside_the_guard(self):
+        assert isinstance(server.app, SingleResponseGuard)
+        assert isinstance(server.app.app, BearerAuth)
+
+    def test_sse_reload_target_is_the_wrapped_app(self):
+        assert import_from_string("mcp_gee_sweet.server:app") is server.app
+
+    @pytest.mark.parametrize("transport", ["sse", "streamable-http"])
+    @pytest.mark.parametrize("reload", [False, True])
+    def test_http_transports_run_the_check_on_the_resolved_host(
+        self, monkeypatch, transport, reload
+    ):
+        argv = ["mcp-gee-sweet", "--transport", transport] + (["--reload"] if reload else [])
+        monkeypatch.setattr(sys, "argv", argv)
+        monkeypatch.setattr(server, "_resolved_host", "127.0.0.9")
+        monkeypatch.setattr(mcp, "streamable_http_app", MagicMock())
+        check = MagicMock()
+        monkeypatch.setattr(server.http_auth, "check_startup", check)
+        monkeypatch.setattr(uvicorn, "run", MagicMock())
+        monkeypatch.setattr(anyio, "run", MagicMock())
+        main()
+        check.assert_called_once_with("127.0.0.9", transport)
+
+    @pytest.mark.parametrize("transport", ["sse", "streamable-http"])
+    @pytest.mark.parametrize("reload", [False, True])
+    def test_non_loopback_without_a_token_serves_nothing(self, monkeypatch, transport, reload):
+        argv = ["mcp-gee-sweet", "--transport", transport] + (["--reload"] if reload else [])
+        monkeypatch.setattr(sys, "argv", argv)
+        monkeypatch.setattr(server, "_resolved_host", "0.0.0.0")
+        build = MagicMock()
+        monkeypatch.setattr(mcp, "streamable_http_app", build)
+        mcp_run, uvicorn_run, anyio_run = MagicMock(), MagicMock(), MagicMock()
+        monkeypatch.setattr(mcp, "run", mcp_run)
+        monkeypatch.setattr(uvicorn, "run", uvicorn_run)
+        monkeypatch.setattr(anyio, "run", anyio_run)
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert "MCP_SERVER_TOKEN" in str(exc.value.code)
+        mcp_run.assert_not_called()
+        uvicorn_run.assert_not_called()
+        anyio_run.assert_not_called()
+        build.assert_not_called()
+
+    def test_non_loopback_with_a_token_serves(self, monkeypatch):
+        monkeypatch.setenv("MCP_SERVER_TOKEN", "a-token")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
+        monkeypatch.setattr(server, "_resolved_host", "0.0.0.0")
+        anyio_run = MagicMock()
+        monkeypatch.setattr(anyio, "run", anyio_run)
+        main()
+        anyio_run.assert_called_once()
+
+    @pytest.mark.parametrize("argv", [[], ["--transport", "stdio"], ["--reload"]])
+    def test_stdio_never_runs_the_check(self, monkeypatch, argv):
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", *argv])
+        monkeypatch.setattr(server, "_resolved_host", "0.0.0.0")
+        monkeypatch.setenv("ALLOW_UNAUTHENTICATED_HTTP", "bogus")
+        check = MagicMock()
+        monkeypatch.setattr(server.http_auth, "check_startup", check)
+        mcp_run = MagicMock()
+        monkeypatch.setattr(mcp, "run", mcp_run)
+        main()
+        check.assert_not_called()
+        mcp_run.assert_called_once_with(transport="stdio")
+
+    def test_auth_subcommand_never_runs_the_check(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "auth", "--transport", "sse"])
+        monkeypatch.setattr(server, "_resolved_host", "0.0.0.0")
+        check = MagicMock()
+        monkeypatch.setattr(server.http_auth, "check_startup", check)
+        monkeypatch.setattr(server, "run_auth_command", MagicMock(return_value=0))
+        with pytest.raises(SystemExit):
+            main()
+        check.assert_not_called()
+
+    def test_bearer_auth_gets_the_resolved_host(self, monkeypatch):
+        assert server.app.app.host == server._resolved_host
+        monkeypatch.setattr(server, "_resolved_host", "0.0.0.0")
+        monkeypatch.setattr(mcp, "streamable_http_app", MagicMock())
+        assert server._streamable_http_app().app.host == "0.0.0.0"
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_a_blank_token_in_the_environment_lets_dotenv_supply_it(self, tmp_path, blank):
+        # QA F2: docker-compose passes MCP_SERVER_TOKEN as "" when its own .env lacks
+        # it, which would otherwise hide the token in src/mcp_gee_sweet/.env.
+        code = (
+            "import os, dotenv, pathlib\n"
+            "real = dotenv.load_dotenv\n"
+            f"dotenv.load_dotenv = lambda *a, **k: real({str(tmp_path / '.env')!r}, **k)\n"
+            "import mcp_gee_sweet\n"
+            "print(repr(os.environ.get('MCP_SERVER_TOKEN')))\n"
+        )
+        (tmp_path / ".env").write_text("MCP_SERVER_TOKEN=from-dotenv\n")
+        env = dict(os.environ, MCP_SERVER_TOKEN=blank)
+        proc = subprocess.run(
+            [sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip().splitlines()[-1] == "'from-dotenv'"
+
+    def test_importing_the_server_with_bad_settings_doesnt_exit(self):
+        # stdio, `mcp-gee-sweet auth` and gen_tool_docs.py all import server and build
+        # `app`; only main()'s HTTP serving path refuses.
+        env = dict(os.environ)
+        env.update(HOST="0.0.0.0", MCP_SERVER_TOKEN=" ", ALLOW_UNAUTHENTICATED_HTTP="bogus")
+        proc = subprocess.run(
+            [sys.executable, "-c", "from mcp_gee_sweet import server; print(type(server.app))"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "SingleResponseGuard" in proc.stdout
 
 
 class TestMainLogsVersion:

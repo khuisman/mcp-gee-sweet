@@ -153,22 +153,22 @@ async def _offer_consent(
 async def before_call(ctx: Any) -> None:
     """Before a tool body runs. Adopts a token another call already got. On a connection
     degraded because OAuth needed consent, adopts a saved token or raises with a consent
-    offer. Does nothing for any other context (service account, ADC, a test's mock)."""
+    offer. Then, for any authorized context, binds its caches to its Google identity if
+    they aren't yet (GHSA-8jqx-w7j8-6xwm). Does nothing for a test's mock context."""
     context = _context(ctx)
-    if context is None or not context.oauth_reauthorizable:
+    if context is None:
         return
-    auth.adopt_published_credentials(context)
-    if context.unauthorized_message is None:
-        return
-    if await _adopt_saved_token(context):
-        return
-    # Not the degraded message itself: it ends in the CLI instructions, which the offer
-    # repeats. It's still the answer when no offer can be made.
-    await _offer_consent(
-        ctx,
-        f"No usable OAuth token at {auth.TOKEN_PATH!r}.",
-        unavailable_message=context.unauthorized_message,
-    )
+    if context.oauth_reauthorizable:
+        auth.adopt_published_credentials(context)
+        if context.unauthorized_message is not None and not await _adopt_saved_token(context):
+            # Not the degraded message itself: it ends in the CLI instructions, which
+            # the offer repeats. It's still the answer when no offer can be made.
+            await _offer_consent(
+                ctx,
+                f"No usable OAuth token at {auth.TOKEN_PATH!r}.",
+                unavailable_message=context.unauthorized_message,
+            )
+    await auth.ensure_cache_principal(context)
 
 
 # Long enough for a tool's own error or a partial result's summary, short enough not

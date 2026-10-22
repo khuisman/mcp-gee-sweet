@@ -1039,7 +1039,7 @@ class TestListFiles:
         folder dirty while list_files is awaiting Drive must survive the in-flight
         call's store() — the next list_files refetches instead of serving the
         pre-mutation listing."""
-        folder_cache = DriveFolderCache(db_path=str(tmp_path / "c.db"), ttl=60)
+        folder_cache = DriveFolderCache(db_path=str(tmp_path / "c.db"), ttl=60, principal="test")
         svc = MagicMock()
 
         def execute_with_concurrent_mutation(*args, **kwargs):

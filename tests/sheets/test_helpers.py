@@ -262,7 +262,7 @@ class TestGetSheetIdExceptionPropagation:
         # _raising_service() here proves the cache path never touches the
         # API at all for a fresh, matching cache entry — if it did, this
         # would raise TimeoutError instead of returning.
-        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000, principal="test")
         cache.store(
             "sid",
             [SheetInfo(title="Sheet1", sheet_id=0), SheetInfo(title="Sheet2", sheet_id=123456)],
@@ -271,7 +271,7 @@ class TestGetSheetIdExceptionPropagation:
         assert sheet_id == 123456
 
     async def test_with_cache_transient_api_error_propagates(self):
-        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000, principal="test")
         with pytest.raises(TimeoutError):
             await _get_sheet_id(_raising_service(), "sid", "Sheet1", cache)
 
@@ -280,7 +280,7 @@ class TestGetSheetIdExceptionPropagation:
         # refetch fails, fetch_sheets() falls back to serving the stale
         # entry (its own documented behavior), and the sheet genuinely isn't
         # in it, so _get_sheet_id should still resolve to None, not raise.
-        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000, principal="test")
         cache.store("sid", [SheetInfo(title="Other", sheet_id=0)])
         cache.mark_dirty("sid")  # force a refetch attempt that will fail
 
