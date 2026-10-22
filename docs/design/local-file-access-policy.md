@@ -84,7 +84,7 @@ check_read(path) / check_write(path):
 | `Path(mcp_gee_sweet.__file__).parent / ".env"` | runtime config, may hold `CREDENTIALS_CONFIG` (decision) |
 | `GOOGLE_APPLICATION_CREDENTIALS`, when set | an ADC key file: the same class of secret as `SERVICE_ACCOUNT_PATH` |
 | gcloud's default ADC file: `$CLOUDSDK_CONFIG/application_default_credentials.json`, else `~/.config/gcloud/…` (POSIX) or `%APPDATA%\gcloud\…` (Windows) | ADC's fallback when `GOOGLE_APPLICATION_CREDENTIALS` is unset; a user refresh token |
-| `CACHE_DB_PATH` and its SQLite WAL sidecars (`-wal`, `-shm`; `cache.py` sets `journal_mode=WAL`) | reading exposes cached Drive/Sheets/Docs data; overwriting corrupts the cache |
+| `CACHE_DB_PATH` and its SQLite WAL sidecars (`-wal`, `-shm`; `cache.py` sets `journal_mode=WAL`). With the default location, the whole `mcp-gee-sweet` cache directory (`Policy.deny_dirs`), since only the server writes there. Also the pre-0.9.3 default `/tmp/mcp_gee_sweet.db` and its sidecars, which stay on disk (GHSA-8jqx-w7j8-6xwm) | reading exposes cached Drive/Sheets/Docs data; overwriting corrupts the cache |
 | `LOG_FILE`, `ACCESS_LOG_FILE`, when set | a download could overwrite or truncate them (plain `FileHandler`, no rotated copies to cover) |
 
 Entries are included whether or not the file exists yet; an unset optional entry is skipped.

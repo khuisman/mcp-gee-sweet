@@ -1,14 +1,22 @@
 """Tests for http_transport.after_abandoned_calls (#907): a request abandoned to a
 cancellation while its worker thread runs still lands, so the caller's cache
-invalidation has to follow the thread, not the cancellation."""
+invalidation has to follow the thread, not the cancellation. Also the per-thread
+transport's handling of a pooled connection that died while idle (#1052)."""
 
+import socket
+import ssl
+import struct
 import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
 
 from mcp_gee_sweet import http_transport
+
+# Captured before the autouse fixture below swaps thread_http out.
+_real_thread_http = http_transport.thread_http
 
 
 @pytest.fixture(autouse=True)
@@ -124,3 +132,264 @@ async def test_failing_callback_is_logged_not_raised():
         await _cancel_once_started(_blocking_execute(started, release, landed), started)
         release.set()
         await _wait_for(lambda: mock_logger.exception.called)
+
+
+class _ResettingServer:
+    """Plain-HTTP keep-alive server that resets (RST) a connection left idle for
+    `idle_reset` seconds: a local stand-in for Google's front end dropping a pooled
+    connection while the MCP server sits idle (#1052)."""
+
+    def __init__(self, idle_reset: float = 0.3):
+        self.idle_reset = idle_reset
+        self.connections = 0
+        self.requests: list[bytes] = []
+        self._sock = socket.socket()
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen()
+        self.url = f"http://127.0.0.1:{self._sock.getsockname()[1]}/"
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self):
+        while True:
+            try:
+                conn, _ = self._sock.accept()
+            except OSError:
+                return
+            self.connections += 1
+            threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
+
+    def _handle(self, conn):
+        conn.settimeout(self.idle_reset)
+        buffer = b""
+        try:
+            while True:
+                # One request is its headers plus Content-Length bytes of body,
+                # however the client splits them across TCP segments.
+                while b"\r\n\r\n" not in buffer:
+                    data = conn.recv(65536)
+                    if not data:
+                        return
+                    buffer += data
+                head, buffer = buffer.split(b"\r\n\r\n", 1)
+                length = 0
+                for line in head.split(b"\r\n")[1:]:
+                    name, _, value = line.partition(b":")
+                    if name.strip().lower() == b"content-length":
+                        length = int(value)
+                while len(buffer) < length:
+                    data = conn.recv(65536)
+                    if not data:
+                        return
+                    buffer += data
+                buffer = buffer[length:]
+                self.requests.append(head.split(b" ", 1)[0])
+                conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+        except TimeoutError:
+            conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        finally:
+            conn.close()
+
+    def close(self):
+        self._sock.close()
+
+
+@pytest.fixture
+def resetting_server():
+    server = _ResettingServer()
+    yield server
+    server.close()
+
+
+def _transport():
+    # A real httplib2.Http, so the dead pooled connection is a real socket.
+    return http_transport._RefreshTrackingHttp(
+        MagicMock(), http=http_transport._StaleConnectionHttp()
+    )
+
+
+@pytest.fixture
+def quiet_server():
+    # Never resets: every reconnect it sees is the client's own doing.
+    server = _ResettingServer(idle_reset=60)
+    yield server
+    server.close()
+
+
+def test_resetting_server_counts_a_split_post_once(quiet_server):
+    # http.client can send a POST's body in its own segment; the fixture must still
+    # see one request, or the `requests` assertions below flake.
+    port = int(quiet_server.url.rsplit(":", 1)[1].strip("/"))
+    with socket.create_connection(("127.0.0.1", port)) as client:
+        client.sendall(b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\n")
+        time.sleep(0.05)
+        client.sendall(b"hello")
+        assert client.recv(65536).startswith(b"HTTP/1.1 200")
+        time.sleep(0.1)  # let a miscounted body land before checking
+    assert quiet_server.requests == [b"POST"]
+
+
+class TestStaleConnections:
+    """#1052: a per-thread transport's pooled connection dies while the server idles."""
+
+    def test_thread_http_builds_the_stale_aware_transport(self):
+        http = _real_thread_http(MagicMock())
+        assert isinstance(http, http_transport._RefreshTrackingHttp)
+        assert isinstance(http.http, http_transport._StaleConnectionHttp)
+        assert isinstance(http._request, http_transport._ResendingRefreshRequest)
+
+    def test_idle_transport_reconnects_instead_of_reusing(self, resetting_server):
+        http = _transport()
+        with patch.object(http_transport, "_IDLE_RECONNECT_SECONDS", 0.1):
+            assert http.request(resetting_server.url, "POST", body="x")[0].status == 200
+            time.sleep(0.6)  # past both the idle threshold and the server's reset
+            # A POST isn't resent, so this passes only because the dead connection
+            # was closed before the request instead of reused.
+            assert http.request(resetting_server.url, "POST", body="x")[0].status == 200
+        assert resetting_server.connections == 2
+
+    def test_recently_used_transport_keeps_its_connection(self, resetting_server):
+        http = _transport()
+        http.request(resetting_server.url)
+        http.request(resetting_server.url)
+        assert resetting_server.connections == 1
+
+    def test_get_on_a_dead_connection_is_resent_once(self, resetting_server):
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)  # the server resets it, but it's within the idle threshold
+        assert http.request(resetting_server.url)[0].status == 200
+        assert resetting_server.connections == 2
+
+    def test_write_on_a_dead_connection_is_not_resent(self, resetting_server):
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)
+        with pytest.raises(http_transport._CONNECTION_ERRORS):
+            http.request(resetting_server.url, "POST", body="x")
+        assert resetting_server.requests == [b"GET"]
+
+    def test_failed_write_does_not_leave_its_dead_connection_pooled(self, resetting_server):
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)
+        with pytest.raises(http_transport._CONNECTION_ERRORS):
+            http.request(resetting_server.url, "POST", body="x")
+        # The next write reconnects instead of failing on the same dead socket.
+        assert http.request(resetting_server.url, "POST", body="x")[0].status == 200
+        assert resetting_server.connections == 2
+
+    def test_method_override_read_is_resent(self, resetting_server):
+        # googleapiclient turns a GET with a URI over 2048 characters into this.
+        http = _transport()
+        http.request(resetting_server.url)
+        time.sleep(0.6)
+        response, _ = http.request(
+            resetting_server.url,
+            "POST",
+            body="q=...",
+            headers={"X-HTTP-Method-Override": "GET"},
+        )
+        assert response.status == 200
+        assert resetting_server.requests == [b"GET", b"POST"]
+
+    def test_idle_time_counts_system_sleep(self, quiet_server):
+        # time.monotonic() stops while a laptop sleeps; a wall-clock jump of an hour
+        # with no monotonic movement must still count as idle.
+        http = _transport()
+        http.request(quiet_server.url)
+        now = time.time()
+        with patch.object(http_transport.time, "time", return_value=now + 3600):
+            http.request(quiet_server.url)
+        assert quiet_server.connections == 2
+
+    def test_clock_jumping_backward_also_reconnects(self, quiet_server):
+        http = _transport()
+        http.request(quiet_server.url)
+        now = time.time()
+        with patch.object(http_transport.time, "time", return_value=now - 3600):
+            http.request(quiet_server.url)
+        assert quiet_server.connections == 2
+
+    def test_idle_is_tracked_per_connection(self, quiet_server):
+        # A transport kept busy on one host still reconnects a second host's
+        # connection that has sat idle, e.g. the token endpoint's between refreshes.
+        other = _ResettingServer(idle_reset=60)
+        try:
+            http = _transport()
+            with patch.object(http_transport, "_IDLE_RECONNECT_SECONDS", 0.3):
+                http.request(other.url)
+                for _ in range(5):
+                    http.request(quiet_server.url)
+                    time.sleep(0.1)
+                http.request(other.url)
+            assert quiet_server.connections == 1
+            assert other.connections == 2
+        finally:
+            other.close()
+
+    def test_refresh_on_a_dead_connection_is_resent_before_a_write(self, quiet_server):
+        # The refresh runs before the write is sent, so resending it is safe even
+        # though the write itself is never resent.
+        token_server = _ResettingServer()
+        refresh = {"due": True}
+
+        def before_request(request, method, uri, headers):
+            if refresh["due"]:
+                request(token_server.url, method="POST", body="grant_type=refresh_token")
+
+        creds = MagicMock()
+        creds.before_request.side_effect = before_request
+        try:
+            http = http_transport._RefreshTrackingHttp(
+                creds, http=http_transport._StaleConnectionHttp()
+            )
+            http.request(quiet_server.url, "POST", body="x")
+            time.sleep(0.6)  # the token server resets its idle connection
+            assert http.request(quiet_server.url, "POST", body="x")[0].status == 200
+            assert token_server.connections == 2
+            assert quiet_server.requests == [b"POST", b"POST"]
+        finally:
+            token_server.close()
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ConnectionResetError(54, "Connection reset by peer"),
+            BrokenPipeError(32, "Broken pipe"),
+            TimeoutError(60, "Operation timed out"),
+            ssl.SSLEOFError(8, "EOF occurred in violation of protocol"),
+        ],
+    )
+    def test_get_is_resent_at_most_once(self, error):
+        inner = MagicMock()
+        inner.connections = {}
+        inner.request.side_effect = error
+        http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
+        with pytest.raises(type(error)):
+            http.request("https://sheets.googleapis.com/x")
+        assert inner.request.call_count == 2
+
+    def test_other_errors_are_not_resent(self):
+        inner = MagicMock()
+        inner.connections = {}
+        inner.request.side_effect = ValueError("not a connection error")
+        http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
+        with pytest.raises(ValueError):
+            http.request("https://sheets.googleapis.com/x")
+        assert inner.request.call_count == 1
+
+    def test_refresh_reentry_does_not_resend_twice(self):
+        # A 401 makes AuthorizedHttp refresh and call request() again; a connection
+        # error there must not get a second resend on top of the outer call's.
+        inner = MagicMock()
+        inner.connections = {}
+        unauthorized = MagicMock(status=401)
+        inner.request.side_effect = [
+            (unauthorized, b""),
+            ConnectionResetError(54, "reset"),
+            ConnectionResetError(54, "reset"),
+        ]
+        http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
+        with pytest.raises(ConnectionResetError):
+            http.request("https://sheets.googleapis.com/x")
+        assert inner.request.call_count == 3

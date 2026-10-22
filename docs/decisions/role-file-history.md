@@ -126,6 +126,14 @@ Friction Dev (Ash/Jay) typically hits after finishing a ticket, and where it goe
 
 - **Before widening a fix into files outside the ticket's original scope, check open PRs touching those files.** PR #1006, round 3: #1008's bar-2 rule pulled #1009 into the PR, and the fix grew to all 13 quota-error sites across `transfer.py`, `files.py`, `docs/content.py` and `docs/images.py`. PR #1011 (#916, lane A) was open at the same time, rewriting the same sites' quota check into `tools/http_errors.is_storage_quota_error`. It even showed up in this session's TC-ID collision check against `drive_transfer.md`, but nobody looked at its other files. #1011 merged first. #1006 went CONFLICTING in four files, CI skipped "Lint and test", and the merge had to be redone onto #916's helper, dropping this PR's own `_is_quota_error`. One `gh pr list ... files` check before writing the cross-cutting change would have surfaced the overlap while it was cheap to agree on one predicate.
 
+### Step 5: a reviewer-caught TC-ID collision is merged, not rebased (2026-10-18)
+
+- PR #1089 (#1056) added TC-DOC228 after step 5's checks found no open PR touching `docs_content.md`. #1088, opened in the window before #1089 itself was, also added a TC-DOC228 and merged first, so #1089 went CONFLICTING in round 2. Step 5's reviewer-caught bullet said to rebase onto `develop` and force-push. That contradicts "Never rebase" in the non-fast-forward bullet: the branch already carried two of Kit's Result commits. Jay merged `develop` instead, kept #1088's case at TC-DOC228, and renumbered its own to TC-DOC229 with Kit's results moved under it. The bullet now says to merge, and which side keeps the number. Its pointer to `aziz.md`'s playbook went too: that playbook rebases, which only fits a branch nobody else has pushed to.
+
+### Step 6: every GitHub post's full text is shown before it's sent (2026-10-18)
+
+- On PR #1089, the PR body, follow-up ticket #1090 and the round-2 reply were each "previewed" as a path to a draft file, so the user approved text they'd have had to open themselves. #1111 was filed straight from "make a new ticket" without its body ever being shown, then edited twice the same way. The user's global `CLAUDE.md`, loaded in every session, already requires a preview of the full title, body and destination plus explicit permission before any external post, and memory adds that the full draft belongs in the first ask so one answer covers it. Neither says that a path to a draft file isn't a preview, which is the case that was missed. Step 6 now says it directly, carries the one-approval point, and covers every later post and edit on the ticket.
+
 ## `qa.md`
 
 ### Opening paragraph: dedicated server and reconnect

@@ -18,7 +18,7 @@ Status: **draft / under consideration**
 | Edge | `edge` | `1.2.3.dev20260524` | Contributors, early adopters |
 
 ### Stable track
-- Triggered by a GitHub release being published (current `release.yml` already handles this)
+- Triggered by a GitHub release being published (`release.yml` handled this when this proposal was written; since #1124, both the stable and dev tracks publish from `.github/workflows/publish.yml`, so PyPI sees one trusted-publisher workflow and doesn't flag a "Change of provenance")
 - Requires tests to pass before build (added in this PR)
 - Semantic versioning: `MAJOR.MINOR.PATCH`
 - Promotion path: `edge` → RC tag on edge → verify → merge to `main` → tag stable release

@@ -100,7 +100,6 @@ Aziz (never a lane session — this runs during the release pass, see `.claude/t
 
 Per iteration, the two subagents rendezvous at a filesystem barrier so both `.execute()` calls hit the wire within a few milliseconds of each other:
 
-- **Before the loop: warm the target server.** Until #1052 is fixed, each worker thread's cached connection dies after a few minutes idle, and the first request on it fails once with `Connection reset by peer`. That is TC-I24's own failure signature, so an idle server produces false TC-I24 failures. Right before spawning the two subagents, Aziz calls `get_multiple_sheet_data` on the target prefix with about 12–24 single-cell queries, repeating until one call comes back fully clean, and notes the warm-up in the run file. In v0.9.2, `kai-sa` lost one query on each of two warm-up calls before a 24/24 clean one. Then spawn at once, so the server doesn't go idle again.
 - **Barrier dir:** `/tmp/mcp-gee-sweet-qa-barrier` (created once by Aziz before spawning; distinct from the Playwright lock). Markers are files inside it.
 - **A background release watcher** (Aziz starts one `run_in_background` shell loop before spawning the subagents) does, for each iteration `i` from 1 to N:
   - wait until both `ready-a-<i>` and `ready-b-<i>` exist,
