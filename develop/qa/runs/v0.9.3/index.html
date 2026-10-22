@@ -1353,7 +1353,7 @@
 <h1 id="qa-run-gate-v093">QA Run Gate — v0.9.3<a class="headerlink" href="#qa-run-gate-v093" title="Permanent link">&para;</a></h1>
 <p><strong>Release type:</strong> Stable
 <strong>Suite required:</strong> <strong>Smoke + targeted Domain runs</strong>, see scoping audit below
-<strong>Status:</strong> ✅ <strong>Signed off for <code>c90b88d3</code>.</strong> The scoped pass ran 2026-10-19 on <code>b009e72d</code>; the deltas (#1052, #1124, GHSA-mpw3, GHSA-8jqx) were checked 2026-10-20 on <code>c90b88d3</code> (see "Deltas after the main pass"). No regressions. The user decided no open FAIL blocks the release. TC-I66 checks 3–5 run after the stable release is published.</p>
+<strong>Status:</strong> ✅ <strong>Signed off for <code>c90b88d3</code>.</strong> The scoped pass ran 2026-10-19 on <code>b009e72d</code>; the deltas (#1052, #1124, GHSA-mpw3, GHSA-8jqx) were checked 2026-10-20 on <code>c90b88d3</code> (see "Deltas after the main pass"). No regressions. The user decided no open FAIL blocks the release. Released as v0.9.3 at <code>b5e2810b</code>; TC-I66 checks 3–5 passed on the published release.</p>
 <p><strong>Results:</strong> inline <code>**Result (2026-10-19) … v0.9.3 release pass**</code> entries in <code>docs/qa/tests/*.md</code>: 239 results, 207 PASS, 11 FAIL (none a regression; see Failures), 13 PARTIAL, 8 SKIP. The 2026-10-20 deltas added 36 results (<code>… v0.9.3 post-advisory re-check @ c90b88d3</code>, plus TC-I65 and TC-I66 in <code>infra.md</code>): 31 PASS, 5 PARTIAL, 0 FAIL.</p>
 <h2 id="sign-off-checklist">Sign-off checklist<a class="headerlink" href="#sign-off-checklist" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1366,8 +1366,8 @@
 <li>[x] #1052 checked as a delta: TC-I65 PASS on a service-account and an OAuth server</li>
 <li>[x] #1124 checked as a delta: TC-I66 checks 1–2 PASS (checks 3–5 after the stable release)</li>
 <li>[x] GHSA-mpw3 and GHSA-8jqx checked as deltas: Kit's TC-I61–I64 carry over (identical <code>src/</code>, <code>tests/</code>); Smoke and the cache cases re-run on <code>c90b88d3</code></li>
-<li>[ ] PR merged; Kai runs <code>/release</code></li>
-<li>[ ] After release: TC-I66 checks 3–5</li>
+<li>[x] PR merged (#1135); Kai ran <code>/release</code> (v0.9.3, <code>b5e2810b</code>)</li>
+<li>[x] After release: TC-I66 checks 3–5 PASS (no "Change of provenance" on the 0.9.3 page)</li>
 </ul>
 <hr />
 <h2 id="pre-flight">Pre-flight<a class="headerlink" href="#pre-flight" title="Permanent link">&para;</a></h2>
