@@ -1,6 +1,18 @@
 import pytest
 
-from mcp_gee_sweet import auth, reauth
+from mcp_gee_sweet import auth, cache, reauth
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cache_db(monkeypatch, tmp_path):
+    """Every cache a test opens without its own db_path (a SpreadsheetContext's
+    defaults, a lifespan's rebinding) goes to this test's own file, never the
+    developer's real cache directory or the legacy shared /tmp file."""
+    path = str(tmp_path / "cache.db")
+    monkeypatch.setenv("CACHE_DB_PATH", path)
+    monkeypatch.setattr(cache, "CACHE_DB_PATH", path)
+    monkeypatch.setattr(cache, "_legacy_db_checked", True)
+    return path
 
 
 @pytest.fixture(autouse=True)
@@ -18,3 +30,10 @@ def _reset_auth_process_state(monkeypatch):
     monkeypatch.setattr(auth, "_oauth_latest_creds", None)
     monkeypatch.setattr(auth, "_gmail_unauthorized_message", None)
     monkeypatch.setattr(reauth, "_rejected_token_stat", reauth._unchanged_token_marker)
+
+
+@pytest.fixture(autouse=True)
+def _no_http_auth_settings(monkeypatch):
+    """A developer's .env may set the HTTP auth settings; tests start from neither."""
+    monkeypatch.delenv("MCP_SERVER_TOKEN", raising=False)
+    monkeypatch.delenv("ALLOW_UNAUTHENTICATED_HTTP", raising=False)

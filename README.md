@@ -63,12 +63,13 @@ Use Docker when you want a single long-running server that multiple clients conn
 ```bash
 git clone https://github.com/khuisman/mcp-gee-sweet.git
 cd mcp-gee-sweet
+echo "MCP_SERVER_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
 make build   # build the container image
 make start   # start the server (SSE on port 47000)
 make logs    # tail logs
 ```
 
-Point your MCP client at `http://localhost:47000/sse`.
+Point your MCP client at `http://localhost:47000/sse`, sending the token from `.env` as an `Authorization: Bearer <token>` header (see the SSE config below). The server rejects any request without it. Without Docker, `--transport sse` and `--transport streamable-http` listen on `127.0.0.1` only, and need `MCP_SERVER_TOKEN` to serve on any other address; see [HTTP transport authentication](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#http-transport-authentication).
 
 > **Note:** when using SSE, all clients share one server process. After a code change or restart (`make restart`), you must also restart each MCP client to reconnect.
 
@@ -114,7 +115,10 @@ Service accounts (recommended for headless server deployments, see Option B abov
   "mcpServers": {
     "mcp-gee-sweet": {
       "transport": "sse",
-      "url": "http://localhost:47000/sse"
+      "url": "http://localhost:47000/sse",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      }
     }
   }
 }

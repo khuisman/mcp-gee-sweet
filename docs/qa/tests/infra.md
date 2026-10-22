@@ -26,6 +26,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0). ✅ Live re-verified post-migration against the real SDK — see Result entries below |
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 | TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
+| TC-I66 (single publish workflow, issue #1124) | Not reachable via any MCP tool or unit test: it checks a GitHub Actions run and PyPI's attestation record. Manual / live QA only, once after #1124 merges and once at the next stable release — see TC-I66 below |
 
 ---
 
@@ -81,7 +82,7 @@ Set `CACHE_DB_PATH=/tmp/qa_test_cache.db` and restart the server.
 
 **Checks**
 - File `/tmp/qa_test_cache.db` is created (check with `ls /tmp/qa_test_cache.db`)
-- Default path `/tmp/mcp_gee_sweet.db` is NOT used
+- The default path (`mcp-gee-sweet/cache.db` in the user's cache directory; `/tmp/mcp_gee_sweet.db` before 0.9.3) is NOT used
 - Restore `CACHE_DB_PATH` to default after this test
 
 **Result (2026-09-04) ⏭️ SKIP**
@@ -149,6 +150,9 @@ Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` →
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
+
+**Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-sa` (service account): step 0 → 1800; step 1 was a hit (warmed by TC-S23), so its miss check couldn't be seen; `set_cache_ttl(3)` → 3 with the process-wide warning; readback 3; after 5 s `Cache TTL expired for <copy>, marking dirty` and a re-fetch. Restored to 1800.
 
 ---
 
@@ -1748,3 +1752,222 @@ Same driver, fresh subprocesses on this head. Step 1: `upload_local_file` listed
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Needs SSE, a LOCAL_FILE_ACCESS change, an invalid startup setting, or an HTTP transport.
+
+---
+
+### TC-I61: with `MCP_SERVER_TOKEN` set, SSE and streamable HTTP reject every request without the bearer token (GHSA-mpw3-mr4r-6cqh) ⚠️ local-filesystem
+
+**Background:** the SSE and streamable HTTP transports used to accept any request, on every interface by default, so a network peer could call every tool as the configured Google identity. `BearerAuth` (`http_auth.py`) now sits inside `SingleResponseGuard` on both apps (`server.app` and `_streamable_http_app()`), and checks every HTTP request against `MCP_SERVER_TOKEN`. A missing and a wrong token get the same 401. The token is read per request and never logged. The same wrapping covers `--reload`, which serves those apps by import string.
+
+**Setup:** a token `T` from `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. A free port. Google access isn't needed: `AUTH_METHOD=oauth` with a nonexistent `CREDENTIALS_PATH` and `TOKEN_PATH` starts degraded, which still answers `initialize` and `list_tools`. Find this machine's LAN address (`ipconfig getifaddr en0` on macOS). Run each server in its own process group, stdout and stderr to one log (`docs/qa/run.md` §"Running server-startup and CLI cases").
+
+**Action**
+1. Start `uv run mcp-gee-sweet --transport sse` with `HOST=0.0.0.0`, `PORT=<port>`, `MCP_SERVER_TOKEN=T`, `AUTH_METHOD=oauth`, `CREDENTIALS_PATH=<nonexistent>`, `TOKEN_PATH=<nonexistent>`, `DEBUG_LEVEL=INFO`, `PYTHONUNBUFFERED=1`. Against `http://<LAN address>:<port>`, with `http.client` or `urllib`:
+   a. `GET /sse` with no `Authorization` header
+   b. `GET /sse` with `Authorization: Bearer wrong`
+   c. `GET /sse` with `Authorization: Bearer T` followed by one extra character
+   d. `POST /messages/?session_id=00000000000000000000000000000000` with no header
+   e. With the SDK's `sse_client(url, headers={"Authorization": "Bearer T"})` + `ClientSession`: `initialize`, then `list_tools`
+   f. Same as e with `"bearer T"` (lowercase scheme)
+   SIGTERM the server.
+2. Start `uv run mcp-gee-sweet --transport streamable-http` with the same environment. Against `http://<LAN address>:<port>/mcp`:
+   a. `POST /mcp` with a JSON-RPC `initialize` request and `Accept: application/json, text/event-stream`, with no `Authorization` header
+   b. With the SDK's `streamable_http_client` and the `Authorization: Bearer T` header: `initialize`, then `list_tools`
+   SIGTERM the server.
+3. Repeat step 1a and 1e once with `--transport sse --reload`.
+4. `grep -c` the token `T` in every log from steps 1–3.
+
+**Checks**
+- 1a–1d, 2a: each gets `401` with `WWW-Authenticate: Bearer`, and 1a, 1b, 1c and 1d have byte-identical status, headers (apart from `date`) and body
+- 1e, 1f, 2b: `initialize` succeeds and `list_tools` returns the full tool list
+- 1: the log has one `Rejected an unauthenticated request` warning per rejected request, each naming the client's address and the path (`/sse`, `/messages/`), and no `Authorization` header value
+- 3: same as 1a (401) and 1e (tools listed) under the reloader
+- 4: `0` in every log
+
+**Cleanup:** SIGTERM any server still running (by pid, never `pkill -f`). Delete the logs.
+
+**Note for the probe:** an in-process probe of `server._streamable_http_app()` (Starlette `TestClient`) gets `401` with or without `MCP_SERVER_TOKEN`: with no token the middleware serves only a loopback local address (`scope["server"]`) naming a loopback `Host`, and `TestClient`'s default `testserver` is neither.
+
+**Result (2026-10-19) ✅ PASS — Kit, GHSA-mpw3 fork PR #1 @ 46ce96b1**
+Real servers on `0.0.0.0`, driven over the LAN address, token from `secrets.token_urlsafe(32)`. Steps 1a–1d and a non-ASCII `Bearer é` header all got `401` + `WWW-Authenticate: Bearer`, and 1a–1d were byte-identical (status, headers minus `date`, body `Unauthorized`). 1e, 1f and 2b listed 130 tools. 2a got `401`. Under `--reload` (step 3), 401 without the header and 130 tools with it. The log had 5 `Rejected an unauthenticated request` warnings for 5 rejections, each naming the LAN client and `/sse` or `/messages/`, and no `Authorization` value. Step 4: the token appears in no log or stdout capture. Joy's in-process repro (`_streamable_http_app()`, LAN client and Host) got `401` on `initialize` and `tools/list`, with `MCP_SERVER_TOKEN` set and unset alike, 0 tools exposed.
+
+**Result (2026-10-19) ✅ PASS — Kit, GHSA-mpw3 fork PR #1 @ 15638736 (round 2)**
+Steps 1–4 rerun on real servers after `BearerAuth` gained its `host` argument; every check matched round 1 (byte-identical `401`s, 130 tools for 1e/1f/2b and under `--reload`, one warning per rejection, token in no log).
+
+---
+
+### TC-I62: an HTTP transport on a non-loopback address with no token refuses to start; the default address is loopback (GHSA-mpw3-mr4r-6cqh) ⚠️ local-filesystem
+
+**Background:** `main()` runs `http_auth.check_startup()` for `--transport sse` and `--transport streamable-http`, with or without `--reload`, before serving. A non-loopback `HOST` (anything but `127.0.0.0/8`, `::1` or `localhost`) with `MCP_SERVER_TOKEN` unset or blank stops the server, unless `ALLOW_UNAUTHENTICATED_HTTP` is `1` or `true`. Any other opt-out value stops it on every address. `HOST` now defaults to `127.0.0.1`. stdio and `mcp-gee-sweet auth` never run the check.
+
+**Setup:** a free port for each step. `HOST`, `FASTMCP_HOST`, `MCP_SERVER_TOKEN` and `ALLOW_UNAUTHENTICATED_HTTP` unset in the environment and in `src/mcp_gee_sweet/.env`, except where a step sets them. `AUTH_METHOD=oauth`, nonexistent `CREDENTIALS_PATH`/`TOKEN_PATH`, `PYTHONUNBUFFERED=1`, stdout and stderr captured. Stop a server that starts with SIGTERM after 3 seconds.
+
+**Action**
+1. `--transport sse` with `HOST=0.0.0.0`
+2. `--transport streamable-http --reload` with `HOST=0.0.0.0`, `MCP_SERVER_TOKEN=` (empty)
+3. `--transport sse` with `HOST=<LAN address>`, `MCP_SERVER_TOKEN="   "`
+4. `--transport sse` with `HOST=127.0.0.1`, `ALLOW_UNAUTHENTICATED_HTTP=yes`
+5. `--transport sse` with `HOST=0.0.0.0`, `ALLOW_UNAUTHENTICATED_HTTP=1`. While it runs, `GET http://127.0.0.1:<port>/sse` with no header
+6. `--transport sse` with `HOST=0.0.0.0`, `MCP_SERVER_TOKEN=T`, `ALLOW_UNAUTHENTICATED_HTTP=true`. While it runs, `GET /sse` with no header
+7. `--transport sse` with no `HOST`. While it runs: `lsof -nP -iTCP:<port> -sTCP:LISTEN`, then `GET http://127.0.0.1:<port>/sse` with no header, then `GET http://<LAN address>:<port>/sse`
+8. stdio (`uv run mcp-gee-sweet`, no `--transport`) with `HOST=0.0.0.0` and `ALLOW_UNAUTHENTICATED_HTTP=bogus`: send an `initialize` request on stdin. Point `CREDENTIALS_PATH` at a file that exists (a dummy `{"installed": {...}}` client JSON is enough): under stdio a missing client JSON exits at startup (#790's fail-fast), which isn't what this step checks
+9. `uv run mcp-gee-sweet auth --help` with `HOST=0.0.0.0`
+10. Launch without `main()`: `uv run uvicorn mcp_gee_sweet.server:app --host 0.0.0.0 --port <port>` with no token and no opt-out. While it runs: `GET http://<LAN address>:<port>/sse`; `GET http://127.0.0.1:<port>/sse`; the same loopback GET with `Host: evil.example:<port>`; the same with `X-Forwarded-For: 127.0.0.1` sent to the LAN address. Then `grep -c 'MCP_SERVER_TOKEN is unset'` the log. Then relaunch the same command twice more: with `HOST=0.0.0.0` and `ALLOW_UNAUTHENTICATED_HTTP=1`, `GET http://<LAN address>:<port>/sse`; with `ALLOW_UNAUTHENTICATED_HTTP=yes` (no `HOST`), the LAN GET and the plain loopback GET
+11. Optional, if Docker is available: `docker build -t mcp-gee-sweet-qa .`, then `docker run --rm -p 127.0.0.1:<port>:8000 mcp-gee-sweet-qa` with no `-e MCP_SERVER_TOKEN`
+12. `--transport sse` with `HOST=127.0.0.2`, no token (macOS only answers on `127.0.0.1` until `sudo ifconfig lo0 alias 127.0.0.2 up`; remove it after with `sudo ifconfig lo0 -alias 127.0.0.2`. Without that, check the same requests in-process: Starlette `TestClient(server.app, base_url="http://127.0.0.2:8000")` with `HOST=127.0.0.2` set before import). While it runs, `GET http://127.0.0.2:<port>/sse`. Then relaunch with `ALLOW_UNAUTHENTICATED_HTTP=1` added, and send the same GET twice: once plain, once with `Host: attacker.example:<port>`
+13. `--transport sse` with `HOST=0.0.0.0` and `MCP_SERVER_TOKEN=` (set but empty, as docker-compose passes it when its own `.env` lacks it), with `MCP_SERVER_TOKEN=T` in `src/mcp_gee_sweet/.env`. While it runs, `GET http://<LAN address>:<port>/sse` with no header, then with `Authorization: Bearer T`
+
+**Checks**
+- 1, 2, 3: exit 1 with one line, `mcp-gee-sweet: refusing to serve --transport <transport> on <host> without authentication: ...`, naming `MCP_SERVER_TOKEN`, `HOST` and `ALLOW_UNAUTHENTICATED_HTTP`. No traceback, nothing listens on the port, and 2 never logs `Started reloader process`
+- 4: exit 1 with one line naming `ALLOW_UNAUTHENTICATED_HTTP` and `1 or true`, without echoing `yes`
+- 5: starts; the log has a warning that it is serving `0.0.0.0` without authentication; the GET gets `200` and `event: endpoint`
+- 6: starts; the log has `ALLOW_UNAUTHENTICATED_HTTP is ignored because MCP_SERVER_TOKEN is set`; the GET gets `401`
+- 7: `lsof` shows a listener on `127.0.0.1:<port>` only; the loopback GET gets `200`; the LAN GET fails to connect
+- 8: the server answers `initialize`; no refusal
+- 9: prints the `auth` usage and exits 0
+- 10: it starts (no `main()`, so no startup check). The LAN GET gets `401` with `WWW-Authenticate: Bearer`; the plain loopback GET gets `200` and `event: endpoint`; the `evil.example` Host and the `X-Forwarded-For` request get `401`. The grep counts `1`: one warning however many requests were refused. With `HOST=0.0.0.0` and the opt-out, the LAN GET gets `200` and `event: endpoint` (without `HOST`, the app is built for the `127.0.0.1` default, where the opt-out does nothing, so the LAN GET gets `401`). With the invalid opt-out, the LAN GET gets `401`, the loopback GET `200`, and the server keeps running with no traceback
+- 11: the container exits at once with the step-1 message for `0.0.0.0`
+- 12: both launches start. The plain GET gets `200` and `event: endpoint` both times (any `127.0.0.0/8` bind that starts is reachable). The `attacker.example` Host gets `401`: the opt-out does nothing on a loopback `HOST`
+- 13: starts (the blank variable doesn't hide the `.env` token); the plain GET gets `401`, the bearer GET `200` and `event: endpoint`
+
+**Cleanup:** SIGTERM any server still running (by pid). `docker rmi mcp-gee-sweet-qa` if step 11 ran. Remove the step-13 line from `src/mcp_gee_sweet/.env`.
+
+**Result (2026-10-19) ✅ PASS — Kit, GHSA-mpw3 fork PR #1 @ 46ce96b1**
+Steps 1–3: exit 1, one `refusing to serve` line naming all three settings, no traceback, nothing listening; step 2 never started the reloader. Step 4: exit 1 naming `1 or true`, `yes` not echoed. Step 5: started, serving-without-authentication warning, loopback GET `200` + `event: endpoint`. Step 6: ignored-opt-out warning, GET `401`. Step 7: `lsof` showed `127.0.0.1:<port>` only; loopback GET `200`, LAN GET connection refused. Step 8: `initialize` answered (first attempt used a nonexistent `CREDENTIALS_PATH` and hit #790's stdio fail-fast; the step now says to use a dummy client file). Step 9: usage, exit 0. Step 10: LAN `401`, loopback `200` + `event: endpoint`, `evil.example` Host `401`, `X-Forwarded-For: 127.0.0.1` to the LAN address `401`; one `MCP_SERVER_TOKEN is unset` warning over 8 rejections. Step 10's relaunches: with the opt-out and no `HOST`, the LAN GET got mcp's `421` (Host check built for the `127.0.0.1` default); with `HOST=0.0.0.0` and the opt-out, `200`; with `ALLOW_UNAUTHENTICATED_HTTP=yes`, LAN `401`, loopback `200`, no crash or traceback. Step 11: the container exited 1 about 6 s after start with the step-1 line for `0.0.0.0`.
+
+**Result (2026-10-19) ✅ PASS — Kit, GHSA-mpw3 fork PR #1 @ 15638736 (round 2)**
+Steps 1–10 rerun on real servers, all matching round 1 except the intended change in step 10: with the opt-out and no `HOST`, the LAN GET now gets our `401` (the opt-out does nothing on the loopback default), and with `HOST=0.0.0.0` and the opt-out it still gets `200`. Step 12 ran in-process (no `lo0` alias, so no sudo): with `HOST=127.0.0.2`, `check_startup` passed, the built `BearerAuth` layer had `host` `127.0.0.2`, a `127.0.0.2:8000` Host passed through, and `attacker.example:8000` got `401` + `WWW-Authenticate: Bearer`, with and without `ALLOW_UNAUTHENTICATED_HTTP=1`. Step 13: with `MCP_SERVER_TOKEN=` in the environment and the token in `src/mcp_gee_sweet/.env`, the server started on `0.0.0.0`; plain GET `401`, bearer GET `200` + `event: endpoint`; `.env` restored. Step 11 not rerun: the Dockerfile is unchanged since round 1 and the container sets no token.
+
+---
+
+### TC-I63: two Google identities sharing one cache DB never see each other's entries (GHSA-8jqx-w7j8-6xwm) ⚠️ local-filesystem
+
+**Background:** every cache row carries the Google identity it was fetched as (`drive:<permissionId>`, else `sa:<service account email>`), and every read filters on it. Invalidation doesn't: `refresh_cache` and write-side invalidation reach every identity's rows. A cached sheet list is served stale only on a 5xx, 429 or network failure, never in place of a 403/404. Run the servers from this lane's own worktree, not the shared `-oauth`/`-sa` MCP servers, which serve main-checkout code.
+
+**Setup:** a fresh scratch path `C=<tmp>/qa-cache/cache.db`, with `<tmp>/qa-cache` created (empty) before each run. An explicit `CACHE_DB_PATH` never creates its parent directory, on `develop` or the fix: with it missing, both servers log `falling back to :memory:`, share nothing, and the case passes vacuously. Check each log has no `not usable`/`unusable` line before reading any result. Two stdio servers, each driven by an SDK `stdio_client` + `ClientSession` script per `docs/qa/run.md` §"Running server-startup and CLI cases in a scoped lane pass", both with `CACHE_DB_PATH=$C`, `DEBUG_LEVEL=DEBUG` and their own `LOG_FILE`: server **A** with `AUTH_METHOD=oauth` (the fixture OAuth account), server **B** with `AUTH_METHOD=service_account`. `{SPREADSHEET_ID}` below is a scratch spreadsheet that only A can open, *not* the fixture `TEST_SPREADSHEET_ID`, which the service account can read (it's on the Shared Drive). Create it in A's My Drive root with a fresh-interpreter script (`drive.files().create(body={"name": ..., "mimeType": "application/vnd.google-apps.spreadsheet"})` on `auth._oauth_creds()`, per CLAUDE.md "MCP restart"), not with `create_spreadsheet`, which puts it in `DRIVE_FOLDER_ID`. B's service account must also have no access to A's calendars. Run steps 1–2 on the fork's `develop` first (before resetting to the fix branch), then the whole case on the fix branch.
+
+**Action**
+1. A: `list_calendars()`; record the calendar IDs. Then B: `list_calendars()`.
+2. A: `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`. Then B: `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`. Then A: `refresh_cache(spreadsheet_id="{SPREADSHEET_ID}")`, and B: `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")` again.
+3. With both servers stopped: `sqlite3 $C "SELECT DISTINCT principal, namespace FROM cache"`.
+4. Restart A only. `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")` twice; grep A's log for `Cache hit`.
+5. With A still running, start B and call `refresh_cache()` (no arguments). Then A: `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`; grep A's log again.
+
+**Checks**
+- On `develop` (the defect): B's step-1 `list_calendars` returns A's calendars, or B's step-2 `list_sheets` returns A's sheet names instead of an error. Record which.
+- On the fix branch:
+  - 1: B's list contains none of A's calendar IDs (only calendars B itself is subscribed to, possibly none).
+  - 2: both of B's `list_sheets` calls return an error (403/404 permission text), never A's sheet names, including after A's `refresh_cache` left A's row dirty (the old stale fallback).
+  - 3: two distinct `principal` values, each `drive:...` or `sa:...`; no row has an empty principal.
+  - 4: the second call logs `Cache hit` (A's own entry is still served to A).
+  - 5: A's call after B's flush logs no new `Cache hit` for `{SPREADSHEET_ID}` (B's invalidation reached A's row) and still returns the sheet names.
+
+**Cleanup:** stop both servers; `rm -rf <tmp>/qa-cache`; delete the scratch spreadsheet.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 1 @ 9e6f4d06, Kit) ✅ PASS**
+Two-server SDK driver from the Kit worktree, A-only scratch spreadsheet (2 sheets) in A's My Drive. Fork `develop` @ b009e72d, steps 1–2 (defect reproduced, both ways): B's `list_calendars` returned all 3 of A's calendar IDs (B itself has 0); B's `list_sheets` returned A's sheet names, and again after A's `refresh_cache` (stale fallback). A first `develop` run with `<tmp>/qa-cache` missing fell back to `:memory:` on both servers and showed no leak, hence the setup fix above. Fix branch, directory created first, no `not usable` lines: 1: B got 0 calendars, overlap with A 0. 2: both B calls 403 `The caller does not have permission`. 3: 2 distinct principals, both `drive:...` (the SA resolves its own `permissionId`), 0 empty; rows `calendar` ×2, `sheet_structure`. 4: after restart the first call re-fetched (row still dirty from step 2's refresh), the second logged `Cache hit: 2 sheets`. 5: after B's `refresh_cache()` (`invalidated: all`), A's call logged `Cached 2 sheets` and no new `Cache hit`, sheet names returned. DB file `-rw-------`. Scratch spreadsheet deleted, scratch dirs removed.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 2 @ 18a0e4bc, Kit) ✅ PASS**
+Same driver, fresh A-only scratch spreadsheet, `<tmp>/qa-cache` created first, no `not usable` lines in either log. 1: B 0 calendars, overlap with A 0. 2: both B calls 403. 3: 2 distinct `drive:` principals, 0 empty. 4: second call `Cache hit: 2 sheets`. 5: after B's `refresh_cache()`, A re-fetched (`Cached 2 sheets`), no new hit. The `cache opened` lines now appear only when a cache is first used, and name the real path. Scratch spreadsheet deleted, scratch dirs removed.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 4 @ 295b5118, Kit) ✅ PASS**
+Rerun after merging `develop` and the GHSA-mpw3 branch in. Same driver, fresh A-only scratch spreadsheet, no `not usable` lines. 1: B 0 calendars, overlap with A 0. 2: both B calls 403. 3: 2 distinct `drive:` principals, 0 empty. 4: second call `Cache hit: 2 sheets`. 5: after B's `refresh_cache()` (`invalidated: all`), A re-fetched (`Cached 2 sheets`), no new hit. DB `-rw-------`. Outside the case, over SSE with `MCP_SERVER_TOKEN` set: an unauthenticated `GET /sse` got `401` before any cache DB existed; two authenticated connections both bound the same `drive:` principal, and the second was served from the first's entry. Scratch spreadsheet deleted, scratch dirs removed.
+
+---
+
+### TC-I64: the default cache location is per-user and owner-only; a symlinked cache isn't used (GHSA-8jqx-w7j8-6xwm) ⚠️ local-filesystem
+
+**Background:** with `CACHE_DB_PATH` unset, the DB is `~/Library/Caches/mcp-gee-sweet/cache.db` (macOS), or `$XDG_CACHE_HOME` / `~/.cache` plus `mcp-gee-sweet/cache.db` (Linux). The directory is `0700`, the DB and its `-wal`/`-shm` files `0600`. A directory or file owned by another user, or a symlink in place of one, makes the server warn and cache in memory. The old `/tmp/mcp_gee_sweet.db` is tightened to `0600` if it's ours, never deleted. Importing the package creates nothing.
+
+**Setup:** a scratch `HOME=<tmp>/home` (created, empty), `XDG_CACHE_HOME` unset, `CACHE_DB_PATH` unset in the environment and in `src/mcp_gee_sweet/.env`, `umask 022`. A stdio server driven by an SDK client script (as in TC-I63), `AUTH_METHOD=oauth` with `TOKEN_PATH`/`CREDENTIALS_PATH` pointing at the fixture files, `DEBUG_LEVEL=DEBUG`, `LOG_FILE` set. `D` below is the platform's default cache directory under the scratch home.
+
+**Action**
+1. `HOME=<tmp>/home uv run python -c "import mcp_gee_sweet.server"`, then `find <tmp>/home`.
+2. Start the server; `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`; stop it. `stat -f '%Sp %N' D D/cache.db*` (Linux: `stat -c '%A %n'`).
+3. `chmod 755 D`; start the server, make one call, stop it; `stat` `D`.
+4. Unless a `/tmp/mcp_gee_sweet.db` already exists (then record its owner and mode, and skip the rest of this step): create it, owned by you, mode `0644`. Start the server, make one call, stop it; `stat` it.
+5. `rm -rf D`, then `ln -s <tmp>/elsewhere D` (`<tmp>/elsewhere` an empty directory). Start the server, `list_sheets` twice, stop it.
+6. `rm D`. Set `CACHE_DB_PATH=<tmp>/explicit/cache.db`, after creating `<tmp>/explicit` with mode `0755` and an empty `cache.db` in it with mode `0644`. Start, one call, stop; `stat` the directory and the file.
+7. `CACHE_DB_PATH=:memory:`: start, one call, stop; `find <tmp>/home <tmp>/explicit -newer <tmp>/explicit/cache.db`.
+8. `CACHE_DB_PATH` unset again, `LOCAL_FILE_ACCESS=full`: start, then `upload_local_file(local_path="D/cache.db", parent_folder_id="{FOLDER_ID}")` (`parent_folder_id` is required; without it the call fails argument validation before the policy check runs).
+
+**Checks**
+- 1: `find` lists only `<tmp>/home` itself: nothing created at import.
+- 2: `D` is `drwx------`; `cache.db` (and any `-wal`/`-shm`) is `-rw-------`.
+- 3: `D` is `drwx------` again.
+- 4: `/tmp/mcp_gee_sweet.db` is `-rw-------` and still exists.
+- 5: the log has `Cache file not usable (... isn't a directory), falling back to :memory:`; both calls succeed; `<tmp>/elsewhere` stays empty.
+- 6: the file is `-rw-------`; its directory is still `drwxr-xr-x`.
+- 7: `find` prints nothing; the call succeeds.
+- 8: refused with `... is one of this server's own credential, config, cache, or log files and can't be read by a tool`; nothing uploaded.
+- Another user's directory or file needs a second uid, so it's unit-tested only (`tests/test_cache_isolation.py::TestPermissions`).
+
+**Cleanup:** `rm -rf <tmp>/home <tmp>/elsewhere <tmp>/explicit`. If step 4 created `/tmp/mcp_gee_sweet.db`, delete it and its `-wal`/`-shm`.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 1 @ 9e6f4d06, Kit) ✅ PASS (step 4 skipped)**
+SDK driver from the Kit worktree, macOS, `umask 022`, scratch `HOME` (with `UV_CACHE_DIR` pointed at the real uv cache so `uv` itself writes nothing under it). 1: `find` lists only `<tmp>/home`. 2: `D` `drwx------`, `cache.db` `-rw-------` (no sidecars left after stop). 3: `D` chmod'd to `drwxr-xr-x`, back to `drwx------` after one call. 4: skipped, `/tmp/mcp_gee_sweet.db` already exists, ours, already `-rw-------`; tightening covered by unit tests only this round. 5: log `Cache file not usable (<tmp>/home/Library/Caches/mcp-gee-sweet isn't a directory), falling back to :memory:`; both calls returned the sheet names; `<tmp>/elsewhere` empty. 6: `cache.db` `-rw-------`, `<tmp>/explicit` still `drwxr-xr-x`. 7: call succeeded, `find -newer` printed nothing. 8: first run without `parent_folder_id` failed pydantic validation (step text fixed above); rerun refused with `... is one of this server's own credential, config, cache, or log files and can't be read by a tool`, nothing uploaded. Scratch dirs removed.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 2 @ 18a0e4bc, Kit) ✅ PASS (step 4 skipped)**
+Same driver, all 8 steps. 1: nothing created at import. 2: `D` `drwx------`, `cache.db` `-rw-------`. 3: `drwxr-xr-x` tightened back to `drwx------`. 4: skipped, same `/tmp/mcp_gee_sweet.db` (ours, `-rw-------`). 5: `Cache file not usable (... isn't a directory), falling back to :memory:`, and the only `cache opened` line reads `sheet_structure cache opened: :memory:` (round 1 logged the refused path here); both calls succeeded; `<tmp>/elsewhere` empty. 6: file `-rw-------`, directory still `drwxr-xr-x`. 7: `find -newer` empty. 8: refused by the deny-list, nothing uploaded. Outside the case: `check_read` now refuses `/tmp/mcp_gee_sweet.db` and `-wal` (round 1 allowed them), and in `python:3.12-slim-bullseye` (glibc 2.31) both an explicit and the default cache open and write, with the file `-rw-------` and directory `drwx------` (round 1 raised `NotImplementedError`). Scratch dirs removed.
+
+**Result (2026-10-20, GHSA-8jqx fork PR #1 round 4 @ 295b5118, Kit) ✅ PASS (step 4 skipped)**
+Rerun after merging `develop` and the GHSA-mpw3 branch in. Same driver, all 8 steps, every check matching round 2. 1: nothing created at import. 2: `D` `drwx------`, `cache.db` `-rw-------`. 3: tightened back to `drwx------`. 4: skipped, same `/tmp/mcp_gee_sweet.db` (ours, `-rw-------`). 5: `not usable ... falling back to :memory:`, `cache opened: :memory:`, both calls succeeded, `<tmp>/elsewhere` empty. 6: file `-rw-------`, directory still `drwxr-xr-x`. 7: `find -newer` empty. 8: refused by the deny-list. Scratch dirs removed.
+
+---
+
+### TC-I65: the first calls after a long idle don't fail on a stale connection (issue #1052)
+
+**Background:** `thread_http` caches one transport per worker thread, and a thread's pooled keep-alive connection sits unused while the server is idle. Before #1052, the first request on a connection Google had since dropped failed with no retry: `[Errno 54] Connection reset by peer` at once, or `[Errno 60] Operation timed out` after 50–200 s. In a wide `get_multiple_sheet_data` call that showed up as one per-query `error` among otherwise correct results. Now a pooled connection idle longer than `_IDLE_RECONNECT_SECONDS` (wall-clock time, so a laptop's sleep counts) is closed before reuse, a connection that fails is closed rather than left pooled, and a read (GET, HEAD, or a method-override GET) or a token refresh that still hits a dead connection is resent once. Writes are never resent, so step 3 checks that a write after idle succeeds on its first attempt. The mocked unit tests can't show what Google's front end actually does to an idle connection, so this needs a live server and real idle time.
+
+**Setup:** a server that has already made a few calls, so its worker threads hold pooled connections. Before each step, leave it idle (no tool calls at all) for **at least 10 minutes**, the idle time that reproduced the defect in the v0.9.2 pass.
+
+**Action**
+1. After the idle wait, call `get_multiple_sheet_data` with 12 single-cell queries: `queries` = `[{"spreadsheet_id": "{SPREADSHEET_ID}", "sheet": "Sales", "range": "A1"}, …]` over `A1`, `B1`, `C1`, `A2`, `B2`, `C2`, `A3`, `B3`, `C3`, `A4`, `B4`, `C4`. Time the call
+2. Idle again, then repeat step 1 with 24 queries, one per cell of `A1:D6`
+3. Idle again, then `create_folder` with `name: "TC-I65 idle write"` and `parent_folder_id: QA_SCRATCH_FOLDER_ID`
+4. Run steps 1–3 on a second server prefix too (both OAuth and service account, if both are available)
+
+**Checks**
+- 1, 2: every query returns its cell's data, none has an `error` field, and the call returns in a few seconds (no 50–200 s stall)
+- 3: the folder is created on the first call, with no `Connection reset by peer`, `Broken pipe`, or `Operation timed out` error
+- 4: the same on the second server
+
+**Cleanup:** `delete_file` each `TC-I65 idle write` folder.
+
+**Result (2026-10-19) ⚠️ PARTIAL — PR #1126 round 1 (Sky) @ 9cc9baa6**
+OAuth server (`mcp-gee-sweet-sky`), warmed at 22:12 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (22:22): 12/12 cells correct, no `error`, returned in under a second. Step 2 (22:33): 24/24 correct, no `error`, under a second. Step 3 (22:44): `create_folder` succeeded on the first call; folder trashed afterwards. The server log has no live `Resending` line, so the idle close alone handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
+
+**Result (2026-10-20) ⚠️ PARTIAL — PR #1126 round 2 (Sky) @ 4e854115**
+Re-run after the per-connection rewrite (`_StaleConnectionHttp`), on the OAuth server (`mcp-gee-sweet-sky`). Warmed at 23:28 with a 12-query fan-out, then left idle 10+ min before each step. Step 1 (23:39): 12/12 correct, no `error`, under a second. Step 2 (23:50): 24/24 correct, no `error`, under a second. Step 3 (00:01): `create_folder` succeeded on the first call; folder trashed afterwards. No live `Resending` line in the server log, so the per-connection idle close handled every stale connection. Didn't run: check 4. This lane has no service-account server; the service-account run is left for the release pass.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 release pass (Aziz) @ b60f0391 (#1052 merged; `http_transport.py` identical at the c90b88d3 release candidate)**
+Both main-checkout servers at once: `mcp-gee-sweet-sa` (service account) and `mcp-gee-sweet-oauth` (OAuth), processes started 22:37 after #1052's merge. Warmed at 23:02 with the 12-query fan-out (12/12 each), then no calls to either server for 10.5 min before each step. Step 1 (23:13): 12/12 correct on each, no `error`, 1.8 s and 1.5 s. Step 2 (23:24): 24/24 (`A1:D6`) correct on each, no `error`, 1.9 s and 1.5 s. Step 3 (23:35): `create_folder` in `TEST_FOLDER_ID` succeeded on the first call on each (1.9 s, 1.5 s); both folders trashed afterwards. Check 4 met: the service-account run Sky's lane couldn't do. The shared server log has no `Resending`, `Connection reset`, `Broken pipe` or `timed out` line since the servers started. Stale wording: `QA_SCRATCH_FOLDER_ID` isn't defined in `.env.template` or anywhere else; `TEST_FOLDER_ID` was used.
+
+### TC-I66: dev and stable releases both publish through `publish.yml`, with no PyPI provenance warning (issue #1124)
+
+**Background:** PyPI flags a release whose trusted-publisher workflow differs from the previous release's with a "Change of provenance" warning on its page. Dev builds came from `publish-dev.yml` and stable releases from `release.yml`, and a dev build always precedes a stable release, so v0.9.2's page carried the warning. PyPI compares against the previous *upload*, not the previous stable release: v0.9.1's page carries the warning although v0.9.0 and v0.9.1 both came from `release.yml`, because a `publish-dev.yml` dev build came between them. #1124 merges both tracks into `.github/workflows/publish.yml`. The first upload through `publish.yml` follows a `publish-dev.yml` build, so it's expected to carry the warning once; that's the transition, not a failure. No MCP tool or unit test reaches a GitHub Actions run or PyPI's attestation record, so this is a manual check after merge and after the next stable release.
+
+**Setup**
+- PyPI has a trusted publisher registered for `publish.yml` in this repo (the maintainer step on #1124).
+- For checks 1–2: a push to `develop` touching `src/**`, `tests/**`, `pyproject.toml`, or `uv.lock` has landed since #1124 merged.
+- For checks 3–5: a stable GitHub Release has been published since #1124 merged, **and** at least one dev build published through `publish.yml` before it (checks 1–2 passed first). Merging #1124 alone publishes nothing, since it touches no `src/**`. If the release's predecessor upload is still a `publish-dev.yml` build, check 5 fails while the workflow is behaving correctly: record SKIP for check 5, not FAIL.
+
+**Action**
+1. `gh run list --workflow=publish.yml --event push --limit 1`, then `gh run view <run-id>`. Note the published `X.Y.Z.devN` version from the build log or `pip index versions mcp-gee-sweet --pre`.
+2. Read the dev wheel's provenance: `curl -s https://pypi.org/pypi/mcp-gee-sweet/<version>/json` for the `.whl` filename in `urls[]`, then `curl -s "https://pypi.org/integrity/mcp-gee-sweet/<version>/<filename>/provenance"`.
+3. `gh run list --workflow=publish.yml --event release --limit 1`, then `gh run view <run-id>`.
+4. Repeat step 2 for the stable version's wheel.
+5. Open `https://pypi.org/project/mcp-gee-sweet/<stable version>/`.
+
+**Checks**
+- 1, 3: the run completed with `success`; its jobs are `Run tests`, `Build distribution`, and `Upload to PyPI`, and `Upload to PyPI` ran.
+- 2, 4: every `attestation_bundles[].publisher` is `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", ...}`. `release.yml` or `publish-dev.yml` there means the upload didn't go through the new file.
+- 5: the release page shows no "Change of provenance" warning.
+
+**Re-run cadence:** once after the first qualifying `develop` push following #1124's merge (checks 1–2), and once at the first stable release after that (checks 3–5). After that, only if `publish.yml` is renamed or split.
+
+**Result (2026-10-20) ✅ PASS (checks 1–2) — v0.9.3 release pass (Aziz) @ c90b88d3**
+Check 1: the two `publish.yml` push runs after #1124's merge, 39553304435 (746136d4, the GHSA-mpw3 merge) and 39553920594 (c90b88d3, the GHSA-8jqx merge), both concluded `success`, with jobs `Run tests`, `Build distribution` and `Upload to PyPI`, all `success`. Check 2: the wheels for `0.9.3.dev34` and `0.9.3.dev35` each carry one attestation bundle whose publisher is `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", "environment": null}`. So PyPI's last upload before the stable 0.9.3 comes through `publish.yml`. Checks 3–5 run after 0.9.3 is published.
+
+**Result (2026-10-20) ✅ PASS (checks 3–5) — v0.9.3 stable release (Aziz) @ b5e2810b**
+Check 3: `publish.yml` run 39557996212, event `release`, on b5e2810b, concluded `success`, with `Run tests`, `Build distribution` and `Upload to PyPI` all `success`. Check 4: the `mcp_gee_sweet-0.9.3-py3-none-any.whl` provenance has one attestation bundle, publisher `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", "environment": null}`; the uploads just before it were `0.9.3.dev34` and `dev35`, both through `publish.yml`. Check 5 (Playwright, since `curl` gets PyPI's "Client Challenge" page): the 0.9.3 page's Provenance section reads "Full provenance — All 2 files in this release have provenance metadata", with no "Change of provenance" banner. Control: the 0.9.2 page, loaded the same way, still shows the "Change of provenance" banner.

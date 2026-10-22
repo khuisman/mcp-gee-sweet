@@ -59,6 +59,8 @@ class Policy:
     deny_list: tuple[str, ...] = field(default=(), repr=False)
     # Why the setting is invalid; the mode is then off (resolve_policy).
     error: str | None = None
+    # realpaths of directories refused, with everything under them (_deny_list_dirs).
+    deny_dirs: tuple[str, ...] = field(default=(), repr=False)
 
 
 def _adc_default_path(env) -> str:
@@ -87,11 +89,25 @@ def _deny_list_paths(env) -> list[str]:
         cache.CACHE_DB_PATH,
         cache.CACHE_DB_PATH + "-wal",
         cache.CACHE_DB_PATH + "-shm",
+        # The pre-0.9.3 shared default, kept on disk (never deleted) and still holding
+        # whatever it cached for every identity that used it (GHSA-8jqx-w7j8-6xwm).
+        cache._LEGACY_DB_PATH,
+        cache._LEGACY_DB_PATH + "-wal",
+        cache._LEGACY_DB_PATH + "-shm",
     ]
     for name in ("GOOGLE_APPLICATION_CREDENTIALS", "LOG_FILE", "ACCESS_LOG_FILE"):
         if value := env.get(name):
             paths.append(value)
     return [os.path.realpath(p) for p in paths if p]
+
+
+def _deny_list_dirs(env) -> list[str]:
+    """Directories refused whole: the default cache directory, which only this
+    server writes (GHSA-8jqx-w7j8-6xwm). An explicit CACHE_DB_PATH may sit in a
+    shared directory, so only its files are denied (_deny_list_paths)."""
+    if cache.default_db_path(env) != cache.CACHE_DB_PATH:
+        return []
+    return [os.path.realpath(os.path.dirname(cache.CACHE_DB_PATH))]
 
 
 def _config_error(mode: LocalFileAccess, raw_roots: list[str]) -> str | None:
@@ -120,6 +136,7 @@ def resolve_policy(env, argv: list[str]) -> Policy:
     raw_mode = (env.get("LOCAL_FILE_ACCESS") or "").strip().lower()
     explicit = bool(raw_mode)
     deny_list = tuple(_deny_list_paths(env))
+    deny_dirs = tuple(_deny_list_dirs(env))
     raw_roots = [
         r.strip() for r in (env.get("LOCAL_FILE_ROOTS") or "").split(os.pathsep) if r.strip()
     ]
@@ -130,9 +147,9 @@ def resolve_policy(env, argv: list[str]) -> Policy:
             mode = LocalFileAccess(raw_mode)
         except ValueError:
             error = f"LOCAL_FILE_ACCESS={raw_mode!r} isn't valid (use full, roots, or off)"
-            return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error)
+            return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error, deny_dirs)
     if error := _config_error(mode, raw_roots):
-        return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error)
+        return Policy(LocalFileAccess.OFF, True, transport, (), deny_list, error, deny_dirs)
 
     roots: tuple[tuple[str, str], ...] = ()
     if mode is LocalFileAccess.ROOTS:
@@ -141,7 +158,7 @@ def resolve_policy(env, argv: list[str]) -> Policy:
         logger.warning(
             "LOCAL_FILE_ROOTS is set but ignored: it applies only when LOCAL_FILE_ACCESS=roots"
         )
-    return Policy(mode, explicit, transport, roots, deny_list)
+    return Policy(mode, explicit, transport, roots, deny_list, deny_dirs=deny_dirs)
 
 
 POLICY = resolve_policy(os.environ, sys.argv)
@@ -262,6 +279,11 @@ def _is_denied(real: str) -> bool:
         st = None
     normalized = os.path.normcase(real)
     folded = normalized.casefold()
+    # A denied directory covers itself and everything under it, matched
+    # case-insensitively for the same reason as a new file below.
+    for directory in POLICY.deny_dirs:
+        if Path(folded).is_relative_to(os.path.normcase(directory).casefold()):
+            return True
     for entry, entry_st in _deny_snapshot.get() or _deny_stats():
         entry_normalized = os.path.normcase(entry)
         if entry_normalized == normalized:

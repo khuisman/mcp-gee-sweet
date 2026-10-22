@@ -5,10 +5,15 @@ services:
       target: builder
     command: ["uv", "run", "mcp-gee-sweet", "--transport", "sse", "--reload"]
     ports:
-      - "47000:8000"
+      # Published on loopback only; the container still listens on 0.0.0.0 so the
+      # port mapping reaches it, which is why it needs MCP_SERVER_TOKEN.
+      - "127.0.0.1:47000:8000"
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      # From .env next to this file; when that leaves it empty, the server reads
+      # src/mcp_gee_sweet/.env instead. Unset in both, it refuses to start.
+      - MCP_SERVER_TOKEN=${MCP_SERVER_TOKEN}
       - DEBUG_LEVEL=${DEBUG_LEVEL:-DEBUG}
       - SERVICE_ACCOUNT_PATH=/run/secrets/service_account
       - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}

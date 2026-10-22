@@ -33,7 +33,8 @@ Known gaps (full comments CRUD, conditional formatting, protected ranges, multi-
 uv run mcp-gee-sweet
 
 # Docker
-docker run --rm -p 8000:8000 \
+docker run --rm -p 127.0.0.1:8000:8000 \
+  -e MCP_SERVER_TOKEN=<token> \
   -e CREDENTIALS_CONFIG=<base64-service-account> \
   -e DRIVE_FOLDER_ID=<folder-id> \
   mcp-gee-sweet

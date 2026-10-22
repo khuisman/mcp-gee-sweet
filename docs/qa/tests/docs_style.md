@@ -493,6 +493,9 @@ style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test h
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: On the fresh doc: inserted "Style-test heading\n" at [1,20], then `style_doc_range` HEADING_1 returned `requests: 1`. `get_doc_structure`: HEADING_1 (headingId set), text unchanged. Cleanup done (restyled NORMAL_TEXT, deleted).
+
 ---
 
 ### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
@@ -518,6 +521,33 @@ style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: Inserted "Bold-italic test\n" at [1,18], then `style_doc_range([1,17], bold, italic)` returned `requests: 1`. The run reads `bold: true, italic: true`, and namedStyleType stayed NORMAL_TEXT. Paragraph deleted.
+
+---
+
+### TC-DOC230: `font_family` sets the font through `style_doc_range` and `insert_softbreak_paragraph` (#720) ⚠️ destructive
+**Purpose:** the first live check of `font_family` (#720, PR #1026). Both tools build run styles through the shared `_text_style_and_fields`, so both take the field. `get_doc_structure` doesn't report a run's font, so the font box in the Docs toolbar is the check.
+
+**Prompt**
+**Playwright: required**
+
+**Setup:** `create_doc(title="QA-TC-DOC230", folder_id={FOLDER_ID})`, then `insert_doc_text(doc_id=<it>, index=1, text="Alpha Beta Gamma\n")`. "Alpha" is [1, 6), "Beta" [7, 11), "Gamma" [12, 17).
+
+1. `style_doc_range(doc_id=<it>, ranges=[{"start_index": 1, "end_index": 6, "font_family": "Georgia"}, {"start_index": 7, "end_index": 11, "font_family": "Courier New", "bold": true}, {"start_index": 12, "end_index": 17, "italic": true}])`
+2. `insert_softbreak_paragraph(doc_id=<it>, index=18, lines=[{"text": "Line one", "font_family": "Georgia"}, {"text": "Line two"}])`
+
+**Checks**
+- Step 1 returns no `error` and `requests: 3`.
+- Playwright, clicking into each word and reading the toolbar's font box: "Alpha" is Georgia; "Beta" is Courier New and bold; "Gamma" is italic in the document's default font (Arial), not Georgia or Courier New.
+- `get_doc_as_markdown`: "Beta" exports as inline code (a Courier New run); "Alpha" and "Gamma" don't.
+- Step 2 returns no `error`. Playwright: "Line one" is Georgia and "Line two" is the default font, and the two lines are one paragraph (no paragraph spacing between them).
+
+**Cleanup:** `delete_file` the doc.
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kai-sa`: Step 1 returned `requests: 3`, no error. Step 2 returned line_ranges [18,26] and [27,35], no error. Playwright, reading the toolbar after clicking into each word: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial. `get_doc_as_markdown` gives "Alpha \`Beta\` *Gamma*\n\nLine one<br>Line two", so only Beta is inline code. Structure shows "Line one\vLine two" as one paragraph [18,36]. Screenshot `2026-10-19-tc-doc230.png`. Doc trashed. Side note: `insert_softbreak_paragraph`'s docstring still doesn't list `font_family` (tracked, #1037).
 
 ---
 

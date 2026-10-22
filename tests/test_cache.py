@@ -27,7 +27,7 @@ DB = ":memory:"
 
 class TestSheetStructureCache:
     def setup_method(self):
-        self.cache = SheetStructureCache(db_path=DB, ttl=60)
+        self.cache = SheetStructureCache(db_path=DB, ttl=60, principal="test")
         self.sheets = [SheetInfo(title="Sheet1", sheet_id=0), SheetInfo(title="Sheet2", sheet_id=1)]
 
     def test_miss_returns_none(self):
@@ -61,7 +61,9 @@ class TestSheetStructureCache:
         assert self.cache.get_sheets("b") is None
 
     def test_ttl_expiry(self):
-        cache = SheetStructureCache(db_path=DB, ttl=0)  # TTL of 0 expires immediately
+        cache = SheetStructureCache(
+            db_path=DB, ttl=0, principal="test"
+        )  # TTL of 0 expires immediately
         cache.store("sid", self.sheets)
         time.sleep(0.01)
         assert cache.get_sheets("sid") is None
@@ -115,7 +117,7 @@ class TestSheetStructureCache:
         # ttl=0 would expire on the first lookup, but expiry is only evaluated
         # (and the row marked dirty) inside a read — raising the TTL before any
         # read happens keeps the entry alive.
-        cache = SheetStructureCache(db_path=DB, ttl=0)
+        cache = SheetStructureCache(db_path=DB, ttl=0, principal="test")
         cache.store("sid", self.sheets)
         cache.set_ttl(60)
         assert cache.get_sheets("sid") is not None
@@ -152,7 +154,7 @@ class TestSheetStructureCache:
 
 class TestSheetDataCache:
     def setup_method(self):
-        self.cache = SheetDataCache(db_path=DB, ttl=60)
+        self.cache = SheetDataCache(db_path=DB, ttl=60, principal="test")
 
     def test_miss_returns_none(self):
         assert self.cache.get("sid", 0, 10) is None
@@ -206,7 +208,7 @@ class TestSheetDataCache:
         assert self.cache.get("b", 0, 1) is None
 
     def test_ttl_expiry(self):
-        cache = SheetDataCache(db_path=DB, ttl=0)
+        cache = SheetDataCache(db_path=DB, ttl=0, principal="test")
         cache.store("sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1)
         time.sleep(0.01)
         assert cache.get("sid", 0, 1) is None
@@ -252,7 +254,7 @@ class TestSheetDataCache:
 
 class TestDriveFolderCache:
     def setup_method(self):
-        self.cache = DriveFolderCache(db_path=DB, ttl=60)
+        self.cache = DriveFolderCache(db_path=DB, ttl=60, principal="test")
         self.files = [{"id": "f1", "name": "doc.docx"}]
 
     def test_miss_returns_none(self):
@@ -296,7 +298,7 @@ class TestDriveFolderCache:
         assert self.cache.get("f2", None, 100) is None
 
     def test_ttl_expiry(self):
-        cache = DriveFolderCache(db_path=DB, ttl=0)
+        cache = DriveFolderCache(db_path=DB, ttl=0, principal="test")
         cache.store("folder", None, self.files, 100)
         time.sleep(0.01)
         assert cache.get("folder", None, 100) is None
@@ -332,7 +334,7 @@ class TestDriveFolderCache:
 
 class TestDocContentCache:
     def setup_method(self):
-        self.cache = DocContentCache(db_path=DB, ttl=60)
+        self.cache = DocContentCache(db_path=DB, ttl=60, principal="test")
         self.doc = {"title": "My Doc", "body": {"content": []}}
 
     def test_miss_returns_none(self):
@@ -355,7 +357,7 @@ class TestDocContentCache:
         assert self.cache.get("b") is None
 
     def test_ttl_expiry(self):
-        cache = DocContentCache(db_path=DB, ttl=0)
+        cache = DocContentCache(db_path=DB, ttl=0, principal="test")
         cache.store("fid", self.doc)
         time.sleep(0.01)
         assert cache.get("fid") is None
@@ -447,14 +449,14 @@ class TestEnvFlag:
 
 class TestCalendarCacheSetTtl:
     def test_set_ttl_shortens_window_for_existing_entry(self):
-        cache = CalendarCache(db_path=DB, ttl=60)
+        cache = CalendarCache(db_path=DB, ttl=60, principal="test")
         cache.store_list([{"id": "cal1"}])
         cache.set_ttl(0)
         time.sleep(0.01)
         assert cache.get_list() is None
 
     def test_get_ttl_returns_current_value(self):
-        cache = CalendarCache(db_path=DB, ttl=60)
+        cache = CalendarCache(db_path=DB, ttl=60, principal="test")
         assert cache.get_ttl() == 60
         cache.set_ttl(5)
         assert cache.get_ttl() == 5
@@ -485,7 +487,7 @@ class _FakeDriveService:
 
 class TestFetchSheetsModifiedTimeValidation:
     async def test_stale_cache_triggers_refetch_when_drive_service_given(self):
-        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache = SheetStructureCache(db_path=DB, ttl=1000, principal="test")
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
         result = await fetch_sheets(
@@ -496,7 +498,7 @@ class TestFetchSheetsModifiedTimeValidation:
         assert result[0].title == "New"
 
     async def test_fresh_cache_skipped_refetch_without_drive_service(self):
-        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache = SheetStructureCache(db_path=DB, ttl=1000, principal="test")
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
         # No drive_service passed → no modifiedTime check → TTL-valid cache hit,
@@ -518,7 +520,7 @@ class TestGetSheetIdModifiedTimePropagation:
     """
 
     async def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
-        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache = SheetStructureCache(db_path=DB, ttl=1000, principal="test")
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
         cache.mark_dirty("sid")  # force the next lookup to be a genuine miss
 
@@ -544,8 +546,8 @@ class TestSharedDb:
 
     def test_two_connections_share_writes(self, tmp_path):
         db = str(tmp_path / "shared.db")
-        writer = SheetStructureCache(db_path=db, ttl=60)
-        reader = SheetStructureCache(db_path=db, ttl=60)
+        writer = SheetStructureCache(db_path=db, ttl=60, principal="test")
+        reader = SheetStructureCache(db_path=db, ttl=60, principal="test")
         sheets = [SheetInfo(title="S1", sheet_id=0)]
         writer.store("sid", sheets)
         result = reader.get_sheets("sid")
@@ -554,16 +556,16 @@ class TestSharedDb:
 
     def test_dirty_from_one_connection_seen_by_other(self, tmp_path):
         db = str(tmp_path / "shared.db")
-        a = SheetStructureCache(db_path=db, ttl=60)
-        b = SheetStructureCache(db_path=db, ttl=60)
+        a = SheetStructureCache(db_path=db, ttl=60, principal="test")
+        b = SheetStructureCache(db_path=db, ttl=60, principal="test")
         a.store("sid", [SheetInfo(title="X", sheet_id=0)])
         b.mark_dirty("sid")
         assert a.get_sheets("sid") is None
 
     def test_different_namespaces_coexist(self, tmp_path):
         db = str(tmp_path / "shared.db")
-        struct = SheetStructureCache(db_path=db, ttl=60)
-        doc = DocContentCache(db_path=db, ttl=60)
+        struct = SheetStructureCache(db_path=db, ttl=60, principal="test")
+        doc = DocContentCache(db_path=db, ttl=60, principal="test")
         struct.store("sid", [SheetInfo(title="T", sheet_id=0)])
         doc.store("fid", {"title": "Doc"})
         struct.mark_all_dirty()
@@ -601,28 +603,28 @@ class TestFailOpenOnSqliteError:
         _safe_write(conn, "SELECT 1", ())  # must not raise
 
     def test_cache_get_survives_closed_connection(self):
-        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache = SheetStructureCache(db_path=":memory:", ttl=60, principal="test")
         cache.store("sid", [SheetInfo(title="S1", sheet_id=0)])
         cache._conn.close()
         assert cache.get_sheets("sid") is None
 
     def test_cache_store_survives_closed_connection(self):
-        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache = SheetStructureCache(db_path=":memory:", ttl=60, principal="test")
         cache._conn.close()
         cache.store("sid", [SheetInfo(title="S1", sheet_id=0)])  # must not raise
 
     def test_mark_dirty_survives_closed_connection(self):
-        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache = SheetStructureCache(db_path=":memory:", ttl=60, principal="test")
         cache._conn.close()
         cache.mark_dirty("sid")  # must not raise
 
     def test_mark_all_dirty_survives_closed_connection(self):
-        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache = SheetStructureCache(db_path=":memory:", ttl=60, principal="test")
         cache._conn.close()
         cache.mark_all_dirty()  # must not raise
 
     def test_doc_cache_get_survives_closed_connection(self):
-        cache = DocContentCache(db_path=":memory:", ttl=60)
+        cache = DocContentCache(db_path=":memory:", ttl=60, principal="test")
         cache.store("fid", {"title": "Doc"})
         cache._conn.close()
         assert cache.get("fid") is None
@@ -631,18 +633,18 @@ class TestFailOpenOnSqliteError:
 class TestOpenFallback:
     """_open() must survive a read-only or corrupted DB file without crashing."""
 
-    def test_readonly_file_deleted_and_retried(self, tmp_path):
-        # chmod 444 on the file — WAL pragma can't write, triggers OperationalError.
-        # Directory is still writable, so deletion succeeds and retry creates a fresh DB.
+    def test_readonly_own_file_is_repaired(self, tmp_path):
+        # chmod 444 on our own file: _prepare makes it 0600 before opening
+        # (GHSA-8jqx-w7j8-6xwm), so it's used as a file DB, not the memory fallback.
         db = str(tmp_path / "test.db")
         open(db, "w").close()
         os.chmod(db, 0o444)
         try:
             conn = _open(db)
             conn.execute("SELECT 1").fetchone()
+            assert conn.execute("PRAGMA database_list").fetchone()[2] != ""
             conn.close()
-            # Retry succeeded — fresh file was created (not memory fallback)
-            assert os.path.exists(db)
+            assert os.stat(db).st_mode & 0o777 == 0o600
         finally:
             os.chmod(db, 0o644)
 
@@ -667,7 +669,7 @@ class TestOpenFallback:
         db = str(ro_dir / "test.db")
         os.chmod(str(ro_dir), 0o444)
         try:
-            cache = SheetStructureCache(db_path=db, ttl=60)
+            cache = SheetStructureCache(db_path=db, ttl=60, principal="test")
             sheets = [SheetInfo(title="S1", sheet_id=0)]
             cache.store("sid", sheets)
             result = cache.get_sheets("sid")
@@ -683,8 +685,8 @@ class TestSizedCacheRaces:
     mark_dirty path, exhaustive-fetch tracking, and keep-larger compare-and-set."""
 
     def setup_method(self):
-        self.folders = DriveFolderCache(db_path=DB, ttl=60)
-        self.data = SheetDataCache(db_path=DB, ttl=60)
+        self.folders = DriveFolderCache(db_path=DB, ttl=60, principal="test")
+        self.data = SheetDataCache(db_path=DB, ttl=60, principal="test")
 
     # --- finding 1: epoch guard (plus the prefix mark_dirty epoch gap) ---
 
@@ -776,7 +778,7 @@ class TestSizedCacheRaces:
         assert self.data.get("sid", 10, 5) is not None  # "sid:1" isn't a prefix of "sid:10"
 
     def test_sheet_structure_epoch_scoped_to_spreadsheet(self):
-        cache = SheetStructureCache(db_path=DB, ttl=60)
+        cache = SheetStructureCache(db_path=DB, ttl=60, principal="test")
         epoch = cache.snapshot_epoch()
         cache.mark_dirty("other")
         cache.store("sid", [SheetInfo(title="S", sheet_id=0)], epoch=epoch)

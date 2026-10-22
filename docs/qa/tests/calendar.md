@@ -28,6 +28,12 @@ list_calendars returned [] initially (SA has zero subscriptions); after create_c
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kit`: After `refresh_cache` (the first call returned a cached result from another server): `list_calendars` returned 3 calendars including the primary and `mcp-gee-sweet-qa`, each with id/summary/time_zone/access_role/primary. The service-account run (kai-sa) had no subscribed calendars.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth): 3 calendars, each with id, summary, time_zone, access_role, primary; fixture calendar listed.
+
 ---
 
 ### TC-CAL02: primary flag
@@ -62,6 +68,9 @@ Two list_calendars calls returned byte-identical results. Cache-hit log not obse
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth): `Cached calendar list (3 entries)`, then `Calendar list cache hit`, same 3 calendars.
 
 ---
 
@@ -743,6 +752,12 @@ list_events no time filter on SACAL -> {"result":[]} (all seeded events are befo
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass**
+`kit`: No-filter `list_events` on {CALENDAR_ID} returned [] (no events seeded after now). A July window returned the TC-CAL20 event with id/summary/start/end/status. Not checked: ordering, with only one event in range.
+
+**Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth): no future events on the fixture calendar (`[]`); a July window returned the TC-CAL20 event with the required fields. Ordering not checkable with one event.
+
 ---
 
 ### TC-CAL10: time_min + time_max window
@@ -950,6 +965,12 @@ create_event timed on SACAL -> id, start/end RFC3339 w/ offset (2026-07-01T13:00
 **Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`kit`: `create_event` 2026-07-01 10:00–11:00 PT: RFC 3339 start/end with offset, `html_link`, status confirmed; a July `list_events` re-fetched it. Playwright (`2026-10-19-tc-cal20.png`): the event opens from `html_link` on Jul 1, 5–6pm in the GMT+0 browser (10–11am PT). Event deleted.
+
+**Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
+`kai-oauth` (OAuth): event created with correct start/end and html_link, `Marked calendar cache dirty` logged, then deleted. API checks only. Stale wording: `list_events` isn't cached, so there's no re-fetch line to see.
 
 ---
 
