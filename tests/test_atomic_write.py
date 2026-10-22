@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import pytest
 
 from mcp_gee_sweet.tools import atomic_write
+from tests.conftest import IS_ROOT
 
 
 def _partial_files(directory):
@@ -47,7 +48,7 @@ class TestWriteAtomically:
 
         assert dest.stat().st_mode & 0o777 == 0o750
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     def test_read_only_destination_is_refused_not_replaced(self, tmp_path):
         """PR #884 QA round 1: a rename only needs directory write permission,
         so a file the user made read-only was silently replaced. The old
@@ -63,7 +64,7 @@ class TestWriteAtomically:
         assert dest.stat().st_mode & 0o777 == 0o444
         assert _partial_files(tmp_path) == []
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     def test_read_only_symlink_target_is_refused(self, tmp_path):
         real = tmp_path / "real.bin"
         real.write_bytes(b"protected")

@@ -19,6 +19,7 @@ from PIL import ImageFile as PILImageFile
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import images
 from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
+from tests.conftest import IS_ROOT
 
 from .fakes import as_service_account
 
@@ -221,7 +222,7 @@ class TestCheckImageFile:
         with pytest.raises(OSError):
             images.check_image_file(tmp_path / "nope.png")
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(IS_ROOT, reason="root ignores file permissions")
     def test_unreadable_file_raises_instead_of_passing_as_non_image(self, tmp_path):
         # PR #801 QA round 1: a permission-denied file must not be mistaken for
         # "not an image" and waved through to the upload.
@@ -1069,7 +1070,7 @@ class TestPrepareLocalImage:
         )
         assert result["error"].startswith("failed to read local file:")
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(IS_ROOT, reason="root ignores file permissions")
     async def test_permission_denied_file_is_read_error_not_uploaded(self, tmp_path):
         # PR #801 QA round 1: must not pass as "not an image" (None) and reach the
         # upload, which would fail with a bare [Errno 13] instead.
@@ -1951,7 +1952,7 @@ class TestInsertLocalImages:
         assert "error" in result["results"][0]
         assert "error" not in result["results"][1]
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(IS_ROOT, reason="root ignores file permissions")
     async def test_unreadable_local_image_is_clean_read_error_without_upload(self, tmp_path):
         # PR #801 QA round 1: the permission error surfaces at the size gate as
         # "failed to read local file", never reaching the upload.

@@ -40,6 +40,7 @@ from mcp_gee_sweet.tools.docs.content import (
 from mcp_gee_sweet.tools.docs.emitter import ast_to_requests, extract_images
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 from mcp_gee_sweet.tools.drive import _USER_QUOTA_ERROR
+from tests.conftest import IS_ROOT
 
 from .fakes import as_service_account
 
@@ -1209,7 +1210,7 @@ class TestResolveImageSource:
         assert "error" in result
         assert "No file found" in result["error"]
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(IS_ROOT, reason="root ignores file permissions")
     async def test_local_path_unreadable_is_clean_read_error_without_upload(self, tmp_path):
         # PR #801 QA round 1: a permission-denied file must fail at the size gate
         # with a clean read error, not reach the upload.

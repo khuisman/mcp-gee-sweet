@@ -21,6 +21,7 @@ from mcp_gee_sweet.tools.drive.transfer import (
     _upload_local_file,
     _xlsx_range_values,
 )
+from tests.conftest import IS_ROOT
 
 from ..fakes import as_service_account
 
@@ -4618,7 +4619,7 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
         assert not (tmp_path / "big.bin").exists()
         assert _partial_files(tmp_path) == []
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     async def test_read_only_local_file_is_a_download_fail_not_replaced(
         self, tmp_path, monkeypatch
     ):
@@ -4779,7 +4780,7 @@ class TestDownloadToolsFailedDownloadLeavesNoPartial:
         assert dest.read_bytes() == b"previous download"
         assert _partial_files(tmp_path) == []
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     async def test_download_file_refuses_read_only_destination(self, tmp_path, monkeypatch):
         """PR #884 QA round 1, the live repro: a read-only file was replaced by
         the Drive content and the call reported success."""
