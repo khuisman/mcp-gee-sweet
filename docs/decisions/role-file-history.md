@@ -132,7 +132,7 @@ Friction Dev (Ash/Jay) typically hits after finishing a ticket, and where it goe
 
 ### Step 6: every GitHub post's full text is shown before it's sent (2026-10-18)
 
-- On PR #1089, the PR body, follow-up ticket #1090 and the round-2 reply were each "previewed" as a path to a draft file, so the user approved text they'd have had to open themselves. #1111 was filed straight from "make a new ticket" without its body ever being shown, then edited twice the same way. The user's global instructions already require a preview of the full title, body and destination plus explicit permission before any external post, and memory had the same note, but neither is loaded at the moment `dev.md` step 6 is being followed. Step 6 now says it directly and covers every later post and edit on the ticket.
+- On PR #1089, the PR body, follow-up ticket #1090 and the round-2 reply were each "previewed" as a path to a draft file, so the user approved text they'd have had to open themselves. #1111 was filed straight from "make a new ticket" without its body ever being shown, then edited twice the same way. The user's global `CLAUDE.md`, loaded in every session, already requires a preview of the full title, body and destination plus explicit permission before any external post, and memory adds that the full draft belongs in the first ask so one answer covers it. Neither says that a path to a draft file isn't a preview, which is the case that was missed. Step 6 now says it directly, carries the one-approval point, and covers every later post and edit on the ticket.
 
 ## `qa.md`
 
