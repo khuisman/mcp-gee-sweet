@@ -67,9 +67,7 @@ class TestGetDocStructureInlineObject:
                 ]
             },
         }
-        result = await _docs_tools["get_doc_structure"](
-            doc_id="doc1", ctx=_make_ctx(docs_svc)
-        )
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=_make_ctx(docs_svc))
         image_runs = [r for r in result["elements"][0]["runs"] if r.get("type") == "inlineObject"]
         assert image_runs == [
             {
