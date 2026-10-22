@@ -1,0 +1,1835 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-10-18-markdown-phase2/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Markdown rendering baseline, Phase 2 — 2026-10-18 (#1044) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#markdown-rendering-baseline-phase-2-2026-10-18-1044" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Markdown rendering baseline, Phase 2 — 2026-10-18 (#1044)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="markdown-rendering-baseline-phase-2-2026-10-18-1044">Markdown rendering baseline, Phase 2 — 2026-10-18 (#1044)<a class="headerlink" href="#markdown-rendering-baseline-phase-2-2026-10-18-1044" title="Permanent link">&para;</a></h1>
+<p>The second live run of <a href="../../tests/docs_markdown/"><code>docs/qa/tests/docs_markdown.md</code></a>: Phase 2, the 17 syntax fixtures (TC-MD101–117) and the 4 matrices (TC-MD201–204), 467 cases. Phase 1 is in <a href="../2026-10-18-markdown/"><code>2026-10-18-markdown.md</code></a>. Document boundaries (TC-MD301–303) and document state (TC-MD401–404) are still to run.</p>
+<p><strong>Result: 1,522 of 3,758 case × entry-point cells pass (40%); no TC passes.</strong> Every case went through all 8 entry points twice. Across 498 screenshot pages, 478 were identical between the runs, 9 differed only by a spell-check squiggle, and 11 (EP-8 of TC-MD108 and TC-MD202) changed font, which fails Rule 4.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Code under test:</strong> <code>develop</code> at <code>504a5b2b</code>, the same server processes as Phase 1 (stdio servers load the package once at start). Two fixes merged to <code>develop</code> during the run and are <strong>not</strong> reflected here: #1089 (#1056, blockquote indent) and #1088 (#1057, soft-break export). Every "quote has a border but no indent" cell below predates #1089.</li>
+<li><strong>Servers and shards</strong> as in Phase 1: A <code>kai-oauth</code> (TC-MD201, 101, 102, 113, 114, 115), B <code>oauth</code> (TC-MD202, 103, 111, 112, 116), C <code>kai-sa</code> (TC-MD203, 109, 110, 117), D <code>sa</code> (TC-MD204, 104, 105, 106, 107, 108). Lanes A and B were mid-ticket, so lane servers weren't used.</li>
+<li><strong>Approvals:</strong> the Phase 1 write categories, plus "go ahead with phase 2, shares approved" for TC-MD112's temporary "anyone with the link" shares. Every image result reported <code>shared: false</code> afterwards (revoked).</li>
+<li><strong>Folders:</strong> <code>QA-MD-2026-10-18-p2-run1</code> and <code>-p2-run2</code> under <code>TEST_FOLDER_ID</code>, one subfolder per shard with <code>ep5</code>/<code>ep6</code>/<code>ep7</code> children. Trashed after recording, with the image uploads TC-MD112 made outside them.</li>
+<li><strong>TC-MD112</strong> used <code>md-images.local.md</code> (ignored) with the placeholders substituted; the Drive copy of <code>qa-fixture-pixel.png</code> sat in the run 1 folder.</li>
+<li><strong>TC-MD111</strong> also ran EP-1 to EP-4 with <code>autolink_urls=False</code>.</li>
+</ul>
+<h2 id="method">Method<a class="headerlink" href="#method" title="Permanent link">&para;</a></h2>
+<p>Phase 2's fixtures hold many cases each, and the matrices run 8–11 pages, so the per-case screenshot of Phase 1 was replaced:</p>
+<ul>
+<li><strong>Deterministic page screenshots.</strong> One <code>browser_run_code_unsafe</code> call per Doc set a 1400×2200 viewport, then captured page <em>k</em> at <code>.kix-appview-editor</code> scrollTop = (<em>k</em>−1)×1900 until the end of the document (<code>docs/qa/screenshots/md/p2-run&lt;N&gt;/EP-&lt;n&gt;/&lt;TC&gt;-&lt;k&gt;.jpeg</code>, gitignored). Each page shows several cases; together they cover the whole document.</li>
+<li><strong>By eye for one entry point per engine, pixel identity for its siblings.</strong> Shards judged EP-1, EP-5 and EP-8 case by case. EP-2/3/4 were pixel-compared with EP-1 and EP-6/7 with EP-5, page by page (grayscale, threshold 40, Docs chrome, caret column and outline pane masked). Every sibling was pixel-identical except three spell-check squiggles (judged by eye: same content). EP-1 to EP-4 rendered identically to each other in every TC, and so did EP-5 to EP-7.</li>
+<li><strong>Run 2</strong> re-rendered everything into a fresh folder with the same script and was pixel-compared page by page against Run 1, by each shard and again centrally. Every Run 2 file is newer than its Run 1 pair.</li>
+<li><strong>One judging gap closed:</strong> in Run 1 shard A didn't read EP-5 pages 3, 4, 7, 8, 10, 11 and EP-8 pages 5, 6, 8 of TC-MD201 frame by frame. Run 2's shard A judged those pages case by case; no verdict changed (none of Run 1's ✅ cells were on them).</li>
+</ul>
+<h2 id="results-by-tc">Results by TC<a class="headerlink" href="#results-by-tc" title="Permanent link">&para;</a></h2>
+<p>Cells count each case once per entry point: ours = EP-1 to EP-4 (×4), Drive import = EP-5 to EP-7 (×3), EP-8 (×1); TC-MD111's <code>autolink_urls=False</code> variant adds ×4. Columns give cases passing per engine.</p>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Fixture</th>
+<th style="text-align: right;">Cases</th>
+<th style="text-align: right;">Ours ✅</th>
+<th style="text-align: right;">Drive ✅</th>
+<th style="text-align: right;">EP-8 ✅</th>
+<th style="text-align: right;">Cells pass</th>
+<th>Failures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-MD101</td>
+<td>headings</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">50/64</td>
+<td>#1116, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD102</td>
+<td>emphasis</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">50/64</td>
+<td>#1116, #1077, #1093, #1102</td>
+</tr>
+<tr>
+<td>TC-MD103</td>
+<td>inline code</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">24/48</td>
+<td>#1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD104</td>
+<td>code blocks</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">40/80</td>
+<td>#1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD105</td>
+<td>list markers</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">31/64</td>
+<td>#1115, #1116, #1118, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD106</td>
+<td>nesting</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">18/128</td>
+<td>#1071, #1072, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD107</td>
+<td>blocks in items</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">17/72</td>
+<td>#1115, #1094, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD108</td>
+<td>list boundaries</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">21/72</td>
+<td>#1116, #1093, #1094, #1118, #1101, #1102 ⚠️ND</td>
+</tr>
+<tr>
+<td>TC-MD109</td>
+<td>task lists</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">27/48</td>
+<td>#1071, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD110</td>
+<td>blockquotes</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0/72</td>
+<td>#1056, #1093, #1098, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD111</td>
+<td>links</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">9 (+11 noauto)</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">117/144</td>
+<td>#1116, #1120, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD112</td>
+<td>images</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">48/70</td>
+<td>#1121, #1073, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD113</td>
+<td>tables</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">62/96</td>
+<td>#1095, #1116, #1077, #1098, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD114</td>
+<td>breaks and rules</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">40/72</td>
+<td>#1093, #1117, #1116, #1096, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD115</td>
+<td>escapes</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">50/56</td>
+<td>#1116, #1102</td>
+</tr>
+<tr>
+<td>TC-MD116</td>
+<td>inline HTML</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">30/56</td>
+<td>#1077, #1119, #1117, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD117</td>
+<td>unicode</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">32/56</td>
+<td>#1101, #1102; UN-04/UN-05 PARTIAL (fixture)</td>
+</tr>
+<tr>
+<td>TC-MD201</td>
+<td>containment</td>
+<td style="text-align: right;">80</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">75/640</td>
+<td>#1115, #1094, #1072, #1056, #1122, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD202</td>
+<td>adjacency, no blank</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;">47</td>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">301/800</td>
+<td>#1116, #1093, #1096, #1056, #1097, #1073, #1101, #1102 ⚠️ND</td>
+</tr>
+<tr>
+<td>TC-MD203</td>
+<td>adjacency, blank</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">52</td>
+<td style="text-align: right;">49</td>
+<td style="text-align: right;">45</td>
+<td style="text-align: right;">400/800</td>
+<td>#1115, #1056, #1096, #1097, #1098, #1101, #1102</td>
+</tr>
+<tr>
+<td>TC-MD204</td>
+<td>inline matrix</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">89/256</td>
+<td>#1077, #1116, #1056, #1122, #1101, #1102</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td style="text-align: right;"><strong>467</strong></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>1,522/3,758</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>⚠️ND: EP-8's rendering changed between runs. IM-05 on EP-1/EP-2 is N/A per the plan (no file to resolve against) and is excluded from TC-MD112's total.</p>
+<p>Per-case verdicts with what was observed are in the shard reports; the per-case grid isn't repeated here because every failing case maps to an issue above.</p>
+<h2 id="issues">Issues<a class="headerlink" href="#issues" title="Permanent link">&para;</a></h2>
+<p>New from Phase 2:</p>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Defect</th>
+<th>Engine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>#1115</td>
+<td>a loose list (blank lines between items) loses its bullets and numbers: <code>&lt;p&gt;</code> inside <code>&lt;li&gt;</code> replaces the item</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1116</td>
+<td>switch the Markdown parser to CommonMark/GFM (decided): Python-Markdown can't start a block without a blank line, rejects <code>1)</code>, backslash breaks, <code>#hashtag</code>/<code>#######</code>, most escapes, bold inside italic, <code>www.</code>/email autolinks, <code>\|</code> in table code</td>
+<td>ours, EP-8</td>
+</tr>
+<tr>
+<td>#1117</td>
+<td>a hard line break becomes a paragraph break (<code>&lt;br&gt;</code> → <code>\n</code>)</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1118</td>
+<td>an ordered list's start number is ignored (no Docs API request sets it)</td>
+<td>ours, EP-8</td>
+</tr>
+<tr>
+<td>#1119</td>
+<td><code>&lt;sub&gt;</code>, <code>&lt;sup&gt;</code>, <code>&lt;mark&gt;</code> have no effect</td>
+<td>ours</td>
+</tr>
+<tr>
+<td>#1120</td>
+<td>a relative link becomes <code>http://./guide.md</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td>#1121</td>
+<td>a relative image path in a <code>.md</code> file isn't resolved against the file's directory</td>
+<td>EP-3, EP-4</td>
+</tr>
+<tr>
+<td>#1122</td>
+<td>tables, rules and nested quotes inside a blockquote render outside it</td>
+<td>ours</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 2 evidence was added to #1071, #1072, #1073, #1077, #1093, #1094, #1096, #1097, #1098, #1101 and #1102.</p>
+<h2 id="nondeterminism-ep-8">Nondeterminism (EP-8)<a class="headerlink" href="#nondeterminism-ep-8" title="Permanent link">&para;</a></h2>
+<p>EP-8's fenced code font flipped again: TC-MD202 (every fenced block, all 9 pages) and TC-MD108 LX-09 were Arial in Run 1 and monospace in Run 2. Shard B re-opened the Run 1 TC-MD202 Doc afterwards and it still showed Arial, so the difference is stored in the Docs, not a screenshot timing artifact. The server process was the same in both runs, so the variance is Drive's HTML import (#1102; Phase 1 saw the same on 3 fixtures). The other 19 fixtures rendered identically through EP-8.</p>
+<h2 id="test-plan-fix-in-this-pr">Test-plan fix in this PR<a class="headerlink" href="#test-plan-fix-in-this-pr" title="Permanent link">&para;</a></h2>
+<p><code>md-unicode.md</code> (TC-MD117) had a precomposed <code>é</code> where UN-04 needs <code>e</code> + U+0301, and plain spaces where UN-05 needs U+00A0 and U+2009, so neither case could test what it says. Fixed here; UN-04 and UN-05 are PARTIAL in this baseline and run properly next time.</p>
+<h2 id="findings-that-werent-filed">Findings that weren't filed<a class="headerlink" href="#findings-that-werent-filed" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Pagination:</strong> a short table split across a page break although the page had room (TC-MD203 AB-080), images pushed to the next page (AB-069), and BQ-09 starting a second page in both our engine and Drive's. Likely keep-with-next behaviour; not filed until it's shown to be ours.</li>
+<li><strong>Images uploaded outside the target folder:</strong> <code>write_doc_content</code> and <code>update_doc_from_file</code> upload a local image to the server's default folder, since those tools take no folder argument. Expected, but each call leaves an image file behind after the share is revoked.</li>
+<li><strong>Drive's task items</strong> render as native Docs checklists, not <code>● ☐</code> text; equivalent on screen, recorded under #1101.</li>
+</ul>
+<h2 id="process-notes">Process notes<a class="headerlink" href="#process-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Lock incidents (Run 1):</strong> shard A acquired the Playwright lock in a background command and refreshed it late; another shard's stale recovery took it, and one of shard A's captures landed on another shard's Doc. Shard A discarded it and re-took it; the other shard confirmed every capture's Doc ID. Shard B also used stale recovery once on a 122-second-old lock. Run 2's rules required a foreground acquire, a keepalive, and 60 more seconds without an mtime change before stale recovery; no incidents. Lock waits reached 8 minutes with four shards and multi-page matrix Docs: the shared browser is the bottleneck of this suite.</li>
+<li><strong>Playwright's <code>filename</code> option</strong> only reads scripts under the worktree, so shards passed the screenshot script inline or wrote it to the ignored <code>.playwright-mcp/</code>.</li>
+<li>No #1052 connection resets and no classifier denials in either run.</li>
+</ul>
+<h2 id="resource-usage">Resource usage<a class="headerlink" href="#resource-usage" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shard</th>
+<th>Prefix</th>
+<th>Tokens</th>
+<th>Tool uses</th>
+<th>Wall time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A</td>
+<td><code>kai-oauth</code></td>
+<td>446,338</td>
+<td>257</td>
+<td>~73 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>B</td>
+<td><code>oauth</code></td>
+<td>477,641</td>
+<td>300</td>
+<td>~72 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>C</td>
+<td><code>kai-sa</code></td>
+<td>401,165</td>
+<td>185</td>
+<td>~71 min</td>
+</tr>
+<tr>
+<td>1</td>
+<td>D</td>
+<td><code>sa</code></td>
+<td>414,482</td>
+<td>241</td>
+<td>~72 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A</td>
+<td><code>kai-oauth</code></td>
+<td>335,462</td>
+<td>260</td>
+<td>~53 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>B</td>
+<td><code>oauth</code></td>
+<td>306,504</td>
+<td>294</td>
+<td>~66 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>C</td>
+<td><code>kai-sa</code></td>
+<td>239,678</td>
+<td>138</td>
+<td>~41 min</td>
+</tr>
+<tr>
+<td>2</td>
+<td>D</td>
+<td><code>sa</code></td>
+<td>268,986</td>
+<td>194</td>
+<td>~57 min</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Aziz (setup, probes, compare, compile, filing)</td>
+<td>—</td>
+<td><em>not measured per step</em></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Total across shards: about 2.89M tokens (Phase 1: about 2.66M).</p>
+<h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
+<p>TC-MD301–303 (document boundaries) and TC-MD401–404 (document state), on the user's go-ahead. After the fixes land, re-run Phase 1 and Phase 2 under the new parser (#1116) and engine choice (#1101).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
