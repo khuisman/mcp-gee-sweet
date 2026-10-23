@@ -3,7 +3,6 @@
 import inspect
 import io
 import json
-import os
 import threading
 from functools import partial
 from unittest.mock import AsyncMock, MagicMock, call, patch
