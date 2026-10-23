@@ -3,7 +3,7 @@ name = "mcp-gee-sweet"
 dynamic = ["version"]
 description = "MCP server for Google Workspace — Sheets, Drive, Docs (HTML or Markdown), Calendar, and Gmail."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 keywords = [
     "mcp",
@@ -21,7 +21,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -36,7 +35,7 @@ dependencies = [
     "google-api-python-client>=2.199.0",
     "markdown>=3.10.3",
     "openpyxl>=3.1.5",
-    "Pillow>=11.0.0",
+    "Pillow>=13.0.0",
     # floor pins for transitive CVEs — ensures safe resolution for downstream consumers
     "starlette>=1.6.0",
     "cryptography>=50.0.1",

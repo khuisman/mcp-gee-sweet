@@ -32,7 +32,7 @@ Checked against `develop` at `f899708`:
 
 It's a top-level module beside `http_transport.py`, not under `tools/`, because `server.py` needs it at import time for registration and every tool domain needs it at call time. It owns:
 
-- `LocalFileAccess`: a `str, Enum` with `FULL`, `ROOTS`, `OFF` (not `StrEnum`, which needs Python 3.11; the package supports 3.10).
+- `LocalFileAccess`: a `str, Enum` with `FULL`, `ROOTS`, `OFF` (not `StrEnum`, which needs Python 3.11; kept from when the package supported Python 3.10 — see #1158).
 - `POLICY`: the process's resolved policy (mode, roots, deny-list), computed once at import.
 - `check_read(path) -> Path` and `check_write(path) -> Path`: the one shared check. Each returns the resolved `Path` to use for the I/O, or raises `LocalFileAccessError`.
 - `LocalFileAccessError(ValueError)`: a `ValueError` subclass, so `_timed`'s error-visibility allowlist (`decision-tool-error-visibility.md`) passes its message to the client unchanged. Sites that report errors as `{"error": ...}` or as per-item `failed` entries catch it and use `str(e)`.
