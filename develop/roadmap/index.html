@@ -1796,9 +1796,9 @@
 <td>Published 2026-10-21</td>
 </tr>
 <tr>
-<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4"><strong>v0.9.4</strong></a></td>
-<td>In flight. Security hotfix cut from v0.9.3: Pillow 13.0.0 for 12.3.0's open CVEs, which drops Python 3.10 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1158">#1158</a>). Nothing else from <code>develop</code></td>
-<td>Ships once the backport passes QA and Aziz signs off</td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.4"><strong>v0.9.4</strong></a></td>
+<td>✅ Security hotfix cut from v0.9.3: Pillow 13.0.0 for 12.3.0's open CVEs, which drops Python 3.10 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1158">#1158</a>). Nothing else from <code>develop</code></td>
+<td>Published 2026-10-22</td>
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22"><strong>ornithomimus</strong></a></td>
@@ -2177,6 +2177,7 @@
 <ul>
 <li>[x] transfer.py interpolates folder IDs unescaped into Drive queries (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1084">#1084</a>) (PR #1140)</li>
 <li>[x] get_doc_structure hides inline images, so an image's index can't be found (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1070">#1070</a>) (PR #1110)</li>
+<li>[ ] thread_http's per-thread <code>httplib2.Http</code> has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. <code>severe</code>, observed: a 30-minute <code>create_doc_from_file</code> hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1129">#1129</a>)</li>
 <li>[ ] create_paragraph_bullets adds the requested nesting level to an item's current level instead of setting it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1069">#1069</a>)</li>
 <li>[ ] <code>transfer_ownership(send_notification=False)</code> can never succeed — <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1055">#1055</a>)</li>
 <li>[ ] create_bookmark doesn't create a bookmark Docs lists — docstring fix (option 2) now (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1076">#1076</a>)</li>
