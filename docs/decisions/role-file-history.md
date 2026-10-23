@@ -455,6 +455,16 @@ Friction Kai typically hits during coordination, and where it goes — see `/ret
 - **Aziz's sign-off PR had no label path.** PR #1051 carried no `qa-approved`, and nobody is assigned to add one: Aziz has no QA partner, and it doesn't touch `src/`. `kai.md` said not to merge without the label, and `merge-pr.md` step 2 only requires it on lane branches. Kai asked the user, who approved. `kai.md` now says the user's go-ahead is the approval, recorded by Kai applying the label.
 - **The merge-back fast-forwarded.** Nothing landed on `develop` between the release PR merge and step 8, so `git merge origin/main` fast-forwarded with no merge commit. `git describe --tags origin/develop` printed exactly `v0.9.2`, which step 9's example (`vX.Y.Z-N-g<hash>`) didn't cover. `release.md` steps 8–10 now name that case as correct.
 
+### v0.9.3 release coordination cost
+
+Moved from `kai.md`'s "Coordinating sessions" and Release scoping rule 2 when PR #1159 added them (Bob's round 1 review).
+
+- **The rules came from the v0.9.3 release (2026-10-20/21):** five `/clear`s, four relaunches, and about 40 Kai hand-offs for two advisories and two small tickets.
+- **Send a promised hand-off:** in v0.9.3 a QA session that bootstrapped with no brief picked an already-approved PR and wasted its session.
+- **One ticket per session limits a session, not a lane:** in v0.9.3 #1124 waited about 25 hours behind #1052 and then took 12 minutes, and a "won't collide" claim made from memory was wrong.
+- **Release scoping rule 2's single summary:** v0.9.3 took five additions after its lock through one-line approvals.
+- **The rubric's trust-boundary definition of data exposure** came after GHSA-8jqx.
+
 ## `bob.md`
 
 ### Why this role exists

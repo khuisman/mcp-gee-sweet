@@ -36,7 +36,11 @@ from ..response_limits import (
     validate_local_destination,
     write_capped_result_to_disk,
 )
-from . import _escape_drive_query_mime_type, _quota_error_text
+from . import (
+    _escape_drive_query_mime_type,
+    _escape_drive_query_value,
+    _quota_error_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -790,7 +794,7 @@ async def _upload_local_file(
         existing = await execute_in_thread(
             drive_service.files()
             .list(
-                q=f"({name_clause}) and '{parent_folder_id}' in parents and trashed=false",
+                q=f"({name_clause}) and '{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
@@ -931,7 +935,7 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
     results = await execute_in_thread(
         drive_service.files()
         .list(
-            q=f"'{folder_id}' in parents and trashed=false",
+            q=f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false",
             spaces="drive",
             includeItemsFromAllDrives=True,
             supportsAllDrives=True,
@@ -3156,7 +3160,7 @@ def register(tool):
             existing_resp = await execute_in_thread(
                 drive_service.files()
                 .list(
-                    q=f"'{parent_folder_id}' in parents and trashed=false",
+                    q=f"'{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
@@ -3479,7 +3483,7 @@ def register(tool):
         dest_dir, _ = validate_local_destination(local_path, is_dir=True)
         resolved_dest_dir = dest_dir.resolve()
 
-        query = f"'{folder_id}' in parents and trashed=false"
+        query = f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false"
         if mime_type_filter:
             safe = _escape_drive_query_mime_type(mime_type_filter)
             query += f" and mimeType='{safe}'"
