@@ -1,0 +1,1816 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.4/qa/runs/v0.9.1/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>QA Run Gate — v0.9.1 - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-gate-v091" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run Gate — v0.9.1
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-gate-v091">QA Run Gate — v0.9.1<a class="headerlink" href="#qa-run-gate-v091" title="Permanent link">&para;</a></h1>
+<p><strong>Release type:</strong> Security patch (hotfix branch <code>release/0.9.1-hotfix</code>, based on <code>v0.9.0</code>)
+<strong>Suite required:</strong> <strong>Targeted</strong> — TC-D278 plus a regression pass on the <code>download_file</code>, <code>download_folder</code>, and <code>sync_folder</code> cases that exist in v0.9.0. See the scoping audit below.
+<strong>Status:</strong> ✅ <strong>signed off 2026-10-03, cleared to tag v0.9.1 at <code>3d54bb9</code>.</strong> Committed 2026-10-12, once advisory GHSA-hx2f-x3v8-jq2v was published.</p>
+<hr />
+<h2 id="pre-flight">Pre-flight<a class="headerlink" href="#pre-flight" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] Release candidate: <code>690990a</code> on <code>release/0.9.1-hotfix</code> (<code>e09b849</code> is the fix; <code>690990a</code> adds Sky's TC-D278 results). Approved by Sky in the private advisory fork; SHA handed over by Kai.</li>
+<li>[x] Release commit: <code>3d54bb9</code> (<code>hotfix/v0.9.1</code>) = <code>690990a</code> + <code>chore(release): bump server.json to 0.9.1</code>. <code>git diff 690990a 3d54bb9</code> touches only <code>server.json</code> (two version strings). The package version comes from the git tag (<code>uv-dynamic-versioning</code>), so live results at <code>690990a</code> apply unchanged to <code>3d54bb9</code>. Kai reports the suite at <code>3d54bb9</code> at 1368 passed, 3 skipped.</li>
+<li>[x] Server: <code>mcp-gee-sweet-sky</code>, the only server on the release candidate. Sky's worktree (<code>team/sky</code>) resolves to <code>690990a</code>. Kai confirmed the server was reconnected after the reset.</li>
+<li>[x] Fixtures: repo-root <code>.env</code>. Each shard worked in its own throwaway Drive subfolder and <code>/tmp/aziz-091/*</code>; the shared <code>{FOLDER_ID}</code> was never modified.</li>
+</ul>
+<p><strong>Auth method used:</strong> OAuth (<code>mcp-gee-sweet-sky</code>).</p>
+<hr />
+<h2 id="scoping-audit-why-not-full-regression">Scoping audit — why not Full Regression<a class="headerlink" href="#scoping-audit-why-not-full-regression" title="Permanent link">&para;</a></h2>
+<p>Per <code>docs/qa/runs/README.md</code> §"Scoped gating".</p>
+<ol>
+<li><strong>Enumerate.</strong> <code>git log v0.9.0..690990a</code>: 2 commits, no merges. <code>git diff --stat v0.9.0 690990a</code>: <code>src/mcp_gee_sweet/tools/drive/transfer.py</code> (+200/−11), <code>tests/drive/test_transfer.py</code>, <code>docs/qa/tests/drive_transfer.md</code>, <code>docs/known-limitations.md</code>.</li>
+<li><strong>Classify.</strong> Behavior change in one module: how download/sync destination paths are built from Drive names.</li>
+<li><strong>Map to domains.</strong> Only <code>drive_transfer</code>, and within it only the three tools that write to <code>local_path</code>. Upload, export, and revision tools share the module but not the changed code paths.</li>
+<li><strong>Structural?</strong> No. There's no shared-helper change outside the destination-path logic, and no server, auth, or cache changes.</li>
+</ol>
+<p>Conclusion: TC-D278 (the fix) plus every v0.9.0 <code>download_file</code> / <code>download_folder</code> / <code>sync_folder</code> case. Unit tests (TC-D249–251 and the new test_transfer cases) are covered by CI on the hotfix branch.</p>
+<hr />
+<h2 id="shards">Shards<a class="headerlink" href="#shards" title="Permanent link">&para;</a></h2>
+<p>Run one after the other, because only one server carries the release candidate.</p>
+<table>
+<thead>
+<tr>
+<th>Shard</th>
+<th>Cases</th>
+<th>Prefix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Download</td>
+<td>TC-D101–106, D107–110, D195, D198, D200</td>
+<td><code>mcp-gee-sweet-sky</code></td>
+</tr>
+<tr>
+<td>Sync A</td>
+<td>TC-D111–119, D178, D190–194, D196–197, D199, D201</td>
+<td><code>mcp-gee-sweet-sky</code></td>
+</tr>
+<tr>
+<td>Sync B</td>
+<td>TC-D217–232, D238–239, D244–246</td>
+<td><code>mcp-gee-sweet-sky</code></td>
+</tr>
+</tbody>
+</table>
+<p>TC-D278: run live by Sky on the same server and commit (recorded in <code>690990a</code>).</p>
+<hr />
+<h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
+<h3 id="download-shard-2026-10-03-1313-pass">Download shard (2026-10-03): 13/13 PASS<a class="headerlink" href="#download-shard-2026-10-03-1313-pass" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Result</th>
+<th>Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D101</td>
+<td>✅</td>
+<td>Uploaded PNG downloaded byte-identical; the missing directory was created</td>
+</tr>
+<tr>
+<td>TC-D102</td>
+<td>✅</td>
+<td>Doc → txt matches the body</td>
+</tr>
+<tr>
+<td>TC-D103</td>
+<td>✅</td>
+<td>Doc → pdf, valid 1-page PDF</td>
+</tr>
+<tr>
+<td>TC-D104</td>
+<td>✅</td>
+<td>Sheet → csv matches <code>get_sheet_data</code> (Sales)</td>
+</tr>
+<tr>
+<td>TC-D105</td>
+<td>✅</td>
+<td>Missing <code>export_format</code> errors and writes no file</td>
+</tr>
+<tr>
+<td>TC-D106</td>
+<td>✅</td>
+<td>Exact-file <code>local_path</code> honored, parent created</td>
+</tr>
+<tr>
+<td>TC-D107</td>
+<td>✅</td>
+<td>Raw files downloaded; Workspace files and subfolder skipped</td>
+</tr>
+<tr>
+<td>TC-D108</td>
+<td>✅</td>
+<td><code>export_format=pdf</code> exports Doc and Sheet copies; subfolder skipped</td>
+</tr>
+<tr>
+<td>TC-D109</td>
+<td>✅</td>
+<td>Re-run skips all files, including names with the export extension added</td>
+</tr>
+<tr>
+<td>TC-D110</td>
+<td>✅</td>
+<td><code>mime_type_filter</code> limits to the Doc</td>
+</tr>
+<tr>
+<td>TC-D195</td>
+<td>✅</td>
+<td>Subfolder skipped, never created locally</td>
+</tr>
+<tr>
+<td>TC-D198</td>
+<td>✅ ×3</td>
+<td>12 files in about 1s per run, byte-identical, no mix-ups between files</td>
+</tr>
+<tr>
+<td>TC-D200</td>
+<td>✅ ×3</td>
+<td>Same-named pair: one downloaded, one in <code>failed</code> with the duplicate-filename reason; stable winner</td>
+</tr>
+</tbody>
+</table>
+<p>Extra regression probe (outside the listed cases): odd but legitimate names (<code>...</code>, <code>..leading-dots.txt</code>, <code>.hidden-ish</code>, <code>a..b.txt</code>, Unicode, <code>Q3: report.txt</code>) all downloaded via <code>download_folder</code> and <code>download_file</code>. Nothing was over-rejected and nothing landed outside the target.</p>
+<p>Minor observation, likely older than the hotfix (the hotfix diff doesn't touch that code): with a trailing-slash <code>local_path</code>, TC-D105 creates the empty target directory before raising. Not a blocker.</p>
+<h3 id="sync-shard-a-2026-10-03-18-pass-1-skip-0-fail">Sync shard A (2026-10-03): 18 PASS, 1 SKIP, 0 FAIL<a class="headerlink" href="#sync-shard-a-2026-10-03-18-pass-1-skip-0-fail" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Result</th>
+<th>Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D111</td>
+<td>✅</td>
+<td>dry_run lists every file with its action; flat lists empty; nothing changed</td>
+</tr>
+<tr>
+<td>TC-D112</td>
+<td>✅</td>
+<td>Drive-only and Drive-newer files downloaded</td>
+</tr>
+<tr>
+<td>TC-D113</td>
+<td>✅</td>
+<td>Local-only file uploaded, md5 matches</td>
+</tr>
+<tr>
+<td>TC-D114</td>
+<td>✅</td>
+<td>Local newer → uploaded; Drive newer → downloaded; within tolerance → skipped</td>
+</tr>
+<tr>
+<td>TC-D115</td>
+<td>✅</td>
+<td>Drive <code>modifiedTime</code> equals local mtime; immediate re-sync skips everything</td>
+</tr>
+<tr>
+<td>TC-D116</td>
+<td>✅</td>
+<td><code>direction='upload'</code>: nothing downloaded; Drive-newer file is a conflict</td>
+</tr>
+<tr>
+<td>TC-D117</td>
+<td>✅</td>
+<td><code>direction='download'</code>: nothing uploaded; local-newer file is a conflict</td>
+</tr>
+<tr>
+<td>TC-D118</td>
+<td>✅</td>
+<td>Workspace file ignored without <code>export_format</code></td>
+</tr>
+<tr>
+<td>TC-D119</td>
+<td>✅</td>
+<td>Invalid <code>direction</code>/<code>export_format</code> return an error dict; no directory created</td>
+</tr>
+<tr>
+<td>TC-D178</td>
+<td>✅ ×3</td>
+<td>Mixed upload/download batch; no mix-ups between files</td>
+</tr>
+<tr>
+<td>TC-D190</td>
+<td>✅</td>
+<td>Recursive: <code>nested/deep.txt</code> lands at the right nested path; re-sync skips</td>
+</tr>
+<tr>
+<td>TC-D191</td>
+<td>✅</td>
+<td>Drive-only subfolder listed in <code>folders_skipped</code>; nothing created locally</td>
+</tr>
+<tr>
+<td>TC-D192</td>
+<td>✅</td>
+<td>Non-recursive ignores subfolders</td>
+</tr>
+<tr>
+<td>TC-D193</td>
+<td>✅</td>
+<td>File/folder name collision goes to <code>failed</code> with a clear error; local file intact</td>
+</tr>
+<tr>
+<td>TC-D194</td>
+<td>✅</td>
+<td>Local-only subfolder created on Drive and uploaded</td>
+</tr>
+<tr>
+<td>TC-D196</td>
+<td>✅ (unit)</td>
+<td>Live cap too high to trip; named unit tests and all 159 <code>test_transfer.py</code> tests pass at <code>690990a</code></td>
+</tr>
+<tr>
+<td>TC-D197</td>
+<td>✅ ×3</td>
+<td>Sibling subfolders, same-named <code>common.txt</code> in each: each copy kept its own content</td>
+</tr>
+<tr>
+<td>TC-D199</td>
+<td>⏭ SKIP</td>
+<td>Client can't observe <code>notifications/progress</code>; both tools still complete normally</td>
+</tr>
+<tr>
+<td>TC-D201</td>
+<td>✅ ×3</td>
+<td>Downloaded file isn't re-uploaded on the next sync</td>
+</tr>
+</tbody>
+</table>
+<p>Extra regression probe (outside the listed cases): unusual but legitimate names (<code>..leading-dots.txt</code>, <code>a..b.txt</code>, Unicode, a subfolder <code>sub folder ..x/</code>) and a 3-level nested path round-tripped to the exact expected local paths. Trailing-slash, no-trailing-slash, and symlinked <code>/tmp</code> <code>local_path</code> all accepted.</p>
+<p>Minor observation, not caused by the hotfix (the same <code>mkdir</code> runs before the dry_run branch at <code>v0.9.0</code>): <code>dry_run</code> creates an empty <code>local_path</code> directory.</p>
+<h3 id="sync-shard-b-2026-10-03-2121-pass">Sync shard B (2026-10-03): 21/21 PASS<a class="headerlink" href="#sync-shard-b-2026-10-03-2121-pass" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Result</th>
+<th>Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D217</td>
+<td>✅</td>
+<td><code>.md</code> uploads as a Doc named <code>notes.md</code>, <code>modifiedTime</code> = local mtime</td>
+</tr>
+<tr>
+<td>TC-D218</td>
+<td>✅</td>
+<td>Resync skips; still 1 file (re-checked about 5 min later)</td>
+</tr>
+<tr>
+<td>TC-D219</td>
+<td>✅</td>
+<td>Local edit re-converts in place, same file ID</td>
+</tr>
+<tr>
+<td>TC-D220</td>
+<td>✅</td>
+<td>No flag: uploads as <code>text/markdown</code></td>
+</tr>
+<tr>
+<td>TC-D221</td>
+<td>✅</td>
+<td>Drive-only converted Doc is a clean conflict; nothing downloaded</td>
+</tr>
+<tr>
+<td>TC-D222</td>
+<td>✅</td>
+<td>Unrelated same-named Doc not matched; original untouched</td>
+</tr>
+<tr>
+<td>TC-D223</td>
+<td>✅</td>
+<td>Plain file not promoted; <code>failed</code> with the "cannot promote" message; original intact</td>
+</tr>
+<tr>
+<td>TC-D224</td>
+<td>✅</td>
+<td><code>convert_markdown</code> + <code>export_format</code>: conflict, no <code>.md</code> written locally</td>
+</tr>
+<tr>
+<td>TC-D225</td>
+<td>✅</td>
+<td>Resync without the flag still matches; 1 file</td>
+</tr>
+<tr>
+<td>TC-D226</td>
+<td>✅</td>
+<td><code>upload_local_file(convert=True)</code> Doc recognized by sync; skipped</td>
+</tr>
+<tr>
+<td>TC-D227</td>
+<td>✅</td>
+<td>Plain/converted name collision is a single <code>failed</code> entry; nothing touched</td>
+</tr>
+<tr>
+<td>TC-D228</td>
+<td>✅</td>
+<td><code>modifiedTime</code> stamped from local mtime; sync skips (re-checked about 3 min later)</td>
+</tr>
+<tr>
+<td>TC-D229</td>
+<td>✅</td>
+<td><code>direction='upload'</code> → skip; bidirectional → conflict</td>
+</tr>
+<tr>
+<td>TC-D230</td>
+<td>✅</td>
+<td>Two plain same-named files: collision <code>failed</code>, nothing touched</td>
+</tr>
+<tr>
+<td>TC-D231</td>
+<td>✅</td>
+<td>Local file colliding with a Drive pair goes to <code>failed</code>, not dropped</td>
+</tr>
+<tr>
+<td>TC-D232</td>
+<td>✅</td>
+<td>dry_run collision shows only in <code>actions</code> as <code>collision</code></td>
+</tr>
+<tr>
+<td>TC-D238</td>
+<td>✅</td>
+<td><code>use_checksum</code> skips identical content despite an mtime gap of about 22h; control uploads</td>
+</tr>
+<tr>
+<td>TC-D239</td>
+<td>✅</td>
+<td><code>use_checksum</code> doesn't change Workspace-file handling</td>
+</tr>
+<tr>
+<td>TC-D244</td>
+<td>✅</td>
+<td>dry_run flat lists empty; <code>actions</code> complete</td>
+</tr>
+<tr>
+<td>TC-D245</td>
+<td>✅</td>
+<td><code>result_local_path</code> writes <code>&lt;folder_id&gt;_sync_result.json</code> into an existing directory</td>
+</tr>
+<tr>
+<td>TC-D246</td>
+<td>✅</td>
+<td><code>result_local_path</code> at or inside <code>local_path</code> rejected before any API call</td>
+</tr>
+</tbody>
+</table>
+<p>Extra regression probe: <code>my notes (v2) é..final.txt</code> synced down to the expected path, not over-rejected.</p>
+<p>Minor observation, older than the hotfix (<code>response_limits.py</code> and every <code>result_local_path</code> line are unchanged between <code>v0.9.0</code> and <code>690990a</code>): a trailing-slash <code>result_local_path</code> naming a directory that doesn't exist yet is written as a <em>file</em> at that path, without the slash, rather than as a new directory. Fixed since on <code>develop</code> under #990.</p>
+<p>Converted-Doc <code>modifiedTime</code> drift seen on TC-D221's Doc: this is the documented asynchronous backend overwrite (#814). It changed no outcome.</p>
+<hr />
+<h2 id="sign-off">Sign-off<a class="headerlink" href="#sign-off" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D278 (the fix)</td>
+<td>✅ Sky, live, on <code>mcp-gee-sweet-sky</code> at <code>690990a</code></td>
+</tr>
+<tr>
+<td>Download shard</td>
+<td>13/13 PASS</td>
+</tr>
+<tr>
+<td>Sync shard A</td>
+<td>18 PASS, 1 SKIP (TC-D199, progress notifications not observable from this client)</td>
+</tr>
+<tr>
+<td>Sync shard B</td>
+<td>21/21 PASS</td>
+</tr>
+<tr>
+<td><strong>Total regression</strong></td>
+<td><strong>52 PASS, 1 SKIP, 0 FAIL</strong></td>
+</tr>
+</tbody>
+</table>
+<p>No regressions; legitimate unusual filenames are never over-rejected. All throwaway Drive folders were trashed and <code>/tmp/aziz-091/*</code> removed; the shared fixture folder was never modified.</p>
+<p>Post-advisory follow-ups (not blockers, all predate the hotfix):
+1. <code>result_local_path</code> with a trailing slash on a missing directory writes a file, not a directory. Fixed under #990.
+2. <code>download_file</code> (trailing-slash <code>local_path</code>) and <code>sync_folder(dry_run=True)</code> create an empty target directory before erroring or previewing. Filed as #1012.</p>
+<p><strong>✅ Signed off by Aziz, 2026-10-03. Cleared to tag v0.9.1 at <code>3d54bb9</code> (code identical to tested <code>690990a</code>).</strong></p>
+<p>Tagged: <code>v0.9.1</code> → <code>409d02b</code> on <code>main</code>. Its tree is identical to <code>3d54bb9</code> (<code>f6392a2</code>). Published to PyPI 2026-10-03.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

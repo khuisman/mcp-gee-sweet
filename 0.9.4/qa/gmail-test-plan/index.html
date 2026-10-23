@@ -1,0 +1,1860 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.4/qa/gmail-test-plan/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Gmail — QA Test Plan - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gmail-qa-test-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Gmail — QA Test Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="gmail-qa-test-plan">Gmail — QA Test Plan<a class="headerlink" href="#gmail-qa-test-plan" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> draft (2026-09-26), scoped under <a href="https://github.com/khuisman/mcp-gee-sweet/issues/803">#803</a>
+<strong>Source under test:</strong> <code>src/mcp_gee_sweet/tools/gmail.py</code> (11 tools)
+<strong>Case file:</strong> <a href="../tests/gmail/"><code>tests/gmail.md</code></a> (TC-GM01–45. TC-GM26 is the #792 charset case, so the §4.2 cases start at 27.)</p>
+<p>This is the plan of record for testing the Gmail domain: what the mailbox fixture looks like, which behaviors need live coverage, and which gaps are tooling or product gaps rather than test gaps.</p>
+<hr />
+<h2 id="1-where-coverage-stands-today">1. Where coverage stands today<a class="headerlink" href="#1-where-coverage-stands-today" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unit (<code>tests/test_gmail.py</code>, 59 tests)</td>
+<td>Strong on <code>_reply_recipients</code> (#791: 20 cases). Thin on MIME building and payload parsing (see §5).</td>
+</tr>
+<tr>
+<td>Live — reply routing (TC-GM23–25)</td>
+<td>✅ Run 2026-09-26 on PR #815, both rounds.</td>
+</tr>
+<tr>
+<td>Live — everything else (TC-GM01–22)</td>
+<td>❌ <strong>Never run.</strong> No <code>**Result**</code> exists in <code>tests/gmail.md</code>, <code>results/</code>, or <code>runs/</code>. #786 merged with unit tests only.</td>
+</tr>
+<tr>
+<td>Live — auth degradation (TC-I31–34, <code>infra.md</code>)</td>
+<td>✅ Run on #790.</td>
+</tr>
+<tr>
+<td>Smoke suite (<code>runs/README.md</code>)</td>
+<td>❌ No Gmail entry. A shared-layer regression that breaks Gmail passes Smoke.</td>
+</tr>
+<tr>
+<td>Fixtures (<code>setup.md</code>, <code>fixtures.template.md</code>)</td>
+<td>❌ No Gmail section. <code>operations.yaml</code> names <code>TEST_MESSAGE_ID</code>/<code>TEST_THREAD_ID</code> but nothing creates them.</td>
+</tr>
+</tbody>
+</table>
+<p>TC-GM01–22 also predate the prescriptive-case rule: most are one-line natural-language prompts ("List my 5 most recent inbox messages") with no exact tool name or params, and read against whatever happens to be in the inbox. They need rewriting against the fixture set below. TC-GM23–25 are the reference style.</p>
+<hr />
+<h2 id="2-testability-constraints">2. Testability constraints<a class="headerlink" href="#2-testability-constraints" title="Permanent link">&para;</a></h2>
+<p>Things about the tool surface that shape how every case has to be written:</p>
+<ol>
+<li><strong>The QA mailbox can't create its own inbound mail.</strong> <code>send_message</code> only produces mail <em>from</em> the mailbox under test. Two ways around it (see §3.1):</li>
+<li><strong>A second, sender mailbox</strong> (the maintainer's personal account, through the global <code>mcp-gee-sweet</code> server) sends real mail to the QA mailbox. That gives genuinely delivered messages: a real foreign <code>From</code>, Gmail's own MIME and <code>Message-ID</code>, real spam/category filtering, and two-party threads.</li>
+<li><strong><code>users.messages.insert</code></strong> from a scratch script (the TC-GM23 pattern) for anything <code>send_message</code> can't express: a custom <code>Reply-To</code>, a non-UTF-8 charset, a <code>multipart/related</code> inline image, a pre-labeled <code>SPAM</code>/<code>TRASH</code> message. <code>insert</code> works under <code>gmail.modify</code>; confirmed on PR #815.</li>
+<li><strong>No draft cleanup.</strong> There's no <code>list_drafts</code>/<code>delete_draft</code>. Every <code>create_draft</code> that isn't then sent leaves a draft behind for good (via the tools). Cases must either send the draft (TC-GM15) or clean up by script.</li>
+<li><strong>No untrash.</strong> <code>trash_message</code> is one-way through the tools. Whether <code>modify_labels(remove_label_ids=["TRASH"])</code> restores a message is <strong>unverified</strong>; the API has a dedicated <code>untrash</code> endpoint. Test it once (TC-GM37) and record the answer here either way.</li>
+<li><strong>No label create/delete.</strong> User-label cases need a pre-existing label, which the fixture script creates.</li>
+<li><strong>No attachment download.</strong> <code>get_message</code> surfaces <code>attachment_id</code>, but nothing can fetch the bytes (out of scope per <code>decision-gmail-domain.md</code>). Attachment cases can only check metadata round-trips.</li>
+<li><strong>"Other people" = the sender mailbox, or plus-addresses of the QA mailbox.</strong> Plus-addresses aren't send-as aliases, so <code>_own_addresses</code> treats them as third parties. They're enough for recipient-routing cases. Use the sender mailbox when the case needs a genuinely different account, for example a reply that must actually be delivered elsewhere. Mail goes only between these two mailboxes. Any <code>@example.invalid</code> address is fine as a <em>planted</em> <code>From</code> (inserted, never sent to).</li>
+<li><strong>Sending to yourself is one message, not two.</strong> A message to the mailbox or a plus-address of it comes back as one ID labeled <code>SENT</code>+<code>INBOX</code> (observed on PR #815). Cases must not expect a separate delivered copy.</li>
+<li><strong>OAuth only.</strong> Every case except the auth ones is ⚠️ requires-oauth. The SA server can only exercise TC-I31.</li>
+<li><strong>Token scope and API enablement.</strong> The server's <code>token.json</code> must include <code>gmail.modify</code>, and the Gmail API must be enabled in the server's Cloud project. Checked 2026-09-26 with <code>list_labels</code>: <code>mcp-gee-sweet-oauth</code> and <code>mcp-gee-sweet-kai-oauth</code> both reach the QA mailbox (<code>mcp-gee-sweet-kit</code> did on PR #815). The global <code>mcp-gee-sweet</code> server first got <code>403 accessNotConfigured</code> because its Cloud project didn't have the Gmail API enabled. It worked once the API was enabled the same day. Before a pass, run <code>list_labels</code> on every slot you'll use. A slot missing either piece fails every Gmail call. That reads like a product failure but isn't one.</li>
+</ol>
+<hr />
+<h2 id="3-fixture-mailbox">3. Fixture mailbox<a class="headerlink" href="#3-fixture-mailbox" title="Permanent link">&para;</a></h2>
+<h3 id="31-accounts">3.1 Accounts<a class="headerlink" href="#31-accounts" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Account</th>
+<th>Reached through</th>
+<th><code>.env</code> key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>QA mailbox</strong> (under test)</td>
+<td>The Workspace fixture-owning account (the one Playwright signs into, <code>playwright_oauth.md</code>)</td>
+<td><code>mcp-gee-sweet-oauth</code> / <code>-kai-oauth</code> (main checkout), or a lane slot reset to the release commit</td>
+<td><code>TEST_GMAIL_ADDRESS</code></td>
+</tr>
+<tr>
+<td><strong>Sender mailbox</strong> (external party)</td>
+<td>The maintainer's personal Google account</td>
+<td>The global <code>mcp-gee-sweet</code> server only</td>
+<td><code>TEST_GMAIL_SENDER_ADDRESS</code></td>
+</tr>
+</tbody>
+</table>
+<p>Keep both addresses in <code>.env</code>, never in a tracked file.</p>
+<p>The sender mailbox is only a way to produce inbound mail and a real second party. It is <strong>never</strong> the system under test, and its results don't count toward a pass: the global server may run a different code version than the release candidate. It sends only to <code>TEST_GMAIL_ADDRESS</code> (or its plus-addresses). A case must not read, label, or trash anything in the sender mailbox except <code>[mcp-qa</code>-subject messages that either mailbox sent as part of QA: its own fixture sends, and the replies and sends TC-GM43–45 deliver to it. It's a personal inbox.</p>
+<p><strong>Prerequisite:</strong> the Gmail API must be enabled in the global server's Cloud project. It was enabled on 2026-09-26 and confirmed with <code>list_labels</code> on <code>mcp-gee-sweet</code>. If the server ever returns <code>403 accessNotConfigured</code> again, that error names the project and gives the enable link.</p>
+<h3 id="32-seed-script">3.2 Seed script<a class="headerlink" href="#32-seed-script" title="Permanent link">&para;</a></h3>
+<p>Add <code>scripts/qa_gmail_fixtures.py</code> (new), modeled on the TC-GM23 setup snippet: <code>_oauth_creds()</code> + <code>build("gmail", "v1")</code>, <code>users.messages.insert</code> only, never <code>send</code>. Requirements:</p>
+<ul>
+<li><strong>Idempotent.</strong> Every seeded message carries a stable <code>X-MCP-QA-Fixture: &lt;key&gt;</code> header and subject prefix <code>[mcp-qa:&lt;key&gt;]</code>. On rerun, look each key up (<code>q=subject:"[mcp-qa:&lt;key&gt;]"</code>) and reuse it instead of inserting a duplicate.</li>
+<li><strong>Isolated.</strong> Apply one user label, <code>mcp-qa-fixture</code> (created by the script if missing), to every fixture. Read cases query <code>label:mcp-qa-fixture</code> so they never depend on real inbox contents.</li>
+<li><strong>Writes IDs to <code>.env</code></strong>, not to any tracked file (<code>no resource IDs in commits</code>).</li>
+<li><strong><code>--reset</code> flag</strong> trashes every <code>label:mcp-qa-fixture</code> message and all <code>[mcp-qa</code> drafts, then reseeds. This is also the draft-cleanup path that item 2 above lacks.</li>
+</ul>
+<h3 id="33-fixture-set">3.3 Fixture set<a class="headerlink" href="#33-fixture-set" title="Permanent link">&para;</a></h3>
+<p><strong>Source</strong> says how each fixture gets made. <strong>Sent</strong> means the sender mailbox really sends it, so Gmail builds and delivers it. The seed script does this through the Gmail API with the sender mailbox's token, not with <code>send_message</code> tool calls (#821). A 3 MB body can't be passed as a tool argument, and <code>send_message</code> can't build a real <code>message/rfc822</code> forward. <strong>Inserted</strong> means the seed script plants it with <code>messages.insert</code>, because <code>send_message</code> can't express the shape. Prefer sent wherever it's possible: an inserted message is only as realistic as the MIME we write by hand. Two of the open questions depend on exactly that. Whether Gmail hands back a large body by <code>attachmentId</code> (GM30), and how it lays out a forwarded message (GM29), are really questions about Gmail's own storage, so their fixtures come from real delivery.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+<th>Shape</th>
+<th><code>.env</code> key</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>plain</code></td>
+<td>Sent</td>
+<td>Single <code>text/plain</code> from the sender mailbox; lands <code>INBOX</code>+<code>UNREAD</code></td>
+<td><code>TEST_MESSAGE_ID</code></td>
+<td>GM01, 03, 19</td>
+</tr>
+<tr>
+<td><code>alt-unicode</code></td>
+<td>Sent</td>
+<td><code>body</code> + <code>body_html</code>, non-ASCII subject and body, astral emoji</td>
+<td><code>TEST_GMAIL_UNICODE_ID</code></td>
+<td>GM27</td>
+</tr>
+<tr>
+<td><code>attachments</code></td>
+<td>Sent + Inserted</td>
+<td>Sent: body + small PDF + CSV. Inserted: a <code>multipart/related</code> inline PNG with <code>Content-ID</code> and <strong>no filename</strong> (<code>send_message</code> can't build <code>related</code>)</td>
+<td><code>TEST_GMAIL_ATTACH_ID</code>, <code>TEST_GMAIL_INLINE_ID</code></td>
+<td>GM28, 46</td>
+</tr>
+<tr>
+<td><code>thread</code></td>
+<td>Sent (both sides)</td>
+<td>Sender sends; the QA mailbox replies; the sender replies again. A real two-party, 3-message thread with Gmail-generated <code>Message-ID</code>/<code>References</code></td>
+<td><code>TEST_THREAD_ID</code></td>
+<td>GM05, 07, 33, 43</td>
+</tr>
+<tr>
+<td><code>reply-to</code></td>
+<td>Inserted</td>
+<td>Foreign <code>From: noreply@example.invalid</code>, <code>Reply-To</code> = <code>+tc-gm23</code> (<code>send_message</code> has no <code>Reply-To</code> param)</td>
+<td><code>TEST_GMAIL_REPLYTO_ID</code></td>
+<td>GM23 (replaces its inline setup)</td>
+</tr>
+<tr>
+<td><code>forwarded</code></td>
+<td>Sent</td>
+<td>Outer body, then a forwarded message as a real <code>message/rfc822</code> part named <code>forwarded.eml</code></td>
+<td><code>TEST_GMAIL_FWD_ID</code></td>
+<td>GM29</td>
+</tr>
+<tr>
+<td><code>large-body</code></td>
+<td>Sent</td>
+<td><code>body</code> of ~3 MB plain text</td>
+<td><code>TEST_GMAIL_LARGE_ID</code></td>
+<td>GM30 (#803's <code>attachmentId</code> question)</td>
+</tr>
+<tr>
+<td><code>over-cap-thread</code></td>
+<td>Sent</td>
+<td>Several sender↔QA replies, each with a large body, until full-format size exceeds <code>MAX_TOOL_RESPONSE_CHARS</code></td>
+<td><code>TEST_GMAIL_BIG_THREAD_ID</code></td>
+<td>GM31</td>
+</tr>
+<tr>
+<td><code>latin1</code></td>
+<td>Inserted</td>
+<td><code>text/plain; charset=iso-8859-1</code> body with <code>é</code>/<code>ñ</code> (<code>send_message</code> always writes UTF-8)</td>
+<td><code>TEST_GMAIL_LATIN1_ID</code></td>
+<td>GM32 (#792)</td>
+</tr>
+<tr>
+<td><code>page-N</code></td>
+<td>Inserted</td>
+<td>7 tiny messages tagged <code>[mcp-qa:page]</code> (inserted to avoid 7 real sends per reseed)</td>
+<td>—</td>
+<td>GM34</td>
+</tr>
+<tr>
+<td><code>spam</code> / <code>trash</code></td>
+<td>Inserted</td>
+<td>One each, inserted with the <code>SPAM</code> / <code>TRASH</code> label. Don't try to get real spam delivered; filtering isn't deterministic.</td>
+<td>—</td>
+<td>GM35</td>
+</tr>
+<tr>
+<td>label</td>
+<td>Script</td>
+<td>User label <code>mcp-qa-fixture</code>, applied by the seed script to every fixture in the QA mailbox, sent ones included</td>
+<td><code>TEST_GMAIL_LABEL_ID</code></td>
+<td>GM36, all read cases</td>
+</tr>
+</tbody>
+</table>
+<p><code>scripts/qa_gmail_fixtures.py</code> (#821) does all of it: <code>seed</code> inserts and labels, <code>send</code> delivers the sent rows, and a second <code>seed</code> labels those and records their IDs. See <code>setup.md</code>'s Gmail section.</p>
+<p><strong>Seeded live 2026-09-26.</strong> Gmail's spam filter put three sent fixtures (<code>plain</code>, <code>attachments</code>, <code>large-body</code>) in Spam, so <code>seed</code> now moves every sent fixture back to <code>INBOX</code>. That filtering can recur on any reseed.</p>
+<hr />
+<h2 id="4-case-plan">4. Case plan<a class="headerlink" href="#4-case-plan" title="Permanent link">&para;</a></h2>
+<h3 id="41-rewrite-existing-cases-tc-gm0122">4.1 Rewrite existing cases (TC-GM01–22)<a class="headerlink" href="#41-rewrite-existing-cases-tc-gm0122" title="Permanent link">&para;</a></h3>
+<p>Keep the IDs and intent. Rewrite each to name the exact tool and params and to read from fixtures instead of the live inbox. For example, TC-GM01 becomes <code>list_messages(query="label:mcp-qa-fixture", max_results=50)</code>, checking that <code>{TEST_MESSAGE_ID}</code> is present. Specific fixes while rewriting:</p>
+<ul>
+<li><strong>GM11/13/15/17/21:</strong> send and draft to a <code>+tc-gmNN</code> plus-address, never the bare mailbox, and use <code>[mcp-qa]</code> subjects so <code>--reset</code> can sweep them.</li>
+<li><strong>GM11:</strong> also assert <code>SENT</code> is in <code>label_ids</code> (currently "SENT or similar").</li>
+<li><strong>GM13:</strong> follow up with <code>get_message(message.id)</code> and assert <code>label_ids</code> includes <code>DRAFT</code>. Today the check is "visible in Gmail drafts", which no tool can confirm.</li>
+<li><strong>GM17:</strong> assert the reply's <code>headers.in_reply_to</code> equals the original's <code>message_id</code>, <code>references</code> ends with it, and the subject has exactly one <code>Re:</code>. Today it only checks <code>thread_id</code>.</li>
+<li><strong>GM19:</strong> add a thread-scope variant (<code>thread_id={TEST_THREAD_ID}</code>, add/remove <code>STARRED</code>) and assert every message in the response changed.</li>
+<li><strong>GM20:</strong> add the other two validation branches: both <code>message_id</code> and <code>thread_id</code> passed, and neither <code>add_label_ids</code> nor <code>remove_label_ids</code>.</li>
+<li><strong>GM10:</strong> drop it. TC-I32 covers this deterministically with a scope-less token copy.</li>
+</ul>
+<h3 id="42-new-cases-tc-gm27">4.2 New cases (TC-GM27+)<a class="headerlink" href="#42-new-cases-tc-gm27" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Tool(s)</th>
+<th>What it proves</th>
+<th>Kind</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GM27</td>
+<td><code>get_message</code></td>
+<td>Unicode subject, body, and emoji decode intact; <code>body_plain</code> and <code>body_html</code> both populated</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM28</td>
+<td><code>get_message</code></td>
+<td>Both attachments (PDF, CSV) listed with filename, MIME type, size, <code>attachment_id</code>. The inline PNG (<code>inline</code> fixture) is listed with <code>filename: null</code>; Gmail stores it by <code>attachmentId</code> (§5, P3: not a defect).</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM29</td>
+<td><code>get_message</code></td>
+<td><code>body_plain</code> is the <em>outer</em> message's body; the <code>.eml</code> is listed as a <code>message/rfc822</code> attachment (§5, P2: not a defect with Gmail's real layout)</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM30</td>
+<td><code>get_message</code>, <code>get_thread</code></td>
+<td><code>large-body</code> (Gmail delivers both 3 MB parts by <code>attachmentId</code>, #825). Without <code>local_path</code>: the size-cap error, naming <code>local_path</code>, since ~6 MB exceeds the default cap. With <code>local_path</code>: the written JSON has <code>body_plain</code> (3,000,002 chars) and <code>body_html</code> (3,037,987 chars) filled, <code>attachments: []</code>, no <code>body_fetch_errors</code>. Same for <code>get_thread</code> on its thread. Written in the #825 PR (#829).</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM31</td>
+<td><code>get_thread</code></td>
+<td>Over-cap thread returns the size-cap error, not a dropped connection or a truncated body, and the error points at <code>include_body=False</code>. With <code>include_body=False</code> the same thread lists its 3 message IDs and headers with no bodies (#793).</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM32</td>
+<td><code>get_message</code></td>
+<td>Latin-1 body decodes correctly. A zero-setup regression companion to TC-GM26: #792 closed with the finding that Gmail transcodes every text part to UTF-8, so this is expected to <strong>pass</strong>.</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM33</td>
+<td><code>get_thread</code></td>
+<td>3 messages in chronological order, each shaped like <code>get_message</code>, <code>in_reply_to</code>/<code>references</code> populated</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM34</td>
+<td><code>list_messages</code>, <code>list_threads</code></td>
+<td><code>max_results=3</code> over the 7 <code>page</code> fixtures: <code>next_page_token</code> present, page 2 has no overlap with page 1, final page has no token. Also <code>max_results=0</code> and <code>9999</code> clamp without error.</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM35</td>
+<td><code>list_messages</code></td>
+<td>The <code>spam</code>/<code>trash</code> fixtures are absent by default and present with <code>include_spam_trash=True</code></td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM36</td>
+<td><code>list_labels</code>, <code>modify_labels</code></td>
+<td>User label appears with <code>type: "user"</code>; add and remove it by ID on a throwaway sent in the case (not on a fixture: removing the fixture label would hide it from every read case)</td>
+<td>write</td>
+</tr>
+<tr>
+<td>GM37</td>
+<td><code>trash_message</code>, <code>modify_labels</code></td>
+<td>Trash a throwaway, trash it again (idempotent or clean error, record which), then try <code>remove_label_ids=["TRASH"]</code> and record whether it restores the message (§2 item 3)</td>
+<td>write, 🔍 product decision</td>
+</tr>
+<tr>
+<td>GM38</td>
+<td><code>send_message</code></td>
+<td><code>body_html</code> + two attachments (one <code>local_path</code>, one <code>content_base64</code>, one without <code>mime_type</code>) to a plus-address; <code>get_message</code> shows <code>multipart/mixed</code> with alt body and both attachments. Record the missing-<code>mime_type</code> part's type (#802 item 3).</td>
+<td>write</td>
+</tr>
+<tr>
+<td>GM39</td>
+<td><code>send_message</code></td>
+<td><code>cc</code> and <code>bcc</code> as lists: the sent copy's <code>headers.bcc</code> is present, <code>cc</code> is exact</td>
+<td>write</td>
+</tr>
+<tr>
+<td>GM40</td>
+<td><code>send_message</code></td>
+<td>Subject containing <code>\n</code> (header-injection attempt) returns <code>{"error": ...}</code> and sends nothing. Local probe: <code>HeaderParseError</code> (header-shaped line) or <code>HeaderWriteError</code> (any other newline) is raised inside the <code>try</code>, so this should pass (§5).</td>
+<td>write, security</td>
+</tr>
+<tr>
+<td>GM41</td>
+<td><code>create_draft</code> → <code>send_draft</code></td>
+<td>Draft with attachments and HTML survives <code>send_draft</code> byte-for-byte in metadata (filename, size)</td>
+<td>write</td>
+</tr>
+<tr>
+<td>GM42</td>
+<td><code>reply_to_message</code></td>
+<td>Reply to a message with no Subject header: subject is exactly <code>Re:</code>. Reply to a <code>RE: foo</code> subject: no doubled prefix.</td>
+<td>write</td>
+</tr>
+<tr>
+<td>GM43</td>
+<td><code>reply_to_message</code></td>
+<td>Reply into the 3-message <code>thread</code> from its middle message: <code>references</code> chains all prior IDs, reply lands in the same thread. M2 was sent by the QA mailbox, so the reply is delivered to the sender mailbox</td>
+<td>write, cross-mailbox</td>
+</tr>
+<tr>
+<td>GM44</td>
+<td><code>reply_to_message</code> (QA) → <code>list_messages</code> (sender)</td>
+<td>End-to-end delivery. The QA mailbox replies to the <code>plain</code> fixture. On the sender side, <code>list_messages(query='subject:"[mcp-qa:plain]"')</code> shows the reply arrived in the <strong>same thread</strong> as the original. Proves <code>In-Reply-To</code>/<code>References</code> thread correctly in the recipient's mailbox, not just in ours. Plus-address cases can't show this.</td>
+<td>write, cross-mailbox</td>
+</tr>
+<tr>
+<td>GM45</td>
+<td><code>send_message</code> (QA) → <code>get_message</code> (sender)</td>
+<td>QA sends to the sender mailbox with <code>cc</code> = a QA plus-address and <code>bcc</code> = another. On the sender side, <code>get_message</code> shows <code>cc</code> present and <strong>no</strong> <code>bcc</code> header. Bcc must be stripped from delivered copies; GM39 only sees the sender's copy.</td>
+<td>write, cross-mailbox</td>
+</tr>
+<tr>
+<td>GM46</td>
+<td><code>get_message</code></td>
+<td><code>include_body=False</code> on the <code>attachments</code> fixture: headers, snippet, labels, and <code>size_estimate</code> present; no <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code> key, since Gmail's <code>metadata</code> format returns no payload parts (#793)</td>
+<td>read</td>
+</tr>
+<tr>
+<td>GM47</td>
+<td><code>send_message</code> → <code>get_message</code></td>
+<td>Attachments with no <code>mime_type</code> get a type guessed from the filename extension (<code>.pdf</code>, <code>.csv.gz</code> → <code>application/gzip</code>, unknown or <code>.eml</code> → <code>application/octet-stream</code>); an explicit <code>mime_type</code> still wins (#802)</td>
+<td>write</td>
+</tr>
+</tbody>
+</table>
+<p>Every write case uses a <code>+tc-gmNN</code> plus-address and an <code>[mcp-qa:tc-gmNN]</code> subject (so <code>reset</code> sweeps it), and ends with a <strong>Cleanup</strong> step.</p>
+<h3 id="43-smoke-entry">4.3 Smoke entry<a class="headerlink" href="#43-smoke-entry" title="Permanent link">&para;</a></h3>
+<p>Add two rows to the Smoke suite in <code>runs/README.md</code>:</p>
+<ul>
+<li><strong>TC-GM01</strong> <code>list_messages</code> (read path, needs only the label fixture)</li>
+<li><strong>TC-GM11</strong> <code>send_message</code> to a plus-address (write path; exercises MIME build + send)</li>
+</ul>
+<p>Both need an OAuth slot whose token has <code>gmail.modify</code>; Smoke should record <code>SKIP(no-gmail-scope)</code> rather than FAIL on a slot without it.</p>
+<h3 id="44-concurrency">4.4 Concurrency<a class="headerlink" href="#44-concurrency" title="Permanent link">&para;</a></h3>
+<p>No Gmail tool fans out with <code>asyncio.gather</code>, and there's no Gmail cache, so no TC-I24/TC-I02-style barrier cases are needed. <code>reply_to_message</code> makes 3–4 sequential calls; it's covered by the ordinary cases.</p>
+<p>In a sharded release pass, run Gmail as <strong>one shard on one slot</strong>: write cases share one mailbox, and parallel shards would see each other's <code>[mcp-qa]</code> messages in list results.</p>
+<hr />
+<h2 id="5-unit-test-gaps">5. Unit-test gaps<a class="headerlink" href="#5-unit-test-gaps" title="Permanent link">&para;</a></h2>
+<p>Found by reading <code>test_gmail.py</code> against <code>gmail.py</code> and running the helpers directly (<code>uv run python3</code>, static verification only, no API calls):</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Gap</th>
+<th>Local observation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td><code>_extract_bodies_and_attachments</code>: a <code>text/plain</code> part with <code>attachmentId</code> and no filename</td>
+<td>Classified as an attachment, <code>body_plain</code> is <code>None</code>. Whether Gmail ever sends this is GM30's question.</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>Same function: <code>message/rfc822</code> part ahead of the outer body</td>
+<td>Depth-first walk takes the <strong>forwarded</strong> message's <code>text/plain</code> as <code>body_plain</code> (<code>"inner body"</code> returned, outer body lost). Real only if Gmail expands the rfc822 part with <code>data</code> inline; GM29 settles it.</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>Same function: inline image with inline <code>data</code>, no filename, no <code>attachmentId</code></td>
+<td>Not listed in <code>attachments</code> at all.</td>
+</tr>
+<tr>
+<td>P4</td>
+<td><code>_build_raw_message</code> attachment branches (<code>local_path</code>, <code>content_base64</code>, non-<code>application/*</code> type, missing both → <code>ValueError</code>)</td>
+<td>No unit tests. Local probe: CSV via <code>content_base64</code> builds correctly as <code>text/csv</code> with filename.</td>
+</tr>
+<tr>
+<td>P5</td>
+<td><code>_build_raw_message</code> <code>body_html</code> alone and <code>body_html</code> + attachments</td>
+<td>No unit tests for either <code>multipart/alternative</code> path.</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>Header injection via <code>subject</code></td>
+<td>Not tested. Local probe: stdlib raises <code>HeaderParseError</code>, which the tool's <code>try</code> turns into <code>{"error": ...}</code>. Worth pinning with a test.</td>
+</tr>
+<tr>
+<td>P7</td>
+<td><code>modify_labels</code> both-targets and no-labels branches</td>
+<td>Only the missing-target branch is tested.</td>
+</tr>
+<tr>
+<td>P8</td>
+<td>Reply subject normalization (<code>""</code>, <code>RE:</code>, <code>Fwd:</code>)</td>
+<td>Not tested directly.</td>
+</tr>
+<tr>
+<td>P9</td>
+<td><code>list_*</code> <code>max_results</code> clamping; <code>get_*</code> size-cap path</td>
+<td>Not tested.</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Empty <code>to</code></td>
+<td>Emits a bare <code>To:</code> header. Gmail accepted it on TC-GM25 step 3, so no action needed.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Live outcome (2026-09-26, <code>get_message</code> on <code>mcp-gee-sweet-oauth</code>, raw layout via the seed script's <code>inspect</code>):</strong>
+- <strong>P1 is confirmed and filed as #825.</strong> A ~3 MB body arrives by <code>attachmentId</code>, while a ~405 KB body still arrives inline. The #825 fix fetches it with <code>users.messages.attachments.get</code>, which returns the part's raw bytes in its declared charset, not the UTF-8 that inline <code>body.data</code> is transcoded to (confirmed live with a latin-1 and a Shift-JIS body).
+- <strong>P2 doesn't reproduce.</strong> Gmail puts the outer body first and the <code>message/rfc822</code> part after it.
+- <strong>P3 doesn't reproduce.</strong> Gmail stores the nameless inline image by <code>attachmentId</code>, so it's listed.</p>
+<p>P2 and P3 remain possible only for hand-built MIME, so they're unit-test material at most. P4–P9 are hardening tests. They can land together as one ticket.</p>
+<p><strong>P4–P9 covered (#823, via #896):</strong> <code>tests/test_gmail.py</code> now has unit tests for each. P9's <code>get_*</code> size-cap half had already landed with #825 (<code>TestMessageSizeCap</code>).</p>
+<hr />
+<h2 id="6-execution-order">6. Execution order<a class="headerlink" href="#6-execution-order" title="Permanent link">&para;</a></h2>
+<ol>
+<li>~~Enable the Gmail API for the global server~~ (done 2026-09-26). Land the seed script and the <code>setup.md</code>/<code>fixtures.template.md</code> Gmail section, including the sender-side send checklist.</li>
+<li>~~Rewrite TC-GM01–22 and add TC-GM27–45.~~ Done in #822.</li>
+<li>Run the whole file once on an OAuth slot with <code>gmail.modify</code> and record results. This closes #803. Repeat GM29/30 on a second, freshly sent seed, since they depend on how Gmail stores delivered mail.</li>
+<li>~~File defects for whatever GM28–30 reproduce, plus the P4–P9 unit-test ticket.~~ Done: #825 (P1) and #823 (P4–P9).</li>
+<li>~~Add the Smoke rows.~~ Done in #822.</li>
+</ol>
+<h2 id="7-out-of-scope">7. Out of scope<a class="headerlink" href="#7-out-of-scope" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Service-account Gmail (#794) beyond TC-I31</li>
+<li>Attachment download, permanent delete, watch/push (<code>decision-gmail-domain.md</code>)</li>
+<li>Delivery to any address other than the two QA mailboxes (§3.1). Mail only goes between the QA mailbox and the sender mailbox, and sending anywhere else from a QA run is an outward-facing action we don't want automated.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

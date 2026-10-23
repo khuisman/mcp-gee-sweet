@@ -1,0 +1,4819 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.4/qa/tests/docs_markdown/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Docs — Markdown Rendering — QA Test Cases - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#docs-markdown-rendering-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Docs — Markdown Rendering — QA Test Cases
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="docs-markdown-rendering-qa-test-cases">Docs — Markdown Rendering — QA Test Cases<a class="headerlink" href="#docs-markdown-rendering-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: every write path that turns a user's Markdown into a Google Doc. That's our converter (<code>tools/docs/content.py</code> <code>_md_to_html</code> → <code>html_parser.py</code> → <code>emitter.py</code>), Drive's native Markdown import (<code>tools/drive/transfer.py</code> <code>_CONVERT_MIME[".md"]</code>), and Drive's HTML import of <code>upload_file(source_format='markdown')</code>.</p>
+<p>Tracking: <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1044">#1044</a>. <strong>This file is the v0.9.4 release gate for Markdown rendering: v0.9.4 ships when every case below passes on screen through every entry point.</strong></p>
+<p>Fixtures: <a href="../fixtures/md/"><code>docs/qa/fixtures/md/</code></a>. The nesting, containment, adjacency, inline-matrix, long-document and <code>docstart/</code> fixtures, and the four matrix tables in this file, are generated by <code>uv run python scripts/qa_gen_md_fixtures.py</code> (<code>--check</code> reports drift); change those there, not by hand. Substitute <code>{FOLDER_ID}</code> (a throwaway child folder of <code>TEST_FOLDER_ID</code>, see "Running this suite") and <code>{REPO}</code> (absolute path of the checkout the server under test runs from).</p>
+<hr />
+<h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Playwright is the oracle.</strong> Every case is <strong>Playwright: required</strong>. The verdict comes from the rendered Doc on screen, with one screenshot saved per case per entry point. <code>get_doc_structure</code> and <code>get_doc_as_markdown</code> are supporting evidence only, never the verdict: the Markdown export writes every numbered item as <code>1.</code>, so it can't see a numbering restart, and it may be blind to more. "Confirmed via unit tests" or "known gap, visual only" is not a result.</li>
+<li><strong>The expected rendering is written down before a case runs</strong> (this file). It says what a reader sees: numbering, indent level, glyph, font, link target. Where the screen alone can't settle a detail, the case names the structural check that does (the <strong>Structural</strong> column or line).</li>
+<li><strong>A known failure is a FAIL.</strong> "Matches documented failure mode," "known gap," "pre-existing," and "not a new regression" are never a PASS. A failing case stays FAIL, linked to an <strong>open</strong> issue, until the fix lands and the case passes on screen.</li>
+<li><strong>Nondeterminism is a FAIL.</strong> The whole matrix runs twice (Run 1, Run 2). A case that renders differently across the two runs fails, even if both renderings look acceptable.</li>
+<li><strong>No sampling.</strong> Every case goes through every entry point in the table below, unless the case is marked N/A for an entry point with a reason. Shared code is how a path-specific wrapper bug hides.</li>
+<li><strong>Anything that looks wrong is a finding</strong>, whether or not a case below covers it. Phase 1 especially: read each document top to bottom against its source.</li>
+</ol>
+<hr />
+<h2 id="entry-points">Entry points<a class="headerlink" href="#entry-points" title="Permanent link">&para;</a></h2>
+<p>Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the <code>.md</code> file and Drive converts it). EP-8 converts with Python-Markdown's <code>extra</code> extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc.</p>
+<table>
+<thead>
+<tr>
+<th>EP</th>
+<th>Tool call (fixture <code>F</code> = absolute path of the <code>.md</code> file)</th>
+<th>Engine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EP-1</td>
+<td><code>create_doc(title="MD-&lt;case&gt;-EP1", content=&lt;contents of F&gt;, content_format="markdown", folder_id="{FOLDER_ID}")</code></td>
+<td>ours</td>
+</tr>
+<tr>
+<td>EP-2</td>
+<td><code>write_doc_content(doc_id=&lt;a blank Doc in {FOLDER_ID}&gt;, content=&lt;contents of F&gt;, content_format="markdown")</code></td>
+<td>ours</td>
+</tr>
+<tr>
+<td>EP-3</td>
+<td><code>create_doc_from_file(local_path=F, title="MD-&lt;case&gt;-EP3", folder_id="{FOLDER_ID}")</code></td>
+<td>ours</td>
+</tr>
+<tr>
+<td>EP-4</td>
+<td><code>update_doc_from_file(doc_id=&lt;a blank Doc in {FOLDER_ID}&gt;, local_path=F)</code></td>
+<td>ours</td>
+</tr>
+<tr>
+<td>EP-5</td>
+<td><code>upload_local_file(local_path=F, parent_folder_id=&lt;empty child of {FOLDER_ID} for EP-5&gt;, convert=True)</code></td>
+<td>Drive Markdown import</td>
+</tr>
+<tr>
+<td>EP-6</td>
+<td><code>upload_local_folder(local_path=&lt;a temp dir holding only F&gt;, parent_folder_id=&lt;empty child of {FOLDER_ID} for EP-6&gt;, convert=True)</code></td>
+<td>Drive Markdown import</td>
+</tr>
+<tr>
+<td>EP-7</td>
+<td><code>sync_folder(local_path=&lt;a temp dir holding only F&gt;, folder_id=&lt;empty child of {FOLDER_ID} for EP-7&gt;, direction="upload", convert_markdown=True)</code></td>
+<td>Drive Markdown import</td>
+</tr>
+<tr>
+<td>EP-8</td>
+<td><code>upload_file(name="&lt;case&gt;.md", content=&lt;contents of F&gt;, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)</code></td>
+<td>Python-Markdown <code>extra</code> + Drive HTML import</td>
+</tr>
+</tbody>
+</table>
+<p>EP-5, EP-6 and EP-7 each get their own empty child folder: these tools skip a file whose converted Doc already exists in the target folder (<code>skip_if_exists</code> defaults to <code>True</code>), so a shared folder would turn a later entry point's render into a <code>skipped</code>.</p>
+<p>Not an entry point: no tool inserts Markdown at an index in an existing Doc (<code>insert_doc_text</code> takes plain text). The "insert at an index" state in #1044 is therefore N/A; if such a tool is added, it joins this table.</p>
+<p>Parameter variants that only some entry points take:</p>
+<ul>
+<li><code>autolink_urls=False</code> (EP-1 to EP-4 only; the Drive engines have no such switch): run <code>md-links.md</code> a second time with it. Cases LK-05 and LK-06 then expect plain, unlinked text; every other links case is unchanged.</li>
+<li>Images with a local path or <code>drive:</code> source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them, so those cells expect whatever Drive does with an unresolvable image reference. Record what's on screen; a broken-image icon or literal <code>![...](...)</code> text is a FAIL for that engine.</li>
+</ul>
+<hr />
+<h2 id="what-correct-looks-like-in-a-google-doc">What correct looks like in a Google Doc<a class="headerlink" href="#what-correct-looks-like-in-a-google-doc" title="Permanent link">&para;</a></h2>
+<p>Markdown describes HTML, and Docs has no direct equivalent for some constructs. These conventions turn "renders correctly" into something checkable. They follow the converter's documented design (<code>docs/design/markdown-support.md</code>, <code>docs/design/blockquote-representation.md</code>) where one exists.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Construct</th>
+<th>Expected on screen</th>
+<th>Structural check when the screen is ambiguous</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C1</td>
+<td>ATX/Setext heading level N</td>
+<td>Docs "Heading N" style (font size and weight of that named style)</td>
+<td><code>get_doc_structure</code>: <code>namedStyleType == HEADING_N</code></td>
+</tr>
+<tr>
+<td>C2</td>
+<td>Bullet list, levels 0/1/2</td>
+<td>Glyphs ● / ○ / ■, each level indented one step further</td>
+<td><code>bullet.nestingLevel</code> = 0/1/2; contiguous same-type items of one Markdown list share one <code>listId</code> (a bullet run nested in a numbered list is its own Docs list)</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>Numbered list, levels 0/1/2</td>
+<td><code>1.</code> <code>2.</code> … / <code>a.</code> <code>b.</code> … / <code>i.</code> <code>ii.</code> …; numbering never restarts inside one Markdown list, including after a nested block</td>
+<td>contiguous same-type items share one <code>listId</code>; the screen is the verdict for the number shown, since a nested block of the other type is a separate Docs list</td>
+</tr>
+<tr>
+<td>C4</td>
+<td>Task item</td>
+<td>Bullet item whose text starts with <code>☐</code> (unchecked) or <code>☑</code> (checked); no literal <code>[ ]</code>/<code>[x]</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>C5</td>
+<td>Inline code</td>
+<td>Courier New on exactly the code characters</td>
+<td><code>textStyle.weightedFontFamily.fontFamily == "Courier New"</code> on that run only</td>
+</tr>
+<tr>
+<td>C6</td>
+<td>Code block (fenced or indented)</td>
+<td>One Courier New block; each source line on its own visual line; leading indentation and blank lines kept; no Markdown inside it interpreted</td>
+<td>one paragraph (lines joined by soft breaks), all runs Courier New</td>
+</tr>
+<tr>
+<td>C7</td>
+<td>Blockquote, depth N</td>
+<td>Indented N steps with a gray left border; content inside keeps its own formatting (lists stay lists, headings stay headings)</td>
+<td><code>paragraphStyle.indentStart</code> = 36pt × N and <code>borderLeft</code> set</td>
+</tr>
+<tr>
+<td>C8</td>
+<td>Thematic break</td>
+<td>A visible horizontal line across the page; never an empty-looking gap</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C9</td>
+<td>Hard break (two trailing spaces, <code>\</code>)</td>
+<td>Line break inside the same paragraph: no extra blank line, no paragraph spacing between the two lines</td>
+<td>one paragraph containing a <code>\v</code> (soft line break)</td>
+</tr>
+<tr>
+<td>C10</td>
+<td>Soft break (a plain newline inside a paragraph)</td>
+<td>The lines join into one paragraph, separated by a space</td>
+<td>one paragraph</td>
+</tr>
+<tr>
+<td>C11</td>
+<td>Image</td>
+<td>The image itself is visible at its natural size (or scaled to page width); alt text is not shown as visible text</td>
+<td><code>inlineObjectElement</code> present</td>
+</tr>
+<tr>
+<td>C12</td>
+<td>Link</td>
+<td>Link-styled text (blue, underlined) whose target is the Markdown URL</td>
+<td>hover or <code>textStyle.link.url</code></td>
+</tr>
+<tr>
+<td>C13</td>
+<td>Table</td>
+<td>A Docs table, header row bold, cell text and inline formatting intact; column alignment from <code>:--</code>/<code>:-:</code>/<code>--:</code> applied to the cells of that column</td>
+<td><code>tableCells[].content[].paragraph.paragraphStyle.alignment</code></td>
+</tr>
+<tr>
+<td>C14</td>
+<td>Block inside a list item (paragraph, code, quote, table, heading)</td>
+<td>Shown under the item, indented to the item's text, not as a new top-level block and not as literal Markdown; the list continues after it (next item keeps the list's numbering and nesting)</td>
+<td>the screen is the verdict: the next item shows the continued number or glyph; it shares the preceding items' <code>listId</code> when they're the same type</td>
+</tr>
+<tr>
+<td>C15</td>
+<td>Empty paragraph spacing</td>
+<td>No visible empty paragraph that the source doesn't imply. The known collapsed blank paragraph before each table (<code>docs/known-limitations.md</code>, "Blank paragraph before every table") must stay invisible</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Decisions where CommonMark/GFM and what a user means disagree, approved by the maintainer on 2026-10-17. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.</p>
+<ul>
+<li><strong>D1 — nesting width.</strong> A list marker indented at least 2 spaces (or one tab) further than the previous item's marker nests under that item, whatever the parent's marker width. CommonMark requires the child to reach the parent's content column, so <code>1. A</code> followed by <code>- a1</code> (2 spaces) doesn't nest under CommonMark, but that is how models and people write sub-bullets, and #1044's own example expects it to nest.</li>
+<li><strong>D2 — a table starts its own block.</strong> A pipe table directly under a paragraph, list item or quote line (no blank line) renders as a separate table after that block, not as text joined to it.</li>
+<li><strong>D3 — YAML front matter is not shown.</strong> A leading <code>---</code>-delimited YAML block is omitted from the Doc (<code>docs/design/markdown-support.md</code> currently calls it "acceptable" that it renders as a rule; that is a FAIL under this plan).</li>
+</ul>
+<p>Anything CommonMark/GFM permits that the converter deliberately won't support goes into <code>docs/known-limitations.md</code>, tied to an open issue, and its cases stay FAIL until a decision changes the expected rendering here.</p>
+<hr />
+<h2 id="running-this-suite">Running this suite<a class="headerlink" href="#running-this-suite" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Server and slot.</strong> Use a server running the code under test with <code>LOCAL_FILE_ACCESS=full</code> (EP-3 to EP-7 are local-only tools). Use an OAuth identity, or a service account with a Shared Drive <code>{FOLDER_ID}</code>.</li>
+<li><strong>Throwaway folder.</strong> Create a child folder of <code>TEST_FOLDER_ID</code> named <code>QA-MD-&lt;date&gt;-run&lt;N&gt;</code> and use it as <code>{FOLDER_ID}</code>. Everything this suite creates goes there. Trash the folder after the results are recorded.</li>
+<li><strong>Placeholders.</strong> <code>md-images.md</code> contains <code>{QA_IMAGE_LOCAL_PATH}</code> and <code>{QA_IMAGE_DRIVE_ID}</code>. Copy the fixture to <code>docs/qa/fixtures/md/syntax/md-images.local.md</code> (next to the original, so IM-05's relative path still resolves the same way), substitute the absolute path of <code>docs/qa/fixtures/qa-fixture-pixel.png</code> and the Drive ID of an uploaded copy of it, and use the copy. <code>*.local.md</code> under <code>docs/qa/fixtures/</code> is ignored by version control, so the substituted copy (it holds a resource ID) can't be committed by accident.</li>
+<li><strong>One render per fixture per entry point.</strong> Each syntax fixture holds many small cases, each under its own <code>### &lt;ID&gt; — &lt;description&gt;</code> heading, so one render covers them all and a failure still points at one construct. Phase 1 documents and the document-boundary files (<code>docstart/</code>) are one case per file.</li>
+<li><strong>Screenshots.</strong> Open the Doc at <code>https://docs.google.com/document/d/&lt;id&gt;/edit</code> and take one screenshot per case, scrolled so the case's heading and its full content are in view. Name it <code>docs/qa/screenshots/md/&lt;run&gt;/&lt;EP&gt;/&lt;case&gt;.png</code> (the <code>screenshots/</code> tree is gitignored; keep the files until every issue filed from the run has them attached). Follow the Playwright mutex in <a href="../../run/"><code>run.md</code></a> §"Coordinating Playwright across parallel shards", and verify the account first per §"Verifying Playwright is signed into the right account".</li>
+<li><strong>Order.</strong> Phase 1 first, and file its failures before starting Phase 2 (#1044, "obvious problems first"). Then Phase 2, then the document-state cases.</li>
+<li><strong>Determinism.</strong> Repeat the whole matrix as Run 2 in a fresh folder. Compare each case's Run 2 screenshot with Run 1.</li>
+<li><strong>Recording.</strong> Write the per-case × per-entry-point grid to <code>docs/qa/results/&lt;date&gt;-markdown.md</code> (rows: case IDs; columns: EP-1 to EP-8; cells ✅, ❌ with the issue number, or N/A with the reason). Under each TC below, add one summary line: <code>**Result (&lt;date&gt;) ❌ FAIL — &lt;passed&gt;/&lt;total&gt; case×EP cells pass; failures: #…**</code>. A TC is ✅ PASS only when every cell of every case in it passes in both runs.</li>
+<li><strong>Group.</strong> <code>docs/qa/operations.yaml</code> <code>run_group</code> with <code>group: docs_markdown</code> runs this file.</li>
+</ol>
+<hr />
+<h2 id="phase-1-realistic-documents">Phase 1 — Realistic documents<a class="headerlink" href="#phase-1-realistic-documents" title="Permanent link">&para;</a></h2>
+<p>Documents of the kind AI clients produce, written the way a model writes them (2- and 3-space nesting, numbered steps with sub-bullets, bold lead-ins, tables, code). For each: render it, then read the Doc on screen top to bottom against the source, as a user would. Every construct follows the conventions above. The checklist names what's most likely to go wrong in that document; it doesn't limit what counts as a finding.</p>
+<h3 id="tc-md001-meeting-notes-destructive">TC-MD001: Meeting notes ⚠️ destructive<a class="headerlink" href="#tc-md001-meeting-notes-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r01-meeting-notes.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The Date/Attendees/Facilitator lines: each label bold. Under C10 the three source lines join into one paragraph (no blank lines between them in the source); that is expected, not a finding.
+- Agenda: items numbered 1–4 with no restart; the 3-space sub-bullets under items 1 and 2 nest at level 1 (○), and no <code>-</code> shows as text.
+- The two-line blockquote with the attribution line: one quote, left border, both lines inside it, italic/bold intact.
+- Decisions table: 3 columns, bold header, every cell's text intact.
+- Action items: ☐/☑ glyphs, no literal <code>[ ]</code>/<code>[x]</code>; the bold names stay bold.
+- The closing italic line is italic.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1056, #1098, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md002-project-plan-destructive">TC-MD002: Project plan ⚠️ destructive<a class="headerlink" href="#tc-md002-project-plan-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r02-project-plan.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Goals: 1–3 numbered with no restart after the 3-space sub-bullets; each goal's bold lead-in bold.
+- Phase 1 list: 1–4 with a nested numbered list (<code>a.</code> <code>b.</code> <code>c.</code>) under item 3, and item 4 numbered <strong>4</strong>.
+- Phase 2: bullets with a nested level under "Usability tests".
+- Timeline table: four rows, en-dash date ranges intact.
+- <code>**30%**</code> bold in the overview.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md003-spec-prd-destructive">TC-MD003: Spec / PRD ⚠️ destructive<a class="headerlink" href="#tc-md003-spec-prd-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r03-spec-prd.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The <code>---</code> under the metadata block renders as a horizontal line (C8), not a Setext heading (there's a blank line above it).
+- Section headings "1. Problem", "4.1 Functional": headings, not list items.
+- Requirements table: the Priority column is centered (<code>:--------:</code>), ID and Requirement left-aligned.
+- <code>http</code> code block: monospace, blank line inside it kept, JSON line intact.
+- Appendix links: both link to their URLs; the titled link shows no title text.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1093, #1095, #1096, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md004-readme-destructive">TC-MD004: README ⚠️ destructive<a class="headerlink" href="#tc-md004-readme-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r04-readme.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The badge (a linked image) shows as an image and links to the CI URL.
+- Each fenced block (<code>bash</code>, <code>python</code>) is one monospace block; Python indentation and the blank line between definitions kept.
+- Configuration table: backticked values monospace inside cells.
+- Usage notes: 1–4 numbered, with the fenced code block under item 3 (C14) and item 4 numbered <strong>4</strong>.
+- The <code>&gt; **Note:**</code> blockquote spans both source lines, with "Note:" bold.
+- <code>©</code> renders.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1099, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md005-status-report-destructive">TC-MD005: Status report ⚠️ destructive<a class="headerlink" href="#tc-md005-status-report-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r05-status-report.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Emoji in headings (🟢 🟡) render inside the heading style.
+- "Mitigation:" bullet has two nested bullets at level 1 (2-space indentation).
+- Performance table: three right-aligned numeric columns.
+- Asks: numbered 1–2.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1095, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md006-how-to-with-numbered-steps-and-code-destructive">TC-MD006: How-to with numbered steps and code ⚠️ destructive<a class="headerlink" href="#tc-md006-how-to-with-numbered-steps-and-code-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r06-howto.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Steps: numbered <strong>1–5 with no restart</strong>, although each step holds a fenced code block (loose list, code inside items, C14).
+- Each code block sits under its step, indented to the step text, in monospace; no literal <code>`` fences.
+- Step 3's second paragraph ("Wait until…") and its second code block stay inside step 3.
+- Step 4's sub-bullets nest under step 4.
+-</code><a href="http://localhost:8000">http://localhost:8000</a>` is a link.
+- Troubleshooting: the bold lead-in paragraphs are bold, and the OS bullet list follows.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1072, #1071, #1056, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md007-comparison-with-tables-destructive">TC-MD007: Comparison with tables ⚠️ destructive<a class="headerlink" href="#tc-md007-comparison-with-tables-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r07-comparison.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- "At a glance" table: empty top-left header cell; provider columns centered; ✅/❌ emoji in cells.
+- Scoring table: Weight/A/B/C right-aligned; the bold "Weighted total" row bold in every cell.
+- Each provider's <strong>Pros</strong> / <strong>Cons</strong> bold paragraphs followed by their own bullet lists (separate lists).</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md008-research-summary-with-quotes-and-links-destructive">TC-MD008: Research summary with quotes and links ⚠️ destructive<a class="headerlink" href="#tc-md008-research-summary-with-quotes-and-links-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r08-research-summary.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Key findings: 1–3 numbered; finding 1's text continues onto a second source line and joins into one item (C10); item 2's nested bullets at level 1; item 3 numbered <strong>3</strong>.
+- Two separate one-paragraph quotes, then a nested quote (depth 2) followed by a depth-1 attribution line.
+- The bare URL in "Related reading" is a link.
+- The data table's two numeric columns right-aligned.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1098, #1056, #1095, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md009-changelog-destructive">TC-MD009: Changelog ⚠️ destructive<a class="headerlink" href="#tc-md009-changelog-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r09-changelog.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Version headings <code>[2.4.0] - 2026-10-15</code> show as headings in which "2.4.0" links to its compare URL: the reference definitions at the bottom make <code>[2.4.0]</code> a shortcut reference link (CommonMark). No brackets shown, and the three definition lines at the bottom aren't shown at all.
+- The fenced code block nested in the "Added" bullet stays under that bullet.
+- "<strong>Breaking:</strong>" bold.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md010-checklist-heavy-task-plan-destructive">TC-MD010: Checklist-heavy task plan ⚠️ destructive<a class="headerlink" href="#tc-md010-checklist-heavy-task-plan-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r10-task-plan.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Nested task items at level 1 under "Accessibility pass" and "Performance budget met", each with its own ☐/☑.
+- Release candidate: numbered task items 1–4 (C3 + C4), with nested task bullets under item 3 and item 4 numbered <strong>4</strong>.
+- The blockquote with a bold first line and a bullet list inside it: the list stays a list inside the quote (C7).
+- <code>5% → 20% → 50% → 100%</code> bold, arrows intact.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1056, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md011-incident-postmortem-destructive">TC-MD011: Incident postmortem ⚠️ destructive<a class="headerlink" href="#tc-md011-incident-postmortem-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r11-incident-postmortem.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The bold-label metadata lines join per C10.
+- Timeline table and Action items table intact; <code>pool_size × replicas</code> monospace inside its cell.
+- The <code>yaml</code> code block keeps its indentation and comments.
+- Lessons: 1–2 numbered; three nested bullets under item 2.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md012-interview-guide-numbered-in-numbered-destructive">TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive<a class="headerlink" href="#tc-md012-interview-guide-numbered-in-numbered-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r12-interview-guide.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Prompts: 1–3 at level 0 with <code>a.</code>–<code>c.</code> at level 1 under each (3-space indentation), no restart of the level-0 numbers.
+- "What good looks like": a bullet with two nested bullets at level 1.
+- Scorecard table with empty cells: all 6 rows and 5 columns present.
+- "After the interview": numbered 1–3, "<strong>one hour</strong>" bold.
+- <code>résumé</code> renders.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md013-api-reference-destructive">TC-MD013: API reference ⚠️ destructive<a class="headerlink" href="#tc-md013-api-reference-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r13-api-reference.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Paragraphs that are only inline code (<code>`GET /orders`</code>) render as monospace text in a normal paragraph.
+- The <code>bash</code> block keeps its backslash line continuation; the <code>json</code> block its indentation.
+- Body list: <code>items</code> with two nested bullets at level 1.
+- Query-parameter table: the Required column centered.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1071, #1097, #1098, #1056, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md014-study-notes-destructive">TC-MD014: Study notes ⚠️ destructive<a class="headerlink" href="#tc-md014-study-notes-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r14-study-notes.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Raft section: numbered 1–3 with nested bullets; the bullet whose text continues on an indented second source line joins into one item.
+- Italic variables (<em>f</em>, <em>n</em>) italic; <code>⌊5/2⌋</code> renders.
+- The table with an empty top-left header cell.
+- Questions: numbered 1–3.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md015-travel-itinerary-destructive">TC-MD015: Travel itinerary ⚠️ destructive<a class="headerlink" href="#tc-md015-travel-itinerary-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r15-travel-itinerary.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Each day: numbered list with 3-space nested bullets, no restart (Thursday 1–4, Friday 1–2).
+- Saturday's bullets with a nested level under "Afternoon".
+- Packing task list, budget table with right-aligned amounts and a bold total row.
+- Accented Portuguese names render.</p>
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1097, #1095, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h3 id="tc-md016-planning-notes-the-1044-report-document-destructive">TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive<a class="headerlink" href="#tc-md016-planning-notes-the-1044-report-document-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/realistic/r16-planning-notes.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Agenda: items <strong>1, 2, 3, 4</strong> at level 0 (no restart after the sub-bullets), each with its 2-space sub-bullets nested at level 1 (D1). No literal <code>-</code> text anywhere.
+- Prep tasks: ☐/☑ glyphs.
+- The un-languaged fenced block shows <code>1. Q4 results</code> etc. as literal monospace lines, not a list.
+- Logistics table intact.</p>
+<hr />
+<p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<h2 id="phase-2-syntax-coverage">Phase 2 — Syntax coverage<a class="headerlink" href="#phase-2-syntax-coverage" title="Permanent link">&para;</a></h2>
+<p>Each TC renders one fixture; the cases are the <code>###</code> sections inside it. "Expected" is what a reader sees, per the conventions above.</p>
+<h3 id="tc-md101-headings-destructive">TC-MD101: Headings ⚠️ destructive<a class="headerlink" href="#tc-md101-headings-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-headings.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HD-01</td>
+<td>Six headings, Heading 1 to Heading 6, in decreasing size</td>
+</tr>
+<tr>
+<td>HD-02</td>
+<td>A normal paragraph reading "####### Seven hashes stay a paragraph"</td>
+</tr>
+<tr>
+<td>HD-03</td>
+<td>Heading 2 "Closed heading" and Heading 3 "Closed with extra hashes"; no trailing <code>#</code> shown</td>
+</tr>
+<tr>
+<td>HD-04</td>
+<td>A paragraph "#hashtag stays a paragraph"</td>
+</tr>
+<tr>
+<td>HD-05</td>
+<td>Heading 1 "Setext level one", Heading 2 "Setext level two"; no <code>===</code>/<code>---</code> shown</td>
+</tr>
+<tr>
+<td>HD-06</td>
+<td>One Heading 2 with "bold" bold, "italic" italic, "code" Courier New, "link" linked; the rest plain heading text</td>
+</tr>
+<tr>
+<td>HD-07</td>
+<td>A paragraph "A paragraph line." then a Heading 2 "Heading right after paragraph"</td>
+</tr>
+<tr>
+<td>HD-08</td>
+<td>A paragraph "# Not a heading" (the backslash not shown)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md102-emphasis-and-strikethrough-destructive">TC-MD102: Emphasis and strikethrough ⚠️ destructive<a class="headerlink" href="#tc-md102-emphasis-and-strikethrough-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-emphasis.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EM-01</td>
+<td>Both "italic" words italic</td>
+</tr>
+<tr>
+<td>EM-02</td>
+<td>Both "bold" words bold</td>
+</tr>
+<tr>
+<td>EM-03</td>
+<td>All three phrases bold and italic</td>
+</tr>
+<tr>
+<td>EM-04</td>
+<td>First line bold throughout, "italic inside" also italic; second line italic throughout, "bold inside" also bold</td>
+</tr>
+<tr>
+<td>EM-05</td>
+<td>"bold" and "italic" styled inside their words; <code>snake_case_name</code> plain with underscores shown</td>
+</tr>
+<tr>
+<td>EM-06</td>
+<td>"struck through" with a line through it; "bold struck" bold and struck</td>
+</tr>
+<tr>
+<td>EM-07</td>
+<td>Literal stars shown, nothing italic</td>
+</tr>
+<tr>
+<td>EM-08</td>
+<td>One paragraph, all bold, the two source lines joined by a space (C10)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md103-inline-code-destructive">TC-MD103: Inline code ⚠️ destructive<a class="headerlink" href="#tc-md103-inline-code-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-inline-code.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC-01</td>
+<td>"make test" Courier New, rest of the sentence in the body font</td>
+</tr>
+<tr>
+<td>IC-02</td>
+<td>"a <code>b" and "</code>ticks`" in Courier New with the backticks shown</td>
+</tr>
+<tr>
+<td>IC-03</td>
+<td>"bold code" bold + Courier New; "italic code" italic + Courier New; "code" Courier New immediately followed by bold "bold"; bold "bold" immediately followed by Courier New "code"</td>
+</tr>
+<tr>
+<td>IC-04</td>
+<td>All three spans literal in Courier New: no bold, no link, no HTML interpretation</td>
+</tr>
+<tr>
+<td>IC-05</td>
+<td>"start" and "end" Courier New, the middle text plain</td>
+</tr>
+<tr>
+<td>IC-06</td>
+<td>One paragraph with "only_code_here()" in Courier New (C5; not required to look like a code block)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md104-code-blocks-destructive">TC-MD104: Code blocks ⚠️ destructive<a class="headerlink" href="#tc-md104-code-blocks-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-code-blocks.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CB-01</td>
+<td>One Courier New block, two lines, the 4-space indent of <code>return</code> kept; the language tag not shown</td>
+</tr>
+<tr>
+<td>CB-02</td>
+<td>One Courier New block, two lines</td>
+</tr>
+<tr>
+<td>CB-03</td>
+<td>One Courier New block "tilde fenced block"</td>
+</tr>
+<tr>
+<td>CB-04</td>
+<td>Paragraph, then a Courier New block of two lines (the 4 leading spaces not shown)</td>
+</tr>
+<tr>
+<td>CB-05</td>
+<td>One Courier New block with one empty line between lines 1 and 3 and two empty lines before line 6</td>
+</tr>
+<tr>
+<td>CB-06</td>
+<td>The long line in Courier New, wrapping at the page edge; nothing cut off</td>
+</tr>
+<tr>
+<td>CB-07</td>
+<td>Four literal lines in Courier New: no heading, list, bold, or table</td>
+</tr>
+<tr>
+<td>CB-08</td>
+<td>YAML with 0/2/4-space indents kept</td>
+</tr>
+<tr>
+<td>CB-09</td>
+<td>The inner <code>```</code> lines shown literally around "inner fence is literal"</td>
+</tr>
+<tr>
+<td>CB-10</td>
+<td>Paragraph "A paragraph line.", then the code block (a fence may interrupt a paragraph)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md105-list-markers-and-numbering-destructive">TC-MD105: List markers and numbering ⚠️ destructive<a class="headerlink" href="#tc-md105-list-markers-and-numbering-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-lists-markers.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+<th>Structural</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LM-01</td>
+<td>Three separate 2-item bullet lists (a blank line plus a marker change starts a new list)</td>
+<td>three <code>listId</code>s</td>
+</tr>
+<tr>
+<td>LM-02</td>
+<td>1. 2. 3.</td>
+<td>—</td>
+</tr>
+<tr>
+<td>LM-03</td>
+<td>1. 2. 3. (an ordered list; no literal <code>1)</code> text)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>LM-04</td>
+<td><strong>3. 4. 5.</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>LM-05</td>
+<td>1. 2. 3.</td>
+<td>—</td>
+</tr>
+<tr>
+<td>LM-06</td>
+<td>1. to 11., two-digit numbers aligned with the rest</td>
+<td>—</td>
+</tr>
+<tr>
+<td>LM-07</td>
+<td>Two separate one-item bullet lists</td>
+<td>two <code>listId</code>s</td>
+</tr>
+<tr>
+<td>LM-08</td>
+<td>A one-item bullet list, then a one-item numbered list "1."</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md106-nesting-widths-list-type-combinations-destructive">TC-MD106: Nesting widths × list-type combinations ⚠️ destructive<a class="headerlink" href="#tc-md106-nesting-widths-list-type-combinations-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-lists-nesting.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>Sixteen cases, LN-01 to LN-16: every combination of indent width (2 spaces, 3 spaces, 4 spaces, tab; D1) and parent/child type (bullet in bullet, bullet in numbered, numbered in bullet, numbered in numbered), each three levels deep, then back to level 1, then back to level 0 twice.</p>
+<p>Every case expects the same shape:</p>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Level</th>
+<th>Glyph if the level is bullets</th>
+<th>Number if the level is numbered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top one</td>
+<td>0</td>
+<td>●</td>
+<td>1.</td>
+</tr>
+<tr>
+<td>Child one</td>
+<td>1</td>
+<td>○</td>
+<td>a.</td>
+</tr>
+<tr>
+<td>Grandchild one</td>
+<td>2</td>
+<td>■</td>
+<td>i.</td>
+</tr>
+<tr>
+<td>Grandchild two</td>
+<td>2</td>
+<td>■</td>
+<td>ii.</td>
+</tr>
+<tr>
+<td>Child two</td>
+<td>1</td>
+<td>○</td>
+<td><strong>b.</strong></td>
+</tr>
+<tr>
+<td>Top two</td>
+<td>0</td>
+<td>●</td>
+<td><strong>2.</strong></td>
+</tr>
+<tr>
+<td>Top three</td>
+<td>0</td>
+<td>●</td>
+<td><strong>3.</strong></td>
+</tr>
+</tbody>
+</table>
+<p>No literal <code>-</code> or <code>1.</code> text anywhere. Level 0 and level 2 have the parent's type; level 1 the child's.</p>
+<p><strong>Structural:</strong> <code>nestingLevel</code> 0/1/2 as in the table. Contiguous same-type items share one <code>listId</code>: in the same-type cases (bullet in bullet, numbered in numbered) all seven items do; in the mixed cases the level-1 items are a separate Docs list, so <code>listId</code> can't show continuation there. The numbers on screen (<strong>b.</strong>, <strong>2.</strong>, <strong>3.</strong>) are the verdict for continuation in every case.</p>
+<h3 id="tc-md107-loose-lists-and-blocks-inside-list-items-destructive">TC-MD107: Loose lists and blocks inside list items ⚠️ destructive<a class="headerlink" href="#tc-md107-loose-lists-and-blocks-inside-list-items-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-lists-blocks.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LB-01</td>
+<td>Three bullets</td>
+</tr>
+<tr>
+<td>LB-02</td>
+<td>Three bullets (still a bulleted list; extra spacing between items is fine)</td>
+</tr>
+<tr>
+<td>LB-03</td>
+<td>Numbered 1. 2. 3.</td>
+</tr>
+<tr>
+<td>LB-04</td>
+<td>Item 1 with its second paragraph indented under it (C14), then item <strong>2.</strong></td>
+</tr>
+<tr>
+<td>LB-05</td>
+<td>Item 1, the code block under it (C6 + C14), then item <strong>2.</strong></td>
+</tr>
+<tr>
+<td>LB-06</td>
+<td>Bullet, the quote under it (C7 + C14), then the next bullet in the same list</td>
+</tr>
+<tr>
+<td>LB-07</td>
+<td>Item 1, the 3×2 table under it (C13 + C14), then item <strong>2.</strong></td>
+</tr>
+<tr>
+<td>LB-08</td>
+<td>A bullet whose text is a Heading 1 "Heading inside an item", then a plain bullet, one list</td>
+</tr>
+<tr>
+<td>LB-09</td>
+<td>Item 1 with two nested bullets (level 1), then item <strong>2.</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md108-list-boundaries-destructive">TC-MD108: List boundaries ⚠️ destructive<a class="headerlink" href="#tc-md108-list-boundaries-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-lists-boundaries.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LX-01</td>
+<td>Paragraph "Things to bring:" then a 2-item bullet list</td>
+</tr>
+<tr>
+<td>LX-02</td>
+<td>Paragraph "Steps:" then a numbered list 1. 2.</td>
+</tr>
+<tr>
+<td>LX-03</td>
+<td>Heading 4 then a 2-item bullet list</td>
+</tr>
+<tr>
+<td>LX-04</td>
+<td>One bullet whose text is "Last item Paragraph after the list without a blank line." (lazy continuation; CommonMark)</td>
+</tr>
+<tr>
+<td>LX-05</td>
+<td>Two separate bullet lists (two <code>listId</code>s); the comment not shown</td>
+</tr>
+<tr>
+<td>LX-06</td>
+<td>List 1. 2., the paragraph, then a new list 1. 2.</td>
+</tr>
+<tr>
+<td>LX-07</td>
+<td>A bullet list, then a separate numbered list starting at 1.</td>
+</tr>
+<tr>
+<td>LX-08</td>
+<td>1., the code block under it, then <strong>2.</strong> and <strong>3.</strong></td>
+</tr>
+<tr>
+<td>LX-09</td>
+<td>1., then an unindented code block, then a new numbered list starting at <strong>2.</strong> (the source says <code>2.</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md109-task-lists-destructive">TC-MD109: Task lists ⚠️ destructive<a class="headerlink" href="#tc-md109-task-lists-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-tasks.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TK-01</td>
+<td>☐ Unchecked task, ☑ Checked task, ☑ Checked with uppercase X</td>
+</tr>
+<tr>
+<td>TK-02</td>
+<td>☐ Parent task; level 1 ☑ Child done, ☐ Child open; level 2 ☐ Grandchild open</td>
+</tr>
+<tr>
+<td>TK-03</td>
+<td>One list: ☐ A task, plain "A plain bullet" (no glyph), ☑ Another task</td>
+</tr>
+<tr>
+<td>TK-04</td>
+<td>Numbered 1. ☐ First…, 2. ☑ Second…, 3. Plain numbered item</td>
+</tr>
+<tr>
+<td>TK-05</td>
+<td>☐ then the task text with bold, code and link styling</td>
+</tr>
+<tr>
+<td>TK-06</td>
+<td>Two plain bullets with "[link-looking]" and "[]" shown literally</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md110-blockquotes-destructive">TC-MD110: Blockquotes ⚠️ destructive<a class="headerlink" href="#tc-md110-blockquotes-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-blockquotes.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BQ-01</td>
+<td>One quoted paragraph (C7, depth 1)</td>
+</tr>
+<tr>
+<td>BQ-02</td>
+<td>Two quoted paragraphs, both depth 1</td>
+</tr>
+<tr>
+<td>BQ-03</td>
+<td>"Outer level." depth 1, "Inner level." depth 2, "Third level." depth 3</td>
+</tr>
+<tr>
+<td>BQ-04</td>
+<td>Inside the quote: paragraph, 2-item bullet list, 2-item numbered list 1. 2.</td>
+</tr>
+<tr>
+<td>BQ-05</td>
+<td>Inside the quote: paragraph and a Courier New code block</td>
+</tr>
+<tr>
+<td>BQ-06</td>
+<td>Inside the quote: a Heading 2, then a paragraph</td>
+</tr>
+<tr>
+<td>BQ-07</td>
+<td>One quoted paragraph containing both lines joined by a space</td>
+</tr>
+<tr>
+<td>BQ-08</td>
+<td>Quoted paragraph with each inline style intact</td>
+</tr>
+<tr>
+<td>BQ-09</td>
+<td>Two separate quotes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md111-links-destructive">TC-MD111: Links ⚠️ destructive<a class="headerlink" href="#tc-md111-links-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-links.md</code> through EP-1 to EP-8, and <code>md-links.md</code> again through EP-1 to EP-4 with <code>autolink_urls=False</code>.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+<th><code>autolink_urls=False</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LK-01</td>
+<td>"the docs" links to <code>/docs</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-02</td>
+<td>"the titled docs" links to <code>/titled</code>; no title text visible</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-03</td>
+<td>Three links, to <code>/ref-a</code>, <code>/collapsed</code>, <code>/shortcut</code>; definition lines not shown</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-04</td>
+<td>"https://example.com/angle" linked; no angle brackets shown</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-05</td>
+<td>Both bare URLs linked; the trailing period after <code>/end</code> is not part of the link</td>
+<td>both plain text</td>
+</tr>
+<tr>
+<td>LK-06</td>
+<td>"www.example.com/www" linked (GFM extended <code>www.</code> autolink)</td>
+<td>plain text</td>
+</tr>
+<tr>
+<td>LK-07</td>
+<td>Both addresses link to <code>mailto:team@example.com</code></td>
+<td>first linked, second plain</td>
+</tr>
+<tr>
+<td>LK-08</td>
+<td>Both bold and linked</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-09</td>
+<td>Both spans Courier New, not linked</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-10</td>
+<td>Heading 4 with "link" linked</td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-11</td>
+<td>Links keep the full query string and the closing <code>)</code> of <code>(disambiguation)</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>LK-12</td>
+<td>"the guide" links to <code>./guide.md</code> as written (relative) and "an anchor" links to the LK-01 heading or is dropped as text, not left pointing nowhere (<code>docs/design/heading-anchor-resolution.md</code>)</td>
+<td>same</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md112-images-destructive">TC-MD112: Images ⚠️ destructive<a class="headerlink" href="#tc-md112-images-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render the placeholder-substituted copy of <code>docs/qa/fixtures/md/syntax/md-images.md</code> (see "Running this suite" step 3) through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IM-01</td>
+<td>The image, on its own line (C11)</td>
+</tr>
+<tr>
+<td>IM-02</td>
+<td>One paragraph: "Text before", the image inline, "text after"</td>
+</tr>
+<tr>
+<td>IM-03</td>
+<td>The image</td>
+</tr>
+<tr>
+<td>IM-04</td>
+<td>The 1×1 fixture pixel embedded; the call's <code>images</code> result reports success</td>
+</tr>
+<tr>
+<td>IM-05</td>
+<td>The fixture pixel, with the path resolved relative to the <code>.md</code> file's own directory (EP-3/EP-4 read a file; a README's relative image is relative to the README). For EP-1/EP-2 (content string, no file) N/A</td>
+</tr>
+<tr>
+<td>IM-06</td>
+<td>The fixture pixel embedded from Drive</td>
+</tr>
+<tr>
+<td>IM-07</td>
+<td>The image, linked to <code>/linked-image</code></td>
+</tr>
+<tr>
+<td>IM-08</td>
+<td>The image, no visible alt text</td>
+</tr>
+<tr>
+<td>IM-09</td>
+<td>A bullet with the image inline at the end of its text; a 2×2 table with the image inside the body cell</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md113-tables-destructive">TC-MD113: Tables ⚠️ destructive<a class="headerlink" href="#tc-md113-tables-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-tables.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+<th>Structural</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TB-01</td>
+<td>3×2 table, bold header</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-02</td>
+<td>Column 1 left, column 2 centered, column 3 right, in every row including the header</td>
+<td>cell paragraph <code>alignment</code> START / CENTER / END</td>
+</tr>
+<tr>
+<td>TB-03</td>
+<td>Each cell shows its style: bold, italic, struck, Courier New, linked, and the mixed cell with all three</td>
+<td>run styles per cell</td>
+</tr>
+<tr>
+<td>TB-04</td>
+<td>Cells "a | b" in Courier New showing the pipe; "x | y" plain showing the pipe; the table stays 2 columns</td>
+<td>2 columns</td>
+</tr>
+<tr>
+<td>TB-05</td>
+<td>Empty cells empty; the table stays 3 columns</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-06</td>
+<td>3 columns throughout: the short row padded with empty cells, the long row's 4th cell dropped (GFM)</td>
+<td>3 columns</td>
+</tr>
+<tr>
+<td>TB-07</td>
+<td>Heading 4, then the table</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-08</td>
+<td>The paragraph, then the table (D2)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-09</td>
+<td>8 columns, all text visible (wrapping in cells is fine)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-10</td>
+<td>2 columns, header Name/Score, Score right-aligned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>TB-11</td>
+<td>Two separate one-column tables</td>
+<td>2 tables</td>
+</tr>
+<tr>
+<td>TB-12</td>
+<td>The long text wraps inside its cell</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md114-breaks-and-thematic-breaks-destructive">TC-MD114: Breaks and thematic breaks ⚠️ destructive<a class="headerlink" href="#tc-md114-breaks-and-thematic-breaks-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-breaks-rules.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+<th>Structural</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BR-01</td>
+<td>One paragraph: "This sentence is written across three source lines but is one paragraph." (C10)</td>
+<td>1 paragraph</td>
+</tr>
+<tr>
+<td>BR-02</td>
+<td>"Line one with two trailing spaces" and "Line two" on consecutive lines of one paragraph, no gap (C9)</td>
+<td>1 paragraph with <code>\v</code></td>
+</tr>
+<tr>
+<td>BR-03</td>
+<td>Same as BR-02; no backslash shown</td>
+<td>1 paragraph with <code>\v</code></td>
+</tr>
+<tr>
+<td>BR-04</td>
+<td>Paragraph, a horizontal line (C8), paragraph</td>
+<td>—</td>
+</tr>
+<tr>
+<td>BR-05</td>
+<td>Same as BR-04</td>
+<td>—</td>
+</tr>
+<tr>
+<td>BR-06</td>
+<td>Same as BR-04</td>
+<td>—</td>
+</tr>
+<tr>
+<td>BR-07</td>
+<td>A Heading 2 "This line becomes a level-two heading"; no line</td>
+<td><code>HEADING_2</code></td>
+</tr>
+<tr>
+<td>BR-08</td>
+<td>Same as BR-04</td>
+<td>—</td>
+</tr>
+<tr>
+<td>BR-09</td>
+<td>Two paragraphs with normal paragraph spacing, no extra empty paragraphs</td>
+<td>2 paragraphs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md115-escapes-and-entities-destructive">TC-MD115: Escapes and entities ⚠️ destructive<a class="headerlink" href="#tc-md115-escapes-and-entities-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-escapes.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ES-01</td>
+<td>All 32 punctuation characters shown once each, no backslashes, nothing formatted</td>
+</tr>
+<tr>
+<td>ES-02</td>
+<td>"$12" and "$120" with no backslashes (#213)</td>
+</tr>
+<tr>
+<td>ES-03</td>
+<td>Literal stars and underscores, nothing italic or bold</td>
+</tr>
+<tr>
+<td>ES-04</td>
+<td>Three plain paragraphs: "- not a bullet", "1. not a numbered item", "# not a heading"</td>
+</tr>
+<tr>
+<td>ES-05</td>
+<td>&amp; &lt; &gt; " © — (a non-breaking space) © ☃</td>
+</tr>
+<tr>
+<td>ES-06</td>
+<td>The sentence exactly as written, with &lt; &gt; &amp; shown</td>
+</tr>
+<tr>
+<td>ES-07</td>
+<td>Backslashes kept: <code>C:\Users\name\file.txt</code> and <code>a\b</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md116-inline-html-destructive">TC-MD116: Inline HTML ⚠️ destructive<a class="headerlink" href="#tc-md116-inline-html-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-inline-html.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>CommonMark passes raw HTML through, and every entry point turns HTML into a Doc, so the HTML's meaning is the expected rendering. A tag the converter decides not to support becomes a known limitation tied to an open issue; its case stays FAIL.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HT-01</td>
+<td>bold, bold, italic, italic, underlined, struck, struck; no tags shown</td>
+</tr>
+<tr>
+<td>HT-02</td>
+<td>"2" subscript; "2" superscript</td>
+</tr>
+<tr>
+<td>HT-03</td>
+<td>"Line one" and "Line two" on consecutive lines of one paragraph (C9)</td>
+</tr>
+<tr>
+<td>HT-04</td>
+<td>"HTML link" linked</td>
+</tr>
+<tr>
+<td>HT-05</td>
+<td>A paragraph with the div's text</td>
+</tr>
+<tr>
+<td>HT-06</td>
+<td>"Visible beforevisible after."; no comment text</td>
+</tr>
+<tr>
+<td>HT-07</td>
+<td>"Ctrl" and "C" in a key style or plain (no tags shown); "highlighted" with a highlight</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md117-unicode-destructive">TC-MD117: Unicode ⚠️ destructive<a class="headerlink" href="#tc-md117-unicode-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-unicode.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UN-01</td>
+<td>Emoji render; "🎉 here" bold; the ZWJ sequence 👩‍💻 shows as one glyph; three bullets</td>
+</tr>
+<tr>
+<td>UN-02</td>
+<td>Japanese, Chinese and Korean text intact</td>
+</tr>
+<tr>
+<td>UN-03</td>
+<td>Both lines shown right-to-left, characters intact</td>
+</tr>
+<tr>
+<td>UN-04</td>
+<td>Both é forms look identical; the stacked accents render</td>
+</tr>
+<tr>
+<td>UN-05</td>
+<td>The no-break, thin and ideographic spaces kept (no line break inside "100 km")</td>
+</tr>
+<tr>
+<td>UN-06</td>
+<td>Exactly "bold after three emoji" bold, exactly "code after" Courier New, exactly "link after" linked: no style shifted by a character (UTF-16 offsets, #358)</td>
+</tr>
+<tr>
+<td>UN-07</td>
+<td>Heading 4 with the globe; flag emoji in the table cells</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="phase-2-matrices">Phase 2 — Matrices<a class="headerlink" href="#phase-2-matrices" title="Permanent link">&para;</a></h2>
+<h3 id="tc-md201-containment-matrix-destructive">TC-MD201: Containment matrix ⚠️ destructive<a class="headerlink" href="#tc-md201-containment-matrix-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-containment.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>Every block construct (paragraph, heading, bullet list, numbered list, task list, code block, blockquote, table, image, rule) inside every container that can hold it: a bullet item and a numbered item at levels 0, 1 and 2, a blockquote, and a nested blockquote. Contained content is indented 4 spaces per list level, so a failure here isolates containment from the indent-width cases in TC-MD106. Blank lines appear only where CommonMark needs them (around a contained paragraph, table or image), so most cases are tight lists; TC-MD107 covers loose ones.</p>
+<p>A list contained in a list item nests one level deeper than the item and uses that level's glyph (C2/C3); every other contained block follows C14.</p>
+<p>Not expressible, so not in the matrix:
+- <strong>Any block inside a table cell:</strong> GFM table cells hold inline content only. Inline content and images in cells are covered by TC-MD113 (TB-03) and TC-MD112 (IM-09).
+- <strong>A list item at level 3 or deeper:</strong> covered by nesting depth in TC-MD106, not containment.</p>
+<!-- generated:CT -->
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Block</th>
+<th>Container</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CT-01</td>
+<td>paragraph</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-02</td>
+<td>heading</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-03</td>
+<td>bullet list</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-04</td>
+<td>numbered list</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-05</td>
+<td>task list</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-06</td>
+<td>code block</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-07</td>
+<td>blockquote</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-08</td>
+<td>table</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-09</td>
+<td>image</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-10</td>
+<td>rule</td>
+<td>bullet item, level 0</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" as the next bullet at level 0, in the same list</td>
+</tr>
+<tr>
+<td>CT-11</td>
+<td>paragraph</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-12</td>
+<td>heading</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-13</td>
+<td>bullet list</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-14</td>
+<td>numbered list</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-15</td>
+<td>task list</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-16</td>
+<td>code block</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-17</td>
+<td>blockquote</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-18</td>
+<td>table</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-19</td>
+<td>image</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-20</td>
+<td>rule</td>
+<td>bullet item, level 1</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" back at level 1 and "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-21</td>
+<td>paragraph</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-22</td>
+<td>heading</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-23</td>
+<td>bullet list</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-24</td>
+<td>numbered list</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-25</td>
+<td>task list</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-26</td>
+<td>code block</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-27</td>
+<td>blockquote</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-28</td>
+<td>table</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-29</td>
+<td>image</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-30</td>
+<td>rule</td>
+<td>bullet item, level 2</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" at level 2, "Mid after" at level 1, "Top after" at level 0, continuing the outer list</td>
+</tr>
+<tr>
+<td>CT-31</td>
+<td>paragraph</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-32</td>
+<td>heading</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-33</td>
+<td>bullet list</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-34</td>
+<td>numbered list</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-35</td>
+<td>task list</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-36</td>
+<td>code block</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-37</td>
+<td>blockquote</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-38</td>
+<td>table</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-39</td>
+<td>image</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-40</td>
+<td>rule</td>
+<td>numbered item, level 0</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" numbered <strong>2.</strong> (numbering continues)</td>
+</tr>
+<tr>
+<td>CT-41</td>
+<td>paragraph</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-42</td>
+<td>heading</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-43</td>
+<td>bullet list</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-44</td>
+<td>numbered list</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-45</td>
+<td>task list</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-46</td>
+<td>code block</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-47</td>
+<td>blockquote</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-48</td>
+<td>table</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-49</td>
+<td>image</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-50</td>
+<td>rule</td>
+<td>numbered item, level 1</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" numbered <strong>b.</strong> at level 1 and "Top after" numbered <strong>2.</strong> at level 0</td>
+</tr>
+<tr>
+<td>CT-51</td>
+<td>paragraph</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a plain paragraph "Plain paragraph text." indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-52</td>
+<td>heading</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a Heading 4 "Inner heading" indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-53</td>
+<td>bullet list</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a nested bullet list (Bullet A, Bullet B) one level deeper, with that level's glyph indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-54</td>
+<td>numbered list</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a nested numbered list (Number A, Number B) one level deeper, with that level's numbering style (C3) indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-55</td>
+<td>task list</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a nested task list (☐ Task A, ☑ Task B) one level deeper indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-56</td>
+<td>code block</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a monospace code block "code line" indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-57</td>
+<td>blockquote</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a quote (indent + left border) "Quoted line" indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-58</td>
+<td>table</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a 2x2 table (bold header K/V, row k1/v1) indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-59</td>
+<td>image</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then the image indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-60</td>
+<td>rule</td>
+<td>numbered item, level 2</td>
+<td>"Container item", then a horizontal rule indented under it as part of that item, then "Sibling after" numbered <strong>ii.</strong> at level 2, "Mid after" <strong>b.</strong>, "Top after" <strong>2.</strong></td>
+</tr>
+<tr>
+<td>CT-61</td>
+<td>paragraph</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-62</td>
+<td>heading</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-63</td>
+<td>bullet list</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a 2-item bullet list at level 0 (● Bullet A, ● Bullet B) inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-64</td>
+<td>numbered list</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a 2-item numbered list at level 0 (1. Number A, 2. Number B) inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-65</td>
+<td>task list</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a 2-item task list at level 0 (☐ Task A, ☑ Task B) inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-66</td>
+<td>code block</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a monospace code block "code line" inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-67</td>
+<td>blockquote</td>
+<td>blockquote</td>
+<td>the "Container quote line" at depth 1, then "Quoted line" as its own quote at depth 2</td>
+</tr>
+<tr>
+<td>CT-68</td>
+<td>table</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-69</td>
+<td>image</td>
+<td>blockquote</td>
+<td>the "Container quote line", then the image inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-70</td>
+<td>rule</td>
+<td>blockquote</td>
+<td>the "Container quote line", then a horizontal rule inside the quote, all inside the quote (depth 1: one step of indent and the left border)</td>
+</tr>
+<tr>
+<td>CT-71</td>
+<td>paragraph</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a plain paragraph "Plain paragraph text." inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-72</td>
+<td>heading</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a Heading 4 "Inner heading" inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-73</td>
+<td>bullet list</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a 2-item bullet list at level 0 (● Bullet A, ● Bullet B) inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-74</td>
+<td>numbered list</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a 2-item numbered list at level 0 (1. Number A, 2. Number B) inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-75</td>
+<td>task list</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a 2-item task list at level 0 (☐ Task A, ☑ Task B) inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-76</td>
+<td>code block</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a monospace code block "code line" inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-77</td>
+<td>blockquote</td>
+<td>nested blockquote (depth 2)</td>
+<td>"Outer quote" at depth 1, the "Container quote line" at depth 2, then "Quoted line" at depth 3</td>
+</tr>
+<tr>
+<td>CT-78</td>
+<td>table</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a 2x2 table (bold header K/V, row k1/v1) inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-79</td>
+<td>image</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then the image inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+<tr>
+<td>CT-80</td>
+<td>rule</td>
+<td>nested blockquote (depth 2)</td>
+<td>the "Container quote line", then a horizontal rule inside the quote, all inside the inner quote (depth 2: two steps of indent)</td>
+</tr>
+</tbody>
+</table>
+<!-- /generated:CT -->
+
+<h3 id="tc-md202-adjacency-matrix-no-blank-line-destructive">TC-MD202: Adjacency matrix, no blank line ⚠️ destructive<a class="headerlink" href="#tc-md202-adjacency-matrix-no-blank-line-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-adjacency-noblank.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>Every block construct directly followed by every other, with no blank line between. Most bugs live at these boundaries. Several pairs merge under CommonMark/GFM (a paragraph line continues a list item, a quote, or a table); the Expected column says so where it applies.</p>
+<!-- generated:AJ -->
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>A</th>
+<th>B</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AJ-001</td>
+<td>paragraph</td>
+<td>paragraph</td>
+<td>ONE paragraph: "Plain paragraph text." joined to what precedes it by a space</td>
+</tr>
+<tr>
+<td>AJ-002</td>
+<td>paragraph</td>
+<td>heading</td>
+<td>a plain paragraph "Plain paragraph text.", then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-003</td>
+<td>paragraph</td>
+<td>bullet list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-004</td>
+<td>paragraph</td>
+<td>numbered list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item numbered list (1. Number A, 2. Number B) (an ordered list starting at 1 may interrupt a paragraph)</td>
+</tr>
+<tr>
+<td>AJ-005</td>
+<td>paragraph</td>
+<td>task list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-006</td>
+<td>paragraph</td>
+<td>code block</td>
+<td>a plain paragraph "Plain paragraph text.", then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-007</td>
+<td>paragraph</td>
+<td>blockquote</td>
+<td>a plain paragraph "Plain paragraph text.", then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-008</td>
+<td>paragraph</td>
+<td>table</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-009</td>
+<td>paragraph</td>
+<td>image</td>
+<td>ONE paragraph: "Plain paragraph text.", a space, then the image inline</td>
+</tr>
+<tr>
+<td>AJ-010</td>
+<td>paragraph</td>
+<td>rule</td>
+<td>a plain paragraph "Plain paragraph text.", then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-011</td>
+<td>heading</td>
+<td>paragraph</td>
+<td>a Heading 4 "Inner heading", then a plain paragraph "Plain paragraph text."</td>
+</tr>
+<tr>
+<td>AJ-012</td>
+<td>heading</td>
+<td>heading</td>
+<td>a Heading 4 "Inner heading", then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-013</td>
+<td>heading</td>
+<td>bullet list</td>
+<td>a Heading 4 "Inner heading", then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-014</td>
+<td>heading</td>
+<td>numbered list</td>
+<td>a Heading 4 "Inner heading", then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-015</td>
+<td>heading</td>
+<td>task list</td>
+<td>a Heading 4 "Inner heading", then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-016</td>
+<td>heading</td>
+<td>code block</td>
+<td>a Heading 4 "Inner heading", then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-017</td>
+<td>heading</td>
+<td>blockquote</td>
+<td>a Heading 4 "Inner heading", then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-018</td>
+<td>heading</td>
+<td>table</td>
+<td>a Heading 4 "Inner heading", then a 2x2 table (bold header K/V, row k1/v1)</td>
+</tr>
+<tr>
+<td>AJ-019</td>
+<td>heading</td>
+<td>image</td>
+<td>a Heading 4 "Inner heading", then an inline image on its own line</td>
+</tr>
+<tr>
+<td>AJ-020</td>
+<td>heading</td>
+<td>rule</td>
+<td>a Heading 4 "Inner heading", then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-021</td>
+<td>bullet list</td>
+<td>paragraph</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-022</td>
+<td>bullet list</td>
+<td>heading</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-023</td>
+<td>bullet list</td>
+<td>bullet list</td>
+<td>ONE list holding all four items, in order</td>
+</tr>
+<tr>
+<td>AJ-024</td>
+<td>bullet list</td>
+<td>numbered list</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-025</td>
+<td>bullet list</td>
+<td>task list</td>
+<td>ONE list holding all four items, in order</td>
+</tr>
+<tr>
+<td>AJ-026</td>
+<td>bullet list</td>
+<td>code block</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-027</td>
+<td>bullet list</td>
+<td>blockquote</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-028</td>
+<td>bullet list</td>
+<td>table</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-029</td>
+<td>bullet list</td>
+<td>image</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-030</td>
+<td>bullet list</td>
+<td>rule</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-031</td>
+<td>numbered list</td>
+<td>paragraph</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-032</td>
+<td>numbered list</td>
+<td>heading</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-033</td>
+<td>numbered list</td>
+<td>bullet list</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-034</td>
+<td>numbered list</td>
+<td>numbered list</td>
+<td>ONE list holding all four items, in order (1. to 4.)</td>
+</tr>
+<tr>
+<td>AJ-035</td>
+<td>numbered list</td>
+<td>task list</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-036</td>
+<td>numbered list</td>
+<td>code block</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-037</td>
+<td>numbered list</td>
+<td>blockquote</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-038</td>
+<td>numbered list</td>
+<td>table</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-039</td>
+<td>numbered list</td>
+<td>image</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-040</td>
+<td>numbered list</td>
+<td>rule</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-041</td>
+<td>task list</td>
+<td>paragraph</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-042</td>
+<td>task list</td>
+<td>heading</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-043</td>
+<td>task list</td>
+<td>bullet list</td>
+<td>ONE list holding all four items, in order</td>
+</tr>
+<tr>
+<td>AJ-044</td>
+<td>task list</td>
+<td>numbered list</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-045</td>
+<td>task list</td>
+<td>task list</td>
+<td>ONE list holding all four items, in order</td>
+</tr>
+<tr>
+<td>AJ-046</td>
+<td>task list</td>
+<td>code block</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-047</td>
+<td>task list</td>
+<td>blockquote</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-048</td>
+<td>task list</td>
+<td>table</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-049</td>
+<td>task list</td>
+<td>image</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), with the next line joined to the last item's text by a space (lazy continuation)</td>
+</tr>
+<tr>
+<td>AJ-050</td>
+<td>task list</td>
+<td>rule</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-051</td>
+<td>code block</td>
+<td>paragraph</td>
+<td>a monospace code block "code line", then a plain paragraph "Plain paragraph text."</td>
+</tr>
+<tr>
+<td>AJ-052</td>
+<td>code block</td>
+<td>heading</td>
+<td>a monospace code block "code line", then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-053</td>
+<td>code block</td>
+<td>bullet list</td>
+<td>a monospace code block "code line", then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-054</td>
+<td>code block</td>
+<td>numbered list</td>
+<td>a monospace code block "code line", then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-055</td>
+<td>code block</td>
+<td>task list</td>
+<td>a monospace code block "code line", then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-056</td>
+<td>code block</td>
+<td>code block</td>
+<td>a monospace code block "code line", then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-057</td>
+<td>code block</td>
+<td>blockquote</td>
+<td>a monospace code block "code line", then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-058</td>
+<td>code block</td>
+<td>table</td>
+<td>a monospace code block "code line", then a 2x2 table (bold header K/V, row k1/v1)</td>
+</tr>
+<tr>
+<td>AJ-059</td>
+<td>code block</td>
+<td>image</td>
+<td>a monospace code block "code line", then an inline image on its own line</td>
+</tr>
+<tr>
+<td>AJ-060</td>
+<td>code block</td>
+<td>rule</td>
+<td>a monospace code block "code line", then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-061</td>
+<td>blockquote</td>
+<td>paragraph</td>
+<td>ONE quote holding one paragraph: the next line joins the quoted line by a space</td>
+</tr>
+<tr>
+<td>AJ-062</td>
+<td>blockquote</td>
+<td>heading</td>
+<td>a quote (indent + left border) "Quoted line", then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-063</td>
+<td>blockquote</td>
+<td>bullet list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-064</td>
+<td>blockquote</td>
+<td>numbered list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-065</td>
+<td>blockquote</td>
+<td>task list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-066</td>
+<td>blockquote</td>
+<td>code block</td>
+<td>a quote (indent + left border) "Quoted line", then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-067</td>
+<td>blockquote</td>
+<td>blockquote</td>
+<td>ONE quote holding one paragraph: the next line joins the quoted line by a space</td>
+</tr>
+<tr>
+<td>AJ-068</td>
+<td>blockquote</td>
+<td>table</td>
+<td>a quote (indent + left border) "Quoted line", then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-069</td>
+<td>blockquote</td>
+<td>image</td>
+<td>ONE quote holding one paragraph: the next line joins the quoted line by a space</td>
+</tr>
+<tr>
+<td>AJ-070</td>
+<td>blockquote</td>
+<td>rule</td>
+<td>a quote (indent + left border) "Quoted line", then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-071</td>
+<td>table</td>
+<td>paragraph</td>
+<td>the table with the next line as an extra one-cell body row (GFM: a table ends only at a blank line or another block)</td>
+</tr>
+<tr>
+<td>AJ-072</td>
+<td>table</td>
+<td>heading</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-073</td>
+<td>table</td>
+<td>bullet list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-074</td>
+<td>table</td>
+<td>numbered list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-075</td>
+<td>table</td>
+<td>task list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-076</td>
+<td>table</td>
+<td>code block</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-077</td>
+<td>table</td>
+<td>blockquote</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-078</td>
+<td>table</td>
+<td>table</td>
+<td>ONE table: the second table's three lines become body rows K/V, ---/---, k1/v1 (GFM: a table ends only at a blank line)</td>
+</tr>
+<tr>
+<td>AJ-079</td>
+<td>table</td>
+<td>image</td>
+<td>the table with the next line as an extra one-cell body row (GFM: a table ends only at a blank line or another block)</td>
+</tr>
+<tr>
+<td>AJ-080</td>
+<td>table</td>
+<td>rule</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-081</td>
+<td>image</td>
+<td>paragraph</td>
+<td>ONE paragraph: the image, a space, then "Plain paragraph text."</td>
+</tr>
+<tr>
+<td>AJ-082</td>
+<td>image</td>
+<td>heading</td>
+<td>an inline image on its own line, then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-083</td>
+<td>image</td>
+<td>bullet list</td>
+<td>an inline image on its own line, then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-084</td>
+<td>image</td>
+<td>numbered list</td>
+<td>an inline image on its own line, then a 2-item numbered list (1. Number A, 2. Number B) (an ordered list starting at 1 may interrupt a paragraph)</td>
+</tr>
+<tr>
+<td>AJ-085</td>
+<td>image</td>
+<td>task list</td>
+<td>an inline image on its own line, then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-086</td>
+<td>image</td>
+<td>code block</td>
+<td>an inline image on its own line, then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-087</td>
+<td>image</td>
+<td>blockquote</td>
+<td>an inline image on its own line, then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-088</td>
+<td>image</td>
+<td>table</td>
+<td>an inline image on its own line, then a 2x2 table (bold header K/V, row k1/v1) (D2: the table starts its own block)</td>
+</tr>
+<tr>
+<td>AJ-089</td>
+<td>image</td>
+<td>image</td>
+<td>ONE paragraph holding both images, separated by a space</td>
+</tr>
+<tr>
+<td>AJ-090</td>
+<td>image</td>
+<td>rule</td>
+<td>an inline image on its own line, then a horizontal rule</td>
+</tr>
+<tr>
+<td>AJ-091</td>
+<td>rule</td>
+<td>paragraph</td>
+<td>a horizontal rule, then a plain paragraph "Plain paragraph text."</td>
+</tr>
+<tr>
+<td>AJ-092</td>
+<td>rule</td>
+<td>heading</td>
+<td>a horizontal rule, then a Heading 4 "Inner heading"</td>
+</tr>
+<tr>
+<td>AJ-093</td>
+<td>rule</td>
+<td>bullet list</td>
+<td>a horizontal rule, then a 2-item bullet list (Bullet A, Bullet B)</td>
+</tr>
+<tr>
+<td>AJ-094</td>
+<td>rule</td>
+<td>numbered list</td>
+<td>a horizontal rule, then a 2-item numbered list (1. Number A, 2. Number B)</td>
+</tr>
+<tr>
+<td>AJ-095</td>
+<td>rule</td>
+<td>task list</td>
+<td>a horizontal rule, then a 2-item task list (☐ Task A, ☑ Task B)</td>
+</tr>
+<tr>
+<td>AJ-096</td>
+<td>rule</td>
+<td>code block</td>
+<td>a horizontal rule, then a monospace code block "code line"</td>
+</tr>
+<tr>
+<td>AJ-097</td>
+<td>rule</td>
+<td>blockquote</td>
+<td>a horizontal rule, then a quote (indent + left border) "Quoted line"</td>
+</tr>
+<tr>
+<td>AJ-098</td>
+<td>rule</td>
+<td>table</td>
+<td>a horizontal rule, then a 2x2 table (bold header K/V, row k1/v1)</td>
+</tr>
+<tr>
+<td>AJ-099</td>
+<td>rule</td>
+<td>image</td>
+<td>a horizontal rule, then an inline image on its own line</td>
+</tr>
+<tr>
+<td>AJ-100</td>
+<td>rule</td>
+<td>rule</td>
+<td>a horizontal rule, then a horizontal rule</td>
+</tr>
+</tbody>
+</table>
+<!-- /generated:AJ -->
+
+<h3 id="tc-md203-adjacency-matrix-blank-line-destructive">TC-MD203: Adjacency matrix, blank line ⚠️ destructive<a class="headerlink" href="#tc-md203-adjacency-matrix-blank-line-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-adjacency-blank.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>The same 100 pairs separated by one blank line.</p>
+<!-- generated:AB -->
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>A</th>
+<th>B</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AB-001</td>
+<td>paragraph</td>
+<td>paragraph</td>
+<td>a plain paragraph "Plain paragraph text.", then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-002</td>
+<td>paragraph</td>
+<td>heading</td>
+<td>a plain paragraph "Plain paragraph text.", then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-003</td>
+<td>paragraph</td>
+<td>bullet list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-004</td>
+<td>paragraph</td>
+<td>numbered list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-005</td>
+<td>paragraph</td>
+<td>task list</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-006</td>
+<td>paragraph</td>
+<td>code block</td>
+<td>a plain paragraph "Plain paragraph text.", then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-007</td>
+<td>paragraph</td>
+<td>blockquote</td>
+<td>a plain paragraph "Plain paragraph text.", then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-008</td>
+<td>paragraph</td>
+<td>table</td>
+<td>a plain paragraph "Plain paragraph text.", then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-009</td>
+<td>paragraph</td>
+<td>image</td>
+<td>a plain paragraph "Plain paragraph text.", then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-010</td>
+<td>paragraph</td>
+<td>rule</td>
+<td>a plain paragraph "Plain paragraph text.", then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-011</td>
+<td>heading</td>
+<td>paragraph</td>
+<td>a Heading 4 "Inner heading", then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-012</td>
+<td>heading</td>
+<td>heading</td>
+<td>a Heading 4 "Inner heading", then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-013</td>
+<td>heading</td>
+<td>bullet list</td>
+<td>a Heading 4 "Inner heading", then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-014</td>
+<td>heading</td>
+<td>numbered list</td>
+<td>a Heading 4 "Inner heading", then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-015</td>
+<td>heading</td>
+<td>task list</td>
+<td>a Heading 4 "Inner heading", then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-016</td>
+<td>heading</td>
+<td>code block</td>
+<td>a Heading 4 "Inner heading", then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-017</td>
+<td>heading</td>
+<td>blockquote</td>
+<td>a Heading 4 "Inner heading", then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-018</td>
+<td>heading</td>
+<td>table</td>
+<td>a Heading 4 "Inner heading", then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-019</td>
+<td>heading</td>
+<td>image</td>
+<td>a Heading 4 "Inner heading", then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-020</td>
+<td>heading</td>
+<td>rule</td>
+<td>a Heading 4 "Inner heading", then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-021</td>
+<td>bullet list</td>
+<td>paragraph</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-022</td>
+<td>bullet list</td>
+<td>heading</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-023</td>
+<td>bullet list</td>
+<td>bullet list</td>
+<td>ONE loose list holding all four items, in order (a blank line doesn't end a list)</td>
+</tr>
+<tr>
+<td>AB-024</td>
+<td>bullet list</td>
+<td>numbered list</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-025</td>
+<td>bullet list</td>
+<td>task list</td>
+<td>ONE loose list holding all four items, in order (a blank line doesn't end a list)</td>
+</tr>
+<tr>
+<td>AB-026</td>
+<td>bullet list</td>
+<td>code block</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-027</td>
+<td>bullet list</td>
+<td>blockquote</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-028</td>
+<td>bullet list</td>
+<td>table</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-029</td>
+<td>bullet list</td>
+<td>image</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-030</td>
+<td>bullet list</td>
+<td>rule</td>
+<td>a 2-item bullet list (Bullet A, Bullet B), then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-031</td>
+<td>numbered list</td>
+<td>paragraph</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-032</td>
+<td>numbered list</td>
+<td>heading</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-033</td>
+<td>numbered list</td>
+<td>bullet list</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-034</td>
+<td>numbered list</td>
+<td>numbered list</td>
+<td>ONE loose list holding all four items, in order (a blank line doesn't end a list) (1. to 4.)</td>
+</tr>
+<tr>
+<td>AB-035</td>
+<td>numbered list</td>
+<td>task list</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-036</td>
+<td>numbered list</td>
+<td>code block</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-037</td>
+<td>numbered list</td>
+<td>blockquote</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-038</td>
+<td>numbered list</td>
+<td>table</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-039</td>
+<td>numbered list</td>
+<td>image</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-040</td>
+<td>numbered list</td>
+<td>rule</td>
+<td>a 2-item numbered list (1. Number A, 2. Number B), then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-041</td>
+<td>task list</td>
+<td>paragraph</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-042</td>
+<td>task list</td>
+<td>heading</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-043</td>
+<td>task list</td>
+<td>bullet list</td>
+<td>ONE loose list holding all four items, in order (a blank line doesn't end a list)</td>
+</tr>
+<tr>
+<td>AB-044</td>
+<td>task list</td>
+<td>numbered list</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-045</td>
+<td>task list</td>
+<td>task list</td>
+<td>ONE loose list holding all four items, in order (a blank line doesn't end a list)</td>
+</tr>
+<tr>
+<td>AB-046</td>
+<td>task list</td>
+<td>code block</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-047</td>
+<td>task list</td>
+<td>blockquote</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-048</td>
+<td>task list</td>
+<td>table</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-049</td>
+<td>task list</td>
+<td>image</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-050</td>
+<td>task list</td>
+<td>rule</td>
+<td>a 2-item task list (☐ Task A, ☑ Task B), then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-051</td>
+<td>code block</td>
+<td>paragraph</td>
+<td>a monospace code block "code line", then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-052</td>
+<td>code block</td>
+<td>heading</td>
+<td>a monospace code block "code line", then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-053</td>
+<td>code block</td>
+<td>bullet list</td>
+<td>a monospace code block "code line", then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-054</td>
+<td>code block</td>
+<td>numbered list</td>
+<td>a monospace code block "code line", then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-055</td>
+<td>code block</td>
+<td>task list</td>
+<td>a monospace code block "code line", then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-056</td>
+<td>code block</td>
+<td>code block</td>
+<td>a monospace code block "code line", then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-057</td>
+<td>code block</td>
+<td>blockquote</td>
+<td>a monospace code block "code line", then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-058</td>
+<td>code block</td>
+<td>table</td>
+<td>a monospace code block "code line", then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-059</td>
+<td>code block</td>
+<td>image</td>
+<td>a monospace code block "code line", then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-060</td>
+<td>code block</td>
+<td>rule</td>
+<td>a monospace code block "code line", then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-061</td>
+<td>blockquote</td>
+<td>paragraph</td>
+<td>a quote (indent + left border) "Quoted line", then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-062</td>
+<td>blockquote</td>
+<td>heading</td>
+<td>a quote (indent + left border) "Quoted line", then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-063</td>
+<td>blockquote</td>
+<td>bullet list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-064</td>
+<td>blockquote</td>
+<td>numbered list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-065</td>
+<td>blockquote</td>
+<td>task list</td>
+<td>a quote (indent + left border) "Quoted line", then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-066</td>
+<td>blockquote</td>
+<td>code block</td>
+<td>a quote (indent + left border) "Quoted line", then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-067</td>
+<td>blockquote</td>
+<td>blockquote</td>
+<td>two separate quotes</td>
+</tr>
+<tr>
+<td>AB-068</td>
+<td>blockquote</td>
+<td>table</td>
+<td>a quote (indent + left border) "Quoted line", then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-069</td>
+<td>blockquote</td>
+<td>image</td>
+<td>a quote (indent + left border) "Quoted line", then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-070</td>
+<td>blockquote</td>
+<td>rule</td>
+<td>a quote (indent + left border) "Quoted line", then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-071</td>
+<td>table</td>
+<td>paragraph</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-072</td>
+<td>table</td>
+<td>heading</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-073</td>
+<td>table</td>
+<td>bullet list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-074</td>
+<td>table</td>
+<td>numbered list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-075</td>
+<td>table</td>
+<td>task list</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-076</td>
+<td>table</td>
+<td>code block</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-077</td>
+<td>table</td>
+<td>blockquote</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-078</td>
+<td>table</td>
+<td>table</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-079</td>
+<td>table</td>
+<td>image</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-080</td>
+<td>table</td>
+<td>rule</td>
+<td>a 2x2 table (bold header K/V, row k1/v1), then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-081</td>
+<td>image</td>
+<td>paragraph</td>
+<td>an inline image on its own line, then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-082</td>
+<td>image</td>
+<td>heading</td>
+<td>an inline image on its own line, then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-083</td>
+<td>image</td>
+<td>bullet list</td>
+<td>an inline image on its own line, then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-084</td>
+<td>image</td>
+<td>numbered list</td>
+<td>an inline image on its own line, then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-085</td>
+<td>image</td>
+<td>task list</td>
+<td>an inline image on its own line, then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-086</td>
+<td>image</td>
+<td>code block</td>
+<td>an inline image on its own line, then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-087</td>
+<td>image</td>
+<td>blockquote</td>
+<td>an inline image on its own line, then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-088</td>
+<td>image</td>
+<td>table</td>
+<td>an inline image on its own line, then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-089</td>
+<td>image</td>
+<td>image</td>
+<td>an inline image on its own line, then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-090</td>
+<td>image</td>
+<td>rule</td>
+<td>an inline image on its own line, then a horizontal rule, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-091</td>
+<td>rule</td>
+<td>paragraph</td>
+<td>a horizontal rule, then a plain paragraph "Plain paragraph text.", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-092</td>
+<td>rule</td>
+<td>heading</td>
+<td>a horizontal rule, then a Heading 4 "Inner heading", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-093</td>
+<td>rule</td>
+<td>bullet list</td>
+<td>a horizontal rule, then a 2-item bullet list (Bullet A, Bullet B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-094</td>
+<td>rule</td>
+<td>numbered list</td>
+<td>a horizontal rule, then a 2-item numbered list (1. Number A, 2. Number B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-095</td>
+<td>rule</td>
+<td>task list</td>
+<td>a horizontal rule, then a 2-item task list (☐ Task A, ☑ Task B), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-096</td>
+<td>rule</td>
+<td>code block</td>
+<td>a horizontal rule, then a monospace code block "code line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-097</td>
+<td>rule</td>
+<td>blockquote</td>
+<td>a horizontal rule, then a quote (indent + left border) "Quoted line", as separate blocks</td>
+</tr>
+<tr>
+<td>AB-098</td>
+<td>rule</td>
+<td>table</td>
+<td>a horizontal rule, then a 2x2 table (bold header K/V, row k1/v1), as separate blocks</td>
+</tr>
+<tr>
+<td>AB-099</td>
+<td>rule</td>
+<td>image</td>
+<td>a horizontal rule, then an inline image on its own line, as separate blocks</td>
+</tr>
+<tr>
+<td>AB-100</td>
+<td>rule</td>
+<td>rule</td>
+<td>a horizontal rule, then a horizontal rule, as separate blocks</td>
+</tr>
+</tbody>
+</table>
+<!-- /generated:AB -->
+
+<h3 id="tc-md204-inline-formatting-matrix-destructive">TC-MD204: Inline formatting matrix ⚠️ destructive<a class="headerlink" href="#tc-md204-inline-formatting-matrix-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-inline-matrix.md</code> through EP-1 to EP-8.</p>
+</blockquote>
+<p>IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) containing each other one. IN-21 to IN-32: all five styles together inside each block type, including headings, list items at depth 2, table header and body cells, and blockquotes. A link inside a link isn't valid Markdown and is left out; inside code, markers are literal by definition (IN-13 to IN-16 check exactly that).</p>
+<!-- generated:IN -->
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Combination</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IN-01</td>
+<td>italic inside bold</td>
+<td>"outer inner outer" all bold; "inner" is also italic; no literal markers</td>
+</tr>
+<tr>
+<td>IN-02</td>
+<td>strike inside bold</td>
+<td>"outer inner outer" all bold; "inner" is also struck through; no literal markers</td>
+</tr>
+<tr>
+<td>IN-03</td>
+<td>code inside bold</td>
+<td>"outer inner outer" all bold; "inner" is also monospace (Courier New); no literal markers</td>
+</tr>
+<tr>
+<td>IN-04</td>
+<td>link inside bold</td>
+<td>"outer inner outer" all bold; "inner" is also a link to https://example.com/inline; no literal markers</td>
+</tr>
+<tr>
+<td>IN-05</td>
+<td>bold inside italic</td>
+<td>"outer inner outer" all italic; "inner" is also bold; no literal markers</td>
+</tr>
+<tr>
+<td>IN-06</td>
+<td>strike inside italic</td>
+<td>"outer inner outer" all italic; "inner" is also struck through; no literal markers</td>
+</tr>
+<tr>
+<td>IN-07</td>
+<td>code inside italic</td>
+<td>"outer inner outer" all italic; "inner" is also monospace (Courier New); no literal markers</td>
+</tr>
+<tr>
+<td>IN-08</td>
+<td>link inside italic</td>
+<td>"outer inner outer" all italic; "inner" is also a link to https://example.com/inline; no literal markers</td>
+</tr>
+<tr>
+<td>IN-09</td>
+<td>bold inside strike</td>
+<td>"outer inner outer" all struck through; "inner" is also bold; no literal markers</td>
+</tr>
+<tr>
+<td>IN-10</td>
+<td>italic inside strike</td>
+<td>"outer inner outer" all struck through; "inner" is also italic; no literal markers</td>
+</tr>
+<tr>
+<td>IN-11</td>
+<td>code inside strike</td>
+<td>"outer inner outer" all struck through; "inner" is also monospace (Courier New); no literal markers</td>
+</tr>
+<tr>
+<td>IN-12</td>
+<td>link inside strike</td>
+<td>"outer inner outer" all struck through; "inner" is also a link to https://example.com/inline; no literal markers</td>
+</tr>
+<tr>
+<td>IN-13</td>
+<td>bold inside code</td>
+<td>the whole span <code>**inner** in code</code> is monospace with the bold markers shown literally (no bold formatting inside code)</td>
+</tr>
+<tr>
+<td>IN-14</td>
+<td>italic inside code</td>
+<td>the whole span <code>*inner* in code</code> is monospace with the italic markers shown literally (no italic formatting inside code)</td>
+</tr>
+<tr>
+<td>IN-15</td>
+<td>strike inside code</td>
+<td>the whole span <code>~~inner~~ in code</code> is monospace with the strike markers shown literally (no strike formatting inside code)</td>
+</tr>
+<tr>
+<td>IN-16</td>
+<td>link inside code</td>
+<td>the whole span <code>[inner](https://example.com/inline) in code</code> is monospace with the link markers shown literally (no link formatting inside code)</td>
+</tr>
+<tr>
+<td>IN-17</td>
+<td>bold inside link</td>
+<td>"outer inner outer" all a link to https://example.com/inline; "inner" is also bold; no literal markers</td>
+</tr>
+<tr>
+<td>IN-18</td>
+<td>italic inside link</td>
+<td>"outer inner outer" all a link to https://example.com/inline; "inner" is also italic; no literal markers</td>
+</tr>
+<tr>
+<td>IN-19</td>
+<td>strike inside link</td>
+<td>"outer inner outer" all a link to https://example.com/inline; "inner" is also struck through; no literal markers</td>
+</tr>
+<tr>
+<td>IN-20</td>
+<td>code inside link</td>
+<td>"outer inner outer" all a link to https://example.com/inline; "inner" is also monospace (Courier New); no literal markers</td>
+</tr>
+<tr>
+<td>IN-21</td>
+<td>all five styles in a paragraph</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the paragraph itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-22</td>
+<td>all five styles in a heading 2</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the heading 2 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-23</td>
+<td>all five styles in a heading 6</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the heading 6 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-24</td>
+<td>all five styles in a bullet item, level 0</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the bullet item, level 0 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-25</td>
+<td>all five styles in a bullet item, level 2</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the bullet item, level 2 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-26</td>
+<td>all five styles in a numbered item, level 0</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the numbered item, level 0 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-27</td>
+<td>all five styles in a numbered item, level 2</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the numbered item, level 2 itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-28</td>
+<td>all five styles in a task item</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the task item itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-29</td>
+<td>all five styles in a table header cell</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; every letter is bold (the header row is bold, C13), and each other style is only on its own letter; the table header cell itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-30</td>
+<td>all five styles in a table body cell</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the table body cell itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-31</td>
+<td>all five styles in a blockquote</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the blockquote itself renders correctly</td>
+</tr>
+<tr>
+<td>IN-32</td>
+<td>all five styles in a nested blockquote</td>
+<td>B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the nested blockquote itself renders correctly</td>
+</tr>
+</tbody>
+</table>
+<!-- /generated:IN -->
+
+<hr />
+<h2 id="document-boundaries">Document boundaries<a class="headerlink" href="#document-boundaries" title="Permanent link">&para;</a></h2>
+<h3 id="tc-md301-documents-that-start-or-end-with-a-non-paragraph-block-and-degenerate-input-destructive">TC-MD301: Documents that start or end with a non-paragraph block, and degenerate input ⚠️ destructive<a class="headerlink" href="#tc-md301-documents-that-start-or-end-with-a-non-paragraph-block-and-degenerate-input-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render each file in <code>docs/qa/fixtures/md/syntax/docstart/</code> through EP-1 to EP-8. Each file is its own case.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>File</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DS-01</td>
+<td><code>ds-01-starts-bullets.md</code></td>
+<td>The bullet list is the first thing in the Doc; no empty paragraph above it</td>
+</tr>
+<tr>
+<td>DS-02</td>
+<td><code>ds-02-starts-numbered.md</code></td>
+<td>Numbered list first, starting at 1.</td>
+</tr>
+<tr>
+<td>DS-03</td>
+<td><code>ds-03-starts-table.md</code></td>
+<td>The table first (the collapsed blank paragraph before it stays invisible, C15), then the paragraph</td>
+</tr>
+<tr>
+<td>DS-04</td>
+<td><code>ds-04-starts-code.md</code></td>
+<td>The code block first, then the paragraph</td>
+</tr>
+<tr>
+<td>DS-05</td>
+<td><code>ds-05-starts-quote.md</code></td>
+<td>The quote first, then the paragraph</td>
+</tr>
+<tr>
+<td>DS-06</td>
+<td><code>ds-06-starts-image.md</code></td>
+<td>The image first, then the paragraph</td>
+</tr>
+<tr>
+<td>DS-07</td>
+<td><code>ds-07-starts-rule.md</code></td>
+<td>A horizontal line first, then the paragraph</td>
+</tr>
+<tr>
+<td>DS-08</td>
+<td><code>ds-08-ends-table.md</code></td>
+<td>Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one</td>
+</tr>
+<tr>
+<td>DS-09</td>
+<td><code>ds-09-ends-list.md</code></td>
+<td>The list's last item is the last visible line; no empty bulleted line after it</td>
+</tr>
+<tr>
+<td>DS-10</td>
+<td><code>ds-10-empty.md</code></td>
+<td>The call succeeds and leaves an empty Doc (EP-2/EP-4: the Doc's previous content is cleared)</td>
+</tr>
+<tr>
+<td>DS-11</td>
+<td><code>ds-11-whitespace-only.md</code></td>
+<td>Same as DS-10</td>
+</tr>
+<tr>
+<td>DS-12</td>
+<td><code>ds-12-no-trailing-newline.md</code></td>
+<td>The paragraph, intact</td>
+</tr>
+<tr>
+<td>DS-13</td>
+<td><code>ds-13-crlf-line-endings.md</code></td>
+<td>Same rendering as the LF equivalent: heading, 2-item list, paragraph; no stray characters</td>
+</tr>
+<tr>
+<td>DS-14</td>
+<td><code>ds-14-front-matter.md</code></td>
+<td>D3: the front matter isn't shown; the Doc starts with the Heading 1 "Body heading"</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md302-long-document-destructive">TC-MD302: Long document ⚠️ destructive<a class="headerlink" href="#tc-md302-long-document-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/syntax/md-long-document.md</code> (~2,000 lines: Phase 1's sixteen documents twice) through EP-1 to EP-8.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The call completes without a timeout or a partial Doc; on failure, the error names what failed.
+- Spot-check the second copy of r06 (how-to) and r16 (planning notes) at the end of the Doc: they render exactly like their Phase 1 renders (same numbering, nesting, code blocks). An offset bug that only shows deep into a long Doc shows here.
+- Every thematic break between documents is a visible line.</p>
+<h3 id="tc-md303-a-md-file-with-a-long-name-through-the-drive-import-entry-points-destructive">TC-MD303: A <code>.md</code> file with a long name through the Drive-import entry points ⚠️ destructive<a class="headerlink" href="#tc-md303-a-md-file-with-a-long-name-through-the-drive-import-entry-points-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> copy <code>docs/qa/fixtures/md/realistic/r01-meeting-notes.md</code> to a temp directory as a file whose name is 110 ASCII bytes (<code>qa-md303-</code> padded with <code>x</code>, ending <code>.md</code>), and a second copy whose name is 45 CJK characters plus <code>.md</code> (over 130 UTF-8 bytes). Don't commit either name.</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render each copy through EP-3, EP-5, EP-6 and EP-7.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>error</code> and no <code>failed</code> entry for either file; nothing returns <code>403 propertyLengthLimitExceeded</code> (#805, #806).
+- <code>list_files</code> on the target folder shows exactly one Doc per upload: no orphan left by a failed property write.
+- EP-7: a second <code>sync_folder</code> call with the same arguments reports the file <code>skipped</code> (in sync), not a new upload or a conflict.
+- Each Doc renders the meeting notes per TC-MD001.</p>
+<hr />
+<h2 id="document-state">Document state<a class="headerlink" href="#document-state" title="Permanent link">&para;</a></h2>
+<p>These use our converter's write paths (EP-2 and EP-4); the Drive-import entry points always create a new file and have no "existing Doc" to write into.</p>
+<h3 id="tc-md401-replacing-a-doc-that-already-has-content-destructive">TC-MD401: Replacing a Doc that already has content ⚠️ destructive<a class="headerlink" href="#tc-md401-replacing-a-doc-that-already-has-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Create a Doc with <code>create_doc(content=&lt;contents of r07-comparison.md&gt;, content_format="markdown")</code>, then replace its content with r06-howto.md through EP-2, and again (a second Doc set up the same way) through EP-4.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The result is identical on screen to r06's render into a blank Doc (TC-MD006, same EP).
+- Nothing of r07 remains: no leftover table, list formatting, or styled empty paragraph.</p>
+<h3 id="tc-md402-writing-into-a-doc-with-a-theme-and-non-default-named-styles-destructive">TC-MD402: Writing into a Doc with a theme and non-default named styles ⚠️ destructive<a class="headerlink" href="#tc-md402-writing-into-a-doc-with-a-theme-and-non-default-named-styles-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Create a blank Doc, run <code>apply_theme(doc_id, theme=&lt;contents of docs/qa/fixtures/md/state/theme.json&gt;)</code>, then write r02-project-plan.md through EP-2 and (on a second themed Doc) EP-4.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Headings take the theme: Heading 1/2 in Montserrat, blue-ish, bold; Heading 3 Montserrat, gray, italic. Body text in Georgia.
+- Code spans and code blocks are still Courier New, not Georgia.
+- Lists, tables and numbering render exactly as in TC-MD002.</p>
+<h3 id="tc-md403-update_doc_from_file-twice-in-a-row-destructive">TC-MD403: <code>update_doc_from_file</code> twice in a row ⚠️ destructive<a class="headerlink" href="#tc-md403-update_doc_from_file-twice-in-a-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>On one blank Doc, run <code>update_doc_from_file(doc_id, local_path=&lt;r10-task-plan.md&gt;)</code> twice in a row.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The render after the second call is identical on screen to the render after the first.
+- <strong>Structural:</strong> <code>get_doc_structure</code> returns the same element list both times (same count, types, styles, list nesting); no accumulated empty paragraphs or duplicate lists.</p>
+<h3 id="tc-md404-determinism-across-runs-destructive">TC-MD404: Determinism across runs ⚠️ destructive<a class="headerlink" href="#tc-md404-determinism-across-runs-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Not a separate render: this TC records the Run 1 vs. Run 2 comparison from "Running this suite" step 7 for every case in this file.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Every case's Run 2 screenshot matches Run 1 per entry point. Any difference is a FAIL of the case and of this TC.</p>
+<hr />
+<h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Insert Markdown at an index:</strong> no tool does this (see "Entry points").</li>
+<li><strong>Nested tables:</strong> Markdown can't express a table inside a table cell (<code>docs/known-limitations.md</code>, "Nested tables not supported via Markdown input"); not a case here.</li>
+<li><strong>Comments, headers, footers:</strong> not Markdown constructs.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

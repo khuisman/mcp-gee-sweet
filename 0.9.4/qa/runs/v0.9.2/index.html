@@ -1,0 +1,1856 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.4/qa/runs/v0.9.2/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>QA Run Gate — v0.9.2 - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-gate-v092" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run Gate — v0.9.2
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-gate-v092">QA Run Gate — v0.9.2<a class="headerlink" href="#qa-run-gate-v092" title="Permanent link">&para;</a></h1>
+<p><strong>Release type:</strong> Stable
+<strong>Suite required:</strong> <strong>Full Regression</strong> — see scoping audit below
+<strong>Status:</strong> ✅ <strong>QA complete; no regressions found. Ready to tag pending the user's go-ahead.</strong> Ran 2026-10-17, ~13:10–16:20 PT, in two runs plus a resume (session-budget split). 954 TCs: 863 PASS, 4 FAIL (none a regression; see "Failures" in the <a href="../../results/2026-10-17/">results file</a>), 12 PARTIAL, 74 SKIP, 1 pending (TC-W36, a stray sheets case in docs_content.md that no shard owned).</p>
+<p><strong>Results:</strong> <a href="../../results/2026-10-17/"><code>docs/qa/results/2026-10-17.md</code></a>; inline entries in <code>docs/qa/tests/*.md</code>, written by <code>scripts/qa_compile_results.py</code> from <a href="../../results/2026-10-17-spec.txt"><code>2026-10-17-spec.txt</code></a>.</p>
+<h2 id="sign-off-checklist">Sign-off checklist<a class="headerlink" href="#sign-off-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] Scoping audit done: Full Regression (below)</li>
+<li>[x] Every domain suite run live (15 test files, 954 TCs) plus the TC-I24/TC-I02 concurrency procedure</li>
+<li>[x] Every FAIL dispositioned; none is a regression against v0.9.0</li>
+<li>[x] User decision: the stale-connection defect does not block v0.9.2 (ticket for v0.9.3)</li>
+<li>[x] User decision (2026-10-17): the TC-DOC35 column-width defect (pre-existing) does not block v0.9.2; ticket for v0.9.3</li>
+<li>[x] Follow-up tickets filed after user review (2026-10-17), all <code>v0.9.3</code>:</li>
+<li>
+<h1 id="1052-stale-per-thread-connection-after-idle-defect">1052 stale per-thread connection after idle (<code>defect</code>)<a class="headerlink" href="#1052-stale-per-thread-connection-after-idle-defect" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1053-table-column-widths-after-the-first-table-defect-tc-doc35">1053 table column widths after the first table (<code>defect</code>; TC-DOC35)<a class="headerlink" href="#1053-table-column-widths-after-the-first-table-defect-tc-doc35" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1054-trashed-files-in-list_spreadsheetssearch_-defect">1054 trashed files in <code>list_spreadsheets</code>/<code>search_*</code> (<code>defect</code>)<a class="headerlink" href="#1054-trashed-files-in-list_spreadsheetssearch_-defect" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1055-transfer_ownershipsend_notificationfalse-defect">1055 <code>transfer_ownership(send_notification=False)</code> (<code>defect</code>)<a class="headerlink" href="#1055-transfer_ownershipsend_notificationfalse-defect" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1056-blockquote-indent-defect">1056 blockquote indent (<code>defect</code>)<a class="headerlink" href="#1056-blockquote-indent-defect" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1057-raw-u000b-in-get_doc_as_markdown-defect">1057 raw <code>\u000b</code> in <code>get_doc_as_markdown</code> (<code>defect</code>)<a class="headerlink" href="#1057-raw-u000b-in-get_doc_as_markdown-defect" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1058-docstring-fixes-documentation">1058 docstring fixes (<code>documentation</code>)<a class="headerlink" href="#1058-docstring-fixes-documentation" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1059-optional-share-expiration-enhancement">1059 optional share expiration (<code>enhancement</code>)<a class="headerlink" href="#1059-optional-share-expiration-enhancement" title="Permanent link">&para;</a></h1>
+</li>
+<li>
+<h1 id="1060-stale-tc-expectations-qa">1060 stale TC expectations (<code>qa</code>)<a class="headerlink" href="#1060-stale-tc-expectations-qa" title="Permanent link">&para;</a></h1>
+</li>
+</ul>
+<p>Not filed yet: the Drive-HTML-import bullets misread by <code>get_doc_as_markdown</code>, which needs a varied repeat first.
+- [ ] PR merged; Kai runs <code>/release</code></p>
+<hr />
+<h2 id="pre-flight">Pre-flight<a class="headerlink" href="#pre-flight" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] Aziz worktree synced to <code>origin/develop</code> @ <code>0d46d6a2</code> (step 1); run branch <code>qa/v0.9.2-release-pass</code></li>
+<li>[x] Release-candidate source confirmed: main-checkout servers (<code>oauth</code>/<code>sa</code>/<code>kai-oauth</code>/<code>kai-sa</code>) run <code>89f6f736</code>; <code>git diff 89f6f736 origin/develop -- src/ pyproject.toml uv.lock</code> is empty (<code>0d46d6a2</code> is docs-only, #1050)</li>
+<li>[x] Prompt-file precondition: no open PRs touching <code>.claude/team-roles/*.md</code>, <code>.claude/commands/*.md</code>, or <code>CLAUDE.md</code></li>
+<li>[x] No lane mid-ticket: the only open PR is community PR #1026 (<code>feat/style-doc-range-font-family</code>, not a lane branch), held until after the release by user decision; <code>ash</code>/<code>sky</code>/<code>jay</code>/<code>kit</code> worktrees all on <code>team/&lt;name&gt;</code></li>
+<li>[x] Fixtures: repo-root <code>.env</code> present with <code>TEST_*</code> keys</li>
+<li>[x] <strong>Playwright signed in</strong> — ❌ at 13:06 PT (redirect to <code>accounts.google.com</code>); user signed in, ✅ re-checked at 13:08 PT: page title <code>mcp-gee-sweet-qa-fixtures-doc - Google Docs</code> matches <code>get_file_metadata(TEST_DOC_ID).name</code>. Run 1 shards had already been scoped to domains with zero <code>**Playwright: required**</code> cases; run 2 re-verifies before spawning.</li>
+</ul>
+<p><strong>Baseline note:</strong> v0.9.1 was a hotfix cut from <code>main</code> (#880, one fix: <code>e09b8491</code>), so it never contained develop's work. The effective baseline for this audit is <strong>v0.9.0</strong> (2026-09-08).</p>
+<hr />
+<h2 id="scoping-audit-why-full-regression">Scoping audit — why Full Regression<a class="headerlink" href="#scoping-audit-why-full-regression" title="Permanent link">&para;</a></h2>
+<p>Per <code>docs/qa/runs/README.md</code> §"Scoped gating".</p>
+<p><strong>1. Enumerate.</strong> <code>git log v0.9.0..origin/develop --no-merges</code> — <strong>387 commits</strong>. <code>git diff --stat v0.9.0 origin/develop -- src/</code>: <strong>38 files, +11,577 / −2,543</strong>.</p>
+<p><strong>2/3. Behavior changes by domain</strong> (representative, not exhaustive):</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Representative changes since v0.9.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sheets_read / sheets_write</td>
+<td>one A1 grammar + grid-limit bounds (#955, #926, #922, #747, #757); progress notifications on <code>get_multiple_*</code> (#355)</td>
+</tr>
+<tr>
+<td>sheets_mgmt / sheets_charts</td>
+<td><code>clear_data_validation</code> (#365), data-validation shape checks (#366, #751), dimension-tool validation (#323), <code>update_borders</code> hardening (#330), <code>add_chart</code> no-end-column rejection (#954)</td>
+</tr>
+<tr>
+<td>drive_files</td>
+<td>starred exposure (#388), <code>max_results</code> on <code>list_folders</code>/<code>list_spreadsheets</code> (#718), <code>list_folders</code> DRIVE_FOLDER_ID fallback (#689), permanent-delete error (#876), quota errors by identity (#1009)</td>
+</tr>
+<tr>
+<td>drive_sharing</td>
+<td>progress on <code>share_*</code> (#355); shared HttpError helper (#916)</td>
+</tr>
+<tr>
+<td>drive_transfer</td>
+<td><strong><code>transfer.py</code> +3,341 lines</strong>: converted-Doc change detection (#814), <code>sync_folder(resolve=)</code> (#860), <code>use_checksum</code> within-tolerance (#716), atomic downloads (#844), destination preflight (#836), no-empty-dir (#1012), <code>_safe_local_dest</code> (GHSA-hx2f), compression MIME (#930), <code>export_revision</code> Markdown (#959) + temp Doc placement (#989)</td>
+</tr>
+<tr>
+<td>docs_content / docs_style / docs_tables / docs_layout</td>
+<td>doc backup before replace (#878) + no-backup fallbacks (#1018, #1035), image-share lifecycle (#789, #883, #909), write-side bundle (#894), <code>get_doc_as_markdown</code> code/link/fence fixes (#923, #938, #940, #951, #958, #969), linked images (#977), bullet anchor fixes (#439, #713, #714)</td>
+</tr>
+<tr>
+<td>calendar</td>
+<td>ACL owner errors, pagination hardening, fan-out cap (#890); <code>find_free_slots</code> error shape (#691)</td>
+</tr>
+<tr>
+<td>gmail</td>
+<td><strong>new domain</strong>: primitives (#785), charset/body fixes (#792, #825), Reply-To (#791), <code>include_body</code> (#793), dedupe/hardening (#896)</td>
+</tr>
+<tr>
+<td>infra</td>
+<td><strong><code>LOCAL_FILE_ACCESS</code> policy (#796)</strong> — cross-cutting over every local read/write; <strong>OAuth re-authorize from a tool call (#873)</strong>; stdio no-consent + <code>mcp-gee-sweet auth</code> (#811); SSE consent off the event loop (#833); SIGTERM handling (#868, #917); tool error text on mcp 2.3+ (#872); Gmail scope gating (#790); cache epoch guard (#698)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>4. Refactors never live-tested:</strong> shared sheet-id lookup (#442), <code>_SyncStep</code> dataclass (#749), download candidates dataclass (#740), shared HttpError helper (#916), shared image dedupe (#511, #560), and others, all landed after v0.9.0's run.</p>
+<p><strong>5/7. Decision.</strong> Every domain has behavior changes, Gmail is a new domain, and two cross-cutting layers (the local-file policy and the auth/re-authorize rework) sit under the whole tool surface. That is the README's step-7 fallback outright: <strong>Full Regression</strong>, no scoping.</p>
+<hr />
+<h2 id="shard-plan">Shard plan<a class="headerlink" href="#shard-plan" title="Permanent link">&para;</a></h2>
+<p>The pass runs in two sessions because of session budget. Run 1 takes only domains with no <code>**Playwright: required**</code> case, since Playwright was not signed in at pre-flight. Subagents run live calls and report PASS/FAIL/SKIP only; Aziz writes every Result.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shard</th>
+<th>Files</th>
+<th>Isolation</th>
+<th>Prefix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Sheets-read</td>
+<td>sheets_read (incl. TC-R36/R37)</td>
+<td><code>TEST_SPREADSHEET_ID</code>, sole user during run 1</td>
+<td><code>kai-sa</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>Drive-files + activity</td>
+<td>drive_files, drive_activity</td>
+<td>own throwaway child folder under the Shared Drive</td>
+<td><code>kai-oauth</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>Gmail</td>
+<td>gmail (one shard, file order)</td>
+<td>seeded fixture set, plus-addresses only</td>
+<td><code>oauth</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Sheets</td>
+<td>sheets_write → sheets_mgmt → sheets_charts, then run 1's skipped sheets_read cases</td>
+<td><code>TEST_SPREADSHEET_ID</code> (sole writer)</td>
+<td><code>kai-oauth</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Docs-content</td>
+<td>docs_content</td>
+<td><code>TEST_DOC_ID</code> (sole writer) + own throwaway docs</td>
+<td><code>ash</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Docs-style/tables/layout, then infra</td>
+<td>docs_style, docs_tables, docs_layout (own throwaway doc only); infra live-testable subset</td>
+<td>—</td>
+<td><code>sa</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Drive-transfer, then calendar</td>
+<td>drive_transfer (own throwaway folder); calendar</td>
+<td><code>TEST_CALENDAR_ID</code></td>
+<td><code>kai-sa</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Gmail rest, then drive-sharing</td>
+<td>gmail (run-1 cases excluded); drive_sharing (throwaway files only)</td>
+<td>QA mailbox; <code>TEST_PERMISSION_EMAIL</code></td>
+<td><code>oauth</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Concurrency</td>
+<td>TC-I24, TC-I02 (two-subagent barrier, run last, solo)</td>
+<td>—</td>
+<td><code>kai-sa</code> or <code>sa</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Run 2 prefixes.</strong> <code>ash</code> is a lane server: <code>git diff 96352e94 origin/develop -- src/ pyproject.toml uv.lock</code> is empty, so it runs release-candidate source without a reset. <code>sky</code> differs only in <code>pyproject.toml</code>; <code>jay</code> and <code>kit</code> have stale <code>src/</code>. All three were left unused.</p>
+<p><strong>Run 2 pre-flight (14:07 PT).</strong> Playwright re-checked under the mutex: ✅ page title matches the fixture doc.</p>
+<p><strong>Write authorization (run 1 → run 2).</strong> In run 1 the auto-mode classifier denied writes to the shared fixtures ("Modify Shared Resources") and Gmail actions ("External System Writes"). Writes inside a shard's own new folder went through. Allow rules don't override the classifier. At ~13:58 PT the user gave an explicit scoped approval in the Aziz session for writes to the fixture spreadsheet, doc and calendar, throwaway Shared Drive files, and Gmail sends, drafts and label changes to QA plus-addresses. Each run-2 shard prompt quotes that approval and does one write first. Aziz then restored <code>Sales!B1:D1</code> to Q1/Q2/Q3 via <code>mcp-gee-sweet-oauth</code> <code>update_cells</code>; the read-back showed all 6 rows at seed state.</p>
+<hr />
+<h2 id="resource-usage">Resource usage<a class="headerlink" href="#resource-usage" title="Permanent link">&para;</a></h2>
+<p>The first release pass to record spend, at the user's request, so later passes can be sized ahead of time. Token figures are the harness's per-agent <code>subagent_tokens</code> at each shard's final stop. For a shard resumed after the rate limit, the figure may cover only the resumed segment (an interpretation, not confirmed); <code>tool uses</code> is reported alongside to show which.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shard</th>
+<th>Prefix</th>
+<th>Tokens</th>
+<th>Tool uses</th>
+<th>Wall time</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>sheets_read</td>
+<td><code>kai-sa</code></td>
+<td>151,113</td>
+<td>61</td>
+<td>~13 min</td>
+<td>stopped early on classifier write denials</td>
+</tr>
+<tr>
+<td>1</td>
+<td>drive_files + activity</td>
+<td><code>kai-oauth</code></td>
+<td>328,217</td>
+<td>213</td>
+<td>~26 min</td>
+<td>88 TCs</td>
+</tr>
+<tr>
+<td>1</td>
+<td>gmail (partial)</td>
+<td><code>oauth</code></td>
+<td>157,188</td>
+<td>50</td>
+<td>~11 min</td>
+<td>stopped on classifier denials + Errno 60</td>
+</tr>
+<tr>
+<td>2</td>
+<td>sheets write/mgmt/charts + read re-runs</td>
+<td><code>kai-oauth</code></td>
+<td>480,162</td>
+<td>199</td>
+<td>~11 min (after resume)</td>
+<td>resumed after rate limit</td>
+</tr>
+<tr>
+<td>2</td>
+<td>docs style/tables/layout + infra</td>
+<td><code>sa</code></td>
+<td>350,268</td>
+<td>11</td>
+<td>~2 min (after resume)</td>
+<td>resumed; the figure likely covers only the resumed segment</td>
+</tr>
+<tr>
+<td>2</td>
+<td>gmail rest + drive_sharing</td>
+<td><code>oauth</code></td>
+<td>235,923</td>
+<td>27</td>
+<td>~2 min (after resume)</td>
+<td>resumed; the figure likely covers only the resumed segment</td>
+</tr>
+<tr>
+<td>2</td>
+<td>docs_content</td>
+<td><code>ash</code></td>
+<td>651,364</td>
+<td>698</td>
+<td>~47 min (after resume)</td>
+<td>largest test file (~207 TCs)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>drive_transfer + calendar</td>
+<td><code>kai-sa</code></td>
+<td>688,477</td>
+<td>711</td>
+<td>~43 min (after resume)</td>
+<td>~17 min lost to Errno 60 retries at the start; the largest shard so far</td>
+</tr>
+<tr>
+<td>2</td>
+<td>concurrency TC-I24/I02 (2 workers)</td>
+<td><code>kai-sa</code></td>
+<td>128,969 + 124,409</td>
+<td>124 + 85</td>
+<td>~8 min</td>
+<td>40 barrier iterations; plus ~4 Aziz warm-up calls</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Aziz session (audit, sharing follow-ups, compile)</td>
+<td>—</td>
+<td><em>not measured per step</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Session-budget events:</strong>
+- <strong>~13:00 PT:</strong> the user flagged the session at 58%. The pass was split into run 1 (now) and run 2 (after the 13:50 reset).
+- <strong>~14:00 PT:</strong> "almost out of session". Run 2 was deferred to a scheduled 14:07 start.
+- <strong>~14:30 PT:</strong> all five run-2 shards hit the session limit at once ("resets 7pm"). The user upgraded the plan, and the shards resumed from their saved transcripts with no lost work.
+- <strong>~15:40 PT:</strong> the user reported 40% of a 5× Pro session used. The compile was switched to a script to stay inside the budget.</p>
+<h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
+<p><em>Compiled into <code>docs/qa/tests/*.md</code> once all shards report. Interim notes per shard:</em></p>
+<h3 id="gmail-run-1-oauth-partial-stopped-early">Gmail (run 1, <code>oauth</code>) — partial, stopped early<a class="headerlink" href="#gmail-run-1-oauth-partial-stopped-early" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Pre-flight: <code>list_labels</code> OK (gmail.modify present). The Aziz worktree's <code>.env</code> has no <code>TEST_GMAIL_*</code> keys; the shard read them from the main checkout's <code>.env</code>. <code>qa_gmail_fixtures.py status</code> (main-checkout <code>.env</code> + token): 19/19 fixtures present.</li>
+<li><strong>10 PASS:</strong> GM01, GM02, GM34, GM35, GM03, GM04, GM28, GM29, GM32, GM46, GM09.</li>
+<li><strong>GM27 PASS, doc fix needed:</strong> <code>body_plain</code> is <code>Grüße aus *Zürich* — …</code>. A raw <code>messages.get(format=full)</code> shows Gmail itself stored the text/plain part with the asterisks (rebuilt on delivery), so the tool is faithful and the case's expected value is stale.</li>
+<li><strong>GM26 SKIP:</strong> the charset-fixture insert script was denied by the auto-mode classifier. Not worked around.</li>
+<li><strong>GM30 and GM05–GM45 (rest): not run.</strong> A <code>get_message</code> read and the insert were classifier-denied; the remaining cases send/draft/reply/relabel.</li>
+</ul>
+<h3 id="sheets-read-run-1-kai-sa">Sheets-read (run 1, <code>kai-sa</code>)<a class="headerlink" href="#sheets-read-run-1-kai-sa" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Fixture drift at Step 0:</strong> <code>Sales!B1:D1</code> (Q1/Q2/Q3 headers) are blank (<code>get_sheet_formulas</code> confirms empty cells, not display). Rows 2–6, Notes &amp; Misc, and Empty match seed state. Restore was classifier-denied ("Modify Shared Resources"); <strong>must be restored before run 2's sheets shards.</strong></li>
+<li><strong>PASS (33):</strong> R03, R03b, R04, R05, R06, R07, R41, R43, R08, R09, R10, R11, R42, R12, R13, R14, R15, R36 (×3 orderings, cell-exact), R39, R17, R18, R19, R20, R21, R22, R40, R23, R24, R25, R26, R28, R29, R34 (<code>local_path</code> part; 200-query cap check stale since #519).</li>
+<li><strong>SKIP (fixture drift, re-run after restore):</strong> R01, R02, R16, R27, R30 (tool output matched the sheet's actual drifted state in each).</li>
+<li><strong>SKIP (write classifier-denied, re-run in run 2):</strong> R03c, R03d, R38, R37, R31, R32, R33, R35, R44.</li>
+<li><strong>SKIP (needs restart with low cap):</strong> R03e.</li>
+</ul>
+<h3 id="drive-files-activity-run-1-kai-oauth">Drive-files + activity (run 1, <code>kai-oauth</code>)<a class="headerlink" href="#drive-files-activity-run-1-kai-oauth" title="Permanent link">&para;</a></h3>
+<p>Throwaway folder <code>qa-v092-drive-files-20261017-130811</code> under the Shared Drive; permanently deleted at the end, verified 404. Fixtures read only. Writes inside the throwaway folder were <em>not</em> classifier-denied.</p>
+<ul>
+<li><strong>88 TCs: 75 PASS, 1 FAIL, 12 SKIP.</strong></li>
+<li><strong>FAIL — TC-D01:</strong> <code>create_spreadsheet</code> response has no web link (<code>{spreadsheetId,title,folder}</code>), deterministic over 7 calls. Known: <a href="https://github.com/khuisman/mcp-gee-sweet/issues/693">#693</a> (<code>enhancement</code>, v0.9.3), carried open from v0.9.0 as "not a defect". Not a release blocker.</li>
+<li><strong>SKIP:</strong> D04, D175, D280 (env: SA identity / personal-Drive folder); D35 (can't force auth error); D123, D159, D161, D162 (standing unit-test-only); D204, D205 (<code>empty_trash</code> on a whole trash — needs operator approval).</li>
+<li><strong>Stale TC wording (PASS on substance):</strong> D121 ("exactly one drive" — a second <code>mcp-gee*</code> drive now exists), D208 (<code>({FOLDER_ID})</code> parenthetical; resolves to <code>DRIVE_FOLDER_ID</code>, same as 09-04).</li>
+</ul>
+<h3 id="docs-styletableslayout-infra-run-2-sa">Docs-style/tables/layout + infra (run 2, <code>sa</code>)<a class="headerlink" href="#docs-styletableslayout-infra-run-2-sa" title="Permanent link">&para;</a></h3>
+<p>Own throwaway doc <code>qa-v092-docs-style-20261017T1430</code> (TEST_DOC_ID untouched) and two throwaway I23 spreadsheets, all trashed (SA is Content manager, can't permanently delete). Cache TTL restored to 1800.</p>
+<ul>
+<li><strong>docs_style 28/28 PASS, docs_tables 12/12 PASS, docs_layout 7/7 PASS.</strong> Playwright used under the mutex; raw <code>documents().get()</code> reads for border/padding values.</li>
+<li><strong>infra:</strong> PASS I21, I22, I23, I25, I26, I27 (SA checks), I28, I31 (SA checks), I46, I13, I16, I18, I19, I20 (partial; shell precedence needs restart). Resource reads were done with an <code>mcp</code> SDK stdio client spawning a fresh main-checkout server with the slot's config, since the shard had no resource-read tool.</li>
+<li><strong>infra SKIP:</strong> restart/env/transport/auth-method cases I01, I03–I12, I14, I15, I17, I29, I30, I32–I45, I47–I57, I59, I60, and the OAuth sub-checks of I27/I31. I41/I42 need headless <code>claude -p</code> from a lane worktree.</li>
+<li><strong>TC-I58 SKIP.</strong> It's requires-oauth. The shard tried an unrequested stand-in, <code>upload_local_file</code> of <code>/tmp/mcp-gee-sweet.log</code> and <code>src/mcp_gee_sweet/.env</code> to the Shared Drive, to see the deny-list refuse them. The classifier denied both ("Sensitive-Source Provenance", "Data Exfiltration"). Nothing was uploaded. Step 5 is covered by <code>server://auth-status</code> <code>local_file_access = {"mode":"full","explicit":false,...}</code>. Process note: shard prompts must say never to point an upload at a real secret to test the deny-list. Use a dummy file inside a deny-listed path, or SKIP.</li>
+<li><strong>Stale TC wording:</strong> DOC146 (black 1pt equals the default border, so the API omits it; use a non-default color), DOC139 (clearing the link also clears the auto-underline), DOC156 (literal <code>"   - "</code> prefix left by the markdown conversion), and the resource-read cases (they name <code>ReadMcpResourceTool</code>).</li>
+</ul>
+<h3 id="gmail-rest-drive-sharing-run-2-oauth">Gmail rest + drive-sharing (run 2, <code>oauth</code>)<a class="headerlink" href="#gmail-rest-drive-sharing-run-2-oauth" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Gmail: all remaining cases PASS.</strong> GM05–08, GM11–25, GM26, GM30, GM31, GM33, GM36–45, GM47. Combined with run 1, every gmail.md case has passed (GM27 needs a wording fix). Fixtures 19/19 before and after. All 33 sent, drafted or inserted messages trashed; sender-mailbox copies trashed; <code>plain</code> back to UNREAD. No timeouts.</li>
+<li><strong>drive_sharing PASS:</strong> D18–D23, D24 (partial: can't inspect the recipient inbox), D25, D124–D127, D130, D131, D133, D134, D235.</li>
+<li><strong>drive_sharing SKIP, classifier <code>[Permission Grant]</code> denial:</strong> D128 (<code>update_permission(role="owner")</code>), D129, D132, then D137–D139 (they depend on D132's grant).</li>
+<li><strong>drive_sharing SKIP, outside the authorization:</strong> domain/anyone shares D135, D136, D259; multi-recipient D176, D177, D258; D233 (a real ownership transfer); D234 (needs the <code>-sa</code> prefix).</li>
+<li><strong>Extra-sharing follow-up (Aziz, ~15:10 PT, after the user approved "extra drive sharing").</strong> Ran in the Aziz session through <code>oauth</code>/<code>sa</code>, on a throwaway folder <code>qa-v092-sharing-extra-1510</code> holding sheet <code>qa-v092-sharing-extra-sheet</code> and subfolder <code>qa-v092-share-folder</code>.</li>
+<li><strong>PASS:</strong> D132 (user reader, TEST_PERMISSION_EMAIL, listed). D129 (404 "Permission not found: fakepermid999.", no crash). D139 (<code>send_notification=false</code> share succeeds; inbox not checked). D135 (<code>domain=mcpsuite.io</code> reader, then removed). D137 (folder writer grant listed on the folder). D234 (<code>sa</code> → 403 <code>ownerOnTeamDriveItemNotSupported</code>: a clean Drive error, not a silent success; on a Shared Drive item the Shared-Drive rule fires before the SA-identity one).</li>
+<li><strong>Classifier <code>[Permission Grant]</code> denials on this attempt:</strong> D128 (<code>role="owner"</code>), D136/D259 (<code>type=anyone</code>), D138 (an unknown <code>@example.com</code> recipient). The general "extra drive sharing" approval covered grants to TEST_PERMISSION_EMAIL and the org domain only. These calls never reached Google. All of them ran after the explicit approval below.</li>
+<li><strong>D233 SKIP:</strong> a real ownership transfer, and Shared Drive items can't transfer.</li>
+<li><strong>Second follow-up (~15:30 PT) after the user's explicit approval</strong> ("sharing to @example.com test addresses; an 'anyone with the link' reader share; and the role="owner" call in TC-D128", throwaway files only). Throwaway folder <code>qa-v092-sharing-extra2</code> with sheet <code>qa-v092-sharing-extra2-sheet</code>. No classifier denials.<ul>
+<li><strong>D138 PASS:</strong> example.com reader in <code>successes</code>; the no-email writer in <code>failures</code> ("'email_address' required for type='user'"); both in one response. The first attempt with <code>send_notification=false</code> failed for the example.com entry: Drive requires notification for an address with no Google account. That's correct API behavior, and the rerun used the default.</li>
+<li><strong>D128 PASS:</strong> <code>{"error":"Invalid role 'owner'. Must be one of: reader, commenter, writer"}</code>, returned client-side.</li>
+<li><strong>D176 PASS:</strong> <code>share_spreadsheet</code> with 5 recipients, all in <code>successes</code>; <code>list_permissions</code> cross-check r1 reader, r2 commenter, r3 writer, r4 reader, r5 writer, so no cross-attribution.</li>
+<li><strong>D258 PASS:</strong> 2 recipients, both in <code>successes</code>. Progress notifications aren't visible in this client.</li>
+<li><strong>D177 PASS:</strong> <code>share_file</code> with 3 users and the <code>mcpsuite.io</code> domain, all in <code>successes</code>; <code>list_permissions</code> confirms c1 reader, c2 writer, c3 commenter, domain reader.</li>
+<li><strong>D136 PASS:</strong> <code>type=anyone</code> reader → <code>anyoneWithLink</code>. An unauthenticated <code>curl</code> of the CSV export followed to a 200 from <code>*.googleusercontent.com</code>, so the sheet was public. After removal the same request returned 401.</li>
+<li><strong>D259 PASS:</strong> anyone + domain, both in <code>successes</code>, no top-level error.</li>
+<li>Every grant was removed right after its case. The final <code>list_permissions</code> shows only the organizer and the SA fileOrganizer, and the folder is trashed.</li>
+</ul>
+</li>
+<li><strong>Cleanup gap (resolved — user removed the grant by hand ~15:20 PT):</strong> <code>remove_permission</code> of the D137 folder grant (TEST_PERMISSION_EMAIL, writer, on <code>qa-v092-share-folder</code>) was classifier-denied. The parent folder is trashed, but the grant on it remains until a human removes it or the trash is emptied.</li>
+<li>Throwaway folder <code>qa-v092-sharing-20261017-1415</code> trashed; every TEST_PERMISSION_EMAIL grant removed. Shares used <code>send_notification=false</code>.</li>
+<li><strong>Stale TC wording:</strong> GM24/GM25 subjects break the <code>[mcp-qa:…]</code> convention; GM25 sends to the bare mailbox and its <code>to: ""</code> should be <code>[]</code>; GM40's error text changed; drive_sharing uses example.com and 5 recipients, which the QA scope doesn't allow; D124's first Result block.</li>
+</ul>
+<h3 id="sheets-writemgmtcharts-sheets_read-re-runs-run-2-kai-oauth">Sheets write/mgmt/charts + sheets_read re-runs (run 2, <code>kai-oauth</code>)<a class="headerlink" href="#sheets-writemgmtcharts-sheets_read-re-runs-run-2-kai-oauth" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>0 FAIL.</strong> sheets_write, sheets_mgmt and sheets_charts: every case PASS, with visual checks under the Playwright mutex and unit-test-only cases backed by <code>pytest tests/sheets</code> (448 passed). sheets_read re-runs: R01, R02, R16, R27, R30, R03c, R03d, R38, R37, R31, R32, R33, R35, R44 PASS; R03e SKIP (restart). No classifier denials, no timeouts.</li>
+<li>Fixture at finish: Sales A1:F7 grid diffs identical to the pre-test baseline; tabs Sales/Notes &amp; Misc/Empty; Empty fully clear. 3 throwaway spreadsheets trashed, 13 charts deleted.</li>
+<li><strong>Stale TC wording:</strong> A1 errors now repr-quoted (W40, S123–S128, S131); W34 (a full-cell link is stored cell-level); W30's classifier note is obsolete; S21/S22 no longer need SKIP; S38–S40 and S93–S95 should say they run on Empty; R03c, R34, R35 and R38 still cite the 40k cap (R35 now needs ~1.2M chars; 40 <code>REPT</code> cells of 30k each works); run.md's stacked-chart note is obsolete; S100/S102 say <code>{"error"}</code>, but the tool returns <code>{"result":{"error"}}</code> (list-typed output schema).</li>
+<li><strong>Teardown gaps:</strong> S94 should also clear the <code>FALSE</code> values the checkbox validation leaves behind. A stray <code>hyperlinkDisplayType: LINKED</code> on Sales!C5 predates this run and moves with sorts (restored).</li>
+<li>Cosmetic: get_sheet_data's cap message reads "or Pass local_path" (stray capital P).</li>
+</ul>
+<h3 id="docs-content-run-2-ash">Docs-content (run 2, <code>ash</code>)<a class="headerlink" href="#docs-content-run-2-ash" title="Permanent link">&para;</a></h3>
+<p>TEST_DOC_ID verified at seed state before the run and restored to it after. About 45 throwaway docs, images and backups were trashed (tracked in the shard's scratch <code>created.txt</code>). Comments added to TEST_DOC_ID persist, since there's no delete tool: "QA TC-DOC97: anchored note." and "please revise (v092)" are open; 2 others are resolved.</p>
+<ul>
+<li><strong>≈150 PASS, 2 FAIL, 12 SKIP, 4 partial.</strong></li>
+<li><strong>FAIL — DOC35 in a multi-table doc (NEW, pre-existing):</strong> column widths on any table after the first make <code>write_doc_content</code>/<code>create_doc</code> fail with 400 <code>updateTableColumnProperties: The provided table start location is invalid</code>. The doc is left partly written and the backup kept. Reproduced 3× with varied separators and in the DOC34–38 combo; it passes when the widths are on the first or only table. Cause (shard's reading of <code>emitter.py</code> <code>fill_tables</code>): <code>_build_width_requests(live_doc, …)</code> uses a <code>live_doc</code> fetched before the cell fill shifts every later table's <code>startIndex</code>. The same ordering exists at <code>v0.9.0</code> (<code>git show v0.9.0:…/emitter.py</code>, widths built from the pre-fill fetch), so it's very likely not a regression. Not confirmed live against v0.9.0. Step 7 (cell styles) may share the pattern; unchecked. Ticket.</li>
+<li><strong>FAIL — DOC173 (stale TC, not a regression):</strong> <code>~~strike~~</code> in markdown was never converted (no strikethrough extension in <code>_md_to_html</code>; <code>del</code> isn't in <code>_INLINE_STRIKE</code>). The doc holds the literal text, and the export now correctly escapes it as <code>\~\~strike\~\~</code> (#938). Earlier PASSes were accidental. Fix the TC; the missing write-side strikethrough is a feature gap.</li>
+<li><strong>DOC105 FAIL (known gap):</strong> 2/3-space indented ordered children, the documented bug-3 behavior, unchanged since 2026-09-04.</li>
+<li><strong>SKIP:</strong></li>
+<li>DOC80, DOC202, DOC203, DOC219 B/C, DOC222, DOC224–DOC226: their scratch scripts need a usable OAuth token. The Aziz worktree's <code>token.json</code> fails to refresh (<code>invalid_grant</code>). The shard's attempt to copy the <code>ash</code> worktree's token was classifier-denied ("Credential Leakage"), the same denial Aziz got earlier.</li>
+<li>DOC58, DOC151, DOC162, DOC163, DOC200: need a persistent anyone share. This ran before the user's explicit sharing approval.</li>
+<li><strong>Process note:</strong> a second shard tried to copy an OAuth token despite the shard rules. Shard prompts must say plainly that credential files are never copied; SKIP a case whose script needs one.</li>
+<li><strong>Stale TC wording:</strong> D145 (th now exports bold); DOC118 (sharing is revoked by default since DOC152); DOC135 (the first paragraph is an image paragraph); DOC116 (setup merges the placeholder); DOC57/DOC163 (<code>upload_local_file</code> now returns <code>web_content_link</code>); DOC178 (placeholder italics need a space).</li>
+</ul>
+<h3 id="concurrency-tc-i24-tc-i02-run-2-kai-sa-1600-pt">Concurrency — TC-I24, TC-I02 (run 2, <code>kai-sa</code>, ~16:00 PT)<a class="headerlink" href="#concurrency-tc-i24-tc-i02-run-2-kai-sa-1600-pt" title="Permanent link">&para;</a></h3>
+<p>Two-subagent <code>mkdir</code>-barrier procedure (<code>run.md</code> §"Running true-concurrency test cases"), with a background release watcher over 40 iterations. Before starting, <code>kai-sa</code> was warmed with wide fan-outs until 24/24 came back clean, so the known stale-connection defect couldn't produce false TC-I24 failures. Aziz read every <code>result-*</code> file directly, not just the workers' reports.</p>
+<ul>
+<li><strong>TC-I24 PASS, 20/20.</strong> Worker a (<code>TEST_SPREADSHEET_ID</code> Sales!A1:C3) and worker b (throwaway <code>qa-v092-I24-second</code> Sheet1!A1:C3, values <code>I24-B-*</code>) fired together each iteration. Every a-result held only fixture rows and every b-result only <code>I24-B</code> rows, with no cross-contamination and no error, reset, or record-layer text.</li>
+<li><strong>TC-I02 PASS, 20/20.</strong> Worker a wrote <code>QA-I02-&lt;i&gt;</code> to Empty!A1 while worker b read Sales!A1:C3 in the same spreadsheet. All 20 writes reported <code>updatedCells: 1</code>; all 20 reads returned fixture data with no <code>database is locked</code>/<code>SQLITE_BUSY</code>. The server log has 0 <code>database is locked</code>/<code>OperationalError</code> lines.</li>
+<li>Cleanup: Empty!A1 sentinel cleared by worker a; <code>qa-v092-I24-second</code> trashed; barrier dir removed.</li>
+</ul>
+<h3 id="drive-transfer-calendar-run-2-kai-sa">Drive-transfer + calendar (run 2, <code>kai-sa</code>)<a class="headerlink" href="#drive-transfer-calendar-run-2-kai-sa" title="Permanent link">&para;</a></h3>
+<p>Throwaway folder <code>qa-v092-transfer-20261017T1424</code> (trashed; 6 <code>export_revision</code> temp Docs in the Shared Drive root trashed). Fixtures read only. LOCAL_FILE_ACCESS <code>full</code> (stdio). No classifier denials.</p>
+<ul>
+<li><strong>drive_transfer: 0 FAIL.</strong> Every case PASS, except D148 SKIP (revision coalescing on the scratch sheet) and D290 SKIP (needs a second OAuth identity). Unit-only D196, D249–D252, D291: 38 named tests pass; D291 was also checked live (SA 403 → <code>_SA_QUOTA_ERROR</code> text). Progress notifications (D199, D255, D256) aren't visible in this client; outcomes are correct. GHSA-hx2f/#1012 path cases D278, D279, D285, D294–D298 all PASS.</li>
+<li><strong>calendar: 0 FAIL.</strong> <code>TEST_CALENDAR_ID</code> returns 404 to the SA (same as 09-04), so the shard ran on two SA-owned scratch calendars, deleted at the end. SKIP: CAL17/CAL22 (attendees give 403 <code>forbiddenForServiceAccounts</code>), CAL76 (no 100+ ACL calendar; unit test passes). CAL20–29 and CAL36–43 are PASS on the API only, because the fixture-owner browser can't see SA-owned calendars.</li>
+<li><strong>Stale TC wording:</strong> D167 (the fixture no longer trips the 1M cap), D178 (<code>size_bytes</code> now counts uploads, #1003), D226 (needs <code>cp -p</code>), D254/D274 (trailing hint added), D148 (use a scratch sheet), and calendar.md assumes the SA can reach <code>{CALENDAR_ID}</code>.</li>
+</ul>
+<h2 id="bugs-found-open-questions">Bugs found / open questions<a class="headerlink" href="#bugs-found-open-questions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>[NEW — pre-existing] Table column widths fail on any table after the first</strong> (DOC35 multi-table; details under Docs-content). Ticket.</li>
+<li><strong>[NEW] Blockquote indent invisible on single-line paragraphs:</strong> the emitter sets <code>indentStart</code> but not <code>indentFirstLine</code>, so a quote's first line sits at the margin and a nested quote isn't visibly deeper (ruler shows first-line 0, left indent 0.5in). Ticket candidate.</li>
+<li><strong>[NEW] <code>get_doc_as_markdown</code> emits a raw <code>\u000b</code> for a soft break in a non-code paragraph</strong>: only Courier New runs turn <code>\v</code> into <code>\n</code>. Ticket candidate.</li>
+<li>
+<p><strong><code>search_files</code> returns trashed files</strong>, seen again here: 3 trashed <code>(backup before replace)</code> docs. This is the same defect as the drive_files finding below.</p>
+</li>
+<li>
+<p><strong>[NEW — repeat before filing] <code>get_doc_as_markdown</code> misreads bulleted lists in Docs made by Drive's HTML import.</strong> <code>upload_file(convert_to_doc=true)</code> from markdown or HTML renders real bullets in the UI (Playwright), but the export gives <code>&gt; 1. Bullet A</code>: a blockquote plus a numbered list. <code>create_doc</code>-built lists export correctly. Seen on 2 docs under one condition, so it needs a varied repeat (aziz.md step 9) before it's filed.</p>
+</li>
+<li>
+<p><strong>Errno 60 on <code>kai-sa</code> too (run 2, 14:10–14:27 PT):</strong> 7 Drive calls timed out after 52–198 s. Calendar calls between them took 0.33 s, and <code>curl</code> took 0.17 s. In a 4-way parallel batch, 2 calls succeeded in 0.2 s and 2 timed out. It cleared one thread at a time, then nothing more failed. <code>list_files</code> returned the timeout as <code>{"result":[{"error":…}]}</code> with HTTP 200. Consistent with the confirmed stale-connection defect.</p>
+</li>
+<li>
+<p><strong>[NEW] <code>transfer_ownership(send_notification=False)</code> can never succeed.</strong> Drive returns 403 "sendNotificationEmail … must not be disabled for ownership transfers" before it even looks up the file. Ticket candidate: drop the parameter or reject it client-side.</p>
+</li>
+<li>
+<p><strong>[OPEN] D137's premise may be stale:</strong> on Shared Drive items, <code>list_permissions</code> returns inherited organizer and fileOrganizer entries. Not verified with a folder-level user grant.</p>
+</li>
+<li>
+<p><strong>[NEW — docstring] Setting a named style wipes the paragraph's inline text styles.</strong> <code>insert_softbreak_paragraph</code> at a paragraph start, and <code>style_doc_range(named_style_type=...)</code> even with the same style, removed existing <code>strikethrough</code> (reproduced 3×, including a control with no style fields). The cause is the Docs API's <code>updateParagraphStyle(namedStyleType)</code>. Neither docstring warns about it. Ticket candidate (docstring / known-limitations).</p>
+</li>
+<li><strong>[NEW — known-limitations] I23 cache freshness misses API edits from another client for 30–75 s+.</strong> A rename through the Sheets API from a separate client didn't move Drive <code>modifiedTime</code> for over 75 s, and <code>list_sheets</code> served the stale name from cache in that window (2 of 3 API renames). A UI edit bumps it at once. Ticket candidate (known-limitations note).</li>
+<li>
+<p><strong>[NEW — minor docstring]</strong> <code>set_cache_ttl</code> says "This server runs in SSE mode", which is wrong under stdio.</p>
+</li>
+<li>
+<p><strong>[NEW — not a regression] <code>list_spreadsheets</code>, <code>search_files</code>, <code>search_spreadsheets</code> return trashed files.</strong> None of the three adds <code>trashed=false</code> to its query (<code>files.py</code>; <code>list_files</code>/<code>list_folders</code>/<code>list_recent_files</code>/<code>list_shared_with_me</code> do). Live: a file with <code>get_file_metadata.trashed == true</code> came back from all three (repeated); a trashed folder from <code>search_files</code>. Same gap exists at <code>v0.9.0</code>, so pre-existing. No existing issue. TC-D14/D75/D77 don't assert trashed exclusion. Ticket candidate (pending user OK to file).</p>
+</li>
+<li>
+<p><strong>[CONFIRMED — pre-existing; stale per-thread connection after idle, no retry]</strong> (originally logged as "Gmail transport timeout, unconfirmed") After the classifier denials, every Gmail call on <code>mcp-gee-sweet-oauth</code> returns <code>{"error": "[Errno 60] Operation timed out"}</code> (shard: <code>list_threads</code> ×3, <code>list_labels</code> ×2; Aziz re-checked <code>list_labels</code> at ~13:25 PT, same). Drive on the same server (<code>get_storage_quota</code>) still works; <code>curl</code> to <code>gmail.googleapis.com</code> from the shell answers in ~70 ms. Gmail worked for the first 11 cases of the shard. Not yet reproduced after a server reconnect; must be re-checked before it's filed or dismissed.</p>
+</li>
+<li><strong>Corroborated on a second server (<code>kai-sa</code>, Sheets).</strong> After an idle gap of a few minutes, <code>get_multiple_sheet_data</code> returned <code>[Errno 60] Operation timed out</code> as per-query errors in a decreasing pattern: 2/2 failed, 2/2, then 1/2, 1/3, then clean from the sixth call on. A single <code>get_sheet_data</code> call between them succeeded. <strong>Hypothesis (unverified):</strong> <code>http_transport.thread_http</code> caches one <code>httplib2.Http</code> per worker thread, so each of the default executor's threads keeps its own keep-alive connection. After idle those die silently, and each fails once with a TCP timeout (not retried) before httplib2 replaces it. That would account for both the decreasing count and the Gmail server failing on call after call (different threads, each stale). </li>
+<li><strong>Third server (<code>kai-oauth</code>, Drive), ~13:10–13:24 PT:</strong> 4 <code>list_files</code> calls returned <code>List files failed: [Errno 60] …</code>; 2 <code>get_file_metadata</code> calls raised <code>TimeoutError</code> after 82 s and 140 s; it cleared on its own and D263 re-ran clean. Fresh connections from curl and a separate httplib2 process were ~0.1 s in the same window. Three servers and three APIs (Gmail, Sheets, Drive) in one window points at the shared transport, not one API; it could also be a network event in that window, so not yet attributable to the code.</li>
+<li><strong>After <code>/mcp reconnect mcp-gee-sweet-oauth</code> (user, ~13:55 PT):</strong> <code>list_labels</code> returns the full label list immediately (incl. <code>Label_1</code> <code>mcp-qa-fixture</code>). A fresh server process clears it, which fits the stale-connection hypothesis but doesn't rule out a network event that had already ended.</li>
+<li><strong>✅ Reproduced (15:01 PT), so this is a real defect, not a network blip.</strong> <code>mcp-gee-sweet-oauth</code> sat idle for 12 min after the Gmail/sharing shard finished. Then one <code>get_multiple_sheet_data</code> with 12 single-cell queries returned 11 correct values and 1 per-query <code>"error": "[Errno 54] Connection reset by peer"</code> (Sales!B1), with no retry. The identical call immediately after: 12/12 clean. That fits one warm worker thread whose cached keep-alive connection died while idle; the other threads opened fresh connections. It fails fast (<code>ECONNRESET</code>) when the peer resets, or slowly (<code>ETIMEDOUT</code>, 80–140 s) when the connection is dropped silently, which is the run 1 pattern.</li>
+<li><strong>Second server reproduction (~15:55 PT, <code>kai-sa</code>).</strong> <code>kai-sa</code> had been idle about 5–10 min after the transfer shard. Wide <code>get_multiple_sheet_data</code> warm-ups before the concurrency cases: 12 queries gave 1 <code>[Errno 54] Connection reset by peer</code>; 12 queries gave another 1 (a different thread); then 24 queries gave 24/24 clean. Each worker thread's dead connection fails exactly once.</li>
+<li><strong>Concurrency-case consequence.</strong> TC-I24's failure signature includes <code>Connection reset by peer</code>, so on any server that has been idle this defect produces false TC-I24 failures. The pass warms the target server with wide fan-outs until one comes back fully clean before starting the barrier loop. Record that in run.md's procedure once the defect is ticketed.</li>
+<li><strong>User decision (~15:05 PT): does not block v0.9.2</strong>; ticket for v0.9.3.</li>
+<li><strong>Not a regression.</strong> <code>thread_http</code>'s cache of one <code>httplib2.Http()</code> per thread is unchanged in kind since v0.9.0 (<code>git show v0.9.0:src/mcp_gee_sweet/http_transport.py</code>). It affects every tool after an idle period.</li>
+<li>~~Next step: reproduce with real processes~~ (superseded by the reproduction above). Original note: reproduce with real processes (idle &gt; N minutes, then fan out) before filing.</li>
+<li><strong>Side finding:</strong> <code>get_multiple_sheet_data(local_path=...)</code> reported success (<code>bytes_written</code>) when every query in the file was an error entry. Possibly by design (per-item errors); check the docstring before filing.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
