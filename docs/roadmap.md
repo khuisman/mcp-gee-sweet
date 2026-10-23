@@ -374,6 +374,7 @@ Ships ahead of the Markdown-fidelity feature set (now _ornithomimus_, below): wh
 Security hotfix cut from the v0.9.3 tag, with nothing else from `develop` (maintainer decision 2026-10-22). Pillow 12.3.0 has open CVEs, and the only fixed release, 13.0.0, needs Python 3.11+, so this release drops Python 3.10. The release notes say so, and that 3.10 users stay on v0.9.3 until they move to 3.11+. The change reaches `develop` through community PR #1161; the hotfix is a lane-A backport of the same change onto v0.9.3, with `uv.lock` regenerated on the tag.
 
 - [ ] Pillow 12.3.0 has 9 open security alerts (1 critical); the fix (13.0.0) needs Python 3.11+ ([#1158](https://github.com/khuisman/mcp-gee-sweet/issues/1158))
+- [ ] Backport the Pillow 13 / drop-3.10 change onto v0.9.3 — lane A ([#1169](https://github.com/khuisman/mcp-gee-sweet/issues/1169))
 
 ### ornithomimus — Markdown fidelity, comments, Gmail sending safety, launch readiness _(queued, label [`planned: ornithomimus`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22); gets a number when it goes in flight)_
 
