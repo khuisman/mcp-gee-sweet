@@ -465,6 +465,12 @@ Moved from `kai.md`'s "Coordinating sessions" and Release scoping rule 2 when PR
 - **Release scoping rule 2's single summary:** v0.9.3 took five additions after its lock through one-line approvals.
 - **The rubric's trust-boundary definition of data exposure** came after GHSA-8jqx.
 
+### v0.9.4 hotfix: a cherry-pick routed through three roles
+
+- **The v0.9.4 hotfix (2026-10-22) shipped community PR #1161's Pillow 13 change from the v0.9.3 tag.** Kai filed the backport as a lane-A ticket (#1169), and planned Ash to port it, Sky to QA it, and Aziz to sign off. The maintainer first switched it to a cherry-pick ("cherry pick, don't recreate"), then ruled the hand-offs unnecessary: "I don't believe a cherry-pick is an authorship", "ash and sky were entirely unnecessary. You could have done it." Ash also ran the full Dev process (checklist, self-review, local full pytest) on the cherry-pick until Kai trimmed it. Hence `release.md` §"Hotfix from the last tag" and the `kai.md` line that a release cherry-pick isn't ticket implementation.
+- **The displaced feature set.** Kai first proposed relabelling the old v0.9.4 work `v0.9.5`, a number for a version no longer in flight. The maintainer pointed back at the naming rule, and it was queued as `planned: ornithomimus`. Hence the `kai.md` Release scoping bullet on a displaced version.
+- **Auto mode refused three release steps:** removing a required check from `develop`'s branch protection, a read-only `gh release view v0.9.1`, and a bulk `git branch -D`. Each went back to the maintainer. The MCP registry token had also expired, so the registry publish failed with a 401 after PyPI already had the release. Hence `release.md`'s two up-front preconditions.
+
 ## `bob.md`
 
 ### Why this role exists

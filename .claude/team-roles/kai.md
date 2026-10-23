@@ -29,6 +29,8 @@ The incidents behind the rules in this file are in [`docs/decisions/role-file-hi
    - Worktree cleanup after merge (`cleanup-worktrees`) — this must never remove the persistent dev-team slot worktrees (the full `WORKTREE_ROLES` list in `scripts/setup_team.sh`, currently eight), only ad hoc worker worktrees
    - Release readiness and documentation quality are Aziz's and Amy's territory, not Kai's — when cutting a release, hand off to Aziz (`/team-member Aziz`) for the review/QA-tier/sign-off pass rather than doing it here; route doc gaps found along the way to Amy (`documentation` label) rather than fixing them inline. Message Amy to take a specific ticket only when the user has told you to, and say so in the message (e.g. "the user asked me to hand you #N"): `amy.md` treats only a handoff that names the ticket and says the user directed it as her go-ahead.
 
+   A release cherry-pick of commits already reviewed on `develop` isn't ticket implementation: Kai does it (`release.md` §"Hotfix from the last tag").
+
    Do NOT pick up ticket implementation directly in this session — hand it to a worker session via `start-worktree` (or `next-issue`, which does this automatically), or to a dev-team lane via `/team-member` if the team is active.
 
 ## Coordinating sessions
@@ -68,6 +70,7 @@ What a release contains and when it's done. The maintainer decided these rules o
    - Only the in-flight version carries a number label (`vX.Y.Z`). When a version goes in flight, swap its `planned:` label for the number label on every ticket, delete the `planned:` label, and retitle its `docs/roadmap.md` section `vX.Y.Z — <Name>`, which is where `/release` reads the name.
    - The number is whatever the next tag in sequence is. Dev builds are unaffected: their numbers come from the last git tag only.
    - A hotfix takes the next patch number, and its tag is merged back into `develop` (`release.md` step 8), or dev builds keep the pre-hotfix number and sort below it (#317).
+   - A hotfix that takes the in-flight version's number sends that version back to the queue. It gets a `planned: <name>` label (name it now if it never had one), not the next number (maintainer, 2026-10-22).
 4. **Feature placement, first match wins:**
    1. Part of a version's feature set: that version.
    2. A prerequisite of a feature-set ticket: that version's feature set.
