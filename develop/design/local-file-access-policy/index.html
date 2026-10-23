@@ -1378,7 +1378,7 @@
 <h3 id="1-one-module-srcmcp_gee_sweetlocal_filespy">1. One module: <code>src/mcp_gee_sweet/local_files.py</code><a class="headerlink" href="#1-one-module-srcmcp_gee_sweetlocal_filespy" title="Permanent link">&para;</a></h3>
 <p>It's a top-level module beside <code>http_transport.py</code>, not under <code>tools/</code>, because <code>server.py</code> needs it at import time for registration and every tool domain needs it at call time. It owns:</p>
 <ul>
-<li><code>LocalFileAccess</code>: a <code>str, Enum</code> with <code>FULL</code>, <code>ROOTS</code>, <code>OFF</code> (not <code>StrEnum</code>, which needs Python 3.11; the package supports 3.10).</li>
+<li><code>LocalFileAccess</code>: a <code>str, Enum</code> with <code>FULL</code>, <code>ROOTS</code>, <code>OFF</code> (not <code>StrEnum</code>, which needs Python 3.11; kept from when the package supported Python 3.10 — see #1158).</li>
 <li><code>POLICY</code>: the process's resolved policy (mode, roots, deny-list), computed once at import.</li>
 <li><code>check_read(path) -&gt; Path</code> and <code>check_write(path) -&gt; Path</code>: the one shared check. Each returns the resolved <code>Path</code> to use for the I/O, or raises <code>LocalFileAccessError</code>.</li>
 <li><code>LocalFileAccessError(ValueError)</code>: a <code>ValueError</code> subclass, so <code>_timed</code>'s error-visibility allowlist (<code>decision-tool-error-visibility.md</code>) passes its message to the client unchanged. Sites that report errors as <code>{"error": ...}</code> or as per-item <code>failed</code> entries catch it and use <code>str(e)</code>.</li>
