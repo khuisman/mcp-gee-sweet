@@ -955,10 +955,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094" class="md-nav__link">
+  <a href="#v094-hotfix-target-v094" class="md-nav__link">
     <span class="md-ellipsis">
       
-        v0.9.4 — Markdown fidelity, comments, Gmail sending safety, launch readiness (target: v0.9.4)
+        v0.9.4 — hotfix (target: v0.9.4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ornithomimus-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ornithomimus — Markdown fidelity, comments, Gmail sending safety, launch readiness (queued, label planned: ornithomimus; gets a number when it goes in flight)
       
     </span>
   </a>
@@ -1786,8 +1797,13 @@
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4"><strong>v0.9.4</strong></a></td>
-<td>In flight. Feature set: Markdown → Docs fidelity (#1044 and its defects), comments as a first-class capability (breaking rename), Gmail sending safety, launch readiness. Plus a ranked fill</td>
-<td>Ships when the feature set is done and passes release QA</td>
+<td>In flight. Security hotfix cut from v0.9.3: Pillow 13.0.0 for 12.3.0's open CVEs, which drops Python 3.10 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1158">#1158</a>). Nothing else from <code>develop</code></td>
+<td>Ships once the backport passes QA and Aziz signs off</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22"><strong>ornithomimus</strong></a></td>
+<td>Queued, next after v0.9.4. Feature set: Markdown → Docs fidelity (#1044 and its defects), comments as a first-class capability (breaking rename), Gmail sending safety, launch readiness. Plus a ranked fill (was v0.9.4 until 2026-10-22)</td>
+<td>Gets a number when it goes in flight</td>
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22"><strong>ankylosaurus</strong></a></td>
@@ -2094,7 +2110,7 @@
 - [x] Stale "upload_local_file doesn't stamp modifiedTime" premise remains after #898; TC-D238 no longer reliably reproduces its drift. Routed to Amy (<code>documentation</code>); community PR #933 closed unmerged 2026-10-10, and its diff has a working TC-D238 setup. Touches <code>transfer.py</code> docstrings alongside lane A's #930/#916; the reworked TC-D238 needs a live run by QA (#956 closed as a duplicate) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/913">#913</a>) (PR 973)</p>
 <p><strong>Backlog triage, 2026-09-11 (Kai orchestrator session):</strong> open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled <code>backlog</code> with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (now v0.9.2) (the sections above marked "triaged out of <code>backlog</code>"), one comments-API cleanup went to v0.9.2 (now v0.9.3) (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. <code>backlog</code> (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.</p>
 <h3 id="v093-target-v093">v0.9.3 <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.3">v0.9.3</a>)</em><a class="headerlink" href="#v093-target-v093" title="Permanent link">&para;</a></h3>
-<p>Ships ahead of the Markdown-fidelity feature set (now v0.9.4, below): what merged since v0.9.2, plus #1052 and #1124. Maintainer decision 2026-10-19.</p>
+<p>Ships ahead of the Markdown-fidelity feature set (now <em>ornithomimus</em>, below): what merged since v0.9.2, plus #1052 and #1124. Maintainer decision 2026-10-19.</p>
 <ul>
 <li>[x] Blockquote indent invisible on single-line quotes (no <code>indentFirstLine</code>) — <code>wrong/narrow, observed</code>; #1044-relevant — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1056">#1056</a>) (PR #1089)</li>
 <li>[x] Stale per-thread HTTP connection fails the first call after idle (<code>Errno 54</code>/<code>Errno 60</code>), with no retry. Placed in v0.9.3 by the user 2026-10-17; re-read 2026-10-18 as <code>severe</code> (a call can hang for minutes), observed: urgent in-flight, exempt from the fill lock; lane A after #1057 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1052">#1052</a>) (PR #1126)</li>
@@ -2107,8 +2123,15 @@
 <li>[x] Table column widths fail on any table after the first in a written doc (stale <code>startIndex</code> in <code>fill_tables</code>) — <code>loud/narrow</code>, observed — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1053">#1053</a>) (PR #1082)</li>
 <li>[x] <code>style_doc_range</code> has no <code>font_family</code> parameter — can't apply monospace to an existing range — community PR #1026 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/720">#720</a>) (PR #1026)</li>
 </ul>
-<h3 id="v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094">v0.9.4 — Markdown fidelity, comments, Gmail sending safety, launch readiness <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4">v0.9.4</a>)</em><a class="headerlink" href="#v094-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-target-v094" title="Permanent link">&para;</a></h3>
+<h3 id="v094-hotfix-target-v094">v0.9.4 — hotfix <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.4">v0.9.4</a>)</em><a class="headerlink" href="#v094-hotfix-target-v094" title="Permanent link">&para;</a></h3>
+<p>Security hotfix cut from the v0.9.3 tag, with nothing else from <code>develop</code> (maintainer decision 2026-10-22). Pillow 12.3.0 has open CVEs, and the only fixed release, 13.0.0, needs Python 3.11+, so this release drops Python 3.10. The release notes say so, and that 3.10 users stay on v0.9.3 until they move to 3.11+. The change reaches <code>develop</code> through community PR #1161; the hotfix is a lane-A backport of the same change onto v0.9.3, with <code>uv.lock</code> regenerated on the tag.</p>
+<ul>
+<li>[ ] Pillow 12.3.0 has 9 open security alerts (1 critical); the fix (13.0.0) needs Python 3.11+ (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1158">#1158</a>)</li>
+<li>[ ] Backport the Pillow 13 / drop-3.10 change onto v0.9.3 — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1169">#1169</a>)</li>
+</ul>
+<h3 id="ornithomimus-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight">ornithomimus — Markdown fidelity, comments, Gmail sending safety, launch readiness <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22"><code>planned: ornithomimus</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#ornithomimus-markdown-fidelity-comments-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1085">#1085</a>. The release ships when the feature set is done and passes release QA. <strong>Locked 2026-10-18</strong>, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way. The comments work follows <a href="../decisions/decision-comments-first-class/"><code>docs/decisions/decision-comments-first-class.md</code></a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>) and ships a breaking rename that the release notes must call out.</p>
+<p><strong>Renamed 2026-10-22 (maintainer):</strong> this feature set was v0.9.4 until the Pillow hotfix took that number. It's queued again as <em>ornithomimus</em>, ahead of <em>ankylosaurus</em>, and its open tickets moved from <code>v0.9.4</code> to <code>planned: ornithomimus</code>. The fill lock above still holds.</p>
 <p><strong>Renumbering, 2026-10-19/20 (maintainer):</strong> this feature set was v0.9.3. 0.9.3 now ships ahead of it (section above), so it is v0.9.4; every open ticket here moved to the <code>v0.9.4</code> label on 2026-10-20, and its shipped items moved to the v0.9.3 section.</p>
 <p><strong>Feature set: Markdown → Docs fidelity</strong></p>
 <ul>
@@ -2130,7 +2153,7 @@
 <li>[ ] GFM table column alignment is ignored (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1095">#1095</a>)</li>
 <li>[ ] A table takes on the style of the paragraph that follows it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1097">#1097</a>)</li>
 <li>[ ] An image the Docs API can't fetch (e.g. an SVG badge) disappears without a trace (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1099">#1099</a>)</li>
-<li>[ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — v0.9.4 scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1101">#1101</a>)</li>
+<li>[ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1101">#1101</a>)</li>
 <li>[ ] <code>upload_file(source_format="markdown", convert_to_doc=True)</code> (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1102">#1102</a>)</li>
 <li>[ ] Spike: replace Python-Markdown with markdown-it-py for Markdown → Docs — Joy spike; if yes, one swap ticket replaces #1071, #1075, #1077 and #1094's fence half (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1112">#1112</a>)</li>
 </ul>
