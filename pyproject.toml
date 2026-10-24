@@ -41,6 +41,9 @@ dependencies = [
     "cryptography>=50.0.1",
     "python-multipart>=0.0.31",
     "python-dotenv>=1.2.3",
+    # eMudhra/emSign CA incident: older bundles trust intermediates with weak EC keys,
+    # so a TLS chain through them can be forged. certifi backs every Google API call — #1217
+    "certifi>=2026.10.19",
 ]
 [[project.authors]]
 name = "Kevin Huisman"

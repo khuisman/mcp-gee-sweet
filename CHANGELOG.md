@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [0.9.5] — Unreleased
+
+Security hotfix on top of v0.9.4. No new tools.
+
+### Security
+
+- Requires `certifi>=2026.10.19`. Older certifi bundles still trust the eight eMudhra/emSign intermediate CAs, whose weak EC keys let a TLS chain through them be forged ([PSF notice](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576)). certifi backs the TLS connection on every Google API call. v0.9.4's lock pinned certifi `2026.5.20`, and no earlier version set a minimum, so `pip install -U mcp-gee-sweet` kept whatever certifi an environment already had — #1217
+
+**What you need to do yourself.** A library can't upgrade your tooling for you:
+
+- Upgrade pip to 26.2.2 or later, and uv to 0.13.4 or later. Both shipped fixes for the same incident.
+- Rebuild any Docker image without the cache (`docker build --no-cache ...`), so a cached layer doesn't keep the old certifi.
+
+---
+
 ## [0.8.1] — 2026-07-05
 
 Defects and documentation cleanup. No new tools.
