@@ -757,25 +757,20 @@ class _AstParser(HTMLParser):
                 self._code_depth += 1
             elif tag == "br":
                 self._run_buf.append("\n")
-            elif tag == "img" and self._block_tag and not self._in_pre:
-                # Supported (#333) only at body level (self._block_tag truthy) —
-                # NOT inside a table cell (self._block_tag is always None there,
-                # so this branch can't fire for cell content) and not inside
-                # <pre>, where an embedded image makes no sense. Table-cell
-                # images remain a documented, deliberately out-of-scope gap
-                # (tracked as a follow-up) and fall through unchanged to the
-                # existing silent-no-op behavior any other unsupported tag
-                # already gets in a cell.
+            elif tag == "img" and not self._in_pre:
+                # In an open block (#333) or a table cell (#1073), where it joins the
+                # cell's children in source order; never inside <pre>, where an
+                # embedded image makes no sense.
                 src = attr_dict.get("src")
                 if src:
                     self._pending_runs.append(
                         _make_image(attr_dict, src, self._link_url[-1] if self._link_url else None)
                     )
-                else:
+                elif self._block_tag:
                     self._block_had_unsupported_content = True
             elif self._block_tag:
                 # Anything else reaching this fallthrough (a bare <hr> inside
-                # a block, an <img> inside a table cell or <pre>, or any
+                # a block, an <img> inside <pre>, or any
                 # other tag this parser doesn't specially recognize) is
                 # silently dropped rather than contributing a run — see
                 # self._block_had_unsupported_content.

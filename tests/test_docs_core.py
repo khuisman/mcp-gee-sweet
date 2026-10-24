@@ -1,5 +1,7 @@
 """Tests for docs core — HTML/AST pipeline and emitter internals."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from mcp_gee_sweet.tools.docs.ast import (
@@ -19,6 +21,7 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
+    CellImages,
     _build_blank_para_before_table_collapses,
     _build_fill_requests,
     _build_merge_requests,
@@ -195,6 +198,19 @@ class TestHtmlToDocRequests:
         assert clear_range == {"startIndex": 10, "endIndex": 13}
         assert styled_x == {"startIndex": 12, "endIndex": 13}
         assert _text_offset_since_last_table(runs, cursor=2) == 3
+
+    def test_astral_characters_use_utf16_indices_for_table_cell_images(self):
+        # #1073: a cell image's offset counts UTF-16 units, and the image counts as one.
+        img = Image(src="a")
+        children = [Run("😀"), img, Run("X")]
+        images = CellImages(uris={id(img): "uri-a"}, execute=AsyncMock())
+
+        requests = _run_group_fill_requests(children, para_start=10, images=images)
+        insert = next(r["insertInlineImage"] for r in requests if "insertInlineImage" in r)
+
+        assert insert["location"]["index"] == 12
+        assert _text_offset_since_last_table(children, cursor=3, image_uris=images.uris) == 4
+        assert _text_offset_since_last_table(children, cursor=3) == 3
 
     def test_heading_gets_delete_bullets(self):
         requests, _ = _html_to_doc_requests("<h1>Title</h1>")
@@ -1866,13 +1882,18 @@ class TestImagePositionalInserts:
         ]
         assert extract_images(nodes) == [img1, img2]
 
-    def test_extract_images_skips_table_cell_content(self):
-        # Table-cell images are a deliberate gap (#333) — html_parser.py never
-        # actually puts one there, but extract_images must not crash or
-        # silently pick one up if it somehow did.
-        table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])])
-        nodes = [table]
-        assert extract_images(nodes) == []
+    def test_extract_images_includes_table_cells_in_document_order(self):
+        # #1073: cell images, nested tables included, are resolved like body ones.
+        body1, cell1, nested, cell2, body2 = (Image(src=s) for s in "abcde")
+        inner = Table(rows=[Row(cells=[Cell(children=[nested])])])
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run("x"), cell1]), Cell(children=[inner])]),
+                Row(cells=[Cell(children=[cell2])]),
+            ]
+        )
+        nodes = [Paragraph(runs=[body1]), table, Paragraph(runs=[body2])]
+        assert extract_images(nodes) == [body1, cell1, nested, cell2, body2]
 
     def test_unresolved_image_dropped_no_crash(self):
         nodes = [Paragraph(runs=[Run("before "), Image(src="a.png"), Run(" after")])]

@@ -136,17 +136,38 @@ split still applies. A `#slug` image link goes
 through the heading-anchor pass like a text link: `_walk_headings_and_anchor_runs` reads the
 `inlineObjectElement`'s link too, so it's resolved or stripped.
 
-## Known, deliberate gap: table-cell images
+## Table-cell images (#1073)
 
-`html_parser.py`'s img-handling only fires when a block context is open at the body level
-(`self._block_tag` truthy) — explicitly excluded when inside a table cell, where it falls through
-to the existing silent-no-op path any other unsupported construct already gets there. This is not
-an oversight: `Cell.children`'s type (`list[Run | Image | Table]`) already allows an `Image` for
-forward-compatibility, but the cell-fill machinery (`emitter.py`'s `_fill_children_recursive`)
-would infinite-loop on one if it ever appeared — its cursor-advance logic assumes every non-Table
-child is a `Run` with a `.text` to consume, and would stall forever on an `Image` (`isinstance(child,
-Run)` false, so the run-group loop never advances `cursor`). Supporting table-cell images
-requires extending that cursor logic (and the live-index re-fetch cycle it depends on) to a third
-child type — a meaningfully larger increment of complexity than body-level support, and not
-something the original issue's own ask required. Tracked as a follow-up rather than folded into
-this change.
+#333 shipped body-level images only: the parser dropped an `<img>` in a cell, with no error and
+no `images` entry. Table cells aren't written in phase 1. `fill_tables` fills them afterwards
+from live indices, so a cell image goes in during that fill, not in `ast_to_requests`'s
+positional pass.
+
+- **Parser.** An `<img>` in a cell joins `Cell.children` in source order, with its `<a>` link,
+  the same as in a block. A nested `<table>` already flushed the open cell's pending runs into
+  the outer cell before it started, so an image keeps its place on either side of a nested table.
+- **Resolution.** `extract_images` walks cells too, nested tables included, in document order.
+  Cell images are uploaded, shared and revoked with the body's, through the same
+  `ImageShareLifecycle`, and get the same `images` entries.
+- **Placement.** The fill gets the resolved URIs as an `emitter.CellImages`. Each contiguous
+  run of a cell's text and images (`_run_group_fill_requests`) inserts its text and styles as if
+  no image were there, then each image at the offset of the text before it, latest first, like
+  the body's descending pass. Images that share an offset (no text between them) therefore come
+  out in source order, and none shifts another. A linked image's `updateTextStyle` follows its
+  insert, as in the body.
+- **Nested tables.** A nested table goes in at its paragraph's start plus everything already
+  inserted before it in that paragraph, so `_text_offset_since_last_table` counts each image as
+  one index. It counts only an image still in `CellImages.uris`: one that never resolved, or
+  whose insert failed, isn't in the doc.
+- **Unfetchable images.** Each fill `batchUpdate` goes through `CellImages.execute`, which is
+  `_apply_doc_content`'s `_fill_batch`: on an image-fetch error it drops that image (and its
+  link) through the body's `_drop_failed_image`, records the error on the image's entry, removes
+  it from the URIs, and resends the rest of that batch. Dropping one never moves another
+  request: within a cell the images go last, latest first, and cells run latest first. A fill
+  batch is one table's cells (or one round of a nested fill), so the body's K≥2 split isn't
+  needed there.
+
+Confirmed live (2026-10-24, two runs): text around an image, an image-only cell, a linked image,
+an unreachable URL (dropped and reported, rest of the table intact), a local upload (share
+revoked afterwards), an image on each side of a nested table and one inside it, and Markdown
+pipe-table cells with one and two images. `get_doc_as_markdown` reads them back.

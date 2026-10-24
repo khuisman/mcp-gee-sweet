@@ -14,8 +14,9 @@ from mcp_gee_sweet.tools.docs.ast import (
     Run,
     Table,
 )
-from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests
+from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests, _to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
+    CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
     _build_fill_requests,
@@ -565,6 +566,9 @@ class TestFindNthTableInCell:
 # ---------------------------------------------------------------------------
 
 
+IMG = "▣"  # how FakeDoc shows an inline image in a paragraph's text
+
+
 class Para:
     def __init__(self, text: str = ""):
         self.text = text
@@ -670,6 +674,9 @@ class FakeDoc:
         for req in requests:
             if "insertText" in req:
                 self.insert_text(req["insertText"]["location"]["index"], req["insertText"]["text"])
+            elif "insertInlineImage" in req:
+                # An inline object takes one index, like a character (#1073).
+                self.insert_text(req["insertInlineImage"]["location"]["index"], IMG)
             elif "insertTable" in req:
                 it = req["insertTable"]
                 self.insert_table(it["location"]["index"], it["rows"], it["columns"])
@@ -1114,3 +1121,186 @@ class TestSkippedTableDoesNotDesyncTablePairing:
         assert len(insert_texts) == 1
         assert insert_texts[0]["text"] == "hello"
         assert insert_texts[0]["location"]["index"] == 10
+
+
+# ---------------------------------------------------------------------------
+# #1073 — images inside table cells
+# ---------------------------------------------------------------------------
+
+
+class TestCellImageParser:
+    async def test_img_in_cell_becomes_image_child(self):
+        nodes = html_to_ast(
+            '<table><tr><td>Before</td><td><img src="https://a/b.png" width="40"></td>'
+            "<td>After</td></tr></table>"
+        )
+        cells = nodes[0].rows[0].cells
+        assert cells[1].children == [Image(src="https://a/b.png", width=30.0)]
+        assert _runs_in(cells[0])[0].text == "Before"
+        assert _runs_in(cells[2])[0].text == "After"
+
+    async def test_image_keeps_source_order_and_link(self):
+        nodes = html_to_ast(
+            '<table><tr><td>A <a href="https://x.com"><img src="https://a/b.png"></a> B'
+            "</td></tr></table>"
+        )
+        children = nodes[0].rows[0].cells[0].children
+        assert [type(c).__name__ for c in children] == ["Run", "Image", "Run"]
+        assert children[1].link_url == "https://x.com"
+
+    async def test_markdown_table_cell_image(self):
+        _, tables = _to_doc_requests(
+            "| a | b |\n|---|---|\n| Logo | ![cell logo](https://a/b.png) |\n", "markdown"
+        )
+        assert tables[0].rows[1].cells[1].children == [
+            Image(src="https://a/b.png", alt="cell logo")
+        ]
+
+    async def test_image_in_nested_table_cell(self):
+        nodes = html_to_ast(
+            '<table><tr><td>outer<table><tr><td><img src="https://a/b.png"></td></tr></table>'
+            "</td></tr></table>"
+        )
+        inner = _tables_in(nodes[0].rows[0].cells[0])[0]
+        assert inner.rows[0].cells[0].children == [Image(src="https://a/b.png")]
+
+    async def test_img_without_src_in_cell_is_dropped(self):
+        nodes = html_to_ast("<table><tr><td>x<img></td></tr></table>")
+        assert [type(c).__name__ for c in nodes[0].rows[0].cells[0].children] == ["Run"]
+
+
+class TestCellImageFill:
+    """Drive fill_tables against FakeDoc, which shows an inserted image as IMG."""
+
+    async def _run(
+        self, ast_tables: list[Table], uris: dict[int, str]
+    ) -> tuple[FakeDoc, list[list[dict]], CellImages]:
+        doc = FakeDoc()
+        content: list = [Para("")]
+        for t in ast_tables:
+            content += [TableNode(len(t.rows), len(t.rows[0].cells)), Para("")]
+        doc.content = content
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+
+        async def execute(requests: list[dict]) -> None:
+            batches.append(requests)
+            doc.batch_update(requests)
+
+        images = CellImages(uris=uris, execute=execute)
+        await asyncio.wait_for(fill_tables(svc, "doc1", ast_tables, images), timeout=5)
+        return doc, batches, images
+
+    @staticmethod
+    def _cell_texts(doc: FakeDoc, table_index: int, row: int, col: int) -> list[str]:
+        cell = doc.content[table_index].rows[row][col]
+        return [c.text if isinstance(c, Para) else "Table" for c in cell.content]
+
+    async def test_image_only_cell_is_filled(self):
+        img = Image(src="https://a/b.png")
+        table = _table(_row(_cell("Before"), Cell(children=[img]), _cell("After")))
+        doc, _batches, _ = await self._run([table], {id(img): "https://a/b.png"})
+        assert self._cell_texts(doc, 1, 0, 0) == ["Before"]
+        assert self._cell_texts(doc, 1, 0, 1) == [IMG]
+        assert self._cell_texts(doc, 1, 0, 2) == ["After"]
+
+    async def test_image_between_text_and_adjacent_images_keep_order(self):
+        a, b, c = Image(src="a"), Image(src="b"), Image(src="c")
+        cell = Cell(children=[Run("x"), a, Run("yy"), b, c, Run("z")])
+        doc, batches, images = await self._run(
+            [_table(_row(cell))], {id(a): "uri-a", id(b): "uri-b", id(c): "uri-c"}
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == [f"x{IMG}yy{IMG}{IMG}z"]
+        inserts = [r for batch in batches for r in batch if "insertInlineImage" in r]
+        # Latest first: c and b share an offset, so c goes in before b.
+        assert [r["insertInlineImage"]["uri"] for r in inserts] == ["uri-c", "uri-b", "uri-a"]
+        assert sorted(images.requests.values()) == sorted([id(a), id(b), id(c)])
+
+    async def test_unresolved_image_skipped(self):
+        img = Image(src="a")
+        doc, batches, _ = await self._run([_table(_row(Cell(children=[Run("t"), img])))], {})
+        assert self._cell_texts(doc, 1, 0, 0) == ["t"]
+        assert not any("insertInlineImage" in r for batch in batches for r in batch)
+
+    async def test_linked_image_gets_link_request_recorded(self):
+        img = Image(src="a", link_url="https://x.com")
+        _doc, batches, images = await self._run(
+            [_table(_row(Cell(children=[img])))], {id(img): "uri-a"}
+        )
+        batch = next(b for b in batches if any("insertInlineImage" in r for r in b))
+        insert = next(r for r in batch if "insertInlineImage" in r)
+        link = images.links[id(insert)]
+        assert any(r is link for r in batch)
+        assert link["updateTextStyle"]["textStyle"] == {"link": {"url": "https://x.com"}}
+        position = insert["insertInlineImage"]["location"]["index"]
+        assert link["updateTextStyle"]["range"] == {
+            "startIndex": position,
+            "endIndex": position + 1,
+        }
+
+    async def test_image_before_nested_table_shifts_the_table(self):
+        # The nested table lands after the text *and* the image in its paragraph.
+        img = Image(src="a")
+        img2 = Image(src="a")
+        inner = _table(_row(_cell("inner")))
+        cell = Cell(children=[Run("Lead "), img, inner, Run("tail"), img2])
+        doc, _batches, _ = await self._run(
+            [_table(_row(cell))], {id(img): "uri-a", id(img2): "uri-a"}
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == [f"Lead {IMG}", "Table", f"tail{IMG}"]
+
+    async def test_dropped_image_not_counted_before_nested_table(self):
+        # An image whose insert failed is removed from uris by the caller; the
+        # nested table after it must not leave a gap for it.
+        img = Image(src="a")
+        inner = _table(_row(_cell("inner")))
+        cell = Cell(children=[Run("Lead"), img, inner])
+        doc = FakeDoc()
+        doc.content = [Para(""), TableNode(1, 1), Para("")]
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        svc.documents.return_value.batchUpdate.side_effect = lambda documentId, body: (
+            doc.batch_update(body["requests"]) or MagicMock()
+        )
+        uris = {id(img): "uri-a"}
+
+        async def execute(requests: list[dict]) -> None:
+            kept = []
+            for r in requests:
+                if "insertInlineImage" in r:
+                    uris.pop(id(img), None)  # as content.py's _drop_failed_image does
+                    continue
+                kept.append(r)
+            doc.batch_update(kept)
+
+        await asyncio.wait_for(
+            fill_tables(svc, "doc1", [_table(_row(cell))], CellImages(uris=uris, execute=execute)),
+            timeout=5,
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == ["Lead", "Table", ""]
+        nested = doc.content[1].rows[0][0].content[1]
+        assert nested.rows[0][0].content[0].text == "inner"
+
+    async def test_image_in_nested_table_cell(self):
+        img = Image(src="a")
+        inner = _table(_row(Cell(children=[img, Run(" logo")])))
+        doc, _batches, _ = await self._run(
+            [_table(_row(Cell(children=[inner])))], {id(img): "uri-a"}
+        )
+        outer_cell = doc.content[1].rows[0][0]
+        nested = next(c for c in outer_cell.content if isinstance(c, TableNode))
+        assert nested.rows[0][0].content[0].text == f"{IMG} logo"

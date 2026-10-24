@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
 from ...auth import execute_in_thread
@@ -11,6 +13,28 @@ from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragrap
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CellImages:
+    """What fill_tables needs to embed the images in table cells (#1073).
+
+    uris: id(image) -> its resolved URI, for every Image extract_images returned. An
+    image with no entry is skipped, like an unresolved body image. The caller removes
+    an image's entry when its insert fails, so a later nested-table position in the
+    same cell stops counting it.
+
+    execute: runs one fill batchUpdate. It is the caller's, so a batch whose image
+    can't be fetched is retried without that image instead of losing the whole fill
+    (content.py's _apply_doc_content). Every insertInlineImage the fill builds is
+    recorded in `requests` (id(request) -> id(image)) and, for a linked image, in
+    `links` (id(request) -> its link request), the same maps ast_to_requests fills.
+    """
+
+    uris: dict[int, str]
+    execute: Callable[[list[dict]], Awaitable[None]]
+    requests: dict[int, int] = dataclasses.field(default_factory=dict)
+    links: dict[int, dict] = dataclasses.field(default_factory=dict)
 
 
 @dataclass
@@ -124,18 +148,29 @@ def extract_images(nodes: list[DocNode]) -> list[Image]:
     grant, or both — *before* calling ast_to_requests, since that stays a
     synchronous, I/O-free function like the rest of this module (#333).
 
-    Only walks body-level nodes' own `runs` (Heading/Paragraph/BulletItem/
-    NamedBlock). Table cells never actually receive an Image node from
-    html_parser.py today — table-cell images are a deliberately out-of-scope
-    gap (tracked as a follow-up), not a silent omission here.
+    Walks body-level nodes' own `runs` and every table cell's children, recursing
+    into nested tables (#1073).
     """
     images: list[Image] = []
     for node in nodes:
         if isinstance(node, Table):
+            images.extend(_table_images(node))
             continue
         for item in node.runs:
             if isinstance(item, Image):
                 images.append(item)
+    return images
+
+
+def _table_images(table: Table) -> list[Image]:
+    images: list[Image] = []
+    for row in table.rows:
+        for cell in row.cells:
+            for child in cell.children:
+                if isinstance(child, Image):
+                    images.append(child)
+                elif isinstance(child, Table):
+                    images.extend(_table_images(child))
     return images
 
 
@@ -940,7 +975,9 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
     ]
 
 
-async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
+async def fill_tables(
+    docs_service, doc_id: str, tables: list[Table], images: CellImages | None = None
+) -> None:
     """Fill table cells and apply inline styles using live cell indices.
 
     Phases:
@@ -958,6 +995,9 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     Phases 5 and 6 must use a doc fetched after phases 3 and 4: the fill shifts the
     startIndex of every table after the first, and a stale one is a 400 (#1053).
     They share one post-fill fetch, since column-width changes move no indices.
+
+    images: the resolved images to embed in cells, at any nesting depth (#1073).
+    Without it, every cell image is skipped.
 
     Nested table limitations: no col_widths inside nested tables. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
@@ -1001,19 +1041,14 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     doc_tables = await _apply_merges(docs_service, doc_id, doc_tables, tables, _top_level_tables)
 
     # Step 3: fill plain cells (no nested table) in one bulk batch
-    fill_requests = _build_fill_requests(doc_tables, tables)
+    fill_requests = _build_fill_requests(doc_tables, tables, images)
     if fill_requests:
-        await execute_in_thread(
-            docs_service.documents()
-            .batchUpdate(documentId=doc_id, body={"requests": fill_requests})
-            .execute,
-            docs_service,
-        )
+        await _execute_fill(docs_service, doc_id, fill_requests, images)
 
     # Step 4: fill cells that contain a nested table, preserving true content order
     # at any nesting depth
     if has_nested:
-        await _fill_nested_cell_content(docs_service, doc_id, tables)
+        await _fill_nested_cell_content(docs_service, doc_id, tables, images)
 
     # Steps 5 and 6 need each table's startIndex as it is after the fill. Steps 3 and 4
     # inserted text into every earlier table's cells, so step 1's startIndex for any
@@ -1065,6 +1100,21 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
                 .execute,
                 docs_service,
             )
+
+
+async def _execute_fill(
+    docs_service, doc_id: str, requests: list[dict], images: CellImages | None
+) -> None:
+    """Run a cell-fill batch, through `images.execute` when there are images to embed."""
+    if images is not None:
+        await images.execute(requests)
+        return
+    await execute_in_thread(
+        docs_service.documents()
+        .batchUpdate(documentId=doc_id, body={"requests": requests})
+        .execute,
+        docs_service,
+    )
 
 
 def _top_level_tables(live_doc: dict) -> list[dict]:
@@ -1124,10 +1174,14 @@ def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> 
     return paragraphs[tables_before].get("startIndex")
 
 
-def _text_offset_since_last_table(children: list[Run | Image | Table], cursor: int) -> int:
-    """Sum of Run text lengths between the nearest preceding *insertable* Table
-    (exclusive) and cursor — a degenerate table is transparent here since it
-    was never actually inserted (see _is_insertable_table).
+def _text_offset_since_last_table(
+    children: list[Run | Image | Table], cursor: int, image_uris: dict[int, str] | None = None
+) -> int:
+    """Sum of Run text lengths, plus one per embedded Image, between the nearest
+    preceding *insertable* Table (exclusive) and cursor — a degenerate table is
+    transparent here since it was never actually inserted (see _is_insertable_table).
+    An Image counts only while it has an entry in `image_uris`: one never resolved, or
+    dropped after its insert failed, isn't in the doc (#1073).
 
     A Table's insertion point is its paragraph's startIndex *plus* this offset,
     since any leading text already inserted into that same paragraph (in an
@@ -1141,6 +1195,8 @@ def _text_offset_since_last_table(children: list[Run | Image | Table], cursor: i
             break
         if isinstance(child, Run):
             offset += utf16_len(child.text)
+        elif isinstance(child, Image) and image_uris and id(child) in image_uris:
+            offset += 1
     return offset
 
 
@@ -1157,11 +1213,42 @@ def _find_nth_table_in_cell(
     return nested_tables[occurrence]
 
 
-def _run_group_fill_requests(runs: list[Run], para_start: int) -> list[dict]:
-    """Build insertText + updateTextStyle requests for a contiguous run of text."""
+def _run_group_fill_requests(
+    children: list[Run | Image], para_start: int, images: CellImages | None = None
+) -> list[dict]:
+    """Build insertText + updateTextStyle requests for a contiguous run of text, then
+    an insertInlineImage for each of its resolved images (#1073).
+
+    The images go last, latest position first, like ast_to_requests's positional
+    pass: the text and its styles are placed as if no image were there, and each
+    image lands at the offset of the text before it without shifting any image
+    already placed. Two images with no text between them share an offset, so the
+    later one goes in first and the earlier one then lands ahead of it."""
+    runs = [child for child in children if isinstance(child, Run)]
     text = "".join(run.text for run in runs)
-    if not text:
-        return []
+    requests: list[dict] = []
+    if text:
+        requests.extend(_text_fill_requests(runs, text, para_start))
+    if images is None:
+        return requests
+    placed: list[tuple[int, Image]] = []
+    offset = 0
+    for child in children:
+        if isinstance(child, Run):
+            offset += utf16_len(child.text)
+        elif id(child) in images.uris:
+            placed.append((offset, child))
+    for offset, image in reversed(placed):
+        image_requests = _image_insert_requests(image, images.uris[id(image)], para_start + offset)
+        insert = image_requests[0]
+        images.requests[id(insert)] = id(image)
+        if len(image_requests) > 1:
+            images.links[id(insert)] = image_requests[1]
+        requests.extend(image_requests)
+    return requests
+
+
+def _text_fill_requests(runs: list[Run], text: str, para_start: int) -> list[dict]:
     requests: list[dict] = [
         {"insertText": {"location": {"index": para_start}, "text": text}},
         # Clear any fontSize inherited from a preceding heading — see _build_fill_requests.
@@ -1184,7 +1271,9 @@ def _run_group_fill_requests(runs: list[Run], para_start: int) -> list[dict]:
     return requests
 
 
-async def _fill_nested_cell_content(docs_service, doc_id: str, tables: list[Table]) -> None:
+async def _fill_nested_cell_content(
+    docs_service, doc_id: str, tables: list[Table], images: CellImages | None = None
+) -> None:
     """Fill every cell that contains a nested table, preserving true content order.
 
     Cells with no nested table are handled in bulk by _build_fill_requests instead
@@ -1195,7 +1284,7 @@ async def _fill_nested_cell_content(docs_service, doc_id: str, tables: list[Tabl
     high→low within the round, then re-fetches before the next round.
     """
     await _fill_children_recursive(
-        docs_service, doc_id, lambda live_doc: _top_level_tables(live_doc), tables
+        docs_service, doc_id, lambda live_doc: _top_level_tables(live_doc), tables, images
     )
 
 
@@ -1204,6 +1293,7 @@ async def _fill_children_recursive(
     doc_id: str,
     resolve,
     ast_tables: list[Table],
+    images: CellImages | None = None,
     _doc_tables: list[dict] | None = None,
 ) -> None:
     """resolve(live_doc) -> doc_table dicts positionally matching ast_tables.
@@ -1261,7 +1351,9 @@ async def _fill_children_recursive(
                 occurrence = sum(1 for ch in children[:cursor] if _is_insertable_table(ch))
                 # Any text already inserted earlier this round-chain, in the same
                 # paragraph, shifts the table's landing spot past that text.
-                table_start = para_start + _text_offset_since_last_table(children, cursor)
+                table_start = para_start + _text_offset_since_last_table(
+                    children, cursor, images.uris if images is not None else None
+                )
                 if num_rows > 0 and num_cols > 0:
                     round_requests.append(
                         (
@@ -1280,18 +1372,18 @@ async def _fill_children_recursive(
                     table_inserts.append((t, r, c, occurrence, child))
                 new_cursor = cursor + 1
             else:
-                # Consume every non-Table child up to the next Table. An Image is
-                # skipped, as _build_fill_requests does for a cell with no nested
-                # table: table-cell images aren't supported (#509). Stopping only at
-                # a Table guarantees j > cursor, so the cell can't stay pending forever.
+                # Consume every non-Table child (text and images, #1073) up to the
+                # next Table. Stopping only at a Table guarantees j > cursor, so the
+                # cell can't stay pending forever (#509).
                 j = cursor
-                run_group: list[Run] = []
-                while j < len(children) and not isinstance(children[j], Table):
+                group: list[Run | Image] = []
+                while j < len(children):
                     next_child = children[j]
-                    if isinstance(next_child, Run):
-                        run_group.append(next_child)
+                    if isinstance(next_child, Table):
+                        break
+                    group.append(next_child)
                     j += 1
-                reqs = _run_group_fill_requests(run_group, para_start)
+                reqs = _run_group_fill_requests(group, para_start, images)
                 if reqs:
                     round_requests.append((para_start, reqs))
                 new_cursor = j
@@ -1306,12 +1398,7 @@ async def _fill_children_recursive(
         if round_requests:
             round_requests.sort(key=lambda x: x[0], reverse=True)
             batch = [req for _, reqs in round_requests for req in reqs]
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": batch})
-                .execute,
-                docs_service,
-            )
+            await _execute_fill(docs_service, doc_id, batch, images)
         # No `break` here even when a round emits no requests (e.g. a degenerate
         # zero-column table skipped by the `num_rows > 0 and num_cols > 0` guard
         # above): cursors still advance every round for every non-done cell, so
@@ -1331,7 +1418,7 @@ async def _fill_children_recursive(
             # This performs its own batchUpdate(s), which shift indices for any
             # outer-cell content that comes after this nested table — the outer
             # loop's own doc_tables (re-fetched below) must reflect that.
-            await _fill_table_fully(docs_service, doc_id, child_resolve, table_child)
+            await _fill_table_fully(docs_service, doc_id, child_resolve, table_child, images)
 
         if pending:
             live_doc = await execute_in_thread(
@@ -1341,7 +1428,9 @@ async def _fill_children_recursive(
             doc_tables = resolve(live_doc)
 
 
-async def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> None:
+async def _fill_table_fully(
+    docs_service, doc_id: str, resolve, ast_table: Table, images: CellImages | None = None
+) -> None:
     """Fill one (typically just-inserted) table's cells: merges first, then
     plain cells in bulk, then cells with a further nested table via the
     recursive round algorithm.
@@ -1365,21 +1454,16 @@ async def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table
 
     doc_tables = await _apply_merges(docs_service, doc_id, doc_tables, [ast_table], resolve)
 
-    fill_requests = _build_fill_requests(doc_tables, [ast_table])
+    fill_requests = _build_fill_requests(doc_tables, [ast_table], images)
     if fill_requests:
-        await execute_in_thread(
-            docs_service.documents()
-            .batchUpdate(documentId=doc_id, body={"requests": fill_requests})
-            .execute,
-            docs_service,
-        )
+        await _execute_fill(docs_service, doc_id, fill_requests, images)
         # The bulk fill just shifted indices — the recursive call must re-fetch.
-        await _fill_children_recursive(docs_service, doc_id, resolve, [ast_table])
+        await _fill_children_recursive(docs_service, doc_id, resolve, [ast_table], images)
     else:
         # Nothing changed since doc_tables was fetched above — reuse it instead
         # of having the recursive call redundantly re-fetch identical data.
         await _fill_children_recursive(
-            docs_service, doc_id, resolve, [ast_table], _doc_tables=doc_tables
+            docs_service, doc_id, resolve, [ast_table], images, _doc_tables=doc_tables
         )
 
 
@@ -1521,7 +1605,9 @@ def _build_merge_requests(doc_tables: list[dict], ast_tables: list[Table]) -> li
     return requests
 
 
-def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+def _build_fill_requests(
+    doc_tables: list[dict], ast_tables: list[Table], images: CellImages | None = None
+) -> list[dict]:
     """Build insertText + updateTextStyle requests for cells with no nested table,
     sorted high→low, so they can all be emitted in one batch. Cells that contain a
     nested table are skipped here — _fill_nested_cell_content handles those instead,
@@ -1550,10 +1636,8 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 ast_cell = ast_row.cells[ast_cell_idx]
                 if any(isinstance(child, Table) for child in ast_cell.children):
                     continue  # handled by _fill_nested_cell_content instead
-                cell_runs = [child for child in ast_cell.children if isinstance(child, Run)]
-                cell_text = "".join(run.text for run in cell_runs)
-                if not cell_text:
-                    continue
+                # No Table child here, so every child is a Run or an Image.
+                cell_children = [c for c in ast_cell.children if not isinstance(c, Table)]
                 cell_content = doc_cell.get("content", [])
                 if not cell_content:
                     continue
@@ -1561,8 +1645,9 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 if para_start is None:
                     continue
 
-                cell_requests = _run_group_fill_requests(cell_runs, para_start)
-                all_requests.append((para_start, cell_requests))
+                cell_requests = _run_group_fill_requests(cell_children, para_start, images)
+                if cell_requests:
+                    all_requests.append((para_start, cell_requests))
 
     all_requests.sort(key=lambda x: x[0], reverse=True)
     return [req for _, reqs in all_requests for req in reqs]
