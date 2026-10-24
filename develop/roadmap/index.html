@@ -2143,6 +2143,7 @@
 <li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>)</li>
 <li>[ ] Markdown strikethrough (~~text~~) and HTML <del> aren't converted (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1077">#1077</a>)</li>
 <li>[ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1128">#1128</a>)</li>
+<li>[ ] get_doc_as_markdown renumbers a numbered list from 1 after a table (or any block) interrupts it, so it re-imports as two lists. <code>wrong/narrow</code>, observed in PR #1201 QA (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1208">#1208</a>)</li>
 <li>[x] search_files/search_spreadsheets/list_spreadsheets miss Shared Drive files under a service account when no folder is given. <code>wrong/narrow</code>, observed in the 0.9.3 release-QA pass; v0.9.3's fill is locked (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1127">#1127</a>) (PR #1200)</li>
 <li>[ ] Unscoped Drive listings don't surface <code>incompleteSearch</code> under <code>corpora=allDrives</code>, so a partial result reads as complete. Review follow-up from PR #1200, fill candidate; changes five tools' output schema, <code>decision-needed</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1202">#1202</a>)</li>
 <li>[ ] Loose list items (<li><p>…</p></li>) lose their bullet — community PR #1164 (pulled from lane A), html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1111">#1111</a>)</li>
@@ -2152,7 +2153,7 @@
 <li>[x] Adjacent blocks run together: separate quotes merge, consecutive code blocks merge, quotes have no spacing — lane B, after #1056 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1098">#1098</a>) (PR #1199)</li>
 <li>[ ] A thematic break (<code>---</code>) renders as an empty paragraph (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1096">#1096</a>)</li>
 <li>[ ] GFM table column alignment is ignored (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1095">#1095</a>)</li>
-<li>[ ] A table takes on the style of the paragraph that follows it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1097">#1097</a>)</li>
+<li>[x] A table takes on the style of the paragraph that follows it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1097">#1097</a>) (PR #1201)</li>
 <li>[ ] An image the Docs API can't fetch (e.g. an SVG badge) disappears without a trace (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1099">#1099</a>)</li>
 <li>[ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1101">#1101</a>)</li>
 <li>[ ] <code>upload_file(source_format="markdown", convert_to_doc=True)</code> (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1102">#1102</a>)</li>
