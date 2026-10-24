@@ -1339,6 +1339,26 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
 ---
 
+### TC-D299: Unscoped search under a service account finds Shared Drive files it never opened (#1127)
+
+**Servers:** an OAuth server for setup and cleanup, and a service-account server (e.g. `mcp-gee-sweet-kai-sa`) for every check. Run on an OAuth server only, this case proves nothing: the bug was that Drive's default `user` corpus leaves out Shared Drive files the *service account* hasn't created or opened.
+
+**Setup:**
+1. On the OAuth server: `create_doc(title="QA-Untouched-1127-Doc", folder_id={FOLDER_ID})` and `create_spreadsheet(title="QA-Untouched-1127-Sheet", folder_id={FOLDER_ID})`; note both ids. From here until cleanup, call nothing on the service-account server that reads either file by id (`get_file_metadata`, `get_doc_content`, `get_sheet_data`, ...). Once the service account opens a file, the file enters its `user` corpus and the case stops reproducing the bug. Listing and search calls don't count as opening.
+2. Positive control, on the service-account server: `search_files(query="QA-Untouched-1127", folder_id={FOLDER_ID})` must return both ids. Drive's search index can lag a new file, so retry until it does; an unscoped check run before this proves nothing.
+
+**Checks** (all on the service-account server, none with a folder):
+- `search_files(query="QA-Untouched-1127")` returns both ids.
+- `search_spreadsheets(query="QA-Untouched-1127")` returns the spreadsheet's id.
+- `list_recent_files(days=1, mime_type="application/vnd.google-apps.spreadsheet", max_results=100)` includes the spreadsheet's id, and `list_recent_files(days=1, mime_type="application/vnd.google-apps.document", max_results=100)` includes the doc's id.
+- Before the fix, each of these returned neither id while the step-2 control found both.
+
+`list_spreadsheets()` and `list_folders()` have the same fix, but no team server reaches their unscoped path: each sets `DRIVE_FOLDER_ID`, so a call with no folder is scoped to it. `tests/drive/test_files.py::TestCorporaSelection` covers that path.
+
+**Cleanup:** on the OAuth server, `delete_file(file_id=<id>, permanent=True)` on both.
+
+---
+
 ## `get_file_metadata`
 
 ### TC-D79: Metadata for a Google Spreadsheet

@@ -1219,6 +1219,56 @@ class TestListSpreadsheets:
         )
 
 
+class TestCorporaSelection:
+    """#1127: with Drive's default "user" corpus, a service account's unscoped
+    listing or search missed Shared Drive items it hadn't touched. An unscoped
+    call must ask for corpora='allDrives'; a folder-scoped one keeps the default."""
+
+    async def _call(self, tool_name, *, default_folder=None, **kwargs):
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        ctx = _make_ctx(drive_service=svc, folder_id=default_folder)
+        await _drive_tools[tool_name](ctx=ctx, **kwargs)
+        return svc.files.return_value.list.call_args.kwargs
+
+    @pytest.mark.parametrize(
+        ("tool_name", "kwargs"),
+        [
+            ("list_spreadsheets", {}),
+            ("list_folders", {}),
+            ("search_files", {"query": "QA"}),
+            ("search_files", {"query": "QA", "mime_type": "application/pdf"}),
+            ("search_spreadsheets", {"query": "QA"}),
+            ("list_recent_files", {}),
+        ],
+    )
+    async def test_unscoped_call_searches_all_drives(self, tool_name, kwargs):
+        list_kwargs = await self._call(tool_name, **kwargs)
+        assert list_kwargs["corpora"] == "allDrives"
+        assert list_kwargs["includeItemsFromAllDrives"] is True
+        assert list_kwargs["supportsAllDrives"] is True
+
+    @pytest.mark.parametrize(
+        ("tool_name", "kwargs"),
+        [
+            ("list_spreadsheets", {"folder_id": "folder1"}),
+            ("list_folders", {"parent_folder_id": "folder1"}),
+            ("search_files", {"query": "QA", "folder_id": "folder1"}),
+        ],
+    )
+    async def test_folder_scoped_call_keeps_default_corpus(self, tool_name, kwargs):
+        assert "corpora" not in await self._call(tool_name, **kwargs)
+
+    @pytest.mark.parametrize("tool_name", ["list_spreadsheets", "list_folders"])
+    async def test_configured_default_folder_keeps_default_corpus(self, tool_name):
+        # DRIVE_FOLDER_ID scopes the query just as an explicit folder does.
+        assert "corpora" not in await self._call(tool_name, default_folder="default_folder")
+
+    async def test_shared_with_me_keeps_default_corpus(self):
+        # sharedWithMe=true is itself the scope; allDrives would add nothing.
+        assert "corpora" not in await self._call("list_shared_with_me")
+
+
 class TestGetFileMetadata:
     def _drive_service(self, file=None):
         mock = MagicMock()

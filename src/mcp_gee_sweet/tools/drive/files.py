@@ -28,6 +28,18 @@ _CSV_IMPORT_CHUNK_ROWS = 5000
 _LIST_DRIVES_MAX_PAGES = 50
 
 
+def _corpora_kwargs(folder_id: str | None) -> dict[str, str]:
+    """files().list() corpus for a query that may or may not be folder-scoped.
+
+    Drive's default corpus is "user", which leaves out Shared Drive items the
+    caller hasn't created or opened, even with includeItemsFromAllDrives=True: a
+    service account's unscoped search found 2 of 14 matches (#1127). An
+    "in parents" query isn't affected (checked live under both identities), so it
+    keeps the default rather than paying for the slower allDrives corpus.
+    """
+    return {} if folder_id else {"corpora": "allDrives"}
+
+
 async def _list_drive_files(
     drive_service,
     q: str,
@@ -394,8 +406,8 @@ def register(tool):
         List all spreadsheets in the specified Google Drive folder.
         If no folder is specified, uses the configured default folder; if that's
         also unset, searches across 'My Drive' AND every shared drive the
-        authenticated account can access (includeItemsFromAllDrives=True) — not
-        just 'My Drive'.
+        authenticated account can access (corpora='allDrives') — not just
+        'My Drive'.
 
         A strict, less-flexible special case of list_files pre-filtered to the
         spreadsheet MIME type. For a different result cap or other file types, use
@@ -431,6 +443,7 @@ def register(tool):
                 pageSize=max_results,
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
+                **_corpora_kwargs(target_folder_id),
                 fields="files(id, name)",
                 orderBy="modifiedTime desc",
             )
@@ -449,7 +462,7 @@ def register(tool):
         If no parent is specified, uses the configured default folder
         (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND
         every shared drive the authenticated account can access
-        (includeItemsFromAllDrives=True) — not just 'My Drive'.
+        (corpora='allDrives') — not just 'My Drive'.
 
         Args:
             parent_folder_id: Optional Google Drive folder ID to search within.
@@ -481,6 +494,7 @@ def register(tool):
                 pageSize=max_results,
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
+                **_corpora_kwargs(target_folder_id),
                 fields="files(id, name, parents)",
                 orderBy="name",
             )
@@ -663,7 +677,9 @@ def register(tool):
                        'application/vnd.google-apps.document',
                        'application/vnd.google-apps.spreadsheet',
                        'application/pdf'.
-            folder_id: Optional folder to restrict the search to.
+            folder_id: Optional folder to restrict the search to. Without it, the
+                       search covers 'My Drive' and every shared drive the
+                       account can access.
             max_results: Maximum results to return (default 20, max 100).
 
         Returns:
@@ -694,6 +710,7 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
+                    **_corpora_kwargs(folder_id),
                     fields="files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink, starred)",
                     orderBy="modifiedTime desc",
                 )
@@ -760,6 +777,7 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
+                    **_corpora_kwargs(None),
                     fields="files(id, name, createdTime, modifiedTime, owners, webViewLink, starred)",
                     orderBy="modifiedTime desc",
                 )
@@ -1238,7 +1256,11 @@ def register(tool):
             " and ".join(parts),
             max_results,
             "List recent files",
-            extra_kwargs={"includeItemsFromAllDrives": True, "supportsAllDrives": True},
+            extra_kwargs={
+                "includeItemsFromAllDrives": True,
+                "supportsAllDrives": True,
+                **_corpora_kwargs(None),
+            },
         )
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
