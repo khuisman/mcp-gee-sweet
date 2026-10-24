@@ -440,6 +440,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Feature set: comments** _(moved from ornithomimus 2026-10-24)_ — follows [`docs/decisions/decision-comments-first-class.md`](decisions/decision-comments-first-class.md) ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)) and ships a breaking rename that the release notes must call out.
 
+- [ ] Deprecation policy for renamed and removed tools: an old name stays as an alias for one release, with a CHANGELOG note. Prerequisite of #663/#664 and #665, decided 2026-10-24 ([#1209](https://github.com/khuisman/mcp-gee-sweet/issues/1209))
 - [ ] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment`/`resolve_doc_comment` → `list_file_comments`/`add_file_comment`/`resolve_comment` (param `doc_id` → `file_id`); retire `tools/docs/comments.py`. Breaking change. ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663))
 - [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
 - [ ] Follow-up cleanup for the docs comments API (`add_doc_comment`/`resolve_doc_comment`/`list_doc_comments`) — same surface #663/#664 generalize, do it there rather than twice; triaged out of `backlog` 2026-09-11 ([#329](https://github.com/khuisman/mcp-gee-sweet/issues/329))
