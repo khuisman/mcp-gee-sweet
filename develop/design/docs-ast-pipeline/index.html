@@ -1918,6 +1918,26 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 <li>For each <code>link_url</code> run in non-table content: <code>updateTextStyle(link=...)</code></li>
 <li><code>insertTable</code> requests in <strong>reverse</strong> order (last-to-first preserves earlier positions)</li>
 </ol>
+<p><strong>Table placeholders (#1097).</strong> <code>insertTable</code> gives the table its left indent, and every
+empty cell its text style, from the paragraph at the insertion point. The Docs API has no
+field to reset the table's indent afterward (it shows only as <code>margin-left</code> in the HTML
+export). Inserted at the start of the next block, a table after a list or quote was
+indented to it, and one before a bold, Courier New, or heading-styled first character put
+that style in every cell. So step 1's text holds an empty placeholder paragraph at each
+table's position. After the bullet pass, <code>_table_placeholder_requests</code> resets it to plain:
+<code>deleteParagraphBullets</code>, then <code>updateParagraphStyle</code> with <code>fields: "*"</code> (<code>NORMAL_TEXT</code>,
+every other field at its default), then <code>updateTextStyle</code> with <code>fields: "*"</code>. It runs
+after the bullet pass because a table between two same-preset list items sits inside
+their one <code>createParagraphBullets</code> range: the run skips Table nodes, so both items stay
+one list, and the placeholder loses its bullet afterward (PR #1201 QA round 1). A table
+inside a quote (<code>Table.blockquote_depth</code>, set by the parser) gets the quote's indent on
+its placeholder, 36pt per level, and no border. It still doesn't count as quoted for
+separators or quote-edge spacing. The table is inserted at the placeholder, which <code>insertTable</code> pushes to just
+after the table, and a <code>deleteContentRange</code> right after the <code>insertTable</code> removes it, at
+<code>position + _inserted_table_length(rows, columns)</code>. Deleting the paragraph <em>after</em> a
+table is allowed; only the one before it is structurally required (see
+<code>known-limitations.md</code>). <code>_positional_insert_tail_start</code> counts the delete as part of the
+positional pass by its place right after an <code>insertTable</code>.</p>
 <h3 id="fill_tablesdocs_service-doc_id-tables-none">fill_tables(docs_service, doc_id, tables) → None<a class="headerlink" href="#fill_tablesdocs_service-doc_id-tables-none" title="Permanent link">&para;</a></h3>
 <p>Replaces the old <code>_fill_tables</code> / <code>_fill_table_cell_requests_from_doc</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>1. Re-fetch doc → get live table structure
