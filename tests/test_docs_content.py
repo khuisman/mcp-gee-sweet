@@ -2253,7 +2253,13 @@ class TestCreateDocImages:
         assert any("insertText" in r for r in retry)
         assert not any("insertInlineImage" in r or "insertTable" in r for r in prefix)
         for attempt in tail_attempts:
-            assert all("insertInlineImage" in r or "insertTable" in r for r in attempt)
+            # Each insertTable is followed by its placeholder's delete (#1097).
+            assert all(
+                "insertInlineImage" in r
+                or "insertTable" in r
+                or ("deleteContentRange" in r and "insertTable" in attempt[i - 1])
+                for i, r in enumerate(attempt)
+            )
         final_tail = tail_attempts[-1]
         assert [r["insertInlineImage"]["uri"] for r in final_tail if "insertInlineImage" in r] == [
             good_uri
@@ -4900,6 +4906,31 @@ class TestPositionalInsertTailStart:
         assert _positional_insert_tail_start(requests, image_links) == requests.index(
             min(inserts.values(), key=requests.index)
         )
+
+    def test_table_placeholder_delete_stays_in_the_tail(self):
+        # #1097: the delete right after an insertTable removes that table's
+        # placeholder paragraph, and is part of the positional pass.
+        requests = [
+            {"insertText": {}},
+            {"deleteContentRange": {}},
+            {"insertInlineImage": {}},
+            {"insertTable": {}},
+            {"deleteContentRange": {}},
+            {"insertInlineImage": {}},
+        ]
+        assert _positional_insert_tail_start(requests) == 2
+
+    def test_delete_not_after_a_table_ends_the_tail(self):
+        # An isolated bullet run's anchor delete precedes the pass; it's not a
+        # placeholder delete.
+        requests = [
+            {"insertText": {}},
+            {"createParagraphBullets": {}},
+            {"deleteContentRange": {}},
+            {"insertTable": {}},
+            {"deleteContentRange": {}},
+        ]
+        assert _positional_insert_tail_start(requests) == 3
 
     def test_no_tail(self):
         assert _positional_insert_tail_start([{"insertText": {}}]) == 1

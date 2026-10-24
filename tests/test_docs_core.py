@@ -23,6 +23,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _build_fill_requests,
     _build_merge_requests,
     _build_phantom_set,
+    _inserted_table_length,
     _physical_to_ast_indices,
     _run_group_fill_requests,
     _text_offset_since_last_table,
@@ -695,7 +696,9 @@ class TestBlockquoteEmitter:
         bullet_pass = [
             i
             for i, r in enumerate(requests)
-            if "createParagraphBullets" in r or "deleteContentRange" in r
+            if "createParagraphBullets" in r
+            # an isolated run's anchor delete, not a table's placeholder delete (#1097)
+            or ("deleteContentRange" in r and "insertTable" not in requests[i - 1])
         ]
         inserts = [
             i for i, r in enumerate(requests) if "insertTable" in r or "insertInlineImage" in r
@@ -1436,10 +1439,10 @@ class TestNestedBulletDepthEmitsIndentation:
         requests, _ = ast_to_requests(nodes)
         insert = next(r for r in requests if "insertText" in r)
         table_req = next(r for r in requests if "insertTable" in r)
-        # As-inserted text is "Parent\n\tChild\n" (14 chars); table's raw position would
-        # be 1 + 14 = 15, but the 1 leading tab gets consumed ahead of it, so the real
-        # position is 14.
-        assert insert["insertText"]["text"] == "Parent\n\tChild\n"
+        # As-inserted text is "Parent\n\tChild\n" (14 chars) plus the table's placeholder
+        # (#1097); table's raw position would be 1 + 14 = 15, but the 1 leading tab gets
+        # consumed ahead of it, so the real position is 14.
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n\n"
         assert table_req["insertTable"]["location"]["index"] == 14
 
     def test_table_before_nested_bullet_unaffected(self):
@@ -1501,9 +1504,10 @@ class TestBulletDepthEdgeCases:
         requests, _ = ast_to_requests(nodes)
         insert = next(r for r in requests if "insertText" in r)
         table_req = next(r for r in requests if "insertTable" in r)
-        # "\tChild\n" is 7 chars; table's raw position 1+7=8, minus the 1 synthetic
-        # tab consumed ahead of it by createParagraphBullets = 7.
-        assert insert["insertText"]["text"] == "\tChild\n"
+        # "\tChild\n" is 7 chars (then the table's placeholder, #1097); table's raw
+        # position 1+7=8, minus the 1 synthetic tab consumed ahead of it by
+        # createParagraphBullets = 7.
+        assert insert["insertText"]["text"] == "\tChild\n\n"
         assert table_req["insertTable"]["location"]["index"] == 7
 
     def test_literal_leading_tab_still_strips_at_depth_zero(self):
@@ -1924,18 +1928,17 @@ class TestImagePositionalInserts:
         requests, tables = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
         assert tables == [table]
         insert = next(r for r in requests if "insertText" in r)
-        # "Before\n" (7 chars) then (table contributes 0 chars to text) then "\n"
+        # "Before\n" (7 chars), the table's placeholder paragraph (#1097), then "\n"
         # for the image's own now-empty paragraph.
-        assert insert["insertText"]["text"] == "Before\n\n"
+        assert insert["insertText"]["text"] == "Before\n\n\n"
         table_req = next(r for r in requests if "insertTable" in r)
         image_req = next(r for r in requests if "insertInlineImage" in r)
-        # Table lands right after "Before\n" (position 8); the image's own paragraph
-        # (computed in the same table-agnostic coordinate space) also starts at 8 —
-        # both requests target position 8, and since the image request is processed
-        # in the same combined descending pass, it isn't shifted by the table
-        # insertion despite appearing later in the document.
+        # Table lands at its placeholder right after "Before\n" (position 8); the
+        # image's own paragraph starts at 9. The image request is processed first in
+        # the combined descending pass, so it isn't shifted by the table insertion
+        # despite appearing later in the document.
         assert table_req["insertTable"]["location"]["index"] == 8
-        assert image_req["insertInlineImage"]["location"]["index"] == 8
+        assert image_req["insertInlineImage"]["location"]["index"] == 9
         # Descending-position ordering means the higher-position insertion (here,
         # a tie — image is emitted after its own node walk, so it appears after
         # the table in requests) must still not corrupt either target index.
@@ -2094,3 +2097,78 @@ class TestImageLinks:
                     "endIndex": index + 1,
                 }
                 assert following["updateTextStyle"]["textStyle"] == {"link": {"url": img.link_url}}
+
+
+class TestTablePlaceholder:
+    """Each table is inserted at a placeholder paragraph of its own, deleted right after
+    (#1097). Inserted at the next block instead, the table took that block's indent and
+    every empty cell its first character's text style."""
+
+    @staticmethod
+    def _table(rows: int = 1, cols: int = 1) -> Table:
+        return Table(
+            rows=[Row(cells=[Cell(children=[Run("x")]) for _ in range(cols)]) for _ in range(rows)]
+        )
+
+    def test_inserted_table_length_matches_live_counts(self):
+        # Confirmed live: 2x2 adds 13 indices, 2x3 adds 17.
+        assert _inserted_table_length(2, 2) == 13
+        assert _inserted_table_length(2, 3) == 17
+
+    def test_table_inserted_at_its_placeholder_then_placeholder_deleted(self):
+        nodes = [
+            Paragraph(runs=[Run("Before")]),
+            self._table(2, 3),
+            Paragraph(runs=[Run("Hotel:", bold=True), Run(" Casa")]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        # "Before\n" (7), the placeholder at 8, then the following paragraph at 9.
+        assert insert["insertText"]["text"] == "Before\n\nHotel: Casa\n"
+        i = next(i for i, r in enumerate(requests) if "insertTable" in r)
+        assert requests[i]["insertTable"]["location"]["index"] == 8
+        # insertTable pushes the placeholder to 8 + 17; the next request deletes it.
+        assert requests[i + 1] == {
+            "deleteContentRange": {"range": {"startIndex": 25, "endIndex": 26}}
+        }
+        # The following paragraph's bold run starts after the placeholder.
+        bold = next(r for r in requests if "updateTextStyle" in r)
+        assert bold["updateTextStyle"]["range"] == {"startIndex": 9, "endIndex": 15}
+
+    def test_placeholder_gets_no_styling_but_a_bullet_delete(self):
+        nodes = [self._table(), BulletItem(runs=[Run("one")], depth=0, ordered=True)]
+        requests, _ = ast_to_requests(nodes)
+        placeholder = {"startIndex": 1, "endIndex": 2}
+        touching = [
+            r
+            for r in requests
+            for v in r.values()
+            if isinstance(v, dict) and v.get("range") == placeholder
+        ]
+        assert touching == [{"deleteParagraphBullets": {"range": placeholder}}]
+        bullets = next(r for r in requests if "createParagraphBullets" in r)
+        assert bullets["createParagraphBullets"]["range"]["startIndex"] == 2
+
+    def test_consecutive_tables_each_get_a_placeholder(self):
+        nodes = [self._table(), self._table(1, 2)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\n\n"
+        pairs = [
+            (r["insertTable"]["location"]["index"], requests[i + 1]["deleteContentRange"])
+            for i, r in enumerate(requests)
+            if "insertTable" in r
+        ]
+        # Latest first: the 1x2 table at its placeholder (2), then the 1x1 at 1.
+        assert pairs == [
+            (2, {"range": {"startIndex": 2 + 8, "endIndex": 2 + 9}}),
+            (1, {"range": {"startIndex": 1 + 6, "endIndex": 1 + 7}}),
+        ]
+
+    def test_degenerate_table_gets_no_placeholder(self):
+        nodes = [Paragraph(runs=[Run("a")]), Table(rows=[]), Paragraph(runs=[Run("b")])]
+        requests, tables = ast_to_requests(nodes)
+        assert tables == []
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\nb\n"
+        assert not any("deleteContentRange" in r for r in requests)

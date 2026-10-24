@@ -213,6 +213,20 @@ Returns `(phase1_requests, list[Table])` where `tables` are the Table AST nodes 
 5. For each `link_url` run in non-table content: `updateTextStyle(link=...)`
 6. `insertTable` requests in **reverse** order (last-to-first preserves earlier positions)
 
+**Table placeholders (#1097).** `insertTable` gives the table its left indent, and every
+empty cell its text style, from the paragraph at the insertion point. The Docs API has no
+field to reset the table's indent afterward (it shows only as `margin-left` in the HTML
+export). Inserted at the start of the next block, a table after a list or quote was
+indented to it, and one before a bold, Courier New, or heading-styled first character put
+that style in every cell. So step 1's text holds an empty placeholder paragraph at each
+table's position. Nothing styles it except `deleteParagraphBullets`, like a plain
+paragraph. The table is inserted at the placeholder, which `insertTable` pushes to just
+after the table, and a `deleteContentRange` right after the `insertTable` removes it, at
+`position + _inserted_table_length(rows, columns)`. Deleting the paragraph *after* a
+table is allowed; only the one before it is structurally required (see
+`known-limitations.md`). `_positional_insert_tail_start` counts the delete as part of the
+positional pass by its place right after an `insertTable`.
+
 ### fill_tables(docs_service, doc_id, tables) → None
 
 Replaces the old `_fill_tables` / `_fill_table_cell_requests_from_doc`.

@@ -179,8 +179,10 @@ bullet as an empty numbered item, and collapsed or not, they pushed that list's 
 on and carried a following quote's indent and border. `_build_blank_para_before_table_collapses`
 now deletes their bullets and clears `indentStart`, `indentFirstLine`, and `borderLeft`,
 in that order, since `deleteParagraphBullets` adds indent to keep a paragraph's visual
-level. The table cells themselves still take the following block's style, including its
-indent; that part is #1097.
+level. The table itself and its cells took the following block's style too, including
+its indent. Since #1097 each table is inserted at a plain placeholder paragraph of its own
+instead (see `docs-ast-pipeline.md`), so none of it reaches the table, and the reset above
+stays as a backstop.
 
 **Markdown input is still affected by the parser.** Python-Markdown parses `> a`, a blank
 line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes. That

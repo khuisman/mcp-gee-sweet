@@ -170,14 +170,20 @@ def _positional_insert_tail_start(
     """Index where ast_to_requests's trailing stage-3 pass (the descending-position
     insertTable + insertInlineImage requests — see its docstring) begins: the start
     of the maximal suffix made up only of those two request kinds, plus each linked
-    image's own link request (#977). `image_links` is the id(insert) -> link
-    request map ast_to_requests filled; a link request counts by identity."""
+    image's own link request (#977) and each table's placeholder delete (#1097).
+    `image_links` is the id(insert) -> link request map ast_to_requests filled; a
+    link request counts by identity. A placeholder delete counts by its position,
+    right after its own insertTable."""
     link_ids = {id(link) for link in (image_links or {}).values()}
+
+    def in_tail(i: int) -> bool:
+        request = requests[i]
+        if id(request) in link_ids or any(key in request for key in _POSITIONAL_INSERT_KEYS):
+            return True
+        return "deleteContentRange" in request and i > 0 and "insertTable" in requests[i - 1]
+
     start = len(requests)
-    while start > 0 and (
-        id(requests[start - 1]) in link_ids
-        or any(key in requests[start - 1] for key in _POSITIONAL_INSERT_KEYS)
-    ):
+    while start > 0 and in_tail(start - 1):
         start -= 1
     return start
 

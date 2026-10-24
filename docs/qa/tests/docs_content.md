@@ -6118,3 +6118,24 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-24) ✅ PASS — PR #1199 QA round 2 (Kit) @ a211c94**
 `kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc, with the round-2 input. Step 1: no error. Raw read: both code paragraphs have 8pt above and below, and "Before." and "Between." have neither. Exactly one empty paragraph sits between the tables. It is `NORMAL_TEXT` at full height. The paragraph before the first table is collapsed (`lineSpacing` 1, 1pt). Neither empty paragraph has a `bullet`, an indent or a `borderLeft`. Playwright (`2026-10-24-tc-doc231-r2.png`): the code blocks have visible gaps, and a blank line with no glyph separates the tables. Nothing is visible above the first table, and the list numbers "1." and "2." Both tables still sit indented to the list's indent. That is outside this case's checks and tracked in open #1097. Probe on the same head (`2026-10-24-pr1199-r2-probe.png`): with a quote after two tables, neither empty paragraph has a border or indent. A quote ending in an H2 is kept apart from the next quote by a separator, with the H2's own spacing intact.
+
+---
+
+### TC-DOC232: A table doesn't take the style of the block after it ⚠️ destructive
+**Purpose:** Regression test for #1097. `insertTable` gives a table its left indent, and every empty cell its text style, from the paragraph at the insertion point, which was the start of the next block. A table before a list or quote sat indented to it, and one before a bold, Courier New, or heading-styled first character showed that style in every cell (r13, r15, TC-MD202/203, TC-MD402). Each table is now inserted at a plain placeholder paragraph of its own, deleted right after.
+
+**Prompt**
+**Playwright: required**
+1. `write_doc_content(doc_id="{DOC_ID}", content="## Before\n\n| Day | City |\n|---|---|\n| Mon | Lisbon |\n\n**Hotel:** Casa do Bairro\n\n| Day | City |\n|---|---|\n| Tue | Porto |\n\n> **Note:** quoted text\n\n| Day | City |\n|---|---|\n| Wed | Braga |\n\n```\ncode here\n```\n\n| Day | City |\n|---|---|\n| Thu | Faro |\n\n#### After\n\n| K | V |\n|---|---|\n| k1 | v1 |\n\n| K | V |\n|---|---|\n| k2 | v2 |\n\n1. numbered one\n2. numbered two\n", content_format="markdown")`
+2. `get_doc_as_markdown(doc_id="{DOC_ID}")`
+
+**Checks**
+- Step 1 returns no `error` key
+- Raw `documents().get()` read: there are six tables. In each, the header cells' runs have `bold` true and nothing else set in `textStyle`, and the body cells' runs have an empty `textStyle` (no `bold`, no `weightedFontFamily`, no `foregroundColor`, no `fontSize`)
+- Raw read: "Hotel:" is still bold, "Note:" is bold inside a paragraph with a `borderLeft`, "code here" is Courier New, "After" is `HEADING_4`, and "numbered one"/"numbered two" share a `listId`
+- Raw read: no empty paragraph sits directly after any table. Each table is followed by its own next block's first paragraph, except the first of the two `K | V` tables, which is followed by the one full-height empty paragraph between them (TC-DOC231)
+- Drive HTML export (`export_file` to `text/html`, or `files().export`): no `<table>` has a `margin-left` in its `style`
+- Step 2: every body cell reads as plain text (no `**`, no backticks)
+- 🔍 Playwright: all six tables sit at the left margin, aligned with "Before" and "Hotel:", including the ones before the quote and before the numbered list. Only the header rows are bold; body cells are in the body font and color, not gray, not monospace. The numbered list starts at "1."
+
+**Cleanup:** write fixture content back
