@@ -362,3 +362,22 @@ operator limits tools to directories meant for them.
 
 **Workaround:** Use `LOCAL_FILE_ACCESS=roots` with roots that hold only files meant for the
 server.
+
+## Google API requests
+
+### A write that times out may still have been applied
+
+**What:** A Google API request fails with `Google API request timed out:` once Google sends
+nothing for `HTTP_TIMEOUT_SECONDS` (default 60). A read is retried once on a new connection;
+a write (create, update, delete, a `batchUpdate`) is not. A timed-out write may still have been
+applied, since Google can finish it after the connection stops answering.
+
+**Why:** The client can't tell a dead connection from a request Google is still working on.
+Without the timeout, a silently dead connection hung a call for up to 30 minutes (#1129).
+Retrying a write automatically could apply it twice, such as a duplicate file or a repeated
+append.
+
+**Workaround:** After a timed-out write, check its result (e.g. `list_files`, `get_sheet_data`)
+before repeating it. If a request legitimately takes Google longer than the timeout to start
+answering, such as a very large export or `batchUpdate`, raise `HTTP_TIMEOUT_SECONDS`. See
+`docs/decisions/decision-http-socket-timeout.md`.

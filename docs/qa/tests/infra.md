@@ -27,6 +27,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 | TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
 | TC-I66 (single publish workflow, issue #1124) | Not reachable via any MCP tool or unit test: it checks a GitHub Actions run and PyPI's attestation record. Manual / live QA only, once after #1124 merges and once at the next stable release — see TC-I66 below |
+| TC-I67 (socket timeout and resumable-upload 308, issue #1129) | Unit-tested in `tests/test_http_transport.py` (`TestSocketTimeout`, `TestResumableUploadStatus`) against local sockets that never answer or answer 308. Live QA for the real Drive upload path over 100 MB and the configured server's timeout message — see TC-I67 below |
 
 ---
 
@@ -1971,3 +1972,25 @@ Check 1: the two `publish.yml` push runs after #1124's merge, 39553304435 (74613
 
 **Result (2026-10-20) ✅ PASS (checks 3–5) — v0.9.3 stable release (Aziz) @ b5e2810b**
 Check 3: `publish.yml` run 39557996212, event `release`, on b5e2810b, concluded `success`, with `Run tests`, `Build distribution` and `Upload to PyPI` all `success`. Check 4: the `mcp_gee_sweet-0.9.3-py3-none-any.whl` provenance has one attestation bundle, publisher `{"kind": "GitHub", "repository": "khuisman/mcp-gee-sweet", "workflow": "publish.yml", "environment": null}`; the uploads just before it were `0.9.3.dev34` and `dev35`, both through `publish.yml`. Check 5 (Playwright, since `curl` gets PyPI's "Client Challenge" page): the 0.9.3 page's Provenance section reads "Full provenance — All 2 files in this release have provenance metadata", with no "Change of provenance" banner. Control: the 0.9.2 page, loaded the same way, still shows the "Change of provenance" banner.
+
+### TC-I67: uploads over 100 MB complete, and a request that gets no answer fails with a readable message (issue #1129)
+
+**Background:** `thread_http` built each per-thread transport as a bare `httplib2.Http()`, unlike the `build_http()` that `build()` gives the services' own transports. That left out two settings. First, there was no socket timeout, so a pooled connection that died silently (no RST or FIN) blocked a request until the OS gave up: 50–200 s, or a 30-minute hang seen live in the TC-MD301 run. Now each socket operation is bounded by `HTTP_TIMEOUT_SECONDS` (default 60, googleapiclient's own default). A timed-out read is resent once on a new connection; a timed-out write isn't resent, and its error says it may have landed. Second, 308 was still treated as a redirect. Drive answers each non-final chunk of a resumable upload with "308 Resume Incomplete" and no `Location`, so any upload larger than googleapiclient's 100 MB chunk failed with `Redirected but the response is missing a Location: header.` (reproduced live before the fix). Unit tests cover both against local sockets; this case checks the real Drive upload path and the configured server. Steps 3–5 need a server started with its own env, as `docs/qa/run.md` §"Running server-startup and CLI cases in a scoped lane pass" describes.
+
+**Setup:** a 150 MB file of random bytes, e.g. `head -c 157286400 /dev/urandom > /tmp/tc-i67-150mb.bin`. The steps say `/tmp`; a lane uses its own scratch directory instead.
+
+**Action**
+1. `upload_local_file(local_path="/tmp/tc-i67-150mb.bin", parent_folder_id="{TEST_FOLDER_ID}", skip_if_exists=false)`
+2. `get_file_metadata(file_id=<the id from step 1>)`
+3. Start a server with `HTTP_TIMEOUT_SECONDS=abc` and `CACHE_DB_PATH=:memory:` (so the call can't be answered from cache), and call `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`
+4. Start a server with `HTTP_TIMEOUT_SECONDS=0.001` and `CACHE_DB_PATH=:memory:`, and call `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`
+5. On the same server as step 4, call `create_folder(name="TC-I67 timeout write", parent_folder_id="{TEST_FOLDER_ID}")`
+
+**Checks**
+- 1: the upload succeeds, with no `RedirectMissingLocation` or "missing a Location" error
+- 2: `size` is `157286400`
+- 3: the server log has one warning, `Ignoring HTTP_TIMEOUT_SECONDS='abc': not a positive number; using 60`, and `list_sheets` returns the sheet list
+- 4: the call fails within a few seconds, not minutes, and the error starts `Google API request timed out:`. It says the read was retried once on a new connection, and names `HTTP_TIMEOUT_SECONDS`
+- 5: the error starts `Google API request timed out:` and says it was a write that wasn't retried and may still have been applied. It doesn't say it was retried
+
+**Cleanup:** `delete_file` the step 1 upload, and any `TC-I67 timeout write` folder in `{TEST_FOLDER_ID}` (step 5 can time out before or after Drive creates it). Delete `/tmp/tc-i67-150mb.bin`.

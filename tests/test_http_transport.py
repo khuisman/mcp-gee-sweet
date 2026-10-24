@@ -393,3 +393,190 @@ class TestStaleConnections:
         with pytest.raises(ConnectionResetError):
             http.request("https://sheets.googleapis.com/x")
         assert inner.request.call_count == 3
+
+
+class _SilentServer:
+    """Accepts connections, reads requests, and never answers: a local stand-in for a
+    pooled connection that died with no RST or FIN, so the client's next read would
+    block until the OS gives up (#1129)."""
+
+    def __init__(self):
+        self.connections = 0
+        self.requests: list[bytes] = []
+        self._open: list[socket.socket] = []
+        self._sock = socket.socket()
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen()
+        self.url = f"http://127.0.0.1:{self._sock.getsockname()[1]}/"
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self):
+        while True:
+            try:
+                conn, _ = self._sock.accept()
+            except OSError:
+                return
+            self.connections += 1
+            self._open.append(conn)
+            threading.Thread(target=self._swallow, args=(conn,), daemon=True).start()
+
+    def _swallow(self, conn):
+        buffer = b""
+        while True:
+            try:
+                data = conn.recv(65536)
+            except OSError:
+                return
+            if not data:
+                return
+            buffer += data
+            while b"\r\n\r\n" in buffer:
+                head, buffer = buffer.split(b"\r\n\r\n", 1)
+                self.requests.append(head.split(b" ", 1)[0])
+
+    def close(self):
+        self._sock.close()
+        for conn in self._open:
+            conn.close()
+
+
+class _ResumeIncompleteServer:
+    """Answers every request with Drive's resumable-upload "308 Resume Incomplete":
+    a Range header and no Location."""
+
+    def __init__(self):
+        self._sock = socket.socket()
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen()
+        self.url = f"http://127.0.0.1:{self._sock.getsockname()[1]}/"
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self):
+        while True:
+            try:
+                conn, _ = self._sock.accept()
+            except OSError:
+                return
+            with conn:
+                buffer = b""
+                while b"\r\n\r\n" not in buffer:
+                    data = conn.recv(65536)
+                    if not data:
+                        break
+                    buffer += data
+                conn.sendall(
+                    b"HTTP/1.1 308 Resume Incomplete\r\nRange: bytes=0-4\r\n"
+                    b"Content-Length: 0\r\nConnection: close\r\n\r\n"
+                )
+
+    def close(self):
+        self._sock.close()
+
+
+@pytest.fixture
+def silent_server():
+    server = _SilentServer()
+    yield server
+    server.close()
+
+
+def _timing_out_transport(timeout=0.3):
+    return http_transport._RefreshTrackingHttp(
+        MagicMock(), http=http_transport._StaleConnectionHttp(timeout=timeout)
+    )
+
+
+class TestSocketTimeout:
+    """#1129: a connection that dies silently must not hang a call until ETIMEDOUT."""
+
+    def test_thread_http_sets_the_socket_timeout(self):
+        http = _real_thread_http(MagicMock())
+        assert http.http.timeout == http_transport._HTTP_TIMEOUT_SECONDS
+
+    def test_default_matches_googleapiclient(self, monkeypatch):
+        from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
+
+        monkeypatch.delenv("HTTP_TIMEOUT_SECONDS", raising=False)
+        assert http_transport._http_timeout_seconds() == DEFAULT_HTTP_TIMEOUT_SEC
+
+    def test_env_var_sets_the_timeout(self, monkeypatch):
+        monkeypatch.setenv("HTTP_TIMEOUT_SECONDS", "300")
+        assert http_transport._http_timeout_seconds() == 300
+
+    @pytest.mark.parametrize("raw", ["abc", "0", "-5", "nan", ""])
+    def test_invalid_env_var_falls_back_to_the_default(self, monkeypatch, raw):
+        from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
+
+        monkeypatch.setenv("HTTP_TIMEOUT_SECONDS", raw)
+        with patch.object(http_transport, "logger") as mock_logger:
+            assert http_transport._http_timeout_seconds() == DEFAULT_HTTP_TIMEOUT_SEC
+        assert mock_logger.warning.called
+
+    def test_silent_read_times_out_after_one_resend(self, silent_server):
+        http = _timing_out_transport()
+        start = time.monotonic()
+        with pytest.raises(TimeoutError) as excinfo:
+            http.request(silent_server.url)
+        # Two bounded waits, not a hang until the OS gives up.
+        assert time.monotonic() - start < 5
+        assert silent_server.requests == [b"GET", b"GET"]
+        message = str(excinfo.value)
+        assert "no data from Google for 0.3 s" in message
+        assert "retried once" in message
+        assert "HTTP_TIMEOUT_SECONDS" in message
+
+    def test_silent_write_times_out_without_a_resend(self, silent_server):
+        http = _timing_out_transport()
+        with pytest.raises(TimeoutError) as excinfo:
+            http.request(silent_server.url, "POST", body="x")
+        assert silent_server.requests == [b"POST"]
+        message = str(excinfo.value)
+        assert "may still have applied it" in message
+        assert "retried once" not in message
+
+    def test_timed_out_connection_is_not_reused(self, silent_server):
+        # After a timeout the next request reconnects instead of reading the
+        # previous request's late answer off the same socket.
+        http = _timing_out_transport()
+        with pytest.raises(TimeoutError):
+            http.request(silent_server.url, "POST", body="x")
+        with pytest.raises(TimeoutError):
+            http.request(silent_server.url, "POST", body="x")
+        assert silent_server.connections == 2
+
+    def test_os_timeout_message_does_not_claim_the_socket_timeout(self):
+        inner = MagicMock()
+        inner.connections = {}
+        inner.timeout = 60
+        inner.request.side_effect = TimeoutError(60, "Operation timed out")
+        http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
+        with pytest.raises(TimeoutError) as excinfo:
+            http.request("https://sheets.googleapis.com/x", "POST", body="x")
+        message = str(excinfo.value)
+        assert "stopped responding" in message
+        assert "60 s" not in message
+
+    def test_other_connection_errors_keep_their_own_type(self):
+        inner = MagicMock()
+        inner.connections = {}
+        inner.request.side_effect = ConnectionResetError(54, "reset")
+        http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
+        with pytest.raises(ConnectionResetError):
+            http.request("https://sheets.googleapis.com/x", "POST", body="x")
+
+
+class TestResumableUploadStatus:
+    """#1129: Drive's "308 Resume Incomplete" is a resumable-upload status, not a
+    redirect; httplib2 would raise RedirectMissingLocation on it."""
+
+    def test_308_reaches_the_caller(self):
+        server = _ResumeIncompleteServer()
+        try:
+            response, _ = _transport().request(server.url, "PUT", body="hello")
+        finally:
+            server.close()
+        assert response.status == 308
+        assert response["range"] == "bytes=0-4"
+
+    def test_other_redirects_are_still_followed(self):
+        assert 302 in http_transport._StaleConnectionHttp().redirect_codes
