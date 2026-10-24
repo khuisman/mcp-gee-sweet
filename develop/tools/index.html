@@ -1767,12 +1767,12 @@
 </tr>
 <tr>
 <td><code>list_spreadsheets</code></td>
-<td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'.</td>
+<td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'.</td>
 <td><code>folder_id?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
 <td><code>search_spreadsheets</code></td>
-<td>Search for spreadsheets in Google Drive by name or content.</td>
+<td>Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
 <td><code>query</code>, <code>max_results?</code></td>
 </tr>
 </tbody>
@@ -1790,7 +1790,7 @@
 <tbody>
 <tr>
 <td><code>list_folders</code></td>
-<td>List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'.</td>
+<td>List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'.</td>
 <td><code>parent_folder_id?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
@@ -1805,7 +1805,7 @@
 </tr>
 <tr>
 <td><code>search_files</code></td>
-<td>Search for files in Google Drive by name or content.</td>
+<td>Search for files in Google Drive by name or content. Without folder_id, searches 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
 <td><code>query</code>, <code>mime_type?</code>, <code>folder_id?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
@@ -1850,12 +1850,12 @@
 </tr>
 <tr>
 <td><code>list_shared_with_me</code></td>
-<td>List files explicitly shared with the authenticated user.</td>
+<td>List files explicitly shared with the authenticated user, including shared drive files shared with them directly.</td>
 <td><code>mime_type?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
 <td><code>list_recent_files</code></td>
-<td>List recently modified files in Drive, newest first.</td>
+<td>List recently modified files in Drive, newest first, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
 <td><code>max_results?</code>, <code>days?</code>, <code>mime_type?</code></td>
 </tr>
 <tr>
