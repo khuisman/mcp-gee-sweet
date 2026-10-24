@@ -1636,6 +1636,20 @@ inside a root.</p>
 operator limits tools to directories meant for them.</p>
 <p><strong>Workaround:</strong> Use <code>LOCAL_FILE_ACCESS=roots</code> with roots that hold only files meant for the
 server.</p>
+<h2 id="google-api-requests">Google API requests<a class="headerlink" href="#google-api-requests" title="Permanent link">&para;</a></h2>
+<h3 id="a-write-that-times-out-may-still-have-been-applied">A write that times out may still have been applied<a class="headerlink" href="#a-write-that-times-out-may-still-have-been-applied" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A Google API request fails with <code>Google API request timed out:</code> once Google sends
+nothing for <code>HTTP_TIMEOUT_SECONDS</code> (default 60). A read is retried once on a new connection;
+a write (create, update, delete, a <code>batchUpdate</code>) is not. A timed-out write may still have been
+applied, since Google can finish it after the connection stops answering.</p>
+<p><strong>Why:</strong> The client can't tell a dead connection from a request Google is still working on.
+Without the timeout, a silently dead connection hung a call for up to 30 minutes (#1129).
+Retrying a write automatically could apply it twice, such as a duplicate file or a repeated
+append.</p>
+<p><strong>Workaround:</strong> After a timed-out write, check its result (e.g. <code>list_files</code>, <code>get_sheet_data</code>)
+before repeating it. If a request legitimately takes Google longer than the timeout to start
+answering, such as a very large export or <code>batchUpdate</code>, raise <code>HTTP_TIMEOUT_SECONDS</code>. See
+<code>docs/decisions/decision-http-socket-timeout.md</code>.</p>
 
 
 

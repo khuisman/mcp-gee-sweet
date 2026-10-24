@@ -1589,6 +1589,11 @@
 <td><code>20</code></td>
 </tr>
 <tr>
+<td><code>HTTP_TIMEOUT_SECONDS</code></td>
+<td>How long one socket operation of a Google API request (connecting, sending, or waiting for data) may block before the request fails. It applies per operation, not to the whole request: a long download or upload that keeps moving data never hits it. A read that times out is retried once on a new connection; a write isn't, and its error says it may still have been applied. Raise it if Google legitimately takes longer than this to start answering a request, such as a very large export or <code>batchUpdate</code>. An invalid or non-positive value logs a warning and uses the default; a value over one day (<code>86400</code>), <code>inf</code> included, logs a warning and uses one day. See <a href="../decisions/decision-http-socket-timeout/">decision-http-socket-timeout.md</a></td>
+<td><code>60</code></td>
+</tr>
+<tr>
 <td><code>HOST</code> (or <code>FASTMCP_HOST</code>)</td>
 <td>Bind address for the SSE and streamable HTTP transports. <code>FASTMCP_HOST</code> is a fallback if <code>HOST</code> isn't set. Any address other than loopback needs <code>MCP_SERVER_TOKEN</code>. See <a href="#http-transport-authentication">HTTP transport authentication</a></td>
 <td><code>127.0.0.1</code></td>

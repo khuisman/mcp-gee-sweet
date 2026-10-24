@@ -1546,6 +1546,12 @@
 <td>decided</td>
 <td>One impact × reach rubric places every defect/hygiene ticket in a version, on every triage path (replaces #995's from-review-only rule); hygiene never gets its own release label; a follow-up chain stops gating the release after its second follow-up; QA and Dev answer four seam questions each pass (#1024)</td>
 </tr>
+<tr>
+<td><a href="decision-http-socket-timeout/">HTTP Socket Timeout</a></td>
+<td>2026-10-24</td>
+<td>decided</td>
+<td><code>thread_http</code>'s per-thread transport gets the two settings googleapiclient's <code>build_http()</code> gives every <code>build()</code>-built client and a bare <code>httplib2.Http()</code> lacked (#1129): a per-socket-operation timeout (<code>HTTP_TIMEOUT_SECONDS</code>, default googleapiclient's 60 s) so a silently dead connection can't hang a call, with a timeout error that says whether a write may have landed; and 308 removed from redirect codes, which had failed every resumable upload over 100 MB. Connect-only timeout and TCP keepalive considered and rejected</td>
+</tr>
 </tbody>
 </table>
 
