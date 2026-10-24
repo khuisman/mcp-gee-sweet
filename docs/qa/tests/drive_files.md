@@ -1337,6 +1337,9 @@ search_files("it's a test") → `[]` cleanly, no Drive API syntax error. Single-
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
+OAuth (`mcp-gee-sweet-sky`, on the PR head): positive controls found both #1054 fixtures (all three searches), then after trashing both (`trashed: true` confirmed), `search_files('QA', max_results=100)` returned docs, spreadsheets and folders, each entry with id/name/mimeType/modified_time/web_link, and neither trashed id in either `QA-Trashed-1054` search. Service account (fresh interpreter in the QA worktree, this branch's registered `search_files` with a `service_account.Credentials` Drive client, run twice): `search_files('QA', max_results=100)` → 16 results spanning docs, spreadsheets and folders (the check that failed before #1127).
+
 ---
 
 ### TC-D299: Unscoped search under a service account finds Shared Drive files it never opened (#1127)
@@ -1356,6 +1359,9 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 `list_spreadsheets()` and `list_folders()` have the same fix, but no team server reaches their unscoped path: each sets `DRIVE_FOLDER_ID`, so a call with no folder is scoped to it. `tests/drive/test_files.py::TestCorporaSelection` covers that path.
 
 **Cleanup:** on the OAuth server, `delete_file(file_id=<id>, permanent=True)` on both.
+
+**Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
+Setup on `mcp-gee-sweet-sky` (OAuth); every check in a fresh interpreter in the QA worktree, calling this branch's registered tool functions with a `service_account.Credentials` Drive client (no live server runs this branch as a service account). The fixtures were never read by id from the service account. Positive control (folder-scoped `search_files`) found both on the first try. Bug reproduced first: the same raw `files().list` query without `corpora` returned neither id, and with `corpora="allDrives"` returned both (`incompleteSearch=False` both ways). Checks, run twice with identical results: unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files(days=1, …spreadsheet, 100)` → the spreadsheet; `list_recent_files(days=1, …document, 100)` → the doc. Cleanup: both permanently deleted from OAuth.
 
 ---
 
