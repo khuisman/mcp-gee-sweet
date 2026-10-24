@@ -155,7 +155,15 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
         level = 1 if node.style_type == "TITLE" else 2
         body = f"{'#' * level} {_render_inline(node.runs)}".rstrip()
     elif isinstance(node, BulletItem):
-        indent = "  " * node.depth
+        # A nested item has to clear its parent's marker width, and the two
+        # markers are not the same size: "- " is 2 characters, "1. " is 3. At 2
+        # spaces per level an ordered child lands short of the column its parent's
+        # content starts at, so "1. Top / 1. Nested" re-imports as one flat list
+        # and an exported numbered outline loses its nesting on the way back in
+        # (#1128). Ordered items therefore indent 4 spaces per level, which both
+        # this project's python-markdown importer and markdown-it accept; bullets
+        # keep the 2-space indent their 2-character marker already supports.
+        indent = ("    " if node.ordered else "  ") * node.depth
         if node.checked is not None:
             marker = "- [x] " if node.checked else "- [ ] "
         elif node.ordered:
