@@ -95,6 +95,11 @@ _RESENDABLE_METHODS = frozenset({"GET", "HEAD"})
 _CONNECTION_ERRORS = (ConnectionError, TimeoutError, ssl.SSLEOFError)
 
 
+# One day: far below any platform's time_t limit, and longer than any request Google
+# keeps open.
+_MAX_HTTP_TIMEOUT_SECONDS = 86400.0
+
+
 def _http_timeout_seconds() -> float:
     default = float(DEFAULT_HTTP_TIMEOUT_SEC)
     raw = os.environ.get("HTTP_TIMEOUT_SECONDS")
@@ -109,6 +114,16 @@ def _http_timeout_seconds() -> float:
             "Ignoring HTTP_TIMEOUT_SECONDS=%r: not a positive number; using %g", raw, default
         )
         return default
+    if value > _MAX_HTTP_TIMEOUT_SECONDS:
+        # A value past the platform's time_t (1e10 on macOS, and inf) passes settimeout()
+        # but makes every connect() raise OverflowError, failing every tool call.
+        logger.warning(
+            "HTTP_TIMEOUT_SECONDS=%r is over the %g s maximum; using %g",
+            raw,
+            _MAX_HTTP_TIMEOUT_SECONDS,
+            _MAX_HTTP_TIMEOUT_SECONDS,
+        )
+        return _MAX_HTTP_TIMEOUT_SECONDS
     return value
 
 
@@ -181,12 +196,17 @@ def _timeout_message(error: TimeoutError, resendable: bool, http: Any) -> str:
         waited = f"no data from Google for {timeout:g} s"
     else:
         waited = "the connection to Google stopped responding"
+    # Worded for this transport only: a caller's execute(num_retries=N) resends a
+    # timed-out request, write or not, on top of what happens here.
     if resendable:
-        outcome = "This was a read, so it was retried once on a new connection, which also failed."
+        outcome = (
+            "This was a read, so the connection layer resent it once on a new connection, "
+            "which also failed."
+        )
     else:
         outcome = (
-            "This was a write, so it wasn't retried, and Google may still have applied it: "
-            "check the result before repeating it."
+            "This was a write, so the connection layer didn't resend it, and Google may still "
+            "have applied it: check the result before repeating it."
         )
     return (
         f"Google API request timed out: {waited}. {outcome} "
@@ -221,7 +241,7 @@ class _RefreshTrackingHttp(AuthorizedHttp):
     token refresh (`_ResendingRefreshRequest`); a write is not. A connection that dies
     silently inside the idle window is bounded by the socket timeout thread_http sets
     (#1129), and a request that times out raises a TimeoutError that says whether it
-    was retried and whether a write may have landed.
+    was resent here and whether a write may have landed.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

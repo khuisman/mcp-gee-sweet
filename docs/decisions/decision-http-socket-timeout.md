@@ -25,18 +25,18 @@ Nearly every request goes through `thread_http`, so the server effectively ran w
 
 The default is googleapiclient's own `DEFAULT_HTTP_TIMEOUT_SEC`, imported rather than copied. It's the value every `build()`-built client already uses, including this server's shared service transports before `thread_http` replaced them per call. So the default restores googleapiclient's standard behavior rather than picking a new number. The risk the issue raised, a legitimately slow request (a large export or `batchUpdate`) being cut off, has the same exposure every default googleapiclient user has. For an operator who hits it, `HTTP_TIMEOUT_SECONDS` raises the limit (next section).
 
-A timed-out read is resent once on a new connection. That falls out of #1052's existing handling: `TimeoutError` is already in `_CONNECTION_ERRORS`, and httplib2 closes a connection on a socket timeout. So a silently dead connection now costs one timeout plus a fresh request, at most 2 × the timeout for a read, instead of an unbounded hang.
+A timed-out read is resent once on a new connection. That falls out of #1052's existing handling: `TimeoutError` is already in `_CONNECTION_ERRORS`, and httplib2 closes a connection on a socket timeout. So a silently dead connection now costs one timeout plus a fresh request instead of an unbounded hang. For a read that's at most 2 × the timeout, or about 4 × when the token refresh before it hangs too: `_ResendingRefreshRequest` waits twice within one attempt, and the read's resend repeats the refresh. A caller's `execute(num_retries=N)` multiplies that again, since googleapiclient's own retry catches the timeout and resends.
 
 ### 2. `HTTP_TIMEOUT_SECONDS` is configurable
 
-This follows the project's knobs-not-hardcoding philosophy. Valid values are positive numbers (fractions are allowed). An invalid, zero, negative, or NaN value logs a warning and uses the default: zero can't mean "no timeout", because a 0 socket timeout means non-blocking. It's read once at import, like `MAX_TOOL_RESPONSE_CHARS`. `socket.setdefaulttimeout()` isn't consulted, unlike `build_http()`: the server never sets it, and an env var is the documented interface.
+This follows the project's knobs-not-hardcoding philosophy. Valid values are positive numbers (fractions are allowed). An invalid, zero, negative, or NaN value logs a warning and uses the default: zero can't mean "no timeout", because a 0 socket timeout means non-blocking. A value over one day (`_MAX_HTTP_TIMEOUT_SECONDS`), `inf` included, logs a warning and uses one day. `settimeout()` accepts a value past the platform's `time_t`, but every later `connect()` raises `OverflowError` (`1e10` on macOS, found in PR #1198 QA round 1), which failed every tool call. It's read once at import, like `MAX_TOOL_RESPONSE_CHARS`. `socket.setdefaulttimeout()` isn't consulted, unlike `build_http()`: the server never sets it, and an env var is the documented interface.
 
 ### 3. A timeout error that says what happened
 
 A raw socket timeout's text is just `timed out`. For a write it leaves out the one thing the caller has to know: Google may have applied the change before the response was lost, so blindly retrying can apply it twice. `_RefreshTrackingHttp.request` re-raises a timeout as a `TimeoutError` (same type, so `_timed`'s `OSError` allowlist and every `except` still match) whose message:
 
 - states the wait (`no data from Google for 60 s`) when the socket timeout fired. When the OS's own `ETIMEDOUT` fired (an `errno` is set), it says the connection stopped responding, without claiming a duration it didn't measure;
-- says a read was retried once and also failed, or that a write wasn't retried and may still have been applied, so check before repeating it;
+- says the connection layer resent a read once and it also failed, or didn't resend a write, which may still have been applied, so check before repeating it. It's worded for this transport only: a caller's `execute(num_retries=N)` can still resend either one, and `markdown_export._discard_temp_doc` does;
 - names `HTTP_TIMEOUT_SECONDS`.
 
 A timeout during the token refresh that precedes a write also gets the write wording. The write itself was never sent there, but the message only says it *may* have been applied, which stays true.
@@ -53,6 +53,7 @@ A timeout during the token refresh that precedes a write also gets the write wor
 
 ## Verification
 
+- `tests/test_http_transport.py::TestMatchesBuildHttp` compares the per-thread transport's settings against a live `build_http()`, so the next setting googleapiclient adds there fails CI instead of drifting silently.
 - `tests/test_http_transport.py::TestSocketTimeout`: against a local server that accepts and never answers, a read raises after exactly two bounded waits, a write after one with no resend, and a timed-out connection isn't reused. Also covers the env-var parsing and the OS-`ETIMEDOUT` message. `TestResumableUploadStatus`: a 308 with no `Location` reaches the caller, and 302 is still followed. The new tests fail against the unfixed module.
 - Live (fresh interpreter, OAuth, Shared Drive): a 101 MB resumable upload through `thread_http` fails before the fix; after it, the 101 MB upload and a 210 MB (three-chunk) one both pass, and the 101 MB upload passes as the service account too. With the timeout patched to 0.001 s, a Drive `files.get` and a `files.create` each fail in under 0.1 s with the read and write messages above, and the timed-out create left no folder behind.
 - QA: `docs/qa/tests/infra.md` TC-I67.

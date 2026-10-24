@@ -512,6 +512,24 @@ class TestSocketTimeout:
             assert http_transport._http_timeout_seconds() == DEFAULT_HTTP_TIMEOUT_SEC
         assert mock_logger.warning.called
 
+    @pytest.mark.parametrize("raw", ["inf", "1e10", "86401"])
+    def test_huge_env_var_is_capped(self, monkeypatch, raw):
+        # Past the platform's time_t, connect() raises OverflowError on every request.
+        monkeypatch.setenv("HTTP_TIMEOUT_SECONDS", raw)
+        with patch.object(http_transport, "logger") as mock_logger:
+            assert http_transport._http_timeout_seconds() == 86400
+        assert mock_logger.warning.called
+
+    def test_the_cap_itself_is_accepted(self, monkeypatch):
+        monkeypatch.setenv("HTTP_TIMEOUT_SECONDS", "86400")
+        with patch.object(http_transport, "logger") as mock_logger:
+            assert http_transport._http_timeout_seconds() == 86400
+        assert not mock_logger.warning.called
+
+    def test_capped_timeout_can_connect(self, quiet_server):
+        http = _timing_out_transport(timeout=http_transport._MAX_HTTP_TIMEOUT_SECONDS)
+        assert http.request(quiet_server.url)[0].status == 200
+
     def test_silent_read_times_out_after_one_resend(self, silent_server):
         http = _timing_out_transport()
         start = time.monotonic()
@@ -522,7 +540,7 @@ class TestSocketTimeout:
         assert silent_server.requests == [b"GET", b"GET"]
         message = str(excinfo.value)
         assert "no data from Google for 0.3 s" in message
-        assert "retried once" in message
+        assert "resent it once on a new connection" in message
         assert "HTTP_TIMEOUT_SECONDS" in message
 
     def test_silent_write_times_out_without_a_resend(self, silent_server):
@@ -531,8 +549,9 @@ class TestSocketTimeout:
             http.request(silent_server.url, "POST", body="x")
         assert silent_server.requests == [b"POST"]
         message = str(excinfo.value)
+        assert "didn't resend it" in message
         assert "may still have applied it" in message
-        assert "retried once" not in message
+        assert "resent it once" not in message
 
     def test_timed_out_connection_is_not_reused(self, silent_server):
         # After a timeout the next request reconnects instead of reading the
@@ -563,6 +582,43 @@ class TestSocketTimeout:
         http = http_transport._RefreshTrackingHttp(MagicMock(), http=inner)
         with pytest.raises(ConnectionResetError):
             http.request("https://sheets.googleapis.com/x", "POST", body="x")
+
+
+class TestMatchesBuildHttp:
+    """#1129: the per-thread transport drifted from googleapiclient's build_http() on
+    two settings. Compare against a live build_http() so the next one fails here."""
+
+    def test_settings_match_build_http(self, monkeypatch):
+        from googleapiclient.http import build_http
+
+        monkeypatch.setattr(socket, "getdefaulttimeout", lambda: None)
+        reference = build_http()
+        ours = _real_thread_http(MagicMock()).http
+        for name in ("timeout", "redirect_codes", "follow_redirects", "follow_all_redirects"):
+            assert getattr(ours, name) == getattr(reference, name), name
+
+    def test_only_known_attributes_differ(self, monkeypatch):
+        # A setting build_http() starts setting in a later googleapiclient shows up
+        # here as an unexpected difference.
+        from googleapiclient.http import build_http
+
+        monkeypatch.setattr(socket, "getdefaulttimeout", lambda: None)
+        reference = vars(build_http())
+        ours = vars(_real_thread_http(MagicMock()).http)
+        differing = {
+            name
+            for name in reference.keys() | ours.keys()
+            if not callable(reference.get(name)) and reference.get(name) != ours.get(name)
+        }
+        # Per-instance containers that compare by identity, not settings.
+        per_instance = {
+            "connections",
+            "certificates",
+            "credentials",
+            "authorizations",
+            "proxy_info",
+        }
+        assert differing <= per_instance, differing
 
 
 class TestResumableUploadStatus:

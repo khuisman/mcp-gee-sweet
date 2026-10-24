@@ -1985,13 +1985,15 @@ Check 3: `publish.yml` run 39557996212, event `release`, on b5e2810b, concluded 
 3. Start a server with `HTTP_TIMEOUT_SECONDS=abc` and `CACHE_DB_PATH=:memory:` (so the call can't be answered from cache), and call `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`
 4. Start a server with `HTTP_TIMEOUT_SECONDS=0.001` and `CACHE_DB_PATH=:memory:`, and call `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`
 5. On the same server as step 4, call `create_folder(name="TC-I67 timeout write", parent_folder_id="{TEST_FOLDER_ID}")`
+6. Start a server with `HTTP_TIMEOUT_SECONDS=inf` and `CACHE_DB_PATH=:memory:`, and call `list_sheets(spreadsheet_id="{SPREADSHEET_ID}")`
 
 **Checks**
 - 1: the upload succeeds, with no `RedirectMissingLocation` or "missing a Location" error
 - 2: `size` is `157286400`
 - 3: the server log has one warning, `Ignoring HTTP_TIMEOUT_SECONDS='abc': not a positive number; using 60`, and `list_sheets` returns the sheet list
-- 4: the call fails within a few seconds, not minutes, and the error starts `Google API request timed out:`. It says the read was retried once on a new connection, and names `HTTP_TIMEOUT_SECONDS`
-- 5: the error starts `Google API request timed out:` and says it was a write that wasn't retried and may still have been applied. It doesn't say it was retried
+- 4: the call fails within a few seconds, not minutes, and the error starts `Google API request timed out:`. It says the connection layer resent the read once on a new connection, and names `HTTP_TIMEOUT_SECONDS`
+- 5: the error starts `Google API request timed out:` and says it was a write the connection layer didn't resend, which may still have been applied. It doesn't say it was resent
+- 6: the server log has one warning, `HTTP_TIMEOUT_SECONDS='inf' is over the 86400 s maximum; using 86400`, and `list_sheets` returns the sheet list, with no `OverflowError`
 
 **Cleanup:** `delete_file` the step 1 upload, and any `TC-I67 timeout write` folder in `{TEST_FOLDER_ID}` (step 5 can time out before or after Drive creates it). Delete `/tmp/tc-i67-150mb.bin`.
 
