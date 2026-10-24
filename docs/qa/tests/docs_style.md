@@ -739,3 +739,33 @@ Note: sharing the fixture doc to the Playwright browser's own Google identity (T
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 ---
+
+### TC-DOC234: `create_paragraph_bullets` sets `nesting_level` absolutely on already-listed paragraphs (#1069) ⚠️ destructive
+
+**Background:** issue #1069. `deleteParagraphBullets` leaves a level-N item indented 36pt × N, and `createParagraphBullets` counts that leftover indent as depth on top of the tabs the tool inserts. So on a paragraph that was already a list item, the tool added the requested level to the current one: re-running the same 0/1/2 call gave 0/2/4, and a call naming one paragraph moved its untouched expanded neighbours too. Fixed by zeroing `indentStart`/`indentFirstLine` over each run after its `deleteParagraphBullets` and before the tab inserts, so the tabs alone set the level.
+
+**Prompt**
+> "Write three plain paragraphs Alpha, Beta, Gamma to doc {DOC_ID}, then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="Alpha\n\nBeta\n\nGamma\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`. Note each paragraph's `start_index`/`end_index`.
+
+Then: "Make them a numbered list at levels 0, 1 and 2."
+
+Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Alpha start>, "end_index": <Alpha end>, "nesting_level": 0, "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"}, {"start_index": <Beta start>, "end_index": <Beta end>, "nesting_level": 1, "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"}, {"start_index": <Gamma start>, "end_index": <Gamma end>, "nesting_level": 2, "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"}])`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+Then: "Run exactly the same call again." Repeat the same `create_paragraph_bullets` call with the indices from the latest `get_doc_structure`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+Then: "Set only Beta to level 1." Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Beta start>, "end_index": <Beta end>, "nesting_level": 1}])`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+Then: "Flatten Gamma to level 1, then put it back at level 2." Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Gamma start>, "end_index": <Gamma end>, "nesting_level": 1}])`, `get_doc_structure(doc_id={DOC_ID})`, `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Gamma start>, "end_index": <Gamma end>, "nesting_level": 2}])`, `get_doc_structure(doc_id={DOC_ID})`.
+
+**Checks**
+- After the first bullet call: Alpha/Beta/Gamma share one `listId` at `nestingLevel` 0/1/2.
+- After the repeated call: still 0/1/2, not 0/2/4.
+- After the Beta-only call: still 0/1/2; Gamma, pulled in as a neighbour, keeps level 2.
+- After flattening Gamma: 0/1/1. After putting it back: 0/1/2, not 3.
+- Every `create_paragraph_bullets` call returns no error, and after each one all three paragraphs share one `listId`, with no leaked tab in any `text` field and no extra empty paragraph.
+
+**Cleanup:** write fixture content back to the documented baseline (`docs/qa/setup.md`): `write_doc_content(doc_id={DOC_ID}, content='<h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>')`.
+
+---

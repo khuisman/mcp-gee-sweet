@@ -657,8 +657,8 @@ class TestCreateParagraphBulletsTool:
 
     async def test_fresh_paragraph_top_level_sends_delete_then_create(self):
         # No pre-existing bullet, nesting_level 0 (default): a lone
-        # deleteParagraphBullets (harmless no-op) then createParagraphBullets,
-        # no insertText needed.
+        # deleteParagraphBullets (harmless no-op), the indent reset, then
+        # createParagraphBullets, no insertText needed.
         tools = self._setup()
         doc = self._doc([(1, 10, "Item\n", None)])
         mock_docs, ctx = self._mocks(doc)
@@ -670,9 +670,10 @@ class TestCreateParagraphBulletsTool:
         )
         assert "error" not in result
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
-        assert len(reqs) == 2
+        assert len(reqs) == 3
         assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 10}
-        bullet_req = reqs[1]["createParagraphBullets"]
+        assert reqs[1]["updateParagraphStyle"]["range"] == {"startIndex": 1, "endIndex": 10}
+        bullet_req = reqs[2]["createParagraphBullets"]
         assert bullet_req["range"] == {"startIndex": 1, "endIndex": 10}
         assert bullet_req["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
 
@@ -715,11 +716,12 @@ class TestCreateParagraphBulletsTool:
         )
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 15}
-        assert reqs[1]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
-        assert reqs[2]["insertText"] == {"location": {"index": 5}, "text": "\n"}
+        assert "updateParagraphStyle" in reqs[1]
+        assert reqs[2]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 5}, "text": "\n"}
         # endIndex = run_end (15) + total_tabs (2) + anchor newline (1)
-        assert reqs[3]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 18}
-        assert reqs[4]["deleteContentRange"]["range"] == {"startIndex": 5, "endIndex": 6}
+        assert reqs[4]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 18}
+        assert reqs[5]["deleteContentRange"]["range"] == {"startIndex": 5, "endIndex": 6}
 
     async def test_isolated_all_nonzero_run_wraps_zero_tab_anchor(self):
         # #713: repairing part of an existing list whose contiguous
@@ -748,10 +750,11 @@ class TestCreateParagraphBulletsTool:
         assert "error" not in result
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         kinds = [next(iter(r)) for r in reqs]
-        # tabs for all three items, then the anchor newline, then one
-        # createParagraphBullets, then the anchor delete.
+        # the indent reset, tabs for all three items, then the anchor
+        # newline, then one createParagraphBullets, then the anchor delete.
         assert kinds == [
             "deleteParagraphBullets",
+            "updateParagraphStyle",
             "insertText",
             "insertText",
             "insertText",
@@ -765,15 +768,15 @@ class TestCreateParagraphBulletsTool:
         # the anchor insert below, since both the last of these (index 1) and
         # the anchor target the identical run_start index (1) and Docs API
         # requests at the same location apply in array order.
-        assert reqs[1]["insertText"] == {"location": {"index": 11}, "text": "\t"}
-        assert reqs[2]["insertText"] == {"location": {"index": 6}, "text": "\t"}
-        assert reqs[3]["insertText"] == {"location": {"index": 1}, "text": "\t"}
-        anchor_insert = reqs[4]["insertText"]
+        assert reqs[2]["insertText"] == {"location": {"index": 11}, "text": "\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        assert reqs[4]["insertText"] == {"location": {"index": 1}, "text": "\t"}
+        anchor_insert = reqs[5]["insertText"]
         assert anchor_insert == {"location": {"index": 1}, "text": "\n"}
-        create = reqs[5]["createParagraphBullets"]
+        create = reqs[6]["createParagraphBullets"]
         # run_end (17) + total_tabs (1 per item * 3) + anchor newline (1)
         assert create["range"] == {"startIndex": 1, "endIndex": 21}
-        assert reqs[6]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
+        assert reqs[7]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
 
     async def test_expands_to_include_same_list_neighbors(self):
         # #334 round 2's core fix: nesting the middle paragraph of an
@@ -817,6 +820,116 @@ class TestCreateParagraphBulletsTool:
             "startIndex": 1,
             "endIndex": 18,
         }
+
+    async def test_indent_reset_between_delete_and_tabs(self):
+        # #1069: deleteParagraphBullets leaves a level-N item indented 36pt * N,
+        # and createParagraphBullets counts that indent as depth on top of the
+        # inserted tabs (confirmed live: re-running a 0/1/2 call gave 0/2/4).
+        # Both indents are zeroed over the whole run after the delete and
+        # before any tab insert, so the tabs alone set the level.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "One\n", {"listId": "L1"}),
+                (6, 11, "Two\n", {"listId": "L1", "nestingLevel": 1}),
+                (11, 17, "Three\n", {"listId": "L1", "nestingLevel": 2}),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 6, "end_index": 11, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert next(iter(reqs[0])) == "deleteParagraphBullets"
+        assert reqs[1] == {
+            "updateParagraphStyle": {
+                "range": {"startIndex": 1, "endIndex": 17},
+                "paragraphStyle": {
+                    "indentStart": {"magnitude": 0, "unit": "PT"},
+                    "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                },
+                "fields": "indentStart,indentFirstLine",
+            }
+        }
+        assert all("insertText" in r for r in reqs[2:4])
+
+    async def test_rerunning_same_call_inserts_only_requested_tabs(self):
+        # #1069 repro step 2: the same explicit 0/1/2 call on a list already at
+        # 0/1/2. Each paragraph gets exactly its requested tab count (none for
+        # level 0), never its current level added on top, and the reset runs
+        # first, so the result is 0/1/2 again.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "One\n", {"listId": "L1"}),
+                (6, 11, "Two\n", {"listId": "L1", "nestingLevel": 1}),
+                (11, 17, "Three\n", {"listId": "L1", "nestingLevel": 2}),
+            ],
+            lists={"L1": self._numbered_list_entry(3)},
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "nesting_level": 0},
+                {"start_index": 6, "end_index": 11, "nesting_level": 1},
+                {"start_index": 11, "end_index": 17, "nesting_level": 2},
+            ],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        kinds = [next(iter(r)) for r in reqs]
+        assert kinds == [
+            "deleteParagraphBullets",
+            "updateParagraphStyle",
+            "insertText",
+            "insertText",
+            "createParagraphBullets",
+        ]
+        assert reqs[2]["insertText"] == {"location": {"index": 11}, "text": "\t\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        create = reqs[4]["createParagraphBullets"]
+        assert create["range"] == {"startIndex": 1, "endIndex": 20}
+        assert create["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+
+    async def test_each_run_gets_its_own_indent_reset(self):
+        # Two separate runs: each one's reset covers exactly its own span and
+        # comes right after its own delete, before that run's tab inserts.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "First\n", None),
+                (20, 26, "Second\n", None),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "nesting_level": 1},
+                {"start_index": 20, "end_index": 26, "nesting_level": 1},
+            ],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        resets = [i for i, r in enumerate(reqs) if "updateParagraphStyle" in r]
+        assert len(resets) == 2
+        for i, (start, end) in zip(resets, [(20, 26), (1, 6)], strict=True):
+            assert reqs[i - 1]["deleteParagraphBullets"]["range"] == {
+                "startIndex": start,
+                "endIndex": end,
+            }
+            assert reqs[i]["updateParagraphStyle"]["range"] == {
+                "startIndex": start,
+                "endIndex": end,
+            }
+            assert "insertText" in reqs[i + 1]
 
     async def test_does_not_expand_across_different_list_id(self):
         # A directly-adjacent paragraph belonging to a DIFFERENT list must
