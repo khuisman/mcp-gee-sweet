@@ -7268,6 +7268,57 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass**
 `jay`: #1056 regression. No error. Export has `> - Quoted item one`, `>   - Quoted nested`, `> - Quoted item two`, `> 1. Quoted numbered`, each with one `>`; the plain items have none. Playwright (`tc-doc229.png`): "Quoted item one" glyph sits about 48px (36pt) right of "plain", "Quoted nested" right of "plain nested", with a gray bar left of each quoted glyph. Not run: the raw `documents().get()` indent/borderLeft read (scratch script).
 
+---
+
+### TC-DOC230: Adjacent separate quotes render as separate quotes, with space around each ⚠️ destructive
+**Purpose:** Regression test for #1098. Docs joins the left borders of adjacent paragraphs with the same border and indents, so two separate quotes in a row showed one continuous bar, and a quote touched the paragraphs around it. The emitter now puts a collapsed, unbordered paragraph between two separate quotes and gives each quote 8pt where it meets other content; a separator is spaced on one side only, below the quote before it. A quoted heading keeps its named style's own spacing. HTML input, because Python-Markdown merges `> a`, a blank line, `> b` into one quote before the emitter sees it (#1116). The quoted heading was added in round 2 (PR #1199 QA round 1 found its HEADING_1 spacing overwritten).
+
+**Prompt**
+**Playwright: required**
+1. `write_doc_content(doc_id="{DOC_ID}", content="<p>Before.</p><blockquote><p>Quote one</p></blockquote><blockquote><p>Quote two</p></blockquote><blockquote><p>Same quote, first</p><p>Same quote, second</p></blockquote><blockquote><blockquote><p>Inner one</p></blockquote><blockquote><p>Inner two</p></blockquote></blockquote><blockquote><ul><li>List one A</li><li>List one B</li></ul></blockquote><blockquote><ul><li>List two A</li></ul></blockquote><p>After.</p><blockquote><h1>Quoted H1</h1><p>Quoted para</p></blockquote><h1>Unquoted H1</h1>", content_format="html")`
+2. `get_doc_structure(doc_id="{DOC_ID}")`
+
+**Checks**
+- Step 1 returns no `error` key
+- Step 2 (and a raw `documents().get()` read, `paragraphStyle`): an empty paragraph with no `borderLeft` sits between "Quote one" and "Quote two", between "Quote two" and "Same quote, first", between "Same quote, second" and "Inner one", between "Inner one" and "Inner two", between "Inner two" and "List one A", and between "List one B" and "List two A". None sits between "Same quote, first" and "Same quote, second", or between "List one A" and "List one B"
+- Raw read: of the quoted paragraphs, only "Quote one" has `spaceAbove` 8pt (each other quote follows a separator, which is spaced on one side only). "Quote one", "Quote two", "Same quote, second", "Inner one", "Inner two", "List one B", "List two A", and "Quoted para" each have `spaceBelow` 8pt. "Same quote, first" has no `spaceBelow` and "Same quote, second" no `spaceAbove`
+- Raw read: "Quoted H1" has `namedStyleType` `HEADING_1`, a `borderLeft`, and no `spaceAbove`/`spaceBelow` of its own (it uses HEADING_1's)
+- "List one A"/"List one B" share a `listId`; "List two A" has a different one
+- 🔍 Playwright: "Quote one" and "Quote two" each have their own gray bar with a visible gap between the bars; "Same quote, first" and "Same quote, second" share one unbroken bar; "Inner one" and "Inner two" have separate bars; the two quoted lists have separate bars. "Before." and "After." have visible space between them and the quotes next to them. No empty line shows where a separator paragraph is: the gap between two separate quotes is about the same as between "Before." and "Quote one" (baseline to baseline, within a few px). The gap above "Quoted H1" is HEADING_1's own and visibly larger than the gap above "Quote one" (round 1 found it shrunk to the 8pt quote gap)
+
+**Cleanup:** write fixture content back
+
+**Result (2026-10-24) ❌ FAIL — PR #1199 QA round 1 (Kit) @ 7811da8**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc. Step 1: no error. Step 2 and raw read: an unbordered empty paragraph (`lineSpacing` 1, 1pt font) sits at each of the six expected places and nowhere else. `spaceAbove`/`spaceBelow` 8pt are exactly as listed. "List one A"/"B" share a `listId` and "List two A" has a different one. Playwright (`2026-10-24-tc-doc230.png`): each separate quote has its own bar, "Same quote, first/second" share one, and no separator line is visible. **Fails the last check:** baseline to baseline, "Before."→"Quote one" is 31px but "Quote one"→"Quote two" is 41px (a normal line is about 19px). Between two separate quotes, the 8pt `spaceBelow` and 8pt `spaceAbove` add up to about double the gap a quote has from plain text. Sent back on PR #1199. Side observation: `get_doc_as_markdown` reads each separator back as two extra blank lines between the quotes (`> Quote one\n\n\n\n> Quote two`). The Markdown is still valid.
+
+**Result (2026-10-24) ✅ PASS — PR #1199 QA round 2 (Kit) @ a211c94**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc, with the round-2 input. Step 1: no error. Raw read: the six unbordered collapsed separators are in place, and there is none inside "Same quote" or between "List one A"/"B". Of the quoted paragraphs, only "Quote one" has `spaceAbove` 8pt. `spaceBelow` 8pt is on exactly the listed ones, "Quoted para" included. "Quoted H1" is `HEADING_1` with a border and no `spaceAbove`/`spaceBelow` of its own. The list IDs are as expected. Playwright (`2026-10-24-tc-doc230-r2.png`): every separate quote has its own bar and "Same quote" has one bar. Baseline to baseline, "Before."→"Quote one" is 31px and "Quote one"→"Quote two" is 30px. The gap above "Quoted H1" is HEADING_1's, visibly larger than the one above "Quote one".
+
+---
+
+### TC-DOC231: Consecutive code blocks and consecutive tables stay separate ⚠️ destructive
+**Purpose:** Regression test for #1098. Two code blocks in a row read as one block, since neither had any spacing, and two tables in a row touched and read as one table, since the paragraph Docs requires between them was collapsed like the one before every table. Code blocks now get 8pt above and below, and the paragraph between two tables keeps its height. The numbered list after the tables was added in round 2: `insertTable` gives the paragraphs before each table the following block's style (#1097), so at full height the one between the tables showed as an empty numbered item, and the list started at 3 (PR #1199 QA round 1).
+
+**Prompt**
+**Playwright: required**
+1. `write_doc_content(doc_id="{DOC_ID}", content="Before.\n\n```\ncode one\nsecond line\n```\n\n```\ncode two\n```\n\nBetween.\n\n| K | V |\n|---|---|\n| k1 | v1 |\n\n| K | V |\n|---|---|\n| k2 | v2 |\n\n1. numbered one\n2. numbered two\n", content_format="markdown")`
+2. `get_doc_structure(doc_id="{DOC_ID}")`
+
+**Checks**
+- Step 1 returns no `error` key
+- Raw `documents().get()` read: the "code one…second line" paragraph (one paragraph, lines joined by a soft break) and the "code two" paragraph each have `spaceAbove` and `spaceBelow` 8pt; "Before." and "Between." have neither
+- Step 2 shows two tables with exactly one empty paragraph between them. Raw read: that paragraph's `namedStyleType` is `NORMAL_TEXT`, and it has no `lineSpacing` 1 and no 1pt `fontSize`. The empty paragraph before the first table is still collapsed (`lineSpacing` 1, 1pt `fontSize`)
+- Raw read: neither empty paragraph has a `bullet`, an `indentStart`/`indentFirstLine`, or a `borderLeft`
+- 🔍 Playwright: the two code blocks show a visible gap between them, and between each and the paragraph next to it. The two tables show a blank line between them (the first table's bottom border doesn't touch the second's top border), with no list glyph on it. No visible blank line shows above the first table. The list after the tables is numbered "1." and "2." Not a check here: both tables sit indented to the list's indent, which comes from the tables' own cells and is #1097
+
+**Cleanup:** write fixture content back
+
+**Result (2026-10-24) ✅ PASS — PR #1199 QA round 1 (Kit) @ 7811da8**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc. Step 1: no error. Raw read: "code one\vsecond line" (one paragraph) and "code two" each have `spaceAbove`/`spaceBelow` 8pt, and "Before." and "Between." have neither. Exactly one empty paragraph sits between the two tables. It is `NORMAL_TEXT`, with no `lineSpacing` and no font size set. The paragraph before the first table is still collapsed (`lineSpacing` 1, 1pt). Playwright (`2026-10-24-tc-doc231.png`): the code blocks have visible gaps, a blank line separates the tables, and nothing is visible above the first table. Beyond this case's checks, a probe on the same head found that when a list follows two tables, the paragraph between them keeps the list's bullet and shows a visible empty numbered item. It was sent back on PR #1199.
+
+**Result (2026-10-24) ✅ PASS — PR #1199 QA round 2 (Kit) @ a211c94**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc, with the round-2 input. Step 1: no error. Raw read: both code paragraphs have 8pt above and below, and "Before." and "Between." have neither. Exactly one empty paragraph sits between the tables. It is `NORMAL_TEXT` at full height. The paragraph before the first table is collapsed (`lineSpacing` 1, 1pt). Neither empty paragraph has a `bullet`, an indent or a `borderLeft`. Playwright (`2026-10-24-tc-doc231-r2.png`): the code blocks have visible gaps, and a blank line with no glyph separates the tables. Nothing is visible above the first table, and the list numbers "1." and "2." Both tables still sit indented to the list's indent. That is outside this case's checks and tracked in open #1097. Probe on the same head (`2026-10-24-pr1199-r2-probe.png`): with a quote after two tables, neither empty paragraph has a border or indent. A quote ending in an H2 is kept apart from the next quote by a separator, with the H2's own spacing intact.
+
 
 
 

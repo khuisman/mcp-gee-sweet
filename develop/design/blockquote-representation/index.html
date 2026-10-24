@@ -1460,6 +1460,88 @@ read back as quoted two and three times (PR #1089 QA round 1, live).</p>
 (read from the doc's <code>lists</code> map, falling back to the preset value) before dividing by
 36, so a level-1 item quoted once reads back as quote depth 1, not 2. A bordered list item
 written before #1056, with only the level's own indent, still reads as depth 1.</p>
+<h2 id="adjacent-quotes-and-spacing-1098">Adjacent quotes and spacing (#1098)<a class="headerlink" href="#adjacent-quotes-and-spacing-1098" title="Permanent link">&para;</a></h2>
+<p>Docs joins the left borders of adjacent paragraphs with the same border and indents into
+one continuous bar. Two separate quotes in a row therefore rendered as one, and nothing
+put space between a quote and the paragraphs around it. Checked live on a scratch doc
+(PDF export), each pair styled as a depth-1 quote:</p>
+<table>
+<thead>
+<tr>
+<th>Between the two paragraphs</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nothing</td>
+<td>one bar</td>
+</tr>
+<tr>
+<td><code>spaceBelow</code>/<code>spaceAbove</code> 12pt</td>
+<td>one bar, with the gap inside it</td>
+</tr>
+<tr>
+<td>zero-width <code>borderTop</code>/<code>borderBottom</code></td>
+<td>one bar</td>
+</tr>
+<tr>
+<td>border color 0.6 vs 0.61 (stored as 0.6117647), width 3 vs 3.01</td>
+<td>one bar</td>
+</tr>
+<tr>
+<td>border padding 8 vs 9</td>
+<td>two bars, visibly offset by 1pt</td>
+</tr>
+<tr>
+<td>an empty unbordered paragraph</td>
+<td>two bars</td>
+</tr>
+<tr>
+<td>an empty unbordered paragraph collapsed to 1pt (as before a table), quotes spaced 8pt</td>
+<td>two bars, a clean gap</td>
+</tr>
+</tbody>
+</table>
+<p>The last row is what the emitter does. A flat <code>blockquote_depth</code> can't tell "the second
+paragraph of one quote" from "the first paragraph of the next quote", so the parser
+also records <code>blockquote_path</code> on every leaf node: the ids of the <code>&lt;blockquote&gt;</code>
+elements it sits in, outermost first, a fresh id per element. Two quoted nodes are in
+one quote when one path is a prefix of the other. The ids are arbitrary, so the field is
+excluded from node equality; <code>doc_to_ast.py</code> leaves it empty, and empty paths are never
+separated.</p>
+<p><code>emitter._with_quote_separators</code> inserts an empty <code>Paragraph</code> between two adjacent quoted
+nodes that aren't in one quote, and <code>_collapse_paragraph_requests</code> shrinks it (the same
+styling the blank paragraph before a table gets). The separator is unquoted even between
+two quotes nested in one outer quote: carrying the outer quote's border, its 1pt height
+left a stray dash of that bar. The outer bar already breaks around the deeper-indented
+nested quotes, so nothing is lost. A separator between two quoted lists also splits them
+into two Docs lists, as the source has.</p>
+<p><code>_block_spacing</code> gives a quoted node 8pt above where its quote meets content outside it
+(an unquoted node, a table, or the start) and 8pt below likewise, and nothing between
+the paragraphs of one quote. A code block gets 8pt above and below, which is what tells
+two consecutive code blocks apart.</p>
+<p>Two exceptions, both from PR #1199's QA round 1:</p>
+<ul>
+<li>A separator is spaced on one side only, below the quote before it. Spaced on both
+  sides, two separate quotes sat about 41px apart, baseline to baseline, against 31px
+  between a quote and a plain paragraph.</li>
+<li>A <code>Heading</code>, or a <code>NamedBlock</code> with a TITLE/SUBTITLE style, gets no quote-edge space.
+  An explicit <code>spaceAbove</code> replaces the named style's own, so a quoted H1 lost HEADING_1's
+  20pt above.</li>
+</ul>
+<p>The paragraphs <code>insertTable</code> leaves before a table take the style of the block after the
+table (#1097). At full height, the one between two tables showed a following list's
+bullet as an empty numbered item, and collapsed or not, they pushed that list's numbering
+on and carried a following quote's indent and border. <code>_build_blank_para_before_table_collapses</code>
+now deletes their bullets and clears <code>indentStart</code>, <code>indentFirstLine</code>, and <code>borderLeft</code>,
+in that order, since <code>deleteParagraphBullets</code> adds indent to keep a paragraph's visual
+level. The table cells themselves still take the following block's style, including its
+indent; that part is #1097.</p>
+<p><strong>Markdown input is still affected by the parser.</strong> Python-Markdown parses <code>&gt; a</code>, a blank
+line, <code>&gt; b</code> as one <code>&lt;blockquote&gt;</code> with two paragraphs, where CommonMark has two quotes. That
+reaches the AST as one quote, so it renders as one. Switching the parser (#1116) fixes it
+with no change here. HTML input with two <code>&lt;blockquote&gt;</code> elements already renders as two.</p>
 <h2 id="qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration">QA round 1 (PR #546): two gaps in the interrupt/resume integration<a class="headerlink" href="#qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration" title="Permanent link">&para;</a></h2>
 <p>Reproduced directly against parser output (<code>html_to_ast</code>), no live Google API calls
 needed — both were pure AST-construction bugs.</p>

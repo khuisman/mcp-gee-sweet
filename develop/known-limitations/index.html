@@ -1367,7 +1367,10 @@ equivalent manual deletion.</p>
 <p><strong>Workaround:</strong> The emitter collapses the blank paragraph to zero visual height using
 <code>updateParagraphStyle</code> (<code>spaceAbove/spaceBelow = 0</code>, <code>lineSpacing = 1</code>) and <code>updateTextStyle</code>
 (<code>fontSize = 1pt</code>). The paragraph remains in the document structure but is invisible in the
-rendered output. Related: #190.</p>
+rendered output. The one exception is a paragraph between two tables: it keeps its height, as
+the blank line that keeps the tables from touching and reading as one (#1098). Every such
+paragraph also loses any bullet, indent, or border it took from the block after the table
+(#1097). Related: #190.</p>
 <hr />
 <h3 id="get_doc_structure-top-level-body-elements-only"><code>get_doc_structure</code> — top-level body elements only<a class="headerlink" href="#get_doc_structure-top-level-body-elements-only" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>get_doc_structure</code> reports elements in the document body at the top level only.
