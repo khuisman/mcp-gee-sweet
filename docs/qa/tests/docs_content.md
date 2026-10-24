@@ -6087,6 +6087,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Cleanup:** write fixture content back
 
+**Result (2026-10-24) ❌ FAIL — PR #1199 QA round 1 (Kit) @ 7811da8**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc. Step 1: no error. Step 2 and raw read: an unbordered empty paragraph (`lineSpacing` 1, 1pt font) sits at each of the six expected places and nowhere else. `spaceAbove`/`spaceBelow` 8pt are exactly as listed. "List one A"/"B" share a `listId` and "List two A" has a different one. Playwright (`2026-10-24-tc-doc230.png`): each separate quote has its own bar, "Same quote, first/second" share one, and no separator line is visible. **Fails the last check:** baseline to baseline, "Before."→"Quote one" is 31px but "Quote one"→"Quote two" is 41px (a normal line is about 19px). Between two separate quotes, the 8pt `spaceBelow` and 8pt `spaceAbove` add up to about double the gap a quote has from plain text. Sent back on PR #1199. Side observation: `get_doc_as_markdown` reads each separator back as two extra blank lines between the quotes (`> Quote one\n\n\n\n> Quote two`). The Markdown is still valid.
+
 ---
 
 ### TC-DOC231: Consecutive code blocks and consecutive tables stay separate ⚠️ destructive
@@ -6104,3 +6107,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 - 🔍 Playwright: the two code blocks show a visible gap between them, and between each and the paragraph next to it. The two tables show a blank line between them (the first table's bottom border doesn't touch the second's top border). No visible blank line shows above the first table
 
 **Cleanup:** write fixture content back
+
+**Result (2026-10-24) ✅ PASS — PR #1199 QA round 1 (Kit) @ 7811da8**
+`kit`, on a scratch doc in the fixture folder (deleted afterward), not the fixture doc. Step 1: no error. Raw read: "code one\vsecond line" (one paragraph) and "code two" each have `spaceAbove`/`spaceBelow` 8pt, and "Before." and "Between." have neither. Exactly one empty paragraph sits between the two tables. It is `NORMAL_TEXT`, with no `lineSpacing` and no font size set. The paragraph before the first table is still collapsed (`lineSpacing` 1, 1pt). Playwright (`2026-10-24-tc-doc231.png`): the code blocks have visible gaps, a blank line separates the tables, and nothing is visible above the first table. Beyond this case's checks, a probe on the same head found that when a list follows two tables, the paragraph between them keeps the list's bullet and shows a visible empty numbered item. It was sent back on PR #1199.
