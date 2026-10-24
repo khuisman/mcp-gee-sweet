@@ -2309,6 +2309,9 @@ Run 2 (ash).
 **Result (2026-10-24) ⚠️ PARTIAL — PR #1215 QA round 1 (Kit) @ 79f19d4**
 `kit`: create_doc_from_file(.html) returned no error, with 8 image successes plus the Case 8 per-image error (`doc edit failed: insertInlineImage: There was a problem retrieving the image…`). Raw `documents().get()`: Cases 1–5 as before; Case 6's image cell holds one `inlineObjectElement`; Case 7's nested cell holds one. All 8 headings and the final paragraph are present. Playwright (`2026-10-24-tc-doc102.png`): a logo in both table cells. **Defect:** Case 7's outer cell holds three paragraphs before the nested table (`""`, `""`, 10 spaces), from the fixture's indentation whitespace (`<td>\n      <table>`). They push the nested table onto the next page, away from its row. `html_to_ast` gives the cell the same `Run('\n      ')` on `develop`, so it predates #1073 (sent back on PR #1215, since `html_parser.py` is in its diff). Doc trashed.
 
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 2 (Kit) @ f9f6ee7**
+`kit`: create_doc_from_file(.html) returned no error, with 8 successes plus the Case 8 error. Raw read: Case 6's cell holds one image. Case 7's outer cell now holds only an empty paragraph, the nested table (`[IMG]`), and an empty paragraph (Docs' structural ones): the round-1 indentation paragraphs are gone. Playwright (`2026-10-24-tc-doc102-r2.png`): logos in both cells. In this doc the Case 7 row still breaks across a page boundary, but that's only where the page ends: the same table alone at the top of a doc renders as one row with the nested table beside "Outer cell…" (`2026-10-24-pr1215-case7-alone.png`). Docs trashed.
+
 ---
 
 ### TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
@@ -2340,6 +2343,9 @@ Run 2 (ash).
 
 **Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
 `kit`: create_doc_from_file(.md) returned no error, with 8 image successes plus the Case 8 per-image error. Raw `documents().get()`: Case 6's image cell holds one `inlineObjectElement`, Case 7 reads `Reference-style: [IMG]`, and headings and the final paragraph are intact. Playwright (`2026-10-24-tc-doc103.png`): logos in the Case 6 cell and Case 7. Doc trashed.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 2 (Kit) @ f9f6ee7**
+`kit`: create_doc_from_file(.md) returned no error, with 8 successes plus the Case 8 error. Raw read: Case 6's cell holds one `inlineObjectElement`, and Case 7 reads `Reference-style: [IMG]`. Doc trashed.
 
 ---
 
@@ -3688,6 +3694,9 @@ Run 2 (ash).
 
 **Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
 `kit`: create_doc returned promptly with no error, and `images` held one entry for the logo URL, with no `error`. `get_doc_structure`: cells `Before` / `` / `After`. Raw `documents().get()`: cell 1's paragraph holds one `inlineObjectElement` and no text. Playwright (`2026-10-24-tc-doc153.png`): the logo shows in the middle cell. Doc trashed.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 2 (Kit) @ f9f6ee7**
+`kit`: create_doc returned with no error; `images` held one logo entry with no `error`. Raw read: cells `Before` / `[IMG]` / `After`. Doc trashed.
 
 ---
 
@@ -6218,3 +6227,35 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
 `kit`: steps 1 and 2 returned no error. Step 1's `images` held 8 entries: `example.invalid` had `doc edit failed: insertInlineImage: There was a problem retrieving the image…`, and the other 7 had no error. Raw read: row 0 is `Text then [IMG] then text` / `[IMG][IMG]` / `After`; row 1 is `[IMG]` (link `https://example.com/linked`) / `bad:  end` / `plain`. The second table reads `Lead [IMG]`, then the nested table (`[IMG] inner`), then `tail [IMG]`; "Final paragraph" follows. Step 2 raw read: `[IMG] and [IMG]`. Step 3: the `Two` row is `![](…) and ![](…)`. Playwright (`2026-10-24-tc-doc234.png`): logos match the raw read, none in `bad:`, and the nested table sits between Lead and tail. Probe (not a Check): a local-path PNG in a top-level cell and in a nested cell, on the Shared Drive default folder, uploaded, embedded at the right offset (`local: [IMG] end`, `nested [IMG]`), and reported `shared: false` after revoke. Both docs and both uploads trashed.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 2 (Kit) @ f9f6ee7**
+`kit`: steps 1–2 returned no error; step 1's `images` held 8 entries, with only `example.invalid` carrying `doc edit failed:`. The raw reads match round 1 exactly, row by row, including the linked image and the nested table between `Lead [IMG]` and `tail [IMG]`; step 2 reads `[IMG] and [IMG]`. Probe (not a Check), batch split: one row of four cells, `A1 <bad> x` / `B1 <logo> y` / `C1 <bad> z` / `D1 <logo> w`, so two unfetchable images fall in one cell-fill batch. Both bad ones were reported with `doc edit failed:`, and the raw read is `A1  x` / `B1 [IMG] y` / `C1  z` / `D1 [IMG] w`, every good image at its offset. Docs trashed.
+
+---
+
+### TC-DOC235: Line breaks and block content inside a table cell survive HTML parsing ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression guard for PR #1215 round 2. Collapsing source whitespace in a cell, done to stop indentation before a nested table from becoming empty paragraphs, must not merge a cell's own block content or a `<pre>`'s lines, and must not leak a space past the table.
+
+**Prompt**
+1. `create_doc(title="TC-DOC235", content=<HTML below>, content_format="html")`:
+   ```html
+   <table><tr><td><p>para one</p>
+   <p>para two</p></td><td><pre>line1
+     line2</pre></td><td><a href="https://example.com/x">linked
+   </a>after</td></tr></table>
+   <table><tr><td>
+     <table><tr><td>inner</td></tr></table>
+   </td></tr></table>
+   <p>End</p>
+   ```
+
+**Checks**
+- No `error`
+- Raw `documents().get()` read, first table: cell 0 has `para one` and `para two` as two separate lines, not `para one para two`. Cell 1 keeps `line1` and `line2` on separate lines. Cell 2's linked text keeps the link on `linked` (whether the trailing space falls inside or outside the link matches a browser: inside)
+- Second table: the outer cell holds the nested table with no paragraph made only of indentation spaces before or after it
+- `End` is its own paragraph after the second table
+
+**Cleanup:** trash the doc
+
+**Result (2026-10-24) ❌ FAIL — PR #1215 QA round 2 (Kit) @ f9f6ee7**
+`kit`: probe run of the same shapes (`<p>`, `<pre>`) in one `create_doc`. Raw read: cell 0 reads `para one para two` and the `<pre>` cell reads `line1 line2`, so both merged onto one line. On `develop`, `html_to_ast` keeps them as `a\nb` and `x\n  y`. The nested-table cell is correct (no indentation paragraphs). Sent back on PR #1215 round 2. Doc trashed.
