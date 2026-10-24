@@ -61,7 +61,7 @@
 | `create_spreadsheet` | Create a new Google Spreadsheet. | `title`, `folder_id?` |
 | `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title`, `folder_id?`, `sheet_name?` |
 | `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'. | `folder_id?`, `max_results?` |
-| `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content. | `query`, `max_results?` |
+| `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives'). | `query`, `max_results?` |
 
 `create_spreadsheet` cannot create files in a personal Drive when using service account auth — use OAuth or a Shared Drive.
 
@@ -72,7 +72,7 @@
 | `list_folders` | List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'. | `parent_folder_id?`, `max_results?` |
 | `list_drives` | List shared (Team) Drives accessible to the authenticated account. | `query?`, `max_results?` |
 | `list_files` | List files in a Google Drive folder, optionally filtered by MIME type. | `folder_id`, `mime_type?`, `max_results?` |
-| `search_files` | Search for files in Google Drive by name or content. | `query`, `mime_type?`, `folder_id?`, `max_results?` |
+| `search_files` | Search for files in Google Drive by name or content. Without folder_id, searches 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives'). | `query`, `mime_type?`, `folder_id?`, `max_results?` |
 | `get_file_metadata` | Get metadata for any file or folder in Google Drive. | `file_id` |
 | `create_folder` | Create a new folder in Google Drive. | `name`, `parent_folder_id?` |
 | `create_shortcut` | Create a Drive shortcut pointing to an existing file. | `target_file_id`, `folder_id?`, `name?` |
@@ -81,8 +81,8 @@
 | `rename_file` | Rename a file or folder in Google Drive. | `file_id`, `new_name` |
 | `star_file` | Mark a file or folder as starred in Google Drive, for easy retrieval later. | `file_id` |
 | `unstar_file` | Remove a file or folder's starred marker in Google Drive. | `file_id` |
-| `list_shared_with_me` | List files explicitly shared with the authenticated user. | `mime_type?`, `max_results?` |
-| `list_recent_files` | List recently modified files in Drive, newest first. | `max_results?`, `days?`, `mime_type?` |
+| `list_shared_with_me` | List files explicitly shared with the authenticated user, including shared drive files shared with them directly. | `mime_type?`, `max_results?` |
+| `list_recent_files` | List recently modified files in Drive, newest first, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives'). | `max_results?`, `days?`, `mime_type?` |
 | `get_storage_quota` | Get Drive storage usage and limits for the authenticated account. | — |
 | `delete_file` | Move a file to the trash or permanently delete it. | `file_id`, `permanent?` |
 | `restore_file` | Restore a trashed file or folder back to its original location — undoes `delete_file` when it was called without `permanent=True`. Raises an API error (does not silently no-op) if the file was permanently deleted or otherwise no longer exists — permanent deletion can't be recovered from. | `file_id` |

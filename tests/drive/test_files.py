@@ -1268,6 +1268,13 @@ class TestCorporaSelection:
         # sharedWithMe=true is itself the scope; allDrives would add nothing.
         assert "corpora" not in await self._call("list_shared_with_me")
 
+    async def test_shared_with_me_includes_shared_drive_items(self):
+        """PR #1200 QA round 1: without these flags Drive leaves out a Shared
+        Drive file shared directly with a caller who isn't a member of it."""
+        list_kwargs = await self._call("list_shared_with_me")
+        assert list_kwargs["includeItemsFromAllDrives"] is True
+        assert list_kwargs["supportsAllDrives"] is True
+
 
 class TestGetFileMetadata:
     def _drive_service(self, file=None):

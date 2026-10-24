@@ -51,7 +51,9 @@ async def _list_drive_files(
 
     Both tools query files().list() against the same result field set and shape
     the response identically; only the query string, page size, and (for
-    list_recent_files) the cross-Drive flags differ, passed via extra_kwargs.
+    list_recent_files) the corpus differ, passed via extra_kwargs. Both include
+    Shared Drive items: without the all-drives flags, Drive leaves out a Shared
+    Drive file even when it was shared directly with the caller.
     """
     try:
         results = await execute_in_thread(
@@ -60,6 +62,8 @@ async def _list_drive_files(
                 q=q,
                 pageSize=max_results,
                 spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
                 fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
                 orderBy="modifiedTime desc",
                 **(extra_kwargs or {}),
@@ -665,7 +669,9 @@ def register(tool):
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
-        Search for files in Google Drive by name or content.
+        Search for files in Google Drive by name or content. Without folder_id,
+        searches 'My Drive' AND every shared drive the authenticated account can
+        access (corpora='allDrives').
 
         For a spreadsheet-only search, search_spreadsheets(query, max_results) is a
         narrower convenience wrapper around this same query pre-filtered to the
@@ -677,9 +683,7 @@ def register(tool):
                        'application/vnd.google-apps.document',
                        'application/vnd.google-apps.spreadsheet',
                        'application/pdf'.
-            folder_id: Optional folder to restrict the search to. Without it, the
-                       search covers 'My Drive' and every shared drive the
-                       account can access.
+            folder_id: Optional folder to restrict the search to.
             max_results: Maximum results to return (default 20, max 100).
 
         Returns:
@@ -742,7 +746,9 @@ def register(tool):
         query: str, max_results: int = 20, ctx: Context = None
     ) -> list[dict[str, Any]]:
         """
-        Search for spreadsheets in Google Drive by name or content.
+        Search for spreadsheets in Google Drive by name or content, across
+        'My Drive' AND every shared drive the authenticated account can access
+        (corpora='allDrives').
 
         A strict, less-flexible special case of search_files pre-filtered to the
         spreadsheet MIME type. For folder-scoped search or other file types, use
@@ -1194,7 +1200,8 @@ def register(tool):
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
-        List files explicitly shared with the authenticated user.
+        List files explicitly shared with the authenticated user, including
+        shared drive files shared with them directly.
 
         Args:
             mime_type: Optional MIME type filter, e.g.
@@ -1227,7 +1234,9 @@ def register(tool):
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
-        List recently modified files in Drive, newest first.
+        List recently modified files in Drive, newest first, across 'My Drive'
+        AND every shared drive the authenticated account can access
+        (corpora='allDrives').
 
         Args:
             max_results: Maximum number of files to return (default 20, max 100).
@@ -1256,11 +1265,7 @@ def register(tool):
             " and ".join(parts),
             max_results,
             "List recent files",
-            extra_kwargs={
-                "includeItemsFromAllDrives": True,
-                "supportsAllDrives": True,
-                **_corpora_kwargs(None),
-            },
+            extra_kwargs=_corpora_kwargs(None),
         )
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
