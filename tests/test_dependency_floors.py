@@ -36,13 +36,18 @@ def _requirement(name):
 class TestCertifiFloor:
     def test_requirement_excludes_pre_incident_versions(self):
         spec = _requirement("certifi").specifier
-        # The bundle v0.9.4 shipped, and the last version before the fix.
+        # The bundle v0.9.4 shipped, and the advisory's own fixed release. PSF recommends
+        # 2026.10.19 over 2026.10.18 for compatibility with the unaffected emSign roots,
+        # so don't lower the floor to 2026.10.18.
         for version in ("2026.5.20", "2026.10.18"):
             assert not spec.contains(version), f"certifi {version} still satisfies {spec}"
         assert spec.contains(str(_CERTIFI_FLOOR))
 
     def test_lock_pins_fixed_version(self):
         packages = _load_toml("uv.lock")["package"]
-        certifi = [p for p in packages if p["name"] == "certifi"]
-        assert len(certifi) == 1
-        assert Version(certifi[0]["version"]) >= _CERTIFI_FLOOR
+        # A lock can split a package into marker-specific entries; every one must meet the floor.
+        versions = [Version(p["version"]) for p in packages if p["name"] == "certifi"]
+        assert versions, "uv.lock has no certifi entry"
+        assert all(v >= _CERTIFI_FLOOR for v in versions), (
+            f"certifi below floor in uv.lock: {versions}"
+        )
