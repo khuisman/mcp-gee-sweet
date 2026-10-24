@@ -2191,6 +2191,22 @@ class TestCreateDocImages:
         assert retry == [r for r in failed if "insertInlineImage" not in r]
         assert any("insertText" in r for r in retry)
 
+    async def test_cell_image_the_fill_never_placed_is_reported(self):
+        # PR #1215 QA round 1: a resolved cell image whose cell the fill can't locate
+        # gets no insert, and must not read as embedded.
+        drive_svc, docs_svc = self._make_services()
+        live_doc = json.loads(json.dumps(self._CELL_IMAGE_LIVE_DOC))
+        live_doc["body"]["content"][1]["table"]["tableRows"][0]["tableCells"][1]["content"] = []
+        docs_svc.documents.return_value.get.return_value.execute.return_value = live_doc
+        uri = "https://example.com/cell.png"
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=self._CELL_IMAGE_HTML.format(uri=uri), ctx=ctx
+        )
+        assert result["images"] == [
+            {"src": uri, "error": "not embedded: its table cell wasn't found in the document"}
+        ]
+
     def _insert_image_http_error(self, index: int) -> HttpError:
         resp = MagicMock()
         resp.status = 400

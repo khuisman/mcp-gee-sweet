@@ -203,7 +203,7 @@ class TestHtmlToDocRequests:
         # #1073: a cell image's offset counts UTF-16 units, and the image counts as one.
         img = Image(src="a")
         children = [Run("😀"), img, Run("X")]
-        images = CellImages(uris={id(img): "uri-a"}, execute=AsyncMock())
+        images = CellImages({id(img): "uri-a"}, AsyncMock(), lambda _e: None, lambda *_: None)
 
         requests = _run_group_fill_requests(children, para_start=10, images=images)
         insert = next(r["insertInlineImage"] for r in requests if "insertInlineImage" in r)

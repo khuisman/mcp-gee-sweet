@@ -21,8 +21,8 @@ from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
-from .ast import Image, Run, Table
-from .emitter import CellImages, ast_to_requests, extract_images, fill_tables
+from .ast import Image, Table
+from .emitter import CellImages, ast_to_requests, extract_images, fill_tables, iter_cell_leaves
 from .html_parser import html_to_ast
 from .images import (
     ImageShareLifecycle,
@@ -162,6 +162,18 @@ def _failed_insert_image_message(error: HttpError) -> str:
 
 
 _POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
+
+
+def _record_embed_failure(entry: dict[str, Any], e: HttpError) -> None:
+    """Record on an image's outcome entry that Docs couldn't fetch it at the embed step.
+
+    fileId/shared are left as-is: a local-path/drive: source was genuinely uploaded and
+    shared even though embedding it failed, so that's still real information for the
+    caller, and it still goes through the normal revoke_sharing-respecting cleanup rather
+    than being silently orphaned. An https:// source never had either field set, and is
+    the one source kind #400's pre-validation doesn't cover, so this is its only chance
+    to learn the size-limit cause at all."""
+    entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
 
 
 def _positional_insert_tail_start(
@@ -933,56 +945,6 @@ async def _apply_doc_content(
                     docs_service,
                 )
 
-            def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
-                """Pop the insertInlineImage request `e` names from `requests` (the
-                batch that raised `e`), plus its link request if the image was
-                linked (#977), recording the failure on its image's outcome
-                entry. False if `e` isn't an image-fetch failure, so the caller
-                re-raises."""
-                bad_index = _failed_insert_image_request_index(e)
-                if bad_index is None or bad_index >= len(requests):
-                    return False
-                bad_request = requests.pop(bad_index)
-                # Left in place, the link would land on whatever character now
-                # sits at the image's position. Matched by identity: the list
-                # holds the same dict objects ast_to_requests (or the cell fill)
-                # recorded.
-                link = image_links.get(id(bad_request))
-                if link is not None:
-                    link_index = next(i for i, r in enumerate(requests) if r is link)
-                    requests.pop(link_index)
-                img_id = request_id_to_img_id.get(id(bad_request))
-                if img_id is not None:
-                    # Not in the doc now, so a nested table later in the same cell
-                    # mustn't count it (CellImages).
-                    real_uri_by_id.pop(img_id, None)
-                entry = entry_by_id.get(img_id) if img_id is not None else None
-                if entry is not None:
-                    # fileId/shared are left as-is: a local-path/drive: source was
-                    # genuinely uploaded and shared even though embedding it
-                    # failed, so that's still real information for the caller —
-                    # and it still goes through the normal revoke_sharing-
-                    # respecting cleanup below rather than being silently
-                    # orphaned. An https:// source never had either field set — and
-                    # is the one source kind #400's pre-validation doesn't cover, so
-                    # this is its only chance to learn the size-limit cause at all.
-                    entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
-                return True
-
-            async def _fill_batch(requests: list[dict]) -> None:
-                """One table-cell fill batch (#1073), retried without each image Google
-                can't fetch, as the body's first retry is. Dropping one never moves
-                another request: within a cell the images go last, latest first, and
-                cells run latest first, so every later request sits at or before it."""
-                remaining = list(requests)
-                while True:
-                    try:
-                        await _batch_update(remaining)
-                        return
-                    except HttpError as e:
-                        if not _drop_failed_image(remaining, e):
-                            raise
-
             if content_requests:
                 # A resolved image's URI is only proven *reachable to us*, not necessarily
                 # fetchable by Google's own (unauthenticated, separate-network-path)
@@ -1023,6 +985,29 @@ async def _apply_doc_content(
                 # becomes a DocEditError carrying the whole outcome list (#789), so an
                 # image dropped before the failure still reports its own error too.
 
+                def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
+                    """Pop the insertInlineImage request `e` names from `requests` (the
+                    batch that raised `e`), plus its link request if the image was
+                    linked (#977), recording the failure on its image's outcome
+                    entry. False if `e` isn't an image-fetch failure, so the caller
+                    re-raises."""
+                    bad_index = _failed_insert_image_request_index(e)
+                    if bad_index is None or bad_index >= len(requests):
+                        return False
+                    bad_request = requests.pop(bad_index)
+                    # Left in place, the link would land on whatever character now
+                    # sits at the image's position. Matched by identity: the list
+                    # holds the same dict objects ast_to_requests recorded.
+                    link = image_links.get(id(bad_request))
+                    if link is not None:
+                        link_index = next(i for i, r in enumerate(requests) if r is link)
+                        requests.pop(link_index)
+                    img_id = request_id_to_img_id.get(id(bad_request))
+                    entry = entry_by_id.get(img_id) if img_id is not None else None
+                    if entry is not None:
+                        _record_embed_failure(entry, e)
+                    return True
+
                 committed: list[dict] = []
                 remaining = list(content_requests)
                 image_failures = 0
@@ -1049,19 +1034,40 @@ async def _apply_doc_content(
                         committed = remaining[:tail_start]
                         remaining = remaining[tail_start:]
                 content_requests = committed + remaining
-            # Body images' entries in real_uri_by_id are harmless here: the fill only
-            # looks up the images in its own cells.
-            cell_images = (
-                CellImages(
-                    uris=real_uri_by_id,
-                    execute=_fill_batch,
-                    requests=request_id_to_img_id,
-                    links=image_links,
+            # Table cells are filled after phase 1, from live indices (#1073). The fill
+            # gets its own copy of the cell images' URIs, and reports back only through
+            # on_dropped and its embedded set.
+            cell_uris = {
+                id(leaf): real_uri_by_id[id(leaf)]
+                for table in tables
+                for leaf in iter_cell_leaves(table)
+                if id(leaf) in real_uri_by_id
+            }
+            cell_images = None
+            if cell_uris:
+
+                def _cell_image_dropped(image: Image, e: Exception) -> None:
+                    entry = entry_by_id.get(id(image))
+                    if entry is not None:
+                        _record_embed_failure(entry, e)
+
+                cell_images = CellImages(
+                    dict(cell_uris),
+                    _batch_update,
+                    lambda e: (
+                        _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
+                    ),
+                    _cell_image_dropped,
                 )
-                if real_uri_by_id
-                else None
-            )
             await fill_tables(docs_service, doc_id, tables, cell_images)
+            if cell_images is not None:
+                for img_id in cell_uris.keys() - cell_images.embedded:
+                    entry = entry_by_id[img_id]
+                    # A cell the fill couldn't locate in the live doc gets no insert;
+                    # without this, its uploaded and shared image would read as embedded.
+                    entry.setdefault(
+                        "error", "not embedded: its table cell wasn't found in the document"
+                    )
             if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
     except Exception as e:
@@ -1075,15 +1081,10 @@ async def _apply_doc_content(
 def _table_has_pending_anchor_link(table: Table) -> bool:
     """True if any cell in `table` (recursing into nested tables) carries a
     Run or Image with a same-document '#slug' link_url."""
-    for row in table.rows:
-        for cell in row.cells:
-            for child in cell.children:
-                if isinstance(child, (Run, Image)):
-                    if child.link_url and child.link_url.startswith("#"):
-                        return True
-                elif isinstance(child, Table) and _table_has_pending_anchor_link(child):
-                    return True
-    return False
+    return any(
+        leaf.link_url is not None and leaf.link_url.startswith("#")
+        for leaf in iter_cell_leaves(table)
+    )
 
 
 def _has_pending_anchor_links(requests: list[dict], tables: list[Table]) -> bool:

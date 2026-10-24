@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 
 from ...auth import execute_in_thread
@@ -15,26 +14,100 @@ from .indices import isolated_bullet_run_wrap_requests, utf16_len
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class CellImages:
-    """What fill_tables needs to embed the images in table cells (#1073).
+    """What fill_tables needs to embed the images in table cells (#1073), and the
+    retry that keeps one unfetchable image from losing a whole cell-fill batch.
 
-    uris: id(image) -> its resolved URI, for every Image extract_images returned. An
-    image with no entry is skipped, like an unresolved body image. The caller removes
-    an image's entry when its insert fails, so a later nested-table position in the
-    same cell stops counting it.
+    uris: id(image) -> its resolved URI, for each cell image to embed. An image with no
+    entry is skipped, like an unresolved body image. A dropped image's entry is removed,
+    so a nested table after it in the same cell stops counting it.
 
-    execute: runs one fill batchUpdate. It is the caller's, so a batch whose image
-    can't be fetched is retried without that image instead of losing the whole fill
-    (content.py's _apply_doc_content). Every insertInlineImage the fill builds is
-    recorded in `requests` (id(request) -> id(image)) and, for a linked image, in
-    `links` (id(request) -> its link request), the same maps ast_to_requests fills.
+    run_batch sends one batchUpdate. failed_request_index reads the index of the
+    insertInlineImage an error names (None for any other error), and on_dropped is told
+    about each image dropped that way. embedded collects id(image) for every image whose
+    insert was sent in a batch that succeeded, so the caller can tell which resolved
+    images the fill never placed (a cell it couldn't locate in the live doc).
     """
 
-    uris: dict[int, str]
-    execute: Callable[[list[dict]], Awaitable[None]]
-    requests: dict[int, int] = dataclasses.field(default_factory=dict)
-    links: dict[int, dict] = dataclasses.field(default_factory=dict)
+    def __init__(
+        self,
+        uris: dict[int, str],
+        run_batch: Callable[[list[dict]], Awaitable[None]],
+        failed_request_index: Callable[[Exception], int | None],
+        on_dropped: Callable[[Image, Exception], None],
+    ):
+        self.uris = uris
+        self.embedded: set[int] = set()
+        self._run_batch = run_batch
+        self._failed_request_index = failed_request_index
+        self._on_dropped = on_dropped
+        # id(insert) -> (insert, image, its link request or None) for the batch being
+        # built and sent. It holds the request dicts themselves and is cleared once that
+        # batch settles, so no id() here can belong to a later batch's request.
+        self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
+
+    def insert_requests(self, image: Image, position: int) -> list[dict]:
+        """The insertInlineImage (and link request) for `image`, recorded for the retry."""
+        requests = _image_insert_requests(image, self.uris[id(image)], position)
+        link = requests[1] if len(requests) > 1 else None
+        self._pending[id(requests[0])] = (requests[0], image, link)
+        return requests
+
+    async def execute(self, requests: list[dict]) -> None:
+        """Send one cell-fill batch, dropping each image Google can't fetch and resending.
+
+        Dropping an image never moves another request: within a cell the images go
+        after its text, latest first, and cells run latest first, so every request
+        after an image sits at or before it. Like the body (#510), the first retry
+        resends the whole batch. After that, each failure splits the batch at the
+        failed image: the requests ahead of it are sent on their own, and only the rest
+        is retried. A batchUpdate applies its requests in order, so sending L[:i] and
+        then L[i:] does what sending L would; splitting anywhere else isn't safe, since
+        an earlier cell's text moves every later position.
+        """
+        try:
+            sent = await self._send(list(requests), split=False)
+            sent_ids = {id(r) for r in sent}
+            self.embedded.update(
+                id(image) for insert, image, _ in self._pending.values() if id(insert) in sent_ids
+            )
+        finally:
+            self._pending.clear()
+
+    async def _send(self, remaining: list[dict], *, split: bool) -> list[dict]:
+        """Send `remaining`, dropping failed images (see execute); return what was applied."""
+        while remaining:
+            try:
+                await self._run_batch(remaining)
+                return remaining
+            except Exception as e:
+                index = self._drop(remaining, e)
+                if index is None:
+                    raise
+                if split and index:
+                    head = await self._send(remaining[:index], split=True)
+                    return head + await self._send(remaining[index:], split=True)
+                split = True
+        return []
+
+    def _drop(self, requests: list[dict], error: Exception) -> int | None:
+        """Pop the image insert `error` names from `requests`, with its link request,
+        and return the index it was at. None if `error` doesn't name one of this
+        batch's image inserts."""
+        index = self._failed_request_index(error)
+        if index is None or index >= len(requests):
+            return None
+        entry = self._pending.get(id(requests[index]))
+        if entry is None or entry[0] is not requests[index]:
+            return None
+        insert, image, link = entry
+        requests.pop(index)
+        if link is not None:
+            requests[:] = [r for r in requests if r is not link]
+        del self._pending[id(insert)]
+        self.uris.pop(id(image), None)
+        self._on_dropped(image, error)
+        return index
 
 
 @dataclass
@@ -153,25 +226,20 @@ def extract_images(nodes: list[DocNode]) -> list[Image]:
     """
     images: list[Image] = []
     for node in nodes:
-        if isinstance(node, Table):
-            images.extend(_table_images(node))
-            continue
-        for item in node.runs:
-            if isinstance(item, Image):
-                images.append(item)
+        items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
+        images.extend(item for item in items if isinstance(item, Image))
     return images
 
 
-def _table_images(table: Table) -> list[Image]:
-    images: list[Image] = []
+def iter_cell_leaves(table: Table) -> Iterator[Run | Image]:
+    """Every Run and Image in `table`'s cells, nested tables included, in document order."""
     for row in table.rows:
         for cell in row.cells:
             for child in cell.children:
-                if isinstance(child, Image):
-                    images.append(child)
-                elif isinstance(child, Table):
-                    images.extend(_table_images(child))
-    return images
+                if isinstance(child, Table):
+                    yield from iter_cell_leaves(child)
+                else:
+                    yield child
 
 
 def ast_to_requests(
@@ -1214,10 +1282,11 @@ def _find_nth_table_in_cell(
 
 
 def _run_group_fill_requests(
-    children: list[Run | Image], para_start: int, images: CellImages | None = None
+    children: Sequence[Run | Image | Table], para_start: int, images: CellImages | None = None
 ) -> list[dict]:
     """Build insertText + updateTextStyle requests for a contiguous run of text, then
-    an insertInlineImage for each of its resolved images (#1073).
+    an insertInlineImage for each of its resolved images (#1073). `children` holds no
+    Table: a caller passes a cell's children only up to its next nested table.
 
     The images go last, latest position first, like ast_to_requests's positional
     pass: the text and its styles are placed as if no image were there, and each
@@ -1239,12 +1308,7 @@ def _run_group_fill_requests(
         elif id(child) in images.uris:
             placed.append((offset, child))
     for offset, image in reversed(placed):
-        image_requests = _image_insert_requests(image, images.uris[id(image)], para_start + offset)
-        insert = image_requests[0]
-        images.requests[id(insert)] = id(image)
-        if len(image_requests) > 1:
-            images.links[id(insert)] = image_requests[1]
-        requests.extend(image_requests)
+        requests.extend(images.insert_requests(image, para_start + offset))
     return requests
 
 
@@ -1636,8 +1700,6 @@ def _build_fill_requests(
                 ast_cell = ast_row.cells[ast_cell_idx]
                 if any(isinstance(child, Table) for child in ast_cell.children):
                     continue  # handled by _fill_nested_cell_content instead
-                # No Table child here, so every child is a Run or an Image.
-                cell_children = [c for c in ast_cell.children if not isinstance(c, Table)]
                 cell_content = doc_cell.get("content", [])
                 if not cell_content:
                     continue
@@ -1645,7 +1707,7 @@ def _build_fill_requests(
                 if para_start is None:
                     continue
 
-                cell_requests = _run_group_fill_requests(cell_children, para_start, images)
+                cell_requests = _run_group_fill_requests(ast_cell.children, para_start, images)
                 if cell_requests:
                     all_requests.append((para_start, cell_requests))
 
