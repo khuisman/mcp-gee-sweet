@@ -1273,8 +1273,9 @@ def register(tool):
             already revoked.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Workaround for service accounts: create the file manually in Drive, then use
             write_doc_content to populate it. Check server://auth-status for your current
             auth method.
@@ -1393,8 +1394,9 @@ def register(tool):
             already revoked.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Check server://auth-status for your current auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot. Check server://auth-status for your current auth method.
         """
         source = await asyncio.to_thread(
             _read_doc_source_file, local_path, None, format_overridable=False
