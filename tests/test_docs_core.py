@@ -883,11 +883,12 @@ class TestBlockSeparation:
             if "borderLeft" in r.get("updateParagraphStyle", {}).get("paragraphStyle", {})
         ]
         assert {"startIndex": 3, "endIndex": 4} not in bordered
-        # spaceBelow targets each node's last character, its "\n".
+        # spaceBelow targets each node's last character, its "\n". The separator is
+        # spaced on one side only: spaced on both, two quotes sat twice as far apart as
+        # a quote and a paragraph (PR #1199 QA round 1).
         assert self._spacing(requests) == {
             1: {"spaceAbove": 8},
             2: {"spaceBelow": 8},
-            4: {"spaceAbove": 8},
             5: {"spaceBelow": 8},
         }
 
@@ -971,6 +972,20 @@ class TestBlockSeparation:
             4: {"spaceAbove": 8},
             6: {"spaceBelow": 8},
         }
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<p>x</p><blockquote><h1>H</h1><p>q</p></blockquote>",
+            '<p>x</p><blockquote><p data-style="title">H</p><p>q</p></blockquote>',
+        ],
+    )
+    def test_quoted_named_style_keeps_its_own_spacing(self, html):
+        """An explicit quote-edge value would replace HEADING_1's or TITLE's own spacing
+        (PR #1199 QA round 1); the quote's other edge is still spaced."""
+        requests, _ = _html_to_doc_requests(html)
+        # "x\n" [1,3), "H\n" [3,5), "q\n" [5,7).
+        assert self._spacing(requests) == {6: {"spaceBelow": 8}}
 
     def test_plain_paragraphs_and_lists_get_no_spacing(self):
         requests, _ = _html_to_doc_requests("<h2>h</h2><p>p</p><ul><li>l</li></ul>")
@@ -1731,20 +1746,38 @@ class TestBuildBlankParaBeforeTableCollapses:
     def test_blank_para_before_table_collapsed(self):
         doc = self._doc([self._blank_para(1, 2), self._table_elem(2)])
         result = _build_blank_para_before_table_collapses(doc)
-        # 2 requests: updateParagraphStyle + updateTextStyle
-        assert len(result) == 2
+        # 4 requests: delete bullets, reset style, collapse paragraph, 1pt font
+        assert len(result) == 4
         rng = {"startIndex": 1, "endIndex": 2}
-        ps = result[0]["updateParagraphStyle"]
+        assert result[0] == {"deleteParagraphBullets": {"range": rng}}
+        reset = result[1]["updateParagraphStyle"]
+        assert reset["range"] == rng
+        assert reset["paragraphStyle"] == {"namedStyleType": "NORMAL_TEXT"}
+        assert reset["fields"] == "namedStyleType,indentStart,indentFirstLine,borderLeft"
+        ps = result[2]["updateParagraphStyle"]
         assert ps["range"] == rng
         assert ps["paragraphStyle"]["spaceAbove"] == {"magnitude": 0, "unit": "PT"}
         assert ps["paragraphStyle"]["spaceBelow"] == {"magnitude": 0, "unit": "PT"}
         assert ps["paragraphStyle"]["lineSpacing"] == 1
-        assert ps["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
-        assert ps["fields"] == "spaceAbove,spaceBelow,lineSpacing,namedStyleType"
-        ts = result[1]["updateTextStyle"]
+        assert ps["fields"] == "spaceAbove,spaceBelow,lineSpacing"
+        ts = result[3]["updateTextStyle"]
         assert ts["range"] == rng
         assert ts["textStyle"]["fontSize"] == {"magnitude": 1, "unit": "PT"}
         assert ts["fields"] == "fontSize"
+
+    def test_style_inherited_from_following_block_reset(self):
+        """insertTable gives the paragraph before a table the following block's style
+        (#1097): a following list's bullet showed as an empty item and pushed the list's
+        numbering on; a following quote's indent and border came along too (PR #1199 QA
+        round 1). Bullets go first: deleteParagraphBullets adds indent, which the reset
+        must then clear."""
+        doc = self._doc([self._blank_para(1, 2), self._table_elem(2)])
+        result = _build_blank_para_before_table_collapses(doc)
+        assert "deleteParagraphBullets" in result[0]
+        fields = result[1]["updateParagraphStyle"]["fields"].split(",")
+        assert {"indentStart", "indentFirstLine", "borderLeft"} <= set(fields)
+        style = result[1]["updateParagraphStyle"]["paragraphStyle"]
+        assert not {"indentStart", "indentFirstLine", "borderLeft"} & set(style)
 
     def test_heading_blank_para_before_table_reset_to_normal_text(self):
         # #1092: the displaced initial paragraph inherits the preceding heading's style,
@@ -1759,7 +1792,7 @@ class TestBuildBlankParaBeforeTableCollapses:
         }
         doc = self._doc([heading, self._blank_para(12, 13), self._table_elem(13)])
         result = _build_blank_para_before_table_collapses(doc)
-        ps = result[0]["updateParagraphStyle"]
+        ps = result[1]["updateParagraphStyle"]
         assert ps["range"] == {"startIndex": 12, "endIndex": 13}
         assert ps["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
         assert "namedStyleType" in ps["fields"].split(",")
@@ -1772,7 +1805,7 @@ class TestBuildBlankParaBeforeTableCollapses:
         doc = self._doc([self._table_elem(1)])
         assert _build_blank_para_before_table_collapses(doc) == []
 
-    def test_multiple_blank_paras_before_tables_two_requests_each(self):
+    def test_multiple_blank_paras_before_tables_four_requests_each(self):
         doc = self._doc(
             [
                 self._blank_para(1, 2),
@@ -1783,14 +1816,10 @@ class TestBuildBlankParaBeforeTableCollapses:
             ]
         )
         result = _build_blank_para_before_table_collapses(doc)
-        # 2 requests per blank para = 4 total
-        assert len(result) == 4
-        # First pair: blank para at 1
-        assert result[0]["updateParagraphStyle"]["range"]["startIndex"] == 1
-        assert result[1]["updateTextStyle"]["range"]["startIndex"] == 1
-        # Second pair: blank para at 15
-        assert result[2]["updateParagraphStyle"]["range"]["startIndex"] == 15
-        assert result[3]["updateTextStyle"]["range"]["startIndex"] == 15
+        # 4 requests per blank para = 8 total
+        assert len(result) == 8
+        starts = [next(iter(r.values()))["range"]["startIndex"] for r in result]
+        assert starts == [1] * 4 + [15] * 4
 
     def test_para_before_non_table_not_collapsed(self):
         doc = self._doc([self._blank_para(1, 2), self._text_para(2, 5, "Hi\n")])
@@ -1801,14 +1830,22 @@ class TestBuildBlankParaBeforeTableCollapses:
         assert _build_blank_para_before_table_collapses(doc) == []
 
     def test_blank_para_between_two_tables_keeps_its_height(self):
-        """Collapsed, it let two tables touch and read as one (#1098). It still gets
-        NORMAL_TEXT (#1092)."""
+        """Collapsed, it let two tables touch and read as one (#1098). It is still reset:
+        left at full height, a following list's bullet showed as an empty item between
+        the tables (PR #1199 QA round 1)."""
         doc = self._doc([self._table_elem(1), self._blank_para(9, 10), self._table_elem(10)])
-        (req,) = _build_blank_para_before_table_collapses(doc)
-        ps = req["updateParagraphStyle"]
-        assert ps["range"] == {"startIndex": 9, "endIndex": 10}
-        assert ps["paragraphStyle"] == {"namedStyleType": "NORMAL_TEXT"}
-        assert ps["fields"] == "namedStyleType"
+        result = _build_blank_para_before_table_collapses(doc)
+        rng = {"startIndex": 9, "endIndex": 10}
+        assert result == [
+            {"deleteParagraphBullets": {"range": rng}},
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                    "fields": "namedStyleType,indentStart,indentFirstLine,borderLeft",
+                }
+            },
+        ]
 
 
 class TestImagePositionalInserts:

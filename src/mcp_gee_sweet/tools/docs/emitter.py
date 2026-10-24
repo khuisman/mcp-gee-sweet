@@ -614,6 +614,13 @@ def _quoted(node: DocNode) -> bool:
     return not isinstance(node, Table) and node.blockquote_depth > 0
 
 
+def _has_named_spacing(node: DocNode) -> bool:
+    """Whether the emitter gives `node` a named style with spacing of its own."""
+    if isinstance(node, Heading):
+        return True
+    return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
+
+
 def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int]]:
     """Return `nodes` with an empty separator Paragraph between each two adjacent quoted
     nodes that belong to separate quotes, plus the separators' ids.
@@ -646,13 +653,20 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
 def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tuple[int, int]]:
     """Map a node's index in `nodes` to the (spaceAbove, spaceBelow) it needs (#1098):
     a code block gets both, and a quoted node gets space on each side where its quote
-    meets content outside it (an unquoted node, a table, a separator, or the edge).
-    Nodes inside one quote get none between them, so the quote stays one block."""
+    meets content outside it (an unquoted node, a table, or the edge). Nodes inside one
+    quote get none between them, so the quote stays one block.
 
-    def outside_quote(i: int) -> bool:
+    A separator gets space on one side only, below the quote before it: spaced on both,
+    two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
+    A Heading or a TITLE/SUBTITLE NamedBlock gets no quote-edge space: an explicit
+    value would replace its named style's own spacing (HEADING_1's 20pt above, say)."""
+
+    def outside_quote(i: int, *, count_separator: bool) -> bool:
         if i < 0 or i >= len(nodes):
             return True
-        return not _quoted(nodes[i]) or id(nodes[i]) in separators
+        if id(nodes[i]) in separators:
+            return count_separator
+        return not _quoted(nodes[i])
 
     spacing: dict[int, tuple[int, int]] = {}
     for i, node in enumerate(nodes):
@@ -661,10 +675,10 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
         above = below = 0
         if _is_code_paragraph(node):
             above = below = _BLOCK_SPACING_PT
-        if _quoted(node):
-            if outside_quote(i - 1):
+        if _quoted(node) and not _has_named_spacing(node):
+            if outside_quote(i - 1, count_separator=False):
                 above = _BLOCK_SPACING_PT
-            if outside_quote(i + 1):
+            if outside_quote(i + 1, count_separator=True):
                 below = _BLOCK_SPACING_PT
         if above or below:
             spacing[i] = (above, below)
@@ -694,17 +708,15 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
     return requests
 
 
-def _collapse_paragraph_requests(rng: dict, named_style: str | None = None) -> list[dict]:
+def _collapse_paragraph_requests(rng: dict) -> list[dict]:
     """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, 1pt
-    font, and `named_style` if given. Shared by the quote separators (#1098) and the
-    blank paragraph before a table."""
-    paragraph_style: dict = {
+    font. Shared by the quote separators (#1098) and the blank paragraph before a
+    table."""
+    paragraph_style = {
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
         "spaceBelow": {"magnitude": 0, "unit": "PT"},
         "lineSpacing": 1,
     }
-    if named_style is not None:
-        paragraph_style["namedStyleType"] = named_style
     return [
         {
             "updateParagraphStyle": {
@@ -1608,16 +1620,17 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
 
 
 def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
-    """Return updateParagraphStyle + updateTextStyle requests that collapse empty paragraphs
-    immediately before tables to zero visual height.
+    """Return requests that reset empty paragraphs immediately before tables to a plain
+    paragraph and collapse them to zero visual height.
 
     Phase-1 insertText displaces the doc's initial empty paragraph, leaving a blank line
     stranded between the preceding content and the table.  deleteContentRange is rejected by
     the Docs API for these paragraphs (a paragraph before a table is structurally required),
     so we shrink them instead: spaceAbove/Below = 0, lineSpacing = 1 (1% of normal),
     fontSize = 1 pt, namedStyleType = NORMAL_TEXT (the displaced paragraph inherits the
-    preceding heading's style, #1092).  Only paragraphs whose sole content is a newline are
-    affected, and one sitting between two tables keeps its height (#1098).
+    preceding heading's style, #1092), no bullet and no indent or border (see below).  Only
+    paragraphs whose sole content is a newline are affected, and one sitting between two
+    tables is reset but keeps its height (#1098).
     """
     content = live_doc.get("body", {}).get("content", [])
     requests: list[dict] = []
@@ -1637,21 +1650,27 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
         if start is None or end is None:
             continue
         rng = {"startIndex": start, "endIndex": end}
+        # insertTable gives the paragraph it adds the style of the paragraph at the
+        # insertion point, the block after the table (#1097): a following list's bullet
+        # (a visible empty item, and the list numbered from 2 or 3), a following quote's
+        # indent and border. Reset all of it. deleteParagraphBullets adds indent to keep
+        # a paragraph's visual level, so the indent reset must come after it.
+        requests.append({"deleteParagraphBullets": {"range": rng}})
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    # Named in fields but absent from paragraphStyle: reset to default.
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                    "fields": "namedStyleType,indentStart,indentFirstLine,borderLeft",
+                }
+            }
+        )
         if i >= 2 and "table" in content[i - 2]:
             # The only thing between two tables: collapsed, the tables touched and read
-            # as one (#1098). Left at full height, it's the blank line that separates
-            # them; it still gets NORMAL_TEXT, as above.
-            requests.append(
-                {
-                    "updateParagraphStyle": {
-                        "range": rng,
-                        "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
-                        "fields": "namedStyleType",
-                    }
-                }
-            )
+            # as one (#1098). Left at full height, it's the blank line between them.
             continue
-        requests.extend(_collapse_paragraph_requests(rng, named_style="NORMAL_TEXT"))
+        requests.extend(_collapse_paragraph_requests(rng))
     return requests
 
 

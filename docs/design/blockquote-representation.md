@@ -160,9 +160,27 @@ nested quotes, so nothing is lost. A separator between two quoted lists also spl
 into two Docs lists, as the source has.
 
 `_block_spacing` gives a quoted node 8pt above where its quote meets content outside it
-(an unquoted node, a table, a separator, or the start) and 8pt below likewise, and
-nothing between the paragraphs of one quote. A code block gets 8pt above and below,
-which is what tells two consecutive code blocks apart.
+(an unquoted node, a table, or the start) and 8pt below likewise, and nothing between
+the paragraphs of one quote. A code block gets 8pt above and below, which is what tells
+two consecutive code blocks apart.
+
+Two exceptions, both from PR #1199's QA round 1:
+
+- A separator is spaced on one side only, below the quote before it. Spaced on both
+  sides, two separate quotes sat about 41px apart, baseline to baseline, against 31px
+  between a quote and a plain paragraph.
+- A `Heading`, or a `NamedBlock` with a TITLE/SUBTITLE style, gets no quote-edge space.
+  An explicit `spaceAbove` replaces the named style's own, so a quoted H1 lost HEADING_1's
+  20pt above.
+
+The paragraphs `insertTable` leaves before a table take the style of the block after the
+table (#1097). At full height, the one between two tables showed a following list's
+bullet as an empty numbered item, and collapsed or not, they pushed that list's numbering
+on and carried a following quote's indent and border. `_build_blank_para_before_table_collapses`
+now deletes their bullets and clears `indentStart`, `indentFirstLine`, and `borderLeft`,
+in that order, since `deleteParagraphBullets` adds indent to keep a paragraph's visual
+level. The table cells themselves still take the following block's style, including its
+indent; that part is #1097.
 
 **Markdown input is still affected by the parser.** Python-Markdown parses `> a`, a blank
 line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes. That

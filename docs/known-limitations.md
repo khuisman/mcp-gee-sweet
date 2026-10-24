@@ -23,7 +23,9 @@ equivalent manual deletion.
 `updateParagraphStyle` (`spaceAbove/spaceBelow = 0`, `lineSpacing = 1`) and `updateTextStyle`
 (`fontSize = 1pt`). The paragraph remains in the document structure but is invisible in the
 rendered output. The one exception is a paragraph between two tables: it keeps its height, as
-the blank line that keeps the tables from touching and reading as one (#1098). Related: #190.
+the blank line that keeps the tables from touching and reading as one (#1098). Every such
+paragraph also loses any bullet, indent, or border it took from the block after the table
+(#1097). Related: #190.
 
 ---
 
