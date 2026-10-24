@@ -10,6 +10,8 @@ import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 _SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "kai_status.py"
 _spec = importlib.util.spec_from_file_location("kai_status", _SCRIPT_PATH)
 assert _spec is not None and _spec.loader is not None
@@ -140,3 +142,101 @@ class TestSummarizeChecks:
 def test_age_days():
     now = datetime(2026, 10, 24, 12, tzinfo=UTC)
     assert kai_status.age_days("2026-10-20T13:00:00Z", now) == 3
+
+
+class TestPackageStatus:
+    def test_unpatched_alert_does_not_hide_a_fix_for_the_others(self):
+        """PR #1196 QA round 1: one alert with no patched version used to turn
+        the whole package into "no fix", hiding a PR that closes the rest."""
+        status = kai_status.package_status(["2.0", None, "1.5"], ["1.0"], [(7, "2.0")])
+        assert status == (
+            "open Dependabot PR #7 (-> 2.0); covers 2 of 3 alerts, 1 with no patched version"
+        )
+
+    def test_all_unpatched(self):
+        assert kai_status.package_status([None, None], ["1.0"], []).startswith("no fix (no patched")
+
+    def test_invalid_fix_version_is_treated_as_unpatched(self):
+        """`max(fixes, key=Version)` used to raise InvalidVersion here."""
+        status = kai_status.package_status(["not-a-version", "1.2"], ["1.2"], [])
+        assert status.startswith("fixed on develop") and "1 with no patched version" in status
+
+
+class TestCanonicalNames:
+    def test_title_and_lock_names_meet_under_pep_503(self):
+        """uv.lock stores normalized names; an alert or title spelling one with
+        `_` or `.` must still match it."""
+        assert kai_status.dependabot_pr_target("bump Typing_Extensions from 4.0 to 4.1") == (
+            "typing-extensions",
+            "4.1",
+        )
+        lock = '[[package]]\nname = "zope.interface"\nversion = "7.0"\n'
+        assert kai_status.locked_versions(lock) == {"zope-interface": ["7.0"]}
+
+
+class TestSoloOnlyConflict:
+    def _issue(self, *labels):
+        return {"labels": [{"name": lb} for lb in ("ready-for-development", *labels)]}
+
+    def test_solo_only_alone_is_the_correct_state(self):
+        assert not kai_status.solo_only_conflict([self._issue("solo-only")])
+
+    def test_solo_only_alongside_another_ticket(self):
+        assert kai_status.solo_only_conflict([self._issue("solo-only"), self._issue("lane-a")])
+
+    def test_no_solo_only(self):
+        assert not kai_status.solo_only_conflict([self._issue(), self._issue()])
+
+
+class TestParseWorktrees:
+    MAIN = Path("/repo")
+
+    def test_keys_slots_by_name_and_others_by_path(self):
+        porcelain = (
+            "worktree /repo\nHEAD a\nbranch refs/heads/develop\n\n"
+            "worktree /repo/.claude/worktrees/ash\nHEAD b\nbranch refs/heads/team/ash\n\n"
+            "worktree /elsewhere/jay\nHEAD c\nbranch refs/heads/scratch\n"
+        )
+        assert kai_status.parse_worktrees(porcelain, self.MAIN) == {
+            "ash": "team/ash",
+            "/elsewhere/jay": "scratch",
+        }
+
+    def test_detached_follows_the_same_keying(self):
+        """PR #1196 QA round 1: a detached worktree was keyed by directory name
+        unconditionally, so a detached main checkout listed as a slot and a
+        detached `.../ash` elsewhere overwrote lane A's entry."""
+        porcelain = (
+            "worktree /repo\nHEAD a\ndetached\n\n"
+            "worktree /repo/.claude/worktrees/ash\nHEAD b\nbranch refs/heads/team/ash\n\n"
+            "worktree /tmp/ash\nHEAD c\ndetached\n"
+        )
+        assert kai_status.parse_worktrees(porcelain, self.MAIN) == {
+            "ash": "team/ash",
+            "/tmp/ash": "(detached)",
+        }
+
+
+class TestRunAndMain:
+    def test_missing_executable_is_a_command_error(self):
+        """PR #1196 QA round 1: with `gh` off PATH, FileNotFoundError escaped
+        and the script died after the Worktrees section."""
+        with pytest.raises(kai_status.CommandError, match="could not run"):
+            kai_status.run(["definitely-not-a-real-command-1195"])
+
+    def test_empty_gh_output_is_an_empty_list(self, monkeypatch):
+        monkeypatch.setattr(kai_status, "run", lambda cmd, cwd=None: "")
+        assert kai_status.gh_json(["pr", "list"]) == []
+
+    def test_every_section_runs_when_one_raises_unexpectedly(self, monkeypatch, capsys):
+        def boom(*a, **k):
+            raise ValueError("unexpected")
+
+        monkeypatch.setattr(kai_status, "section_checkout", boom)
+        monkeypatch.setattr(kai_status, "section_worktrees", lambda: (["wt"], {}))
+        monkeypatch.setattr(kai_status, "gh_json", lambda args: [])
+        monkeypatch.setattr(kai_status, "section_dependabot", lambda prs: ["dep"])
+        assert kai_status.main(["--no-fetch"]) == 1
+        out = capsys.readouterr().out
+        assert "ERROR: ValueError: unexpected" in out
+        assert "== Dependabot alerts ==\n  dep" in out

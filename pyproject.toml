@@ -101,4 +101,5 @@ dev = [
     "ruff>=0.16.5",
     "tomli>=2.0.1; python_version < '3.11'",
     "markdown-it-py>=3.0.0",
+    "packaging>=26.3",
 ]

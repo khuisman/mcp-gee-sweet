@@ -12,12 +12,13 @@ against the real `origin/develop` rather than a stale copy.
 
 The judgment calls stay in kai.md: community intake labeling, lane collisions,
 which ticket to queue next, and every merge. This script just lays out the
-state those rules act on. A section whose query fails prints the error and
-the report carries on, so one missing permission (e.g. advisories) doesn't
-hide the rest.
+state those rules act on. A section that fails for any reason prints
+`ERROR:` and the report carries on, so one missing permission (e.g.
+advisories) or missing tool doesn't hide the rest.
 
 `gh` infers the repo from the git remote (and `gh api` fills `{owner}/{repo}`
-from it), so nothing here hardcodes a slug; a fork works unchanged.
+from it), so the repo slug isn't hardcoded. The maintainer logins, lane map,
+and project name below are this repo's own.
 """
 
 from __future__ import annotations
@@ -27,16 +28,19 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 import tomllib
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 ROOT = Path(__file__).resolve().parent.parent
 
 # Maintainer accounts. kai.md decides "outside contributor" by login, not by
-# GitHub's authorAssociation, which reports kh-kev as NONE.
+# GitHub's authorAssociation, which reports kh-kev as NONE. Keep this in sync
+# with kai.md's "Community intake" list.
 MAINTAINERS = frozenset({"khuisman", "kh-kev"})
 
 # Dev slot → its lane label. QA slots follow their Dev's lane.
@@ -50,7 +54,10 @@ class CommandError(RuntimeError):
 
 
 def run(cmd: list[str], cwd: Path = ROOT) -> str:
-    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    except OSError as e:  # e.g. `gh` not on PATH
+        raise CommandError(f"`{cmd[0]}` could not run: {e}") from e
     if proc.returncode != 0:
         raise CommandError(
             f"`{' '.join(cmd)}` failed: {proc.stderr.strip() or proc.stdout.strip()}"
@@ -58,8 +65,9 @@ def run(cmd: list[str], cwd: Path = ROOT) -> str:
     return proc.stdout
 
 
-def gh_json(args: list[str]) -> list | dict:
-    return json.loads(run(["gh", *args]) or "null")
+def gh_json(args: list[str]) -> list:
+    out = run(["gh", *args])
+    return json.loads(out) if out.strip() else []
 
 
 # --- Pure classification (unit-tested) -------------------------------------
@@ -73,6 +81,33 @@ def branch_owner(head_ref: str) -> str | None:
     """The slot name in `<type>/<name>/...`, or None for any other shape."""
     parts = head_ref.split("/")
     return parts[1] if len(parts) >= 3 else None
+
+
+def parse_worktrees(porcelain: str, main: Path) -> dict[str, str]:
+    """`git worktree list --porcelain` → {slot name or path: branch}.
+
+    A worktree under `<main>/.claude/worktrees/` is keyed by its slot name; any
+    other one by its full path, so a directory that happens to be named `ash`
+    elsewhere can't stand in for that slot. The main checkout is left out:
+    the checkout section covers it.
+    """
+    slots = main / ".claude" / "worktrees"
+    out: dict[str, str] = {}
+    path: Path | None = None
+    for ln in porcelain.splitlines():
+        if ln.startswith("worktree "):
+            path = Path(ln.removeprefix("worktree "))
+            continue
+        if path is None or path == main:
+            continue
+        if ln.startswith("branch "):
+            branch = ln.removeprefix("branch refs/heads/")
+        elif ln == "detached":
+            branch = "(detached)"
+        else:
+            continue
+        out[path.name if path.parent == slots else str(path)] = branch
+    return out
 
 
 def _version(text: str | None) -> Version | None:
@@ -94,7 +129,7 @@ def dependabot_pr_target(title: str) -> tuple[str, str] | None:
     one package, so it never counts as a package's fix PR.
     """
     m = _BUMP_RE.search(title)
-    return (m["pkg"].lower(), m["new"]) if m else None
+    return (canonicalize_name(m["pkg"]), m["new"]) if m else None
 
 
 def locked_versions(lock_text: str) -> dict[str, list[str]]:
@@ -103,7 +138,7 @@ def locked_versions(lock_text: str) -> dict[str, list[str]]:
     for pkg in tomllib.loads(lock_text).get("package", []):
         # The project's own editable entry has no version; nothing to compare.
         if "version" in pkg:
-            out.setdefault(pkg["name"].lower(), []).append(pkg["version"])
+            out.setdefault(canonicalize_name(pkg["name"]), []).append(pkg["version"])
     return out
 
 
@@ -131,6 +166,29 @@ def fix_status(
         if tv is not None and tv >= fix:
             return f"open Dependabot PR #{number} (-> {target})"
     return f"no fix (locked {', '.join(locked) or 'not in uv.lock'}, needs >= {highest_fix})"
+
+
+def package_status(
+    fixes: list[str | None],
+    locked: list[str],
+    pr_targets: list[tuple[int, str]],
+) -> str:
+    """Fix status for one package's alerts, given each alert's patched version.
+
+    An alert with no patched version can't be fixed, but it doesn't hide a
+    PR or a develop fix that closes the package's other alerts: the status is
+    computed over the patched ones and the rest are counted alongside it.
+    """
+    patched = [v for f in fixes if (v := _version(f)) is not None]
+    if not patched:
+        return fix_status(None, locked, pr_targets)
+    status = fix_status(str(max(patched)), locked, pr_targets)
+    unpatched = len(fixes) - len(patched)
+    if unpatched:
+        status += (
+            f"; covers {len(patched)} of {len(fixes)} alerts, {unpatched} with no patched version"
+        )
+    return status
 
 
 def user_reach(invert_tree: str) -> str:
@@ -172,15 +230,30 @@ def summarize_checks(rollup: list[dict]) -> str:
     return summary if has_lint else f"{summary}; Lint and test ABSENT"
 
 
+def solo_only_conflict(rfd: list[dict]) -> bool:
+    """True when a `solo-only` ticket is ready alongside any other ready ticket.
+
+    A solo-only ticket alone in the queue is the correct state (kai.md
+    "Ticket triage and labeling"), so it isn't flagged.
+    """
+    return len(rfd) > 1 and any("solo-only" in _labels(i) for i in rfd)
+
+
 def age_days(iso: str, now: datetime) -> int:
     return (now - datetime.fromisoformat(iso.replace("Z", "+00:00"))).days
+
+
+def _labels(item: dict) -> list[str]:
+    return [lb["name"] for lb in item.get("labels", [])]
 
 
 # --- Sections ---------------------------------------------------------------
 
 
-def _labels(item: dict) -> list[str]:
-    return [lb["name"] for lb in item.get("labels", [])]
+def main_checkout() -> Path:
+    """The main checkout, even when this script runs from a worktree's copy."""
+    common = run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
+    return Path(common).parent
 
 
 def section_checkout() -> list[str]:
@@ -198,30 +271,11 @@ def section_checkout() -> list[str]:
     return lines
 
 
-def main_checkout() -> Path:
-    """The main checkout, even when this script runs from a worktree's copy."""
-    common = run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
-    return Path(common).parent
-
-
 def section_worktrees() -> tuple[list[str], dict[str, str]]:
-    lines, branches = [], {}
     main = main_checkout()
     slots = main / ".claude" / "worktrees"
-    path = None
-    for ln in run(["git", "worktree", "list", "--porcelain"]).splitlines():
-        if ln.startswith("worktree "):
-            path = Path(ln.removeprefix("worktree "))
-        elif ln.startswith("branch ") and path is not None:
-            branch = ln.removeprefix("branch refs/heads/")
-            if path.parent == slots:
-                branches[path.name] = branch
-            elif path == main:
-                continue
-            else:
-                branches[str(path)] = branch
-        elif ln == "detached" and path is not None:
-            branches[path.name] = "(detached)"
+    branches = parse_worktrees(run(["git", "worktree", "list", "--porcelain"]), main)
+    lines = []
     for name, branch in sorted(branches.items()):
         state = "idle" if branch == f"team/{name}" else "busy"
         dirty = ""
@@ -268,10 +322,8 @@ def section_rfd(rfd: list[dict]) -> list[str]:
             lines.append(
                 f"      FLAG: carries both good first issue and {lanes[0]} (kai.md: fix on sight)"
             )
-    if any("solo-only" in _labels(i) for i in rfd):
-        lines.append(
-            "FLAG: a solo-only ticket is ready-for-development; queue nothing alongside it"
-        )
+    if solo_only_conflict(rfd):
+        lines.append("FLAG: a solo-only ticket is ready-for-development alongside other tickets")
     return lines or ["none"]
 
 
@@ -305,8 +357,20 @@ def section_advisories(now: datetime) -> list[str]:
     ]
 
 
+def _alert_fix(alert: dict) -> str | None:
+    return (alert["security_vulnerability"].get("first_patched_version") or {}).get("identifier")
+
+
+def _severity_text(alerts: list[dict]) -> str:
+    counts: dict[str, int] = {}
+    for a in alerts:
+        sev = a["security_advisory"]["severity"]
+        counts[sev] = counts.get(sev, 0) + 1
+    return ", ".join(f"{n} {s}" for s, n in sorted(counts.items()))
+
+
 def section_dependabot(prs: list[dict]) -> list[str]:
-    alerts = gh_json(
+    pages = gh_json(
         [
             "api",
             "--paginate",
@@ -314,42 +378,62 @@ def section_dependabot(prs: list[dict]) -> list[str]:
             "repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=100",
         ]
     )
-    alerts = [a for page in alerts for a in page]
+    alerts = [a for page in pages for a in page]
     if not alerts:
         return ["no open alerts"]
-    locked = locked_versions(run(["git", "show", "origin/develop:uv.lock"]))
-    pr_targets: dict[str, list[tuple[int, str]]] = {}
-    for p in prs:
-        if p["author"].get("is_bot") and (t := dependabot_pr_target(p["title"])):
-            pr_targets.setdefault(t[0], []).append((p["number"], t[1]))
 
-    by_pkg: dict[str, list[dict]] = {}
-    for a in alerts:
-        by_pkg.setdefault(a["dependency"]["package"]["name"].lower(), []).append(a)
-
+    pip = [a for a in alerts if a["dependency"]["package"]["ecosystem"] == "pip"]
+    other = [a for a in alerts if a["dependency"]["package"]["ecosystem"] != "pip"]
     lines = []
-    for pkg, pkg_alerts in sorted(by_pkg.items()):
-        severities: dict[str, int] = {}
-        fixes = []
-        for a in pkg_alerts:
-            sev = a["security_advisory"]["severity"]
-            severities[sev] = severities.get(sev, 0) + 1
-            fixes.append(
-                (a["security_vulnerability"].get("first_patched_version") or {}).get("identifier")
+
+    if pip:
+        # Fix status and reach both read origin/develop's lockfile, not the
+        # working tree's, so the two halves of a row describe the same lock.
+        lock_text = run(["git", "show", "origin/develop:uv.lock"])
+        locked = locked_versions(lock_text)
+        pr_targets: dict[str, list[tuple[int, str]]] = {}
+        for p in prs:
+            if p["author"].get("is_bot") and (t := dependabot_pr_target(p["title"])):
+                pr_targets.setdefault(t[0], []).append((p["number"], t[1]))
+
+        by_pkg: dict[str, list[dict]] = {}
+        for a in pip:
+            by_pkg.setdefault(canonicalize_name(a["dependency"]["package"]["name"]), []).append(a)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / "pyproject.toml").write_text(
+                run(["git", "show", "origin/develop:pyproject.toml"])
             )
-        # One unpatched alert leaves the package unfixable whatever the rest say.
-        highest = None if None in fixes else max(fixes, key=Version)
-        try:
-            reach = user_reach(run(["uv", "tree", "--invert", "--package", pkg, "--frozen"]))
-        except CommandError as e:
-            reach = f"unknown ({e})"
-        sev_text = ", ".join(f"{n} {s}" for s, n in sorted(severities.items()))
-        lines.append(f"{pkg}: {len(pkg_alerts)} alert(s) ({sev_text})")
+            (project / "uv.lock").write_text(lock_text)
+            for pkg, pkg_alerts in sorted(by_pkg.items()):
+                try:
+                    tree = run(
+                        ["uv", "tree", "--frozen", "--project", tmp, "--invert", "--package", pkg]
+                    )
+                    reach = user_reach(tree)
+                except CommandError as e:
+                    reach = f"unknown ({e})"
+                status = package_status(
+                    [_alert_fix(a) for a in pkg_alerts],
+                    locked.get(pkg, []),
+                    pr_targets.get(pkg, []),
+                )
+                lines.append(f"{pkg}: {len(pkg_alerts)} alert(s) ({_severity_text(pkg_alerts)})")
+                lines.append(f"      status: {status}")
+                lines.append(f"      reach: {reach}")
+                lines.append(
+                    f"      alerts: {', '.join('#' + str(a['number']) for a in pkg_alerts)}"
+                )
+
+    # No lockfile or uv tree for other ecosystems (e.g. github-actions); just
+    # what the alert itself says.
+    for a in other:
+        pkg = a["dependency"]["package"]
         lines.append(
-            f"      status: {fix_status(highest, locked.get(pkg, []), pr_targets.get(pkg, []))}"
+            f"{pkg['ecosystem']} {pkg['name']}: alert #{a['number']} "
+            f"({a['security_advisory']['severity']}), fix {_alert_fix(a) or 'none'}"
         )
-        lines.append(f"      reach: {reach}")
-        lines.append(f"      alerts: {', '.join('#' + str(a['number']) for a in pkg_alerts)}")
     return lines
 
 
@@ -371,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def fetch(key: str, args: list[str]) -> list[dict]:
         if key not in cache:
-            cache[key] = gh_json(args)  # type: ignore[assignment]
+            cache[key] = gh_json(args)
         return cache[key]
 
     def prs() -> list[dict]:
@@ -389,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
 
     branches: dict[str, str] = {}
 
-    def worktrees():
+    def worktrees() -> list[str]:
         lines, found = section_worktrees()
         branches.update(found)
         return lines
@@ -409,9 +493,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"== {title} ==")
         try:
             body = build()
-        except (CommandError, json.JSONDecodeError, KeyError) as e:
+        except Exception as e:  # the contract: one section's failure never ends the report
             failed = True
-            body = [f"ERROR: {e}"]
+            body = [f"ERROR: {type(e).__name__}: {e}"]
         for line in body:
             print(f"  {line}")
         print()
