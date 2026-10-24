@@ -2121,7 +2121,7 @@
 </tr>
 <tr>
 <td><code>delete_paragraph_bullets</code></td>
-<td>Remove list membership (bullets/numbering) from one or more paragraph ranges, leaving each paragraph's text and other styling untouched.</td>
+<td>Remove list membership (bullets/numbering) from one or more paragraph ranges, leaving each paragraph's text and other styling untouched. The API keeps a nested item's indent as paragraph indentation (36pt per nesting level for the standard presets), so a nested item stays indented after its bullet is gone; a top-level item doesn't.</td>
 <td><code>doc_id</code>, <code>ranges</code></td>
 </tr>
 <tr>
