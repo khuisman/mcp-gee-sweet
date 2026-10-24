@@ -115,8 +115,9 @@ def _http_timeout_seconds() -> float:
         )
         return default
     if value > _MAX_HTTP_TIMEOUT_SECONDS:
-        # A value past the platform's time_t (1e10 on macOS, and inf) passes settimeout()
-        # but makes every connect() raise OverflowError, failing every tool call.
+        # settimeout() rejects a value past the platform's time_t (1e10 on macOS, and
+        # inf) with OverflowError, and httplib2 calls it inside every connect(), so every
+        # tool call failed.
         logger.warning(
             "HTTP_TIMEOUT_SECONDS=%r is over the %g s maximum; using %g",
             raw,

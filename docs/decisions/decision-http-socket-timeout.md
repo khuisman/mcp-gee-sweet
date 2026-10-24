@@ -29,7 +29,7 @@ A timed-out read is resent once on a new connection. That falls out of #1052's e
 
 ### 2. `HTTP_TIMEOUT_SECONDS` is configurable
 
-This follows the project's knobs-not-hardcoding philosophy. Valid values are positive numbers (fractions are allowed). An invalid, zero, negative, or NaN value logs a warning and uses the default: zero can't mean "no timeout", because a 0 socket timeout means non-blocking. A value over one day (`_MAX_HTTP_TIMEOUT_SECONDS`), `inf` included, logs a warning and uses one day. `settimeout()` accepts a value past the platform's `time_t`, but every later `connect()` raises `OverflowError` (`1e10` on macOS, found in PR #1198 QA round 1), which failed every tool call. It's read once at import, like `MAX_TOOL_RESPONSE_CHARS`. `socket.setdefaulttimeout()` isn't consulted, unlike `build_http()`: the server never sets it, and an env var is the documented interface.
+This follows the project's knobs-not-hardcoding philosophy. Valid values are positive numbers (fractions are allowed). An invalid, zero, negative, or NaN value logs a warning and uses the default: zero can't mean "no timeout", because a 0 socket timeout means non-blocking. A value over one day (`_MAX_HTTP_TIMEOUT_SECONDS`), `inf` included, logs a warning and uses one day. `settimeout()` rejects a value past the platform's `time_t` with `OverflowError` (`1e10` and `inf` on macOS, found in PR #1198 QA round 1), and httplib2 calls it inside every `connect()`, so every tool call failed. It's read once at import, like `MAX_TOOL_RESPONSE_CHARS`. `socket.setdefaulttimeout()` isn't consulted, unlike `build_http()`: the server never sets it, and an env var is the documented interface.
 
 ### 3. A timeout error that says what happened
 
