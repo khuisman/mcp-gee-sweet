@@ -2135,19 +2135,66 @@ class TestTablePlaceholder:
         bold = next(r for r in requests if "updateTextStyle" in r)
         assert bold["updateTextStyle"]["range"] == {"startIndex": 9, "endIndex": 15}
 
-    def test_placeholder_gets_no_styling_but_a_bullet_delete(self):
+    @staticmethod
+    def _touching(requests: list[dict], rng: dict) -> list[int]:
+        return [
+            i
+            for i, r in enumerate(requests)
+            for v in r.values()
+            if isinstance(v, dict) and v.get("range") == rng
+        ]
+
+    @staticmethod
+    def _plain(rng: dict, paragraph_style: dict | None = None) -> list[dict]:
+        return [
+            {"deleteParagraphBullets": {"range": rng}},
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": paragraph_style or {"namedStyleType": "NORMAL_TEXT"},
+                    "fields": "*",
+                }
+            },
+            {"updateTextStyle": {"range": rng, "textStyle": {}, "fields": "*"}},
+        ]
+
+    def test_placeholder_reset_to_plain_after_bullets_before_insert(self):
         nodes = [self._table(), BulletItem(runs=[Run("one")], depth=0, ordered=True)]
         requests, _ = ast_to_requests(nodes)
         placeholder = {"startIndex": 1, "endIndex": 2}
-        touching = [
-            r
-            for r in requests
-            for v in r.values()
-            if isinstance(v, dict) and v.get("range") == placeholder
+        touching = self._touching(requests, placeholder)
+        assert [requests[i] for i in touching] == self._plain(placeholder)
+        bullets = next(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert requests[bullets]["createParagraphBullets"]["range"]["startIndex"] == 2
+        insert = next(i for i, r in enumerate(requests) if "insertTable" in r)
+        assert all(bullets < i < insert for i in touching)
+
+    def test_table_between_list_items_keeps_one_list_and_a_plain_placeholder(self):
+        # PR #1201 QA round 1: the bullet run skips Table nodes, so "1. a" / table /
+        # "2. b" is one createParagraphBullets range, placeholder included. Both items
+        # stay one list (one call), and the placeholder loses its bullet afterward.
+        nodes = [
+            BulletItem(runs=[Run("a")], depth=0, ordered=True),
+            BulletItem(runs=[Run("b")], depth=1, ordered=True),
+            self._table(),
+            BulletItem(runs=[Run("c")], depth=0, ordered=True),
         ]
-        assert touching == [{"deleteParagraphBullets": {"range": placeholder}}]
-        bullets = next(r for r in requests if "createParagraphBullets" in r)
-        assert bullets["createParagraphBullets"]["range"]["startIndex"] == 2
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\n\tb\n\nc\n"
+        bullet_calls = [i for i, r in enumerate(requests) if "createParagraphBullets" in r]
+        assert len(bullet_calls) == 1
+        assert requests[bullet_calls[0]]["createParagraphBullets"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 9,
+        }
+        # The placeholder sits at 6 in the inserted text, 5 once b's tab is consumed.
+        placeholder = {"startIndex": 5, "endIndex": 6}
+        touching = self._touching(requests, placeholder)
+        assert [requests[i] for i in touching] == self._plain(placeholder)
+        table = next(i for i, r in enumerate(requests) if "insertTable" in r)
+        assert requests[table]["insertTable"]["location"]["index"] == 5
+        assert all(bullet_calls[0] < i < table for i in touching)
 
     def test_consecutive_tables_each_get_a_placeholder(self):
         nodes = [self._table(), self._table(1, 2)]
@@ -2172,3 +2219,59 @@ class TestTablePlaceholder:
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "a\nb\n"
         assert not any("deleteContentRange" in r for r in requests)
+
+
+class TestQuotedTable:
+    """A table inside a blockquote is indented like the quote (#1097, PR #1201 QA round
+    1): inserted at the following quote paragraph it took that indent by accident, and at
+    a plain placeholder it lost it. No border: the table doesn't take one."""
+
+    def test_parser_records_quote_depth_on_a_top_level_table(self):
+        nodes = html_to_ast(
+            "<blockquote><p>a</p><table><tr><td>x</td></tr></table><p>b</p></blockquote>"
+            "<table><tr><td>y</td></tr></table>"
+        )
+        tables = [n for n in nodes if isinstance(n, Table)]
+        assert [t.blockquote_depth for t in tables] == [1, 0]
+
+    def test_markdown_quoted_table_gets_quote_depth(self):
+        md = "> quote a\n>\n> | Q | R |\n> |---|---|\n> | 1 | 2 |\n>\n> quote b\n"
+        nodes = html_to_ast(_md_to_html(md))
+        (table,) = [n for n in nodes if isinstance(n, Table)]
+        assert table.blockquote_depth == 1
+
+    def test_quoted_table_placeholder_indented_without_border(self):
+        table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])], blockquote_depth=2)
+        requests, _ = ast_to_requests([Paragraph(runs=[Run("a")]), table])
+        rng = {"startIndex": 3, "endIndex": 4}
+        style = next(
+            r["updateParagraphStyle"]
+            for r in requests
+            if r.get("updateParagraphStyle", {}).get("range") == rng
+        )
+        assert style["paragraphStyle"] == {
+            "namedStyleType": "NORMAL_TEXT",
+            "indentStart": {"magnitude": 72, "unit": "PT"},
+            "indentFirstLine": {"magnitude": 72, "unit": "PT"},
+        }
+        assert style["fields"] == "*"
+
+    def test_quoted_table_is_not_quoted_for_separators_or_spacing(self):
+        # Table.blockquote_depth is indent only: two quotes around a table still get
+        # quote-edge spacing against it, and no separator is added next to it.
+        nodes = html_to_ast(
+            "<blockquote><p>a</p><table><tr><td>x</td></tr></table><p>b</p></blockquote>"
+        )
+        requests, _ = ast_to_requests(nodes)
+        spacing = [
+            r["updateParagraphStyle"]["paragraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and set(r["updateParagraphStyle"]["paragraphStyle"]) & {"spaceAbove", "spaceBelow"}
+        ]
+        assert spacing == [
+            {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
+            {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+            {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
+            {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+        ]

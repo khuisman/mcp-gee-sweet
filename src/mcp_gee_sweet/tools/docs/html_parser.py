@@ -794,6 +794,7 @@ class _AstParser(HTMLParser):
                 node = tb.build()
                 if node is not None:
                     if self._table_depth == 1:
+                        node.blockquote_depth = len(self._blockquote_ids)
                         self._nodes.append(node)
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)

@@ -219,8 +219,15 @@ field to reset the table's indent afterward (it shows only as `margin-left` in t
 export). Inserted at the start of the next block, a table after a list or quote was
 indented to it, and one before a bold, Courier New, or heading-styled first character put
 that style in every cell. So step 1's text holds an empty placeholder paragraph at each
-table's position. Nothing styles it except `deleteParagraphBullets`, like a plain
-paragraph. The table is inserted at the placeholder, which `insertTable` pushes to just
+table's position. After the bullet pass, `_table_placeholder_requests` resets it to plain:
+`deleteParagraphBullets`, then `updateParagraphStyle` with `fields: "*"` (`NORMAL_TEXT`,
+every other field at its default), then `updateTextStyle` with `fields: "*"`. It runs
+after the bullet pass because a table between two same-preset list items sits inside
+their one `createParagraphBullets` range: the run skips Table nodes, so both items stay
+one list, and the placeholder loses its bullet afterward (PR #1201 QA round 1). A table
+inside a quote (`Table.blockquote_depth`, set by the parser) gets the quote's indent on
+its placeholder, 36pt per level, and no border. It still doesn't count as quoted for
+separators or quote-edge spacing. The table is inserted at the placeholder, which `insertTable` pushes to just
 after the table, and a `deleteContentRange` right after the `insertTable` removes it, at
 `position + _inserted_table_length(rows, columns)`. Deleting the paragraph *after* a
 table is allowed; only the one before it is structurally required (see

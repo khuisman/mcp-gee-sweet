@@ -2853,15 +2853,21 @@ class TestUpdateDocFromFile:
         calls = self._batchupdate_calls(docs_svc)
 
         clear_requests = calls[0]
-        assert len(clear_requests) == 2
-        assert clear_requests[0]["updateTextStyle"]["range"] == {
-            "startIndex": 49,
-            "endIndex": 50,
-        }
-        assert clear_requests[1]["deleteContentRange"]["range"] == {
-            "startIndex": 1,
-            "endIndex": 49,
-        }
+        final_mark = {"startIndex": 49, "endIndex": 50}
+        assert clear_requests == [
+            {"updateTextStyle": {"range": final_mark, "textStyle": {}, "fields": "*"}},
+            # The final mark's paragraph style survives the clear too: a doc ending in a
+            # heading made every new paragraph that heading (PR #1201 QA round 1).
+            {"deleteParagraphBullets": {"range": final_mark}},
+            {
+                "updateParagraphStyle": {
+                    "range": final_mark,
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                    "fields": "*",
+                }
+            },
+            {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": 49}}},
+        ]
         content_requests = calls[1]
         assert any("insertText" in r for r in content_requests)
 
@@ -3623,14 +3629,17 @@ class TestWriteDocContent:
         await _docs_tools["write_doc_content"](doc_id="doc1", content="<p>New content</p>", ctx=ctx)
         calls = self._batchupdate_calls(docs_svc)
 
-        # First batchUpdate call: clear + delete, nothing else.
+        # First batchUpdate call: the final mark's text and paragraph style reset, then
+        # the delete, nothing else.
         clear_requests = calls[0]
-        assert len(clear_requests) == 2
+        assert len(clear_requests) == 4
         clear_style = clear_requests[0]["updateTextStyle"]
         assert clear_style["range"] == {"startIndex": 49, "endIndex": 50}
         assert clear_style["textStyle"] == {}
         assert clear_style["fields"] == "*"
-        assert clear_requests[1]["deleteContentRange"]["range"] == {
+        assert "deleteParagraphBullets" in clear_requests[1]
+        assert clear_requests[2]["updateParagraphStyle"]["fields"] == "*"
+        assert clear_requests[3]["deleteContentRange"]["range"] == {
             "startIndex": 1,
             "endIndex": 49,
         }
@@ -4400,7 +4409,7 @@ class TestReplaceDocBackup:
         ]
         await self._write(self._ctx(drive_svc, docs_svc))
         clear = docs_svc.documents.return_value.batchUpdate.call_args_list[0].kwargs["body"]
-        assert clear["requests"][1]["deleteContentRange"]["range"] == {
+        assert clear["requests"][-1]["deleteContentRange"]["range"] == {
             "startIndex": 1,
             "endIndex": 79,
         }

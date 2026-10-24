@@ -609,12 +609,18 @@ async def _replace_doc_content(
         # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
         # table, see _build_blank_para_before_table_collapses in emitter.py — would
         # otherwise survive this "clear" and can leak into newly-inserted content below.
-        # Reset it before deleting, while its original index range is still valid.
+        # Its paragraph style survives the same way: a doc ending in a heading made every
+        # new paragraph that heading, and a table's placeholder with it (PR #1201 QA
+        # round 1). Reset both before deleting, while the original index range is still
+        # valid; bullets first, since deleteParagraphBullets adds indent.
+        final_mark = {"startIndex": end_index - 1, "endIndex": end_index}
         clear_requests = [
+            {"updateTextStyle": {"range": final_mark, "textStyle": {}, "fields": "*"}},
+            {"deleteParagraphBullets": {"range": final_mark}},
             {
-                "updateTextStyle": {
-                    "range": {"startIndex": end_index - 1, "endIndex": end_index},
-                    "textStyle": {},
+                "updateParagraphStyle": {
+                    "range": final_mark,
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
                     "fields": "*",
                 }
             },

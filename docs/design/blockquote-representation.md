@@ -182,7 +182,11 @@ in that order, since `deleteParagraphBullets` adds indent to keep a paragraph's 
 level. The table itself and its cells took the following block's style too, including
 its indent. Since #1097 each table is inserted at a plain placeholder paragraph of its own
 instead (see `docs-ast-pipeline.md`), so none of it reaches the table, and the reset above
-stays as a backstop.
+stays as a backstop. A table inside a quote used to get the quote's indent only by that
+accident, from the quote paragraph after it. Now the parser records its quote depth on
+the `Table` (`blockquote_depth`, no path), and its placeholder gets the quote's indent
+(36pt per level) and no border. A table can't take a left border, so a quoted table sits
+indented between the quote's bordered paragraphs, with a gap in the bar beside it.
 
 **Markdown input is still affected by the parser.** Python-Markdown parses `> a`, a blank
 line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes. That

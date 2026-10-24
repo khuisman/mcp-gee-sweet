@@ -84,6 +84,9 @@ class Table:
     rows: list[Row]
     col_widths: list[float | None] = field(default_factory=list)
     table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
+    # Indent only (#1097): the emitter indents a quoted table like its quote, but gives
+    # it no border or quote spacing, and doesn't count it as quoted for separators.
+    blockquote_depth: int = 0
 
 
 # blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
