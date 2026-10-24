@@ -2306,6 +2306,9 @@ Run 2 (ash).
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: create_doc_from_file(.html) returned 6 successes plus a per-image error for Case 8. Cases 1–5 render (tc-doc102.png). Case 6 and Case 7 table-cell images are dropped silently, with no images entry (tc-doc102b.png). Tracked in #1073 (open). Headings and the final paragraph are intact. Doc trashed.
 
+**Result (2026-10-24) ⚠️ PARTIAL — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc_from_file(.html) returned no error, with 8 image successes plus the Case 8 per-image error (`doc edit failed: insertInlineImage: There was a problem retrieving the image…`). Raw `documents().get()`: Cases 1–5 as before; Case 6's image cell holds one `inlineObjectElement`; Case 7's nested cell holds one. All 8 headings and the final paragraph are present. Playwright (`2026-10-24-tc-doc102.png`): a logo in both table cells. **Defect:** Case 7's outer cell holds three paragraphs before the nested table (`""`, `""`, 10 spaces), from the fixture's indentation whitespace (`<td>\n      <table>`). They push the nested table onto the next page, away from its row. `html_to_ast` gives the cell the same `Run('\n      ')` on `develop`, so it predates #1073 (sent back on PR #1215, since `html_parser.py` is in its diff). Doc trashed.
+
 ---
 
 ### TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
@@ -2334,6 +2337,9 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: create_doc_from_file(.md) returned 7 successes plus the Case 8 error. The Case 7 reference-style image renders (tc-doc103b.png), but the Case 6 table-cell image is dropped silently. Tracked in #1073. Doc trashed.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc_from_file(.md) returned no error, with 8 image successes plus the Case 8 per-image error. Raw `documents().get()`: Case 6's image cell holds one `inlineObjectElement`, Case 7 reads `Reference-style: [IMG]`, and headings and the final paragraph are intact. Playwright (`2026-10-24-tc-doc103.png`): logos in the Case 6 cell and Case 7. Doc trashed.
 
 ---
 
@@ -3679,6 +3685,9 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: All of the case's own checks are met: no error, no images key, cells "Before" / "" / "After", no hang. However, the table-cell image is dropped silently, which is the open known limitation #1073. Recorded as FAIL under the known-limitation rule; v0.9.2 recorded PASS.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc returned promptly with no error, and `images` held one entry for the logo URL, with no `error`. `get_doc_structure`: cells `Before` / `` / `After`. Raw `documents().get()`: cell 1's paragraph holds one `inlineObjectElement` and no text. Playwright (`2026-10-24-tc-doc153.png`): the logo shows in the middle cell. Doc trashed.
 
 ---
 
@@ -6206,3 +6215,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 - 🔍 Playwright (step 1's doc): a logo shows in every cell the raw read shows `[IMG]` in, and none in the `bad:` cell. Text sits on the expected side of each logo; the nested table sits between "Lead" and "tail"
 
 **Cleanup:** trash both docs
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: steps 1 and 2 returned no error. Step 1's `images` held 8 entries: `example.invalid` had `doc edit failed: insertInlineImage: There was a problem retrieving the image…`, and the other 7 had no error. Raw read: row 0 is `Text then [IMG] then text` / `[IMG][IMG]` / `After`; row 1 is `[IMG]` (link `https://example.com/linked`) / `bad:  end` / `plain`. The second table reads `Lead [IMG]`, then the nested table (`[IMG] inner`), then `tail [IMG]`; "Final paragraph" follows. Step 2 raw read: `[IMG] and [IMG]`. Step 3: the `Two` row is `![](…) and ![](…)`. Playwright (`2026-10-24-tc-doc234.png`): logos match the raw read, none in `bad:`, and the nested table sits between Lead and tail. Probe (not a Check): a local-path PNG in a top-level cell and in a nested cell, on the Shared Drive default folder, uploaded, embedded at the right offset (`local: [IMG] end`, `nested [IMG]`), and reported `shared: false` after revoke. Both docs and both uploads trashed.
