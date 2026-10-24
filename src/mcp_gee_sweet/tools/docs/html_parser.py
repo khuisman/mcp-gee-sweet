@@ -185,15 +185,18 @@ class _AstParser(HTMLParser):
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
-        # Nesting depth of open <blockquote> tags (#476). Read directly by
-        # _emit_block_node at the moment each leaf node is built, the same way
-        # _make_bullet_item reads len(self._list_ordered) fresh rather than
-        # threading depth through as a parameter — correct as long as this is
-        # only mutated in handle_starttag/handle_endtag's own "blockquote"
-        # branches, which bracket exactly the content that's actually inside
-        # the tag via the existing _interrupt_open_block/_resume_interrupted_
-        # block machinery (the same mechanism table/pre/ol/ul already use).
-        self._blockquote_depth = 0
+        # Ids of the open <blockquote> tags, outermost first (#476, #1098); its
+        # length is the nesting depth. Read directly (via _blockquote_fields) at
+        # the moment each leaf node is built, the same way _make_bullet_item
+        # reads len(self._list_ordered) fresh rather than threading depth
+        # through as a parameter — correct as long as this is only mutated in
+        # handle_starttag/handle_endtag's own "blockquote" branches, which
+        # bracket exactly the content that's actually inside the tag via the
+        # existing _interrupt_open_block/_resume_interrupted_block machinery
+        # (the same mechanism table/pre/ol/ul already use). Each <blockquote>
+        # gets a fresh id, so two adjacent quotes stay distinguishable.
+        self._blockquote_ids: list[int] = []
+        self._blockquote_count = 0
 
         # Depth of open non-block tags (span, b, a, unrecognized tags, ...)
         # that reach the generic inline-element fallthrough below. Lets
@@ -321,7 +324,18 @@ class _AstParser(HTMLParser):
                 runs[0].text = first_text[4:]
                 if not runs[0].text:
                     runs.pop(0)
-        return BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
+        return BulletItem(
+            runs=runs, depth=depth, ordered=ordered, checked=checked, **self._blockquote_fields()
+        )
+
+    def _blockquote_fields(self) -> dict:
+        """blockquote_depth and blockquote_path for a node built now. Every leaf-node
+        construction passes these, so a node can't record its depth without the quote
+        it's in (#1098)."""
+        return {
+            "blockquote_depth": len(self._blockquote_ids),
+            "blockquote_path": tuple(self._blockquote_ids),
+        }
 
     def _close_dangling_inline_formatting(self):
         """A block boundary is starting while inline formatting tags may still
@@ -438,23 +452,19 @@ class _AstParser(HTMLParser):
                 return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
-            self._nodes.append(
-                Heading(level=level, runs=runs, blockquote_depth=self._blockquote_depth)
-            )
+            self._nodes.append(Heading(level=level, runs=runs, **self._blockquote_fields()))
         elif tag == "li":
-            bullet = self._make_bullet_item(runs)
-            bullet.blockquote_depth = self._blockquote_depth
-            self._nodes.append(bullet)
+            self._nodes.append(self._make_bullet_item(runs))
         elif tag == "p" and self._block_named_style:
             self._nodes.append(
                 NamedBlock(
                     style_type=self._block_named_style,
                     runs=runs,
-                    blockquote_depth=self._blockquote_depth,
+                    **self._blockquote_fields(),
                 )
             )
         else:
-            self._nodes.append(Paragraph(runs=runs, blockquote_depth=self._blockquote_depth))
+            self._nodes.append(Paragraph(runs=runs, **self._blockquote_fields()))
 
     def _interrupt_open_block(self, new_construct_tag: str):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
@@ -653,10 +663,11 @@ class _AstParser(HTMLParser):
         # depth — that text is not inside this blockquote) before entering.
         # Depth increments after the interrupt so nested content — including a
         # further nested <blockquote> — reads the correct depth via
-        # _emit_block_node's self._blockquote_depth lookup.
+        # _emit_block_node's _blockquote_fields lookup.
         if tag == "blockquote":
             self._interrupt_open_block("blockquote")
-            self._blockquote_depth += 1
+            self._blockquote_count += 1
+            self._blockquote_ids.append(self._blockquote_count)
             return
 
         # --- pre / code block ---
@@ -697,7 +708,7 @@ class _AstParser(HTMLParser):
             and self._table_depth == 0
             and self._tag_depth == 0
         ):
-            self._nodes.append(Paragraph(runs=[], blockquote_depth=self._blockquote_depth))
+            self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
             return
 
         # --- bare top-level <img> with no open block (#333) ---
@@ -715,7 +726,7 @@ class _AstParser(HTMLParser):
                 self._nodes.append(
                     Paragraph(
                         runs=[_make_image(attr_dict, src, link_url)],
-                        blockquote_depth=self._blockquote_depth,
+                        **self._blockquote_fields(),
                     )
                 )
                 return
@@ -835,10 +846,11 @@ class _AstParser(HTMLParser):
         # tag), _resume_interrupted_block's own pre-resume flush must still
         # see this content as inside the blockquote (depth not yet
         # decremented) — mirroring how _emit_block_node reads
-        # self._blockquote_depth fresh at flush time everywhere else.
+        # the open blockquotes fresh at flush time everywhere else.
         if tag == "blockquote":
             self._resume_interrupted_block("blockquote")
-            self._blockquote_depth = max(0, self._blockquote_depth - 1)
+            if self._blockquote_ids:
+                self._blockquote_ids.pop()
             return
 
         # --- pre / code block ---
@@ -906,7 +918,7 @@ class _AstParser(HTMLParser):
                 or is_resumed_authored_whitespace
                 or self._block_had_unsupported_content
             ):
-                self._nodes.append(Paragraph(runs=runs, blockquote_depth=self._blockquote_depth))
+                self._nodes.append(Paragraph(runs=runs, **self._blockquote_fields()))
             self._block_tag = None
             self._in_pre = False
             self._resume_interrupted_block("pre")

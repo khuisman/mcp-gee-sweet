@@ -126,6 +126,49 @@ read back as quoted two and three times (PR #1089 QA round 1, live).
 36, so a level-1 item quoted once reads back as quote depth 1, not 2. A bordered list item
 written before #1056, with only the level's own indent, still reads as depth 1.
 
+## Adjacent quotes and spacing (#1098)
+
+Docs joins the left borders of adjacent paragraphs with the same border and indents into
+one continuous bar. Two separate quotes in a row therefore rendered as one, and nothing
+put space between a quote and the paragraphs around it. Checked live on a scratch doc
+(PDF export), each pair styled as a depth-1 quote:
+
+| Between the two paragraphs | Result |
+|---|---|
+| nothing | one bar |
+| `spaceBelow`/`spaceAbove` 12pt | one bar, with the gap inside it |
+| zero-width `borderTop`/`borderBottom` | one bar |
+| border color 0.6 vs 0.61 (stored as 0.6117647), width 3 vs 3.01 | one bar |
+| border padding 8 vs 9 | two bars, visibly offset by 1pt |
+| an empty unbordered paragraph | two bars |
+| an empty unbordered paragraph collapsed to 1pt (as before a table), quotes spaced 8pt | two bars, a clean gap |
+
+The last row is what the emitter does. A flat `blockquote_depth` can't tell "the second
+paragraph of one quote" from "the first paragraph of the next quote", so the parser
+also records `blockquote_path` on every leaf node: the ids of the `<blockquote>`
+elements it sits in, outermost first, a fresh id per element. Two quoted nodes are in
+one quote when one path is a prefix of the other. The ids are arbitrary, so the field is
+excluded from node equality; `doc_to_ast.py` leaves it empty, and empty paths are never
+separated.
+
+`emitter._with_quote_separators` inserts an empty `Paragraph` between two adjacent quoted
+nodes that aren't in one quote, and `_collapse_paragraph_requests` shrinks it (the same
+styling the blank paragraph before a table gets). The separator is unquoted even between
+two quotes nested in one outer quote: carrying the outer quote's border, its 1pt height
+left a stray dash of that bar. The outer bar already breaks around the deeper-indented
+nested quotes, so nothing is lost. A separator between two quoted lists also splits them
+into two Docs lists, as the source has.
+
+`_block_spacing` gives a quoted node 8pt above where its quote meets content outside it
+(an unquoted node, a table, a separator, or the start) and 8pt below likewise, and
+nothing between the paragraphs of one quote. A code block gets 8pt above and below,
+which is what tells two consecutive code blocks apart.
+
+**Markdown input is still affected by the parser.** Python-Markdown parses `> a`, a blank
+line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes. That
+reaches the AST as one quote, so it renders as one. Switching the parser (#1116) fixes it
+with no change here. HTML input with two `<blockquote>` elements already renders as two.
+
 ## QA round 1 (PR #546): two gaps in the interrupt/resume integration
 
 Reproduced directly against parser output (`html_to_ast`), no live Google API calls

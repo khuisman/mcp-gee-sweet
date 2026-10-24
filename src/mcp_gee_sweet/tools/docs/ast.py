@@ -86,12 +86,21 @@ class Table:
     table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
 
 
+# blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
+# first, one per level of blockquote_depth. Two quoted nodes belong to one quote exactly
+# when one path is a prefix of the other; otherwise they are separate quotes, which the
+# emitter must keep apart because Docs joins the borders of adjacent paragraphs styled
+# alike. The ids are parser-assigned counters with no meaning beyond identity, so they
+# don't take part in node equality. Empty when unknown (doc_to_ast.py): no separation.
+
+
 @dataclass
 class Heading:
     level: int  # 1-6
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
 
 
 @dataclass
@@ -99,6 +108,7 @@ class Paragraph:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
 
 
 @dataclass
@@ -109,6 +119,7 @@ class BulletItem:
     checked: bool | None = None  # None = not a task item; True/False = ☑/☐
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
 
 
 @dataclass
@@ -117,6 +128,7 @@ class NamedBlock:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
 
 
 DocNode = Heading | Paragraph | BulletItem | Table | NamedBlock

@@ -796,6 +796,187 @@ class TestBlockquoteEmitter:
         assert starts[7] == 36 + 36 * 7 + 36
 
 
+class TestBlockquotePath:
+    """html_parser gives each <blockquote> its own id, so adjacent quotes stay
+    distinguishable once flattened to blockquote_depth (#1098)."""
+
+    def test_separate_quotes_get_different_paths(self):
+        a, b = html_to_ast("<blockquote><p>a</p></blockquote><blockquote><p>b</p></blockquote>")
+        assert len(a.blockquote_path) == len(b.blockquote_path) == 1
+        assert a.blockquote_path != b.blockquote_path
+
+    def test_paragraphs_of_one_quote_share_a_path(self):
+        a, b = html_to_ast("<blockquote><p>a</p><p>b</p></blockquote>")
+        assert a.blockquote_path == b.blockquote_path
+
+    def test_nested_quote_path_extends_the_outer(self):
+        outer, inner, tail = html_to_ast(
+            "<blockquote><p>o</p><blockquote><p>i</p></blockquote><p>t</p></blockquote>"
+        )
+        assert inner.blockquote_path[:1] == outer.blockquote_path
+        assert inner.blockquote_depth == len(inner.blockquote_path) == 2
+        assert tail.blockquote_path == outer.blockquote_path
+
+    def test_every_quoted_node_type_gets_a_path(self):
+        nodes = html_to_ast(
+            "<blockquote><h2>h</h2><ul><li>l</li></ul><pre><code>c</code></pre>"
+            "<p>i<hr></p></blockquote>"
+        )
+        assert nodes
+        assert all(len(n.blockquote_path) == n.blockquote_depth == 1 for n in nodes)
+
+    def test_unquoted_node_has_empty_path(self):
+        (node,) = html_to_ast("<p>plain</p>")
+        assert node.blockquote_path == ()
+
+    def test_path_ignored_by_equality(self):
+        """The ids are arbitrary counters, so they don't make otherwise equal nodes
+        differ."""
+        a = Paragraph(runs=[Run("x")], blockquote_depth=1, blockquote_path=(1,))
+        b = Paragraph(runs=[Run("x")], blockquote_depth=1, blockquote_path=(7,))
+        assert a == b
+
+
+class TestBlockSeparation:
+    """Adjacent blocks stay apart (#1098): Docs joins the borders of adjacent paragraphs
+    styled alike, so separate quotes get an unbordered, collapsed separator paragraph;
+    quotes get space where they meet other content; code blocks get space around
+    them."""
+
+    @staticmethod
+    def _inserted_text(requests):
+        return requests[0]["insertText"]["text"]
+
+    @staticmethod
+    def _spacing(requests):
+        """{startIndex: {field: magnitude}} for every spaceAbove/spaceBelow > 0."""
+        found: dict[int, dict[str, int]] = {}
+        for r in requests:
+            ps = r.get("updateParagraphStyle")
+            if not ps:
+                continue
+            for field in ("spaceAbove", "spaceBelow"):
+                magnitude = ps["paragraphStyle"].get(field, {}).get("magnitude")
+                if magnitude:
+                    found.setdefault(ps["range"]["startIndex"], {})[field] = magnitude
+        return found
+
+    @staticmethod
+    def _collapsed_ranges(requests):
+        return [
+            r["updateTextStyle"]["range"]
+            for r in requests
+            if "updateTextStyle" in r
+            and r["updateTextStyle"]["textStyle"].get("fontSize", {}).get("magnitude") == 1
+        ]
+
+    def test_separate_quotes_get_a_collapsed_separator(self):
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><p>a</p></blockquote><blockquote><p>b</p></blockquote>"
+        )
+        # "a\n" [1,3), separator "\n" [3,4), "b\n" [4,6).
+        assert self._inserted_text(requests) == "a\n\nb\n"
+        assert self._collapsed_ranges(requests) == [{"startIndex": 3, "endIndex": 4}]
+        bordered = [
+            r["updateParagraphStyle"]["range"]
+            for r in requests
+            if "borderLeft" in r.get("updateParagraphStyle", {}).get("paragraphStyle", {})
+        ]
+        assert {"startIndex": 3, "endIndex": 4} not in bordered
+        # spaceBelow targets each node's last character, its "\n".
+        assert self._spacing(requests) == {
+            1: {"spaceAbove": 8},
+            2: {"spaceBelow": 8},
+            4: {"spaceAbove": 8},
+            5: {"spaceBelow": 8},
+        }
+
+    def test_one_quote_gets_no_separator_and_no_inner_spacing(self):
+        requests, _ = _html_to_doc_requests(
+            "<p>x</p><blockquote><p>a</p><p>b</p></blockquote><p>y</p>"
+        )
+        assert self._inserted_text(requests) == "x\na\nb\ny\n"
+        assert self._collapsed_ranges(requests) == []
+        # "a\n" starts at 3, "b\n" at 5: space above the quote and below it only.
+        assert self._spacing(requests) == {3: {"spaceAbove": 8}, 6: {"spaceBelow": 8}}
+
+    def test_nested_quote_continuing_its_outer_quote_not_separated(self):
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><p>o</p><blockquote><p>i</p></blockquote><p>t</p></blockquote>"
+        )
+        assert self._inserted_text(requests) == "o\ni\nt\n"
+
+    def test_separate_nested_quotes_inside_one_outer_quote_separated(self):
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><blockquote><p>i</p></blockquote>"
+            "<blockquote><p>j</p></blockquote></blockquote>"
+        )
+        assert self._inserted_text(requests) == "i\n\nj\n"
+        assert self._collapsed_ranges(requests) == [{"startIndex": 3, "endIndex": 4}]
+
+    def test_unknown_paths_never_separated(self):
+        """doc_to_ast.py leaves blockquote_path empty: nothing to tell quotes apart by,
+        so the nodes render as before."""
+        nodes = [
+            Paragraph(runs=[Run("a")], blockquote_depth=1),
+            Paragraph(runs=[Run("b")], blockquote_depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert self._inserted_text(requests) == "a\nb\n"
+
+    def test_separate_quoted_lists_are_separate_lists(self):
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><ul><li>a</li></ul></blockquote>"
+            "<blockquote><ul><li>b</li></ul></blockquote>"
+        )
+        assert self._inserted_text(requests) == "a\n\nb\n"
+        bullets = [
+            r["createParagraphBullets"]["range"] for r in requests if "createParagraphBullets" in r
+        ]
+        assert sorted(b["startIndex"] for b in bullets) == [1, 4]
+
+    def test_quoted_bullet_spacing_follows_the_bullet_pass(self):
+        """Like its quote styling, a quoted bullet's spacing is emitted after the bullet
+        pass, on post-bullet positions."""
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><ul><li>a<ul><li>b</li></ul></li></ul></blockquote>"
+        )
+        last_bullet = max(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        spacing = [
+            (i, r["updateParagraphStyle"]["range"])
+            for i, r in enumerate(requests)
+            if "updateParagraphStyle" in r
+            and {"spaceAbove", "spaceBelow"} & set(r["updateParagraphStyle"]["paragraphStyle"])
+        ]
+        assert all(i > last_bullet for i, _ in spacing)
+        # Post-bullets: "a\n" [1,3), "b\n" [3,5) (its tab consumed).
+        assert self._spacing(requests) == {1: {"spaceAbove": 8}, 4: {"spaceBelow": 8}}
+
+    def test_spacing_lands_on_a_multi_paragraph_nodes_edges(self):
+        """A node whose text holds "\\n" becomes several Docs paragraphs (#1093); the
+        quote's space goes on the first and last of them, not between."""
+        nodes = [Paragraph(runs=[Run("one\ntwo")], blockquote_depth=1, blockquote_path=(1,))]
+        requests, _ = ast_to_requests(nodes)
+        # "one\n" [1,5), "two\n" [5,9).
+        assert self._spacing(requests) == {1: {"spaceAbove": 8}, 8: {"spaceBelow": 8}}
+
+    def test_code_blocks_get_space_around_them(self):
+        requests, _ = _html_to_doc_requests(
+            "<pre><code>c1</code></pre><pre><code>c2</code></pre><p>p</p>"
+        )
+        # "c1\n" [1,4), "c2\n" [4,7), "p\n" [7,9).
+        assert self._spacing(requests) == {
+            1: {"spaceAbove": 8},
+            3: {"spaceBelow": 8},
+            4: {"spaceAbove": 8},
+            6: {"spaceBelow": 8},
+        }
+
+    def test_plain_paragraphs_and_lists_get_no_spacing(self):
+        requests, _ = _html_to_doc_requests("<h2>h</h2><p>p</p><ul><li>l</li></ul>")
+        assert self._spacing(requests) == {}
+
+
 class TestColspanNumCols:
     """num_cols must count colspan, not just cells, for insertTable requests."""
 
@@ -1618,6 +1799,16 @@ class TestBuildBlankParaBeforeTableCollapses:
     def test_table_preceded_by_table_not_touched(self):
         doc = self._doc([self._table_elem(1), self._table_elem(10)])
         assert _build_blank_para_before_table_collapses(doc) == []
+
+    def test_blank_para_between_two_tables_keeps_its_height(self):
+        """Collapsed, it let two tables touch and read as one (#1098). It still gets
+        NORMAL_TEXT (#1092)."""
+        doc = self._doc([self._table_elem(1), self._blank_para(9, 10), self._table_elem(10)])
+        (req,) = _build_blank_para_before_table_collapses(doc)
+        ps = req["updateParagraphStyle"]
+        assert ps["range"] == {"startIndex": 9, "endIndex": 10}
+        assert ps["paragraphStyle"] == {"namedStyleType": "NORMAL_TEXT"}
+        assert ps["fields"] == "namedStyleType"
 
 
 class TestImagePositionalInserts:

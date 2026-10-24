@@ -6067,3 +6067,40 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-19) ⚠️ PARTIAL — v0.9.3 release pass**
 `jay`: #1056 regression. No error. Export has `> - Quoted item one`, `>   - Quoted nested`, `> - Quoted item two`, `> 1. Quoted numbered`, each with one `>`; the plain items have none. Playwright (`tc-doc229.png`): "Quoted item one" glyph sits about 48px (36pt) right of "plain", "Quoted nested" right of "plain nested", with a gray bar left of each quoted glyph. Not run: the raw `documents().get()` indent/borderLeft read (scratch script).
+
+---
+
+### TC-DOC230: Adjacent separate quotes render as separate quotes, with space around each ⚠️ destructive
+**Purpose:** Regression test for #1098. Docs joins the left borders of adjacent paragraphs with the same border and indents, so two separate quotes in a row showed one continuous bar, and a quote touched the paragraphs around it. The emitter now puts a collapsed, unbordered paragraph between two separate quotes and gives each quote 8pt above and below. HTML input, because Python-Markdown merges `> a`, a blank line, `> b` into one quote before the emitter sees it (#1116).
+
+**Prompt**
+**Playwright: required**
+1. `write_doc_content(doc_id="{DOC_ID}", content="<p>Before.</p><blockquote><p>Quote one</p></blockquote><blockquote><p>Quote two</p></blockquote><blockquote><p>Same quote, first</p><p>Same quote, second</p></blockquote><blockquote><blockquote><p>Inner one</p></blockquote><blockquote><p>Inner two</p></blockquote></blockquote><blockquote><ul><li>List one A</li><li>List one B</li></ul></blockquote><blockquote><ul><li>List two A</li></ul></blockquote><p>After.</p>", content_format="html")`
+2. `get_doc_structure(doc_id="{DOC_ID}")`
+
+**Checks**
+- Step 1 returns no `error` key
+- Step 2 (and a raw `documents().get()` read, `paragraphStyle`): an empty paragraph with no `borderLeft` sits between "Quote one" and "Quote two", between "Quote two" and "Same quote, first", between "Same quote, second" and "Inner one", between "Inner one" and "Inner two", between "Inner two" and "List one A", and between "List one B" and "List two A". None sits between "Same quote, first" and "Same quote, second", or between "List one A" and "List one B"
+- Raw read: "Quote one", "Quote two", "Same quote, first", "Inner one", "Inner two", "List one A", and "List two A" each have `spaceAbove` 8pt; "Quote one", "Quote two", "Same quote, second", "Inner one", "Inner two", "List one B", and "List two A" each have `spaceBelow` 8pt. "Same quote, first" has no `spaceBelow` and "Same quote, second" no `spaceAbove`
+- "List one A"/"List one B" share a `listId`; "List two A" has a different one
+- 🔍 Playwright: "Quote one" and "Quote two" each have their own gray bar with a visible gap between the bars; "Same quote, first" and "Same quote, second" share one unbroken bar; "Inner one" and "Inner two" have separate bars; the two quoted lists have separate bars. "Before." and "After." have visible space between them and the quotes next to them. No empty line shows where a separator paragraph is: the gap between two separate quotes is about the same as between "Before." and "Quote one"
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC231: Consecutive code blocks and consecutive tables stay separate ⚠️ destructive
+**Purpose:** Regression test for #1098. Two code blocks in a row read as one block, since neither had any spacing, and two tables in a row touched and read as one table, since the paragraph Docs requires between them was collapsed like the one before every table. Code blocks now get 8pt above and below, and the paragraph between two tables keeps its height.
+
+**Prompt**
+**Playwright: required**
+1. `write_doc_content(doc_id="{DOC_ID}", content="Before.\n\n```\ncode one\nsecond line\n```\n\n```\ncode two\n```\n\nBetween.\n\n| K | V |\n|---|---|\n| k1 | v1 |\n\n| K | V |\n|---|---|\n| k2 | v2 |\n", content_format="markdown")`
+2. `get_doc_structure(doc_id="{DOC_ID}")`
+
+**Checks**
+- Step 1 returns no `error` key
+- Raw `documents().get()` read: the "code one…second line" paragraph (one paragraph, lines joined by a soft break) and the "code two" paragraph each have `spaceAbove` and `spaceBelow` 8pt; "Before." and "Between." have neither
+- Step 2 shows two tables with exactly one empty paragraph between them. Raw read: that paragraph's `namedStyleType` is `NORMAL_TEXT`, and it has no `lineSpacing` 1 and no 1pt `fontSize`. The empty paragraph before the first table is still collapsed (`lineSpacing` 1, 1pt `fontSize`)
+- 🔍 Playwright: the two code blocks show a visible gap between them, and between each and the paragraph next to it. The two tables show a blank line between them (the first table's bottom border doesn't touch the second's top border). No visible blank line shows above the first table
+
+**Cleanup:** write fixture content back
