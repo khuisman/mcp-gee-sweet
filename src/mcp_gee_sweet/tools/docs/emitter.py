@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, replace
 
 from ...auth import execute_in_thread
@@ -612,9 +613,43 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
         if image.height is not None:
             object_size["height"] = {"magnitude": image.height, "unit": "PT"}
         request["insertInlineImage"]["objectSize"] = object_size
-    if image.link_url is None:
+    link_url = _storable_link_url(image.link_url)
+    if link_url is None:
         return [request]
-    return [request, _image_link_request(image.link_url, position)]
+    return [request, _image_link_request(link_url, position)]
+
+
+# RFC 3986: a scheme is case-insensitive and an open registry, so acceptance is
+# structural rather than a list that drops working targets every time a new
+# scheme shows up in a document.
+_STORABLE_LINK_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _storable_link_url(link_url: str | None) -> str | None:
+    """Return the link to hand the Docs API, or None to degrade the run to plain text.
+
+    Docs normalises a URL that carries no scheme against its own origin, so a
+    relative href ("./guide.md", "/guide.md", "//example.com/x") that this server
+    passes through unchanged lands as "http://./guide.md" or
+    "http://docs.google.com/guide.md" - a link that goes nowhere, reported as
+    LK-12/EP-8 in the Markdown-fidelity baseline (#1120). A scheme-less target is
+    therefore not storable: the text stays, the broken link is dropped.
+
+    Any scheme counts, not a fixed list: "HTTPS://...", "tel:", "ftps://",
+    "file://" and app links such as "vscode://" are working links today, so a
+    lowercase allow-list would strip the target from links that do resolve.
+
+    "#..." is allowed through because same-document heading anchors are
+    resolved into full URLs by the _resolve_heading_anchors pass, which runs
+    after the write (#409), and a "#slug" is a working in-doc link, not a
+    relative file path.
+    """
+    if link_url is None:
+        return None
+    url = link_url.strip()
+    if url.startswith("#") or _STORABLE_LINK_SCHEME.match(url):
+        return url
+    return None
 
 
 def _image_link_request(link_url: str, position: int) -> dict:
@@ -644,8 +679,9 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
             text_style[api_key] = val
             fields.append(api_key)
 
-    if run.link_url is not None:
-        text_style["link"] = {"url": run.link_url}
+    link_url = _storable_link_url(run.link_url)
+    if link_url is not None:
+        text_style["link"] = {"url": link_url}
         fields.append("link")
 
     if run.font_family is not None:

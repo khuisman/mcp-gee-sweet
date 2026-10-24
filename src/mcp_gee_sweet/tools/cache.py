@@ -25,8 +25,7 @@ def register(tool):
         """
         Change the cache time-to-live at runtime, without restarting the server.
 
-        This server runs in SSE mode with one shared cache per process — changing
-        the TTL here affects every concurrent client session, not just the caller.
+        The change takes effect in the running server process, without a restart.
         Use get_cache_ttl first if you need to restore the previous value afterward.
 
         Args:
