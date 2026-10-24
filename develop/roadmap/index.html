@@ -966,6 +966,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#v095-hotfix-target-v095" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.5 — hotfix (target: v0.9.5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ornithomimus-launch-release-markdown-fidelity-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -981,6 +992,17 @@
     <span class="md-ellipsis">
       
         ankylosaurus — hardening and tool-surface cleanup (queued, label planned: ankylosaurus; gets a number when it goes in flight)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        velociraptor — Parity 1 (queued, label planned: velociraptor; gets a number when it goes in flight)
       
     </span>
   </a>
@@ -2129,6 +2151,11 @@
 <li>[x] Pillow 12.3.0 has 9 open security alerts (1 critical); the fix (13.0.0) needs Python 3.11+ (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1158">#1158</a>) (PR #1161; shipped in v0.9.4 via PR #1172)</li>
 <li>[x] Backport the Pillow 13 / drop-3.10 change onto v0.9.3 — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1169">#1169</a>) (PR #1172)</li>
 </ul>
+<h3 id="v095-hotfix-target-v095">v0.9.5 — hotfix <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.5">v0.9.5</a>)</em><a class="headerlink" href="#v095-hotfix-target-v095" title="Permanent link">&para;</a></h3>
+<p>Security hotfix cut from the v0.9.4 tag, with nothing else from <code>develop</code> (maintainer decision 2026-10-24). The eMudhra/emSign CA incident makes any certifi older than <code>2026.10.19</code> trust forgeable TLS chains. v0.9.4's lock pins <code>2026.5.20</code>, and <code>pyproject.toml</code> sets no minimum. The fix lands on <code>develop</code> first, then is cherry-picked onto the tag (<code>release.md</code> §"Hotfix from the last tag").</p>
+<ul>
+<li>[ ] Require <code>certifi&gt;=2026.10.19</code> and ship it as the v0.9.5 hotfix. <code>severe/narrow</code> — lane A, after #1069 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1217">#1217</a>)</li>
+</ul>
 <h3 id="ornithomimus-launch-release-markdown-fidelity-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight">ornithomimus — launch release: Markdown fidelity, Gmail sending safety, launch readiness <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22"><code>planned: ornithomimus</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#ornithomimus-launch-release-markdown-fidelity-gmail-sending-safety-launch-readiness-queued-label-planned-ornithomimus-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1085">#1085</a>. The release ships when the feature set is done and passes release QA. <strong>Locked 2026-10-18</strong>, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way.</p>
 <p><strong>Re-split 2026-10-24 (maintainer):</strong> ornithomimus is the launch release: Markdown → Docs fidelity, Gmail sending safety, launch readiness, and #1060 for the release pass. The comments feature set (with its breaking rename), the docstring and <code>font_family</code> fill items, #1076, #897 and #1202 moved to <em>ankylosaurus</em> (#1069 went too, then came back the same day as a Markdown fidelity item), which now carries every breaking rename together. #1205 joined the Gmail feature set.</p>
@@ -2146,6 +2173,9 @@
 <li>[ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1128">#1128</a>)</li>
 <li>[ ] get_doc_as_markdown renumbers a numbered list from 1 after a table (or any block) interrupts it, so it re-imports as two lists. <code>wrong/narrow</code>, observed in PR #1201 QA (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1208">#1208</a>)</li>
 <li>[ ] create_paragraph_bullets adds the requested nesting level to an item's current level instead of setting it. It's the repair path <code>get_doc_structure</code> points to for a Markdown conversion that flattened a nested list, so it belongs with Markdown fidelity; moved back from ankylosaurus 2026-10-24 (maintainer) — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1069">#1069</a>)</li>
+<li>[ ] <code>update_doc_from_file</code> can't embed local images (no <code>folder_id</code> parameter), so a replaced doc silently loses its images. <code>wrong/narrow</code>, observed; triaged 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1139">#1139</a>)</li>
+<li>[ ] YAML front matter is rendered as text instead of omitted (plan rule D3). Triaged 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1173">#1173</a>)</li>
+<li>[ ] Markdown/HTML conversion: tell the caller when a link is dropped. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1180">#1180</a>)</li>
 <li>[x] search_files/search_spreadsheets/list_spreadsheets miss Shared Drive files under a service account when no folder is given. <code>wrong/narrow</code>, observed in the 0.9.3 release-QA pass; v0.9.3's fill is locked (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1127">#1127</a>) (PR #1200)</li>
 <li>[ ] Loose list items (<li><p>…</p></li>) lose their bullet — community PR #1164 (pulled from lane A), html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1111">#1111</a>)</li>
 <li>[ ] Markdown soft line breaks become paragraph breaks — html_parser cluster (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1093">#1093</a>)</li>
@@ -2169,7 +2199,10 @@
 <ul>
 <li>[ ] Ship an MCP Bundle (.mcpb) for one-click install and Smithery listing (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1036">#1036</a>)</li>
 <li>[ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)</li>
-<li>[ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)</li>
+<li>[ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled <code>planned: ornithomimus</code> 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)</li>
+<li>[ ] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1212">#1212</a>)</li>
+<li>[ ] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1185">#1185</a>)</li>
+<li>[ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, <code>configuration.md</code> subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1214">#1214</a>)</li>
 </ul>
 <p><strong>Fill</strong> <em>(rank order, locked 2026-10-18)</em></p>
 <ul>
@@ -2178,6 +2211,13 @@
 <li>[x] thread_http's per-thread <code>httplib2.Http</code> has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. <code>severe</code>, observed: a 30-minute <code>create_doc_from_file</code> hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1129">#1129</a>) (PR #1198)</li>
 <li>[x] <code>transfer_ownership(send_notification=False)</code> can never succeed — <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1055">#1055</a>) (PR #1142)</li>
 <li>[ ] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>)</li>
+</ul>
+<p><strong>Live QA for merged community PRs</strong> <em>(their code ships in this release; run on the gee-sweet-biz side)</em></p>
+<ul>
+<li>[ ] qa: live verification for PR #1110 (inline images in get_doc_structure runs) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1157">#1157</a>)</li>
+<li>[ ] qa: live verification for PR #1138 (blank paragraph before a table) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1160">#1160</a>)</li>
+<li>[ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1167">#1167</a>)</li>
+<li>[ ] qa: live verification for PR #1149 (scheme-less link targets) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1190">#1190</a>)</li>
 </ul>
 <p>Moved out 2026-10-18: <a href="https://github.com/khuisman/mcp-gee-sweet/issues/379">#379</a> (unversioned, Joy decides whether to do it); <a href="https://github.com/khuisman/mcp-gee-sweet/issues/378">#378</a> closed (ASYNC240 stays off). Everything else formerly here is under <em>ankylosaurus</em> below.</p>
 <h3 id="ankylosaurus-hardening-and-tool-surface-cleanup-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight">ankylosaurus — hardening and tool-surface cleanup <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22"><code>planned: ankylosaurus</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#ankylosaurus-hardening-and-tool-surface-cleanup-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
@@ -2248,6 +2288,26 @@
 <li>[ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1067">#1067</a>)</li>
 <li>[ ] Track release-QA spend across releases so passes can be sized ahead of time (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1068">#1068</a>)</li>
 </ul>
+<p><strong>Triaged in 2026-10-24</strong></p>
+<ul>
+<li>[ ] transfer.py folder listings stop at 1,000 children: <code>download_folder</code> truncates, <code>sync_folder</code> and <code>upload_local_folder</code> upload duplicates. <code>wrong/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1165">#1165</a>)</li>
+<li>[ ] Drive query escaping: the MIME filter skips backslash; consolidate the escape sites. <code>loud/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1166">#1166</a>)</li>
+<li>[ ] <code>style_doc_range(link_url=…)</code> still sends scheme-less URLs, so they land as <code>http://./x</code>. <code>wrong/narrow</code>; #1149 follow-up, grouped with #1189 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1179">#1179</a>)</li>
+<li>[ ] Link storability: drive-letter and host:port targets pass the scheme check; padded table-cell anchors skip resolution. <code>wrong/rare</code>; #1149 follow-up, grouped with #1189 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1191">#1191</a>)</li>
+<li>[ ] <code>transfer_ownership</code> follow-ups: <code>send_notification</code> has one valid value (schema change); consumer and shared-drive transfers fail opaquely. <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1181">#1181</a>)</li>
+<li>[ ] Cache TTL docs and log line say process-wide; under SSE it's per connection. Docs, with the docstring cleanup (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1187">#1187</a>)</li>
+<li>[ ] Service-account storage limit: remaining docstrings and docs disagree with #1046's corrected note. Docs, with the docstring cleanup (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1188">#1188</a>)</li>
+<li>[ ] Windows: permission and symlink tests fail now that their modules collect (#1162 follow-up). <code>loud/narrow</code>, test-only (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1194">#1194</a>)</li>
+</ul>
+<h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
+<p>Queued after <em>ankylosaurus</em> (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.</p>
+<ul>
+<li>[ ] Docs: read every tab of a multi-tab document, and let writes target a tab (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1203">#1203</a>)</li>
+<li>[ ] Docs: find and replace text (<code>replace_doc_text</code>), including multi-placeholder replacement (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1204">#1204</a>)</li>
+<li>[ ] Gmail: forward a message (<code>forward_message</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1206">#1206</a>)</li>
+<li>[ ] Calendar: respond to an invitation (<code>respond_to_event</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1207">#1207</a>)</li>
+<li>[ ] Calendar: conference data, auto-create a Google Meet link on events. Moved from Tier 3 (<code>v1.0</code>) 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/161">#161</a>)</li>
+</ul>
 <h3 id="tier-3-advanced-occasionally-needed-target-v100">Tier 3 — Advanced / occasionally needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0">v1.0.0</a>)</em><a class="headerlink" href="#tier-3-advanced-occasionally-needed-target-v100" title="Permanent link">&para;</a></h3>
 <p><strong>Sheets</strong>
 - [ ] <code>add_conditional_formatting</code> / <code>delete_conditional_formatting</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/129">#129</a>) <em>(freema/mcp-gsheets)</em>
@@ -2260,7 +2320,6 @@
 <p><strong>Calendar</strong>
 - [ ] <code>quick_add</code> — create an event from a natural language string (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/159">#159</a>)
 - [ ] Event color coding — <code>colorId</code> on create/update (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/160">#160</a>)
-- [ ] Conference data — auto-create Google Meet link (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/161">#161</a>)
 - [ ] Event attachments — link Drive files to events (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/162">#162</a>)
 - [ ] Reminders — per-event override reminders (email, popup, minutes before) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/163">#163</a>)
 - [ ] Working location / OOO / Focus time events; triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/164">#164</a>)</p>
