@@ -1340,6 +1340,9 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
 OAuth (`mcp-gee-sweet-sky`, on the PR head): positive controls found both #1054 fixtures (all three searches), then after trashing both (`trashed: true` confirmed), `search_files('QA', max_results=100)` returned docs, spreadsheets and folders, each entry with id/name/mimeType/modified_time/web_link, and neither trashed id in either `QA-Trashed-1054` search. Service account (fresh interpreter in the QA worktree, this branch's registered `search_files` with a `service_account.Credentials` Drive client, run twice): `search_files('QA', max_results=100)` → 16 results spanning docs, spreadsheets and folders (the check that failed before #1127).
 
+**Result (2026-10-24) ✅ PASS — PR #1200 QA round 2 (Sky) @ 0073914c**
+Service account (fresh interpreter, this head): `search_files('QA', max_results=100)` → 16 results spanning docs, spreadsheets and folders, each with id/name/mimeType/modified_time/web_link. The round-2 commit doesn't touch `search_files`' query or trashed filter, so the OAuth trashed-fixture checks from round 1 weren't rerun.
+
 ---
 
 ### TC-D299: Unscoped search under a service account finds Shared Drive files it never opened (#1127)
@@ -1362,6 +1365,9 @@ OAuth (`mcp-gee-sweet-sky`, on the PR head): positive controls found both #1054 
 
 **Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
 Setup on `mcp-gee-sweet-sky` (OAuth); every check in a fresh interpreter in the QA worktree, calling this branch's registered tool functions with a `service_account.Credentials` Drive client (no live server runs this branch as a service account). The fixtures were never read by id from the service account. Positive control (folder-scoped `search_files`) found both on the first try. Bug reproduced first: the same raw `files().list` query without `corpora` returned neither id, and with `corpora="allDrives"` returned both (`incompleteSearch=False` both ways). Checks, run twice with identical results: unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files(days=1, …spreadsheet, 100)` → the spreadsheet; `list_recent_files(days=1, …document, 100)` → the doc. Cleanup: both permanently deleted from OAuth.
+
+**Result (2026-10-24) ✅ PASS — PR #1200 QA round 2 (Sky) @ 0073914c**
+Rerun from scratch on the new head, because it moves the all-drives flags into `_list_drive_files`, which `list_recent_files` uses. Fresh fixtures, same method as round 1. Positive control found both. The raw query without `corpora` again returned neither, and with `allDrives` returned both. Unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files` (spreadsheet / document, `days=1`, 100) → each id. Under OAuth, `list_recent_files(max_results=100)` → 41 results, no error. Cleanup: both permanently deleted.
 
 ---
 
@@ -1578,6 +1584,9 @@ Run 1 (kai-oauth).
 
 **Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `list_shared_with_me()` → `[]`, no error; per-entry checks had nothing to run on.
+
+**Result (2026-10-24) ⚠️ PARTIAL — PR #1200 (#1127) QA round 2 (Sky) @ 0073914c**
+This head adds `includeItemsFromAllDrives`/`supportsAllDrives` to `list_shared_with_me`. Run in a fresh interpreter on this branch's registered tool, under a service account and under OAuth (sky's credentials): `list_shared_with_me(max_results=200)` → `[]` with no error both times. A raw `sharedWithMe=true` list with and without the flags also returned 0 files under OAuth. Neither identity has a file shared with it directly, so the new non-member Shared Drive path and the per-entry checks weren't exercised.
 
 ---
 
