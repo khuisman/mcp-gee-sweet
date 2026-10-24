@@ -98,23 +98,6 @@ item, so this stays open as #1075 (#692, closed, is the earlier triage). Related
 
 ---
 
-### Images inside table cells are dropped
-
-**What:** An image in a table cell (Markdown `| ![alt](src) |` or HTML `<td><img …></td>`) is
-dropped: the cell renders empty, and the call reports no error and no per-image entry under
-`images`.
-
-**Why:** Image support (#333) covers body-level images only. The table fill
-(`emitter.py`'s `_fill_children_recursive`) has no handling for an `Image` among a cell's
-children, so the parser drops it before it gets there.
-
-**Workaround:** Insert the image into the cell afterwards with `insert_inline_image`, at the
-cell's `paragraphStartIndex` from `get_doc_structure`. Tracked in #1073;
-`docs/qa/tests/docs_markdown.md` IM-09 and `docs/qa/tests/docs_content.md` TC-DOC102/TC-DOC153
-cover it.
-
----
-
 ### `create_bookmark` doesn't create a bookmark Docs lists
 
 **What:** `create_bookmark` creates a one-character named range. It doesn't appear under

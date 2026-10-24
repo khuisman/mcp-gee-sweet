@@ -136,17 +136,54 @@ split still applies. A `#slug` image link goes
 through the heading-anchor pass like a text link: `_walk_headings_and_anchor_runs` reads the
 `inlineObjectElement`'s link too, so it's resolved or stripped.
 
-## Known, deliberate gap: table-cell images
+## Table-cell images (#1073)
 
-`html_parser.py`'s img-handling only fires when a block context is open at the body level
-(`self._block_tag` truthy) — explicitly excluded when inside a table cell, where it falls through
-to the existing silent-no-op path any other unsupported construct already gets there. This is not
-an oversight: `Cell.children`'s type (`list[Run | Image | Table]`) already allows an `Image` for
-forward-compatibility, but the cell-fill machinery (`emitter.py`'s `_fill_children_recursive`)
-would infinite-loop on one if it ever appeared — its cursor-advance logic assumes every non-Table
-child is a `Run` with a `.text` to consume, and would stall forever on an `Image` (`isinstance(child,
-Run)` false, so the run-group loop never advances `cursor`). Supporting table-cell images
-requires extending that cursor logic (and the live-index re-fetch cycle it depends on) to a third
-child type — a meaningfully larger increment of complexity than body-level support, and not
-something the original issue's own ask required. Tracked as a follow-up rather than folded into
-this change.
+#333 shipped body-level images only: the parser dropped an `<img>` in a cell, with no error and
+no `images` entry. Table cells aren't written in phase 1. `fill_tables` fills them afterwards
+from live indices, so a cell image goes in during that fill, not in `ast_to_requests`'s
+positional pass.
+
+- **Parser.** An `<img>` in a cell joins `Cell.children` in source order, with its `<a>` link,
+  the same as in a block. A nested `<table>` already flushed the open cell's pending runs into
+  the outer cell before it started, so an image keeps its place on either side of a nested table.
+  A source line break and the indentation around it (`<td>\n  <table>`) is held rather than
+  written, and becomes one space only if content follows it in the cell, as a browser renders
+  it; kept as text, it became empty paragraphs before a nested table (PR #1215 QA round 1). A
+  `<br>` still breaks the line.
+- **Resolution.** `extract_images` walks cells too, nested tables included, in document order.
+  Cell images are uploaded, shared and revoked with the body's, through the same
+  `ImageShareLifecycle`, and get the same `images` entries.
+- **Placement.** The fill gets the resolved URIs as an `emitter.CellImages`. Each contiguous
+  run of a cell's text and images (`_run_group_fill_requests`) inserts its text and styles as if
+  no image were there, then each image at the offset of the text before it, latest first, like
+  the body's descending pass. Images that share an offset (no text between them) therefore come
+  out in source order, and none shifts another. A linked image's `updateTextStyle` follows its
+  insert, as in the body.
+- **Nested tables.** A nested table goes in at its paragraph's start plus everything already
+  inserted before it in that paragraph, so `_text_offset_since_last_table` counts each image as
+  one index. It counts only an image still in `CellImages.uris`: one that never resolved, or
+  whose insert failed, isn't in the doc.
+- **Unfetchable images.** When there are cell images, each fill `batchUpdate` goes through
+  `CellImages.execute`. On an image-fetch error it drops that image and its link, removes it from
+  the URIs, tells `_apply_doc_content` (which records the error on the image's entry), and
+  resends. Dropping one never moves another request: within a cell the images go last, latest
+  first, and cells run latest first. As in the body (#510), the first retry resends the whole
+  batch; from the second failure on, the batch splits at the failed image, the requests ahead of
+  it are sent on their own, and only the rest is retried. A `batchUpdate` applies its requests in
+  order, so sending `L[:i]` and then `L[i:]` does what sending `L` would. A split anywhere else
+  is wrong: sending every cell's text first and the images after (the body's prefix/tail split)
+  moves each later cell's image by the length of every earlier cell's text.
+- **Retry bookkeeping.** `CellImages` maps each insert it built to its image and link, holding
+  the request dicts themselves, and clears the map once that batch settles. Keyed on `id()`
+  alone, a freed insert's key outlived it, and a later batch's insert could be allocated at the
+  same address and pick up the stale link (PR #1215 QA round 1). The body's maps don't need this:
+  `content_requests` keeps their requests alive.
+- **Images the fill never placed.** A cell the fill can't locate in the live doc gets no insert.
+  `CellImages.embedded` records every image whose insert went out in a batch that succeeded, and
+  `_apply_doc_content` gives any other resolved cell image an `error`, since it was uploaded and
+  shared and would otherwise read as embedded.
+
+Confirmed live (2026-10-24, two runs): text around an image, an image-only cell, a linked image,
+an unreachable URL (dropped and reported, rest of the table intact), a local upload (share
+revoked afterwards), an image on each side of a nested table and one inside it, and Markdown
+pipe-table cells with one and two images. `get_doc_as_markdown` reads them back.

@@ -21,8 +21,8 @@ from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
-from .ast import Run, Table
-from .emitter import ast_to_requests, extract_images, fill_tables
+from .ast import Image, Table
+from .emitter import CellImages, ast_to_requests, extract_images, fill_tables, iter_cell_leaves
 from .html_parser import html_to_ast
 from .images import (
     ImageShareLifecycle,
@@ -162,6 +162,18 @@ def _failed_insert_image_message(error: HttpError) -> str:
 
 
 _POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
+
+
+def _record_embed_failure(entry: dict[str, Any], e: HttpError) -> None:
+    """Record on an image's outcome entry that Docs couldn't fetch it at the embed step.
+
+    fileId/shared are left as-is: a local-path/drive: source was genuinely uploaded and
+    shared even though embedding it failed, so that's still real information for the
+    caller, and it still goes through the normal revoke_sharing-respecting cleanup rather
+    than being silently orphaned. An https:// source never had either field set, and is
+    the one source kind #400's pre-validation doesn't cover, so this is its only chance
+    to learn the size-limit cause at all."""
+    entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
 
 
 def _positional_insert_tail_start(
@@ -925,6 +937,14 @@ async def _apply_doc_content(
                     request_id_to_img_id[id(req)] = img_id
                     inline["uri"] = real_uri_by_id[img_id]
 
+            async def _batch_update(requests: list[dict]) -> None:
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    docs_service,
+                )
+
             if content_requests:
                 # A resolved image's URI is only proven *reachable to us*, not necessarily
                 # fetchable by Google's own (unauthenticated, separate-network-path)
@@ -965,14 +985,6 @@ async def _apply_doc_content(
                 # becomes a DocEditError carrying the whole outcome list (#789), so an
                 # image dropped before the failure still reports its own error too.
 
-                async def _batch_update(requests: list[dict]) -> None:
-                    await execute_in_thread(
-                        docs_service.documents()
-                        .batchUpdate(documentId=doc_id, body={"requests": requests})
-                        .execute,
-                        docs_service,
-                    )
-
                 def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
                     """Pop the insertInlineImage request `e` names from `requests` (the
                     batch that raised `e`), plus its link request if the image was
@@ -993,15 +1005,7 @@ async def _apply_doc_content(
                     img_id = request_id_to_img_id.get(id(bad_request))
                     entry = entry_by_id.get(img_id) if img_id is not None else None
                     if entry is not None:
-                        # fileId/shared are left as-is: a local-path/drive: source was
-                        # genuinely uploaded and shared even though embedding it
-                        # failed, so that's still real information for the caller —
-                        # and it still goes through the normal revoke_sharing-
-                        # respecting cleanup below rather than being silently
-                        # orphaned. An https:// source never had either field set — and
-                        # is the one source kind #400's pre-validation doesn't cover, so
-                        # this is its only chance to learn the size-limit cause at all.
-                        entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
+                        _record_embed_failure(entry, e)
                     return True
 
                 committed: list[dict] = []
@@ -1030,7 +1034,40 @@ async def _apply_doc_content(
                         committed = remaining[:tail_start]
                         remaining = remaining[tail_start:]
                 content_requests = committed + remaining
-            await fill_tables(docs_service, doc_id, tables)
+            # Table cells are filled after phase 1, from live indices (#1073). The fill
+            # gets its own copy of the cell images' URIs, and reports back only through
+            # on_dropped and its embedded set.
+            cell_uris = {
+                id(leaf): real_uri_by_id[id(leaf)]
+                for table in tables
+                for leaf in iter_cell_leaves(table)
+                if id(leaf) in real_uri_by_id
+            }
+            cell_images = None
+            if cell_uris:
+
+                def _cell_image_dropped(image: Image, e: Exception) -> None:
+                    entry = entry_by_id.get(id(image))
+                    if entry is not None:
+                        _record_embed_failure(entry, e)
+
+                cell_images = CellImages(
+                    dict(cell_uris),
+                    _batch_update,
+                    lambda e: (
+                        _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
+                    ),
+                    _cell_image_dropped,
+                )
+            await fill_tables(docs_service, doc_id, tables, cell_images)
+            if cell_images is not None:
+                for img_id in cell_uris.keys() - cell_images.embedded:
+                    entry = entry_by_id[img_id]
+                    # A cell the fill couldn't locate in the live doc gets no insert;
+                    # without this, its uploaded and shared image would read as embedded.
+                    entry.setdefault(
+                        "error", "not embedded: its table cell wasn't found in the document"
+                    )
             if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
     except Exception as e:
@@ -1043,16 +1080,11 @@ async def _apply_doc_content(
 
 def _table_has_pending_anchor_link(table: Table) -> bool:
     """True if any cell in `table` (recursing into nested tables) carries a
-    Run with a same-document '#slug' link_url."""
-    for row in table.rows:
-        for cell in row.cells:
-            for child in cell.children:
-                if isinstance(child, Run):
-                    if child.link_url and child.link_url.startswith("#"):
-                        return True
-                elif isinstance(child, Table) and _table_has_pending_anchor_link(child):
-                    return True
-    return False
+    Run or Image with a same-document '#slug' link_url."""
+    return any(
+        leaf.link_url is not None and leaf.link_url.startswith("#")
+        for leaf in iter_cell_leaves(table)
+    )
 
 
 def _has_pending_anchor_links(requests: list[dict], tables: list[Table]) -> bool:
@@ -1246,9 +1278,10 @@ def register(tool):
         link/reader — required, since the Docs backend fetches inline images as an
         anonymous HTTP request — then, by default, that share is revoked again once the
         image is actually embedded (revoke_sharing=False leaves it shared instead; see
-        insert_local_images for the same tradeoff). Table-cell images are not yet
-        supported and are silently dropped. Per-image outcomes (including any resolution
-        or sharing failure) are returned under "images" when the content had any.
+        insert_local_images for the same tradeoff). Images inside table cells, nested
+        tables included, are embedded the same way. Per-image outcomes (including any
+        resolution or sharing failure) are returned under "images" when the content had
+        any.
 
         A local-path or drive: image over Google Docs' ~25-megapixel or ~50MB
         inline-image limit fails with a clear error naming the limit it exceeds and

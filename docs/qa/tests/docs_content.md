@@ -2306,6 +2306,9 @@ Run 2 (ash).
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: create_doc_from_file(.html) returned 6 successes plus a per-image error for Case 8. Cases 1–5 render (tc-doc102.png). Case 6 and Case 7 table-cell images are dropped silently, with no images entry (tc-doc102b.png). Tracked in #1073 (open). Headings and the final paragraph are intact. Doc trashed.
 
+**Result (2026-10-24) ⚠️ PARTIAL — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc_from_file(.html) returned no error, with 8 image successes plus the Case 8 per-image error (`doc edit failed: insertInlineImage: There was a problem retrieving the image…`). Raw `documents().get()`: Cases 1–5 as before; Case 6's image cell holds one `inlineObjectElement`; Case 7's nested cell holds one. All 8 headings and the final paragraph are present. Playwright (`2026-10-24-tc-doc102.png`): a logo in both table cells. **Defect:** Case 7's outer cell holds three paragraphs before the nested table (`""`, `""`, 10 spaces), from the fixture's indentation whitespace (`<td>\n      <table>`). They push the nested table onto the next page, away from its row. `html_to_ast` gives the cell the same `Run('\n      ')` on `develop`, so it predates #1073 (sent back on PR #1215, since `html_parser.py` is in its diff). Doc trashed.
+
 ---
 
 ### TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
@@ -2334,6 +2337,9 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: create_doc_from_file(.md) returned 7 successes plus the Case 8 error. The Case 7 reference-style image renders (tc-doc103b.png), but the Case 6 table-cell image is dropped silently. Tracked in #1073. Doc trashed.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc_from_file(.md) returned no error, with 8 image successes plus the Case 8 per-image error. Raw `documents().get()`: Case 6's image cell holds one `inlineObjectElement`, Case 7 reads `Reference-style: [IMG]`, and headings and the final paragraph are intact. Playwright (`2026-10-24-tc-doc103.png`): logos in the Case 6 cell and Case 7. Doc trashed.
 
 ---
 
@@ -3649,17 +3655,20 @@ Run 2 (ash).
 
 ---
 
-### TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC153: A table-cell image renders between two text cells ⚠️ requires-oauth ⚠️ destructive
 
-**Purpose:** confirm #333's explicit scope boundary (body-level images only) degrades gracefully rather than erroring or hanging — this is the same behavior TC-DOC102 Cases 6/7 already exercise, called out separately here since it's a deliberate design decision worth its own regression guard rather than being buried in an 8-case fixture.
+**Purpose:** an image in a table cell is embedded in its cell (#1073). Until #1073, #333's body-level-only image support dropped it silently: the cell came out empty, with no error and no `images` entry. The case also guards the cursor-never-advances hang an `Image` in `Cell.children` once risked (#509). The results before 2026-10-24 were recorded against the old checks (an empty image cell and no `images` key).
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from this HTML: `<table><tr><td>Before</td><td><img src=\"https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png\"></td><td>After</td></tr></table>`"
 
 **Checks**
-- Call succeeds with no `error`, no timeout (guards specifically against the cursor-never-advances infinite-loop shape this could take if a future change lets an `Image` reach `Cell.children` without emitter-side handling — see `emitter.py`'s `_fill_children_recursive` cursor-walk comment)
-- The table's first and third cells show "Before"/"After" text; the second (image) cell is empty
-- `images` key is absent from the response (the image was never resolved at all — dropped at parse time, same as any other unsupported table-cell construct)
+- Call returns promptly, with no `error`
+- `images` has one entry, for the logo URL, with no `error`
+- `get_doc_structure`: cell 0 reads "Before" and cell 2 "After"
+- Raw `documents().get()` read: cell 1's paragraph holds one `inlineObjectElement` and no text
+- Playwright: the Google logo shows in the middle cell
 
 **Cleanup:** delete the created doc
 
@@ -3676,6 +3685,9 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: All of the case's own checks are met: no error, no images key, cells "Before" / "" / "After", no hang. However, the table-cell image is dropped silently, which is the open known limitation #1073. Recorded as FAIL under the known-limitation rule; v0.9.2 recorded PASS.
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: create_doc returned promptly with no error, and `images` held one entry for the logo URL, with no `error`. `get_doc_structure`: cells `Before` / `` / `After`. Raw `documents().get()`: cell 1's paragraph holds one `inlineObjectElement` and no text. Playwright (`2026-10-24-tc-doc153.png`): the logo shows in the middle cell. Doc trashed.
 
 ---
 
@@ -6173,3 +6185,36 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-24) ⚠️ PARTIAL — PR #1201 QA round 2 (Kit) @ f73ba2f**
 `kit`, on a scratch doc in the fixture folder (trashed afterward). Step 3 was run over "Old heading" through the final empty paragraph, which was also bulleted: as first written, step 3 styled only "Old heading", which isn't the paragraph that survives the clear (steps 2–3 fixed in this round). Steps 1, 3, 4: no error. Raw read after step 4: no `HEADING_2`; "Intro para" and "After bold" `NORMAL_TEXT` with no indent; "step one"/"step two" share one `listId`; the empty paragraph before `A | B` has no bullet; header runs `bold` only, body runs empty. "quote a"/"quote b" have a `borderLeft` and 36pt. HTML export: `A | B` has no `margin-left`, `Q | R` has `margin-left:36pt`; the two `<ol>` share one `lst-kix_` class with `start="1"`/`start="2"`. **Step 5 fails:** `get_doc_as_markdown` returns `1. step two`, since the read side writes every numbered item as `1.` and the table ends the Markdown list (#1208; outside PR #1201's diff). Playwright (`2026-10-24-tc-doc233.png`): `A | B` at the margin, list numbered 1 and 2, `Q | R` indented to the quote text with no bar, no headings. Probes (`create_doc`, HTML): a quoted table as the doc's first element exports at 36pt, one in a depth-2 quote at 72pt, and one inside a quoted list at 36pt (the quote's indent). A colspan table in a quote is clean.
+
+---
+
+### TC-DOC234: Table-cell images: text around one, a linked one, an unreachable one, and nested tables ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #1073 beyond TC-DOC153's single image-only cell. A cell image goes in during the table fill, so this covers what the fill has to get right: an image's offset among the cell's text, two adjacent images keeping source order, a link on the image, an unfetchable image dropped without losing the rest of the table, and the position of a nested table after an image in the same cell.
+
+**Prompt**
+**Playwright: required**
+1. `create_doc(title="TC-DOC234", content=<HTML below>, content_format="html")`, where the HTML is (`LOGO` = `https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png`):
+   ```html
+   <table>
+   <tr><td>Text then <img src="LOGO"> then text</td><td><img src="LOGO"><img src="LOGO"></td><td>After</td></tr>
+   <tr><td><a href="https://example.com/linked"><img src="LOGO"></a></td><td>bad: <img src="https://example.invalid/nope.png"> end</td><td>plain</td></tr>
+   </table>
+   <table><tr><td>Lead <img src="LOGO"><table><tr><td><img src="LOGO"> inner</td></tr></table>tail <img src="LOGO"></td></tr></table>
+   <p>Final paragraph</p>
+   ```
+2. `create_doc(title="TC-DOC234 md", content="| Name | Logo |\n|---|---|\n| Two | ![a](LOGO) and ![b](LOGO) |\n\ndone\n", content_format="markdown")`
+3. `get_doc_as_markdown(doc_id=<step 2's docId>)`
+
+**Checks**
+- Steps 1 and 2 return no `error` key
+- Step 1's `images` has 8 entries. The `example.invalid` one has an `error` starting `doc edit failed:` and naming the image fetch; the other 7 have no `error`
+- Raw `documents().get()` read of step 1's doc, writing each `inlineObjectElement` as `[IMG]`: row 0 cells read `Text then [IMG] then text`, `[IMG][IMG]`, `After`. Row 1 cells read `[IMG]`, `bad:  end` (two spaces, no image), `plain`. Row 1 cell 0's `inlineObjectElement` has `textStyle.link.url` `https://example.com/linked`
+- Raw read, second table's one cell: a paragraph `Lead [IMG]`, then the nested table, then a paragraph `tail [IMG]`. The nested table's one cell reads `[IMG] inner`
+- "Final paragraph" is present after the second table
+- Step 3: the `Two` row's cell holds two images with ` and ` between them
+- 🔍 Playwright (step 1's doc): a logo shows in every cell the raw read shows `[IMG]` in, and none in the `bad:` cell. Text sits on the expected side of each logo; the nested table sits between "Lead" and "tail"
+
+**Cleanup:** trash both docs
+
+**Result (2026-10-24) ✅ PASS — PR #1215 QA round 1 (Kit) @ 79f19d4**
+`kit`: steps 1 and 2 returned no error. Step 1's `images` held 8 entries: `example.invalid` had `doc edit failed: insertInlineImage: There was a problem retrieving the image…`, and the other 7 had no error. Raw read: row 0 is `Text then [IMG] then text` / `[IMG][IMG]` / `After`; row 1 is `[IMG]` (link `https://example.com/linked`) / `bad:  end` / `plain`. The second table reads `Lead [IMG]`, then the nested table (`[IMG] inner`), then `tail [IMG]`; "Final paragraph" follows. Step 2 raw read: `[IMG] and [IMG]`. Step 3: the `Two` row is `![](…) and ![](…)`. Playwright (`2026-10-24-tc-doc234.png`): logos match the raw read, none in `bad:`, and the nested table sits between Lead and tail. Probe (not a Check): a local-path PNG in a top-level cell and in a nested cell, on the Shared Drive default folder, uploaded, embedded at the right offset (`local: [IMG] end`, `nested [IMG]`), and reported `shared: false` after revoke. Both docs and both uploads trashed.
