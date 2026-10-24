@@ -3026,7 +3026,7 @@ def register(tool):
                      -> Google Docs, .pptx -> Google Slides. Any other extension
                      returns an error. Default False (upload preserving original format).
                      A .md conversion is recognized by sync_folder's convert_markdown
-                     matching too (same underlying mechanism, #211) — a later
+                     matching too (same underlying mechanism) — a later
                      sync_folder call on the same folder won't create a duplicate.
                      For .md specifically, create_doc_from_file is a local-pipeline
                      alternative: it parses the file and rebuilds it via Docs API
@@ -3044,7 +3044,7 @@ def register(tool):
             'skipped_unverified': True plus a 'reason'; pass skip_if_exists=False to
             upload anyway. On failure, 'error' — plus a 'fileId' alongside it in the narrow
             case where convert=True and the file was actually created in Drive but a
-            follow-up metadata call then failed (#420): that fileId names a real,
+            follow-up metadata call then failed: that fileId names a real,
             already-created Drive file, not something to retry creating again.
 
         Note:
@@ -3113,7 +3113,7 @@ def register(tool):
             one anyway (upload_local_file applies the same check). Each
             'failed' entry is {name, error} plus a 'fileId' in the narrow convert=True
             case where the file was actually created in Drive but a follow-up metadata
-            call then failed (#420) — see upload_local_file's own Returns docs.
+            call then failed — see upload_local_file's own Returns docs.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -3445,7 +3445,7 @@ def register(tool):
         Files transfer concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each file
         finishes (e.g. "12/217: report.pdf: ok"). The message text always adds bytes
-        transferred so far as supplementary context (#352), e.g.
+        transferred so far as supplementary context, e.g.
         "12/217, 4823001/98234112 bytes: report.pdf: ok" when every candidate's
         size is known upfront, or "12/217, 4823001 bytes so far: report.pdf: ok"
         when one or more candidates (a Workspace export) has an unknown size.
@@ -3454,10 +3454,9 @@ def register(tool):
         (progress_unit='files'), for consistency with every other progress-reporting
         tool in this file. Pass progress_unit='bytes' to report bytes transferred
         instead, for a client that renders a progress bar from the structured fields
-        alone rather than parsing the message text (#741) — this only takes effect
-        when every candidate's size is known upfront (see _DownloadCandidate's
-        docstring); otherwise it silently falls back to file-count, since there's no
-        reliable byte total to report against.
+        alone rather than parsing the message text — this only takes effect when
+        every candidate's size is known upfront; otherwise it silently falls back
+        to file-count, since there's no reliable byte total to report against.
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -3780,7 +3779,7 @@ def register(tool):
         A convert_markdown Doc is the exception: its changes are tracked through
         properties and revision history instead (see convert_markdown below).
 
-        The "mtimes match but byte sizes differ" row (#659) exists because equal
+        The "mtimes match but byte sizes differ" row exists because equal
         mtimes don't guarantee equal content: a rename-in-place (`mv` keeps the
         mtime) leaves a name pointing at different bytes with an unchanged
         timestamp, which the plain equal-mtime skip would hide permanently.
@@ -3855,7 +3854,7 @@ def register(tool):
         includes an 'actions' list with {name, action, reason} for every file
         considered at every level visited; this is the complete, non-redundant
         picture of what a real run would do and why, without duplicating each name
-        into a second, action-labelless list alongside it (#512).
+        into a second, action-labelless list alongside it.
 
         ## Progress
 
@@ -3866,7 +3865,7 @@ def register(tool):
         since nothing is transferred. `progress` stays a running file-transfer count
         with no `total` (recursive descent means the overall file count isn't known
         upfront) — the message text adds a running total of bytes transferred so far
-        as supplementary context (#352), e.g. "notes.txt: upload_ok, 40231 bytes
+        as supplementary context, e.g. "notes.txt: upload_ok, 40231 bytes
         so far".
 
         Args:
@@ -3881,7 +3880,7 @@ def register(tool):
             convert_markdown: If True, local .md files are uploaded via Drive's native
                            import conversion, landing as Google Docs (still named
                            '<name>.md') instead of raw text files — same mechanism as
-                           upload_local_file's convert param (#188), and a Doc created
+                           upload_local_file's convert param, and a Doc created
                            either way is recognized by this matching. The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of
@@ -3980,7 +3979,7 @@ def register(tool):
             listed under 'skipped' (a 'skip' action under dry_run). Each 'failed' entry is
             {name, error} plus a 'fileId' in the narrow convert_markdown case where
             create() actually succeeded in Drive but a follow-up metadata call then
-            failed (#420) — that fileId names a real, already-created Drive file, not
+            failed — that fileId names a real, already-created Drive file, not
             something the next sync will retry creating from scratch. Raises
             ValueError if the response exceeds a safety cap (see
             MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured

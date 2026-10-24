@@ -1754,8 +1754,7 @@ def register(tool):
             headingId is the piece needed to build a working in-doc jump link: set
             link_url via style_doc_range to
             f"https://docs.google.com/document/d/{doc_id}/edit?tab=t.0#heading={heading_id}"
-            — an ordinary URL, no special Link-object field required. Confirmed live
-            2026-07-24 (issue #409).
+            — an ordinary URL, no special Link-object field required.
         """
         lc = ctx.request_context.lifespan_context
         try:

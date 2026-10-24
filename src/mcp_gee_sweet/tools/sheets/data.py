@@ -228,7 +228,7 @@ def register(tool):
 
         Returns:
             A 2D array of the sheet formulas, or {"error": ...} if the range is
-            rejected by the Sheets API (issue #757).
+            rejected by the Sheets API.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
@@ -256,7 +256,7 @@ def register(tool):
 
         Queries fetch concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each query
-        finishes (#355).
+        finishes.
 
         Args:
             queries: A list of dictionaries, each specifying a query.
@@ -379,7 +379,7 @@ def register(tool):
 
         Spreadsheets summarize concurrently rather than one at a time. If the caller
         supplied a progressToken, a `notifications/progress` update is sent as each
-        summary finishes (#355).
+        summary finishes.
 
         Args:
             spreadsheet_ids: A list of spreadsheet IDs to summarize.

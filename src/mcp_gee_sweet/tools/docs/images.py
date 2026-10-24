@@ -760,7 +760,7 @@ def register(tool):
                 the file must be shared as anyone-with-link (e.g. via share_file with
                 {"type": "anyone", "role": "reader"}) — being accessible to the
                 authenticated user alone is not sufficient and fails with "There was
-                a problem retrieving the image" (confirmed live 2026-07-18).
+                a problem retrieving the image".
                 Mutually exclusive with uri.
             width: Optional image width in points.
             height: Optional image height in points.
@@ -907,7 +907,7 @@ def register(tool):
         For each image: uploads the local file to Drive, shares it as
         anyone-with-link/reader (required — the Docs backend fetches inline images
         as an anonymous HTTP request, so a private file fails with "There was a
-        problem retrieving the image"; confirmed live 2026-07-18), locates its
+        problem retrieving the image"), locates its
         marker's current position, inserts the image immediately before the marker
         text, then deletes the marker text. Once the image is actually embedded,
         that temporary share is revoked again by default (revoke_sharing=True) —
@@ -942,7 +942,7 @@ def register(tool):
                 configured default folder.
             revoke_sharing: Whether each image's temporary anyone:reader share is
                 revoked again after it's embedded (default True). Set False to leave
-                images shared instead — matches this tool's original behavior. A
+                images shared instead — keeping each one link-readable afterwards. A
                 file that was already link-shared before the call (e.g. inherited
                 from its folder) keeps its link and is reported with
                 already_shared: true.
@@ -967,7 +967,7 @@ def register(tool):
             that last case keeps fileId and shared, with no index, since the upload
             and share happened even though the image was never placed). A sharing
             failure after the underlying Drive file was already created also carries
-            fileId (#649) — the upload itself succeeded even though the share didn't.
+            fileId — the upload itself succeeded even though the share didn't.
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service

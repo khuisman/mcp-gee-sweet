@@ -150,9 +150,9 @@ def register(tool):
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
-        Row chunks write concurrently rather than one at a time (#183). If the
+        Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes (#355).
+        as each chunk finishes.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -798,8 +798,8 @@ def register(tool):
             for them. Compare it to a local file's md5 to detect real content
             drift instead of inferring change from modifiedTime alone;
             sync_folder(use_checksum=True) does that comparison itself (see its
-            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect
-            (#388) — previously there was no way to read a file's starred state
+            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect.
+            Previously there was no way to read a file's starred state
             independently of calling one of those two mutating tools.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service

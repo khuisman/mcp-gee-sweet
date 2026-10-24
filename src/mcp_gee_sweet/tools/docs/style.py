@@ -389,9 +389,9 @@ def register(tool):
             ]
 
         For form-style column alignment (labels/values lined up without a visible
-        table, since tabStops is read-only — #404), zero padding on every cell is
+        table, since tabStops is read-only), zero padding on every cell is
         the confirmed part of the recipe; whether border_width: 0 also suppresses
-        a table's default visible border is not yet confirmed live. See
+        a table's default visible border is not yet verified against the live API. See
         docs/design/borderless-table-columns.md.
         """
         lc = ctx.request_context.lifespan_context
@@ -527,7 +527,7 @@ def register(tool):
           *same* call. A paragraph immediately adjacent to an existing list
           item that call doesn't also cover gets pulled back to that
           neighbor's level regardless of its own tabs (the same class of bug
-          PR #432 fixed in this project's own markdown-to-Doc converter).
+          that this project's own markdown-to-Doc converter already fixed).
           To keep every requested paragraph's relative depth correct, this
           tool fetches the document, resolves each requested range to the
           paragraph(s) it covers, and — for any that are already part of a
@@ -542,7 +542,7 @@ def register(tool):
           depth inference) is wrapped with a throwaway 0-tab anchor paragraph
           that is bulleted alongside the real items and then deleted, so the
           items land at their true nesting level instead of collapsing to 0
-          (issue #713; the same fix emitter.py carries for #439).
+          (the same fix emitter.py carries).
 
         Use get_doc_structure to obtain start_index/end_index for each target
         range — typically one paragraph's own startIndex/endIndex, or a
@@ -557,7 +557,7 @@ def register(tool):
                     must overlap at least one existing paragraph.
                 bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
                     (unordered) or "NUMBERED_DECIMAL_ALPHA_ROMAN" (ordered) —
-                    the only two presets this codebase has confirmed live
+                    the only two presets this codebase has verified live
                     (see emitter.py). The Docs API defines additional
                     glyph/numbering presets not exercised here; pass the
                     literal API enum string to use one anyway. If omitted,
