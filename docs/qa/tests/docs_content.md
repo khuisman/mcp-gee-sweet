@@ -6143,6 +6143,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Result (2026-10-24) ✅ PASS — PR #1201 QA round 1 (Kit) @ cfc5a32**
 `kit`, on a scratch doc in the fixture folder (trashed afterward), not the fixture doc. Step 1: no error. Raw read: six tables; header runs `bold` only, body runs an empty `textStyle`. "Hotel:" bold, "Note:" bold with a `borderLeft`, "code here" Courier New, "After" `HEADING_4`, both numbered items share one `listId`. No empty paragraph follows any table, except the full-height one between the two `K | V` tables. HTML export: no `<table>` has `margin-left`. Step 2: body cells plain. Playwright (`2026-10-24-tc-doc232.png`): the tables are at the left margin, with only the header rows bold. Probes on the same head, all outside this case's checks: a table between two numbered items (`1. step one`, table, `2. step two`) exports with `margin-left:36pt`, because the list's `createParagraphBullets` range covers the placeholder. A table inside a quote renders at margin 0, between two indented, bordered quote paragraphs. `write_doc_content` over a doc whose final paragraph is an indented `HEADING_2` turns every replaced paragraph into `HEADING_2`, and a merged-away cell's empty paragraph gets `fontSize` 16. 1x1, 1x3, and 3x5-with-colspan HTML tables each lose their placeholder cleanly.
 
+**Result (2026-10-24) ✅ PASS — PR #1201 QA round 2 (Kit) @ f73ba2f**
+`kit`, re-run on a scratch doc in the fixture folder (trashed afterward). Every raw-read, HTML-export, and Markdown check holds as in round 1: six tables, none with `margin-left`, header runs `bold` only, body runs empty, and both numbered items share one `listId`. The round-1 probe gaps are covered by TC-DOC233.
+
 ---
 
 ### TC-DOC233: A table between list items, a table inside a quote, and a doc that ended in a heading ⚠️ destructive
@@ -6151,8 +6154,8 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Prompt**
 **Playwright: required**
 1. `write_doc_content(doc_id="{DOC_ID}", content="Old body\n\nOld heading\n", content_format="markdown")`
-2. `get_doc_structure(doc_id="{DOC_ID}")`, and note the "Old heading" paragraph's `start_index` and `end_index`
-3. `style_doc_range(doc_id="{DOC_ID}", ranges=[{"start_index": <Old heading start_index>, "end_index": <Old heading end_index>, "named_style_type": "HEADING_2"}])`
+2. `get_doc_structure(doc_id="{DOC_ID}")`, and note the "Old heading" paragraph's `start_index` and the last paragraph's `end_index`. The last paragraph is the empty one after "Old heading", and it's the one whose style survives the clear, so styling "Old heading" alone doesn't exercise the fix
+3. `style_doc_range(doc_id="{DOC_ID}", ranges=[{"start_index": <Old heading start_index>, "end_index": <last paragraph end_index>, "named_style_type": "HEADING_2"}])`
 4. `write_doc_content(doc_id="{DOC_ID}", content="Intro para\n\n1. step one\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n2. step two\n\n> quote a\n>\n> | Q | R |\n> |---|---|\n> | 3 | 4 |\n>\n> quote b\n\nAfter **bold**\n", content_format="markdown")`
 5. `get_doc_as_markdown(doc_id="{DOC_ID}")`
 
@@ -6167,3 +6170,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 - 🔍 Playwright: the `A | B` table sits at the left margin, aligned with "Intro para", not with the list text. The list numbers "1." and "2." The `Q | R` table is indented to the quote text's left edge, with no gray bar beside it. Nothing reads as a heading
 
 **Cleanup:** write fixture content back
+
+**Result (2026-10-24) ⚠️ PARTIAL — PR #1201 QA round 2 (Kit) @ f73ba2f**
+`kit`, on a scratch doc in the fixture folder (trashed afterward). Step 3 was run over "Old heading" through the final empty paragraph, which was also bulleted: as first written, step 3 styled only "Old heading", which isn't the paragraph that survives the clear (steps 2–3 fixed in this round). Steps 1, 3, 4: no error. Raw read after step 4: no `HEADING_2`; "Intro para" and "After bold" `NORMAL_TEXT` with no indent; "step one"/"step two" share one `listId`; the empty paragraph before `A | B` has no bullet; header runs `bold` only, body runs empty. "quote a"/"quote b" have a `borderLeft` and 36pt. HTML export: `A | B` has no `margin-left`, `Q | R` has `margin-left:36pt`; the two `<ol>` share one `lst-kix_` class with `start="1"`/`start="2"`. **Step 5 fails:** `get_doc_as_markdown` returns `1. step two`, since the read side writes every numbered item as `1.` and the table ends the Markdown list (#1208; outside PR #1201's diff). Playwright (`2026-10-24-tc-doc233.png`): `A | B` at the margin, list numbered 1 and 2, `Q | R` indented to the quote text with no bar, no headings. Probes (`create_doc`, HTML): a quoted table as the doc's first element exports at 36pt, one in a depth-2 quote at 72pt, and one inside a quoted list at 36pt (the quote's indent). A colspan table in a quote is clean.
