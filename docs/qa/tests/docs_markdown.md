@@ -110,6 +110,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1056, #1098, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD002: Project plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -123,6 +125,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - `**30%**` bold in the overview.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD003: Spec / PRD ⚠️ destructive
 **Prompt**
@@ -153,6 +157,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1099, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1094, #1093, #1099 (bundle #1232). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD005: Status report ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -165,6 +171,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Asks: numbered 1–2.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1095, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD006: How-to with numbered steps and code ⚠️ destructive
 **Prompt**
@@ -180,6 +188,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Troubleshooting: the bold lead-in paragraphs are bold, and the OS bullet list follows.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1072, #1071, #1056, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, #1094, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
@@ -206,6 +216,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1098, #1056, #1095, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072, #1095. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD009: Changelog ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -217,6 +229,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - "**Breaking:**" bold.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1094, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD010: Checklist-heavy task plan ⚠️ destructive
 **Prompt**
@@ -231,6 +245,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1056, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, quoted-list border offset (F3, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD011: Incident postmortem ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -243,6 +259,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Lessons: 1–2 numbered; three nested bullets under item 2.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive
 **Prompt**
@@ -258,6 +276,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD013: API reference ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -270,6 +290,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Query-parameter table: the Required column centered.
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1071, #1097, #1098, #1056, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD014: Study notes ⚠️ destructive
 **Prompt**
@@ -284,6 +306,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD015: Travel itinerary ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -297,6 +321,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1097, #1095, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1095. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -307,6 +333,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows `1. Q4 results` etc. as literal monospace lines, not a list.
 - Logistics table intact.
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ---
 
@@ -334,6 +362,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 
 **Result (2026-10-18) ❌ FAIL — 50/64 case×EP cells pass, in both runs; failures: #1116, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 32/32 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD102: Emphasis and strikethrough ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -351,6 +381,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 | EM-08 | One paragraph, all bold, the two source lines joined by a space (C10) |
 
 **Result (2026-10-18) ❌ FAIL — 50/64 case×EP cells pass, in both runs; failures: #1116, #1077, #1093, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 28/32 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (EM-08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD103: Inline code ⚠️ destructive
 **Prompt**
@@ -406,6 +438,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 
 **Result (2026-10-18) ❌ FAIL — 31/64 case×EP cells pass, in both runs; failures: #1115, #1116, #1118, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 20/32 EP-1–EP-4 cells pass, identical in both runs; failures: #1118 (LM-04), adjacent lists merge (LM-01, LM-07; F2, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD106: Nesting widths × list-type combinations ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -431,6 +465,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 18/128 case×EP cells pass, in both runs; failures: #1071, #1072, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 32/64 EP-1–EP-4 cells pass (nesting correct in all 16 cases), identical in both runs; failures: #1072 (8 mixed-type cases). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD107: Loose lists and blocks inside list items ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -449,6 +485,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LB-09 | Item 1 with two nested bullets (level 1), then item **2.** |
 
 **Result (2026-10-18) ❌ FAIL — 17/72 case×EP cells pass, in both runs; failures: #1115, #1094, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 4/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, LB-08 heading-in-item loses bullet (F4, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
@@ -469,6 +507,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 20/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (LX-04), #1115 + #1094 (LX-08), #1118 (LX-09), F2 (LX-05). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -484,6 +524,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | TK-06 | Two plain bullets with "[link-looking]" and "[]" shown literally |
 
 **Result (2026-10-18) ❌ FAIL — 27/48 case×EP cells pass, in both runs; failures: #1071, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 24/24 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD110: Blockquotes ⚠️ destructive
 **Prompt**
@@ -504,6 +546,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 0/72 case×EP cells pass, in both runs; failures: #1056, #1093, #1098, #1101, #1102. Quote indent predates the #1056 fix (PR #1089). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 28/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (BQ-07), quoted-list border offset (BQ-04; F3, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD111: Links ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -522,9 +566,11 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LK-09 | Both spans Courier New, not linked | same |
 | LK-10 | Heading 4 with "link" linked | same |
 | LK-11 | Links keep the full query string and the closing `)` of `(disambiguation)` | same |
-| LK-12 | "the guide" links to `./guide.md` as written (relative) and "an anchor" links to the LK-01 heading or is dropped as text, not left pointing nowhere (`docs/design/heading-anchor-resolution.md`) | same |
+| LK-12 | "the guide" is plain text: a scheme-less target can't be stored as a Docs link, so the link is dropped and the text kept (#1120, `emitter._storable_link_url`). "an anchor" links to the LK-01 heading or is dropped as text, not left pointing nowhere (`docs/design/heading-anchor-resolution.md`) | same |
 
 **Result (2026-10-18) ❌ FAIL — 117/144 case×EP cells pass, in both runs; failures: #1116, #1120, #1101, #1102. Includes the `autolink_urls=False` variant. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 48/48 EP-1–EP-4 cells pass, and 48/48 with `autolink_urls=False`, identical in both runs. LK-12 first failed against its old expectation ("links to `./guide.md`"), which predated #1120's fix. LK-12's expectation was corrected in this pass and re-judged from the same screenshots: "the guide" and "an anchor" are both plain text. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD112: Images ⚠️ destructive
 **Prompt**
@@ -568,6 +614,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 62/96 case×EP cells pass, in both runs; failures: #1095, #1116, #1077, #1098, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 40/48 EP-1–EP-4 cells pass, identical in both runs; failures: #1095 (TB-02, TB-10). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD114: Breaks and thematic breaks ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -587,6 +635,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 40/72 case×EP cells pass, in both runs; failures: #1093, #1117, #1116, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 8/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (BR-01), #1117 in bundle #1230 (BR-02, BR-03), #1096 (BR-04, 05, 06, 08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD115: Escapes and entities ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -603,6 +653,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | ES-07 | Backslashes kept: `C:\Users\name\file.txt` and `a\b` |
 
 **Result (2026-10-18) ❌ FAIL — 50/56 case×EP cells pass, in both runs; failures: #1116, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 28/28 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD116: Inline HTML ⚠️ destructive
 **Prompt**
@@ -744,6 +796,8 @@ Not expressible, so not in the matrix:
 
 **Result (2026-10-18) ❌ FAIL — 75/640 case×EP cells pass, in both runs; failures: #1115, #1094, #1072, #1056, #1122, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 96/320 EP-1–EP-4 cells pass, identical in both runs; failures: #1115, #1094, #1072, #1096, `<hr>` in a list item leaves an empty bullet (PR #1228 round-3 finding), F3. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -857,6 +911,8 @@ Every block construct directly followed by every other, with no blank line betwe
 <!-- /generated:AJ -->
 
 **Result (2026-10-18) ❌ FAIL — 301/800 case×EP cells pass, in both runs; failures: #1116, #1093, #1096, #1056, #1097, #1073, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 272/400 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1096. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD203: Adjacency matrix, blank line ⚠️ destructive
 **Prompt**
@@ -972,6 +1028,8 @@ The same 100 pairs separated by one blank line.
 
 **Result (2026-10-18) ❌ FAIL — 400/800 case×EP cells pass, in both runs; failures: #1115, #1056, #1096, #1097, #1098, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 304/400 EP-1–EP-4 cells pass, identical in both runs; failures: #1096, #1115. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD204: Inline formatting matrix ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1016,6 +1074,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | IN-32 | all five styles in a nested blockquote | B bold, I italic, S struck through, C monospace, L a link; each style only on its own letter; the nested blockquote itself renders correctly |
 <!-- /generated:IN -->
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 128/128 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ---
 
 **Result (2026-10-18) ❌ FAIL — 89/256 case×EP cells pass, in both runs; failures: #1077, #1116, #1056, #1122, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
@@ -1046,6 +1106,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 
 **Result (2026-10-22) ❌ FAIL — 71/112 case×EP cells pass, 6 pending (EP-1/2/8 of DS-10 and DS-13: the client can't send an empty string or CRLF inline), in both runs except DS-05 EP-3 (Run 2 hang, #1129); failures: #1101, #1102, #1096, #1129, #1173. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — DS-14 only (re-run scope): 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1173, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1057,6 +1119,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 - Every thematic break between documents is a visible line.
 
 **Result (2026-10-22) ❌ FAIL — 0/8 entry points pass. Every render completes and the second copies of r06/r16 match the first; failures are the Phase 1 rendering defects (#1096 breaks invisible in EP-1–4, #1071, #1072, #1093, #1094, #1097, #1099, #1101, #1102). Identical across runs. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
+
+**Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (completed, no timeout), identical in both runs; failures: #1096 plus the realistic documents' own failures. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 ### TC-MD303: A `.md` file with a long name through the Drive-import entry points ⚠️ destructive
 **Setup:** copy `docs/qa/fixtures/md/realistic/r01-meeting-notes.md` to a temp directory as a file whose name is 110 ASCII bytes (`qa-md303-` padded with `x`, ending `.md`), and a second copy whose name is 45 CJK characters plus `.md` (over 130 UTF-8 bytes). Don't commit either name.
