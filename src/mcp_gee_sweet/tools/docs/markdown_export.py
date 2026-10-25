@@ -102,7 +102,8 @@ def _rendered_heading_slugs(document: dict) -> dict[str, str]:
         heading_id = para.get("paragraphStyle", {}).get("headingId")
         if not heading_id:
             continue
-        node = _paragraph_to_node(para, document)
+        # Only headings are kept, and only headingId paragraphs are seen: no list numbers.
+        node = _paragraph_to_node(para, document, list_counter=None)
         if not isinstance(node, Heading | NamedBlock):
             continue
         ids.append(heading_id)

@@ -125,7 +125,8 @@ class BulletItem:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     # Read side only (#1208): an ordered item's ordinal in its Docs list, counted across
     # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
-    number: int | None = None
+    # Read-side metadata like blockquote_path, so it doesn't take part in equality.
+    number: int | None = field(default=None, compare=False)
 
 
 @dataclass

@@ -1833,9 +1833,23 @@ class TestOrderedListNumbering:
         )
         assert self._numbers(doc) == [None, 1, 2, None, 1]
 
-    @pytest.mark.parametrize(("start", "expected"), [(None, [1, 2]), (0, [1, 2]), (5, [5, 6])])
-    def test_start_number_offsets_the_count(self, start, expected):
-        level = dict(_DECIMAL_LEVEL)
+    @pytest.mark.parametrize(
+        ("glyph", "start", "expected"),
+        [
+            ("DECIMAL", None, [1, 2]),
+            ("DECIMAL", 5, [5, 6]),
+            # The NestingLevel.startNumber reference: 0 is 1 only for lettered and
+            # Roman-numeral lists (PR #1234 QA round 1).
+            ("DECIMAL", 0, [0, 1]),
+            ("ZERO_DECIMAL", 0, [0, 1]),
+            ("ALPHA", 0, [1, 2]),
+            ("UPPER_ALPHA", 0, [1, 2]),
+            ("ROMAN", 0, [1, 2]),
+            ("UPPER_ROMAN", 0, [1, 2]),
+        ],
+    )
+    def test_start_number_offsets_the_count(self, glyph, start, expected):
+        level = {"glyphType": glyph}
         if start is not None:
             level["startNumber"] = start
         doc = self._doc(
@@ -1844,6 +1858,21 @@ class TestOrderedListNumbering:
         )
         assert self._numbers(doc) == expected
 
+    def test_table_cell_items_do_not_advance_the_body_count(self):
+        """Measured live (PR #1234 QA round 1): with cell paragraphs and the body
+        items after the table on one listId, Docs' txt and HTML exports number
+        the body items from the list's start."""
+        cell = {"tableCellStyle": {}, "content": [self._item("cell")]}
+        table = {"table": {"tableRows": [{"tableCells": [cell]}]}}
+        doc = self._doc([table, self._item("P"), self._item("b")])
+        assert self._numbers(doc) == [1, 2]
+
+    def test_number_does_not_take_part_in_equality(self):
+        """Read-side metadata, like blockquote_path: a write-side AST (no number)
+        equals a read-side one of the same list."""
+        read = BulletItem(runs=[Run(text="a")], ordered=True, number=3)
+        assert read == BulletItem(runs=[Run(text="a")], ordered=True)
+
     def test_renderer_writes_the_number(self):
         nodes = [
             BulletItem(runs=[Run(text="a")], ordered=True, number=1),
@@ -1851,9 +1880,57 @@ class TestOrderedListNumbering:
         ]
         assert ast_to_markdown(nodes) == "1. a\n2. b\n"
 
+    def test_renderer_writes_a_zero(self):
+        nodes = [BulletItem(runs=[Run(text="a")], ordered=True, number=0)]
+        assert ast_to_markdown(nodes) == "0. a\n"
+
     def test_renderer_without_a_number_keeps_one(self):
         nodes = [BulletItem(runs=[Run(text="a")], ordered=True)]
         assert ast_to_markdown(nodes) == "1. a\n"
+
+    @pytest.mark.parametrize("parent_ordered", [False, True])
+    @pytest.mark.parametrize("quoted", [0, 1])
+    def test_sublist_starting_past_one_stays_a_list_in_commonmark(self, parent_ordered, quoted):
+        """PR #1234 QA round 1: CommonMark doesn't let a list starting at N != 1
+        interrupt a paragraph, so "- a\\n  5. a1" read "5. a1" as the parent's
+        text. The sublist's first item writes "1."; its later items keep their
+        numbers, which CommonMark ignores after the first."""
+        nodes = [
+            BulletItem(
+                runs=[Run(text="a")],
+                ordered=parent_ordered,
+                number=1 if parent_ordered else None,
+                blockquote_depth=quoted,
+            ),
+            BulletItem(
+                runs=[Run(text="a1")], depth=1, ordered=True, number=5, blockquote_depth=quoted
+            ),
+            BulletItem(
+                runs=[Run(text="a2")], depth=1, ordered=True, number=6, blockquote_depth=quoted
+            ),
+        ]
+        md = ast_to_markdown(nodes)
+        assert "1. a1\n" in md
+        assert "6. a2\n" in md
+        html = "".join(_COMMONMARK.render(md).split())
+        assert "<li>a1</li><li>a2</li>" in html
+        if not parent_ordered:
+            # Under a numbered parent the 2-space indent doesn't nest at all (#1128).
+            assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
+
+    def test_item_at_same_or_shallower_depth_keeps_its_number(self):
+        """Only an item deeper than the one before it starts a sublist mid-item.
+        "- x\\n3. c" parses as a new list starting at 3."""
+        nodes = [
+            BulletItem(runs=[Run(text="x")]),
+            BulletItem(runs=[Run(text="c")], ordered=True, number=3),
+            BulletItem(runs=[Run(text="c1")], depth=1, ordered=True, number=1),
+            BulletItem(runs=[Run(text="d")], ordered=True, number=4),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md.startswith("- x\n3. c\n")
+        assert "\n4. d\n" in md
+        assert '<ol start="3">' in _COMMONMARK.render(md)
 
     def test_interrupted_list_resumes_at_its_ordinal_in_commonmark(self):
         """The ticket's observed case (PR #1201 QA, TC-DOC233 step 5): one Docs
