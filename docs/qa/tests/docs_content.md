@@ -2315,6 +2315,9 @@ Run 2 (ash).
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 3 (Kit) @ e3a6e69**
 `kit`: create_doc_from_file(.html) returned no error, with 8 successes plus the Case 8 error. Raw read: Case 6's cell holds one image, and Case 7's outer cell holds only Docs' two structural empty paragraphs around the nested table (`[IMG]`). Docs trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
+`kit`: 8 successes plus the Case 8 error, with no top-level error. Raw read: Case 6's cell holds one image, and Case 7's outer cell holds only Docs' structural empty paragraphs around the nested `[IMG]`. Doc trashed.
+
 ---
 
 ### TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
@@ -2352,6 +2355,9 @@ Run 2 (ash).
 
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 3 (Kit) @ e3a6e69**
 `kit`: create_doc_from_file(.md) returned no error, with 8 successes plus the Case 8 error. Raw read: Case 6's cell holds one image, and Case 7 reads `Reference-style: [IMG]`. Doc trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
+`kit`: 8 successes plus the Case 8 error. Raw read: Case 6's cell holds one image, and Case 7 reads `Reference-style: [IMG]`. Doc trashed.
 
 ---
 
@@ -3705,6 +3711,9 @@ Run 2 (ash).
 `kit`: create_doc returned with no error; `images` held one logo entry with no `error`. Raw read: cells `Before` / `[IMG]` / `After`. Doc trashed.
 
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 3 (Kit) @ e3a6e69**
+`kit`: no error; one logo entry with no `error`. Raw read: `Before` / `[IMG]` / `After`. Doc trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
 `kit`: no error; one logo entry with no `error`. Raw read: `Before` / `[IMG]` / `After`. Doc trashed.
 
 ---
@@ -6243,6 +6252,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 3 (Kit) @ e3a6e69**
 `kit`: steps 1–2 returned no error; 8 entries, with only `example.invalid` in error. The raw reads match rounds 1–2 row by row, and step 2 reads `[IMG] and [IMG]`. Probes (not Checks), one doc. Body retry, now on the shared `batch_retry` loop: five body paragraphs with three unfetchable images and a linked logo after them read `B1  one` / `B2 [IMG] two` / `B3  three` / `B4  four` / `B5 [IMG link=https://example.com/l] five`. Cell batch split: `A1  x` / `B1 [IMG] y` / `C1  z` / `D1 [IMG] w`. An image-only cell in a table after an `<h1>` carries no `fontSize` and renders the same height as its text neighbor (`2026-10-25-pr1215-r3-probe.png`). Docs trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
+`kit`: steps 1–2 returned no error, and the `images` entries match round 3. The raw reads match rounds 1–3 row by row, and step 2 reads `[IMG] and [IMG]`. Playwright (`2026-10-25-tc-doc234-r4.png`) matches. Probes (not Checks): the body retry with three unfetchable images plus a linked logo, and the cell batch split, give the same raw reads as round 3. Docs trashed.
+
 ---
 
 ### TC-DOC235: Line breaks and block content inside a table cell survive HTML parsing ⚠️ requires-oauth ⚠️ destructive
@@ -6274,3 +6286,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 3 (Kit) @ e3a6e69**
 `kit`: no error. Raw read: cell 0 is `para one` / `para two` (two paragraphs), cell 1 is `line1` / `  line2`, and cell 2's `linked` carries `https://example.com/x`. The second table's outer cell holds only the structural empty paragraphs around the nested table (`inner`), and `End` follows. Playwright (`2026-10-25-tc-doc235.png`) matches. Cell 2's check was reworded this round: it had assumed the source newline after `linked` collapses to a space, but on `develop` and here it's a line break (existing behavior, tracked separately). The newline itself is now unlinked where `develop` kept it in the link, which is sent back on PR #1215 round 3. Doc trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
+`kit`: no error. Raw read: `para one` / `para two`, `line1` / `  line2`, and `linked` (link `https://example.com/x`) then `after`. The second table holds only the structural empty paragraphs around `inner`. Probe (added cell, not a Check): `<td>\n  Intro text\n  <table>…nested…</table>\n  tail\n</td>` reads `Intro text` / nested table / `tail`, with no stray paragraphs. The newline after `linked` reads unlinked in the doc although the parser now keeps it in the link (`html_to_ast`: `('\n', 'http://u')`). It's the paragraph's end marker, which Docs doesn't link. Playwright (`2026-10-25-tc-doc235-r4.png`) matches. Doc trashed.
