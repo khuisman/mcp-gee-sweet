@@ -912,6 +912,17 @@ async def _apply_doc_content(
     # anyone:reader. So the lifecycle revokes on every exit, not only after success
     # (#789): revoking after a failed edit is harmless, since a doc that did embed
     # an image holds its own copy and one that didn't never needed the share.
+    # The resolved cell images and the fill that places them (#1073), filled in once the
+    # edit has built its requests. A resolved cell image was uploaded and shared, so one
+    # that never landed would otherwise read as embedded, whichever way the edit ends.
+    cell_uris: dict[int, str] = {}
+    cell_images: CellImages | None = None
+
+    def _mark_unplaced_cell_images(reason: str) -> None:
+        embedded = cell_images.embedded if cell_images is not None else set()
+        for img_id in cell_uris.keys() - embedded:
+            entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
+
     try:
         async with lifecycle.edit():
             image_links: dict[int, dict] = {}
@@ -945,6 +956,32 @@ async def _apply_doc_content(
                     .execute,
                     docs_service,
                 )
+
+            # Table cells are filled after phase 1, from live indices (#1073). The fill
+            # gets its own copy of the cell images' URIs, and reports back only through
+            # on_dropped and its embedded set.
+            cell_uris.update(
+                (id(leaf), real_uri_by_id[id(leaf)])
+                for table in tables
+                for leaf in iter_cell_leaves(table)
+                if id(leaf) in real_uri_by_id
+            )
+
+            def _cell_image_dropped(image: Image, e: Exception) -> None:
+                entry = entry_by_id.get(id(image))
+                if entry is not None:
+                    # The index reader below returns None for anything else.
+                    assert isinstance(e, HttpError)
+                    _record_embed_failure(entry, e)
+
+            cell_images = CellImages(
+                dict(cell_uris),
+                _batch_update,
+                lambda e: (
+                    _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
+                ),
+                _cell_image_dropped,
+            )
 
             if content_requests:
                 # A resolved image's URI is only proven *reachable to us*, not necessarily
@@ -1026,48 +1063,15 @@ async def _apply_doc_content(
                 content_requests = await send_dropping_failed_images(
                     content_requests, _batch_update, _drop_failed_image, _body_split_point
                 )
-            # Table cells are filled after phase 1, from live indices (#1073). The fill
-            # gets its own copy of the cell images' URIs, and reports back only through
-            # on_dropped and its embedded set.
-            cell_uris = {
-                id(leaf): real_uri_by_id[id(leaf)]
-                for table in tables
-                for leaf in iter_cell_leaves(table)
-                if id(leaf) in real_uri_by_id
-            }
-
-            def _cell_image_dropped(image: Image, e: Exception) -> None:
-                entry = entry_by_id.get(id(image))
-                # Only an HttpError names a failed image (see the reader below).
-                if entry is not None and isinstance(e, HttpError):
-                    _record_embed_failure(entry, e)
-
-            cell_images = CellImages(
-                dict(cell_uris),
-                _batch_update,
-                lambda e: (
-                    _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
-                ),
-                _cell_image_dropped,
-            )
-
-            def _mark_unplaced(reason: str) -> None:
-                # A resolved cell image was uploaded and shared, so one that never
-                # landed would otherwise read as embedded.
-                for img_id in cell_uris.keys() - cell_images.embedded:
-                    entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
-
-            try:
-                await fill_tables(docs_service, doc_id, tables, cell_images)
-            except BaseException:
-                # A split batch can land its head before the rest fails for another
-                # reason, so some cell images are in and some aren't.
-                _mark_unplaced("the table fill failed before it was placed")
-                raise
-            _mark_unplaced("its table cell wasn't found in the document")
+            await fill_tables(docs_service, doc_id, tables, cell_images)
+            _mark_unplaced_cell_images("its table cell wasn't found in the document")
             if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
     except Exception as e:
+        # The body batch or the fill can fail with some cell images placed (a split
+        # batch lands its head first) or none. A cancellation isn't caught: its last
+        # batch still runs to completion and may place images after this point.
+        _mark_unplaced_cell_images("the doc edit failed before it was placed")
         # The outcome list rides on the error so the calling tool can return it; a
         # raise alone would lose every file ID (#789). The lifecycle has already
         # revoked the shares and logged the touched files.

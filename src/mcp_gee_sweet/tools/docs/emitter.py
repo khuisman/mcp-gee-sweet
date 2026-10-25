@@ -27,7 +27,6 @@ class CellImages:
     about each image dropped that way. embedded collects id(image) for every image whose
     insert went out in a batch that succeeded, updated as each batch lands, so the
     caller can tell which resolved images the fill never placed, even after a raise.
-    fill_tables builds one with no images (without_images) when it isn't given one.
     """
 
     def __init__(
@@ -46,20 +45,6 @@ class CellImages:
         # built and sent. It holds the request dicts themselves and is cleared once that
         # batch settles, so no id() here can belong to a later batch's request.
         self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
-
-    @classmethod
-    def without_images(cls, docs_service, doc_id: str) -> CellImages:
-        """No cell images: every batch is sent as-is, and any error is raised."""
-
-        async def run_batch(requests: list[dict]) -> None:
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                docs_service,
-            )
-
-        return cls({}, run_batch, lambda _e: None, lambda _image, _e: None)
 
     def insert_requests(self, image: Image, position: int) -> list[dict]:
         """The insertInlineImage (and link request) for `image`, recorded for the retry."""
@@ -104,8 +89,9 @@ class CellImages:
         index = self._failed_request_index(error)
         if index is None or index >= len(requests):
             return None
+        # _pending holds its requests alive, so an id() match is the request itself.
         entry = self._pending.get(id(requests[index]))
-        if entry is None or entry[0] is not requests[index]:
+        if entry is None:
             return None
         insert, image, link = entry
         requests.pop(index)
@@ -1050,9 +1036,7 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
     ]
 
 
-async def fill_tables(
-    docs_service, doc_id: str, tables: list[Table], images: CellImages | None = None
-) -> None:
+async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: CellImages) -> None:
     """Fill table cells and apply inline styles using live cell indices.
 
     Phases:
@@ -1072,8 +1056,7 @@ async def fill_tables(
     They share one post-fill fetch, since column-width changes move no indices.
 
     images: the resolved images to embed in cells, at any nesting depth, and how each
-    fill batch is sent (#1073). Without it, every cell image is skipped and each batch
-    is sent as-is.
+    fill batch is sent (#1073).
 
     Nested table limitations: no col_widths inside nested tables. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
@@ -1083,8 +1066,6 @@ async def fill_tables(
     """
     if not tables:
         return
-    if images is None:
-        images = CellImages.without_images(docs_service, doc_id)
 
     has_nested = any(
         any(isinstance(child, Table) for child in cell.children)

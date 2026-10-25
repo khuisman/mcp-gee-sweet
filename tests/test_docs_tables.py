@@ -80,6 +80,15 @@ def _runs_in(cell: Cell) -> list[Run]:
     return [child for child in cell.children if isinstance(child, Run)]
 
 
+def _plain_images(svc, doc_id: str = "doc1") -> CellImages:
+    """A fill with no cell images, sending each batch through `svc` as-is."""
+
+    async def run_batch(requests: list[dict]) -> None:
+        svc.documents().batchUpdate(documentId=doc_id, body={"requests": requests}).execute()
+
+    return CellImages({}, run_batch, lambda _e: None, lambda *_: None)
+
+
 # ---------------------------------------------------------------------------
 # Table structural ops (#146)
 # ---------------------------------------------------------------------------
@@ -748,9 +757,7 @@ class TestFillNestedCellContent:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await _fill_nested_cell_content(
-            svc, "doc1", [ast_table], CellImages.without_images(svc, "doc1")
-        )
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         return doc
 
     async def test_leading_text_only(self):
@@ -826,9 +833,7 @@ class TestFillNestedCellContent:
     async def test_plain_cells_produce_no_calls(self):
         ast_table = _table(_row(_cell("plain")))
         svc = MagicMock()
-        await _fill_nested_cell_content(
-            svc, "doc1", [ast_table], CellImages.without_images(svc, "doc1")
-        )
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         svc.documents.return_value.get.assert_not_called()
         svc.documents.return_value.batchUpdate.assert_not_called()
 
@@ -884,9 +889,7 @@ class TestNestedTableMerges:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await _fill_nested_cell_content(
-            svc, "doc1", [ast_table], CellImages.without_images(svc, "doc1")
-        )
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         return doc, batches
 
     async def test_colspan_merge_emitted_and_only_anchor_cell_filled(self):
@@ -1000,7 +1003,7 @@ class TestFillTablesColumnWidths:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await fill_tables(svc, "doc1", ast_tables)
+        await fill_tables(svc, "doc1", ast_tables, _plain_images(svc))
         fetches = svc.documents.return_value.get.return_value.execute.call_count
         return doc, batches, fetches
 
@@ -1121,9 +1124,7 @@ class TestSkippedTableDoesNotDesyncTablePairing:
         doc_table = {
             "tableRows": [{"tableCells": [{"startIndex": 9, "content": [{"startIndex": 10}]}]}]
         }
-        fill_requests = _build_fill_requests(
-            [doc_table], tables, CellImages.without_images(MagicMock(), "doc1")
-        )
+        fill_requests = _build_fill_requests([doc_table], tables, _plain_images(MagicMock()))
 
         insert_texts = [r["insertText"] for r in fill_requests if "insertText" in r]
         assert len(insert_texts) == 1
@@ -1188,24 +1189,63 @@ class TestCellImageParser:
         )
         assert self._shape(nodes[0].rows[0].cells[0]) == ["Table"]
 
-    async def test_only_edge_indentation_is_dropped(self):
-        # Whitespace-only data with a line break goes only at a segment's edges; text
-        # and the whitespace between two pieces of content parse as before.
+    @staticmethod
+    def _linked_text(cell: Cell) -> list[tuple[str, str | None]]:
+        """A cell's text as (text, link) spans, adjacent same-link runs joined: they
+        render alike, and where runs split depends only on where tags flushed."""
+        spans: list[tuple[str, str | None]] = []
+        for child in cell.children:
+            if isinstance(child, Run) and spans and spans[-1][1] == child.link_url:
+                spans[-1] = (spans[-1][0] + child.text, child.link_url)
+            elif isinstance(child, Run):
+                spans.append((child.text, child.link_url))
+            else:
+                spans.append((type(child).__name__, "-"))  # never joins a run
+        return spans
+
+    async def test_line_break_edges_are_trimmed(self):
+        # Whitespace holding a line break goes at a segment's edges, mixed text
+        # included; the whitespace between two pieces of content parses as before.
         nodes = html_to_ast('<table><tr><td>\n  A\n  <img src="u">\n  <b>B</b>\n</td></tr></table>')
-        assert self._shape(nodes[0].rows[0].cells[0]) == ["\n  A\n  ", "Image", "\n  ", "B"]
+        assert self._linked_text(nodes[0].rows[0].cells[0]) == [
+            ("A\n  ", None),
+            ("Image", "-"),
+            ("\n  B", None),
+        ]
+
+    async def test_text_before_a_nested_table_loses_its_indentation_edges(self):
+        # PR #1215 QA round 3: a mixed chunk's newline-led edges, next to a nested
+        # table, still became empty paragraphs.
+        nodes = html_to_ast(
+            "<table><tr><td>\n  Intro text\n  <table><tr><td>i</td></tr></table>\n"
+            "</td></tr></table>"
+        )
+        assert self._shape(nodes[0].rows[0].cells[0]) == ["Intro text", "Table"]
 
     async def test_cell_block_content_and_pre_keep_their_line_breaks(self):
-        # PR #1215 QA round 2: collapsing every line break merged these.
+        # PR #1215 QA round 2: collapsing every line break merged these. A <pre>'s
+        # whitespace is never trimmed, even at an edge.
         nodes = html_to_ast(
             "<table><tr><td><p>a</p>\n<p>b</p></td><td><pre>x\n  y</pre></td>"
-            "<td><a href='http://u'>x\n</a>y</td></tr></table>"
+            "<td><a href='http://u'>x\n</a>y</td><td><pre>\n  code\n</pre></td></tr></table>"
         )
         cells = nodes[0].rows[0].cells
-        assert self._shape(cells[0]) == ["a", "\n", "b"]
-        assert self._shape(cells[1]) == ["x\n  y"]
-        assert [(r.text, r.link_url) for r in _runs_in(cells[2])] == [
-            ("x\n", "http://u"),
-            ("y", None),
+        assert self._linked_text(cells[0]) == [("a\nb", None)]
+        assert self._linked_text(cells[1]) == [("x\n  y", None)]
+        assert self._linked_text(cells[2]) == [("x\n", "http://u"), ("y", None)]
+        assert self._linked_text(cells[3]) == [("\n  code\n", None)]
+
+    async def test_held_whitespace_keeps_its_link_and_style(self):
+        # PR #1215 QA round 3: released held whitespace had lost the link it was
+        # typed in.
+        nodes = html_to_ast(
+            '<table><tr><td><a href="u"><b>X</b>\n  </a><a href="v">Y</a></td></tr></table>'
+        )
+        runs = _runs_in(nodes[0].rows[0].cells[0])
+        assert [(r.text, r.link_url, r.bold) for r in runs] == [
+            ("X", "u", True),
+            ("\n  ", "u", None),
+            ("Y", "v", None),
         ]
 
     async def test_held_whitespace_does_not_leak_past_an_unclosed_cell(self):

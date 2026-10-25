@@ -2226,11 +2226,35 @@ class TestCreateDocImages:
 
         assert "error" in result
         outcomes = {o["src"]: o for o in result["images"]}
-        assert outcomes[good]["error"] == (
-            "not embedded: the table fill failed before it was placed"
-        )
+        assert outcomes[good]["error"] == ("not embedded: the doc edit failed before it was placed")
         assert outcomes[bad_b]["error"].startswith("doc edit failed:")
         assert outcomes[bad_c]["error"].startswith("doc edit failed:")
+
+    async def test_body_batch_failure_reports_cell_images_as_unplaced(self):
+        # PR #1215 QA round 3: a failure before the fill (here the phase-1 batch, which
+        # inserts the table shell) must not leave cell images reading as embedded.
+        drive_svc, docs_svc = self._make_services()
+        uri = "https://example.com/cell.png"
+
+        def batchupdate_side_effect(documentId, body):
+            m = MagicMock()
+            if any("insertTable" in r for r in body["requests"]):
+                resp = MagicMock()
+                resp.status = 500
+                m.execute.side_effect = HttpError(resp=resp, content=b"{}", uri="x")
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=self._CELL_IMAGE_HTML.format(uri=uri), ctx=ctx
+        )
+        assert "error" in result
+        assert result["images"] == [
+            {"src": uri, "error": "not embedded: the doc edit failed before it was placed"}
+        ]
 
     async def test_cell_image_the_fill_never_placed_is_reported(self):
         # PR #1215 QA round 1: a resolved cell image whose cell the fill can't locate

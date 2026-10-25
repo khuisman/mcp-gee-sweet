@@ -146,12 +146,15 @@ positional pass.
 - **Parser.** An `<img>` in a cell joins `Cell.children` in source order, with its `<a>` link,
   the same as in a block. A nested `<table>` already flushed the open cell's pending runs into
   the outer cell before it started, so an image keeps its place on either side of a nested table.
-  Whitespace-only text holding a line break, at a segment's edge (the cell's start or end, or
-  either side of a nested table, as in `<td>\n  <table>`), is dropped; kept, it became empty
-  paragraphs around a nested table (PR #1215 QA round 1). Such whitespace is held, not dropped,
-  once the segment has content, and written as-is if more content follows, so everything else
-  in a cell parses as before. Collapsing every source line break instead (round 1's fix) merged a
-  cell's `<p>`s and a `<pre>`'s lines, which Docs keeps as separate lines (PR #1215 QA round 2).
+  A run of whitespace holding a line break at a segment's edge (the cell's start or end, or
+  either side of a nested table, as in `<td>\n  Intro\n  <table>`) is dropped, whether its text
+  chunk is whitespace-only or not; kept, it became empty paragraphs around a nested table (PR
+  #1215 QA rounds 1 and 3). At the segment's start it's dropped as it arrives. At the end of
+  the text so far it's held, as a run with the style and link it was typed under, and written
+  only if more content follows, so everything else in a cell parses as before. Nothing inside a
+  cell's `<pre>` is trimmed. Collapsing every source line break instead (round 1's fix) merged a
+  cell's `<p>`s and a `<pre>`'s lines, which Docs keeps as separate lines (round 2). Whether a
+  newline inside cell text should collapse as a browser renders it is #1221.
 - **Resolution.** `extract_images` walks cells too, nested tables included, in document order.
   Cell images are uploaded, shared and revoked with the body's, through the same
   `ImageShareLifecycle`, and get the same `images` entries.
@@ -165,8 +168,8 @@ positional pass.
   inserted before it in that paragraph, so `_text_offset_since_last_table` counts each image as
   one index. It counts only an image still in `CellImages.uris`: one that never resolved, or
   whose insert failed, isn't in the doc.
-- **Unfetchable images.** Every fill `batchUpdate` goes through `CellImages.execute`; with no
-  cell images the fill builds one with `CellImages.without_images`, so there's one send path. On
+- **Unfetchable images.** Every fill `batchUpdate` goes through `CellImages.execute`, which
+  `fill_tables` requires, so there's one send path. On
   an image-fetch error it drops that image and its link, removes it from the URIs, tells
   `_apply_doc_content` (which records the error on the image's entry), and resends. Dropping one
   never moves another request: within a cell the images go last, latest first, and cells run
@@ -186,8 +189,10 @@ positional pass.
 - **Images the fill never placed.** A cell the fill can't locate in the live doc gets no insert,
   and after a split, the head of a batch lands before the rest can fail for another reason (a
   5xx, say). `CellImages.embedded` grows as each batch lands, the head of a split included, and
-  `_apply_doc_content` gives every other resolved cell image an `error`, on the exception path
-  too, since it was uploaded and shared and would otherwise read as embedded.
+  `_apply_doc_content` gives every other resolved cell image an `error`, since it was uploaded
+  and shared and would otherwise read as embedded: after the fill, and on any `Exception` out of
+  the edit, including a phase-1 failure before the fill starts. A cancellation is left alone: a
+  cancelled `execute_in_thread` batch still runs to completion, so its images may yet land.
 
 Confirmed live (2026-10-24, two runs): text around an image, an image-only cell, a linked image,
 an unreachable URL (dropped and reported, rest of the table intact), a local upload (share
