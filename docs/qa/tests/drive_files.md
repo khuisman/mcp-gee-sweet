@@ -1684,6 +1684,9 @@ list_recent_files(max_results=10) → 10 items ordered by modified_time desc; ea
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth). `list_recent_files(max_results=10)` returned 10 items ordered by `modified_time` desc, each with id, name, mime_type, modified_time, web_link.
+
 ---
 
 ### TC-D157: Filter by days
@@ -1702,6 +1705,9 @@ list_recent_files(days=7) → all results modified 2026-09-04 (within 7 days), o
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth), exercising the `datetime.now(UTC)` cutoff (#1212). `days=7` returned only items modified 2026-10-24. `days=1, max_results=100` at about 2026-10-25T06:00Z returned 11 items, all modified between 2026-10-24T15:15Z and 19:29Z, inside the 24-hour window, ordered desc.
 
 ---
 

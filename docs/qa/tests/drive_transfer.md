@@ -3039,6 +3039,15 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-272/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth, Shared Drive scratch folder), exercising the `timezone.utc` → `UTC` change in `_local_mtime_dt` and `_converted_md_upload_properties` (#1212). After the setup upload, both Docs' `geeSweetSourceMtime`/`geeSweetUploadedAt` were `2026-10-25T05:59:0xZ` for files written at 22:59 PDT, so the stamps are UTC. The bidirectional setup sync recorded `geeSweetImportRevision: "1"` on both.
+- Call 1: `uploaded == ["x.md"]`, `y.md` skipped, same file ID. `x.md` had `geeSweetBaselineRevision: "1"` (its pre-upload latest per `list_revisions`), a new `geeSweetSourceMtime`, and no `geeSweetImportRevision`.
+- Call 2: both skipped, and `x.md` now carried `geeSweetImportRevision: "2"`.
+- Call 3 (dry run): `y.md` was a `conflict`, reason starting "edited both locally and in Drive"; `x.md` was `skip` ("in sync").
+- Call 4: `conflicts == ["y.md"]`, `uploaded == []`. `get_doc_content` on `y.md` contained "Drive edit" and not "local edit".
+- Call 5: `x.md` was a `conflict` with reason "local .md changed since the last upload but direction is download".
+Teardown done.
+
 ### TC-D273: `sync_folder(convert_markdown=True)` — recording the import revision leaves a Drive edit's `modifiedTime` alone, and a local save seconds after an upload still uploads (PR #854 QA round 1) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** PR #854 round 1 reproduced two bugs live. The first sync after an upload records the import's revision ID. It used to re-send the stamped source mtime as `modifiedTime` even on a Doc already edited in Drive, which reset the edit's real timestamp. Also, the local side was compared against its stamp with the 5s Drive clock-skew tolerance, so a save within 5s of the uploaded version never uploaded. The stamp now keeps microsecond precision and is compared exactly, and `modifiedTime` is re-sent only for an unedited Doc.
