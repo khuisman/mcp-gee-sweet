@@ -544,6 +544,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Cache TTL docs and log line say process-wide; under SSE it's per connection. Docs, with the docstring cleanup ([#1187](https://github.com/khuisman/mcp-gee-sweet/issues/1187))
 - [ ] Service-account storage limit: remaining docstrings and docs disagree with #1046's corrected note. Docs, with the docstring cleanup ([#1188](https://github.com/khuisman/mcp-gee-sweet/issues/1188))
 - [ ] Windows: permission and symlink tests fail now that their modules collect (#1162 follow-up). `loud/narrow`, test-only ([#1194](https://github.com/khuisman/mcp-gee-sweet/issues/1194))
+- [ ] `insert_inline_image(drive_file_id=)` should grant and revoke the temporary `anyone:reader` share itself through `ImageShareLifecycle`, like the Markdown image path, instead of pushing a `share_file` call onto the caller. Tool-surface cleanup; version call 2026-10-25 (maintainer) ([#1183](https://github.com/khuisman/mcp-gee-sweet/issues/1183))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
