@@ -3048,6 +3048,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 - Call 5: `x.md` was a `conflict` with reason "local .md changed since the last upload but direction is download".
 Teardown done.
 
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ✅ PASS**
+Re-run after the fix commit re-locked pydantic 2.14.1 / pydantic-core 2.50.1 (confirmed in the worktree venv), `mcp-gee-sweet-sky` reconnected. Setup stamps were UTC (`16:08:00Z` source mtime for files written at 09:08 PDT). Call 1: `uploaded == ["x.md"]`, `geeSweetBaselineRevision: "1"`, no import revision. Call 2: both skipped, `x.md` `geeSweetImportRevision: "2"`. Call 3: `y.md` `conflict` ("edited both locally and in Drive …"), `x.md` "in sync". Call 4: `conflicts == ["y.md"]`, `uploaded == []`, `y.md` holds "Drive edit" and not "local edit". Call 5: `x.md` `conflict`, "local .md changed since the last upload but direction is download". Extra: `dry_run=True, resolve={"y.md": "keep_local"}` previewed `y.md` as `keep_local`, so the dict-typed parameter still validates under the new pydantic. Teardown done.
+
 ### TC-D273: `sync_folder(convert_markdown=True)` — recording the import revision leaves a Drive edit's `modifiedTime` alone, and a local save seconds after an upload still uploads (PR #854 QA round 1) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** PR #854 round 1 reproduced two bugs live. The first sync after an upload records the import's revision ID. It used to re-send the stamped source mtime as `modifiedTime` even on a Doc already edited in Drive, which reset the edit's real timestamp. Also, the local side was compared against its stamp with the 5s Drive clock-skew tolerance, so a save within 5s of the uploaded version never uploaded. The stamp now keeps microsecond precision and is compared exactly, and `modifiedTime` is re-sent only for an unedited Doc.

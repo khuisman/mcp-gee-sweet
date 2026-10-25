@@ -1709,6 +1709,9 @@ Run 1 (kai-oauth).
 **Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
 `mcp-gee-sweet-sky` (OAuth), exercising the `datetime.now(UTC)` cutoff (#1212). `days=7` returned only items modified 2026-10-24. `days=1, max_results=100` at about 2026-10-25T06:00Z returned 11 items, all modified between 2026-10-24T15:15Z and 19:29Z, inside the 24-hour window, ordered desc.
 
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ✅ PASS**
+After the pydantic 2.14.1 re-lock, reconnected. `days=1, max_results=3` at about 16:08Z returned 3 items modified 2026-10-24T19:05Z–19:29Z, inside the window, ordered desc.
+
 ---
 
 ### TC-D158: Filter by MIME type

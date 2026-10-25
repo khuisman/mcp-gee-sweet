@@ -1686,6 +1686,9 @@ requires-oauth; step 5 covered by server://auth-status local_file_access mode "f
 **Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ⚠️ PARTIAL: steps 1 and 5 only, step 1 against `LOG_FILE`**
 `mcp-gee-sweet-sky` (stdio, defaulted `full`), run because #1212 changed `LocalFileAccess` from `str, Enum` to `StrEnum`. Step 1 against `LOG_FILE` (`/tmp/mcp-gee-sweet.log`, the same substitution as PR #1039's rounds): `... is one of this server's own credential, config, cache, or log files and can't be read by a tool`. Step 5: `local_file_access` is `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`, so `.value` still serializes as before. Steps 2–4 and 6 not run (unaffected by the enum change).
 
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ⚠️ PARTIAL: steps 1 and 5 only, step 1 against `LOG_FILE`**
+After the pydantic 2.14.1 re-lock, reconnected. Step 1: the same `... can't be read by a tool` refusal. Step 5: `{"mode": "full", "explicit": false, "roots": [], "unregistered_tools": []}`.
+
 ---
 
 ### TC-I59: an invalid local-file setting stops the server at startup with a one-line message (issue #796) ⚠️ local-filesystem
