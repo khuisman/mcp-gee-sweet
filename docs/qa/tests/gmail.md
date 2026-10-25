@@ -807,6 +807,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 
 **Cleanup:** `delete_draft` both drafts.
 
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth, QA mailbox). Step 3 listed both drafts, newest first; `{GM48_A}`'s entry had matching `message_id`/`thread_id`, `to`, `cc`, `subject`, `date`, and `snippet`, and `{GM48_B}`'s `cc` was null. Steps 4 and 5 each returned one different draft. API quirk, not a defect: with `max_results: 1`, Gmail reported `result_size_estimate: 201` and still returned a `next_page_token` on step 5's last real page. Following it returned `drafts: []`. No mail sent; both drafts deleted.
+
 ---
 
 ### TC-GM49: `get_draft` has the same shape as `get_message` (issue #1205) ⚠️ destructive
@@ -826,6 +829,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 - No mail was sent
 
 **Cleanup:** `delete_draft` the draft; remove the scratch directory.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 2 matched step 3 field for field except `attachment_id`, with `gm49.txt` `text/plain` size 18, `DRAFT` label, and both bodies. Step 4 had headers only. Step 5 wrote `draft_<id>.json` (1165 bytes) holding step 2's subject, both bodies, and the attachment. No mail sent; draft deleted.
 
 ---
 
@@ -847,6 +853,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 
 **Cleanup:** `delete_draft` `{GM50_ID}`.
 
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 2 kept the draft ID with a new `message.id`. Step 3 had the new `to` and subject, `cc` null, the new `body_plain`, `body_html` null, and `attachments: []`. Step 4 returned a 404 `{"error"}`. Step 5 listed exactly `{GM50_ID}`. The updated message kept the original `thread_id` (update_draft passes it back), which is expected. No mail sent; draft deleted.
+
 ---
 
 ### TC-GM51: `update_draft` with `keep_attachments` (issue #1205) ⚠️ destructive
@@ -862,6 +871,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 - No mail was sent
 
 **Cleanup:** `delete_draft` the draft.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 3: `attachments` was `kept.txt` (12) then `new.txt` (11), and `body_plain` was the new text. Extra, outside the case: 12 MB and 18 MB `application/octet-stream` attachments on script-made drafts also survived `keep_attachments: true`, so re-sending kept bytes inline in `raw` isn't size-limited below Gmail's 25 MB attachment cap. No mail sent; drafts deleted.
 
 ---
 
@@ -885,6 +897,9 @@ No tool creates a reply draft yet (#1081 will), so the setup makes one with the 
 - The fixture message `{TEST_GMAIL_REPLYTO_ID}` is unchanged, and no mail was sent
 
 **Cleanup:** `delete_draft` `{GM52_ID}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Setup's draft landed in `{GM52_THREAD}`. Step 1 kept the ID and thread. Step 2 had `in_reply_to`/`references` equal to `{GM52_MID}` and the new `to`. Step 3's thread included the updated message. The fixture kept `Label_1` and `INBOX`. Observation: Gmail kept the draft in the thread even though its subject (`Re: [mcp-qa:tc-gm52] …`) doesn't match the thread's (`[mcp-qa:reply-to] …`), so for drafts the threadId alone was enough here. No mail sent; draft deleted.
 
 ---
 
@@ -910,6 +925,9 @@ No tool creates a reply draft yet (#1081 will), so the setup makes one with the 
 - No mail was sent
 
 **Cleanup:** none.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Playwright sign-in check passed (fixture doc title matched; Gmail tab titled for the QA mailbox). Step 2 returned `{"id", "action": "deleted"}`. Steps 3 and 5 returned 404 `{"error"}`s, and step 4 was empty. Step 6: all three returned 404 `{"error"}`s, the `update_draft` one from its `format=metadata` pre-fetch, so nothing was written, and the `[mcp-qa:tc-gm53] x` query was empty. Step 7: the Drafts search showed "No messages matched your search". The Trash search pane had no result rows, though the snapshot showed no explicit empty-state text, so `list_messages(in:trash subject:"[mcp-qa:tc-gm53]", include_spam_trash=true)` confirmed it was empty. No mail sent (`in:sent newer_than:1d` empty).
 
 ---
 
