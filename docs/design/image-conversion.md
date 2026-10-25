@@ -146,10 +146,12 @@ positional pass.
 - **Parser.** An `<img>` in a cell joins `Cell.children` in source order, with its `<a>` link,
   the same as in a block. A nested `<table>` already flushed the open cell's pending runs into
   the outer cell before it started, so an image keeps its place on either side of a nested table.
-  A source line break and the indentation around it (`<td>\n  <table>`) is held rather than
-  written, and becomes one space only if content follows it in the cell, as a browser renders
-  it; kept as text, it became empty paragraphs before a nested table (PR #1215 QA round 1). A
-  `<br>` still breaks the line.
+  Whitespace-only text holding a line break, at a segment's edge (the cell's start or end, or
+  either side of a nested table, as in `<td>\n  <table>`), is dropped; kept, it became empty
+  paragraphs around a nested table (PR #1215 QA round 1). Such whitespace is held, not dropped,
+  once the segment has content, and written as-is if more content follows, so everything else
+  in a cell parses as before. Collapsing every source line break instead (round 1's fix) merged a
+  cell's `<p>`s and a `<pre>`'s lines, which Docs keeps as separate lines (PR #1215 QA round 2).
 - **Resolution.** `extract_images` walks cells too, nested tables included, in document order.
   Cell images are uploaded, shared and revoked with the body's, through the same
   `ImageShareLifecycle`, and get the same `images` entries.
@@ -163,25 +165,29 @@ positional pass.
   inserted before it in that paragraph, so `_text_offset_since_last_table` counts each image as
   one index. It counts only an image still in `CellImages.uris`: one that never resolved, or
   whose insert failed, isn't in the doc.
-- **Unfetchable images.** When there are cell images, each fill `batchUpdate` goes through
-  `CellImages.execute`. On an image-fetch error it drops that image and its link, removes it from
-  the URIs, tells `_apply_doc_content` (which records the error on the image's entry), and
-  resends. Dropping one never moves another request: within a cell the images go last, latest
-  first, and cells run latest first. As in the body (#510), the first retry resends the whole
-  batch; from the second failure on, the batch splits at the failed image, the requests ahead of
-  it are sent on their own, and only the rest is retried. A `batchUpdate` applies its requests in
-  order, so sending `L[:i]` and then `L[i:]` does what sending `L` would. A split anywhere else
-  is wrong: sending every cell's text first and the images after (the body's prefix/tail split)
-  moves each later cell's image by the length of every earlier cell's text.
+- **Unfetchable images.** Every fill `batchUpdate` goes through `CellImages.execute`; with no
+  cell images the fill builds one with `CellImages.without_images`, so there's one send path. On
+  an image-fetch error it drops that image and its link, removes it from the URIs, tells
+  `_apply_doc_content` (which records the error on the image's entry), and resends. Dropping one
+  never moves another request: within a cell the images go last, latest first, and cells run
+  latest first. The loop is `batch_retry.send_dropping_failed_images`, which the body's retry
+  uses too; the two differ only in where they split. As in the body (#510), the first retry
+  resends the whole batch; from the second failure on, the batch splits at the failed image, the
+  requests ahead of it are sent on their own, and only the rest is retried. A `batchUpdate`
+  applies its requests in order, so sending `L[:i]` and then `L[i:]` does what sending `L` would.
+  A split anywhere else is wrong: sending every cell's text first and the images after (the
+  body's prefix/tail split) moves each later cell's image by the length of every earlier cell's
+  text.
 - **Retry bookkeeping.** `CellImages` maps each insert it built to its image and link, holding
   the request dicts themselves, and clears the map once that batch settles. Keyed on `id()`
   alone, a freed insert's key outlived it, and a later batch's insert could be allocated at the
   same address and pick up the stale link (PR #1215 QA round 1). The body's maps don't need this:
   `content_requests` keeps their requests alive.
-- **Images the fill never placed.** A cell the fill can't locate in the live doc gets no insert.
-  `CellImages.embedded` records every image whose insert went out in a batch that succeeded, and
-  `_apply_doc_content` gives any other resolved cell image an `error`, since it was uploaded and
-  shared and would otherwise read as embedded.
+- **Images the fill never placed.** A cell the fill can't locate in the live doc gets no insert,
+  and after a split, the head of a batch lands before the rest can fail for another reason (a
+  5xx, say). `CellImages.embedded` grows as each batch lands, the head of a split included, and
+  `_apply_doc_content` gives every other resolved cell image an `error`, on the exception path
+  too, since it was uploaded and shared and would otherwise read as embedded.
 
 Confirmed live (2026-10-24, two runs): text around an image, an image-only cell, a linked image,
 an unreachable URL (dropped and reported, rest of the table intact), a local upload (share

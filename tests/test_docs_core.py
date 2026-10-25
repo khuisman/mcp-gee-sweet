@@ -48,6 +48,11 @@ def _row(*cells: Cell) -> Row:
     return Row(cells=list(cells))
 
 
+def _no_images() -> CellImages:
+    """A fill with no cell images, for the builders that only read `uris`."""
+    return CellImages({}, AsyncMock(), lambda _e: None, lambda *_: None)
+
+
 def _table(*rows: Row) -> Table:
     return Table(rows=list(rows))
 
@@ -191,7 +196,7 @@ class TestHtmlToDocRequests:
     def test_astral_characters_use_utf16_indices_inside_table_cells(self):
         runs = [Run("😀"), Run("X", bold=True)]
 
-        requests = _run_group_fill_requests(runs, para_start=10)
+        requests = _run_group_fill_requests(runs, para_start=10, images=_no_images())
         clear_range = requests[1]["updateTextStyle"]["range"]
         styled_x = requests[2]["updateTextStyle"]["range"]
 
@@ -1159,7 +1164,7 @@ class TestRowspanFill:
         # 2x2 table; A(rowspan=2) in col 0 → doc row 1 has 2 physical cells but col 0 is phantom
         ast_t = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
         doc_t = {"tableRows": [self._doc_row(10, 20), self._doc_row(30, 40)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         # para_start = startIndex + 1; check on those values
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert 31 not in insert_indices  # phantom cell — must not be filled
@@ -1178,7 +1183,7 @@ class TestRowspanFill:
                 {"tableCells": [self._doc_cell(40), self._doc_cell(30)]},  # real first
             ]
         }
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert 31 not in insert_indices  # phantom — must not be filled even when listed last
         assert 41 in insert_indices  # real cell must be filled
@@ -1186,7 +1191,7 @@ class TestRowspanFill:
     def test_empty_cell_text_skipped(self):
         ast_t = _table(_row(_cell(""), _cell("B")))
         doc_t = {"tableRows": [self._doc_row(10, 20)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert 11 not in insert_indices  # para_start = startIndex + 1
         assert 21 in insert_indices
@@ -1197,7 +1202,7 @@ class TestRowspanFill:
         ast_t = _table(_row(_cell("Wide", colspan=2), _cell("C2")))
         # Row 0 post-merge: [merged_col0 at 10, colspan_phantom_col1 at 20, real_col2 at 30]
         doc_t = {"tableRows": [self._doc_row(10, 20, 30)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert 21 not in insert_indices  # colspan phantom — must not be filled
         assert 11 in insert_indices  # merged cell gets "Wide"
@@ -1206,7 +1211,7 @@ class TestRowspanFill:
     def test_requests_sorted_high_to_low(self):
         ast_t = _table(_row(_cell("A"), _cell("B")))
         doc_t = {"tableRows": [self._doc_row(10, 50)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert insert_indices == sorted(insert_indices, reverse=True)
 
@@ -1218,7 +1223,7 @@ class TestRowspanFill:
         inner = _table(_row(_cell("inner")))
         ast_t = Table(rows=[Row(cells=[Cell(children=[Run("Some label "), inner])])])
         doc_t = {"tableRows": [self._doc_row(10)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
         assert reqs == []
 
 
@@ -1236,7 +1241,7 @@ class TestFillRequestsFontSizeClear:
         # after its insertText so any heading-inherited fontSize is wiped out.
         ast_t = _table(_row(_cell("Hello")))
         doc_t = {"tableRows": [self._doc_row(10)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
 
         insert_idx = next(i for i, r in enumerate(reqs) if "insertText" in r)
         clear_idx = next(
@@ -1252,7 +1257,7 @@ class TestFillRequestsFontSizeClear:
     def test_fontSize_clear_covers_full_cell_text(self):
         ast_t = _table(_row(_cell("Hello")))
         doc_t = {"tableRows": [self._doc_row(10)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
 
         clear = next(
             r
@@ -1272,7 +1277,7 @@ class TestFillRequestsFontSizeClear:
         cell = Cell(children=[sized_run])
         ast_t = _table(_row(cell))
         doc_t = {"tableRows": [self._doc_row(10)]}
-        reqs = _build_fill_requests([doc_t], [ast_t])
+        reqs = _build_fill_requests([doc_t], [ast_t], _no_images())
 
         clear_idx = next(
             i

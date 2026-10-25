@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html as html_module
-import re
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
@@ -59,10 +58,6 @@ _VOID_TAGS = {
 # is a genuinely-typed "\v"/"\f" (e.g. pasted from a terminal) must also
 # survive rather than being silently dropped as if it were noise.
 _ASCII_FORMATTING_WHITESPACE = " \t\n\r"
-
-# A run of ASCII formatting whitespace holding at least one line break. The capture
-# group makes re.split return each run at the odd indices.
-_SOURCE_LINE_BREAK = re.compile(r"([ \t\r]*\n[ \t\r\n]*)")
 
 
 def _is_formatting_whitespace(text: str) -> bool:
@@ -239,10 +234,10 @@ class _AstParser(HTMLParser):
         # --- table context ---
         self._table_depth = 0
         self._table_stack: list[_TableBuilder] = []
-        # Source indentation seen in a table cell and not yet written (#1073 QA): see
-        # handle_data. Written as one space only if more content follows it in the same
-        # segment of the cell; dropped at the segment's end.
-        self._cell_held_space = False
+        # Indentation between tags in a table cell, not yet written (#1073 QA): see
+        # handle_data. Written as-is once more content follows it in the same segment
+        # of the cell; dropped if the segment ends first.
+        self._cell_held_whitespace = ""
 
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
@@ -622,7 +617,7 @@ class _AstParser(HTMLParser):
                 # this point must be flushed now and attached to the outer cell —
                 # otherwise it bleeds into the nested table's own first cell (#108).
                 self._table_stack[-1].append_runs(self._flush_pending_runs())
-                self._cell_held_space = False
+                self._cell_held_whitespace = ""
             self._table_depth += 1
             self._table_stack.append(_TableBuilder())
             return
@@ -652,7 +647,7 @@ class _AstParser(HTMLParser):
                 tb.start_cell(
                     colspan=colspan, rowspan=rowspan, is_header=is_header, width_pt=width_pt
                 )
-                self._cell_held_space = False
+                self._cell_held_whitespace = ""
                 # If it's a header cell, pre-activate bold
                 if is_header:
                     self._bold_depth += 1
@@ -750,7 +745,7 @@ class _AstParser(HTMLParser):
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
-            self._release_cell_space()
+            self._release_cell_whitespace()
             self._flush_run()
             if tag in _INLINE_BOLD:
                 self._bold_depth += 1
@@ -796,6 +791,8 @@ class _AstParser(HTMLParser):
     def handle_endtag(self, tag):
         # --- table structure ---
         if tag == "table":
+            # A cell left open has no </td> to drop what it held.
+            self._cell_held_whitespace = ""
             if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
@@ -818,7 +815,7 @@ class _AstParser(HTMLParser):
             if tag in ("td", "th"):
                 is_header = tag == "th"
                 runs = self._flush_pending_runs()
-                self._cell_held_space = False
+                self._cell_held_whitespace = ""
                 if is_header:
                     self._bold_depth -= 1
                 tb.end_cell(runs)
@@ -964,14 +961,12 @@ class _AstParser(HTMLParser):
         elif tag == "a":
             self._close_anchor()
 
-    def _release_cell_space(self):
-        """Write a held cell space (see handle_data) ahead of the content about to be
-        added, unless nothing precedes it in this segment of the cell."""
-        if not self._cell_held_space:
-            return
-        self._cell_held_space = False
-        if self._run_buf or self._pending_runs:
-            self._run_buf.append(" ")
+    def _release_cell_whitespace(self):
+        """Write held cell whitespace (see handle_data) ahead of the content about to
+        be added."""
+        if self._cell_held_whitespace:
+            self._run_buf.append(self._cell_held_whitespace)
+            self._cell_held_whitespace = ""
 
     def _close_anchor(self):
         """Pop whatever href the matching <a> start tag pushed, and nothing
@@ -989,17 +984,16 @@ class _AstParser(HTMLParser):
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
         if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:
-            # A source line break and the indentation around it, as in
-            # "<td>\n  <table>", became empty paragraphs in the cell (#1073 QA). Each
-            # such run is held instead, and written as one space only if content
-            # follows it in the cell, as a browser renders it. A <br> is not data, so
-            # it still breaks the line.
-            for i, piece in enumerate(_SOURCE_LINE_BREAK.split(data)):
-                if i % 2:
-                    self._cell_held_space = True
-                elif piece:
-                    self._release_cell_space()
-                    self._run_buf.append(piece)
+            if "\n" in data and _is_formatting_whitespace(data):
+                # Indentation between tags at a segment's edge (the cell's start or
+                # end, or either side of a nested table, as in "<td>\n  <table>")
+                # became empty paragraphs in the cell (#1073 QA). Dropped at the
+                # start; otherwise held, and written as-is only if content follows.
+                if self._run_buf or self._pending_runs:
+                    self._cell_held_whitespace += data
+                return
+            self._release_cell_whitespace()
+            self._run_buf.append(data)
         elif self._block_tag:
             self._run_buf.append(data)
         elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():

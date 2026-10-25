@@ -22,6 +22,7 @@ from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Image, Table
+from .batch_retry import send_dropping_failed_images
 from .emitter import CellImages, ast_to_requests, extract_images, fill_tables, iter_cell_leaves
 from .html_parser import html_to_ast
 from .images import (
@@ -973,7 +974,8 @@ async def _apply_doc_content(
                 # That boundary is the only safe split point: every prefix request must run
                 # before any positional insert, while within the tail each insert lands at
                 # or before every insert already applied, so dropping one never shifts the
-                # rest.
+                # rest. The loop itself is batch_retry.send_dropping_failed_images, shared
+                # with the table fill (#1073), which splits its batches differently.
                 #
                 # Residual partial-write window (K>=2 only): once the prefix has committed,
                 # a tail retry failing for any *non*-image reason raises with the text
@@ -985,15 +987,17 @@ async def _apply_doc_content(
                 # becomes a DocEditError carrying the whole outcome list (#789), so an
                 # image dropped before the failure still reports its own error too.
 
-                def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
+                def _drop_failed_image(requests: list[dict], e: Exception) -> int | None:
                     """Pop the insertInlineImage request `e` names from `requests` (the
                     batch that raised `e`), plus its link request if the image was
                     linked (#977), recording the failure on its image's outcome
-                    entry. False if `e` isn't an image-fetch failure, so the caller
-                    re-raises."""
+                    entry, and return the index it was at. None if `e` isn't an
+                    image-fetch failure, so the caller re-raises."""
+                    if not isinstance(e, HttpError):
+                        return None
                     bad_index = _failed_insert_image_request_index(e)
                     if bad_index is None or bad_index >= len(requests):
-                        return False
+                        return None
                     bad_request = requests.pop(bad_index)
                     # Left in place, the link would land on whatever character now
                     # sits at the image's position. Matched by identity: the list
@@ -1006,34 +1010,22 @@ async def _apply_doc_content(
                     entry = entry_by_id.get(img_id) if img_id is not None else None
                     if entry is not None:
                         _record_embed_failure(entry, e)
-                    return True
+                    return bad_index
 
-                committed: list[dict] = []
-                remaining = list(content_requests)
-                image_failures = 0
-                while remaining:
-                    try:
-                        await _batch_update(remaining)
-                        break
-                    except HttpError as e:
-                        if not _drop_failed_image(remaining, e):
-                            raise
-                        image_failures += 1
-                        if image_failures != 2:
-                            continue
-                        tail_start = _positional_insert_tail_start(remaining, image_links)
-                        # Fail-safe: split only if every image request really is in the
-                        # tail. If ast_to_requests ever emits something after its
-                        # positional-insert pass, the boundary scan comes up short —
-                        # fall back to whole-list retries rather than committing an
-                        # image-bearing prefix whose image failures couldn't be retried.
-                        if any("insertInlineImage" in r for r in remaining[:tail_start]):
-                            continue
-                        if tail_start:
-                            await _batch_update(remaining[:tail_start])
-                        committed = remaining[:tail_start]
-                        remaining = remaining[tail_start:]
-                content_requests = committed + remaining
+                def _body_split_point(remaining: list[dict], _index: int) -> int:
+                    tail_start = _positional_insert_tail_start(remaining, image_links)
+                    # Fail-safe: split only if every image request really is in the
+                    # tail. If ast_to_requests ever emits something after its
+                    # positional-insert pass, the boundary scan comes up short —
+                    # fall back to whole-list retries rather than committing an
+                    # image-bearing prefix whose image failures couldn't be retried.
+                    if any("insertInlineImage" in r for r in remaining[:tail_start]):
+                        return 0
+                    return tail_start
+
+                content_requests = await send_dropping_failed_images(
+                    content_requests, _batch_update, _drop_failed_image, _body_split_point
+                )
             # Table cells are filled after phase 1, from live indices (#1073). The fill
             # gets its own copy of the cell images' URIs, and reports back only through
             # on_dropped and its embedded set.
@@ -1043,31 +1035,36 @@ async def _apply_doc_content(
                 for leaf in iter_cell_leaves(table)
                 if id(leaf) in real_uri_by_id
             }
-            cell_images = None
-            if cell_uris:
 
-                def _cell_image_dropped(image: Image, e: Exception) -> None:
-                    entry = entry_by_id.get(id(image))
-                    if entry is not None:
-                        _record_embed_failure(entry, e)
+            def _cell_image_dropped(image: Image, e: Exception) -> None:
+                entry = entry_by_id.get(id(image))
+                # Only an HttpError names a failed image (see the reader below).
+                if entry is not None and isinstance(e, HttpError):
+                    _record_embed_failure(entry, e)
 
-                cell_images = CellImages(
-                    dict(cell_uris),
-                    _batch_update,
-                    lambda e: (
-                        _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
-                    ),
-                    _cell_image_dropped,
-                )
-            await fill_tables(docs_service, doc_id, tables, cell_images)
-            if cell_images is not None:
+            cell_images = CellImages(
+                dict(cell_uris),
+                _batch_update,
+                lambda e: (
+                    _failed_insert_image_request_index(e) if isinstance(e, HttpError) else None
+                ),
+                _cell_image_dropped,
+            )
+
+            def _mark_unplaced(reason: str) -> None:
+                # A resolved cell image was uploaded and shared, so one that never
+                # landed would otherwise read as embedded.
                 for img_id in cell_uris.keys() - cell_images.embedded:
-                    entry = entry_by_id[img_id]
-                    # A cell the fill couldn't locate in the live doc gets no insert;
-                    # without this, its uploaded and shared image would read as embedded.
-                    entry.setdefault(
-                        "error", "not embedded: its table cell wasn't found in the document"
-                    )
+                    entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
+
+            try:
+                await fill_tables(docs_service, doc_id, tables, cell_images)
+            except BaseException:
+                # A split batch can land its head before the rest fails for another
+                # reason, so some cell images are in and some aren't.
+                _mark_unplaced("the table fill failed before it was placed")
+                raise
+            _mark_unplaced("its table cell wasn't found in the document")
             if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
     except Exception as e:

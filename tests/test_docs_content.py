@@ -2191,6 +2191,47 @@ class TestCreateDocImages:
         assert retry == [r for r in failed if "insertInlineImage" not in r]
         assert any("insertText" in r for r in retry)
 
+    async def test_partial_split_then_other_failure_reports_unplaced_cell_images(self):
+        # PR #1215 QA round 2: after a split, the head of the fill batch has landed; if
+        # the rest then fails for a non-image reason, an image in it must not read as
+        # embedded in the DocEditError's outcome list.
+        drive_svc, docs_svc = self._make_services()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = (
+            self._CELL_IMAGE_LIVE_DOC
+        )
+        good, bad_b, bad_c = (f"https://example.com/{n}.png" for n in ("a", "b", "c"))
+        html = (
+            f'<p>x</p><table><tr><td><img src="{good}">Logo<img src="{bad_b}"></td>'
+            f'<td><img src="{bad_c}"> after</td></tr></table>'
+        )
+
+        def batchupdate_side_effect(documentId, body):
+            m = MagicMock()
+            uris = [r.get("insertInlineImage", {}).get("uri") for r in body["requests"]]
+            bad_index = next((i for i, u in enumerate(uris) if u in (bad_b, bad_c)), None)
+            if bad_index is not None:
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            elif uris == [good]:
+                # The tail left after the split: a server error, not an image one.
+                resp = MagicMock()
+                resp.status = 500
+                m.execute.side_effect = HttpError(resp=resp, content=b"{}", uri="x")
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](title="Doc", content=html, ctx=ctx)
+
+        assert "error" in result
+        outcomes = {o["src"]: o for o in result["images"]}
+        assert outcomes[good]["error"] == (
+            "not embedded: the table fill failed before it was placed"
+        )
+        assert outcomes[bad_b]["error"].startswith("doc edit failed:")
+        assert outcomes[bad_c]["error"].startswith("doc edit failed:")
+
     async def test_cell_image_the_fill_never_placed_is_reported(self):
         # PR #1215 QA round 1: a resolved cell image whose cell the fill can't locate
         # gets no insert, and must not read as embedded.
