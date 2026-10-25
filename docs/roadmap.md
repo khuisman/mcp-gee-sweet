@@ -420,6 +420,14 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101))
 - [ ] `upload_file(source_format="markdown", convert_to_doc=True)` (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line ([#1102](https://github.com/khuisman/mcp-gee-sweet/issues/1102))
 - [ ] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike [#1112](https://github.com/khuisman/mcp-gee-sweet/issues/1112), closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) ([#1116](https://github.com/khuisman/mcp-gee-sweet/issues/1116))
+- [ ] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone ([#1115](https://github.com/khuisman/mcp-gee-sweet/issues/1115))
+- [ ] A hard line break (two trailing spaces or `<br>`) becomes a paragraph break — #1044 Phase 2 finding; HTML → AST step ([#1117](https://github.com/khuisman/mcp-gee-sweet/issues/1117))
+- [ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding ([#1118](https://github.com/khuisman/mcp-gee-sweet/issues/1118))
+- [ ] `<sub>`, `<sup>` and `<mark>` have no effect — #1044 Phase 2 finding ([#1119](https://github.com/khuisman/mcp-gee-sweet/issues/1119))
+- [ ] `create_doc_from_file`/`update_doc_from_file` resolve a relative image path against the server's working directory, not the `.md` file — #1044 Phase 2 finding ([#1121](https://github.com/khuisman/mcp-gee-sweet/issues/1121))
+- [ ] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding ([#1122](https://github.com/khuisman/mcp-gee-sweet/issues/1122))
+- [x] A relative link becomes `http://./guide.md` — community PR ([#1120](https://github.com/khuisman/mcp-gee-sweet/issues/1120)) (PR #1149)
+- [x] Blank paragraph before a table keeps the preceding heading's style — community PR ([#1092](https://github.com/khuisman/mcp-gee-sweet/issues/1092)) (PR #1138)
 
 **Feature set: Gmail sending safety**
 
@@ -432,6 +440,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled `planned: ornithomimus` 2026-10-24 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 - [x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 ([#1212](https://github.com/khuisman/mcp-gee-sweet/issues/1212)) (PR #1222)
+- [x] Make Lint and test 3.14/3.15 required status checks on `develop` and `main` — #1212 review follow-up, a branch-protection settings change with no PR ([#1224](https://github.com/khuisman/mcp-gee-sweet/issues/1224))
 - [ ] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) ([#1185](https://github.com/khuisman/mcp-gee-sweet/issues/1185))
 - [ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, `configuration.md` subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) ([#1214](https://github.com/khuisman/mcp-gee-sweet/issues/1214))
 
@@ -442,6 +451,8 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] thread_http's per-thread `httplib2.Http` has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. `severe`, observed: a 30-minute `create_doc_from_file` hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 ([#1129](https://github.com/khuisman/mcp-gee-sweet/issues/1129)) (PR #1198)
 - [x] `transfer_ownership(send_notification=False)` can never succeed — `loud/narrow` ([#1055](https://github.com/khuisman/mcp-gee-sweet/issues/1055)) (PR #1142)
 - [ ] Refresh stale TC expectations found in the v0.9.2 pass ([#1060](https://github.com/khuisman/mcp-gee-sweet/issues/1060))
+- [x] Test modules fail to collect on Windows (`os.geteuid()` in skipif decorators) — community PR ([#1156](https://github.com/khuisman/mcp-gee-sweet/issues/1156)) (PR #1162)
+- [x] `setup_team.sh` never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz ([#1223](https://github.com/khuisman/mcp-gee-sweet/issues/1223)) (PR #1225)
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
