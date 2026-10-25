@@ -5,6 +5,11 @@
 landed separately via #248 (PR #265). Live-verified: [2026-06-28 QA results](../qa/results/2026-06-28.md),
 [2026-07-04 QA results](../qa/results/2026-07-04-docs.md).
 
+**Parser superseded (#1116):** the Python-Markdown call below was replaced with markdown-it-py
+(CommonMark plus GFM) in `docs/md_to_html.py`; see
+[`markdown-parser.md`](markdown-parser.md). The MD → HTML → AST shape this doc argues for is
+unchanged.
+
 ## Problem
 
 `create_doc` and `write_doc_content` only accept HTML. Users who work primarily with `.md` files

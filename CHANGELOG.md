@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- Markdown input (`create_doc`/`write_doc_content` with `content_format='markdown'`, `create_doc_from_file`, `update_doc_from_file`) is now parsed as CommonMark plus GitHub-flavored Markdown (markdown-it-py), the dialect models and most tools write, instead of Python-Markdown. Markdown that renders differently — #1116:
+  - A list, task list, quote, table or code block written directly under a paragraph, list item or quote line, with no blank line, now starts its own block instead of being joined to the text above. A pipe table under a list item or quote line also starts its own block (plan rule D2).
+  - Sub-lists nest at 2 or 3 spaces of indent, under bullets and numbered items alike, and numbering continues after them (plan rule D1) — #1071.
+  - A paragraph, code block or quote indented under a list item belongs to that item. A fenced code block inside a list item renders as code instead of literal text.
+  - `~~text~~` is struck through. `1)` starts a numbered list. `\` at the end of a line is a line break. A backslash before any ASCII punctuation character escapes it.
+  - `www.example.com` and `me@example.com` are linked, like bare `https://` URLs already were (`autolink_urls=False` turns all three off). `README.md`, `file.py` and `ftp://` URLs are not.
+  - Bold inside italic (`*a **b** c*`) keeps both styles. `#hashtag` and `####### seven` stay paragraphs instead of becoming headings.
+  - Two quotes separated by a blank line render as two quotes.
+  - A line of only `-` is an empty list item instead of a setext heading underline or literal text. The empty item itself is still dropped (#1075).
+  - YAML front matter (`---` … `---` at the top) now renders as a rule and then a Heading 2 of its text, where it used to render as a rule, a paragraph and a rule. It's still shown either way (#1173).
+  - Until community PR #1164 lands, an item whose text is followed by an indented paragraph or code block loses its bullet or number (#1111). Python-Markdown dropped those blocks out of the list, so the item kept its bullet but lost the block's place in it.
+
 ## [0.9.5] — 2026-10-24
 
 Security hotfix on top of v0.9.4. No new tools.

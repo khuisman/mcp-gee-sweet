@@ -542,6 +542,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | IM-07 | The image, linked to `/linked-image` |
 | IM-08 | The image, no visible alt text |
 | IM-09 | A bullet with the image inline at the end of its text; a 2×2 table with the image inside the body cell |
+| IM-10 | The fixture pixel embedded from `qa fixture pixel é.png`, resolved relative to the `.md` file as in IM-05; the call's `images` result reports success. CommonMark leaves a destination with a space as text, and markdown-it percent-encodes `é`; the converter accepts both as written (#1116). For EP-1/EP-2 N/A |
 
 **Result (2026-10-18) ❌ FAIL — 48/70 case×EP cells pass, in both runs; failures: #1121, #1073, #1101, #1102. IM-05 on EP-1/EP-2 is N/A. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 

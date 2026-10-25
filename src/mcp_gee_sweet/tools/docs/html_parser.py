@@ -506,6 +506,13 @@ class _AstParser(HTMLParser):
             return
         outer_tag = self._block_tag
         outer_named_style = self._block_named_style
+        # Whitespace holding a line break just before a block element is source
+        # formatting, not content: markdown-it writes "<li>a\n<ul>" for every nested
+        # list (#1116), and the "\n" would reach the Docs API as an empty paragraph.
+        # Only the raw text not yet flushed is trimmed, so a <br>'s own break stays.
+        if self._run_buf and not self._in_pre:
+            tail = _without_line_break_edge("".join(self._run_buf), leading=False)
+            self._run_buf = [tail] if tail else []
         runs = self._flush_pending_runs()
         self._emit_block_node(
             outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
@@ -712,7 +719,7 @@ class _AstParser(HTMLParser):
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
         # image already reaches _emit_block_node's runs=[] handling above),
-        # python-markdown emits "---"/"___" thematic breaks as a bare <hr />
+        # the Markdown parser emits "---"/"___" thematic breaks as a bare <hr />
         # sibling with no wrapping tag at all — it never opens a block, so it
         # would otherwise vanish with zero trace, collapsing the paragraph
         # boundary between the surrounding content (#401). Scoped to <hr>
@@ -731,6 +738,24 @@ class _AstParser(HTMLParser):
             and self._tag_depth == 0
         ):
             self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            return
+        # An <hr> after text in an open block (markdown-it's "<li>item\n<hr />\n</li>"
+        # for a rule in a list item, #1116) is a block of its own: end the outer
+        # block's segment, emit the rule's boundary paragraph, then resume the outer
+        # block. Without this the rule vanished and the newlines around it became
+        # empty paragraphs. A block with no text before the rule ("<li><hr>") keeps
+        # the dropped-construct handling below, which keeps its own boundary (#401).
+        if (
+            tag == "hr"
+            and self._block_tag is not None
+            and self._table_depth == 0
+            and self._tag_depth == 0
+            and not self._in_pre
+            and ("".join(self._run_buf).strip() or self._pending_runs)
+        ):
+            self._interrupt_open_block("hr")
+            self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            self._resume_interrupted_block("hr")
             return
 
         # --- bare top-level <img> with no open block (#333) ---

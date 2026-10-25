@@ -859,28 +859,18 @@ class TestMdToHtml:
         html = _md_to_html("[click](https://example.com)")
         assert 'href="https://example.com"' in html
 
-    async def test_bare_hyphen_as_first_list_line_collapses_to_plain_paragraph(self):
-        """Known limitation (#692, docs/known-limitations.md): a bare '-' line with
-        nothing after it never matches python-markdown's list-item regex ("- " +
-        content). As the first line of a would-be list (no preceding text line, e.g.
-        right after a heading — the tc-doc106-nested-lists-4space.md fixture's Case
-        2 shape), the whole block including the following well-formed list-item
-        lines collapses into one literal paragraph; no list is produced at all."""
+    async def test_bare_hyphen_as_first_list_line_is_an_empty_item(self):
+        """CommonMark allows an empty list item (#1075). Under Python-Markdown (#692) a
+        bare '-' first line turned the whole list into one paragraph of text."""
         html = _md_to_html("-\n- item two\n- item three\n")
-        assert "<ul>" not in html
-        assert "<p>-\n- item two\n- item three</p>" in html
+        assert html == "<ul>\n<li></li>\n<li>item two</li>\n<li>item three</li>\n</ul>\n"
 
-    async def test_bare_hyphen_line_becomes_setext_heading_not_list_item(self):
-        """Known limitation (#692, docs/known-limitations.md): the same bare '-'
-        line, when it instead follows a text line, is consumed together with that
-        line as python-markdown's own setext H2 underline syntax, which takes
-        priority over list-item recognition. This pins the documented (buggy-
-        looking but upstream) behavior so a future python-markdown upgrade that
-        changes it doesn't go unnoticed."""
+    async def test_bare_hyphen_mid_list_is_an_empty_item_not_a_setext_heading(self):
+        """Python-Markdown read a bare '-' after a list line as a setext H2 underline
+        (#692). CommonMark gives a setext underline no power over a list item's text."""
         html = _md_to_html("- item one\n-\n- item three\n")
-        assert "<h2>- item one</h2>" in html
-        assert "<ul>" in html
-        assert "<li>item three</li>" in html
+        assert "<h2>" not in html
+        assert html == "<ul>\n<li>item one</li>\n<li></li>\n<li>item three</li>\n</ul>\n"
 
     async def test_bare_hyphen_workaround_nbsp_produces_empty_list_item(self):
         """The documented workaround (docs/known-limitations.md, #692): replacing
@@ -911,8 +901,8 @@ class TestMdToHtml:
         assert "<code" in html  # may include class="language-python"
 
     async def test_escaped_dollar_renders_literal_dollar(self):
-        # Python-Markdown's default ESCAPED_CHARS omits $ (unlike CommonMark), so \$
-        # otherwise passes through untouched as a literal backslash+dollar (issue #213).
+        # CommonMark escapes every ASCII punctuation character, $ included. Python-Markdown
+        # didn't, and needed its own extension for it (issue #213).
         html = _md_to_html(r"Cost: \$6,000")
         assert "$6,000" in html
         assert r"\$" not in html
@@ -976,7 +966,7 @@ class TestMdToHtml:
 
     async def test_autolink_urls_false_leaves_bare_url_as_text(self):
         html = _md_to_html("See https://example.com here", autolink_urls=False)
-        assert html == "<p>See https://example.com here</p>"
+        assert html == "<p>See https://example.com here</p>\n"
 
     async def test_autolink_urls_false_does_not_affect_markdown_links(self):
         html = _md_to_html("[click](https://example.com)", autolink_urls=False)

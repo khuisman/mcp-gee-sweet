@@ -1,15 +1,11 @@
 import asyncio
 import logging
 import re
-import xml.etree.ElementTree as etree
 from pathlib import Path
 from typing import Any
 
 import anyio
-import markdown as _md
 from googleapiclient.errors import HttpError
-from markdown.extensions import Extension
-from markdown.inlinepatterns import InlineProcessor
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
@@ -36,74 +32,10 @@ from .images import (
 )
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 from .markdown_export import _discard_temp_doc
+from .md_to_html import _md_to_html
 from .style import _add_or_clear_field
 
 logger = logging.getLogger(__name__)
-
-
-class _DollarEscapeExtension(Extension):
-    """Treat \\$ as an escape for a literal $, matching CommonMark's escapable-punctuation
-    set. Python-Markdown's default ESCAPED_CHARS omits $ (issue #213), so \\$ otherwise
-    passes through untouched into the rendered Doc as a literal backslash+dollar — visible
-    in prose written to defeat LaTeX/math renderers that treat $ as a delimiter."""
-
-    def extendMarkdown(self, md):
-        if "$" not in md.ESCAPED_CHARS:
-            md.ESCAPED_CHARS.append("$")
-
-
-_BARE_URL_PATTERN = r'(https?://[^\s<>"]+)'
-_BARE_URL_TRAILING_PUNCT = ".,;:!?"
-
-
-class _BareUrlInlineProcessor(InlineProcessor):
-    """Autolink a bare http(s) URL left as plain text.
-
-    Registered at low priority so it only sees text that survived
-    Python-Markdown's built-in link/autolink/code-span processing untouched —
-    an already-linked or code-spanned URL is never re-matched here."""
-
-    def handleMatch(self, m, data):
-        url = m.group(1)
-        # Trim trailing sentence punctuation and an unmatched closing paren, matching
-        # CommonMark/GFM extended autolink behavior — "see https://x.com." shouldn't
-        # swallow the period, and "(https://x.com)" shouldn't swallow the paren.
-        while url:
-            if url[-1] in _BARE_URL_TRAILING_PUNCT or (
-                url[-1] == ")" and url.count("(") < url.count(")")
-            ):
-                url = url[:-1]
-            else:
-                break
-        el = etree.Element("a")
-        el.set("href", url)
-        el.text = url
-        return el, m.start(1), m.start(1) + len(url)
-
-
-class _BareUrlAutolinkExtension(Extension):
-    """Autolink bare http(s):// URLs, matching CommonMark/GFM extended autolinks.
-    Python-Markdown's core autolink only fires on <https://...> or [text](url)
-    (issue #248) — a bare URL in prose is otherwise left as inert text."""
-
-    def extendMarkdown(self, md):
-        md.inlinePatterns.register(
-            _BareUrlInlineProcessor(_BARE_URL_PATTERN, md), "bare_url_autolink", 3
-        )
-
-
-def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
-    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code,
-    sane_lists extensions, plus bare-URL autolinking and the \\$ escape fix).
-
-    autolink_urls=False skips the bare-URL extension for callers who want a URL to
-    render as plain text — e.g. a placeholder or example. Per-URL suppression (rather
-    than disabling it for the whole call) is available by wrapping just that URL in
-    backticks, which already protects it as an inline code span."""
-    extensions = ["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
-    if autolink_urls:
-        extensions.append(_BareUrlAutolinkExtension())
-    return _md.markdown(md_text, extensions=extensions)
 
 
 def _to_doc_requests(
@@ -1297,10 +1229,11 @@ def register(tool):
             folder_id: Optional Google Drive folder ID where the document should be created.
                       If not provided, creates in the root of My Drive.
             content_format: 'html' (default) or 'markdown'
-            autolink_urls: When content_format='markdown', whether a bare http(s) URL (not
-                already wrapped in a Markdown link or angle brackets) becomes a real
-                hyperlink (default True). Set False to leave bare URLs as plain text; to
-                suppress just one URL instead of the whole call, wrap it in backticks.
+            autolink_urls: When content_format='markdown', whether a bare http(s)://
+                URL, www. address or email address (not already wrapped in a Markdown
+                link or angle brackets) becomes a real hyperlink, as in GitHub Markdown
+                (default True). Set False to leave them as plain text; to suppress just
+                one instead of the whole call, wrap it in backticks.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1420,10 +1353,10 @@ def register(tool):
             local_path: Absolute or relative path to the local file.
             title: Document title. Defaults to the filename stem.
             folder_id: Optional Google Drive folder ID. Defaults to server default folder.
-            autolink_urls: For .md files, whether a bare http(s) URL becomes a real
-                hyperlink (default True). Set False to leave bare URLs as plain text;
-                to suppress just one URL, wrap it in backticks instead. No effect on
-                .html files.
+            autolink_urls: For .md files, whether a bare http(s):// URL, www. address
+                or email address becomes a real hyperlink (default True). Set False to
+                leave them as plain text; to suppress just one, wrap it in backticks
+                instead. No effect on .html files.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1625,9 +1558,10 @@ def register(tool):
             doc_id: The Google Doc file ID.
             content: Content to write into the document body.
             content_format: 'html' (default) or 'markdown'
-            autolink_urls: When content_format='markdown', whether a bare http(s) URL
-                becomes a real hyperlink (default True). Set False to leave bare URLs as
-                plain text; to suppress just one URL, wrap it in backticks instead.
+            autolink_urls: When content_format='markdown', whether a bare http(s):// URL,
+                www. address or email address becomes a real hyperlink (default True). Set
+                False to leave them as plain text; to suppress just one, wrap it in
+                backticks instead.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1709,10 +1643,10 @@ def register(tool):
             content_format: 'markdown' or 'html'. Defaults to inferring from
                 local_path's extension (.md -> markdown, .html/.htm -> html); pass
                 explicitly to override the extension-based guess.
-            autolink_urls: For markdown content, whether a bare http(s) URL becomes a
-                real hyperlink (default True). Set False to leave bare URLs as plain
-                text; to suppress just one URL, wrap it in backticks instead. No
-                effect on HTML content.
+            autolink_urls: For markdown content, whether a bare http(s):// URL, www.
+                address or email address becomes a real hyperlink (default True). Set
+                False to leave them as plain text; to suppress just one, wrap it in
+                backticks instead. No effect on HTML content.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
