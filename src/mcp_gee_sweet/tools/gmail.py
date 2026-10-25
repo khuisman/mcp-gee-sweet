@@ -9,12 +9,13 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from email import encoders, message_from_bytes
+from email import encoders, message_from_bytes, policy
 from email.message import Message
 from email.mime.base import MIMEBase
 from email.mime.message import MIMEMessage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.parser import BytesHeaderParser
 from email.utils import formataddr, getaddresses
 from pathlib import Path
 from typing import Any
@@ -675,42 +676,52 @@ def _build_raw_message(
     in_reply_to: str | None = None,
     references: str | None = None,
     from_: str | None = None,
-    kept_attachments: list[Message] | None = None,
+    attachment_parts: list[Message] | None = None,
+    inline_parts: list[Message] | None = None,
 ) -> str:
     """Build a base64url-encoded RFC 2822 message for the Gmail API `raw` field.
 
-    from_ is a From header used as given (update_draft keeps a draft's send-as
-    alias). kept_attachments are already-built MIME parts, attached before the new
-    attachments (update_draft's keep_attachments).
+    For update_draft: from_ is a From address, encoded like To. attachment_parts are
+    already-built MIME parts, attached before any `attachments`. inline_parts (each
+    with a Content-ID) go in a multipart/related with body_html, so its cid:
+    references resolve; with no body_html they're ordinary attachments.
     """
 
     to_str = _format_address_header(to) or ""
-    has_attachments = bool(attachments) or bool(kept_attachments)
-    use_alternative = body_html is not None
+    html_part: Message | None = None
+    if body_html is not None:
+        html_part = MIMEText(body_html, "html", "utf-8")
+        if inline_parts:
+            related = MIMEMultipart("related")
+            related.attach(html_part)
+            for part in inline_parts:
+                related.attach(part)
+            html_part = related
+    trailing = [*(attachment_parts or []), *([] if html_part else inline_parts or [])]
 
-    if has_attachments:
+    if attachments or trailing:
         root: MIMEMultipart = MIMEMultipart("mixed")
-        if use_alternative:
+        if html_part:
             alt = MIMEMultipart("alternative")
             alt.attach(MIMEText(body, "plain", "utf-8"))
-            alt.attach(MIMEText(body_html, "html", "utf-8"))
+            alt.attach(html_part)
             root.attach(alt)
         else:
             root.attach(MIMEText(body, "plain", "utf-8"))
-        for kept in kept_attachments or []:
-            root.attach(kept)
+        for part in trailing:
+            root.attach(part)
         for att in attachments or []:
             root.attach(_attachment_part(*_read_attachment_bytes(att)))
         msg = root
-    elif use_alternative:
+    elif html_part:
         msg = MIMEMultipart("alternative")
         msg.attach(MIMEText(body, "plain", "utf-8"))
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
+        msg.attach(html_part)
     else:
         msg = MIMEText(body, "plain", "utf-8")
 
-    if from_:
-        msg["From"] = from_
+    if from_str := _format_address_header(from_):
+        msg["From"] = from_str
     msg["To"] = to_str
     msg["Subject"] = subject
     if cc_str := _format_address_header(cc):
@@ -739,7 +750,8 @@ def _list_kwargs(
     page_token: str | None,
     include_spam_trash: bool,
 ) -> dict[str, Any]:
-    """The messages.list / threads.list kwargs shared by list_messages and list_threads."""
+    """The messages.list / threads.list / drafts.list kwargs shared by the list tools.
+    drafts.list takes no labelIds; list_drafts passes label_ids=None."""
     kwargs: dict[str, Any] = {
         "userId": _USER,
         "maxResults": clamp_max_results(max_results, _GMAIL_LIST_MAX),
@@ -793,69 +805,73 @@ def _draft_summary(draft: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _draft_list_entry(draft: dict[str, Any]) -> dict[str, Any]:
-    """One list_drafts entry from a format='metadata' drafts.get result."""
-    message = draft.get("message") or {}
-    headers = _header_map((message.get("payload") or {}).get("headers"))
-    return {
-        "id": draft["id"],
-        "message_id": message.get("id"),
-        "thread_id": message.get("threadId"),
-        "to": headers.get("to"),
-        "cc": headers.get("cc"),
-        "bcc": headers.get("bcc"),
-        "subject": headers.get("subject"),
-        "date": headers.get("date"),
-        "snippet": message.get("snippet"),
-    }
-
-
 async def _fetch_draft_entry(
     gmail_service: Any, stub: dict[str, Any], limit: asyncio.Semaphore
 ) -> dict[str, Any]:
-    """Fetch one listed draft's headers for list_drafts. A draft that can't be read
-    (e.g. sent or deleted since the list call) keeps its ids and gets an error."""
-    async with limit:
-        try:
-            draft = await execute_in_thread(
-                gmail_service.users()
-                .drafts()
-                .get(userId=_USER, id=stub["id"], format="metadata")
-                .execute,
-                gmail_service,
-            )
-        except Exception as e:
-            message = stub.get("message") or {}
-            return {
-                "id": stub["id"],
-                "message_id": message.get("id"),
-                "thread_id": message.get("threadId"),
-                "error": str(e),
-            }
-    return _draft_list_entry(draft)
+    """One list_drafts entry: the draft id plus its message in get_message's
+    include_body=False shape. Fetched with messages.get, whose metadataHeaders filter
+    drafts.get lacks, so only the shaped headers come back (#793). A draft that
+    can't be read (e.g. sent or updated since the list call) keeps its ids and gets
+    an error."""
+    stub_message = stub.get("message") or {}
+    message_id = stub_message.get("id")
+    error = "drafts.list returned no message id"
+    if message_id:
+        async with limit:
+            try:
+                msg = await execute_in_thread(
+                    gmail_service.users()
+                    .messages()
+                    .get(userId=_USER, id=message_id, **_get_format_kwargs(False))
+                    .execute,
+                    gmail_service,
+                )
+                return {"id": stub["id"], "message": _start_shaping(msg, include_body=False).shaped}
+            except Exception as e:
+                error = str(e)
+    return {
+        "id": stub["id"],
+        "message": {"id": message_id, "thread_id": stub_message.get("threadId")},
+        "error": error,
+    }
 
 
-def _unfold(value: str | None) -> str | None:
-    """A header value with its RFC 5322 folding line breaks removed, or None if blank."""
-    return "".join((value or "").splitlines()).strip() or None
+def _unfold(value: Any) -> str | None:
+    """A header value as text with its RFC 5322 folding line breaks removed, or None
+    if blank."""
+    return "".join(str(value or "").splitlines()).strip() or None
 
 
-def _attachment_parts(msg: Message) -> list[Message]:
-    """The parts of a parsed message that get_message would list as attachments:
-    each part with a filename or an attachment disposition. Doesn't look inside an
-    attachment, so an attached message's own attachments stay part of it."""
-    out: list[Message] = []
+def _carried_parts(msg: Message) -> tuple[list[Message], list[Message]]:
+    """Every part of a parsed draft except its plain and HTML bodies, split into
+    (attachments, inline parts). That covers everything get_message lists as an
+    attachment. A body is the first nameless, non-attachment text/plain or text/html
+    part, the same rule _extract_bodies_and_attachments uses. An inline part has a
+    Content-ID and no attachment disposition. Doesn't look inside an attached
+    message, so its own parts stay with it."""
+    attachments: list[Message] = []
+    inline: list[Message] = []
+    claimed: set[str] = set()
 
     def walk(part: Message) -> None:
         for child in part.get_payload():
-            if child.get_content_disposition() == "attachment" or child.get_filename():
-                out.append(child)
-            elif child.get_content_maintype() == "multipart":
+            if child.get_content_maintype() == "multipart":
                 walk(child)
+                continue
+            disposition = child.get_content_disposition()
+            slot = _BODY_SLOTS.get(child.get_content_type())
+            is_body = slot and disposition != "attachment" and not child.get_filename()
+            if is_body and slot not in claimed:
+                claimed.add(slot)
+                continue
+            if child["Content-ID"] and disposition != "attachment":
+                inline.append(child)
+            else:
+                attachments.append(child)
 
     if msg.get_content_maintype() == "multipart":
         walk(msg)
-    return out
+    return attachments, inline
 
 
 @dataclass
@@ -866,20 +882,30 @@ class _ExistingDraft:
     from_: str | None
     in_reply_to: str | None
     references: str | None
-    attachments: list[Message] | None
+    attachments: list[Message] = field(default_factory=list)
+    inline: list[Message] = field(default_factory=list)
 
 
 def _existing_draft_from_raw(message: dict[str, Any]) -> _ExistingDraft:
     """Parse a format='raw' draft message. Runs off the event loop: the raw message
-    includes every attachment's bytes."""
+    includes every attachment's bytes.
+
+    Headers are read with policy.default, which decodes RFC 2047 words and raw 8-bit
+    UTF-8 alike, so From reaches _build_raw_message as the same text the metadata
+    path gives it (PR #1227 QA). The parts are parsed with compat32 and attached
+    as-is, so their bytes aren't re-encoded.
+    """
     data = message.get("raw") or ""
-    parsed = message_from_bytes(base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)))
+    raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    headers = BytesHeaderParser(policy=policy.default).parsebytes(raw)
+    attachments, inline = _carried_parts(message_from_bytes(raw))
     return _ExistingDraft(
         thread_id=message.get("threadId"),
-        from_=_unfold(parsed.get("From")),
-        in_reply_to=_unfold(parsed.get("In-Reply-To")),
-        references=_unfold(parsed.get("References")),
-        attachments=_attachment_parts(parsed),
+        from_=_unfold(headers.get("From")),
+        in_reply_to=_unfold(headers.get("In-Reply-To")),
+        references=_unfold(headers.get("References")),
+        attachments=attachments,
+        inline=inline,
     )
 
 
@@ -890,7 +916,6 @@ def _existing_draft_from_metadata(message: dict[str, Any]) -> _ExistingDraft:
         from_=headers.get("from") or None,
         in_reply_to=headers.get("in-reply-to") or None,
         references=headers.get("references") or None,
-        attachments=None,
     )
 
 
@@ -1321,24 +1346,24 @@ def register(tool):
 
         Returns:
             Dictionary with drafts, optional next_page_token, and
-            result_size_estimate. Each draft has id (the draft ID, for get_draft,
-            update_draft, delete_draft and send_draft), message_id, thread_id, to, cc,
-            bcc, subject, date, and snippet. A draft whose headers can't be read
-            (e.g. sent or deleted since it was listed) has only id, message_id,
-            thread_id, and error. On API failure, returns {"error": "..."}.
+            result_size_estimate. Each draft is {"id": draft ID (for get_draft,
+            update_draft, delete_draft and send_draft), "message": ...}, where message
+            is get_message's include_body=False shape: id, thread_id, snippet,
+            label_ids, internal_date, size_estimate, and headers (to, cc, bcc,
+            subject, date, ...). A draft that can't be read (e.g. sent or updated
+            since it was listed) has message {id, thread_id} and an error. On API
+            failure, returns {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
-        kwargs: dict[str, Any] = {
-            "userId": _USER,
-            "maxResults": clamp_max_results(max_results, _GMAIL_LIST_MAX),
-            "includeSpamTrash": include_spam_trash,
-        }
-        if query:
-            kwargs["q"] = query
-        if page_token:
-            kwargs["pageToken"] = page_token
+        kwargs = _list_kwargs(
+            query=query,
+            label_ids=None,
+            max_results=max_results,
+            page_token=page_token,
+            include_spam_trash=include_spam_trash,
+        )
         try:
             result = await execute_in_thread(
                 lc.gmail_service.users().drafts().list(**kwargs).execute,
@@ -1347,7 +1372,7 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
-        # drafts.list returns only ids, so each draft's headers take a drafts.get,
+        # drafts.list returns only ids, so each draft's headers take a messages.get,
         # capped like body fetches to stay under Gmail's per-user concurrency limit.
         limit = asyncio.Semaphore(_BODY_FETCH_CONCURRENCY)
         drafts = await gather_with_fallback(
@@ -1458,8 +1483,12 @@ def register(tool):
                          local_path or content_base64, plus optional filename and
                          mime_type (guessed from the filename's extension when
                          omitted, else application/octet-stream).
-            keep_attachments: When True, keep the draft's current attachments (the
-                              ones get_draft lists), followed by any in attachments.
+            keep_attachments: When True, keep every part of the draft except its
+                              plain and HTML bodies (so every attachment get_draft
+                              lists), ahead of any in attachments. Inline images
+                              (parts with a Content-ID) stay inline with the new
+                              body_html, so its cid: references still resolve;
+                              without body_html they become ordinary attachments.
 
         Returns:
             Draft id and nested message id/thread_id/label_ids. The message id
@@ -1470,6 +1499,11 @@ def register(tool):
             return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
+            # Read the new attachments first, so a refused or missing local_path
+            # fails before any API call (#796).
+            new_parts = await asyncio.to_thread(
+                lambda: [_attachment_part(*_read_attachment_bytes(a)) for a in attachments or []]
+            )
             # 'raw' only when the old attachments are needed: it carries their bytes.
             current = await execute_in_thread(
                 lc.gmail_service.users()
@@ -1490,11 +1524,11 @@ def register(tool):
                 body_html=body_html,
                 cc=cc,
                 bcc=bcc,
-                attachments=attachments,
                 in_reply_to=existing.in_reply_to,
                 references=existing.references,
                 from_=existing.from_,
-                kept_attachments=existing.attachments,
+                attachment_parts=[*existing.attachments, *new_parts],
+                inline_parts=existing.inline,
             )
             new_message: dict[str, Any] = {"raw": raw}
             if existing.thread_id:

@@ -800,7 +800,7 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 
 **Checks**
 - Step 3: `drafts` has exactly two entries, with `id`s `{GM48_A}.id` and `{GM48_B}.id`
-- Step 3: `{GM48_A}`'s entry has `message_id` and `thread_id` equal to step 1's `message.id` and `message.thread_id`, `to` containing `{QA+tc-gm48}`, `cc` containing `{QA+tc-gm48-cc}`, `subject: "[mcp-qa:tc-gm48] first"`, a non-empty `snippet`, and a `date`
+- Step 3: `{GM48_A}`'s entry is `{id, message}`, where `message` equals `get_draft` with `draft_id: "{GM48_A}.id"` and `include_body: false`'s `message`: `id` and `thread_id` equal to step 1's `message.id` and `message.thread_id`, `headers.to` containing `{QA+tc-gm48}`, `headers.cc` containing `{QA+tc-gm48-cc}`, `headers.subject: "[mcp-qa:tc-gm48] first"`, a `headers.date`, and a non-empty `snippet`. No header outside get_message's set (e.g. `received`) appears.
 - Step 4: one draft and a `next_page_token`
 - Step 5: one draft, not the one from step 4
 - No mail was sent
@@ -928,6 +928,48 @@ No tool creates a reply draft yet (#1081 will), so the setup makes one with the 
 
 **Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
 `sky` (OAuth). Playwright sign-in check passed (fixture doc title matched; Gmail tab titled for the QA mailbox). Step 2 returned `{"id", "action": "deleted"}`. Steps 3 and 5 returned 404 `{"error"}`s, and step 4 was empty. Step 6: all three returned 404 `{"error"}`s, the `update_draft` one from its `format=metadata` pre-fetch, so nothing was written, and the `[mcp-qa:tc-gm53] x` query was empty. Step 7: the Drafts search showed "No messages matched your search". The Trash search pane had no result rows, though the snapshot showed no explicit empty-state text, so `list_messages(in:trash subject:"[mcp-qa:tc-gm53]", include_spam_trash=true)` confirmed it was empty. No mail sent (`in:sent newer_than:1d` empty).
+
+---
+
+### TC-GM54: `update_draft` keeps a non-ASCII From name on both paths (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+
+No tool sets a draft's From, so the setup makes the drafts with the Gmail API directly, the way TC-GM52 does.
+
+**Setup**
+1. From the worktree under test, run `uv run python3 -c "..."` with `mcp_gee_sweet.auth._oauth_creds()` and `googleapiclient.discovery.build("gmail", "v1", ...)`. Create two drafts with `users().drafts().create(userId="me", body={"message": {"raw": <raw>}})`, where `<raw>` is the base64url of `From: =?utf-8?b?Sm9zw6kgUMOpcmV6?= <{QA}>\r\nTo: {QA+tc-gm54}\r\nSubject: [mcp-qa:tc-gm54] <a or b>\r\n\r\nbefore\r\n` (the encoded word is `José Pérez`). Record the ids as `{GM54_A}` and `{GM54_B}`.
+2. `get_draft` with `draft_id: "{GM54_A}"` and `include_body: false`. Record `message.headers.from` as `{GM54_FROM}`; it names `José Pérez` and `{QA}`.
+
+**Action**
+1. `update_draft` with `draft_id: "{GM54_A}"`, `to: "{QA+tc-gm54}"`, `subject: "[mcp-qa:tc-gm54] a"`, `body: "mcp-gee-sweet TC-GM54 a"`
+2. `update_draft` with `draft_id: "{GM54_B}"`, `to: "{QA+tc-gm54}"`, `subject: "[mcp-qa:tc-gm54] b"`, `body: "mcp-gee-sweet TC-GM54 b"`, `keep_attachments: true`
+3. `get_draft` with `draft_id: "{GM54_A}"` and `include_body: false`
+4. `get_draft` with `draft_id: "{GM54_B}"` and `include_body: false`
+
+**Checks**
+- Steps 3 and 4: `message.headers.from` equals `{GM54_FROM}`: display name `José Pérez`, address `{QA}`. Not the account's default name.
+- No mail was sent
+
+**Cleanup:** `delete_draft` both drafts.
+
+---
+
+### TC-GM55: `keep_attachments` keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+
+**Setup**
+1. In a fresh interpreter (as in TC-GM54), build `multipart/related` holding `text/html` `<p>before <img src="cid:gm55@mcp-qa"></p>` and an `image/png` part with `Content-ID: <gm55@mcp-qa>`, `Content-Disposition: inline`, and no filename (any small PNG bytes). Wrap it as `multipart/alternative[text/plain "before", related]`, set `To: {QA+tc-gm55}` and `Subject: [mcp-qa:tc-gm55] inline`, and create it with `users().drafts().create`. Record the id as `{GM55_ID}`.
+2. `get_draft` with `draft_id: "{GM55_ID}"`. Record `message.attachments`: one nameless `image/png` entry.
+
+**Action**
+1. `update_draft` with `draft_id: "{GM55_ID}"`, `to: "{QA+tc-gm55}"`, `subject: "[mcp-qa:tc-gm55] inline"`, `body: "mcp-gee-sweet TC-GM55 after"`, `body_html: "<p>after <img src=\"cid:gm55@mcp-qa\"></p>"`, `keep_attachments: true`
+2. `get_draft` with `draft_id: "{GM55_ID}"`
+3. In the same fresh interpreter, `users().drafts().get(userId="me", id="{GM55_ID}", format="raw")` and parse the raw message
+
+**Checks**
+- Step 2: `message.body_plain` is `mcp-gee-sweet TC-GM55 after`; `message.body_html` contains `after`; `message.attachments` is one nameless `image/png` entry of the same size as in Setup step 2
+- Step 3: the MIME tree is `multipart/alternative[text/plain, multipart/related[text/html, image/png]]`, and the image part keeps `Content-ID: <gm55@mcp-qa>`
+- No mail was sent
+
+**Cleanup:** `delete_draft` `{GM55_ID}`.
 
 ---
 
