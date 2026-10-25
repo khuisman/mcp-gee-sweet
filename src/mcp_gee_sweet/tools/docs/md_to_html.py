@@ -88,11 +88,17 @@ def _gfm_url_matches(text: str, start_ok: bool):
         if m.start() == 0 and not start_ok:
             continue
         label = _trim_autolink(m.group(0))
-        # The last two domain segments may not hold "_" (GFM's "valid domain").
-        host = re.split(r"[/?#]", label.split("://", 1)[-1], maxsplit=1)[0]
-        if "_" in ".".join(host.split(".")[-2:]):
+        # The domain is checked on the trimmed label, since trimming can eat it
+        # ("http://__", "www.__"). It must be non-empty dot-separated segments, with
+        # no "_" in the last two (GFM's "valid domain"), and a www. link keeps its dot.
+        scheme = label.startswith(("http://", "https://"))
+        if not scheme and not label.startswith("www."):
             continue
-        href = label if "://" in label else "http://" + label
+        host = re.split(r"[/?#]", label.split("://", 1)[1] if scheme else label, maxsplit=1)[0]
+        segments = host.split(".")
+        if not all(segments) or "_" in "".join(segments[-2:]):
+            continue
+        href = label if scheme else "http://" + label
         yield m.start(), m.start() + len(label), href
 
 

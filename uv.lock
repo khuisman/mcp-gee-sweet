@@ -977,7 +977,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "markdown-it-py" },
     { name = "mike" },
     { name = "mkdocs" },
     { name = "mkdocs-material" },
@@ -1009,7 +1008,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "markdown-it-py", specifier = ">=3.0.0" },
     { name = "mike", specifier = ">=2.2.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-material", specifier = ">=9.7.7" },

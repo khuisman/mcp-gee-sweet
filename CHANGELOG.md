@@ -23,7 +23,8 @@ All notable changes to this project are documented in this file.
   - Two quotes separated by a blank line render as two quotes.
   - A line of only `-` is an empty list item instead of a setext heading underline or literal text. The empty item itself is still dropped (#1075).
   - YAML front matter (`---` … `---` at the top) now renders as a rule and then a Heading 2 of its text, where it used to render as a rule, a paragraph and a rule. It's still shown either way (#1173).
-  - Until community PR #1164 lands, an item whose text is followed by an indented paragraph or code block loses its bullet or number (#1111). Python-Markdown dropped those blocks out of the list, so the item kept its bullet but lost the block's place in it.
+  - Until community PR #1164 lands, a loose list loses every bullet and number (#1111): one blank line anywhere in a list (`- a`, `- b`, blank, `- c`) makes the whole list loose in CommonMark, and so does an item with an indented paragraph or code block under it. Python-Markdown kept some of those items bulleted. This change is held until #1164 is in.
+  - A line of `---` (or `===`) right under a list item's text makes that text a heading inside the item, as CommonMark reads a setext underline: `- a` then `  ---` is a Heading 2 "a", not an item followed by a rule. Write the rule as `***` to keep the item and the rule.
 
 ---
 

@@ -1072,7 +1072,12 @@ class _AstParser(HTMLParser):
             if len(text) < len(data):
                 self._hold_cell_whitespace(data[len(text) :])
         elif self._block_tag:
-            if self._block_resumed and not (self._run_buf or self._pending_runs):
+            # Never in <pre>, where the line break and indentation are the code's.
+            if (
+                self._block_resumed
+                and not self._in_pre
+                and not (self._run_buf or self._pending_runs)
+            ):
                 # A resumed segment starts right after the block that interrupted it,
                 # and markdown-it writes a line break there ("<hr />\nmore"). Source
                 # formatting, like the break before the block (_interrupt_open_block);

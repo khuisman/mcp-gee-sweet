@@ -636,6 +636,28 @@ class TestQaRound3:
         )
 
 
+class TestQaRound4:
+    """PR #1228 QA round 4: one test per in-diff send-back."""
+
+    @pytest.mark.parametrize("text", ["http://__", "www.__", "https://a.b_c", "http://x..com"])
+    def test_trim_that_leaves_no_valid_domain_is_not_a_link(self, text):
+        assert "<a " not in _md_to_html(text)
+
+    def test_scheme_is_a_prefix_check(self):
+        (para,) = _ast("www.example.com/path://x")
+        assert para.runs[0].link_url == "http://www.example.com/path://x"
+
+    def test_setext_underline_under_item_text_is_a_heading(self):
+        # Documented behavior change: CommonMark reads "  ---" under "- a" as an H2.
+        assert "<li>\n<h2>a</h2>\n</li>" in _md_to_html("- a\n  ---\n- b\n")
+        # "***" isn't a setext underline, so the item and its rule stay.
+        assert "<li>a\n<hr />\n</li>" in _md_to_html("- a\n  ***\n- b\n")
+
+    def test_resumed_pre_segment_keeps_its_line_break(self):
+        nodes = html_to_ast("<pre>a<table><tr><td>x</td></tr></table>\n  b</pre>")
+        assert _text(nodes[-1]) == "\n  b"
+
+
 class TestHtmlShapesFromMarkdownIt:
     """html_parser changes for shapes Python-Markdown never produced."""
 

@@ -55,9 +55,12 @@ a core rule over text tokens instead:
   GFM, a URL right after a code span, a link, an inline tag (`<b>https://x.com</b>`) or a
   character like `:` (`URL:https://x.com`) isn't linked. The Python-Markdown-era bare-URL
   extension linked those last two; `CHANGELOG.md` says so.
-- No `_` in the last two domain segments. A scheme-ful link may have a one-segment domain
-  (`http://localhost:8000`), as in cmark-gfm.
+- No `_` in the last two domain segments, and no empty segment. A scheme-ful link may have a
+  one-segment domain (`http://localhost:8000`), as in cmark-gfm.
 - Trailing `?!.,:*_~'"`, an unbalanced `)`, and a trailing `&entity;` are left outside the link.
+  The domain is checked after that trim, since it can eat the domain (`http://__`, `www.__`
+  aren't links), and a link is scheme-ful only if it starts with `http://` or `https://` (so
+  `www.x.com/a://b` still gets `http://`).
 - Runs after inline parsing, so a code span, an `<autolink>` or raw HTML is never re-matched; text
   inside a Markdown link or a raw-HTML `<a>` is skipped, since links can't nest.
 - Linear in the text: emails are found outwards from each `@` (`_gfm_email_matches`), and
@@ -163,10 +166,17 @@ D1, D2, or listed here; `CHANGELOG.md` has the user-facing version.
   live in TC-MD016); blocks inside list items (TC-MD201); fenced
   code inside items renders as code without the info string as text; strikethrough; www/email
   autolinks; `\` escapes; adjacent quotes; a bare `-` no longer becomes a setext heading.
-- **Worse until #1164:** an item followed by an indented paragraph or code block loses its bullet
-  (r06's numbered steps, TC-MD107, TC-MD108 LX-08, TC-MD203's list-after-list pairs, which
-  CommonMark merges into one loose list). Python-Markdown dropped those blocks out of the list,
-  restarting the numbering at 1 after each; neither is right.
+- **Worse until #1164, so this PR waits for it:** every item of a loose list loses its bullet
+  (#1111). In CommonMark one blank line anywhere in a list (`- a`, `- b`, blank, `- c`) makes the
+  whole list loose (`<li><p>`), and so does an item with an indented paragraph or code block under
+  it (r06's numbered steps, TC-MD107, TC-MD108 LX-08, TC-MD203's list-after-list pairs, which
+  CommonMark merges into one loose list). Python-Markdown kept some of those items bulleted, or
+  dropped the blocks out of the list and restarted the numbering. #1164 keeps a loose item's
+  bullet; trial-merged into this branch, every one of those inputs keeps its bullets (PR #1228 QA
+  round 4).
+- **A setext underline under an item's text** (`- a` / `  ---`) makes that text a Heading 2 inside
+  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. The heading then
+  loses its bullet in the AST (#1094's open question). `***` is a rule in either parser.
 - **Different, still wrong:** front matter (DS-14) renders as a rule plus a Heading 2 instead of
   a rule, a paragraph and a rule (#1173). A block inside a list item renders after the item, not
   indented inside it: the AST has no blocks inside list items.
@@ -228,3 +238,9 @@ PR #1228's QA rounds, and what each changed. The invariants they produced are in
   now take a title, and links get the same rule as images, since existing `.md` files lose
   `[notes](./My Notes.md)` otherwise; the CommonMark spec run caught two edges of that rule
   (examples 41 and 568). The "r16 keeps 1–4" claim was the HTML's, not the screen's.
+- **Round 4 (6 findings).** The loose-list regression is wider than round 1's wording said: one
+  blank line anywhere makes a CommonMark list loose, and every item then loses its bullet until
+  #1164; the PR now waits for #1164 (QA won't approve without it). The autolink domain was checked
+  before trimming (`http://__` linked an empty host) and the scheme by `"://" in label`; the
+  resumed-segment trim lacked the `<pre>` guard its counterpart has; a setext underline under item
+  text is documented as a behavior change; and a stale dev-group `markdown-it-py` pin was removed.
