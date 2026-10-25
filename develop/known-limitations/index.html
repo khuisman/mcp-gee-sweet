@@ -1427,18 +1427,6 @@ markdown→HTML conversion, not a live Google API round trip. CommonMark does al
 item, so this stays open as #1075 (#692, closed, is the earlier triage). Related:
 <code>docs/qa/tests/docs_markdown.md</code> TC-MD301.</p>
 <hr />
-<h3 id="images-inside-table-cells-are-dropped">Images inside table cells are dropped<a class="headerlink" href="#images-inside-table-cells-are-dropped" title="Permanent link">&para;</a></h3>
-<p><strong>What:</strong> An image in a table cell (Markdown <code>| ![alt](src) |</code> or HTML <code>&lt;td&gt;&lt;img …&gt;&lt;/td&gt;</code>) is
-dropped: the cell renders empty, and the call reports no error and no per-image entry under
-<code>images</code>.</p>
-<p><strong>Why:</strong> Image support (#333) covers body-level images only. The table fill
-(<code>emitter.py</code>'s <code>_fill_children_recursive</code>) has no handling for an <code>Image</code> among a cell's
-children, so the parser drops it before it gets there.</p>
-<p><strong>Workaround:</strong> Insert the image into the cell afterwards with <code>insert_inline_image</code>, at the
-cell's <code>paragraphStartIndex</code> from <code>get_doc_structure</code>. Tracked in #1073;
-<code>docs/qa/tests/docs_markdown.md</code> IM-09 and <code>docs/qa/tests/docs_content.md</code> TC-DOC102/TC-DOC153
-cover it.</p>
-<hr />
 <h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
 Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to it.</p>
