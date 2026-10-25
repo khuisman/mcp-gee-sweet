@@ -12,13 +12,13 @@
       "mimeType": "image/png"
     }
   ],
-  "version": "0.9.4",
+  "version": "0.9.5",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-gee-sweet",
-      "version": "0.9.4",
+      "version": "0.9.5",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

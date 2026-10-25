@@ -29,10 +29,10 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
-import tomllib
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 

@@ -471,6 +471,13 @@ Moved from `kai.md`'s "Coordinating sessions" and Release scoping rule 2 when PR
 - **The displaced feature set.** Kai first proposed relabelling the old v0.9.4 work `v0.9.5`, a number for a version no longer in flight. The maintainer pointed back at the naming rule, and it was queued as `planned: ornithomimus`. Hence the `kai.md` Release scoping bullet on a displaced version.
 - **Auto mode refused three release steps:** removing a required check from `develop`'s branch protection, a read-only `gh release view v0.9.1`, and a bulk `git branch -D`. Each went back to the maintainer. The MCP registry token had also expired, so the registry publish failed with a 401 after PyPI already had the release. Hence `release.md`'s two up-front preconditions.
 
+### v0.9.5 hotfix: a lock that looked current, and two hotfix-only steps
+
+- **The v0.9.5 certifi hotfix (2026-10-24)** cherry-picked PR #1218 onto the v0.9.4 tag. `release.md` hotfix step 2's `uv lock` + `uv lock --check` both passed and changed nothing, because the picked commit already carried the lock's requirement lines for `certifi>=2026.10.19`, and the tag's lock still pinned the vulnerable `2026.5.20`. Only #1218's own guard test (`tests/test_dependency_floors.py`) caught it. Kai re-resolved with `uv lock --upgrade-package certifi==2026.10.19`, matching `develop`'s pin rather than the newest (`2026.10.23`). Step 2 now requires an explicit `--upgrade-package` and a read-back of the pin.
+- **Main step 7 from the main checkout would have published 0.9.4.** That checkout is on `develop`, whose `server.json` lagged until the merge-back, so the registry publish ran from the hotfix worktree instead.
+- **The merge-back conflicted in `CHANGELOG.md`.** The fix PR's `[0.9.5] — Unreleased` entry met the hotfix branch's dated one. Kai resolved it to the dated entry with the maintainer's approval. The hotfix section now says to expect this.
+- **A locked next-version fill.** In the same day's triage, the rubric sent non-urgent defects to "the next version", ornithomimus, whose fill was locked. That would have meant eight `needs-version-call`s. The maintainer approved placing them in ankylosaurus instead, now `kai.md`'s "Release scoping" definition of "next version".
+
 ## `bob.md`
 
 ### Why this role exists

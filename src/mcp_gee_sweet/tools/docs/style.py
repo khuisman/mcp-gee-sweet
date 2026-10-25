@@ -520,7 +520,11 @@ def register(tool):
           (they're left behind as literal text). Every paragraph this tool
           touches is deleteParagraphBullets'd first (harmless even if it
           wasn't previously a list item) so createParagraphBullets always
-          applies to a clean, non-list paragraph.
+          applies to a clean, non-list paragraph. deleteParagraphBullets
+          keeps a removed item's indent, which createParagraphBullets would
+          read as extra depth, so the tool also zeroes each paragraph's
+          indentation before bulleting it. nesting_level is therefore
+          absolute: repeating the same call changes nothing.
         - createParagraphBullets has no nestingLevel field of its own — the
           API infers each paragraph's depth from its own leading tab
           characters, but only relative to whatever ELSE is included in that
@@ -739,6 +743,24 @@ def register(tool):
                         }
                     }
                 )
+                # deleteParagraphBullets leaves a level-N item indented
+                # 36pt * N, and createParagraphBullets counts that indent as
+                # depth on top of the inserted tabs, so re-bulleting an
+                # already-listed paragraph compounded its level (#1069,
+                # confirmed live). Zero both indents first so the tabs alone
+                # set the level; the new bullet sets its own indents.
+                requests.append(
+                    {
+                        "updateParagraphStyle": {
+                            "range": {"startIndex": run_start, "endIndex": run_end},
+                            "paragraphStyle": {
+                                "indentStart": {"magnitude": 0, "unit": "PT"},
+                                "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                            },
+                            "fields": "indentStart,indentFirstLine",
+                        }
+                    }
+                )
                 total_tabs = 0
                 min_nesting = min(u["nesting_level"] for u in run)
                 for unit in sorted(run, key=lambda u: u["start"], reverse=True):
@@ -808,6 +830,9 @@ def register(tool):
         """
         Remove list membership (bullets/numbering) from one or more paragraph
         ranges, leaving each paragraph's text and other styling untouched.
+        The API keeps a nested item's indent as paragraph indentation (36pt
+        per nesting level for the standard presets), so a nested item stays
+        indented after its bullet is gone; a top-level item doesn't.
 
         Args:
             doc_id: The Google Doc file ID.
