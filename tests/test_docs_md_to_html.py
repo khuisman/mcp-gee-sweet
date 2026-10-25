@@ -1,6 +1,7 @@
 """Tests for md_to_html — the CommonMark/GFM Markdown parser behind every Markdown
 entry point (#1116), and the html_parser shapes markdown-it's HTML reaches."""
 
+import re
 import time
 
 import pytest
@@ -184,8 +185,10 @@ class TestSpacedImagePath:
     def test_title_still_parsed_by_commonmark(self):
         assert 'title="t"' in _md_to_html('![c](./x.png "t")')
 
-    def test_link_with_spaces_stays_text(self):
-        assert "<a " not in _md_to_html("[l](./a b.png)")
+    def test_link_with_spaces_is_a_link(self):
+        # As under Python-Markdown (PR #1228 QA round 3).
+        (para,) = _ast("[l](./a b.png)")
+        assert para.runs[0].link_url == "./a b.png"
 
     def test_inside_code_span_untouched(self):
         assert "<img" not in _md_to_html("`![g](a b)`")
@@ -528,6 +531,109 @@ class TestQaRound2:
         monkeypatch.setattr(module._BLOCK_SCANNER, "parse", lambda s: calls.append(s) or real(s))
         _md_to_html("> 1. A\n>   - a\n> > ```\n> > x\n> > ```\n\n- b\n| K |\n|---|")
         assert len(calls) == 1
+
+
+class TestQaRound3:
+    """PR #1228 QA round 3: one test per send-back."""
+
+    def _nodes(self, md):
+        return [(type(n).__name__, _text(n)) for n in _ast(md)]
+
+    def test_rule_after_a_nested_list_in_an_item(self):
+        # Finding 2: a BulletItem '\n\n' (an empty bullet) before.
+        assert self._nodes("- a\n  - b\n  ---\n- c\n") == [
+            ("BulletItem", "a"),
+            ("BulletItem", "b"),
+            ("Paragraph", ""),
+            ("BulletItem", "c"),
+        ]
+
+    def test_text_after_a_rule_in_an_item_has_no_leading_break(self):
+        # Finding 3: "\nmore" before.
+        assert self._nodes("- a\n  ***\n  more\n- c\n") == [
+            ("BulletItem", "a"),
+            ("Paragraph", ""),
+            ("BulletItem", "more"),
+            ("BulletItem", "c"),
+        ]
+
+    def test_resumed_segment_keeps_an_authored_nbsp(self):
+        nodes = html_to_ast("<ul><li>a<ul><li>b</li></ul>\n&nbsp;</li></ul>")
+        assert _text(nodes[-1]) == "\xa0"
+
+    def test_quote_runs_slice_the_verbatim_map(self):
+        # Finding 4: O(quote runs x verbatim lines) before.
+        n = 4000
+        start = time.perf_counter()
+        _preprocess(("> a\n\n" * n) + ("    code\n" * n))
+        assert time.perf_counter() - start < 1.0
+
+    def test_tab_in_fenced_code_of_a_moved_item_is_kept(self):
+        # Finding 5: the recipe tab became spaces before.
+        md = "1. A\n  - a\n\n    ```make\n    all:\n    \tgcc x\n    ```\n"
+        assert "all:\n\tgcc x\n" in _md_to_html(md)
+
+    def test_moved_code_line_keeps_its_own_indentation(self):
+        md = "1. A\n  - a\n\n    ```\n      two spaces deeper\n    ```"
+        assert "  two spaces deeper\n" in _md_to_html(md)
+
+    def test_deep_list_keeps_its_text(self):
+        # Finding 6: maxNesting 20 dropped every item's text from about level 10.
+        md = "\n".join("  " * i + f"- x{i}" for i in range(30))
+        assert all(f"<li>x{i}" in _md_to_html(md) for i in range(30))
+
+    def test_lazy_pipe_line_does_not_end_the_list(self):
+        # Finding 7.
+        assert _outline("1. A\n| lazy pipe text\n  - sub\n2. B\n") == [
+            ("OL", 0, "A\n| lazy pipe text"),
+            ("UL", 1, "sub"),
+            ("OL", 0, "B"),
+        ]
+
+    def test_table_after_a_quote_inside_an_item(self):
+        # Finding 8: the table rows were the quote's lazy text before.
+        md = "- a\n  > q\n  | x | y |\n  | - | - |\n- b\n"
+        html = _md_to_html(md)
+        assert html.index("</blockquote>") < html.index("<table>") < html.index("</li>")
+        kinds = [type(n).__name__ for n in _ast(md)]
+        assert kinds == ["BulletItem", "Paragraph", "Table", "BulletItem"]
+
+    def test_spaced_image_with_a_title(self):
+        # Finding 9.
+        (para,) = _ast('![a](./My Shot.png "t")')
+        assert para.runs[0].src == "./My Shot.png"
+
+    def test_spaced_link_with_a_title_and_formatted_label(self):
+        html = _md_to_html("[**my** notes](./My Notes.md 'Notes')")
+        assert (
+            html == '<p><a href="./My Notes.md" title="Notes"><strong>my</strong> notes</a></p>\n'
+        )
+
+    def test_spaced_link_rules_leave_commonmark_links_alone(self):
+        assert _md_to_html('[a](./x.md "t")') == '<p><a href="./x.md" title="t">a</a></p>\n'
+        assert "<a " not in _md_to_html("[j](javascript:x y)")
+
+    def test_spaced_destination_that_unescapes_to_a_quote_stays_text(self):
+        # CommonMark spec example 41.
+        assert _md_to_html("[a](url &quot;tit&quot;)") == "<p>[a](url &quot;tit&quot;)</p>\n"
+
+    def test_reference_label_followed_by_spaced_parens_stays_a_reference(self):
+        # CommonMark spec example 568.
+        assert _md_to_html("[foo](not a link)\n\n[foo]: /url1\n") == (
+            '<p><a href="/url1">foo</a>(not a link)</p>\n'
+        )
+
+    def test_no_link_inside_a_link_label(self):
+        # As CommonMark does with any inner link: the inner one wins and the outer
+        # brackets stay text, so no <a> ever opens inside another.
+        html = _md_to_html("[outer [inner](a b) text](https://x.com)")
+        depth = 0
+        for tag in re.findall(r"</?a\b", html):
+            depth += 1 if tag == "<a" else -1
+            assert depth <= 1
+        assert _md_to_html("[outer [inner](a) text](https://x.com)") == html.replace(
+            'href="a b"', 'href="a"'
+        )
 
 
 class TestHtmlShapesFromMarkdownIt:

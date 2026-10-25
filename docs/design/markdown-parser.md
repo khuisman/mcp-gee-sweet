@@ -29,7 +29,8 @@ _md_to_html(md, autolink_urls)
 | `table`, `strikethrough` rules | GFM's two block/inline extensions. Task lists are left as literal `[ ] `/`[x] ` text, which `html_to_ast` already turns into checkbox items, so no plugin is needed. |
 | `_gfm_autolink_rule` (core rule) | GFM extended autolinks: `www.`, `http(s)://`, email. See below. |
 | `normalizeLink` = identity | markdown-it percent-encodes destinations; a local image path like `café.png` would no longer open. `validateLink` still refuses `javascript:` and friends. |
-| `_spaced_image_rule` (inline rule) | `![alt](/path/Screen Shot.png)`: Python-Markdown accepted a space in an image path, CommonMark doesn't. Only that shape (whitespace, no title, quotes, parens or angle brackets) is taken; anything CommonMark itself parses as an image never reaches it. The destination is unescaped like any other (`\_`, `&amp;`), and the match stops at `posMax` (a link label's end, inside one). Links stay strict: a URL can't hold a space. |
+| `_spaced_image_rule`, `_spaced_link_rule` (inline rules) | `![alt](/path/Screen Shot.png)`, `[notes](./My Notes.md "t")`: Python-Markdown accepted a space in a link or image destination, CommonMark doesn't, and existing `.md` files rely on it. Only that shape is taken: two or more space-separated pieces with no quotes, parens or angle brackets, then an optional quoted title. Anything CommonMark itself parses as a link or image never reaches them. The destination is unescaped like any other (`\_`, `&amp;`) and refused if that yields a quote; the match stops at `posMax` (a link label's end, inside one); a label naming a reference definition stays that reference; and no link opens inside another's label. |
+| `maxNesting` = 100 | The commonmark preset's 20 silently dropped everything deeper, and each list level costs two (`ul` + `li`), so an item's text vanished from about level 10. Python-Markdown kept it. 100 keeps 50 list levels and still parses `">" * 1200`. |
 | `_preprocess` (one line-based pre-pass) | Plan rules D1 and D2. See below. |
 | `asyncio.to_thread` in `_apply_doc_content` | The parse is pure CPU, about 2× Python-Markdown's time on realistic input (0.2 s for 50 KB) and up to 5× on emphasis-heavy input, all linear. It ran on the event loop before too; now the Markdown step doesn't. |
 | Ruler caches built at import | Both renderers and the block scanner are shared by every `to_thread` worker, and markdown-it builds a ruler's rule cache lazily on first use. Every ruler's cache is built at import, so concurrent first conversions never see a half-built one. |
@@ -76,7 +77,8 @@ parser (inline pass off) once, and returns every line of an indented code block 
 and the body and closing fence of a fenced block, mapped to the block's first line. A fence
 opened on a marker line (`` - ``` ``) or inside a quote is found the way the renderer finds it.
 Those lines are only moved with the item they belong to (a fence body by its opening line's
-shift).
+shift), and only their item's own indentation is rewritten (`_shift_verbatim`): whitespace past
+the item's content column is the code's, tabs included, so a Makefile recipe keeps its tab.
 
 **D1: nesting width (#1071).** Plan rule D1 (`docs/qa/tests/docs_markdown.md`): a marker indented
 at least 2 columns past the previous item's marker nests under it, whatever the parent marker's
@@ -103,10 +105,12 @@ tabs to the next multiple of 4, as CommonMark does.
 
 A run of quoted lines not indented into a list ends any open list and gets the same rules one
 level in: each line's `>` prefix is stripped, the inner lines go through `_rewrite` with the
-verbatim map offset to them (no second parse), and the prefixes are put back, so `> 1. A` /
-`>   - a` nests. Past 20 levels (markdown-it's `maxNesting`) quotes are left as written. A quote
-inside a list item is left alone, and so is everything after a list ends (a blank line then
-unindented text, or a heading, quote, fence, table row or thematic break).
+verbatim map sliced to them by bisect (no second parse, no scan of the whole map), and the
+prefixes are put back, so `> 1. A` / `>   - a` nests. Past `_MAX_QUOTE_DEPTH` (markdown-it's
+`maxNesting`, 100) quotes are left as written. A quote inside a list item isn't rewritten, and
+neither is anything after a list ends (a blank line then unindented text, or a heading, quote,
+fence or thematic break). A lazy line starting with `|` that isn't a table is paragraph text and
+doesn't end the list.
 
 **D2: a table starts its own block.** GFM lets a table interrupt a paragraph, but not a list
 item's or a quote's lazy continuation, so `- B` / `| K | V |` / `|---|---|` made the rows more
@@ -116,14 +120,18 @@ the item. A table indented into an item already renders inside it, and one under
 paragraph already renders as a table; a blank line there would only make a list loose (and
 `html_to_ast` then drops its bullets, #1111). A header needs a delimiter row with a `|` and the
 same number of cells, so a setext underline (`a | b` / `---`) isn't split from its heading text.
-Inside a quote, the inserted line is a bare `>`, so the table stays in the quote. Two tables with
+Inside a quote, the inserted line is a bare `>`, so the table stays in the quote. A table indented
+into an item right after a quote in that item (`- a` / `  > q` / `  | x |`) would be the quote's
+lazy text, and a blank line would make the list loose; an HTML comment line (`_LAZY_BREAK`, which
+`html_to_ast` ignores) ends the quote instead and keeps the table in the item. Two tables with
 no blank line between stay one table (AJ-078: GFM ends a table only at a blank line or another
 block).
 
-**Where D1 departs from CommonMark.** Running all 652 CommonMark spec examples through
-`_md_to_html` and plain markdown-it (same rules, raw destinations) differs in exactly three, all
-by design: example 297 (`10) foo` / `   - bar`: the bullet nests), and 311 and 313 (`1. a`, blank,
-`  2. b`: `2.` nests under `1.`, where CommonMark has siblings or, in 313, a code block).
+**Where this departs from CommonMark.** Running all 652 CommonMark spec examples through
+`_md_to_html` and plain markdown-it (same rules, raw destinations) differs in exactly four, all
+by design: example 297 (`10) foo` / `   - bar`: the bullet nests), 311 and 313 (`1. a`, blank,
+`  2. b`: `2.` nests under `1.`, where CommonMark has siblings or, in 313, a code block), and 488
+(`[link](/my uri)` is a link, `_spaced_link_rule`).
 
 ## The HTML `html_to_ast` sees
 
@@ -132,7 +140,8 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Shape | Python-Markdown | markdown-it | Handling |
 |---|---|---|---|
 | Tight item with a nested block | `<li>a<ul>` | `<li>a\n<ul>` (also before `<pre>`, `<table>`, `<blockquote>`) | **Changed:** `_interrupt_open_block` drops trailing whitespace holding a line break from the raw text before the block. It was reaching the Docs API as an empty paragraph under every parent item. A `<br>`'s own break is kept. |
-| Rule inside an item | (never produced) | `<li>item\n<hr />\n</li>` | **Changed:** an `<hr>` after text in an open block ends that segment, emits the rule's empty paragraph, and resumes the block. `<li><hr>` with no text keeps #401's dropped-construct boundary. |
+| Rule inside an item | (never produced) | `<li>item\n<hr />\n</li>` | **Changed:** an `<hr>` after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. `<li><hr>` with no text keeps #401's dropped-construct boundary. |
+| Text after a block in an item | (never produced) | `<hr />\nmore</li>` | **Changed:** a resumed segment drops the line break at its start, as the break before a block is dropped. An authored `&nbsp;` there isn't ASCII whitespace and stays (#444). |
 | Loose item | `<li>\n<p>a</p>\n</li>` | same | Unchanged here: owned by community PR #1164 (#1111). markdown-it produces it more often, since it attaches an indented paragraph or code block to the item instead of dropping it out of the list, so **#1164 must land first or in the same release.** |
 | Strikethrough | (none) | `<s>` | Already handled (`_INLINE_STRIKE`). |
 | Table alignment | `align="left"` | `style="text-align:left"` | Neither is read; no AST field for column alignment. No regression. |
@@ -149,7 +158,9 @@ AST and diffing (32 of 52 fixtures changed). Each change is one of the fixes in 
 D1, D2, or listed here; `CHANGELOG.md` has the user-facing version.
 
 - **Fixed:** everything in #1116's table; 2-, 3- and 4-space nesting (TC-MD106 LN-01 to LN-16 all
-  match their expectation, r16's agenda keeps 1–4); blocks inside list items (TC-MD201); fenced
+  match their expectation on screen; r16's agenda is one list numbered 1–4 in the HTML and the AST,
+  but on screen Docs still restarts it at 1 after each sub-list, which is the emitter's #1072,
+  live in TC-MD016); blocks inside list items (TC-MD201); fenced
   code inside items renders as code without the info string as text; strikethrough; www/email
   autolinks; `\` escapes; adjacent quotes; a bare `-` no longer becomes a setext heading.
 - **Worse until #1164:** an item followed by an indented paragraph or code block loses its bullet
@@ -205,3 +216,15 @@ PR #1228's QA rounds, and what each changed. The invariants they produced are in
   `_md_to_html(x, None)` raised `KeyError`; and the `html_parser` trim before a block removed a
   `<br>`'s break, now marked `_LineBreak` so only source text is trimmed. The stricter GFM link
   boundary (`URL:https://x.com`, `<b>https://x.com</b>` not linked) was kept and documented.
+- **Round 3 (10 findings, plus the live matrix).** The branch had fallen behind `develop`, so CI
+  hadn't run; merged. In `html_parser`, a rule after a nested list in an item took the
+  dropped-construct path and left the resumed segment's `\n`s as empty bullets, and text after a
+  rule kept a leading break: a resumed segment now takes the `<hr>` interrupt path and drops a
+  leading line break. In the pre-pass: each quote run scanned the whole verbatim map (now a bisect
+  slice); moving an item rebuilt a fence body's whole indentation, turning a recipe tab into
+  spaces (`_shift_verbatim` keeps the code's own whitespace); `maxNesting` 20 dropped deep list
+  text (now 100, with `_MAX_QUOTE_DEPTH` matching); a lazy `|` line ended the list; and a table
+  after a quote inside an item stayed the quote's lazy text (`_LAZY_BREAK`). Spaced destinations
+  now take a title, and links get the same rule as images, since existing `.md` files lose
+  `[notes](./My Notes.md)` otherwise; the CommonMark spec run caught two edges of that rule
+  (examples 41 and 568). The "r16 keeps 1–4" claim was the HTML's, not the screen's.

@@ -4,11 +4,12 @@ The HTML goes on through html_to_ast and the emitter, the same pipeline as HTML 
 Design and the behavior changes from Python-Markdown: docs/design/markdown-parser.md.
 """
 
+import bisect
 import re
 from dataclasses import dataclass
 
 from markdown_it import MarkdownIt
-from markdown_it.common.utils import unescapeAll
+from markdown_it.common.utils import normalizeReference, unescapeAll
 from markdown_it.token import Token
 
 # GFM extended autolinks (https://github.github.com/gfm/#autolinks-extension-): a
@@ -183,7 +184,16 @@ def _text_token(content: str, level: int) -> Token:
 
 # Block structure only, for _verbatim_lines: the same block grammar as the renderer
 # (raw HTML on, GFM tables), with no inline pass.
-_BLOCK_SCANNER = MarkdownIt("commonmark", {"html": True}).enable(["table"]).disable(["inline"])
+# markdown-it drops anything nested deeper than maxNesting, silently, and each list
+# level costs two (ul + li): the commonmark preset's 20 lost an item's text from
+# about level 10, which Python-Markdown kept. 100 keeps a 50-level list and still
+# parses ">" * 1200 without RecursionError.
+_MAX_NESTING = 100
+_BLOCK_SCANNER = (
+    MarkdownIt("commonmark", {"html": True, "maxNesting": _MAX_NESTING})
+    .enable(["table"])
+    .disable(["inline"])
+)
 
 
 def _verbatim_lines(md_text: str) -> dict[int, int]:
@@ -206,11 +216,16 @@ _THEMATIC_BREAK_RE = re.compile(r"([-*_])(?:[ \t]*\1){2,}[ \t]*$")
 # One quote level: up to 3 spaces, ">", and the one optional space CommonMark absorbs.
 _QUOTE_PREFIX_RE = re.compile(r" {0,3}> ?")
 # A line that starts a block of its own, so it ends any list it isn't indented into.
-_LIST_ENDING_BLOCK_RE = re.compile(r"#{1,6}(?:[ \t]|$)|>|`{3,}|~{3,}|\|")
-# Deeper quotes are left as written. markdown-it's commonmark preset stops nesting
-# blocks at maxNesting (20) anyway, and recursing per quote level without a cap raised
-# RecursionError on ">" * 1200 (PR #1228 QA round 2).
-_MAX_QUOTE_DEPTH = 20
+# Not a "|" line: one that isn't a table is lazy paragraph text (a table start is
+# handled on its own, by D2).
+_LIST_ENDING_BLOCK_RE = re.compile(r"#{1,6}(?:[ \t]|$)|>|`{3,}|~{3,}")
+# The pre-pass's quote recursion stops at markdown-it's own nesting cap, past which
+# it nests nothing anyway; without a cap ">" * 1200 raised RecursionError.
+_MAX_QUOTE_DEPTH = _MAX_NESTING
+# The line D2 puts before a table that would otherwise be lazy text of a quote inside
+# a list item. An HTML comment ends the quote's paragraph without a blank line, which
+# would make the list loose; html_to_ast ignores comments.
+_LAZY_BREAK = "<!-- -->"
 
 # A pipe-table header row and the delimiter row under it (GFM "tables" extension).
 _TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)\S.*\|.*$|^ {0,3}\|")
@@ -268,6 +283,21 @@ def _moved_marker_line(col: int, body: str, marker: re.Match, new_marker: int) -
     return " " * new_marker + marker.group("marker") + space + body[marker.end() :]
 
 
+def _shift_verbatim(line: str, container_col: int, delta: int) -> str:
+    """A code or raw HTML line moved by delta with its list item. Only the item's own
+    indentation (up to container_col) is rewritten; whitespace past it is the code's
+    content and stays as written, tabs included (a Makefile recipe needs its tab)."""
+    if delta == 0 or not line.strip():
+        return line
+    col = idx = 0
+    while idx < len(line) and col < container_col and line[idx] in " \t":
+        col += 1 if line[idx] == " " else 4 - col % 4
+        idx += 1
+    # A tab that ran past container_col spanned some content columns too.
+    overshoot = max(0, col - container_col)
+    return " " * (min(col, container_col) + delta) + " " * overshoot + line[idx:]
+
+
 def _owner(stack: list[_ListItemColumns], col: int) -> _ListItemColumns | None:
     """The innermost open item a line indented to col continues, if any."""
     return next((item for item in reversed(stack) if col >= item.orig_content), None)
@@ -292,18 +322,28 @@ def _starts_table(header: str, delimiter: str) -> bool:
     )
 
 
-# _rewrite's output: (the input line it came from, or None for an inserted blank line,
-# and the text).
+# _rewrite's output: (the input line it came from, or None for an inserted line, and
+# the text).
 _Rewritten = list[tuple[int | None, str]]
 
 
-def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rewritten:
+def _rewrite(
+    lines: list[str],
+    verbatim: dict[int, int],
+    depth: int = 0,
+    keys: list[int] | None = None,
+) -> _Rewritten:
     """Apply plan rules D1 and D2 to lines (see _preprocess). verbatim is
-    _verbatim_lines for exactly these lines, so a quoted run's lines map into it by
-    offset and the recursion never parses again."""
+    _verbatim_lines for exactly these lines, and keys its sorted line numbers, so a
+    quoted run's lines map into it by offset (a bisect, not a scan of the whole map)
+    and the recursion never parses again."""
+    if keys is None:
+        keys = sorted(verbatim)
     out: _Rewritten = []
     stack: list[_ListItemColumns] = []
-    deltas: dict[int, int] = {}
+    # Per line: how far it moved, and the column its item's content starts at, which
+    # a code block opened on that line moves with (_shift_verbatim).
+    anchors: dict[int, tuple[int, int]] = {}
     prev_blank = False
     # Whether the line above is paragraph text, which a list may only interrupt with
     # a bullet or "1." (CommonMark's rule; a list item's own text counts).
@@ -311,6 +351,9 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
     # Whether the line above ends a quote run or is a list item's text that a table
     # line not indented into the item would continue lazily (D2).
     prev_lazy_target = False
+    # The item whose text holds a quote the line above belongs to, which a table
+    # indented into that item would continue lazily (D2).
+    quote_in: _ListItemColumns | None = None
     in_table = False
 
     def shifted(line: str, col: int, body: str, delta: int) -> str:
@@ -324,17 +367,19 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
 
         if idx in verbatim:
             first = verbatim[idx]
-            if first in deltas:
+            if first in anchors:
                 # A fence body moves with the line that opened it.
-                delta = deltas[first]
+                delta, container = anchors[first]
             else:
                 owner = _owner(stack, col)
                 if owner is None:
                     stack = []
                 delta = owner.new_content - owner.orig_content if owner else 0
-            deltas[idx] = delta
-            out.append((idx, shifted(line, col, body, delta)))
+                container = owner.orig_content if owner else 0
+            anchors[idx] = (delta, container)
+            out.append((idx, _shift_verbatim(line, container, delta)))
             prev_blank = prev_text = prev_lazy_target = in_table = False
+            quote_in = None
             continue
 
         quote = _QUOTE_PREFIX_RE.match(line)
@@ -351,22 +396,24 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
             if depth >= _MAX_QUOTE_DEPTH:
                 out.extend((start + k, q) for k, q in enumerate(lines[start:i]))
             else:
-                inner_verbatim = {
-                    k - start: v - start for k, v in verbatim.items() if start <= k < i
-                }
-                for source, text in _rewrite(run, inner_verbatim, depth + 1):
+                run_keys = keys[bisect.bisect_left(keys, start) : bisect.bisect_left(keys, i)]
+                inner_verbatim = {k - start: verbatim[k] - start for k in run_keys}
+                inner_keys = [k - start for k in run_keys]
+                for source, text in _rewrite(run, inner_verbatim, depth + 1, inner_keys):
                     if source is None:
-                        # An inserted blank line, inside the same quote.
-                        out.append((None, prefixes[0].rstrip()))
+                        # An inserted line, inside the same quote.
+                        out.append((None, (prefixes[0] + text) if text else prefixes[0].rstrip()))
                     else:
                         out.append((start + source, prefixes[source] + text))
             prev_blank = prev_text = in_table = False
             prev_lazy_target = True
+            quote_in = None
             continue
 
         if not body:
             out.append((idx, line))
             prev_blank, prev_text, prev_lazy_target, in_table = True, False, False, False
+            quote_in = None
             continue
 
         marker = _LIST_MARKER_RE.match(body)
@@ -409,7 +456,8 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
                     new_marker = col
                 offset = _content_offset(col, marker)
                 stack.append(_ListItemColumns(col, new_marker, col + offset, new_marker + offset))
-                deltas[idx] = new_marker - col
+                anchors[idx] = (new_marker - col, col + offset)
+                quote_in = None
                 out.append(
                     (
                         idx,
@@ -432,8 +480,14 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
             # indented into an item, or under a plain paragraph, is a table already:
             # a blank line there would only make the list loose.
             out.append((None, ""))
+        elif starts_table and owner is not None and owner is quote_in:
+            # The same, for a quote inside the item: the table, indented into the
+            # item, would be the quote's lazy text. _LAZY_BREAK ends the quote and
+            # keeps the table in the item without making the list loose.
+            out.append((None, " " * owner.new_content + _LAZY_BREAK))
         if owner is not None:
             delta = owner.new_content - owner.orig_content
+            container = owner.orig_content
         else:
             if stack and (
                 prev_blank
@@ -442,12 +496,16 @@ def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rew
                 or _THEMATIC_BREAK_RE.match(body)
             ):
                 stack = []
-            delta = 0
-        deltas[idx] = delta
+            delta = container = 0
+        anchors[idx] = (delta, container)
         out.append((idx, shifted(line, col, body, delta)))
         if starts_table:
             in_table = True
         ends_paragraph = _LIST_ENDING_BLOCK_RE.match(body) or _THEMATIC_BREAK_RE.match(body)
+        if body.startswith(">") and owner is not None:
+            quote_in = owner
+        elif ends_paragraph or starts_table:
+            quote_in = None
         prev_blank = False
         prev_text = not ends_paragraph
         # Lazy text continues the item above, so a table under it is lazy too; once a
@@ -485,30 +543,53 @@ def _preprocess(md_text: str) -> str:
     return "\n".join(text for _, text in _rewrite(lines, _verbatim_lines(md_text)))
 
 
-# An image whose destination holds whitespace and no title: "![alt](./Screen Shot.png)".
-# CommonMark requires "<...>" around such a destination and otherwise leaves the
-# whole thing as text, but Python-Markdown accepted it, and a local path with a space
-# (every macOS screenshot) is what people write. Quotes, parens and angle brackets
-# are excluded, so a destination with a title, or any image CommonMark itself
-# accepts, still goes through markdown-it's own image rule.
-_SPACED_IMAGE_RE = re.compile(r"!\[([^\[\]\n]*)\]\(\s*([^\s()<>\"']+(?:[ \t]+[^\s()<>\"']+)+)\s*\)")
+# A link or image whose destination holds whitespace: "![alt](./Screen Shot.png)",
+# "[notes](./My Notes.md "t")". CommonMark requires "<...>" around such a destination
+# and otherwise leaves the whole thing as text, but Python-Markdown accepted it, and a
+# local path with a space (every macOS screenshot) is what people write. The
+# destination is two or more space-separated pieces with no quotes, parens or angle
+# brackets, then an optional quoted title, so anything CommonMark itself accepts (one
+# piece, or "<...>") still goes through markdown-it's own link and image rules.
+_SPACED_DESTINATION = (
+    r"\(\s*([^\s()<>\"']+(?:[ \t]+[^\s()<>\"']+)+)"
+    r"(?:[ \t]+(\"[^\"\n]*\"|'[^'\n]*'))?\s*\)"
+)
+_SPACED_IMAGE_RE = re.compile(r"!\[([^\[\]\n]*)\]" + _SPACED_DESTINATION)
+_SPACED_LINK_RE = re.compile(r"\[([^\[\]\n]*)\]" + _SPACED_DESTINATION)
+
+
+def _spaced_destination(state, pattern: re.Pattern) -> tuple[re.Match, str, str | None] | None:
+    # posMax bounds the match to the text being parsed: inside a link's label it is
+    # the label's end, not the end of the line.
+    m = pattern.match(state.src, state.pos, state.posMax)
+    if not m:
+        return None
+    # Backslash escapes and entities resolve as in any other destination or title. One
+    # that resolves to a quote ("url &quot;tit&quot;") was a title written as entities,
+    # not a path; leave it to CommonMark, which reads it as text.
+    href = unescapeAll(m.group(2))
+    if '"' in href or "'" in href or not state.md.validateLink(href):
+        return None
+    # A label that names a reference definition is that reference, followed by text,
+    # as CommonMark reads it ("[foo](not a link)" with "[foo]: /url" defined).
+    if normalizeReference(m.group(1)) in state.env.get("references", {}):
+        return None
+    title = unescapeAll(m.group(3)[1:-1]) if m.group(3) else None
+    return m, href, title
 
 
 def _spaced_image_rule(state, silent: bool) -> bool:
     if not state.src.startswith("![", state.pos):
         return False
-    # posMax bounds the match to the text being parsed: inside a link's label it is
-    # the label's end, not the end of the line.
-    m = _SPACED_IMAGE_RE.match(state.src, state.pos, state.posMax)
-    if not m:
+    found = _spaced_destination(state, _SPACED_IMAGE_RE)
+    if found is None:
         return False
-    # Backslash escapes and entities resolve as in any other destination.
-    src = unescapeAll(m.group(2))
-    if not state.md.validateLink(src):
-        return False
+    m, src, title = found
     if not silent:
         token = state.push("image", "img", 0)
         token.attrs = {"src": src, "alt": ""}
+        if title is not None:
+            token.attrs["title"] = title
         token.content = m.group(1)
         children: list[Token] = []
         state.md.inline.parse(m.group(1), state.md, state.env, children)
@@ -517,16 +598,47 @@ def _spaced_image_rule(state, silent: bool) -> bool:
     return True
 
 
+def _spaced_link_rule(state, silent: bool) -> bool:
+    # Links can't nest, so none inside another link's label.
+    if state.src[state.pos] != "[" or state.linkLevel > 0:
+        return False
+    found = _spaced_destination(state, _SPACED_LINK_RE)
+    if found is None:
+        return False
+    m, href, title = found
+    if not silent:
+        token = state.push("link_open", "a", 1)
+        token.attrs = {"href": href}
+        if title is not None:
+            token.attrs["title"] = title
+        # The label is inline content: tokenize it in place, as markdown-it's own link
+        # rule does, so its emphasis and code reach the same token stream.
+        end, old_max = m.end(), state.posMax
+        state.pos, state.posMax = m.start(1), m.end(1)
+        state.linkLevel += 1
+        state.md.inline.tokenize(state)
+        state.linkLevel -= 1
+        state.posMax = old_max
+        state.push("link_close", "a", -1)
+        state.pos = end
+        return True
+    state.pos = m.end()
+    return True
+
+
 def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # CommonMark plus GFM's table and strikethrough extensions. Raw HTML passes through
     # to html_to_ast, as it did under Python-Markdown. Task-list items stay literal
     # "[ ] "/"[x] " text, which html_to_ast turns into checkbox items.
-    md = MarkdownIt("commonmark", {"html": True}).enable(["table", "strikethrough"])
+    md = MarkdownIt("commonmark", {"html": True, "maxNesting": _MAX_NESTING}).enable(
+        ["table", "strikethrough"]
+    )
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")
     # that _resolve_image_source opens as-is. validateLink still screens schemes.
     md.normalizeLink = lambda url: url
     md.inline.ruler.before("image", "spaced_image", _spaced_image_rule)
+    md.inline.ruler.before("link", "spaced_link", _spaced_link_rule)
     if autolink_urls:
         md.core.ruler.push("gfm_autolink", _gfm_autolink_rule)
     return md

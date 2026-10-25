@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
   - `~~text~~` is struck through. `1)` starts a numbered list. `\` at the end of a line is a line break. A backslash before any ASCII punctuation character escapes it.
   - `www.example.com` and `me@example.com` are linked, like bare `https://` URLs already were (`autolink_urls=False` turns all three off). `README.md`, `file.py` and `ftp://` URLs are not. A bare URL is now linked only where GitHub links one: at the start of a line or after a space, `*`, `_`, `~` or `(`. So `URL:https://example.com`, `<b>https://example.com</b>` and a URL right after a code span or link stay plain text, where they used to be linked; put a space before the URL, or write `<https://example.com>`.
   - Bold inside italic (`*a **b** c*`) keeps both styles. `#hashtag` and `####### seven` stay paragraphs instead of becoming headings.
+  - A link or image whose path contains spaces (`![shot](./Screen Shot.png)`, `[notes](./My Notes.md "Notes")`) still works, as it did before, although CommonMark itself would leave it as text.
   - Two quotes separated by a blank line render as two quotes.
   - A line of only `-` is an empty list item instead of a setext heading underline or literal text. The empty item itself is still dropped (#1075).
   - YAML front matter (`---` … `---` at the top) now renders as a rule and then a Heading 2 of its text, where it used to render as a rule, a paragraph and a rule. It's still shown either way (#1173).

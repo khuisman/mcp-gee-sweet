@@ -753,7 +753,9 @@ class _AstParser(HTMLParser):
         # for a rule in a list item, #1116) is a block of its own: end the outer
         # block's segment, emit the rule's boundary paragraph, then resume the outer
         # block. Without this the rule vanished and the newlines around it became
-        # empty paragraphs. A block with no text before the rule ("<li><hr>") keeps
+        # empty paragraphs. The same holds for a resumed segment, after a nested list,
+        # quote or paragraph in the item ("- a\n  - b\n  ---"), even with no text of
+        # its own. Only a fresh block with no text before the rule ("<li><hr>") keeps
         # the dropped-construct handling below, which keeps its own boundary (#401).
         if (
             tag == "hr"
@@ -761,7 +763,7 @@ class _AstParser(HTMLParser):
             and self._table_depth == 0
             and self._tag_depth == 0
             and not self._in_pre
-            and ("".join(self._run_buf).strip() or self._pending_runs)
+            and (self._block_resumed or "".join(self._run_buf).strip() or self._pending_runs)
         ):
             self._interrupt_open_block("hr")
             self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
@@ -1070,6 +1072,14 @@ class _AstParser(HTMLParser):
             if len(text) < len(data):
                 self._hold_cell_whitespace(data[len(text) :])
         elif self._block_tag:
+            if self._block_resumed and not (self._run_buf or self._pending_runs):
+                # A resumed segment starts right after the block that interrupted it,
+                # and markdown-it writes a line break there ("<hr />\nmore"). Source
+                # formatting, like the break before the block (_interrupt_open_block);
+                # an authored "&nbsp;" is not ASCII whitespace and stays (#444).
+                data = _without_line_break_edge(data, leading=True)
+                if not data:
+                    return
             self._run_buf.append(data)
         elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
             # Genuinely bare text — no wrapping block tag, no enclosing tag of
