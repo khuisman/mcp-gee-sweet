@@ -2599,6 +2599,8 @@ Run 1 (kai-oauth).</p>
 list_recent_files(max_results=10) → 10 items ordered by modified_time desc; each has id, name, mime_type, modified_time, web_link. Includes Shared Drive items.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
+<p><strong>Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS</strong>
+<code>mcp-gee-sweet-sky</code> (OAuth). <code>list_recent_files(max_results=10)</code> returned 10 items ordered by <code>modified_time</code> desc, each with id, name, mime_type, modified_time, web_link.</p>
 <hr />
 <h3 id="tc-d157-filter-by-days">TC-D157: Filter by days<a class="headerlink" href="#tc-d157-filter-by-days" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2613,6 +2615,10 @@ Run 1 (kai-oauth).</p>
 list_recent_files(days=7) → all results modified 2026-09-04 (within 7 days), ordered desc.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
+<p><strong>Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS</strong>
+<code>mcp-gee-sweet-sky</code> (OAuth), exercising the <code>datetime.now(UTC)</code> cutoff (#1212). <code>days=7</code> returned only items modified 2026-10-24. <code>days=1, max_results=100</code> at about 2026-10-25T06:00Z returned 11 items, all modified between 2026-10-24T15:15Z and 19:29Z, inside the 24-hour window, ordered desc.</p>
+<p><strong>Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ✅ PASS</strong>
+After the pydantic 2.14.1 re-lock, reconnected. <code>days=1, max_results=3</code> at about 16:08Z returned 3 items modified 2026-10-24T19:05Z–19:29Z, inside the window, ordered desc.</p>
 <hr />
 <h3 id="tc-d158-filter-by-mime-type">TC-D158: Filter by MIME type<a class="headerlink" href="#tc-d158-filter-by-mime-type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>

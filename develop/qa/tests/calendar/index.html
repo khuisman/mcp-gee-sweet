@@ -3223,6 +3223,10 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 <code>kit</code>: No-filter <code>list_events</code> on {CALENDAR_ID} returned [] (no events seeded after now). A July window returned the TC-CAL20 event with id/summary/start/end/status. Not checked: ordering, with only one event in range.</p>
 <p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-oauth</code> (OAuth): no future events on the fixture calendar (<code>[]</code>); a July window returned the TC-CAL20 event with the required fields. Ordering not checkable with one event.</p>
+<p><strong>Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ⚠️ PARTIAL</strong>
+<code>mcp-gee-sweet-sky</code> (OAuth), reconnected after the reset. No-filter <code>list_events</code> on {CALENDAR_ID} returned <code>[]</code> with no error, so the default <code>timeMin</code> (now <code>datetime.now(UTC)</code>, #1212) is still accepted by the API and excludes the past-dated seeded events. Not checked: field shape and ordering, since nothing on the calendar is after now.</p>
+<p><strong>Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ⚠️ PARTIAL</strong>
+After the pydantic 2.14.1 re-lock, reconnected: no-filter <code>list_events</code> returned <code>[]</code> with no error. Same gaps as round 1.</p>
 <hr />
 <h3 id="tc-cal10-time_min-time_max-window">TC-CAL10: time_min + time_max window<a class="headerlink" href="#tc-cal10-time_min-time_max-window" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
