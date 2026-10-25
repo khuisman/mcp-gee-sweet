@@ -1704,6 +1704,111 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#list_drafts-get_draft-update_draft-delete_draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_drafts, get_draft, update_draft, delete_draft
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_drafts, get_draft, update_draft, delete_draft">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm48-list-drafts-with-a-query-and-pagination-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM48: List drafts with a query and pagination (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm49-get_draft-has-the-same-shape-as-get_message-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM49: get_draft has the same shape as get_message (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm50-update_draft-replaces-content-and-keeps-the-draft-id-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM50: update_draft replaces content and keeps the draft ID (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm51-update_draft-with-keep_attachments-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM51: update_draft with keep_attachments (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm52-an-updated-reply-draft-stays-in-its-thread-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM52: An updated reply draft stays in its thread (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm53-delete_draft-removes-the-draft-for-good-issue-1205-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM53: delete_draft removes the draft for good (issue #1205) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm54-update_draft-keeps-a-non-ascii-from-name-on-both-paths-issue-1205-pr-1227-qa-round-1-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM54: update_draft keeps a non-ASCII From name on both paths (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm55-keep_attachments-keeps-an-inline-image-inline-with-the-new-html-issue-1205-pr-1227-qa-round-1-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM55: keep_attachments keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reply_to_message" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2634,7 +2739,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Checks</strong>
 - Step 1: returns <code>id</code> and <code>message.id</code>, no <code>error</code>
 - Step 2: <code>label_ids</code> includes <code>DRAFT</code> and not <code>SENT</code></p>
-<p><strong>Cleanup:</strong> TC-GM15 sends this draft. If TC-GM15 isn't run, <code>qa_gmail_fixtures.py reset</code> deletes it (the tools can't delete a draft).</p>
+<p><strong>Cleanup:</strong> TC-GM15 sends this draft. If TC-GM15 isn't run, <code>delete_draft</code> it.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <hr />
@@ -2673,7 +2778,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Checks</strong>
 - Step 1: returns <code>id</code>, <code>thread_id</code>, <code>label_ids</code>, and <code>label_ids</code> includes <code>SENT</code>
 - Step 2: <code>label_ids</code> doesn't include <code>DRAFT</code>; <code>headers.subject</code> is <code>[mcp-qa:tc-gm13] draft</code>
-- Step 3: returns <code>{"error": "..."}</code>. The draft is gone, which is the only way the tools can show it left the drafts list.</p>
+- Step 3: returns <code>{"error": "..."}</code>. The draft is gone.</p>
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
@@ -2685,6 +2790,150 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="list_drafts-get_draft-update_draft-delete_draft"><code>list_drafts</code>, <code>get_draft</code>, <code>update_draft</code>, <code>delete_draft</code><a class="headerlink" href="#list_drafts-get_draft-update_draft-delete_draft" title="Permanent link">&para;</a></h2>
+<p>None of these sends mail. Each case checks that afterwards with <code>list_messages</code> on <code>query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""</code>, which must return no messages.</p>
+<h3 id="tc-gm48-list-drafts-with-a-query-and-pagination-issue-1205-destructive">TC-GM48: List drafts with a query and pagination (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm48-list-drafts-with-a-query-and-pagination-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm48}"</code>, <code>cc: "{QA+tc-gm48-cc}"</code>, <code>subject: "[mcp-qa:tc-gm48] first"</code>, <code>body: "mcp-gee-sweet TC-GM48 first"</code>. Record it as <code>{GM48_A}</code>.
+2. <code>create_draft</code> with <code>to: "{QA+tc-gm48}"</code>, <code>subject: "[mcp-qa:tc-gm48] second"</code>, <code>body: "mcp-gee-sweet TC-GM48 second"</code>. Record it as <code>{GM48_B}</code>.
+3. <code>list_drafts</code> with <code>query: "subject:\"[mcp-qa:tc-gm48]\""</code>
+4. <code>list_drafts</code> with the same <code>query</code> and <code>max_results: 1</code>
+5. <code>list_drafts</code> with the same <code>query</code>, <code>max_results: 1</code>, and <code>page_token</code> from step 4</p>
+<p><strong>Checks</strong>
+- Step 3: <code>drafts</code> has exactly two entries, with <code>id</code>s <code>{GM48_A}.id</code> and <code>{GM48_B}.id</code>
+- Step 3: <code>{GM48_A}</code>'s entry is <code>{id, message}</code>, where <code>message</code> equals <code>get_draft</code> with <code>draft_id: "{GM48_A}.id"</code> and <code>include_body: false</code>'s <code>message</code>: <code>id</code> and <code>thread_id</code> equal to step 1's <code>message.id</code> and <code>message.thread_id</code>, <code>headers.to</code> containing <code>{QA+tc-gm48}</code>, <code>headers.cc</code> containing <code>{QA+tc-gm48-cc}</code>, <code>headers.subject: "[mcp-qa:tc-gm48] first"</code>, a <code>headers.date</code>, and a non-empty <code>snippet</code>. No header outside get_message's set (e.g. <code>received</code>) appears.
+- Step 4: one draft and a <code>next_page_token</code>
+- Step 5: one draft, not the one from step 4
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> both drafts.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth, QA mailbox). Step 3 listed both drafts, newest first; <code>{GM48_A}</code>'s entry had matching <code>message_id</code>/<code>thread_id</code>, <code>to</code>, <code>cc</code>, <code>subject</code>, <code>date</code>, and <code>snippet</code>, and <code>{GM48_B}</code>'s <code>cc</code> was null. Steps 4 and 5 each returned one different draft. API quirk, not a defect: with <code>max_results: 1</code>, Gmail reported <code>result_size_estimate: 201</code> and still returned a <code>next_page_token</code> on step 5's last real page. Following it returned <code>drafts: []</code>. No mail sent; both drafts deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
+<code>sky</code> (OAuth). Rerun for the new <code>{id, message}</code> shape. Step 3: <code>{GM48_A}</code>'s <code>message</code> was identical to <code>get_draft(include_body=false)</code>'s, with matching <code>id</code>/<code>thread_id</code>, <code>to</code>, <code>cc</code>, <code>subject</code>, <code>date</code>, and <code>snippet</code>. No header outside the shaped set (no <code>received</code>). Steps 4 and 5 each returned one different draft, with the same <code>result_size_estimate: 201</code> / trailing <code>next_page_token</code> quirk as round 1. No mail sent; drafts deleted.</p>
+<hr />
+<h3 id="tc-gm49-get_draft-has-the-same-shape-as-get_message-issue-1205-destructive">TC-GM49: <code>get_draft</code> has the same shape as <code>get_message</code> (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm49-get_draft-has-the-same-shape-as-get_message-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm49}"</code>, <code>subject: "[mcp-qa:tc-gm49] get"</code>, <code>body: "mcp-gee-sweet TC-GM49 plain"</code>, <code>body_html: "&lt;p&gt;mcp-gee-sweet &lt;b&gt;TC-GM49&lt;/b&gt;&lt;/p&gt;"</code>, <code>attachments: [{"content_base64": "VEMtR000OSBhdHRhY2htZW50", "filename": "gm49.txt"}]</code>
+2. <code>get_draft</code> with <code>draft_id</code> from step 1
+3. <code>get_message</code> with <code>message_id</code> set to step 1's <code>message.id</code>
+4. <code>get_draft</code> with the same <code>draft_id</code> and <code>include_body: false</code>
+5. <code>get_draft</code> with the same <code>draft_id</code> and <code>local_path</code> set to a new scratch directory ending in <code>/</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>id</code> is step 1's <code>id</code>. <code>message</code> equals step 3's result, except each attachment's <code>attachment_id</code> (Gmail issues a fresh one on every fetch)
+- Step 2: <code>message.attachments</code> is one entry, <code>gm49.txt</code>, <code>text/plain</code>, size 18; <code>message.label_ids</code> includes <code>DRAFT</code>
+- Step 4: <code>message.headers.subject</code> is <code>[mcp-qa:tc-gm49] get</code>; <code>message</code> has no <code>body_plain</code>, <code>body_html</code>, or <code>attachments</code>
+- Step 5: returns <code>local_path</code>, <code>draft_id</code>, and <code>bytes_written</code>; the file <code>draft_&lt;id&gt;.json</code> in that directory holds step 2's result
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> the draft; remove the scratch directory.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth). Step 2 matched step 3 field for field except <code>attachment_id</code>, with <code>gm49.txt</code> <code>text/plain</code> size 18, <code>DRAFT</code> label, and both bodies. Step 4 had headers only. Step 5 wrote <code>draft_&lt;id&gt;.json</code> (1165 bytes) holding step 2's subject, both bodies, and the attachment. No mail sent; draft deleted.</p>
+<hr />
+<h3 id="tc-gm50-update_draft-replaces-content-and-keeps-the-draft-id-issue-1205-destructive">TC-GM50: <code>update_draft</code> replaces content and keeps the draft ID (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm50-update_draft-replaces-content-and-keeps-the-draft-id-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm50}"</code>, <code>cc: "{QA+tc-gm50-cc}"</code>, <code>subject: "[mcp-qa:tc-gm50] before"</code>, <code>body: "mcp-gee-sweet TC-GM50 before"</code>, <code>body_html: "&lt;p&gt;before&lt;/p&gt;"</code>, <code>attachments: [{"content_base64": "VEMtR001MA==", "filename": "gm50.txt"}]</code>. Record <code>id</code> as <code>{GM50_ID}</code> and <code>message.id</code> as <code>{GM50_OLD_MID}</code>.
+2. <code>update_draft</code> with <code>draft_id: "{GM50_ID}"</code>, <code>to: ["{QA+tc-gm50-new}"]</code>, <code>subject: "[mcp-qa:tc-gm50] after"</code>, <code>body: "mcp-gee-sweet TC-GM50 after"</code>
+3. <code>get_draft</code> with <code>draft_id: "{GM50_ID}"</code>
+4. <code>get_message</code> with <code>message_id: "{GM50_OLD_MID}"</code>
+5. <code>list_drafts</code> with <code>query: "subject:\"[mcp-qa:tc-gm50]\""</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>id</code> is <code>{GM50_ID}</code>; <code>message.id</code> differs from <code>{GM50_OLD_MID}</code>
+- Step 3: <code>headers.to</code> is <code>{QA+tc-gm50-new}</code>, <code>headers.subject</code> is <code>[mcp-qa:tc-gm50] after</code>, <code>headers.cc</code> is null, <code>body_plain</code> is <code>mcp-gee-sweet TC-GM50 after</code>, <code>body_html</code> is null, <code>attachments</code> is empty
+- Step 4: returns <code>{"error": "..."}</code> (the old message is gone)
+- Step 5: one draft, with <code>id</code> <code>{GM50_ID}</code>
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM50_ID}</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth). Step 2 kept the draft ID with a new <code>message.id</code>. Step 3 had the new <code>to</code> and subject, <code>cc</code> null, the new <code>body_plain</code>, <code>body_html</code> null, and <code>attachments: []</code>. Step 4 returned a 404 <code>{"error"}</code>. Step 5 listed exactly <code>{GM50_ID}</code>. The updated message kept the original <code>thread_id</code> (update_draft passes it back), which is expected. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
+<code>sky</code> (OAuth). Regression rerun after the compose rework, checking steps 2–4. Same outcome as round 1: new <code>to</code> and subject, <code>cc</code> and <code>body_html</code> null, <code>attachments: []</code>, and the old message a 404. No mail sent; draft deleted.</p>
+<hr />
+<h3 id="tc-gm51-update_draft-with-keep_attachments-issue-1205-destructive">TC-GM51: <code>update_draft</code> with <code>keep_attachments</code> (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm51-update_draft-with-keep_attachments-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm51}"</code>, <code>subject: "[mcp-qa:tc-gm51] keep"</code>, <code>body: "mcp-gee-sweet TC-GM51 before"</code>, <code>attachments: [{"content_base64": "VEMtR001MSBrZXB0", "filename": "kept.txt"}]</code>
+2. <code>update_draft</code> with <code>draft_id</code> from step 1, <code>to: "{QA+tc-gm51}"</code>, <code>subject: "[mcp-qa:tc-gm51] keep"</code>, <code>body: "mcp-gee-sweet TC-GM51 after"</code>, <code>attachments: [{"content_base64": "VEMtR001MSBuZXc=", "filename": "new.txt"}]</code>, <code>keep_attachments: true</code>
+3. <code>get_draft</code> with the same <code>draft_id</code></p>
+<p><strong>Checks</strong>
+- Step 3: <code>attachments</code> is <code>kept.txt</code> (size 12) then <code>new.txt</code> (size 11)
+- Step 3: <code>body_plain</code> is <code>mcp-gee-sweet TC-GM51 after</code>
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> the draft.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth). Step 3: <code>attachments</code> was <code>kept.txt</code> (12) then <code>new.txt</code> (11), and <code>body_plain</code> was the new text. Extra, outside the case: 12 MB and 18 MB <code>application/octet-stream</code> attachments on script-made drafts also survived <code>keep_attachments: true</code>, so re-sending kept bytes inline in <code>raw</code> isn't size-limited below Gmail's 25 MB attachment cap. No mail sent; drafts deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
+<code>sky</code> (OAuth). Regression rerun: <code>kept.txt</code> (12) then <code>new.txt</code> (11), new <code>body_plain</code>. Extra: <code>update_draft</code> on <code>totally-invalid-draft-id-xyz</code> with <code>attachments: [{"local_path": &lt;missing file&gt;}]</code> returned the <code>No such file or directory</code> error, not the 404, so new attachments are read before any API call. No mail sent; draft deleted.</p>
+<hr />
+<h3 id="tc-gm52-an-updated-reply-draft-stays-in-its-thread-issue-1205-destructive">TC-GM52: An updated reply draft stays in its thread (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm52-an-updated-reply-draft-stays-in-its-thread-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p>No tool creates a reply draft yet (#1081 will), so the setup makes one with the Gmail API directly.</p>
+<p><strong>Setup</strong>
+1. <code>get_message</code> with <code>message_id: "{TEST_GMAIL_REPLYTO_ID}"</code> and <code>include_body: false</code>. Record <code>thread_id</code> as <code>{GM52_THREAD}</code> and <code>headers.message_id</code> as <code>{GM52_MID}</code>.
+2. From the worktree under test, run <code>uv run python3 -c "..."</code> with <code>mcp_gee_sweet.auth._oauth_creds()</code> and <code>googleapiclient.discovery.build("gmail", "v1", ...)</code>: <code>users().drafts().create(userId="me", body={"message": {"raw": mcp_gee_sweet.tools.gmail._build_raw_message(to="{QA+tc-gm52}", subject="Re: [mcp-qa:tc-gm52] reply draft", body="before", in_reply_to="{GM52_MID}", references="{GM52_MID}"), "threadId": "{GM52_THREAD}"}})</code>. Record the draft <code>id</code> as <code>{GM52_ID}</code>. Its <code>message.threadId</code> must be <code>{GM52_THREAD}</code>.</p>
+<p><strong>Action</strong>
+1. <code>update_draft</code> with <code>draft_id: "{GM52_ID}"</code>, <code>to: "{QA+tc-gm52-new}"</code>, <code>subject: "Re: [mcp-qa:tc-gm52] reply draft"</code>, <code>body: "mcp-gee-sweet TC-GM52 after"</code>
+2. <code>get_draft</code> with <code>draft_id: "{GM52_ID}"</code>
+3. <code>get_thread</code> with <code>thread_id: "{GM52_THREAD}"</code> and <code>include_body: false</code></p>
+<p><strong>Checks</strong>
+- Step 1: <code>id</code> is <code>{GM52_ID}</code>; <code>message.thread_id</code> is <code>{GM52_THREAD}</code>
+- Step 2: <code>headers.in_reply_to</code> and <code>headers.references</code> are <code>{GM52_MID}</code>; <code>headers.to</code> is <code>{QA+tc-gm52-new}</code>
+- Step 3: <code>messages</code> includes step 1's <code>message.id</code>
+- The fixture message <code>{TEST_GMAIL_REPLYTO_ID}</code> is unchanged, and no mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM52_ID}</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth). Setup's draft landed in <code>{GM52_THREAD}</code>. Step 1 kept the ID and thread. Step 2 had <code>in_reply_to</code>/<code>references</code> equal to <code>{GM52_MID}</code> and the new <code>to</code>. Step 3's thread included the updated message. The fixture kept <code>Label_1</code> and <code>INBOX</code>. Observation: Gmail kept the draft in the thread even though its subject (<code>Re: [mcp-qa:tc-gm52] …</code>) doesn't match the thread's (<code>[mcp-qa:reply-to] …</code>), so for drafts the threadId alone was enough here. No mail sent; draft deleted.</p>
+<hr />
+<h3 id="tc-gm53-delete_draft-removes-the-draft-for-good-issue-1205-destructive">TC-GM53: <code>delete_draft</code> removes the draft for good (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm53-delete_draft-removes-the-draft-for-good-issue-1205-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Playwright: required</strong> (step 7, signed into the QA mailbox <code>{QA}</code>)</p>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm53}"</code>, <code>subject: "[mcp-qa:tc-gm53] delete"</code>, <code>body: "mcp-gee-sweet TC-GM53"</code>. Record <code>id</code> as <code>{GM53_ID}</code>.
+2. <code>delete_draft</code> with <code>draft_id: "{GM53_ID}"</code>
+3. <code>get_draft</code> with <code>draft_id: "{GM53_ID}"</code>
+4. <code>list_drafts</code> with <code>query: "subject:\"[mcp-qa:tc-gm53]\""</code>
+5. <code>delete_draft</code> with <code>draft_id: "{GM53_ID}"</code> again
+6. <code>get_draft</code>, <code>update_draft</code> (<code>to: "{QA+tc-gm53}"</code>, <code>subject: "[mcp-qa:tc-gm53] x"</code>, <code>body: "x"</code>), and <code>delete_draft</code>, each with <code>draft_id: "totally-invalid-draft-id-xyz"</code>
+7. Playwright: open the QA mailbox's Gmail Drafts folder and search <code>subject:"[mcp-qa:tc-gm53]"</code></p>
+<p><strong>Checks</strong>
+- Step 2: returns <code>{"id": "{GM53_ID}", "action": "deleted"}</code>
+- Steps 3 and 5: each returns <code>{"error": "..."}</code>
+- Step 4: <code>drafts</code> is empty
+- Step 6: each returns <code>{"error": "..."}</code>, not a tool exception; step 6's <code>update_draft</code> creates no draft (re-run step 4's query with <code>[mcp-qa:tc-gm53] x</code>: empty)
+- Step 7: no matching draft, and none in Trash either
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> none.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
+<code>sky</code> (OAuth). Playwright sign-in check passed (fixture doc title matched; Gmail tab titled for the QA mailbox). Step 2 returned <code>{"id", "action": "deleted"}</code>. Steps 3 and 5 returned 404 <code>{"error"}</code>s, and step 4 was empty. Step 6: all three returned 404 <code>{"error"}</code>s, the <code>update_draft</code> one from its <code>format=metadata</code> pre-fetch, so nothing was written, and the <code>[mcp-qa:tc-gm53] x</code> query was empty. Step 7: the Drafts search showed "No messages matched your search". The Trash search pane had no result rows, though the snapshot showed no explicit empty-state text, so <code>list_messages(in:trash subject:"[mcp-qa:tc-gm53]", include_spam_trash=true)</code> confirmed it was empty. No mail sent (<code>in:sent newer_than:1d</code> empty).</p>
+<hr />
+<h3 id="tc-gm54-update_draft-keeps-a-non-ascii-from-name-on-both-paths-issue-1205-pr-1227-qa-round-1-destructive">TC-GM54: <code>update_draft</code> keeps a non-ASCII From name on both paths (issue #1205, PR #1227 QA round 1) ⚠️ destructive<a class="headerlink" href="#tc-gm54-update_draft-keeps-a-non-ascii-from-name-on-both-paths-issue-1205-pr-1227-qa-round-1-destructive" title="Permanent link">&para;</a></h3>
+<p>No tool sets a draft's From, so the setup makes the drafts with the Gmail API directly, the way TC-GM52 does.</p>
+<p><strong>Setup</strong>
+1. From the worktree under test, run <code>uv run python3 -c "..."</code> with <code>mcp_gee_sweet.auth._oauth_creds()</code> and <code>googleapiclient.discovery.build("gmail", "v1", ...)</code>. Create two drafts with <code>users().drafts().create(userId="me", body={"message": {"raw": &lt;raw&gt;}})</code>, where <code>&lt;raw&gt;</code> is the base64url of <code>From: =?utf-8?b?Sm9zw6kgUMOpcmV6?= &lt;{QA}&gt;\r\nTo: {QA+tc-gm54}\r\nSubject: [mcp-qa:tc-gm54] &lt;a or b&gt;\r\n\r\nbefore\r\n</code> (the encoded word is <code>José Pérez</code>). Record the ids as <code>{GM54_A}</code> and <code>{GM54_B}</code>.
+2. <code>get_draft</code> with <code>draft_id: "{GM54_A}"</code> and <code>include_body: false</code>. Record <code>message.headers.from</code> as <code>{GM54_FROM}</code>; it names <code>José Pérez</code> and <code>{QA}</code>.</p>
+<p><strong>Action</strong>
+1. <code>update_draft</code> with <code>draft_id: "{GM54_A}"</code>, <code>to: "{QA+tc-gm54}"</code>, <code>subject: "[mcp-qa:tc-gm54] a"</code>, <code>body: "mcp-gee-sweet TC-GM54 a"</code>
+2. <code>update_draft</code> with <code>draft_id: "{GM54_B}"</code>, <code>to: "{QA+tc-gm54}"</code>, <code>subject: "[mcp-qa:tc-gm54] b"</code>, <code>body: "mcp-gee-sweet TC-GM54 b"</code>, <code>keep_attachments: true</code>
+3. <code>get_draft</code> with <code>draft_id: "{GM54_A}"</code> and <code>include_body: false</code>
+4. <code>get_draft</code> with <code>draft_id: "{GM54_B}"</code> and <code>include_body: false</code></p>
+<p><strong>Checks</strong>
+- Steps 3 and 4: <code>message.headers.from</code> equals <code>{GM54_FROM}</code>: display name <code>José Pérez</code>, address <code>{QA}</code>. Not the account's default name.
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> both drafts.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
+<code>sky</code> (OAuth). <code>{GM54_FROM}</code> was <code>"José Pérez" &lt;{QA}&gt;</code>. Steps 3 and 4 both returned exactly that, so both the metadata path and the <code>keep_attachments</code> raw path kept it. Round 1 @ 99acc3e8 had replaced it with the account default on the metadata path. No mail sent; drafts deleted.</p>
+<hr />
+<h3 id="tc-gm55-keep_attachments-keeps-an-inline-image-inline-with-the-new-html-issue-1205-pr-1227-qa-round-1-destructive">TC-GM55: <code>keep_attachments</code> keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive<a class="headerlink" href="#tc-gm55-keep_attachments-keeps-an-inline-image-inline-with-the-new-html-issue-1205-pr-1227-qa-round-1-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+1. In a fresh interpreter (as in TC-GM54), build <code>multipart/related</code> holding <code>text/html</code> <code>&lt;p&gt;before &lt;img src="cid:gm55@mcp-qa"&gt;&lt;/p&gt;</code> and an <code>image/png</code> part with <code>Content-ID: &lt;gm55@mcp-qa&gt;</code>, <code>Content-Disposition: inline</code>, and no filename (any small PNG bytes). Wrap it as <code>multipart/alternative[text/plain "before", related]</code>, set <code>To: {QA+tc-gm55}</code> and <code>Subject: [mcp-qa:tc-gm55] inline</code>, and create it with <code>users().drafts().create</code>. Record the id as <code>{GM55_ID}</code>.
+2. <code>get_draft</code> with <code>draft_id: "{GM55_ID}"</code>. Record <code>message.attachments</code>: one nameless <code>image/png</code> entry.</p>
+<p><strong>Action</strong>
+1. <code>update_draft</code> with <code>draft_id: "{GM55_ID}"</code>, <code>to: "{QA+tc-gm55}"</code>, <code>subject: "[mcp-qa:tc-gm55] inline"</code>, <code>body: "mcp-gee-sweet TC-GM55 after"</code>, <code>body_html: "&lt;p&gt;after &lt;img src=\"cid:gm55@mcp-qa\"&gt;&lt;/p&gt;"</code>, <code>keep_attachments: true</code>
+2. <code>get_draft</code> with <code>draft_id: "{GM55_ID}"</code>
+3. In the same fresh interpreter, <code>users().drafts().get(userId="me", id="{GM55_ID}", format="raw")</code> and parse the raw message</p>
+<p><strong>Checks</strong>
+- Step 2: <code>message.body_plain</code> is <code>mcp-gee-sweet TC-GM55 after</code>; <code>message.body_html</code> contains <code>after</code>; <code>message.attachments</code> is one nameless <code>image/png</code> entry of the same size as in Setup step 2
+- Step 3: the MIME tree is <code>multipart/alternative[text/plain, multipart/related[text/html, image/png]]</code>, and the image part keeps <code>Content-ID: &lt;gm55@mcp-qa&gt;</code>
+- No mail was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM55_ID}</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
+<code>sky</code> (OAuth). Setup step 2 listed one nameless <code>image/png</code> of size 70. Step 2: the new <code>body_plain</code>, <code>body_html</code> <code>&lt;p&gt;after &lt;img src="cid:gm55@mcp-qa"&gt;&lt;/p&gt;</code>, and one nameless <code>image/png</code> of size 70. Step 3's tree was <code>multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=&lt;gm55@mcp-qa&gt;]]</code>. No mail sent; draft deleted.</p>
 <hr />
 <h2 id="reply_to_message"><code>reply_to_message</code><a class="headerlink" href="#reply_to_message" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm17-reply-in-thread-with-correct-threading-headers-destructive">TC-GM17: Reply in-thread with correct threading headers ⚠️ destructive<a class="headerlink" href="#tc-gm17-reply-in-thread-with-correct-threading-headers-destructive" title="Permanent link">&para;</a></h3>

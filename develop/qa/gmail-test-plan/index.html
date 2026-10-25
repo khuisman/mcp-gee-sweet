@@ -1352,7 +1352,7 @@
 
 <h1 id="gmail-qa-test-plan">Gmail — QA Test Plan<a class="headerlink" href="#gmail-qa-test-plan" title="Permanent link">&para;</a></h1>
 <p><strong>Status:</strong> draft (2026-09-26), scoped under <a href="https://github.com/khuisman/mcp-gee-sweet/issues/803">#803</a>
-<strong>Source under test:</strong> <code>src/mcp_gee_sweet/tools/gmail.py</code> (11 tools)
+<strong>Source under test:</strong> <code>src/mcp_gee_sweet/tools/gmail.py</code>
 <strong>Case file:</strong> <a href="../tests/gmail/"><code>tests/gmail.md</code></a> (TC-GM01–45. TC-GM26 is the #792 charset case, so the §4.2 cases start at 27.)</p>
 <p>This is the plan of record for testing the Gmail domain: what the mailbox fixture looks like, which behaviors need live coverage, and which gaps are tooling or product gaps rather than test gaps.</p>
 <hr />
@@ -1399,7 +1399,7 @@
 <li><strong>The QA mailbox can't create its own inbound mail.</strong> <code>send_message</code> only produces mail <em>from</em> the mailbox under test. Two ways around it (see §3.1):</li>
 <li><strong>A second, sender mailbox</strong> (the maintainer's personal account, through the global <code>mcp-gee-sweet</code> server) sends real mail to the QA mailbox. That gives genuinely delivered messages: a real foreign <code>From</code>, Gmail's own MIME and <code>Message-ID</code>, real spam/category filtering, and two-party threads.</li>
 <li><strong><code>users.messages.insert</code></strong> from a scratch script (the TC-GM23 pattern) for anything <code>send_message</code> can't express: a custom <code>Reply-To</code>, a non-UTF-8 charset, a <code>multipart/related</code> inline image, a pre-labeled <code>SPAM</code>/<code>TRASH</code> message. <code>insert</code> works under <code>gmail.modify</code>; confirmed on PR #815.</li>
-<li><strong>No draft cleanup.</strong> There's no <code>list_drafts</code>/<code>delete_draft</code>. Every <code>create_draft</code> that isn't then sent leaves a draft behind for good (via the tools). Cases must either send the draft (TC-GM15) or clean up by script.</li>
+<li><strong>No draft cleanup.</strong> <em>Resolved by #1205:</em> cases now clean up with <code>delete_draft</code> (TC-GM48–53). Before it there was no <code>list_drafts</code>/<code>delete_draft</code>, so every <code>create_draft</code> that wasn't then sent left a draft behind (via the tools), and cases had to send the draft (TC-GM15) or clean up by script.</li>
 <li><strong>No untrash.</strong> <code>trash_message</code> is one-way through the tools. Whether <code>modify_labels(remove_label_ids=["TRASH"])</code> restores a message is <strong>unverified</strong>; the API has a dedicated <code>untrash</code> endpoint. Test it once (TC-GM37) and record the answer here either way.</li>
 <li><strong>No label create/delete.</strong> User-label cases need a pre-existing label, which the fixture script creates.</li>
 <li><strong>No attachment download.</strong> <code>get_message</code> surfaces <code>attachment_id</code>, but nothing can fetch the bytes (out of scope per <code>decision-gmail-domain.md</code>). Attachment cases can only check metadata round-trips.</li>
