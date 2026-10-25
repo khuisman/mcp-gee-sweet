@@ -10,8 +10,8 @@ from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 from mcp_gee_sweet.tools.docs.md_to_html import (
     _gfm_autolink_matches,
     _md_to_html,
-    _nest_lists,
-    _separate_tables,
+    _preprocess,
+    _trim_autolink,
 )
 
 
@@ -217,7 +217,7 @@ class TestSeparateTables:
 
     def test_fenced_table_untouched(self):
         md = "Para\n```\n| K | V |\n|---|---|\n```"
-        assert _separate_tables(md) == md
+        assert _preprocess(md) == md
 
 
 class TestNestLists:
@@ -268,23 +268,23 @@ class TestNestLists:
 
     def test_fenced_code_in_a_shifted_item_moves_with_it(self):
         md = "1. A\n  - a1\n\n    ```\n    code\n    ```\n2. B"
-        assert _nest_lists(md) == "1. A\n   - a1\n\n     ```\n     code\n     ```\n2. B"
+        assert _preprocess(md) == "1. A\n   - a1\n\n     ```\n     code\n     ```\n2. B"
 
     def test_top_level_fence_untouched(self):
         md = "1. A\n\n```\n  - not a list\n```"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
 
     def test_list_ends_at_a_heading(self):
         md = "1. A\n# H\n  - b"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
 
     def test_list_ends_after_a_blank_and_unindented_text(self):
         md = "1. A\n\ntext\n  - b"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
 
     def test_thematic_break_is_not_a_marker(self):
         md = "- a\n  * * *"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
 
     def test_nesting_inside_a_quote(self):
         nodes = _ast("> 1. A\n>   - a1\n> 2. B")
@@ -298,11 +298,11 @@ class TestNestLists:
         ]
 
     def test_nesting_inside_a_nested_quote(self):
-        assert _nest_lists("> > 1. A\n> >   - a1") == "> > 1. A\n> >    - a1"
+        assert _preprocess("> > 1. A\n> >   - a1") == "> > 1. A\n> >    - a1"
 
     def test_quote_after_a_list_is_its_own_run(self):
         md = "1. A\n\n> 1. Q\n>   - q1"
-        assert _nest_lists(md) == "1. A\n\n> 1. Q\n>    - q1"
+        assert _preprocess(md) == "1. A\n\n> 1. Q\n>    - q1"
 
     def test_crlf_blank_line_still_ends_the_list(self):
         md = "1. A\r\n\r\ntext\r\n  - b"
@@ -317,7 +317,7 @@ class TestNestLists:
 
     def test_four_space_indent_unchanged(self):
         md = "1. A\n    - a1\n        - a2"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
 
 
 class TestQaRound1:
@@ -334,7 +334,7 @@ class TestQaRound1:
         # "2." can't open a sub-list under A's text, so CommonMark reads "  2. b" as
         # A's sibling; "    - c" then nests under b by D1.
         md = "1. A\n  2. b\n    - c"
-        assert _nest_lists(md) == "1. A\n  2. b\n     - c"
+        assert _preprocess(md) == "1. A\n  2. b\n     - c"
         assert _outline(md) == [("OL", 0, "A"), ("OL", 0, "b"), ("UL", 1, "c")]
 
     def test_other_kind_marker_that_cannot_interrupt_starts_a_list_at_the_same_level(self):
@@ -344,7 +344,7 @@ class TestQaRound1:
     def test_marker_inside_item_text_that_cannot_interrupt_is_text(self):
         # At A's content column it is inside A's paragraph: lazy text, not an item.
         md = "1. A\n   2. b"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
         assert _outline(md) == [("OL", 0, "A\n2. b")]
 
     def test_ordered_marker_after_a_blank_line_still_starts_a_list(self):
@@ -357,28 +357,28 @@ class TestQaRound1:
     def test_fence_opened_on_a_marker_line_is_left_alone(self):
         # Finding 2.
         md = "- ```\n  text\n  a | b\n  --|--\n  ```\n"
-        assert _separate_tables(md) == md
+        assert _preprocess(md) == md
         assert "<pre><code>text\na | b\n--|--\n</code></pre>" in _md_to_html(md)
 
     def test_fence_on_a_shifted_marker_line_moves_with_it(self):
         md = "1. A\n  - ```\n    - not a list\n    ```"
-        assert _nest_lists(md) == "1. A\n   - ```\n     - not a list\n     ```"
+        assert _preprocess(md) == "1. A\n   - ```\n     - not a list\n     ```"
 
     def test_raw_html_pre_block_is_left_alone(self):
         # Finding 3.
         md = "<pre>\n1. a\n  - b\n</pre>"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
         assert _md_to_html(md) == md
 
     def test_raw_html_div_block_gets_no_table(self):
         md = "<div>\na | b\n--|--\n</div>"
-        assert _separate_tables(md) == md
+        assert _preprocess(md) == md
         assert "<table>" not in _md_to_html(md)
 
     def test_indented_code_in_a_list_item_is_left_alone(self):
         md = "-   foo\n\n        - bar\n        a | b\n        --|--"
-        assert _nest_lists(md) == md
-        assert _separate_tables(md) == md
+        assert _preprocess(md) == md
+        assert _preprocess(md) == md
 
     def test_email_scan_is_linear(self):
         # Finding 4: "_" is both a left boundary and a local-part character.
@@ -400,7 +400,7 @@ class TestQaRound1:
 
     def test_delimiter_row_needs_the_header_cell_count(self):
         md = "Para\n- x\na | b | c\n--|--"
-        assert _separate_tables(md) == md
+        assert _preprocess(md) == md
 
     @pytest.mark.parametrize(
         "md", ["`x`www.example.com", "[a](b)www.c.com", "<b>x</b>www.c.com", "`x`me@x.com"]
@@ -426,13 +426,13 @@ class TestQaRound1:
     def test_staircase_siblings_keep_their_columns(self):
         # CommonMark spec example 310: every item a sibling, none nested.
         md = "- a\n - b\n  - c\n   - d\n  - e\n - f\n- g\n"
-        assert _nest_lists(md) == md
+        assert _preprocess(md) == md
         assert [d for _, d, _ in _outline(md)] == [0] * 7
 
     def test_tab_after_marker_counts_from_the_marker_column(self):
         # Finding 8: "-\tfoo" puts content at column 4, so "\t- bar" (column 4) nests
         # with no rewrite.
-        assert _nest_lists("-\tfoo\n\t- bar") == "-\tfoo\n\t- bar"
+        assert _preprocess("-\tfoo\n\t- bar") == "-\tfoo\n\t- bar"
         assert _outline("-\tfoo\n\t- bar") == [("UL", 0, "foo"), ("UL", 1, "bar")]
 
     def test_tab_after_a_shifted_marker(self):
@@ -441,6 +441,93 @@ class TestQaRound1:
             ("UL", 1, "b"),
             ("UL", 2, "c"),
         ]
+
+
+class TestQaRound2:
+    """PR #1228 QA round 2: one test per send-back."""
+
+    def test_table_indented_into_an_item_keeps_the_list_tight(self):
+        # Finding 1: no blank line before a table that is already inside item B.
+        md = "- a\n- B\n  | K | V |\n  |---|---|\n- c\n"
+        assert _preprocess(md) == md
+        kinds = [type(n).__name__ for n in _ast(md)]
+        assert kinds == ["BulletItem", "BulletItem", "Table", "BulletItem"]
+
+    def test_ordered_item_with_indented_paragraph_and_table_stays_tight(self):
+        md = "1. A\n   more text\n   | K | V |\n   |---|---|\n2. B"
+        assert _preprocess(md) == md
+
+    def test_lazy_table_after_lazy_text_still_separates(self):
+        assert _outline("- A\nlazy text\n| K | V |\n|---|---|\n| k | v |") == [
+            ("UL", 0, "A\nlazy text"),
+            ("TABLE", 2, ""),
+        ]
+
+    def test_lazy_table_inside_a_quote_separates_inside_it(self):
+        md = "> - A\n> | K | V |\n> |---|---|"
+        assert _preprocess(md) == "> - A\n>\n> | K | V |\n> |---|---|"
+        html = _md_to_html(md)
+        assert html.index("</ul>") < html.index("<table>") < html.index("</blockquote>")
+
+    def test_trim_autolink_is_linear(self):
+        # Finding 2.
+        start = time.perf_counter()
+        assert _trim_autolink("https://x.com/" + "&a;" * 50000) == "https://x.com/"
+        assert _trim_autolink("https://x.com/" + ")" * 50000) == "https://x.com/"
+        assert time.perf_counter() - start < 0.5
+
+    @pytest.mark.parametrize(
+        "url, trimmed",
+        [
+            ("https://x.com/a&hl;", "https://x.com/a"),
+            ("https://x.com/a&b;c", "https://x.com/a&b;c"),
+            ("https://x.com/a;", "https://x.com/a;"),
+            ("https://x.com/(a))", "https://x.com/(a)"),
+            ("https://x.com/a.)!", "https://x.com/a"),
+        ],
+    )
+    def test_trim_autolink_cases(self, url, trimmed):
+        assert _trim_autolink(url) == trimmed
+
+    def test_deep_quote_nesting_does_not_recurse_without_bound(self):
+        # Finding 3: RecursionError before. Past maxNesting markdown-it itself stops
+        # nesting (and drops what's deeper); the point is that the call returns.
+        assert _md_to_html(">" * 1200 + " x\n").startswith("<blockquote>")
+        assert _preprocess("> " * 1200 + "1. A\n" + "> " * 1200 + "  - a").count("\n") == 1
+
+    def test_shared_parsers_are_warmed_at_import(self):
+        # Finding 4: every ruler's rule cache is built before any worker thread runs.
+        from mcp_gee_sweet.tools.docs import md_to_html as module
+
+        parsers = [*module._MARKDOWN_PARSERS.values(), module._BLOCK_SCANNER]
+        for parser in parsers:
+            rulers = (
+                parser.core.ruler,
+                parser.block.ruler,
+                parser.inline.ruler,
+                parser.inline.ruler2,
+            )
+            for ruler in rulers:
+                assert ruler.__cache__ is not None
+
+    @pytest.mark.parametrize("md", ["<b>https://example.com</b>", "URL:https://example.com"])
+    def test_url_without_a_gfm_left_boundary_is_not_linked(self, md):
+        # Finding 5 (documented in CHANGELOG and the design doc): GFM's boundary rule.
+        assert "<a " not in _md_to_html(md)
+
+    def test_autolink_urls_none_is_falsy(self):
+        # Finding 7.
+        assert "<a " not in _md_to_html("www.x.com", None)
+
+    def test_one_block_parse_per_conversion(self, monkeypatch):
+        # Finding 8: the pre-pass parses once, quote runs included.
+        from mcp_gee_sweet.tools.docs import md_to_html as module
+
+        calls = []
+        real = module._BLOCK_SCANNER.parse
+        monkeypatch.setattr(module._BLOCK_SCANNER, "parse", lambda s: calls.append(s) or real(s))
+        _md_to_html("> 1. A\n>   - a\n> > ```\n> > x\n> > ```\n\n- b\n| K |\n|---|")
+        assert len(calls) == 1
 
 
 class TestHtmlShapesFromMarkdownIt:
@@ -457,6 +544,12 @@ class TestHtmlShapesFromMarkdownIt:
     def test_br_before_nested_list_keeps_its_break(self):
         nodes = html_to_ast("<ul><li>a<br />\n<ul><li>b</li></ul></li></ul>")
         assert _text(nodes[0]) == "a\n"
+
+    @pytest.mark.parametrize("brs", [1, 2])
+    def test_br_right_before_a_block_keeps_its_break(self, brs):
+        # PR #1228 QA round 2 finding 6: the trim removed a <br>'s own "\n".
+        nodes = html_to_ast("<p>Line" + "<br>" * brs + "<table><tr><td>x</td></tr></table></p>")
+        assert _text(nodes[0]) == "Line" + "\n" * brs
 
     def test_rule_inside_list_item_after_text(self):
         nodes = html_to_ast("<ul>\n<li>Item\n<hr />\n</li>\n<li>Next</li>\n</ul>")

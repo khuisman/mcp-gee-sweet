@@ -122,6 +122,11 @@ def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
     return result
 
 
+class _LineBreak(str):
+    """The "\\n" a <br> puts in the run buffer, told apart from source text so trimming
+    source whitespace before a block (_interrupt_open_block) never removes it."""
+
+
 @dataclass
 class _BlockFrame:
     outer_tag: str  # the interrupted block's own tag (li, p, h1-6)
@@ -511,8 +516,13 @@ class _AstParser(HTMLParser):
         # list (#1116), and the "\n" would reach the Docs API as an empty paragraph.
         # Only the raw text not yet flushed is trimmed, so a <br>'s own break stays.
         if self._run_buf and not self._in_pre:
-            tail = _without_line_break_edge("".join(self._run_buf), leading=False)
-            self._run_buf = [tail] if tail else []
+            last_br = max(
+                (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
+                default=-1,
+            )
+            kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
+            tail = _without_line_break_edge(text, leading=False)
+            self._run_buf = [*kept, tail] if tail else kept
         runs = self._flush_pending_runs()
         self._emit_block_node(
             outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
@@ -807,7 +817,7 @@ class _AstParser(HTMLParser):
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
             elif tag == "br":
-                self._run_buf.append("\n")
+                self._run_buf.append(_LineBreak("\n"))
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an

@@ -29,7 +29,7 @@ _EMAIL_LOCAL_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 _EMAIL_DOMAIN_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
 _AUTOLINK_LEFT_BOUNDARY = "*_~("
 _AUTOLINK_TRAILING_PUNCT = "?!.,:*_~'\""
-_AUTOLINK_TRAILING_ENTITY_RE = re.compile(r"&[A-Za-z0-9]+;$")
+_ENTITY_NAME_RE = re.compile(r"[A-Za-z0-9]+")
 _HTML_A_OPEN_RE = re.compile(r"<a[\s>]", re.IGNORECASE)
 _HTML_A_CLOSE_RE = re.compile(r"</a\s*>", re.IGNORECASE)
 # Inline tokens after which the next text token starts at a valid autolink boundary:
@@ -51,18 +51,28 @@ _AUTOLINK_BOUNDARY_TOKENS = frozenset(
 
 def _trim_autolink(url: str) -> str:
     """Drop what GFM leaves outside an extended autolink: trailing punctuation, an
-    unbalanced closing paren, and a trailing entity reference like "&hl;"."""
-    while url:
-        entity = _AUTOLINK_TRAILING_ENTITY_RE.search(url)
-        if entity:
-            url = url[: entity.start()]
-        elif url[-1] in _AUTOLINK_TRAILING_PUNCT or (
-            url[-1] == ")" and url.count("(") < url.count(")")
-        ):
-            url = url[:-1]
+    unbalanced closing paren, and a trailing entity reference like "&hl;".
+
+    Works back from the end with running paren counts, never re-searching or slicing
+    the whole URL per character: that was quadratic on a long run of entities or
+    parens ("&a;" * 10000 took over a second, PR #1228 QA round 2)."""
+    end = len(url)
+    opens, closes = url.count("("), url.count(")")
+    while end:
+        ch = url[end - 1]
+        if ch == ";":
+            amp = url.rfind("&", 0, end - 1)
+            if amp == -1 or not _ENTITY_NAME_RE.fullmatch(url, amp + 1, end - 1):
+                break
+            end = amp
+        elif ch in _AUTOLINK_TRAILING_PUNCT:
+            end -= 1
+        elif ch == ")" and opens < closes:
+            closes -= 1
+            end -= 1
         else:
             break
-    return url
+    return url[:end]
 
 
 def _at_boundary(text: str, pos: int, start_ok: bool) -> bool:
@@ -197,6 +207,15 @@ _THEMATIC_BREAK_RE = re.compile(r"([-*_])(?:[ \t]*\1){2,}[ \t]*$")
 _QUOTE_PREFIX_RE = re.compile(r" {0,3}> ?")
 # A line that starts a block of its own, so it ends any list it isn't indented into.
 _LIST_ENDING_BLOCK_RE = re.compile(r"#{1,6}(?:[ \t]|$)|>|`{3,}|~{3,}|\|")
+# Deeper quotes are left as written. markdown-it's commonmark preset stops nesting
+# blocks at maxNesting (20) anyway, and recursing per quote level without a cap raised
+# RecursionError on ">" * 1200 (PR #1228 QA round 2).
+_MAX_QUOTE_DEPTH = 20
+
+# A pipe-table header row and the delimiter row under it (GFM "tables" extension).
+_TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)\S.*\|.*$|^ {0,3}\|")
+_TABLE_DELIM_RE = re.compile(r"^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
 
 
 @dataclass
@@ -254,35 +273,45 @@ def _owner(stack: list[_ListItemColumns], col: int) -> _ListItemColumns | None:
     return next((item for item in reversed(stack) if col >= item.orig_content), None)
 
 
-def _nest_lists(md_text: str) -> str:
-    """Plan rule D1 (#1071): a list marker indented at least 2 columns further than
-    the previous item's marker nests under that item, whatever the parent marker's
-    width.
+def _table_cell_count(row: str) -> int:
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return len(_UNESCAPED_PIPE_RE.split(row))
 
-    CommonMark nests a marker only once it reaches the parent's content column, so
-    "1. A" followed by "  - a" (2 spaces, short of column 3) doesn't nest, and the
-    2-space sub-lists models write under numbered items stay flat or turn into text.
-    This rewrites each such marker to start at its parent's content column, and moves
-    the item's continuation lines by the same amount, so markdown-it nests what D1
-    says should nest. A marker that already reaches the content column keeps its
-    offset past it, so 4-space and tab indents are unchanged.
 
-    A marker that would start a new list right under paragraph text counts only if
-    CommonMark lets it interrupt a paragraph: a bullet, or an ordered marker numbered
-    1, with text after it. Anything else there ("2019. A great year") is paragraph
-    text, as markdown-it will read it. Code and raw HTML (_verbatim_lines) are never
-    read as Markdown; they only move with the item they belong to. A run of quoted
-    lines not inside a list gets the same rule one quote level in. Anything once a
-    list has ended is left as written."""
-    lines = md_text.split("\n")
-    verbatim = _verbatim_lines(md_text)
-    out: list[str] = []
+def _starts_table(header: str, delimiter: str) -> bool:
+    """True when header and delimiter open a GFM table: a row with a pipe, then a
+    delimiter row with a pipe and the same number of cells. A bare "---" under a line
+    holding "|" is a setext heading underline, not a delimiter row."""
+    return (
+        _TABLE_ROW_RE.match(header) is not None
+        and _TABLE_DELIM_RE.match(delimiter) is not None
+        and "|" in delimiter
+        and _table_cell_count(header) == _table_cell_count(delimiter)
+    )
+
+
+# _rewrite's output: (the input line it came from, or None for an inserted blank line,
+# and the text).
+_Rewritten = list[tuple[int | None, str]]
+
+
+def _rewrite(lines: list[str], verbatim: dict[int, int], depth: int = 0) -> _Rewritten:
+    """Apply plan rules D1 and D2 to lines (see _preprocess). verbatim is
+    _verbatim_lines for exactly these lines, so a quoted run's lines map into it by
+    offset and the recursion never parses again."""
+    out: _Rewritten = []
     stack: list[_ListItemColumns] = []
     deltas: dict[int, int] = {}
     prev_blank = False
     # Whether the line above is paragraph text, which a list may only interrupt with
     # a bullet or "1." (CommonMark's rule; a list item's own text counts).
     prev_text = False
+    # Whether the line above ends a quote run or is a list item's text that a table
+    # line not indented into the item would continue lazily (D2).
+    prev_lazy_target = False
+    in_table = False
 
     def shifted(line: str, col: int, body: str, delta: int) -> str:
         return line if delta == 0 or not body else " " * max(0, col + delta) + body
@@ -304,30 +333,40 @@ def _nest_lists(md_text: str) -> str:
                     stack = []
                 delta = owner.new_content - owner.orig_content if owner else 0
             deltas[idx] = delta
-            out.append(shifted(line, col, body, delta))
-            prev_blank = prev_text = False
+            out.append((idx, shifted(line, col, body, delta)))
+            prev_blank = prev_text = prev_lazy_target = in_table = False
             continue
 
         quote = _QUOTE_PREFIX_RE.match(line)
         if quote and (not stack or col < stack[0].orig_content):
             # A quote not indented into a list ends it. Strip one quote level from
-            # each line of the run, apply D1 inside it, and put each prefix back.
+            # each line of the run, apply the rules inside it, and put each prefix back.
             stack = []
-            run = [line]
+            start = idx
             prefixes = [quote.group(0)]
             while i < len(lines) and (next_quote := _QUOTE_PREFIX_RE.match(lines[i])):
-                run.append(lines[i])
                 prefixes.append(next_quote.group(0))
                 i += 1
-            # _nest_lists keeps the line count, so the prefixes line up again.
-            inner = _nest_lists("\n".join(q[len(p) :] for q, p in zip(run, prefixes, strict=True)))
-            out.extend(p + q for p, q in zip(prefixes, inner.split("\n"), strict=True))
-            prev_blank = prev_text = False
+            run = [q[len(p) :] for q, p in zip(lines[start:i], prefixes, strict=True)]
+            if depth >= _MAX_QUOTE_DEPTH:
+                out.extend((start + k, q) for k, q in enumerate(lines[start:i]))
+            else:
+                inner_verbatim = {
+                    k - start: v - start for k, v in verbatim.items() if start <= k < i
+                }
+                for source, text in _rewrite(run, inner_verbatim, depth + 1):
+                    if source is None:
+                        # An inserted blank line, inside the same quote.
+                        out.append((None, prefixes[0].rstrip()))
+                    else:
+                        out.append((start + source, prefixes[source] + text))
+            prev_blank = prev_text = in_table = False
+            prev_lazy_target = True
             continue
 
         if not body:
-            out.append(line)
-            prev_blank, prev_text = True, False
+            out.append((idx, line))
+            prev_blank, prev_text, prev_lazy_target, in_table = True, False, False, False
             continue
 
         marker = _LIST_MARKER_RE.match(body)
@@ -372,79 +411,78 @@ def _nest_lists(md_text: str) -> str:
                 stack.append(_ListItemColumns(col, new_marker, col + offset, new_marker + offset))
                 deltas[idx] = new_marker - col
                 out.append(
-                    line if new_marker == col else _moved_marker_line(col, body, marker, new_marker)
+                    (
+                        idx,
+                        line
+                        if new_marker == col
+                        else _moved_marker_line(col, body, marker, new_marker),
+                    )
                 )
-                prev_blank, prev_text = False, has_content
+                prev_blank, prev_text, prev_lazy_target, in_table = False, has_content, True, False
                 continue
 
         owner = _owner(stack, col)
+        starts_table = (
+            not in_table and i < len(lines) and i not in verbatim and _starts_table(line, lines[i])
+        )
+        if starts_table and owner is None and prev_lazy_target:
+            # D2: a table under a list item's or a quote's text, not indented into
+            # the item, would be read as that text's lazy continuation. A blank line
+            # ends the list or quote so the table starts its own block. A table
+            # indented into an item, or under a plain paragraph, is a table already:
+            # a blank line there would only make the list loose.
+            out.append((None, ""))
         if owner is not None:
             delta = owner.new_content - owner.orig_content
         else:
             if stack and (
-                prev_blank or _LIST_ENDING_BLOCK_RE.match(body) or _THEMATIC_BREAK_RE.match(body)
+                prev_blank
+                or starts_table
+                or _LIST_ENDING_BLOCK_RE.match(body)
+                or _THEMATIC_BREAK_RE.match(body)
             ):
                 stack = []
             delta = 0
         deltas[idx] = delta
-        out.append(shifted(line, col, body, delta))
-        prev_blank = False
-        prev_text = not (_LIST_ENDING_BLOCK_RE.match(body) or _THEMATIC_BREAK_RE.match(body))
-    return "\n".join(out)
-
-
-# A pipe-table header row and the delimiter row under it (GFM "tables" extension).
-_TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)\S.*\|.*$|^ {0,3}\|")
-_TABLE_DELIM_RE = re.compile(r"^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
-_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
-
-
-def _table_cell_count(row: str) -> int:
-    row = row.strip()
-    row = row[1:] if row.startswith("|") else row
-    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
-    return len(_UNESCAPED_PIPE_RE.split(row))
-
-
-def _starts_table(header: str, delimiter: str) -> bool:
-    """True when header and delimiter open a GFM table: a row with a pipe, then a
-    delimiter row with a pipe and the same number of cells. A bare "---" under a line
-    holding "|" is a setext heading underline, not a delimiter row."""
-    return (
-        _TABLE_ROW_RE.match(header) is not None
-        and _TABLE_DELIM_RE.match(delimiter) is not None
-        and "|" in delimiter
-        and _table_cell_count(header) == _table_cell_count(delimiter)
-    )
-
-
-def _separate_tables(md_text: str) -> str:
-    """Plan rule D2: a pipe table directly under a paragraph, list item or quote line
-    starts its own block, after that one.
-
-    GFM lets a table interrupt a paragraph but not a list item's or a quote's lazy
-    continuation, so there the header and delimiter rows read as more text. Inserting a
-    blank line before the header makes them a table at the top level in every case.
-    Skipped in code and raw HTML (_verbatim_lines), and when the line above is already
-    a table row (GFM makes those lines more body rows of the table above)."""
-    lines = md_text.split("\n")
-    verbatim = _verbatim_lines(md_text)
-    out: list[str] = []
-    in_table = False
-    for i, line in enumerate(lines):
-        if i in verbatim or not line.strip():
-            in_table = False
-            out.append(line)
-            continue
-        starts_table = (
-            i + 1 < len(lines) and i + 1 not in verbatim and _starts_table(line, lines[i + 1])
-        )
-        if starts_table and not in_table and out and out[-1].strip():
-            out.append("")
+        out.append((idx, shifted(line, col, body, delta)))
         if starts_table:
             in_table = True
-        out.append(line)
-    return "\n".join(out)
+        ends_paragraph = _LIST_ENDING_BLOCK_RE.match(body) or _THEMATIC_BREAK_RE.match(body)
+        prev_blank = False
+        prev_text = not ends_paragraph
+        # Lazy text continues the item above, so a table under it is lazy too; once a
+        # table or another block takes over, there's nothing left to continue.
+        prev_lazy_target = prev_lazy_target and not in_table and not ends_paragraph
+    return out
+
+
+def _preprocess(md_text: str) -> str:
+    """Plan rules D1 and D2, applied line by line before markdown-it renders.
+
+    D1 (#1071): a list marker indented at least 2 columns further than the previous
+    item's marker nests under that item, whatever the parent marker's width. CommonMark
+    nests a marker only once it reaches the parent's content column, so "1. A" followed
+    by "  - a" (2 spaces, short of column 3) doesn't nest, and the 2-space sub-lists
+    models write under numbered items stay flat or turn into text. Each such marker is
+    rewritten to start at its parent's content column, and the item's continuation
+    lines move by the same amount. A marker that already reaches the content column
+    keeps its offset past it, so 4-space and tab indents are unchanged.
+
+    A marker that would start a new list right under paragraph text counts only if
+    CommonMark lets it interrupt a paragraph: a bullet, or an ordered marker numbered
+    1, with text after it. Anything else there ("2019. A great year") is paragraph
+    text, as markdown-it will read it.
+
+    D2: a pipe table directly under a list item's or a quote's text, not indented into
+    the item, starts its own block: GFM would read its rows as that text's lazy
+    continuation, so a blank line goes in before it.
+
+    Code and raw HTML (_verbatim_lines, from one block parse of md_text) are never read
+    as Markdown; they only move with the item they belong to. A run of quoted lines not
+    inside a list gets the same rules one quote level in. Anything once a list has
+    ended is left as written."""
+    lines = md_text.split("\n")
+    return "\n".join(text for _, text in _rewrite(lines, _verbatim_lines(md_text)))
 
 
 # An image whose destination holds whitespace and no title: "![alt](./Screen Shot.png)".
@@ -496,17 +534,29 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
 
 _MARKDOWN_PARSERS = {flag: _build_markdown_parser(flag) for flag in (True, False)}
 
+# The parsers are shared by every asyncio.to_thread worker (_apply_doc_content), and
+# markdown-it builds each ruler's rule cache lazily on first use. Build every one
+# here, at import, so concurrent first conversions never see a half-built cache.
+for _parser in (*_MARKDOWN_PARSERS.values(), _BLOCK_SCANNER):
+    for _ruler in (
+        _parser.core.ruler,
+        _parser.block.ruler,
+        _parser.inline.ruler,
+        _parser.inline.ruler2,
+    ):
+        _ruler.getRules("")
+
 
 def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
     """Convert CommonMark/GFM Markdown to HTML with markdown-it-py: tables,
     strikethrough and GFM extended autolinks (bare http(s)://, www. and email
-    addresses), plus plan rules D1 (_nest_lists) and D2 (_separate_tables).
+    addresses), plus plan rules D1 and D2 (_preprocess).
 
     autolink_urls=False skips the extended autolinks for callers who want a URL to
     render as plain text — e.g. a placeholder or example. Per-URL suppression (rather
     than disabling it for the whole call) is available by wrapping just that URL in
     backticks, which already protects it as an inline code span."""
-    # The pre-passes work line by line, so normalize line endings first, as markdown-it
+    # The pre-pass works line by line, so normalize line endings first, as markdown-it
     # itself does: in a CRLF file a blank line would otherwise read as "\r", not blank.
     md_text = md_text.replace("\r\n", "\n").replace("\r", "\n")
-    return _MARKDOWN_PARSERS[autolink_urls].render(_separate_tables(_nest_lists(md_text)))
+    return _MARKDOWN_PARSERS[bool(autolink_urls)].render(_preprocess(md_text))

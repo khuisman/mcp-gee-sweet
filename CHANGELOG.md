@@ -13,7 +13,7 @@ All notable changes to this project are documented in this file.
   - Sub-lists nest at 2 or 3 spaces of indent, under bullets and numbered items alike, and numbering continues after them (plan rule D1) — #1071.
   - A paragraph, code block or quote indented under a list item belongs to that item. A fenced code block inside a list item renders as code instead of literal text.
   - `~~text~~` is struck through. `1)` starts a numbered list. `\` at the end of a line is a line break. A backslash before any ASCII punctuation character escapes it.
-  - `www.example.com` and `me@example.com` are linked, like bare `https://` URLs already were (`autolink_urls=False` turns all three off). `README.md`, `file.py` and `ftp://` URLs are not.
+  - `www.example.com` and `me@example.com` are linked, like bare `https://` URLs already were (`autolink_urls=False` turns all three off). `README.md`, `file.py` and `ftp://` URLs are not. A bare URL is now linked only where GitHub links one: at the start of a line or after a space, `*`, `_`, `~` or `(`. So `URL:https://example.com`, `<b>https://example.com</b>` and a URL right after a code span or link stay plain text, where they used to be linked; put a space before the URL, or write `<https://example.com>`.
   - Bold inside italic (`*a **b** c*`) keeps both styles. `#hashtag` and `####### seven` stay paragraphs instead of becoming headings.
   - Two quotes separated by a blank line render as two quotes.
   - A line of only `-` is an empty list item instead of a setext heading underline or literal text. The empty item itself is still dropped (#1075).

@@ -20,7 +20,7 @@ fenced code inside a list item was literal text, `~~` did nothing. The #1044 Pha
 ```
 _md_to_html(md, autolink_urls)
   = markdown-it("commonmark", html=True) + table + strikethrough
-      .render(_separate_tables(_nest_lists(normalize_line_endings(md))))
+      .render(_preprocess(normalize_line_endings(md)))
 ```
 
 | Piece | Why |
@@ -30,9 +30,12 @@ _md_to_html(md, autolink_urls)
 | `_gfm_autolink_rule` (core rule) | GFM extended autolinks: `www.`, `http(s)://`, email. See below. |
 | `normalizeLink` = identity | markdown-it percent-encodes destinations; a local image path like `café.png` would no longer open. `validateLink` still refuses `javascript:` and friends. |
 | `_spaced_image_rule` (inline rule) | `![alt](/path/Screen Shot.png)`: Python-Markdown accepted a space in an image path, CommonMark doesn't. Only that shape (whitespace, no title, quotes, parens or angle brackets) is taken; anything CommonMark itself parses as an image never reaches it. The destination is unescaped like any other (`\_`, `&amp;`), and the match stops at `posMax` (a link label's end, inside one). Links stay strict: a URL can't hold a space. |
+| `_preprocess` (one line-based pre-pass) | Plan rules D1 and D2. See below. |
 | `asyncio.to_thread` in `_apply_doc_content` | The parse is pure CPU, about 2× Python-Markdown's time on realistic input (0.2 s for 50 KB) and up to 5× on emphasis-heavy input, all linear. It ran on the event loop before too; now the Markdown step doesn't. |
-| `_nest_lists` (pre-pass) | Plan rule D1. See below. |
-| `_separate_tables` (pre-pass) | Plan rule D2. See below. |
+| Ruler caches built at import | Both renderers and the block scanner are shared by every `to_thread` worker, and markdown-it builds a ruler's rule cache lazily on first use. Every ruler's cache is built at import, so concurrent first conversions never see a half-built one. |
+
+Each conversion block-parses the document twice: once in `_preprocess` (`_verbatim_lines`, inline
+pass off) and once to render.
 
 `markdown` (Python-Markdown) stays a dependency: `anchors.py` uses its `toc` slugify for the
 GitLab heading-anchor scheme, and `upload_file(source_format='markdown')` (EP-8) still renders
@@ -43,83 +46,84 @@ with it until #1101 routes that entry point through this converter.
 markdown-it's own `linkify` needs `linkify-it-py` and doesn't follow GFM. Measured:
 with fuzzy links on, it links `README.md`, `file.py` and `example.com` (any TLD-looking token);
 with them off, it stops linking `www.` too; it also links `ftp://`. The GFM rule is short, so it's
-a core rule over text tokens instead (`_GFM_AUTOLINK_RE`, `_trim_autolink`):
+a core rule over text tokens instead:
 
 - `www.` or `http(s)://` plus a domain, or an email address, after whitespace, `*`, `_`, `~` or
   `(`. A text token's own start counts only at the start of the inline content, after a line
-  break, or after an emphasis or strikethrough delimiter (`_AUTOLINK_BOUNDARY_TOKENS`): text
-  right after a code span, a link or an inline tag isn't linked, as in GFM.
-- An email is found outwards from each `@` (`_gfm_email_matches`), not by one regex. `_` is both
-  a left boundary and a local-part character, so a regex tries every `_` and rescans to the end
-  of a long token with no `@`: quadratic, about a second for `"a_" * 20000` (PR #1228 QA round
-  1). The scan is linear.
+  break, or after an emphasis or strikethrough delimiter (`_AUTOLINK_BOUNDARY_TOKENS`). So, as in
+  GFM, a URL right after a code span, a link, an inline tag (`<b>https://x.com</b>`) or a
+  character like `:` (`URL:https://x.com`) isn't linked. The Python-Markdown-era bare-URL
+  extension linked those last two; `CHANGELOG.md` says so.
 - No `_` in the last two domain segments. A scheme-ful link may have a one-segment domain
   (`http://localhost:8000`), as in cmark-gfm.
 - Trailing `?!.,:*_~'"`, an unbalanced `)`, and a trailing `&entity;` are left outside the link.
 - Runs after inline parsing, so a code span, an `<autolink>` or raw HTML is never re-matched; text
   inside a Markdown link or a raw-HTML `<a>` is skipped, since links can't nest.
+- Linear in the text: emails are found outwards from each `@` (`_gfm_email_matches`), and
+  `_trim_autolink` works back from the end with running paren counts. See "Review history".
 
 `autolink_urls=False` drops the rule, so `www.`, email and `https://` are all plain text.
 
-### D1: nesting width (#1071)
+### `_preprocess`: plan rules D1 and D2
 
-Plan rule D1 (`docs/qa/tests/docs_markdown.md`): a marker indented at least 2 columns past the
-previous item's marker nests under it, whatever the parent marker's width. CommonMark nests only
-at the parent's content column, so `1. A` / `  - a` (column 2 < 3) doesn't nest, and under
-markdown-it the grandchildren of a 2-space numbered outline became literal `1. Grandchild` text.
+One pass over the lines, keeping a stack of open list items (`_ListItemColumns`: original and
+rewritten marker and content columns). It keeps the line count, except for D2's inserted blank
+lines, which `_rewrite` returns as lines with no source index so a quote run can put its
+prefixes back.
 
-`_nest_lists` keeps a stack of open items (`_ListItemColumns`: original and rewritten marker and
-content columns). For each marker line:
+**Code and raw HTML are never read as Markdown.** `_verbatim_lines` runs markdown-it's own block
+parser (inline pass off) once, and returns every line of an indented code block or raw HTML block
+and the body and closing fence of a fenced block, mapped to the block's first line. A fence
+opened on a marker line (`` - ``` ``) or inside a quote is found the way the renderer finds it.
+Those lines are only moved with the item they belong to (a fence body by its opening line's
+shift).
+
+**D1: nesting width (#1071).** Plan rule D1 (`docs/qa/tests/docs_markdown.md`): a marker indented
+at least 2 columns past the previous item's marker nests under it, whatever the parent marker's
+width. CommonMark nests only at the parent's content column, so `1. A` / `  - a` (column 2 < 3)
+doesn't nest, and under markdown-it the grandchildren of a 2-space numbered outline became
+literal `1. Grandchild` text. For each marker line:
 
 - pop items until the top's marker is at least 2 columns left of this one; an item within 0–1
-  columns is a sibling, and the line moves as far as that sibling moved (not onto its column:
-  snapping a staircase `- a` / ` - b` / `  - c` to one column pushed the unmoved lines after it
-  deeper than CommonMark does, spec example 310);
+  columns is a sibling, and the line moves as far as that sibling moved, not onto its column;
 - under a parent, the marker moves to the parent's rewritten content column, plus however far
   past the original content column it already was, so 4-space and tab indents are unchanged;
 - continuation lines move by their owning item's shift.
 
-**The paragraph-interrupt rule.** Right under paragraph text (a list item's own text counts), a
-marker opens a new list only if CommonMark lets it interrupt a paragraph: a bullet or `1.`/`1)`
-with text after it. Otherwise (`Some text` / `2019. A great year`) it is paragraph text and the
-stack is untouched. One exception: a child candidate short of its parent's content column isn't
-inside the parent's paragraph at all, so CommonMark reads it at the parent's own level (`1. A` /
-`  2. b` is two items), and so does the pass.
-
-**Code and raw HTML are never read as Markdown.** `_verbatim_lines` runs markdown-it's own block
-parser (inline pass disabled) and returns every line of an indented code block or raw HTML block
-and the body and closing fence of a fenced block, mapped to the block's first line. A fence
-opened on a marker line (`` - ``` ``) or inside a quote is found the way the renderer finds it.
-Both pre-passes skip those lines; `_nest_lists` only moves them with the item they belong to (a
-fence body by its opening line's shift). PR #1228 QA round 1 found the hand-written fence
-tracking this replaced missing both of those, and raw HTML blocks entirely.
+Right under paragraph text (a list item's own text counts), a marker opens a new list only if
+CommonMark lets it interrupt a paragraph: a bullet or `1.`/`1)` with text after it. Otherwise
+(`Some text` / `2019. A great year`) it is paragraph text. One exception: a child candidate short
+of its parent's content column isn't inside the parent's paragraph at all, so CommonMark reads it
+at the parent's own level (`1. A` / `  2. b` is two items), and so does the pass.
 
 A tab after a moved marker is written as the spaces it spanned (`_moved_marker_line`): moved, the
 same tab would reach a different tab stop and change the item's content column. Tab widths
-after a marker count from the marker's column, not column 0 (`_space_after_marker`).
+after a marker count from the marker's column (`_space_after_marker`), and leading columns count
+tabs to the next multiple of 4, as CommonMark does.
 
-It leaves alone everything after the list ends (a blank line then unindented text, or a heading,
-quote, fence, table row or thematic break) and a thematic break like `* * *`, which looks like a
-marker. Columns count tabs to the next multiple of 4, as CommonMark does.
+A run of quoted lines not indented into a list ends any open list and gets the same rules one
+level in: each line's `>` prefix is stripped, the inner lines go through `_rewrite` with the
+verbatim map offset to them (no second parse), and the prefixes are put back, so `> 1. A` /
+`>   - a` nests. Past 20 levels (markdown-it's `maxNesting`) quotes are left as written. A quote
+inside a list item is left alone, and so is everything after a list ends (a blank line then
+unindented text, or a heading, quote, fence, table row or thematic break).
+
+**D2: a table starts its own block.** GFM lets a table interrupt a paragraph, but not a list
+item's or a quote's lazy continuation, so `- B` / `| K | V |` / `|---|---|` made the rows more
+item text. A blank line goes in before a table header only where it would be read that way:
+right under a list item's text (or lazy text continuing it) or a quote run, and not indented into
+the item. A table indented into an item already renders inside it, and one under a plain
+paragraph already renders as a table; a blank line there would only make a list loose (and
+`html_to_ast` then drops its bullets, #1111). A header needs a delimiter row with a `|` and the
+same number of cells, so a setext underline (`a | b` / `---`) isn't split from its heading text.
+Inside a quote, the inserted line is a bare `>`, so the table stays in the quote. Two tables with
+no blank line between stay one table (AJ-078: GFM ends a table only at a blank line or another
+block).
 
 **Where D1 departs from CommonMark.** Running all 652 CommonMark spec examples through
 `_md_to_html` and plain markdown-it (same rules, raw destinations) differs in exactly three, all
 by design: example 297 (`10) foo` / `   - bar`: the bullet nests), and 311 and 313 (`1. a`, blank,
-`  2. b`: `2.` nests under `1.`, where CommonMark has siblings or, in 313, a code block). A run of quoted lines not indented into a list ends any open list, and gets
-the same rule one level in: each line's `>` prefix is stripped, the inner text goes through
-`_nest_lists`, and the prefixes are put back (so `> 1. A` / `>   - a` nests, at any quote
-depth). A quote inside a list item is left alone.
-
-### D2: a table starts its own block
-
-GFM lets a table interrupt a paragraph, but not a list item's or a quote's lazy continuation, so
-`- B` / `| K | V |` / `|---|---|` made the rows more item text. `_separate_tables` inserts a
-blank line before a header row whose next line is a delimiter row, when the line above is
-non-blank and not itself in a table. A delimiter row must hold a `|` and have the header's cell
-count, so a setext underline (`a | b` / `---`) isn't split from its heading text. Code and raw
-HTML lines (`_verbatim_lines`) are skipped. A table written inside a quote (`> | K |`) or indented
-inside an item stays there. Two tables with no blank line between stay one table (AJ-078: GFM
-ends a table only at a blank line or another block).
+`  2. b`: `2.` nests under `1.`, where CommonMark has siblings or, in 313, a code block).
 
 ## The HTML `html_to_ast` sees
 
@@ -177,3 +181,27 @@ import) and EP-8 don't use it.
   or fix hard and soft breaks (#1117, #1093). Each is in the HTML → AST step or its own ticket.
 - Change EP-8 (`upload_file`), which keeps Python-Markdown until #1101.
 - Read table column alignment.
+
+## Review history
+
+PR #1228's QA rounds, and what each changed. The invariants they produced are in `CLAUDE.md`'s
+`docs/md_to_html.py` entry.
+
+- **Round 1 (8 findings).** The two pre-passes tracked fences by hand, so they missed a fence
+  opened on a list-marker line and every raw HTML block, and rewrote code inside them. Replaced
+  by `_verbatim_lines`, from markdown-it's own block parser. Also: the pass ignored CommonMark's
+  paragraph-interrupt rule (`2019. A great year` opened a list); a bare `---` counted as a
+  delimiter row, splitting a setext heading; the email regex was quadratic on `_`-heavy text
+  (`"a_" * 20000` took about a second), replaced by the scan out from each `@`; text after a code
+  span or link was autolinked; the spaced-image rule didn't unescape or respect `posMax`; tab
+  widths after a marker counted from column 0. A run of the CommonMark spec examples then found
+  siblings snapping onto their sibling's rewritten column (example 310).
+- **Round 2 (9 findings).** D2's blank line went in before a table already indented into an
+  item, which made the list loose and lost its bullets: D2 moved into the D1 pass, which knows
+  which item a line belongs to, and the separate table pass (and its second block parse) went
+  away. Also: `_trim_autolink` was quadratic on a run of entities or parens; the quote recursion
+  had no depth cap (`">" * 1200` raised `RecursionError`) and parsed again per quote run; the
+  shared parsers' ruler caches were built lazily, racing across `to_thread` workers;
+  `_md_to_html(x, None)` raised `KeyError`; and the `html_parser` trim before a block removed a
+  `<br>`'s break, now marked `_LineBreak` so only source text is trimmed. The stricter GFM link
+  boundary (`URL:https://x.com`, `<b>https://x.com</b>` not linked) was kept and documented.
