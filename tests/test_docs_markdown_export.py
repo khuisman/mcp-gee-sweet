@@ -1755,3 +1755,53 @@ class TestLookaheadEscapeAcrossRunsCommonMark:
         table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run(text="c")])])])
         html = _COMMONMARK.render(ast_to_markdown([table]))
         assert "<th>a &lt;b&gt; text</th>" in html
+
+
+class TestOrderedListItemIndentation:
+    """#1128: ast_to_markdown indented every nested list item by 2 spaces
+    whatever the marker, but "1. " is 3 characters wide, so a numbered child
+    landed short of the column its parent's content starts at and the exported
+    outline re-imported as one flat list. Bullet children ("- ") were already
+    clear of their marker and keep their current 2-space indent."""
+
+    def _ordered(self):
+        return [
+            BulletItem(runs=[Run(text="Top")], depth=0, ordered=True),
+            BulletItem(runs=[Run(text="Nested")], depth=1, ordered=True),
+            BulletItem(runs=[Run(text="Next")], depth=0, ordered=True),
+        ]
+
+    def _bullets(self):
+        return [
+            BulletItem(runs=[Run(text="one")], depth=0),
+            BulletItem(runs=[Run(text="two")], depth=1),
+            BulletItem(runs=[Run(text="three")], depth=0),
+        ]
+
+    @staticmethod
+    def _tight(html: str) -> str:
+        return "".join(html.split())
+
+    def test_ordered_children_indent_four_spaces_per_level(self):
+        assert ast_to_markdown(self._ordered()) == "1. Top\n    1. Nested\n1. Next\n"
+
+    def test_third_level_numbers_indent_eight_spaces(self):
+        nodes = [
+            BulletItem(runs=[Run(text="a")], depth=0, ordered=True),
+            BulletItem(runs=[Run(text="b")], depth=1, ordered=True),
+            BulletItem(runs=[Run(text="c")], depth=2, ordered=True),
+        ]
+        assert ast_to_markdown(nodes) == "1. a\n    1. b\n        1. c\n"
+
+    def test_numbered_outline_reimports_nested_via_python_markdown(self):
+        """The importer the tool actually uses: a nested <ol> must appear inside
+        the parent <li>, which is what "same nesting on re-import" means."""
+        html = markdown.markdown(ast_to_markdown(self._ordered()))
+        assert "<li>Top<ol><li>Nested</li></ol></li>" in self._tight(html)
+
+    def test_numbered_outline_reimports_nested_via_markdown_it(self):
+        html = MarkdownIt().render(ast_to_markdown(self._ordered()))
+        assert "<li>Top<ol><li>Nested</li></ol></li>" in self._tight(html)
+
+    def test_bullet_children_are_unchanged(self):
+        assert ast_to_markdown(self._bullets()) == "- one\n  - two\n- three\n"
