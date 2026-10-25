@@ -7413,6 +7413,12 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Result (2026-10-24) ⚠️ PARTIAL — PR #1201 QA round 2 (Kit) @ f73ba2f**
 `kit`, on a scratch doc in the fixture folder (trashed afterward). Step 3 was run over "Old heading" through the final empty paragraph, which was also bulleted: as first written, step 3 styled only "Old heading", which isn't the paragraph that survives the clear (steps 2–3 fixed in this round). Steps 1, 3, 4: no error. Raw read after step 4: no `HEADING_2`; "Intro para" and "After bold" `NORMAL_TEXT` with no indent; "step one"/"step two" share one `listId`; the empty paragraph before `A | B` has no bullet; header runs `bold` only, body runs empty. "quote a"/"quote b" have a `borderLeft` and 36pt. HTML export: `A | B` has no `margin-left`, `Q | R` has `margin-left:36pt`; the two `<ol>` share one `lst-kix_` class with `start="1"`/`start="2"`. **Step 5 fails:** `get_doc_as_markdown` returns `1. step two`, since the read side writes every numbered item as `1.` and the table ends the Markdown list (#1208; outside PR #1201's diff). Playwright (`2026-10-24-tc-doc233.png`): `A | B` at the margin, list numbered 1 and 2, `Q | R` indented to the quote text with no bar, no headings. Probes (`create_doc`, HTML): a quoted table as the doc's first element exports at 36pt, one in a depth-2 quote at 72pt, and one inside a quoted list at 36pt (the quote's indent). A colspan table in a quote is clean.
 
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1234 QA round 1 (Sky) @ 79a7a38, step 5 only**
+`sky`. Only step 5 was in scope for #1208. Step 4's content was written with `create_doc(content_format="markdown")` to a scratch doc (trashed afterward), not with `write_doc_content` over the fixture. Steps 1–3, the raw/HTML checks and Playwright were not re-run. Step 5: `get_doc_as_markdown` returns `1. step one`, the `A | B` table, then `2. step two`, so the #1208 failure from the 2026-10-24 round is fixed.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1234 QA round 2 (Sky) @ 2af4b0b, step 5 only**
+`sky`, after `/mcp reconnect`, with the same scope and method as round 1 (scratch doc, trashed afterward). Step 5: `1. step one`, the `A | B` table, `2. step two`.
+
 ---
 
 ### TC-DOC234: Table-cell images: text around one, a linked one, an unreachable one, and nested tables ⚠️ requires-oauth ⚠️ destructive
@@ -7487,6 +7493,30 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
 `kit`: no error. Raw read: `para one` / `para two`, `line1` / `  line2`, and `linked` (link `https://example.com/x`) then `after`. The second table holds only the structural empty paragraphs around `inner`. Probe (added cell, not a Check): `<td>\n  Intro text\n  <table>…nested…</table>\n  tail\n</td>` reads `Intro text` / nested table / `tail`, with no stray paragraphs. The newline after `linked` reads unlinked in the doc although the parser now keeps it in the link (`html_to_ast`: `('\n', 'http://u')`). It's the paragraph's end marker, which Docs doesn't link. Playwright (`2026-10-25-tc-doc235-r4.png`) matches. Doc trashed.
+
+---
+
+### TC-DOC236: `get_doc_as_markdown` numbers each ordered item as Docs does, across an interrupting table and nested sublists (#1208) ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #1208. The export wrote every numbered item as `1.`, so an item that continues a Docs list after a table read back as a second list starting at 1. It now writes each item's ordinal in its Docs list: counted per `listId` and nesting level, continuing across an interrupting block, and restarting a sublist under each new parent item. The ticket's own case (a table between two items) is TC-DOC233 step 5; this one adds nested sublists and a second, separate list.
+
+**Prompt**
+1. `create_doc(title="TC-DOC236", content="1. a\n    1. a1\n    1. a2\n1. b\n    1. b1\n\n| t |\n|---|\n| c |\n\n1. c\n\nAside\n\n1. x\n1. y\n", content_format="markdown")`
+2. `export_file(file_id=<docId>, export_format="txt")`
+3. `get_doc_as_markdown(doc_id=<docId>)`
+
+**Checks**
+- Step 1 returns no `error` key
+- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
+- Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
+- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+
+**Cleanup:** trash the doc
+
+**Result (2026-10-25) ✅ PASS — PR #1234 QA round 1 (Sky) @ 79a7a38**
+`sky`, doc created in the default folder (trashed afterward). Step 1: no error. Step 2 txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. Docs' txt export writes level 1 as decimal (`1. a1`), not the preset's alpha glyph. `get_doc_structure` bullets: `a`/`a1`/`a2`/`b`/`b1`/`c` share one `listId`, and `x`/`y` share a different one. Step 3: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, `3. c` after the table, `1. x`, `2. y`, all matching step 2.
+
+**Result (2026-10-25) ✅ PASS — PR #1234 QA round 2 (Sky) @ 2af4b0b**
+`sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
 
 
 

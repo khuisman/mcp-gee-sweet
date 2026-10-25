@@ -1414,6 +1414,23 @@ best-effort — see below), and an opt-in comments section.</p>
   <code>create_paragraph_bullets</code> already solved by reading <code>document["lists"][listId]
   ["listProperties"]["nestingLevels"][level]</code> (<code>glyphType</code> present → ordered, <code>glyphSymbol</code>
   present → unordered). Reused verbatim here rather than re-deriving it.</li>
+<li><strong>Ordered-item numbers (#1208)</strong>: Docs numbers a list by <code>listId</code>, so a table, quote, code
+  block or paragraph between two items doesn't restart it. <code>document_to_ast</code> counts body items
+  per <code>listId</code> and nesting level in document order (<code>_ListCounter</code>), clears the deeper levels'
+  counts at each item (Docs restarts a sublist under every new parent item), offsets by the
+  level's <code>startNumber</code>, and sets <code>BulletItem.number</code>. A <code>startNumber</code> of 0 counts as 1 only for
+  lettered and Roman-numeral levels, as the API reference says; a decimal level numbers from 0.
+  Table-cell items aren't counted: with cell paragraphs and body items on one <code>listId</code>, Docs'
+  txt and HTML exports both number the body items after the table from the list's start
+  (measured live, PR #1234 QA round 1).
+  <code>ast_to_markdown</code> writes that number, so an item resuming a list after a table starts its
+  Markdown list there (<code>3. c</code>). One exception: CommonMark lets an ordered list interrupt a
+  paragraph only when it starts at 1, and a sublist's first line follows its parent item's text
+  with just a newline, so a sublist whose first number isn't 1 writes <code>1.</code> there rather than
+  merging into the parent (<code>- a\n  5. a1</code> would read as one item). A blank line would keep the
+  number but make the parent list loose. An AST built by the write side has no number and still
+  renders <code>1.</code>. Writing a resumed list back still restarts it at 1 when a paragraph interrupts
+  it, because the write side ignores a list's start number (#1118).</li>
 <li><strong>Checkbox state</strong>: the write side has no <code>BULLET_CHECKBOX</code> preset — it prepends a literal
   <code>"☑ "</code>/<code>"☐ "</code> glyph to the item's own text (see emitter.py's comment on this). Read-back
   detects that exact prefix on the item's first run and strips it back off, setting
