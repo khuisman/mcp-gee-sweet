@@ -810,6 +810,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 **Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
 `sky` (OAuth, QA mailbox). Step 3 listed both drafts, newest first; `{GM48_A}`'s entry had matching `message_id`/`thread_id`, `to`, `cc`, `subject`, `date`, and `snippet`, and `{GM48_B}`'s `cc` was null. Steps 4 and 5 each returned one different draft. API quirk, not a defect: with `max_results: 1`, Gmail reported `result_size_estimate: 201` and still returned a `next_page_token` on step 5's last real page. Following it returned `drafts: []`. No mail sent; both drafts deleted.
 
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Rerun for the new `{id, message}` shape. Step 3: `{GM48_A}`'s `message` was identical to `get_draft(include_body=false)`'s, with matching `id`/`thread_id`, `to`, `cc`, `subject`, `date`, and `snippet`. No header outside the shaped set (no `received`). Steps 4 and 5 each returned one different draft, with the same `result_size_estimate: 201` / trailing `next_page_token` quirk as round 1. No mail sent; drafts deleted.
+
 ---
 
 ### TC-GM49: `get_draft` has the same shape as `get_message` (issue #1205) ⚠️ destructive
@@ -856,6 +859,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 **Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
 `sky` (OAuth). Step 2 kept the draft ID with a new `message.id`. Step 3 had the new `to` and subject, `cc` null, the new `body_plain`, `body_html` null, and `attachments: []`. Step 4 returned a 404 `{"error"}`. Step 5 listed exactly `{GM50_ID}`. The updated message kept the original `thread_id` (update_draft passes it back), which is expected. No mail sent; draft deleted.
 
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Regression rerun after the compose rework, checking steps 2–4. Same outcome as round 1: new `to` and subject, `cc` and `body_html` null, `attachments: []`, and the old message a 404. No mail sent; draft deleted.
+
 ---
 
 ### TC-GM51: `update_draft` with `keep_attachments` (issue #1205) ⚠️ destructive
@@ -874,6 +880,9 @@ None of these sends mail. Each case checks that afterwards with `list_messages` 
 
 **Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
 `sky` (OAuth). Step 3: `attachments` was `kept.txt` (12) then `new.txt` (11), and `body_plain` was the new text. Extra, outside the case: 12 MB and 18 MB `application/octet-stream` attachments on script-made drafts also survived `keep_attachments: true`, so re-sending kept bytes inline in `raw` isn't size-limited below Gmail's 25 MB attachment cap. No mail sent; drafts deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Regression rerun: `kept.txt` (12) then `new.txt` (11), new `body_plain`. Extra: `update_draft` on `totally-invalid-draft-id-xyz` with `attachments: [{"local_path": <missing file>}]` returned the `No such file or directory` error, not the 404, so new attachments are read before any API call. No mail sent; draft deleted.
 
 ---
 
@@ -951,6 +960,9 @@ No tool sets a draft's From, so the setup makes the drafts with the Gmail API di
 
 **Cleanup:** `delete_draft` both drafts.
 
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). `{GM54_FROM}` was `"José Pérez" <{QA}>`. Steps 3 and 4 both returned exactly that, so both the metadata path and the `keep_attachments` raw path kept it. Round 1 @ 99acc3e8 had replaced it with the account default on the metadata path. No mail sent; drafts deleted.
+
 ---
 
 ### TC-GM55: `keep_attachments` keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive
@@ -970,6 +982,9 @@ No tool sets a draft's From, so the setup makes the drafts with the Gmail API di
 - No mail was sent
 
 **Cleanup:** `delete_draft` `{GM55_ID}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Setup step 2 listed one nameless `image/png` of size 70. Step 2: the new `body_plain`, `body_html` `<p>after <img src="cid:gm55@mcp-qa"></p>`, and one nameless `image/png` of size 70. Step 3's tree was `multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=<gm55@mcp-qa>]]`. No mail sent; draft deleted.
 
 ---
 
