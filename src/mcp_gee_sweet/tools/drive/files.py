@@ -2,7 +2,7 @@ import asyncio
 import csv
 import logging
 from contextlib import aclosing
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1252,9 +1252,7 @@ def register(tool):
 
         parts = ["trashed=false"]
         if days is not None and days > 0:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(
-                "%Y-%m-%dT%H:%M:%S"
-            )
+            cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
             parts.append(f"modifiedTime > '{cutoff}'")
         if mime_type:
             safe_mime = _escape_drive_query_mime_type(mime_type)

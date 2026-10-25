@@ -6,7 +6,7 @@ import logging
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
@@ -449,7 +449,7 @@ def _local_mtime_dt(path: Path, st: os.stat_result | None = None) -> datetime:
     caller already made (and guarded) instead of statting again."""
     if st is None:
         st = path.stat()
-    return datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
+    return datetime.fromtimestamp(st.st_mtime, tz=UTC)
 
 
 def _drive_time_str(dt: datetime) -> str:
@@ -494,7 +494,7 @@ def _converted_md_upload_properties(
     Every caller stamps through here, so they can't disagree on the set."""
     props: dict[str, str | None] = {
         _CONVERTED_MD_SOURCE_MTIME_PROP: _source_mtime_value(lmtime),
-        _CONVERTED_MD_UPLOADED_AT_PROP: _drive_time_str(datetime.now(timezone.utc)),
+        _CONVERTED_MD_UPLOADED_AT_PROP: _drive_time_str(datetime.now(UTC)),
     }
     if reupload:
         props[_CONVERTED_MD_BASELINE_REV_PROP] = baseline_rev

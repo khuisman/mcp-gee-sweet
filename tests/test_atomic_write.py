@@ -1,6 +1,6 @@
 import os
 import stat
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -31,7 +31,7 @@ class TestWriteAtomically:
     def test_success_replaces_content_and_stamps_mtime(self, tmp_path):
         dest = tmp_path / "f.bin"
         dest.write_bytes(b"original")
-        stamp = datetime(2024, 6, 1, tzinfo=timezone.utc).timestamp()
+        stamp = datetime(2024, 6, 1, tzinfo=UTC).timestamp()
 
         atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"), stamp)
 
