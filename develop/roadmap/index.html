@@ -2189,6 +2189,14 @@
 <li>[ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1101">#1101</a>)</li>
 <li>[ ] <code>upload_file(source_format="markdown", convert_to_doc=True)</code> (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1102">#1102</a>)</li>
 <li>[ ] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1112">#1112</a>, closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1116">#1116</a>)</li>
+<li>[ ] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1115">#1115</a>)</li>
+<li>[ ] A hard line break (two trailing spaces or <code>&lt;br&gt;</code>) becomes a paragraph break — #1044 Phase 2 finding; HTML → AST step (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1117">#1117</a>)</li>
+<li>[ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1118">#1118</a>)</li>
+<li>[ ] <code>&lt;sub&gt;</code>, <code>&lt;sup&gt;</code> and <code>&lt;mark&gt;</code> have no effect — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1119">#1119</a>)</li>
+<li>[ ] <code>create_doc_from_file</code>/<code>update_doc_from_file</code> resolve a relative image path against the server's working directory, not the <code>.md</code> file — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1121">#1121</a>)</li>
+<li>[ ] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1122">#1122</a>)</li>
+<li>[x] A relative link becomes <code>http://./guide.md</code> — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1120">#1120</a>) (PR #1149)</li>
+<li>[x] Blank paragraph before a table keeps the preceding heading's style — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1092">#1092</a>) (PR #1138)</li>
 </ul>
 <p><strong>Feature set: Gmail sending safety</strong></p>
 <ul>
@@ -2201,6 +2209,7 @@
 <li>[ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)</li>
 <li>[ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled <code>planned: ornithomimus</code> 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)</li>
 <li>[x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1212">#1212</a>) (PR #1222)</li>
+<li>[x] Make Lint and test 3.14/3.15 required status checks on <code>develop</code> and <code>main</code> — #1212 review follow-up, a branch-protection settings change with no PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1224">#1224</a>)</li>
 <li>[ ] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1185">#1185</a>)</li>
 <li>[ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, <code>configuration.md</code> subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1214">#1214</a>)</li>
 </ul>
@@ -2211,6 +2220,8 @@
 <li>[x] thread_http's per-thread <code>httplib2.Http</code> has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. <code>severe</code>, observed: a 30-minute <code>create_doc_from_file</code> hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1129">#1129</a>) (PR #1198)</li>
 <li>[x] <code>transfer_ownership(send_notification=False)</code> can never succeed — <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1055">#1055</a>) (PR #1142)</li>
 <li>[ ] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>)</li>
+<li>[x] Test modules fail to collect on Windows (<code>os.geteuid()</code> in skipif decorators) — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1156">#1156</a>) (PR #1162)</li>
+<li>[x] <code>setup_team.sh</code> never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1223">#1223</a>) (PR #1225)</li>
 </ul>
 <p><strong>Live QA for merged community PRs</strong> <em>(their code ships in this release; run on the gee-sweet-biz side)</em></p>
 <ul>
@@ -2298,6 +2309,7 @@
 <li>[ ] Cache TTL docs and log line say process-wide; under SSE it's per connection. Docs, with the docstring cleanup (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1187">#1187</a>)</li>
 <li>[ ] Service-account storage limit: remaining docstrings and docs disagree with #1046's corrected note. Docs, with the docstring cleanup (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1188">#1188</a>)</li>
 <li>[ ] Windows: permission and symlink tests fail now that their modules collect (#1162 follow-up). <code>loud/narrow</code>, test-only (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1194">#1194</a>)</li>
+<li>[ ] <code>insert_inline_image(drive_file_id=)</code> should grant and revoke the temporary <code>anyone:reader</code> share itself through <code>ImageShareLifecycle</code>, like the Markdown image path, instead of pushing a <code>share_file</code> call onto the caller. Tool-surface cleanup; version call 2026-10-25 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1183">#1183</a>)</li>
 </ul>
 <h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Queued after <em>ankylosaurus</em> (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.</p>
