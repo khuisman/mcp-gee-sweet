@@ -70,6 +70,15 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   `create_paragraph_bullets` already solved by reading `document["lists"][listId]
   ["listProperties"]["nestingLevels"][level]` (`glyphType` present → ordered, `glyphSymbol`
   present → unordered). Reused verbatim here rather than re-deriving it.
+- **Ordered-item numbers (#1208)**: Docs numbers a list by `listId`, so a table, quote, code
+  block or paragraph between two items doesn't restart it. `document_to_ast` counts items per
+  `listId` and nesting level in document order, clears the deeper levels' counts at each item
+  (Docs restarts a sublist under every new parent item), offsets by the level's `startNumber`
+  (0 counts as 1), and sets `BulletItem.number`. `ast_to_markdown` writes that number, so an
+  item resuming a list after a table starts its Markdown list there (`3. c`). An AST built by
+  the write side has no number and still renders `1.`. Writing a resumed list back still
+  restarts it at 1 when a paragraph interrupts it, because the write side ignores a list's
+  start number (#1118).
 - **Checkbox state**: the write side has no `BULLET_CHECKBOX` preset — it prepends a literal
   `"☑ "`/`"☐ "` glyph to the item's own text (see emitter.py's comment on this). Read-back
   detects that exact prefix on the item's first run and strips it back off, setting

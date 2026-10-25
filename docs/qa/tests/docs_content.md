@@ -6289,3 +6289,21 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-25) ✅ PASS — PR #1215 QA round 4 (Kit) @ 5d2b4e8**
 `kit`: no error. Raw read: `para one` / `para two`, `line1` / `  line2`, and `linked` (link `https://example.com/x`) then `after`. The second table holds only the structural empty paragraphs around `inner`. Probe (added cell, not a Check): `<td>\n  Intro text\n  <table>…nested…</table>\n  tail\n</td>` reads `Intro text` / nested table / `tail`, with no stray paragraphs. The newline after `linked` reads unlinked in the doc although the parser now keeps it in the link (`html_to_ast`: `('\n', 'http://u')`). It's the paragraph's end marker, which Docs doesn't link. Playwright (`2026-10-25-tc-doc235-r4.png`) matches. Doc trashed.
+
+---
+
+### TC-DOC236: `get_doc_as_markdown` numbers each ordered item as Docs does, across an interrupting table and nested sublists (#1208) ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #1208. The export wrote every numbered item as `1.`, so an item that continues a Docs list after a table read back as a second list starting at 1. It now writes each item's ordinal in its Docs list: counted per `listId` and nesting level, continuing across an interrupting block, and restarting a sublist under each new parent item. The ticket's own case (a table between two items) is TC-DOC233 step 5; this one adds nested sublists and a second, separate list.
+
+**Prompt**
+1. `create_doc(title="TC-DOC236", content="1. a\n    1. a1\n    1. a2\n1. b\n    1. b1\n\n| t |\n|---|\n| c |\n\n1. c\n\nAside\n\n1. x\n1. y\n", content_format="markdown")`
+2. `export_file(file_id=<docId>, export_format="txt")`
+3. `get_doc_as_markdown(doc_id=<docId>)`
+
+**Checks**
+- Step 1 returns no `error` key
+- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
+- Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
+- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+
+**Cleanup:** trash the doc

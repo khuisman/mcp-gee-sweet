@@ -40,9 +40,12 @@ _UNCHECKED_PREFIX = "☐ "  # "☐ "
 def document_to_ast(document: dict) -> list[DocNode]:
     """Walk a `documents().get()` response body into a list of DocNode."""
     nodes: list[DocNode] = []
+    list_counts: dict[str, list[int]] = {}
     for elem in document.get("body", {}).get("content", []):
         if "paragraph" in elem:
             node = _paragraph_to_node(elem["paragraph"], document)
+            if isinstance(node, BulletItem):
+                _number_list_item(node, elem["paragraph"]["bullet"], document, list_counts)
             if node is not None:
                 nodes.append(node)
         elif "table" in elem:
@@ -50,6 +53,27 @@ def document_to_ast(document: dict) -> list[DocNode]:
         # sectionBreak, tableOfContents: no Markdown equivalent, silently skipped
         # — same "unsupported construct" convention html_parser.py uses on write.
     return nodes
+
+
+def _number_list_item(
+    node: BulletItem, bullet: dict, document: dict, list_counts: dict[str, list[int]]
+) -> None:
+    """Set an ordered item's `number` to its ordinal in its Docs list (#1208).
+
+    Docs numbers a list by listId, so a table, quote, code block or paragraph
+    between two items doesn't restart it, and ast_to_markdown's old "1." on
+    every item read the continuation as a new list. Counts are per listId and
+    nesting level, and an item clears the counts of every level deeper than
+    its own, since Docs restarts a sublist under each new parent item. A
+    level's `startNumber` offsets its count; Docs treats 0 as 1."""
+    counts = list_counts.setdefault(bullet.get("listId", ""), [])
+    level = node.depth
+    del counts[level + 1 :]
+    counts.extend([0] * (level + 1 - len(counts)))
+    counts[level] += 1
+    if node.ordered:
+        start = (_nesting_level(bullet, document) or {}).get("startNumber") or 1
+        node.number = start + counts[level] - 1
 
 
 def _paragraph_to_node(para: dict, document: dict) -> DocNode | None:

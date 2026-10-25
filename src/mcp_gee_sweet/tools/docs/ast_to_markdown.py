@@ -159,7 +159,9 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
         if node.checked is not None:
             marker = "- [x] " if node.checked else "- [ ] "
         elif node.ordered:
-            marker = "1. "
+            # The real ordinal when doc_to_ast knows it, so an item resuming a list
+            # after an interrupting block starts its Markdown list there (#1208).
+            marker = f"{node.number or 1}. "
         else:
             marker = "- "
         body = f"{indent}{marker}{_render_inline(node.runs)}"

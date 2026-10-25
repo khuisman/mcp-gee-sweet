@@ -1755,3 +1755,110 @@ class TestLookaheadEscapeAcrossRunsCommonMark:
         table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run(text="c")])])])
         html = _COMMONMARK.render(ast_to_markdown([table]))
         assert "<th>a &lt;b&gt; text</th>" in html
+
+
+_DECIMAL_LEVEL = {"glyphType": "DECIMAL"}
+
+
+class TestOrderedListNumbering:
+    """#1208: every ordered item rendered as "1.", so an item continuing a Docs
+    list after an interrupting block read back as the start of a second list.
+    doc_to_ast numbers items per listId and nesting level; ast_to_markdown
+    writes that number."""
+
+    @staticmethod
+    def _item(text, list_id="l1", level=0):
+        return _para(f"{text}\n", bullet={"listId": list_id, "nestingLevel": level})
+
+    @staticmethod
+    def _table():
+        return {
+            "table": {
+                "tableRows": [{"tableCells": [{"tableCellStyle": {}, "content": [_para("c\n")]}]}]
+            }
+        }
+
+    def _doc(self, content, lists=None):
+        return {
+            "body": {"content": content},
+            "lists": lists or {"l1": {"listProperties": {"nestingLevels": [_DECIMAL_LEVEL] * 3}}},
+        }
+
+    def _numbers(self, doc):
+        return [n.number for n in document_to_ast(doc) if isinstance(n, BulletItem)]
+
+    def test_table_between_items_continues_the_count(self):
+        doc = self._doc([self._item("step one"), self._table(), self._item("step two")])
+        assert self._numbers(doc) == [1, 2]
+
+    def test_paragraph_between_items_continues_the_count(self):
+        doc = self._doc([self._item("a"), _para("aside\n"), self._item("b"), self._item("c")])
+        assert self._numbers(doc) == [1, 2, 3]
+
+    def test_each_list_id_counts_separately(self):
+        lists = {
+            lid: {"listProperties": {"nestingLevels": [_DECIMAL_LEVEL]}} for lid in ("l1", "l2")
+        }
+        doc = self._doc(
+            [self._item("a"), self._item("x", "l2"), self._item("b"), self._item("y", "l2")],
+            lists,
+        )
+        assert self._numbers(doc) == [1, 1, 2, 2]
+
+    def test_sublevel_restarts_under_each_parent_item(self):
+        doc = self._doc(
+            [
+                self._item("a"),
+                self._item("a1", level=1),
+                self._item("a2", level=1),
+                self._item("b"),
+                self._item("b1", level=1),
+            ]
+        )
+        assert self._numbers(doc) == [1, 1, 2, 2, 1]
+
+    def test_unordered_parent_still_restarts_an_ordered_sublevel(self):
+        lists = {
+            "l1": {"listProperties": {"nestingLevels": [{"glyphSymbol": "●"}, _DECIMAL_LEVEL]}}
+        }
+        doc = self._doc(
+            [
+                self._item("a"),
+                self._item("a1", level=1),
+                self._item("a2", level=1),
+                self._item("b"),
+                self._item("b1", level=1),
+            ],
+            lists,
+        )
+        assert self._numbers(doc) == [None, 1, 2, None, 1]
+
+    @pytest.mark.parametrize(("start", "expected"), [(None, [1, 2]), (0, [1, 2]), (5, [5, 6])])
+    def test_start_number_offsets_the_count(self, start, expected):
+        level = dict(_DECIMAL_LEVEL)
+        if start is not None:
+            level["startNumber"] = start
+        doc = self._doc(
+            [self._item("a"), self._item("b")],
+            {"l1": {"listProperties": {"nestingLevels": [level]}}},
+        )
+        assert self._numbers(doc) == expected
+
+    def test_renderer_writes_the_number(self):
+        nodes = [
+            BulletItem(runs=[Run(text="a")], ordered=True, number=1),
+            BulletItem(runs=[Run(text="b")], ordered=True, number=2),
+        ]
+        assert ast_to_markdown(nodes) == "1. a\n2. b\n"
+
+    def test_renderer_without_a_number_keeps_one(self):
+        nodes = [BulletItem(runs=[Run(text="a")], ordered=True)]
+        assert ast_to_markdown(nodes) == "1. a\n"
+
+    def test_interrupted_list_resumes_at_its_ordinal_in_commonmark(self):
+        """The ticket's observed case (PR #1201 QA, TC-DOC233 step 5): one Docs
+        list with a table between its two items."""
+        doc = self._doc([self._item("step one"), self._table(), self._item("step two")])
+        md = ast_to_markdown(document_to_ast(doc))
+        assert "\n2. step two\n" in md
+        assert '<ol start="2">\n<li>step two</li>' in _COMMONMARK.render(md)
