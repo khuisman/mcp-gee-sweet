@@ -771,8 +771,11 @@ async def _apply_doc_content(
     created/found before a subsequent sharing failure — #649). Mirrors
     insert_local_images's own outcome shape for consistency.
     """
+    # The Markdown parse is pure CPU and grows with the content (about 0.2s for a
+    # 50 KB document), so it runs off the event loop rather than stalling every other
+    # connection's tool calls while it does.
     html_content = (
-        _md_to_html(content, autolink_urls=autolink_urls)
+        await asyncio.to_thread(_md_to_html, content, autolink_urls)
         if content_format == "markdown"
         else content
     )

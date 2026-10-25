@@ -1,12 +1,14 @@
 """Tests for md_to_html — the CommonMark/GFM Markdown parser behind every Markdown
 entry point (#1116), and the html_parser shapes markdown-it's HTML reaches."""
 
+import time
+
 import pytest
 
 from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph, Run, Table
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 from mcp_gee_sweet.tools.docs.md_to_html import (
-    _closes_fence,
+    _gfm_autolink_matches,
     _md_to_html,
     _nest_lists,
     _separate_tables,
@@ -318,15 +320,127 @@ class TestNestLists:
         assert _nest_lists(md) == md
 
 
-class TestClosesFence:
-    def test_info_string_does_not_close(self):
-        assert not _closes_fence("```python", "```")
+class TestQaRound1:
+    """PR #1228 QA round 1: one test per send-back."""
 
-    def test_longer_fence_closes(self):
-        assert _closes_fence("  ````  ", "```")
+    def test_ordered_marker_that_cannot_interrupt_a_paragraph_is_text(self):
+        # Finding 1: "2019." can't start a list under paragraph text, so the bullet
+        # under it starts its own list instead of being pushed into the paragraph.
+        assert _md_to_html("Some text\n2019. A great year\n  - point\n") == (
+            "<p>Some text\n2019. A great year</p>\n<ul>\n<li>point</li>\n</ul>\n"
+        )
 
-    def test_other_character_does_not_close(self):
-        assert not _closes_fence("~~~", "```")
+    def test_child_ordered_marker_other_than_1_does_not_open_a_list(self):
+        # "2." can't open a sub-list under A's text, so CommonMark reads "  2. b" as
+        # A's sibling; "    - c" then nests under b by D1.
+        md = "1. A\n  2. b\n    - c"
+        assert _nest_lists(md) == "1. A\n  2. b\n     - c"
+        assert _outline(md) == [("OL", 0, "A"), ("OL", 0, "b"), ("UL", 1, "c")]
+
+    def test_other_kind_marker_that_cannot_interrupt_starts_a_list_at_the_same_level(self):
+        # As markdown-it reads it unchanged: "2)" ends A's list and starts another.
+        assert _outline("1. A\n  2) b") == [("OL", 0, "A"), ("OL", 0, "b")]
+
+    def test_marker_inside_item_text_that_cannot_interrupt_is_text(self):
+        # At A's content column it is inside A's paragraph: lazy text, not an item.
+        md = "1. A\n   2. b"
+        assert _nest_lists(md) == md
+        assert _outline(md) == [("OL", 0, "A\n2. b")]
+
+    def test_ordered_marker_after_a_blank_line_still_starts_a_list(self):
+        assert _outline("Text\n\n2019. A\n  - point") == [
+            ("P", 0, "Text"),
+            ("OL", 0, "A"),
+            ("UL", 1, "point"),
+        ]
+
+    def test_fence_opened_on_a_marker_line_is_left_alone(self):
+        # Finding 2.
+        md = "- ```\n  text\n  a | b\n  --|--\n  ```\n"
+        assert _separate_tables(md) == md
+        assert "<pre><code>text\na | b\n--|--\n</code></pre>" in _md_to_html(md)
+
+    def test_fence_on_a_shifted_marker_line_moves_with_it(self):
+        md = "1. A\n  - ```\n    - not a list\n    ```"
+        assert _nest_lists(md) == "1. A\n   - ```\n     - not a list\n     ```"
+
+    def test_raw_html_pre_block_is_left_alone(self):
+        # Finding 3.
+        md = "<pre>\n1. a\n  - b\n</pre>"
+        assert _nest_lists(md) == md
+        assert _md_to_html(md) == md
+
+    def test_raw_html_div_block_gets_no_table(self):
+        md = "<div>\na | b\n--|--\n</div>"
+        assert _separate_tables(md) == md
+        assert "<table>" not in _md_to_html(md)
+
+    def test_indented_code_in_a_list_item_is_left_alone(self):
+        md = "-   foo\n\n        - bar\n        a | b\n        --|--"
+        assert _nest_lists(md) == md
+        assert _separate_tables(md) == md
+
+    def test_email_scan_is_linear(self):
+        # Finding 4: "_" is both a left boundary and a local-part character.
+        start = time.perf_counter()
+        assert list(_gfm_autolink_matches("a_" * 100000)) == []
+        assert time.perf_counter() - start < 0.5
+
+    def test_email_after_underscored_token(self):
+        assert list(_gfm_autolink_matches("snake_case_name me@x.com")) == [
+            (16, 24, "mailto:me@x.com")
+        ]
+
+    def test_email_local_part_may_hold_underscores(self):
+        assert list(_gfm_autolink_matches("a_b@x.com")) == [(0, 9, "mailto:a_b@x.com")]
+
+    def test_setext_underline_is_not_a_delimiter_row(self):
+        # Finding 5.
+        assert _md_to_html("Intro text\na | b\n---\n") == "<h2>Intro text\na | b</h2>\n"
+
+    def test_delimiter_row_needs_the_header_cell_count(self):
+        md = "Para\n- x\na | b | c\n--|--"
+        assert _separate_tables(md) == md
+
+    @pytest.mark.parametrize(
+        "md", ["`x`www.example.com", "[a](b)www.c.com", "<b>x</b>www.c.com", "`x`me@x.com"]
+    )
+    def test_text_after_code_link_or_tag_is_not_autolinked(self, md):
+        # Finding 6.
+        assert _md_to_html(md).count("<a ") == md.count("](")
+
+    @pytest.mark.parametrize("md", ["*a*www.x.com", "line\nwww.x.com", "~~s~~www.x.com"])
+    def test_text_after_emphasis_or_a_line_break_is_autolinked(self, md):
+        assert 'href="http://www.x.com"' in _md_to_html(md)
+
+    def test_spaced_image_path_is_unescaped(self):
+        # Finding 7.
+        (para,) = _ast("![a](my\\_file &amp; name.png)")
+        assert para.runs[0].src == "my_file & name.png"
+
+    def test_spaced_image_does_not_match_past_a_link_label(self):
+        (para,) = _ast("[![a](x y.png) z](https://l.com)")
+        assert (para.runs[0].src, para.runs[0].link_url) == ("x y.png", "https://l.com")
+        assert _text(para) == " z"
+
+    def test_staircase_siblings_keep_their_columns(self):
+        # CommonMark spec example 310: every item a sibling, none nested.
+        md = "- a\n - b\n  - c\n   - d\n  - e\n - f\n- g\n"
+        assert _nest_lists(md) == md
+        assert [d for _, d, _ in _outline(md)] == [0] * 7
+
+    def test_tab_after_marker_counts_from_the_marker_column(self):
+        # Finding 8: "-\tfoo" puts content at column 4, so "\t- bar" (column 4) nests
+        # with no rewrite.
+        assert _nest_lists("-\tfoo\n\t- bar") == "-\tfoo\n\t- bar"
+        assert _outline("-\tfoo\n\t- bar") == [("UL", 0, "foo"), ("UL", 1, "bar")]
+
+    def test_tab_after_a_shifted_marker(self):
+        assert _outline("1. A\n  -\tb\n\t  - c") == [
+            ("OL", 0, "A"),
+            ("UL", 1, "b"),
+            ("UL", 2, "c"),
+        ]
 
 
 class TestHtmlShapesFromMarkdownIt:

@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 
 from markdown_it import MarkdownIt
+from markdown_it.common.utils import unescapeAll
 from markdown_it.token import Token
 
 # GFM extended autolinks (https://github.github.com/gfm/#autolinks-extension-): a
@@ -17,17 +18,35 @@ from markdown_it.token import Token
 # _gfm_autolink_matches). Like cmark-gfm, a scheme-ful link may have a single-segment
 # domain (http://localhost); a www. one already has its dot. Trailing punctuation and
 # an unbalanced ")" are trimmed afterwards (_trim_autolink).
-_GFM_AUTOLINK_RE = re.compile(
-    r"(?:^|(?<=[\s*_~(]))"
-    r"(?:"
-    r"(?P<url>(?:https?://|www\.)[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*[^\s<]*)"
-    r"|(?P<email>[A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)"
-    r")"
+_GFM_URL_RE = re.compile(
+    r"(?:^|(?<=[\s*_~(]))(?:https?://|www\.)[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*[^\s<]*"
 )
+# An email is found from its "@" outwards (_gfm_email_matches), not by a regex that
+# tries every start position: "_" is both a valid left boundary and a local-part
+# character, so that regex rescans to the end of the text from each "_" in a long
+# token with no "@" (quadratic; "a_" * 20000 took about a second).
+_EMAIL_LOCAL_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-")
+_EMAIL_DOMAIN_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
+_AUTOLINK_LEFT_BOUNDARY = "*_~("
 _AUTOLINK_TRAILING_PUNCT = "?!.,:*_~'\""
 _AUTOLINK_TRAILING_ENTITY_RE = re.compile(r"&[A-Za-z0-9]+;$")
 _HTML_A_OPEN_RE = re.compile(r"<a[\s>]", re.IGNORECASE)
 _HTML_A_CLOSE_RE = re.compile(r"</a\s*>", re.IGNORECASE)
+# Inline tokens after which the next text token starts at a valid autolink boundary:
+# a line break, or an emphasis or strikethrough delimiter ("*", "_", "~"). After a
+# code span, a link or an inline HTML tag, it doesn't ("`x`www.a.com" isn't linked).
+_AUTOLINK_BOUNDARY_TOKENS = frozenset(
+    {
+        "softbreak",
+        "hardbreak",
+        "em_open",
+        "em_close",
+        "strong_open",
+        "strong_close",
+        "s_open",
+        "s_close",
+    }
+)
 
 
 def _trim_autolink(url: str) -> str:
@@ -46,24 +65,53 @@ def _trim_autolink(url: str) -> str:
     return url
 
 
-def _gfm_autolink_matches(text: str):
-    """Yield (start, end, href) for each GFM extended autolink in text."""
-    for m in _GFM_AUTOLINK_RE.finditer(text):
-        if m.group("url"):
-            label = _trim_autolink(m.group("url"))
-            # The last two domain segments may not hold "_" (GFM's "valid domain").
-            host = re.split(r"[/?#]", label.split("://", 1)[-1], maxsplit=1)[0]
-            if "_" in ".".join(host.split(".")[-2:]):
-                continue
-            href = label if "://" in label else "http://" + label
-        else:
-            label = m.group("email")
-            # An email may not end in "-" or "_"; a trailing "." is punctuation.
-            label = label.rstrip(".")
-            if label[-1] in "-_":
-                continue
-            href = "mailto:" + label
+def _at_boundary(text: str, pos: int, start_ok: bool) -> bool:
+    if pos == 0:
+        return start_ok
+    before = text[pos - 1]
+    return before.isspace() or before in _AUTOLINK_LEFT_BOUNDARY
+
+
+def _gfm_url_matches(text: str, start_ok: bool):
+    for m in _GFM_URL_RE.finditer(text):
+        if m.start() == 0 and not start_ok:
+            continue
+        label = _trim_autolink(m.group(0))
+        # The last two domain segments may not hold "_" (GFM's "valid domain").
+        host = re.split(r"[/?#]", label.split("://", 1)[-1], maxsplit=1)[0]
+        if "_" in ".".join(host.split(".")[-2:]):
+            continue
+        href = label if "://" in label else "http://" + label
         yield m.start(), m.start() + len(label), href
+
+
+def _gfm_email_matches(text: str, start_ok: bool):
+    at = text.find("@")
+    while at != -1:
+        start = at
+        while start > 0 and text[start - 1] in _EMAIL_LOCAL_CHARS:
+            start -= 1
+        domain = _EMAIL_DOMAIN_RE.match(text, at + 1)
+        end = at + 1
+        if start < at and domain and _at_boundary(text, start, start_ok):
+            # An email may not end in "-" or "_"; a trailing "." is punctuation.
+            label = text[start : domain.end()].rstrip(".")
+            if label[-1] not in "-_":
+                yield start, start + len(label), "mailto:" + label
+                end = start + len(label)
+        at = text.find("@", end)
+
+
+def _gfm_autolink_matches(text: str, start_ok: bool = True):
+    """Yield (start, end, href) for each GFM extended autolink in text, in order.
+    start_ok says whether position 0 is a valid left boundary (see
+    _AUTOLINK_BOUNDARY_TOKENS)."""
+    matches = sorted([*_gfm_url_matches(text, start_ok), *_gfm_email_matches(text, start_ok)])
+    pos = 0
+    for start, end, href in matches:
+        if start >= pos:
+            yield start, end, href
+            pos = end
 
 
 def _gfm_autolink_rule(state) -> None:
@@ -77,6 +125,7 @@ def _gfm_autolink_rule(state) -> None:
             continue
         children = []
         link_depth = 0
+        prev: Token | None = None
         for tok in block.children:
             if tok.type == "link_open" or (
                 tok.type == "html_inline" and _HTML_A_OPEN_RE.match(tok.content)
@@ -86,11 +135,13 @@ def _gfm_autolink_rule(state) -> None:
                 tok.type == "html_inline" and _HTML_A_CLOSE_RE.match(tok.content)
             ):
                 link_depth = max(0, link_depth - 1)
+            start_ok = prev is None or prev.type in _AUTOLINK_BOUNDARY_TOKENS
+            prev = tok
             if tok.type != "text" or link_depth or not tok.content:
                 children.append(tok)
                 continue
             pos = 0
-            for start, end, href in _gfm_autolink_matches(tok.content):
+            for start, end, href in _gfm_autolink_matches(tok.content, start_ok):
                 if start > pos:
                     children.append(_text_token(tok.content[pos:start], tok.level))
                 children.append(
@@ -120,21 +171,31 @@ def _text_token(content: str, level: int) -> Token:
     return Token("text", "", 0, content=content, level=level)
 
 
-_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+# Block structure only, for _verbatim_lines: the same block grammar as the renderer
+# (raw HTML on, GFM tables), with no inline pass.
+_BLOCK_SCANNER = MarkdownIt("commonmark", {"html": True}).enable(["table"]).disable(["inline"])
 
 
-def _closes_fence(line: str, fence: str) -> bool:
-    """True when line closes the code block that fence opened: the same character, at
-    least as long, and nothing after it but whitespace."""
-    m = re.match(r"^\s*(`{3,}|~{3,})\s*$", line)
-    return m is not None and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence)
+def _verbatim_lines(md_text: str) -> dict[int, int]:
+    """The lines whose text a pre-pass must not read as Markdown, each mapped to the
+    first line of its block: a fenced code block's body and closing fence, and every
+    line of an indented code block or a raw HTML block. Found by markdown-it's own
+    block parser, so a fence opened on a list-marker line ("- ```") or nested in a
+    quote is found the same way the renderer finds it."""
+    lines: dict[int, int] = {}
+    for tok in _BLOCK_SCANNER.parse(md_text):
+        if tok.type in ("fence", "code_block", "html_block") and tok.map:
+            start, end = tok.map
+            for line in range(start + 1 if tok.type == "fence" else start, end):
+                lines[line] = start
+    return lines
 
 
-_LIST_MARKER_RE = re.compile(r"(?P<marker>[-+*]|\d{1,9}[.)])(?P<space>[ \t]+|$)")
+_LIST_MARKER_RE = re.compile(r"(?P<marker>[-+*]|(?P<number>\d{1,9})[.)])(?P<space>[ \t]+|$)")
 _THEMATIC_BREAK_RE = re.compile(r"([-*_])(?:[ \t]*\1){2,}[ \t]*$")
-# A line that starts a block of its own, so it ends any list it isn't indented into.
 # One quote level: up to 3 spaces, ">", and the one optional space CommonMark absorbs.
 _QUOTE_PREFIX_RE = re.compile(r" {0,3}> ?")
+# A line that starts a block of its own, so it ends any list it isn't indented into.
 _LIST_ENDING_BLOCK_RE = re.compile(r"#{1,6}(?:[ \t]|$)|>|`{3,}|~{3,}|\|")
 
 
@@ -160,6 +221,39 @@ def _leading_columns(line: str) -> tuple[int, str]:
     return col, ""
 
 
+def _space_after_marker(col: int, marker: re.Match) -> int:
+    """How many columns the whitespace after a marker at col spans, with tabs stopping
+    every 4 columns from where they sit, not from column 0."""
+    end = col + len(marker.group("marker"))
+    start = end
+    for ch in marker.group("space"):
+        end += 1 if ch == " " else 4 - end % 4
+    return end - start
+
+
+def _content_offset(col: int, marker: re.Match) -> int:
+    """How far past the marker's own column an item's content starts: the marker's
+    width plus up to 4 columns of space after it. Five or more columns, or nothing
+    after the marker, means content starts one column past the marker."""
+    gap = _space_after_marker(col, marker)
+    return len(marker.group("marker")) + (gap if 1 <= gap <= 4 and marker.group("space") else 1)
+
+
+def _moved_marker_line(col: int, body: str, marker: re.Match, new_marker: int) -> str:
+    """A marker line moved to start at new_marker. A tab after the marker is written
+    as the spaces it spanned where it was: moved, the same tab would reach a different
+    tab stop and change where the item's content starts."""
+    space = marker.group("space")
+    if "\t" in space:
+        space = " " * _space_after_marker(col, marker)
+    return " " * new_marker + marker.group("marker") + space + body[marker.end() :]
+
+
+def _owner(stack: list[_ListItemColumns], col: int) -> _ListItemColumns | None:
+    """The innermost open item a line indented to col continues, if any."""
+    return next((item for item in reversed(stack) if col >= item.orig_content), None)
+
+
 def _nest_lists(md_text: str) -> str:
     """Plan rule D1 (#1071): a list marker indented at least 2 columns further than
     the previous item's marker nests under that item, whatever the parent marker's
@@ -169,28 +263,52 @@ def _nest_lists(md_text: str) -> str:
     "1. A" followed by "  - a" (2 spaces, short of column 3) doesn't nest, and the
     2-space sub-lists models write under numbered items stay flat or turn into text.
     This rewrites each such marker to start at its parent's content column, and moves
-    the item's continuation lines (fenced code included) by the same amount, so
-    markdown-it nests what D1 says should nest. A marker that already reaches the
-    content column keeps its offset past it, so 4-space and tab indents are unchanged.
-    A run of quoted lines outside any list gets the same rule one quote level in.
-    Lines inside a top-level fenced code block, and anything once a list has ended,
-    are left as written."""
+    the item's continuation lines by the same amount, so markdown-it nests what D1
+    says should nest. A marker that already reaches the content column keeps its
+    offset past it, so 4-space and tab indents are unchanged.
+
+    A marker that would start a new list right under paragraph text counts only if
+    CommonMark lets it interrupt a paragraph: a bullet, or an ordered marker numbered
+    1, with text after it. Anything else there ("2019. A great year") is paragraph
+    text, as markdown-it will read it. Code and raw HTML (_verbatim_lines) are never
+    read as Markdown; they only move with the item they belong to. A run of quoted
+    lines not inside a list gets the same rule one quote level in. Anything once a
+    list has ended is left as written."""
+    lines = md_text.split("\n")
+    verbatim = _verbatim_lines(md_text)
     out: list[str] = []
     stack: list[_ListItemColumns] = []
-    fence: str | None = None
-    fence_delta = 0
+    deltas: dict[int, int] = {}
     prev_blank = False
+    # Whether the line above is paragraph text, which a list may only interrupt with
+    # a bullet or "1." (CommonMark's rule; a list item's own text counts).
+    prev_text = False
 
     def shifted(line: str, col: int, body: str, delta: int) -> str:
-        return line if delta == 0 else " " * max(0, col + delta) + body
+        return line if delta == 0 or not body else " " * max(0, col + delta) + body
 
-    lines = md_text.split("\n")
     i = 0
     while i < len(lines):
-        line = lines[i]
+        idx, line = i, lines[i]
         i += 1
         col, body = _leading_columns(line)
-        quote = _QUOTE_PREFIX_RE.match(line) if fence is None else None
+
+        if idx in verbatim:
+            first = verbatim[idx]
+            if first in deltas:
+                # A fence body moves with the line that opened it.
+                delta = deltas[first]
+            else:
+                owner = _owner(stack, col)
+                if owner is None:
+                    stack = []
+                delta = owner.new_content - owner.orig_content if owner else 0
+            deltas[idx] = delta
+            out.append(shifted(line, col, body, delta))
+            prev_blank = prev_text = False
+            continue
+
+        quote = _QUOTE_PREFIX_RE.match(line)
         if quote and (not stack or col < stack[0].orig_content):
             # A quote not indented into a list ends it. Strip one quote level from
             # each line of the run, apply D1 inside it, and put each prefix back.
@@ -204,52 +322,62 @@ def _nest_lists(md_text: str) -> str:
             # _nest_lists keeps the line count, so the prefixes line up again.
             inner = _nest_lists("\n".join(q[len(p) :] for q, p in zip(run, prefixes, strict=True)))
             out.extend(p + q for p, q in zip(prefixes, inner.split("\n"), strict=True))
-            prev_blank = False
+            prev_blank = prev_text = False
             continue
-        if fence is not None:
-            if _closes_fence(line, fence):
-                fence = None
-            out.append(shifted(line, col, body, fence_delta) if body else line)
-            continue
+
         if not body:
             out.append(line)
-            prev_blank = True
+            prev_blank, prev_text = True, False
             continue
 
         marker = _LIST_MARKER_RE.match(body)
         if marker and _THEMATIC_BREAK_RE.match(body):
             marker = None
         if marker and (stack or col <= 3):
-            width = len(marker.group("marker"))
-            space = marker.group("space")
-            # The content column: up to 4 spaces after the marker count; 5 or more
-            # mean an indented code block starts one space in.
-            gap = len(space.expandtabs(4)) if space else 1
-            content_offset = width + (gap if 1 <= gap <= 4 else 1)
+            has_content = bool(body[marker.end() :].strip())
+            keep = len(stack)
             sibling = None
-            while stack:
-                top = stack[-1]
+            while keep:
+                top = stack[keep - 1]
                 if col >= top.orig_marker + 2:
                     break
-                stack.pop()
+                keep -= 1
                 if col >= top.orig_marker:
                     sibling = top
                     break
-            if sibling is not None:
-                new_marker = sibling.new_marker
-            elif stack:
-                parent = stack[-1]
-                new_marker = parent.new_content + max(0, col - parent.orig_content)
-            else:
-                new_marker = col
-            stack.append(
-                _ListItemColumns(col, new_marker, col + content_offset, new_marker + content_offset)
-            )
-            out.append(shifted(line, col, body, new_marker - col))
-            prev_blank = False
-            continue
+            number = marker.group("number")
+            may_start_list = has_content and (number is None or int(number) == 1)
+            if sibling is None and prev_text and not may_start_list and keep:
+                # It can't open a sub-list inside the item's text. Short of the item's
+                # content column it isn't inside the item at all, so CommonMark reads it
+                # at the item's own level (the list's next item, or a new list there);
+                # moving it in, as D1 would, would make it the item's paragraph text.
+                top = stack[keep - 1]
+                if col < top.orig_content:
+                    keep -= 1
+                    sibling = top
+            if sibling is not None or not prev_text or may_start_list:
+                stack = stack[:keep]
+                if sibling is not None:
+                    # Moved as far as the sibling was, not onto its column: snapping a
+                    # staircase ("- a", " - b", "  - c") to one column would push the
+                    # unmoved lines after it deeper than CommonMark puts them.
+                    new_marker = col + sibling.new_marker - sibling.orig_marker
+                elif stack:
+                    parent = stack[-1]
+                    new_marker = parent.new_content + max(0, col - parent.orig_content)
+                else:
+                    new_marker = col
+                offset = _content_offset(col, marker)
+                stack.append(_ListItemColumns(col, new_marker, col + offset, new_marker + offset))
+                deltas[idx] = new_marker - col
+                out.append(
+                    line if new_marker == col else _moved_marker_line(col, body, marker, new_marker)
+                )
+                prev_blank, prev_text = False, has_content
+                continue
 
-        owner = next((item for item in reversed(stack) if col >= item.orig_content), None)
+        owner = _owner(stack, col)
         if owner is not None:
             delta = owner.new_content - owner.orig_content
         else:
@@ -258,18 +386,36 @@ def _nest_lists(md_text: str) -> str:
             ):
                 stack = []
             delta = 0
-        opening = _FENCE_RE.match(line)
-        if opening:
-            fence = opening.group(1)
-            fence_delta = delta
+        deltas[idx] = delta
         out.append(shifted(line, col, body, delta))
         prev_blank = False
+        prev_text = not (_LIST_ENDING_BLOCK_RE.match(body) or _THEMATIC_BREAK_RE.match(body))
     return "\n".join(out)
 
 
 # A pipe-table header row and the delimiter row under it (GFM "tables" extension).
 _TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)\S.*\|.*$|^ {0,3}\|")
 _TABLE_DELIM_RE = re.compile(r"^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+
+
+def _table_cell_count(row: str) -> int:
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return len(_UNESCAPED_PIPE_RE.split(row))
+
+
+def _starts_table(header: str, delimiter: str) -> bool:
+    """True when header and delimiter open a GFM table: a row with a pipe, then a
+    delimiter row with a pipe and the same number of cells. A bare "---" under a line
+    holding "|" is a setext heading underline, not a delimiter row."""
+    return (
+        _TABLE_ROW_RE.match(header) is not None
+        and _TABLE_DELIM_RE.match(delimiter) is not None
+        and "|" in delimiter
+        and _table_cell_count(header) == _table_cell_count(delimiter)
+    )
 
 
 def _separate_tables(md_text: str) -> str:
@@ -279,32 +425,19 @@ def _separate_tables(md_text: str) -> str:
     GFM lets a table interrupt a paragraph but not a list item's or a quote's lazy
     continuation, so there the header and delimiter rows read as more text. Inserting a
     blank line before the header makes them a table at the top level in every case.
-    Skipped inside a fenced code block, and when the line above is already a table row
-    (GFM makes those lines more body rows of the table above)."""
+    Skipped in code and raw HTML (_verbatim_lines), and when the line above is already
+    a table row (GFM makes those lines more body rows of the table above)."""
     lines = md_text.split("\n")
+    verbatim = _verbatim_lines(md_text)
     out: list[str] = []
-    fence: str | None = None
     in_table = False
     for i, line in enumerate(lines):
-        if fence is not None:
-            if _closes_fence(line, fence):
-                fence = None
-            out.append(line)
-            continue
-        fence_match = _FENCE_RE.match(line)
-        if fence_match:
-            fence = fence_match.group(1)
-            in_table = False
-            out.append(line)
-            continue
-        if not line.strip():
+        if i in verbatim or not line.strip():
             in_table = False
             out.append(line)
             continue
         starts_table = (
-            i + 1 < len(lines)
-            and _TABLE_ROW_RE.match(line) is not None
-            and _TABLE_DELIM_RE.match(lines[i + 1]) is not None
+            i + 1 < len(lines) and i + 1 not in verbatim and _starts_table(line, lines[i + 1])
         )
         if starts_table and not in_table and out and out[-1].strip():
             out.append("")
@@ -326,12 +459,18 @@ _SPACED_IMAGE_RE = re.compile(r"!\[([^\[\]\n]*)\]\(\s*([^\s()<>\"']+(?:[ \t]+[^\
 def _spaced_image_rule(state, silent: bool) -> bool:
     if not state.src.startswith("![", state.pos):
         return False
-    m = _SPACED_IMAGE_RE.match(state.src, state.pos)
-    if not m or not state.md.validateLink(m.group(2)):
+    # posMax bounds the match to the text being parsed: inside a link's label it is
+    # the label's end, not the end of the line.
+    m = _SPACED_IMAGE_RE.match(state.src, state.pos, state.posMax)
+    if not m:
+        return False
+    # Backslash escapes and entities resolve as in any other destination.
+    src = unescapeAll(m.group(2))
+    if not state.md.validateLink(src):
         return False
     if not silent:
         token = state.push("image", "img", 0)
-        token.attrs = {"src": m.group(2), "alt": ""}
+        token.attrs = {"src": src, "alt": ""}
         token.content = m.group(1)
         children: list[Token] = []
         state.md.inline.parse(m.group(1), state.md, state.env, children)
