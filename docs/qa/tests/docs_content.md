@@ -6216,6 +6216,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1234 QA round 1 (Sky) @ 79a7a38, step 5 only**
 `sky`. Only step 5 was in scope for #1208. Step 4's content was written with `create_doc(content_format="markdown")` to a scratch doc (trashed afterward), not with `write_doc_content` over the fixture. Steps 1–3, the raw/HTML checks and Playwright were not re-run. Step 5: `get_doc_as_markdown` returns `1. step one`, the `A | B` table, then `2. step two`, so the #1208 failure from the 2026-10-24 round is fixed.
 
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1234 QA round 2 (Sky) @ 2af4b0b, step 5 only**
+`sky`, after `/mcp reconnect`, with the same scope and method as round 1 (scratch doc, trashed afterward). Step 5: `1. step one`, the `A | B` table, `2. step two`.
+
 ---
 
 ### TC-DOC234: Table-cell images: text around one, a linked one, an unreachable one, and nested tables ⚠️ requires-oauth ⚠️ destructive
@@ -6313,3 +6316,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-25) ✅ PASS — PR #1234 QA round 1 (Sky) @ 79a7a38**
 `sky`, doc created in the default folder (trashed afterward). Step 1: no error. Step 2 txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. Docs' txt export writes level 1 as decimal (`1. a1`), not the preset's alpha glyph. `get_doc_structure` bullets: `a`/`a1`/`a2`/`b`/`b1`/`c` share one `listId`, and `x`/`y` share a different one. Step 3: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, `3. c` after the table, `1. x`, `2. y`, all matching step 2.
+
+**Result (2026-10-25) ✅ PASS — PR #1234 QA round 2 (Sky) @ 2af4b0b**
+`sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
