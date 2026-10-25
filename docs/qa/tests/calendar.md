@@ -758,6 +758,12 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): no future events on the fixture calendar (`[]`); a July window returned the TC-CAL20 event with the required fields. Ordering not checkable with one event.
 
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ⚠️ PARTIAL**
+`mcp-gee-sweet-sky` (OAuth), reconnected after the reset. No-filter `list_events` on {CALENDAR_ID} returned `[]` with no error, so the default `timeMin` (now `datetime.now(UTC)`, #1212) is still accepted by the API and excludes the past-dated seeded events. Not checked: field shape and ordering, since nothing on the calendar is after now.
+
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ⚠️ PARTIAL**
+After the pydantic 2.14.1 re-lock, reconnected: no-filter `list_events` returned `[]` with no error. Same gaps as round 1.
+
 ---
 
 ### TC-CAL10: time_min + time_max window

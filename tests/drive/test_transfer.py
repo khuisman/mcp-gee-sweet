@@ -5,7 +5,7 @@ import json
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -471,9 +471,9 @@ class TestUploadLocalFileConvert:
         and compares mtimes, so every conversion type must restamp."""
         local_file = tmp_path / file_name
         local_file.write_text("a,b\n1,2\n")
-        expected_mtime = datetime.fromtimestamp(
-            local_file.stat().st_mtime, tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        expected_mtime = datetime.fromtimestamp(local_file.stat().st_mtime, tz=UTC).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
         drive_svc.files.return_value.create.return_value.execute.return_value = {
@@ -1937,9 +1937,7 @@ def _drive_file(
 
 def _precise_mtime(path: Path) -> str:
     """The microsecond-precision source-mtime stamp #814 writes for `path`."""
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.%fZ"
-    )
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def _pop_uploaded_at(props: dict) -> str:
@@ -3270,9 +3268,9 @@ class TestSyncFolderConvertMarkdown:
         download the (unconvertible) Doc, and the file gets stuck 'failed' forever."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
-        local_mtime_str = datetime.fromtimestamp(
-            local_file.stat().st_mtime, tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        local_mtime_str = datetime.fromtimestamp(local_file.stat().st_mtime, tz=UTC).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         fs = _FakeDriveFS({"root": []})
         ctx = self._ctx(fs)
 
@@ -3328,9 +3326,9 @@ class TestSyncFolderConvertMarkdown:
         its property regardless of this call's flag."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
-        drive_mtime_str = datetime.fromtimestamp(
-            local_file.stat().st_mtime, tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        drive_mtime_str = datetime.fromtimestamp(local_file.stat().st_mtime, tz=UTC).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         fs = _FakeDriveFS(
             {
                 "root": [
@@ -3401,9 +3399,9 @@ class TestSyncFolderConvertMarkdown:
         sync_folder run."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
-        drive_mtime_str = datetime.fromtimestamp(
-            local_file.stat().st_mtime, tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        drive_mtime_str = datetime.fromtimestamp(local_file.stat().st_mtime, tz=UTC).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         # Simulates the Doc upload_local_file(convert=True) would have created —
         # same marker property, same mechanism, different call site.
         fs = _FakeDriveFS(
@@ -3510,7 +3508,7 @@ class TestSyncFolderConvertedDocChangeDetection:
     edits). The local side compares against the stamped mtime, the Drive side
     against revision history."""
 
-    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=UTC)
     _STAMP = "2025-06-01T00:00:00.000Z"
 
     def _ctx(self, fs: _FakeDriveFS):
@@ -3936,7 +3934,7 @@ class TestSyncFolderResolve:
     re-uploads in place. Every name is checked against a read-only plan of
     the whole tree before anything is written."""
 
-    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=UTC)
     _STAMP = "2025-06-01T00:00:00.000Z"
     _DRIVE_MTIME = "2030-01-01T00:00:00.000Z"
 
@@ -4472,7 +4470,7 @@ class TestSyncFolderDownloadMtimeRoundTrip:
             ctx=self._ctx(fs),
         )
 
-        local_mtime = datetime.fromtimestamp((tmp_path / "a.pdf").stat().st_mtime, tz=timezone.utc)
+        local_mtime = datetime.fromtimestamp((tmp_path / "a.pdf").stat().st_mtime, tz=UTC)
         expected = datetime.fromisoformat(drive_mtime.replace("Z", "+00:00"))
         assert abs((local_mtime - expected).total_seconds()) < 1
 
@@ -4554,7 +4552,7 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
     async def test_failed_download_keeps_existing_local_file_intact(self, tmp_path, monkeypatch):
         local = tmp_path / "big.bin"
         local.write_bytes(b"old local content")
-        old_mtime = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+        old_mtime = datetime(2020, 1, 1, tzinfo=UTC).timestamp()
         os.utime(local, (old_mtime, old_mtime))
         monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FailingDownloader)
         fs = self._fs()
@@ -4627,7 +4625,7 @@ class TestSyncFolderFailedDownloadLeavesNoPartial:
         read-only local file the way the old in-place write did."""
         local = tmp_path / "big.bin"
         local.write_bytes(b"protected")
-        old_mtime = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+        old_mtime = datetime(2020, 1, 1, tzinfo=UTC).timestamp()
         os.utime(local, (old_mtime, old_mtime))
         local.chmod(0o444)
 

@@ -24,6 +24,8 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Office/Business",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -83,7 +85,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 # QA fixtures are test input and must stay byte-for-byte as written: newer ruff
 # formats Python code blocks inside Markdown, which would rewrite them.
 extend-exclude = ["docs/qa/fixtures"]
@@ -102,7 +104,6 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.5",
-    "tomli>=2.0.1; python_version < '3.11'",
     "markdown-it-py>=3.0.0",
     "packaging>=26.3",
 ]
