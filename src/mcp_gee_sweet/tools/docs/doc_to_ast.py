@@ -40,9 +40,10 @@ _UNCHECKED_PREFIX = "☐ "  # "☐ "
 def document_to_ast(document: dict) -> list[DocNode]:
     """Walk a `documents().get()` response body into a list of DocNode."""
     nodes: list[DocNode] = []
+    list_counter = _ListCounter()
     for elem in document.get("body", {}).get("content", []):
         if "paragraph" in elem:
-            node = _paragraph_to_node(elem["paragraph"], document)
+            node = _paragraph_to_node(elem["paragraph"], document, list_counter)
             if node is not None:
                 nodes.append(node)
         elif "table" in elem:
@@ -52,13 +53,57 @@ def document_to_ast(document: dict) -> list[DocNode]:
     return nodes
 
 
-def _paragraph_to_node(para: dict, document: dict) -> DocNode | None:
+# Glyph types whose startNumber 0 Docs treats as 1 (the NestingLevel.startNumber
+# reference). A decimal level starting at 0 numbers 0, 1, 2.
+_ZERO_START_AS_ONE_GLYPHS = frozenset({"ALPHA", "UPPER_ALPHA", "ROMAN", "UPPER_ROMAN"})
+
+
+class _ListCounter:
+    """Each list item's ordinal in its Docs list, in document order (#1208).
+
+    Docs numbers a list by listId, so a table, quote, code block or paragraph
+    between two items doesn't restart it, and ast_to_markdown's old "1." on
+    every item read the continuation as a new list. Counts are per listId and
+    nesting level, and an item clears the counts of every level deeper than
+    its own, since Docs restarts a sublist under each new parent item.
+
+    Only body paragraphs are counted. A table-cell paragraph can share a body
+    list's listId (one createParagraphBullets over cell and body paragraphs),
+    but Docs' txt and HTML exports both number the body items after the table
+    from the list's start, not past the cell items (measured live, PR #1234 QA
+    round 1)."""
+
+    def __init__(self) -> None:
+        self._counts: dict[str, list[int]] = {}
+
+    def number(self, bullet: dict, level_props: dict | None, ordered: bool) -> int | None:
+        """Count this item and return its number, or None if it's unordered."""
+        counts = self._counts.setdefault(bullet.get("listId", ""), [])
+        depth = bullet.get("nestingLevel", 0)
+        del counts[depth + 1 :]
+        counts.extend([0] * (depth + 1 - len(counts)))
+        counts[depth] += 1
+        if not ordered:
+            return None
+        props = level_props or {}
+        start = props.get("startNumber", 1)
+        if start == 0 and props.get("glyphType") in _ZERO_START_AS_ONE_GLYPHS:
+            start = 1
+        return start + counts[depth] - 1
+
+
+def _paragraph_to_node(
+    para: dict, document: dict, list_counter: _ListCounter | None
+) -> DocNode | None:
+    """`list_counter` numbers a list item: pass one counter for a whole walk of
+    the body in document order, or None to leave `BulletItem.number` unset."""
     pstyle = para.get("paragraphStyle", {})
     named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
     runs = _paragraph_runs(para, document)
     bullet = para.get("bullet")
+    level_props = _nesting_level(bullet, document) if bullet else None
     blockquote_depth = _infer_blockquote_depth(
-        pstyle, _list_level_indent_start(bullet, document) if bullet else 0
+        pstyle, _list_level_indent_start(bullet, level_props) if bullet else 0
     )
 
     if bullet:
@@ -70,12 +115,14 @@ def _paragraph_to_node(para: dict, document: dict) -> DocNode | None:
             elif runs[0].text.startswith(_UNCHECKED_PREFIX):
                 checked = False
                 runs[0].text = runs[0].text[len(_UNCHECKED_PREFIX) :]
+        ordered = _is_ordered_level(level_props)
         return BulletItem(
             runs=runs,
             depth=bullet.get("nestingLevel", 0),
-            ordered=_bullet_is_ordered(bullet, document),
+            ordered=ordered,
             checked=checked,
             blockquote_depth=blockquote_depth,
+            number=list_counter.number(bullet, level_props, ordered) if list_counter else None,
         )
 
     if named_style in _HEADING_LEVELS:
@@ -100,21 +147,20 @@ def _nesting_level(bullet: dict, document: dict) -> dict | None:
     return levels[level] if level < len(levels) else None
 
 
-def _bullet_is_ordered(bullet: dict, document: dict) -> bool:
+def _is_ordered_level(level_props: dict | None) -> bool:
     """Mirrors style.py's create_paragraph_bullets `infer_preset` — a list's
     nesting-level glyph info is the only signal for ordered vs. unordered,
     since `bullet` itself carries no preset field of its own."""
-    level = _nesting_level(bullet, document)
-    return level is not None and "glyphType" in level
+    return level_props is not None and "glyphType" in level_props
 
 
-def _list_level_indent_start(bullet: dict, document: dict) -> float:
+def _list_level_indent_start(bullet: dict, level_props: dict | None) -> float:
     """indentStart, in points, that a list item's own list level gives it, before any
     blockquote indent emitter.py adds on top (#1056). Read from the doc's `lists`
-    map, falling back to the presets emitter.py writes."""
-    level = _nesting_level(bullet, document)
-    if level is not None and "indentStart" in level:
-        return level["indentStart"].get("magnitude", 0)
+    map (`level_props`, from `_nesting_level`), falling back to the presets
+    emitter.py writes."""
+    if level_props is not None and "indentStart" in level_props:
+        return level_props["indentStart"].get("magnitude", 0)
     return list_level_indents(bullet.get("nestingLevel", 0))[1]
 
 

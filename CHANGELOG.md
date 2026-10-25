@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### New tools
+
+- Gmail drafts can now be reviewed, edited, and discarded before sending: `list_drafts` (query and pagination; each draft's recipients, subject, and snippet), `get_draft` (same shape as `get_message`), `update_draft` (replaces the content and keeps the draft ID, the thread of a reply draft, and its send-as From; `keep_attachments=True` keeps the existing attachments), and `delete_draft`. None of them sends mail; `send_draft` is still the only way a draft goes out — #1205
+
 ### Changed
 
 - Markdown input (`create_doc`/`write_doc_content` with `content_format='markdown'`, `create_doc_from_file`, `update_doc_from_file`) is now parsed as CommonMark plus GitHub-flavored Markdown (markdown-it-py), the dialect models and most tools write, instead of Python-Markdown. Markdown that renders differently — #1116:
@@ -19,6 +23,8 @@ All notable changes to this project are documented in this file.
   - A line of only `-` is an empty list item instead of a setext heading underline or literal text. The empty item itself is still dropped (#1075).
   - YAML front matter (`---` … `---` at the top) now renders as a rule and then a Heading 2 of its text, where it used to render as a rule, a paragraph and a rule. It's still shown either way (#1173).
   - Until community PR #1164 lands, an item whose text is followed by an indented paragraph or code block loses its bullet or number (#1111). Python-Markdown dropped those blocks out of the list, so the item kept its bullet but lost the block's place in it.
+
+---
 
 ## [0.9.5] — 2026-10-24
 

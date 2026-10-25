@@ -123,6 +123,10 @@ class BulletItem:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    # Read side only (#1208): an ordered item's ordinal in its Docs list, counted across
+    # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
+    # Read-side metadata like blockquote_path, so it doesn't take part in equality.
+    number: int | None = field(default=None, compare=False)
 
 
 @dataclass

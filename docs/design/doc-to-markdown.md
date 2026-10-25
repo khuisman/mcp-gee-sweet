@@ -70,6 +70,23 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   `create_paragraph_bullets` already solved by reading `document["lists"][listId]
   ["listProperties"]["nestingLevels"][level]` (`glyphType` present → ordered, `glyphSymbol`
   present → unordered). Reused verbatim here rather than re-deriving it.
+- **Ordered-item numbers (#1208)**: Docs numbers a list by `listId`, so a table, quote, code
+  block or paragraph between two items doesn't restart it. `document_to_ast` counts body items
+  per `listId` and nesting level in document order (`_ListCounter`), clears the deeper levels'
+  counts at each item (Docs restarts a sublist under every new parent item), offsets by the
+  level's `startNumber`, and sets `BulletItem.number`. A `startNumber` of 0 counts as 1 only for
+  lettered and Roman-numeral levels, as the API reference says; a decimal level numbers from 0.
+  Table-cell items aren't counted: with cell paragraphs and body items on one `listId`, Docs'
+  txt and HTML exports both number the body items after the table from the list's start
+  (measured live, PR #1234 QA round 1).
+  `ast_to_markdown` writes that number, so an item resuming a list after a table starts its
+  Markdown list there (`3. c`). One exception: CommonMark lets an ordered list interrupt a
+  paragraph only when it starts at 1, and a sublist's first line follows its parent item's text
+  with just a newline, so a sublist whose first number isn't 1 writes `1.` there rather than
+  merging into the parent (`- a\n  5. a1` would read as one item). A blank line would keep the
+  number but make the parent list loose. An AST built by the write side has no number and still
+  renders `1.`. Writing a resumed list back still restarts it at 1 when a paragraph interrupts
+  it, because the write side ignores a list's start number (#1118).
 - **Checkbox state**: the write side has no `BULLET_CHECKBOX` preset — it prepends a literal
   `"☑ "`/`"☐ "` glyph to the item's own text (see emitter.py's comment on this). Read-back
   detects that exact prefix on the item's first run and strips it back off, setting

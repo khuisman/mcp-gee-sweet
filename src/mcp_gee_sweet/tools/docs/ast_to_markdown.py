@@ -76,7 +76,10 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
     parts: list[str] = []
     prev_node: DocNode | None = None
     for node in nodes:
-        rendered = _render_table(node) if isinstance(node, Table) else _render_block(node)
+        if isinstance(node, Table):
+            rendered = _render_table(node)
+        else:
+            rendered = _render_block(node, opens_sublist=_opens_sublist(node, prev_node))
         if prev_node is not None:
             # Consecutive list items get a single newline, not a blank line, so
             # they render as one "tight" list (CommonMark still parses a blank-
@@ -144,7 +147,33 @@ def _render_code_block(node: Paragraph) -> str:
     return "\n\n".join(segments)
 
 
-def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
+def _opens_sublist(node: DocNode, prev_node: DocNode | None) -> bool:
+    """Whether `node` is a list item nested under the item just before it, so its
+    line follows that item's text with only a newline between them."""
+    return (
+        isinstance(node, BulletItem)
+        and isinstance(prev_node, BulletItem)
+        and node.depth > prev_node.depth
+    )
+
+
+def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
+    """The item's real number, from doc_to_ast, so an item resuming a list after an
+    interrupting block starts its Markdown list there (#1208); "1." when unknown.
+
+    CommonMark lets an ordered list interrupt a paragraph only when it starts at 1.
+    A sublist's first line follows its parent item's text, so "- a\\n  5. a1" reads
+    "5. a1" as more of the parent's text. That item writes "1." instead, keeping the
+    sublist and losing only its start number (PR #1234 QA round 1). A blank line
+    before it would keep the number but make the parent list loose."""
+    if node.number is None or (opens_sublist and node.number != 1):
+        return "1. "
+    return f"{node.number}. "
+
+
+def _render_block(
+    node: Heading | Paragraph | BulletItem | NamedBlock, opens_sublist: bool = False
+) -> str:
     if isinstance(node, Paragraph) and _is_code_block(node):
         body = _render_code_block(node)
     elif isinstance(node, Heading):
@@ -159,7 +188,7 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
         if node.checked is not None:
             marker = "- [x] " if node.checked else "- [ ] "
         elif node.ordered:
-            marker = "1. "
+            marker = _ordered_marker(node, opens_sublist)
         else:
             marker = "- "
         body = f"{indent}{marker}{_render_inline(node.runs)}"
