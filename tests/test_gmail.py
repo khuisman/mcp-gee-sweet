@@ -1258,6 +1258,564 @@ class TestSendDraft:
         assert "error" in result
 
 
+def _drafts_api(gmail_svc):
+    return gmail_svc.users.return_value.drafts.return_value
+
+
+def _metadata_draft(draft_id: str, *, thread_id: str = "t1", headers: dict | None = None) -> dict:
+    return {
+        "id": draft_id,
+        "message": {
+            "id": f"m-{draft_id}",
+            "threadId": thread_id,
+            "snippet": f"snippet {draft_id}",
+            "labelIds": ["DRAFT"],
+            "payload": {
+                "headers": [{"name": k, "value": v} for k, v in (headers or {}).items()],
+            },
+        },
+    }
+
+
+def _get_by_id(drafts: dict[str, dict | Exception]):
+    """A drafts().get side_effect answering per draft id."""
+
+    def get(**kwargs):
+        answer = drafts[kwargs["id"]]
+        call = MagicMock()
+        if isinstance(answer, Exception):
+            call.execute.side_effect = answer
+        else:
+            call.execute.return_value = answer
+        return call
+
+    return get
+
+
+class TestListDrafts:
+    async def test_lists_drafts_with_their_headers(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).list.return_value.execute.return_value = {
+            "drafts": [
+                {"id": "d1", "message": {"id": "m-d1", "threadId": "t1"}},
+                {"id": "d2", "message": {"id": "m-d2", "threadId": "t2"}},
+            ],
+            "nextPageToken": "next",
+            "resultSizeEstimate": 2,
+        }
+        _drafts_api(gmail_svc).get.side_effect = _get_by_id(
+            {
+                "d1": _metadata_draft(
+                    "d1",
+                    headers={
+                        "To": "a@example.com",
+                        "Cc": "c@example.com",
+                        "Subject": "First",
+                        "Date": "Sun, 25 Oct 2026 10:00:00 +0000",
+                    },
+                ),
+                "d2": _metadata_draft(
+                    "d2", thread_id="t2", headers={"To": "b@example.com", "Subject": "Second"}
+                ),
+            }
+        )
+
+        result = await _gmail_tools["list_drafts"](
+            query="subject:First", page_token="tok", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["drafts"] == [
+            {
+                "id": "d1",
+                "message_id": "m-d1",
+                "thread_id": "t1",
+                "to": "a@example.com",
+                "cc": "c@example.com",
+                "bcc": None,
+                "subject": "First",
+                "date": "Sun, 25 Oct 2026 10:00:00 +0000",
+                "snippet": "snippet d1",
+            },
+            {
+                "id": "d2",
+                "message_id": "m-d2",
+                "thread_id": "t2",
+                "to": "b@example.com",
+                "cc": None,
+                "bcc": None,
+                "subject": "Second",
+                "date": None,
+                "snippet": "snippet d2",
+            },
+        ]
+        assert result["next_page_token"] == "next"
+        assert result["result_size_estimate"] == 2
+        _drafts_api(gmail_svc).list.assert_called_once_with(
+            userId="me", maxResults=50, includeSpamTrash=False, q="subject:First", pageToken="tok"
+        )
+        for call in _drafts_api(gmail_svc).get.call_args_list:
+            assert call.kwargs["format"] == "metadata"
+
+    async def test_max_results_is_clamped(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).list.return_value.execute.return_value = {}
+
+        result = await _gmail_tools["list_drafts"](
+            max_results=10_000, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["drafts"] == []
+        assert _drafts_api(gmail_svc).list.call_args.kwargs["maxResults"] == 500
+
+    async def test_unreadable_draft_keeps_ids_and_reports_error(self):
+        # A draft sent or deleted between drafts.list and drafts.get.
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).list.return_value.execute.return_value = {
+            "drafts": [
+                {"id": "gone", "message": {"id": "m-gone", "threadId": "t-gone"}},
+                {"id": "d1", "message": {"id": "m-d1", "threadId": "t1"}},
+            ],
+        }
+        _drafts_api(gmail_svc).get.side_effect = _get_by_id(
+            {"gone": Exception("notFound"), "d1": _metadata_draft("d1")}
+        )
+
+        result = await _gmail_tools["list_drafts"](ctx=_make_ctx(gmail_service=gmail_svc))
+
+        gone, ok = result["drafts"]
+        assert gone == {
+            "id": "gone",
+            "message_id": "m-gone",
+            "thread_id": "t-gone",
+            "error": "notFound",
+        }
+        assert ok["id"] == "d1"
+        assert "error" not in ok
+
+    async def test_list_error_returns_error_dict(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).list.return_value.execute.side_effect = Exception("fail")
+
+        result = await _gmail_tools["list_drafts"](ctx=_make_ctx(gmail_service=gmail_svc))
+
+        assert result == {"error": "fail"}
+        _drafts_api(gmail_svc).get.assert_not_called()
+
+    async def test_header_fetches_are_capped(self, monkeypatch):
+        # Real cross-thread concurrency: the barrier is inside execute().
+        monkeypatch.setattr(gmail_module, "_BODY_FETCH_CONCURRENCY", 2)
+        lock = threading.Lock()
+        in_flight = 0
+        peak = 0
+
+        def get(**kwargs):
+            def execute(**_):
+                nonlocal in_flight, peak
+                with lock:
+                    in_flight += 1
+                    peak = max(peak, in_flight)
+                time.sleep(0.02)
+                with lock:
+                    in_flight -= 1
+                return _metadata_draft(kwargs["id"])
+
+            return SimpleNamespace(execute=execute)
+
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).list.return_value.execute.return_value = {
+            "drafts": [{"id": f"d{i}"} for i in range(8)]
+        }
+        _drafts_api(gmail_svc).get.side_effect = get
+
+        result = await _gmail_tools["list_drafts"](ctx=_make_ctx(gmail_service=gmail_svc))
+
+        assert [d["id"] for d in result["drafts"]] == [f"d{i}" for i in range(8)]
+        assert peak == 2
+
+
+class TestGetDraft:
+    def _full_draft(self) -> dict:
+        message = _message(
+            "m-d1",
+            _text_part("text/plain", _b64(b"Hello draft")),
+            {
+                "partId": "1",
+                "filename": "note.txt",
+                "mimeType": "text/plain",
+                "body": {"attachmentId": "att-1", "size": 4},
+            },
+        )
+        message["labelIds"] = ["DRAFT"]
+        return {"id": "d1", "message": message}
+
+    async def test_shapes_message_like_get_message(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.return_value = self._full_draft()
+
+        result = await _gmail_tools["get_draft"](
+            draft_id="d1", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["id"] == "d1"
+        message = result["message"]
+        assert message["id"] == "m-d1"
+        assert message["thread_id"] == "t1"
+        assert message["label_ids"] == ["DRAFT"]
+        assert message["headers"]["subject"] == "subject m-d1"
+        assert message["body_plain"] == "Hello draft"
+        assert message["attachments"] == [
+            {
+                "filename": "note.txt",
+                "mime_type": "text/plain",
+                "size": 4,
+                "attachment_id": "att-1",
+            }
+        ]
+        _drafts_api(gmail_svc).get.assert_called_once_with(userId="me", id="d1", format="full")
+
+    async def test_include_body_false_fetches_metadata_only(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.return_value = _metadata_draft(
+            "d1", headers={"Subject": "S"}
+        )
+
+        result = await _gmail_tools["get_draft"](
+            draft_id="d1", include_body=False, ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["message"]["headers"]["subject"] == "S"
+        assert "body_plain" not in result["message"]
+        _drafts_api(gmail_svc).get.assert_called_once_with(userId="me", id="d1", format="metadata")
+
+    async def test_local_path_writes_json_with_draft_manifest(self, tmp_path):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.return_value = self._full_draft()
+
+        result = await _gmail_tools["get_draft"](
+            draft_id="d1", local_path=f"{tmp_path}/", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result["draft_id"] == "d1"
+        written = json.loads((tmp_path / "draft_d1.json").read_text())
+        assert written["id"] == "d1"
+        assert written["message"]["body_plain"] == "Hello draft"
+
+    async def test_api_error_returns_error_dict(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.side_effect = Exception("notFound")
+
+        result = await _gmail_tools["get_draft"](
+            draft_id="missing", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result == {"error": "notFound"}
+
+
+def _updated_raw(gmail_svc):
+    return _parse_raw(_drafts_api(gmail_svc).update.call_args.kwargs["body"]["message"]["raw"])
+
+
+class TestUpdateDraft:
+    def _svc(self, current: dict) -> MagicMock:
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.return_value = current
+        _drafts_api(gmail_svc).update.return_value.execute.return_value = {
+            "id": current["id"],
+            "message": {"id": "m-new", "threadId": "t1", "labelIds": ["DRAFT"]},
+        }
+        return gmail_svc
+
+    async def test_replaces_content_and_keeps_id(self):
+        gmail_svc = self._svc(_metadata_draft("d1", headers={"Subject": "old", "Cc": "x@e.com"}))
+
+        result = await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to=["new@example.com"],
+            subject="new subject",
+            body="new body",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert result == {
+            "id": "d1",
+            "message": {"id": "m-new", "thread_id": "t1", "label_ids": ["DRAFT"]},
+        }
+        kwargs = _drafts_api(gmail_svc).update.call_args.kwargs
+        assert kwargs["id"] == "d1"
+        assert kwargs["body"]["id"] == "d1"
+        msg = _updated_raw(gmail_svc)
+        assert msg["To"] == "new@example.com"
+        assert msg["Subject"] == "new subject"
+        assert msg["Cc"] is None
+        assert msg.get_payload(decode=True) == b"new body"
+        _drafts_api(gmail_svc).get.assert_called_once_with(userId="me", id="d1", format="metadata")
+
+    async def test_reply_draft_stays_in_its_thread(self):
+        gmail_svc = self._svc(
+            _metadata_draft(
+                "d1",
+                thread_id="t-reply",
+                headers={
+                    "From": "Me <alias@example.com>",
+                    "Subject": "Re: plans",
+                    "In-Reply-To": "<orig@example.com>",
+                    "References": "<root@example.com> <orig@example.com>",
+                },
+            )
+        )
+
+        await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="them@example.com",
+            subject="Re: plans",
+            body="revised",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        message = _drafts_api(gmail_svc).update.call_args.kwargs["body"]["message"]
+        assert message["threadId"] == "t-reply"
+        msg = _updated_raw(gmail_svc)
+        assert msg["In-Reply-To"] == "<orig@example.com>"
+        assert msg["References"] == "<root@example.com> <orig@example.com>"
+        assert msg["From"] == "Me <alias@example.com>"
+
+    async def test_draft_without_thread_sends_no_thread_id(self):
+        current = _metadata_draft("d1")
+        current["message"].pop("threadId")
+        gmail_svc = self._svc(current)
+
+        await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="a@example.com",
+            subject="s",
+            body="b",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        message = _drafts_api(gmail_svc).update.call_args.kwargs["body"]["message"]
+        assert "threadId" not in message
+        msg = _updated_raw(gmail_svc)
+        assert msg["In-Reply-To"] is None
+        assert msg["From"] is None
+
+    async def test_keep_attachments_carries_old_ones_before_new_ones(self):
+        old_raw = gmail_module._build_raw_message(
+            to="a@example.com",
+            subject="Re: s",
+            body="old body",
+            body_html="<p>old</p>",
+            attachments=[
+                {"content_base64": _b64(b"old one"), "filename": "old.txt"},
+                {"content_base64": _b64(b"\x89PNG"), "filename": "pic.png"},
+            ],
+            in_reply_to="<orig@example.com>",
+            references="<orig@example.com>",
+            from_="alias@example.com",
+        )
+        gmail_svc = self._svc(
+            {"id": "d1", "message": {"id": "m-d1", "threadId": "t1", "raw": old_raw}}
+        )
+
+        await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="a@example.com",
+            subject="Re: s",
+            body="new body",
+            attachments=[{"content_base64": _b64(b"new one"), "filename": "new.txt"}],
+            keep_attachments=True,
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        _drafts_api(gmail_svc).get.assert_called_once_with(userId="me", id="d1", format="raw")
+        msg = _updated_raw(gmail_svc)
+        body, *atts = msg.get_payload()
+        assert body.get_content_type() == "text/plain"
+        assert body.get_payload(decode=True) == b"new body"
+        assert [(a.get_filename(), a.get_payload(decode=True)) for a in atts] == [
+            ("old.txt", b"old one"),
+            ("pic.png", b"\x89PNG"),
+            ("new.txt", b"new one"),
+        ]
+        assert msg["In-Reply-To"] == "<orig@example.com>"
+        assert msg["From"] == "alias@example.com"
+        message = _drafts_api(gmail_svc).update.call_args.kwargs["body"]["message"]
+        assert message["threadId"] == "t1"
+
+    async def test_keep_attachments_on_draft_without_any(self):
+        old_raw = gmail_module._build_raw_message(to="a@example.com", subject="s", body="old")
+        gmail_svc = self._svc({"id": "d1", "message": {"id": "m-d1", "raw": old_raw}})
+
+        await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="a@example.com",
+            subject="s",
+            body="new",
+            keep_attachments=True,
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        msg = _updated_raw(gmail_svc)
+        assert msg.get_content_type() == "text/plain"
+        assert msg.get_payload(decode=True) == b"new"
+
+    async def test_without_keep_attachments_old_ones_are_dropped(self):
+        # format='metadata' carries no attachment bytes, so nothing old can be attached.
+        gmail_svc = self._svc(_metadata_draft("d1"))
+
+        await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="a@example.com",
+            subject="s",
+            body="b",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert _updated_raw(gmail_svc).get_content_type() == "text/plain"
+
+    async def test_get_error_skips_update(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).get.return_value.execute.side_effect = Exception("notFound")
+
+        result = await _gmail_tools["update_draft"](
+            draft_id="missing",
+            to="a@example.com",
+            subject="s",
+            body="b",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert result == {"error": "notFound"}
+        _drafts_api(gmail_svc).update.assert_not_called()
+
+    async def test_update_error_returns_error_dict(self):
+        gmail_svc = self._svc(_metadata_draft("d1"))
+        _drafts_api(gmail_svc).update.return_value.execute.side_effect = Exception("fail")
+
+        result = await _gmail_tools["update_draft"](
+            draft_id="d1",
+            to="a@example.com",
+            subject="s",
+            body="b",
+            ctx=_make_ctx(gmail_service=gmail_svc),
+        )
+
+        assert result == {"error": "fail"}
+
+
+class TestExistingDraftFromRaw:
+    def test_folded_headers_are_unfolded(self):
+        raw = (
+            b"From: alias@example.com\r\n"
+            b"To: a@example.com\r\n"
+            b"References: <one@example.com>\r\n <two@example.com>\r\n"
+            b"In-Reply-To:\r\n <two@example.com>\r\n"
+            b"\r\n"
+            b"body\r\n"
+        )
+        existing = gmail_module._existing_draft_from_raw(
+            {"threadId": "t1", "raw": _b64(raw, pad=False)}
+        )
+        assert existing.references == "<one@example.com> <two@example.com>"
+        assert existing.in_reply_to == "<two@example.com>"
+        assert existing.from_ == "alias@example.com"
+        assert existing.thread_id == "t1"
+        assert existing.attachments == []
+
+    def test_attachment_inside_attached_message_stays_with_it(self):
+        inner = gmail_module._build_raw_message(
+            to="x@example.com",
+            subject="inner",
+            body="inner body",
+            attachments=[{"content_base64": _b64(b"inner att"), "filename": "inner.txt"}],
+        )
+        outer = gmail_module._build_raw_message(
+            to="a@example.com",
+            subject="fwd",
+            body="see attached",
+            attachments=[
+                {
+                    "content_base64": base64.b64encode(base64.urlsafe_b64decode(inner)).decode(),
+                    "filename": "fwd.eml",
+                    "mime_type": "message/rfc822",
+                }
+            ],
+        )
+        existing = gmail_module._existing_draft_from_raw({"raw": outer})
+        assert [a.get_filename() for a in existing.attachments] == ["fwd.eml"]
+
+
+class TestDeleteDraft:
+    async def test_deletes_by_id(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).delete.return_value.execute.return_value = ""
+
+        result = await _gmail_tools["delete_draft"](
+            draft_id="d1", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result == {"id": "d1", "action": "deleted"}
+        _drafts_api(gmail_svc).delete.assert_called_once_with(userId="me", id="d1")
+
+    async def test_api_error_returns_error_dict(self):
+        gmail_svc = MagicMock()
+        _drafts_api(gmail_svc).delete.return_value.execute.side_effect = Exception("notFound")
+
+        result = await _gmail_tools["delete_draft"](
+            draft_id="missing", ctx=_make_ctx(gmail_service=gmail_svc)
+        )
+
+        assert result == {"error": "notFound"}
+
+
+class TestDraftToolsNeverSend:
+    """#1205: none of the draft-management tools may deliver mail. send_draft stays
+    the only way a draft goes out."""
+
+    _CALLS: ClassVar[list[tuple[str, dict]]] = [
+        ("list_drafts", {}),
+        ("get_draft", {"draft_id": "d1"}),
+        ("get_draft", {"draft_id": "d1", "include_body": False}),
+        ("update_draft", {"draft_id": "d1", "to": "a@example.com", "subject": "s", "body": "b"}),
+        (
+            "update_draft",
+            {
+                "draft_id": "d1",
+                "to": "a@example.com",
+                "subject": "s",
+                "body": "b",
+                "keep_attachments": True,
+            },
+        ),
+        ("delete_draft", {"draft_id": "d1"}),
+    ]
+
+    def test_covers_every_draft_management_tool(self):
+        assert {name for name, _ in self._CALLS} == {
+            "list_drafts",
+            "get_draft",
+            "update_draft",
+            "delete_draft",
+        }
+
+    @pytest.mark.parametrize(("name", "kwargs"), _CALLS)
+    async def test_never_calls_a_send_method(self, name, kwargs):
+        gmail_svc = MagicMock()
+        draft = _metadata_draft("d1")
+        draft["message"]["raw"] = gmail_module._build_raw_message(
+            to="a@example.com", subject="s", body="b"
+        )
+        _drafts_api(gmail_svc).list.return_value.execute.return_value = {"drafts": [{"id": "d1"}]}
+        _drafts_api(gmail_svc).get.return_value.execute.return_value = draft
+        _drafts_api(gmail_svc).update.return_value.execute.return_value = draft
+
+        result = await _gmail_tools[name](**kwargs, ctx=_make_ctx(gmail_service=gmail_svc))
+
+        assert "error" not in result
+        called = [c[0] for c in gmail_svc.mock_calls]
+        assert called, "the tool made no API call at all"
+        assert not [c for c in called if "send" in c or "insert" in c or "import_" in c]
+
+
 class TestReplyToMessage:
     async def test_sets_reply_headers_and_thread_id(self):
         gmail_svc = MagicMock()

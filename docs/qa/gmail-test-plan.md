@@ -1,7 +1,7 @@
 # Gmail — QA Test Plan
 
 **Status:** draft (2026-09-26), scoped under [#803](https://github.com/khuisman/mcp-gee-sweet/issues/803)
-**Source under test:** `src/mcp_gee_sweet/tools/gmail.py` (11 tools)
+**Source under test:** `src/mcp_gee_sweet/tools/gmail.py`
 **Case file:** [`tests/gmail.md`](tests/gmail.md) (TC-GM01–45. TC-GM26 is the #792 charset case, so the §4.2 cases start at 27.)
 
 This is the plan of record for testing the Gmail domain: what the mailbox fixture looks like, which behaviors need live coverage, and which gaps are tooling or product gaps rather than test gaps.
@@ -30,7 +30,7 @@ Things about the tool surface that shape how every case has to be written:
 1. **The QA mailbox can't create its own inbound mail.** `send_message` only produces mail *from* the mailbox under test. Two ways around it (see §3.1):
    - **A second, sender mailbox** (the maintainer's personal account, through the global `mcp-gee-sweet` server) sends real mail to the QA mailbox. That gives genuinely delivered messages: a real foreign `From`, Gmail's own MIME and `Message-ID`, real spam/category filtering, and two-party threads.
    - **`users.messages.insert`** from a scratch script (the TC-GM23 pattern) for anything `send_message` can't express: a custom `Reply-To`, a non-UTF-8 charset, a `multipart/related` inline image, a pre-labeled `SPAM`/`TRASH` message. `insert` works under `gmail.modify`; confirmed on PR #815.
-2. **No draft cleanup.** There's no `list_drafts`/`delete_draft`. Every `create_draft` that isn't then sent leaves a draft behind for good (via the tools). Cases must either send the draft (TC-GM15) or clean up by script.
+2. **No draft cleanup.** *Resolved by #1205:* cases now clean up with `delete_draft` (TC-GM48–53). Before it there was no `list_drafts`/`delete_draft`, so every `create_draft` that wasn't then sent left a draft behind (via the tools), and cases had to send the draft (TC-GM15) or clean up by script.
 3. **No untrash.** `trash_message` is one-way through the tools. Whether `modify_labels(remove_label_ids=["TRASH"])` restores a message is **unverified**; the API has a dedicated `untrash` endpoint. Test it once (TC-GM37) and record the answer here either way.
 4. **No label create/delete.** User-label cases need a pre-existing label, which the fixture script creates.
 5. **No attachment download.** `get_message` surfaces `attachment_id`, but nothing can fetch the bytes (out of scope per `decision-gmail-domain.md`). Attachment cases can only check metadata round-trips.

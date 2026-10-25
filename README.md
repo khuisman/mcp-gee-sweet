@@ -38,7 +38,7 @@ uvx --prerelease=allow mcp-gee-sweet
 | **Google Drive** | 38 | File ops, sharing/permissions, local sync, revision history |
 | **Google Docs** | 34 | Full HTML→Doc pipeline, tables, range styling, themes, Markdown export |
 | **Google Calendar** | 17 | Event CRUD, free-slot finder across multiple calendars |
-| **Gmail** | 11 | Search and read messages and threads, send and reply, drafts, labels (OAuth only) |
+| **Gmail** | 15 | Search and read messages and threads, send and reply, drafts you can review, edit, or discard before sending, labels (OAuth only) |
 
 ---
 

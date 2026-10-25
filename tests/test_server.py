@@ -1116,6 +1116,7 @@ _OPTIONAL_LOCAL_PATH_TOOLS = {
     "find_in_spreadsheet",
     "get_doc_as_markdown",
     "get_doc_content",
+    "get_draft",
     "get_message",
     "get_multiple_sheet_data",
     "get_multiple_spreadsheet_summary",
@@ -1124,6 +1125,7 @@ _OPTIONAL_LOCAL_PATH_TOOLS = {
     # gmail._read_attachment_bytes
     "create_draft",
     "send_message",
+    "update_draft",
     # content._resolve_image_source (Markdown/HTML image sources)
     "create_doc",
     "write_doc_content",

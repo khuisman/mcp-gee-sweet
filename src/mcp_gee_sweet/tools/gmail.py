@@ -674,11 +674,18 @@ def _build_raw_message(
     attachments: list[dict[str, Any]] | None = None,
     in_reply_to: str | None = None,
     references: str | None = None,
+    from_: str | None = None,
+    kept_attachments: list[Message] | None = None,
 ) -> str:
-    """Build a base64url-encoded RFC 2822 message for the Gmail API `raw` field."""
+    """Build a base64url-encoded RFC 2822 message for the Gmail API `raw` field.
+
+    from_ is a From header used as given (update_draft keeps a draft's send-as
+    alias). kept_attachments are already-built MIME parts, attached before the new
+    attachments (update_draft's keep_attachments).
+    """
 
     to_str = _format_address_header(to) or ""
-    has_attachments = bool(attachments)
+    has_attachments = bool(attachments) or bool(kept_attachments)
     use_alternative = body_html is not None
 
     if has_attachments:
@@ -690,6 +697,8 @@ def _build_raw_message(
             root.attach(alt)
         else:
             root.attach(MIMEText(body, "plain", "utf-8"))
+        for kept in kept_attachments or []:
+            root.attach(kept)
         for att in attachments or []:
             root.attach(_attachment_part(*_read_attachment_bytes(att)))
         msg = root
@@ -700,6 +709,8 @@ def _build_raw_message(
     else:
         msg = MIMEText(body, "plain", "utf-8")
 
+    if from_:
+        msg["From"] = from_
     msg["To"] = to_str
     msg["Subject"] = subject
     if cc_str := _format_address_header(cc):
@@ -767,6 +778,120 @@ def _message_summary(msg: dict[str, Any]) -> dict[str, Any]:
         "thread_id": msg.get("threadId"),
         "label_ids": msg.get("labelIds") or [],
     }
+
+
+def _draft_summary(draft: dict[str, Any]) -> dict[str, Any]:
+    """The id + nested message shape create_draft and update_draft return."""
+    message = draft.get("message") or {}
+    return {
+        "id": draft["id"],
+        "message": {
+            "id": message.get("id"),
+            "thread_id": message.get("threadId"),
+            "label_ids": message.get("labelIds") or [],
+        },
+    }
+
+
+def _draft_list_entry(draft: dict[str, Any]) -> dict[str, Any]:
+    """One list_drafts entry from a format='metadata' drafts.get result."""
+    message = draft.get("message") or {}
+    headers = _header_map((message.get("payload") or {}).get("headers"))
+    return {
+        "id": draft["id"],
+        "message_id": message.get("id"),
+        "thread_id": message.get("threadId"),
+        "to": headers.get("to"),
+        "cc": headers.get("cc"),
+        "bcc": headers.get("bcc"),
+        "subject": headers.get("subject"),
+        "date": headers.get("date"),
+        "snippet": message.get("snippet"),
+    }
+
+
+async def _fetch_draft_entry(
+    gmail_service: Any, stub: dict[str, Any], limit: asyncio.Semaphore
+) -> dict[str, Any]:
+    """Fetch one listed draft's headers for list_drafts. A draft that can't be read
+    (e.g. sent or deleted since the list call) keeps its ids and gets an error."""
+    async with limit:
+        try:
+            draft = await execute_in_thread(
+                gmail_service.users()
+                .drafts()
+                .get(userId=_USER, id=stub["id"], format="metadata")
+                .execute,
+                gmail_service,
+            )
+        except Exception as e:
+            message = stub.get("message") or {}
+            return {
+                "id": stub["id"],
+                "message_id": message.get("id"),
+                "thread_id": message.get("threadId"),
+                "error": str(e),
+            }
+    return _draft_list_entry(draft)
+
+
+def _unfold(value: str | None) -> str | None:
+    """A header value with its RFC 5322 folding line breaks removed, or None if blank."""
+    return "".join((value or "").splitlines()).strip() or None
+
+
+def _attachment_parts(msg: Message) -> list[Message]:
+    """The parts of a parsed message that get_message would list as attachments:
+    each part with a filename or an attachment disposition. Doesn't look inside an
+    attachment, so an attached message's own attachments stay part of it."""
+    out: list[Message] = []
+
+    def walk(part: Message) -> None:
+        for child in part.get_payload():
+            if child.get_content_disposition() == "attachment" or child.get_filename():
+                out.append(child)
+            elif child.get_content_maintype() == "multipart":
+                walk(child)
+
+    if msg.get_content_maintype() == "multipart":
+        walk(msg)
+    return out
+
+
+@dataclass
+class _ExistingDraft:
+    """What update_draft carries over from the draft it replaces."""
+
+    thread_id: str | None
+    from_: str | None
+    in_reply_to: str | None
+    references: str | None
+    attachments: list[Message] | None
+
+
+def _existing_draft_from_raw(message: dict[str, Any]) -> _ExistingDraft:
+    """Parse a format='raw' draft message. Runs off the event loop: the raw message
+    includes every attachment's bytes."""
+    data = message.get("raw") or ""
+    parsed = message_from_bytes(base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)))
+    return _ExistingDraft(
+        thread_id=message.get("threadId"),
+        from_=_unfold(parsed.get("From")),
+        in_reply_to=_unfold(parsed.get("In-Reply-To")),
+        references=_unfold(parsed.get("References")),
+        attachments=_attachment_parts(parsed),
+    )
+
+
+def _existing_draft_from_metadata(message: dict[str, Any]) -> _ExistingDraft:
+    headers = _header_map((message.get("payload") or {}).get("headers"))
+    return _ExistingDraft(
+        thread_id=message.get("threadId"),
+        from_=headers.get("from") or None,
+        in_reply_to=headers.get("in-reply-to") or None,
+        references=headers.get("references") or None,
+        attachments=None,
+    )
 
 
 def register(tool):
@@ -1149,16 +1274,8 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
-        message = draft.get("message") or {}
         logger.debug("Created draft %s", draft.get("id"))
-        return {
-            "id": draft["id"],
-            "message": {
-                "id": message.get("id"),
-                "thread_id": message.get("threadId"),
-                "label_ids": message.get("labelIds") or [],
-            },
-        }
+        return _draft_summary(draft)
 
     @tool(annotations=ToolAnnotations(title="Send Draft", destructiveHint=True))
     async def send_draft(draft_id: str, ctx: Context = None) -> dict[str, Any]:
@@ -1184,6 +1301,241 @@ def register(tool):
 
         logger.debug("Sent draft %s as message %s", draft_id, sent.get("id"))
         return _message_summary(sent)
+
+    @tool(annotations=ToolAnnotations(title="List Drafts", readOnlyHint=True))
+    async def list_drafts(
+        query: str | None = None,
+        max_results: int = 50,
+        page_token: str | None = None,
+        include_spam_trash: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        List drafts in the authenticated user's mailbox.
+
+        Args:
+            query: Gmail search syntax filter, e.g. 'to:alice@example.com subject:invoice'.
+            max_results: Maximum number of drafts to return (default 50, max 500).
+            page_token: Continuation token from a previous response for pagination.
+            include_spam_trash: When True, include drafts from SPAM and TRASH.
+
+        Returns:
+            Dictionary with drafts, optional next_page_token, and
+            result_size_estimate. Each draft has id (the draft ID, for get_draft,
+            update_draft, delete_draft and send_draft), message_id, thread_id, to, cc,
+            bcc, subject, date, and snippet. A draft whose headers can't be read
+            (e.g. sent or deleted since it was listed) has only id, message_id,
+            thread_id, and error. On API failure, returns {"error": "..."}.
+        """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
+        lc = ctx.request_context.lifespan_context
+        kwargs: dict[str, Any] = {
+            "userId": _USER,
+            "maxResults": clamp_max_results(max_results, _GMAIL_LIST_MAX),
+            "includeSpamTrash": include_spam_trash,
+        }
+        if query:
+            kwargs["q"] = query
+        if page_token:
+            kwargs["pageToken"] = page_token
+        try:
+            result = await execute_in_thread(
+                lc.gmail_service.users().drafts().list(**kwargs).execute,
+                lc.gmail_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        # drafts.list returns only ids, so each draft's headers take a drafts.get,
+        # capped like body fetches to stay under Gmail's per-user concurrency limit.
+        limit = asyncio.Semaphore(_BODY_FETCH_CONCURRENCY)
+        drafts = await gather_with_fallback(
+            result.get("drafts", []),
+            lambda stub: _fetch_draft_entry(lc.gmail_service, stub, limit),
+            lambda stub, exc: {"id": stub["id"], "error": str(exc)},
+        )
+        return _list_page(result, "drafts", drafts, "list_drafts")
+
+    @tool(annotations=ToolAnnotations(title="Get Draft", readOnlyHint=True))
+    async def get_draft(
+        draft_id: str,
+        local_path: str | None = None,
+        include_body: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Fetch a single draft by ID, including headers, body, and attachment metadata.
+
+        Args:
+            draft_id: The draft ID (from list_drafts or create_draft).
+            local_path: Optional local filesystem path (file or directory) to write the
+                        draft JSON to instead of returning it inline. Bypasses the
+                        response-size cap, for drafts with very large bodies. A path
+                        ending in '/' is a directory, created if missing. A file in
+                        place of a parent directory, or at a path ending in '/',
+                        raises ValueError; an existing file at a plain file path is
+                        replaced.
+            include_body: When False, fetch only metadata: no body is downloaded, and
+                          body_plain, body_html, and attachments are left out.
+
+        Returns:
+            {"id": draft ID, "message": ...}, where message has the same shape as
+            get_message's result (including its include_body=False shape and its
+            body_decode_errors / body_fetch_errors). Raises an error naming the size
+            if the draft is over the response-size cap and local_path is not set. If
+            local_path is set, returns {local_path, draft_id, bytes_written} instead,
+            plus body_fetch_errors / body_decode_errors (each entry with message_id)
+            when present. On API failure, {"error": "..."}.
+        """
+        if local_path:
+            # Before any fetch, so a refused destination costs no API call (#796).
+            check_write(local_path)
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
+        lc = ctx.request_context.lifespan_context
+        try:
+            # drafts.get has no metadataHeaders filter; shaping drops the extra headers.
+            draft = await execute_in_thread(
+                lc.gmail_service.users()
+                .drafts()
+                .get(userId=_USER, id=draft_id, format="full" if include_body else "metadata")
+                .execute,
+                lc.gmail_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        hint = "The draft body is large. " if include_body else "The draft headers are large. "
+        pending = [_start_shaping(draft.get("message") or {}, include_body=include_body)]
+        if not local_path:
+            enforce_response_size_floor(
+                _deferred_body_bytes(pending), tool_name="get_draft", hint=hint
+            )
+        [message] = await _finish_shaping_all(lc.gmail_service, pending)
+        shaped = {"id": draft["id"], "message": message}
+        if local_path:
+            return await write_capped_result_to_disk(
+                shaped,
+                local_path,
+                default_filename=f"draft_{draft_id}.json",
+                manifest_extra={"draft_id": draft_id, **_manifest_body_errors([message])},
+            )
+        enforce_response_size_cap(shaped, tool_name="get_draft", hint=hint)
+        return shaped
+
+    @tool(annotations=ToolAnnotations(title="Update Draft", destructiveHint=True))
+    async def update_draft(
+        draft_id: str,
+        to: str | list[str],
+        subject: str,
+        body: str,
+        cc: str | list[str] | None = None,
+        bcc: str | list[str] | None = None,
+        body_html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        keep_attachments: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Replace a draft's content without sending it. The draft keeps its ID.
+
+        The call's arguments replace the draft's old content: omitted cc, bcc,
+        body_html, and attachments are removed, not kept. A reply draft stays in
+        its thread, keeping its In-Reply-To and References headers, as long as the
+        subject still matches the thread's (Gmail's threading rule). The draft's
+        From (e.g. a send-as alias chosen in Gmail) is also kept.
+
+        Args:
+            draft_id: The draft ID (from list_drafts or create_draft).
+            to: Recipient email address, or a list of addresses.
+            subject: Email subject line.
+            body: Plain-text body.
+            cc: Optional CC address or list of addresses.
+            bcc: Optional BCC address or list of addresses.
+            body_html: Optional HTML body (sent alongside the plain-text body).
+            attachments: Optional list of attachment dicts to add. Each needs either
+                         local_path or content_base64, plus optional filename and
+                         mime_type (guessed from the filename's extension when
+                         omitted, else application/octet-stream).
+            keep_attachments: When True, keep the draft's current attachments (the
+                              ones get_draft lists), followed by any in attachments.
+
+        Returns:
+            Draft id and nested message id/thread_id/label_ids. The message id
+            changes on every update; the draft id doesn't. On failure,
+            {"error": "..."}.
+        """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
+        lc = ctx.request_context.lifespan_context
+        try:
+            # 'raw' only when the old attachments are needed: it carries their bytes.
+            current = await execute_in_thread(
+                lc.gmail_service.users()
+                .drafts()
+                .get(userId=_USER, id=draft_id, format="raw" if keep_attachments else "metadata")
+                .execute,
+                lc.gmail_service,
+            )
+            message = current.get("message") or {}
+            if keep_attachments:
+                existing = await asyncio.to_thread(_existing_draft_from_raw, message)
+            else:
+                existing = _existing_draft_from_metadata(message)
+            raw = await _compose_raw(
+                to=to,
+                subject=subject,
+                body=body,
+                body_html=body_html,
+                cc=cc,
+                bcc=bcc,
+                attachments=attachments,
+                in_reply_to=existing.in_reply_to,
+                references=existing.references,
+                from_=existing.from_,
+                kept_attachments=existing.attachments,
+            )
+            new_message: dict[str, Any] = {"raw": raw}
+            if existing.thread_id:
+                new_message["threadId"] = existing.thread_id
+            updated = await execute_in_thread(
+                lc.gmail_service.users()
+                .drafts()
+                .update(userId=_USER, id=draft_id, body={"id": draft_id, "message": new_message})
+                .execute,
+                lc.gmail_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        logger.debug("Updated draft %s", draft_id)
+        return _draft_summary(updated)
+
+    @tool(annotations=ToolAnnotations(title="Delete Draft", destructiveHint=True))
+    async def delete_draft(draft_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Permanently delete a draft. Unlike trash_message, it can't be recovered.
+
+        Args:
+            draft_id: The draft ID (from list_drafts or create_draft).
+
+        Returns:
+            {"id": draft_id, "action": "deleted"}. On failure, {"error": "..."}.
+        """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
+        lc = ctx.request_context.lifespan_context
+        try:
+            await execute_in_thread(
+                lc.gmail_service.users().drafts().delete(userId=_USER, id=draft_id).execute,
+                lc.gmail_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        logger.debug("Deleted draft %s", draft_id)
+        return {"id": draft_id, "action": "deleted"}
 
     @tool(annotations=ToolAnnotations(title="Reply to Message", destructiveHint=True))
     async def reply_to_message(
