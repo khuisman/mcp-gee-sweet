@@ -201,14 +201,14 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `list_threads` | List conversation threads in the authenticated user's mailbox. | `query?`, `label_ids?`, `max_results?`, `page_token?`, `include_spam_trash?` |
 | `get_thread` | Fetch all messages in a conversation thread. | `thread_id`, `local_path?`, `include_body?` |
 | `list_labels` | List all labels in the authenticated user's mailbox (system and user-defined). | — |
-| `send_message` | Send a new email message. | `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?` |
+| `send_message` | Send a new email message, after the user confirms it (by default). | `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?` |
 | `create_draft` | Create a draft email without sending it. | `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?` |
-| `send_draft` | Send an existing draft by ID. | `draft_id` |
+| `send_draft` | Send an existing draft by ID, after the user confirms it (by default). | `draft_id` |
 | `list_drafts` | List drafts in the authenticated user's mailbox. | `query?`, `max_results?`, `page_token?`, `include_spam_trash?` |
 | `get_draft` | Fetch a single draft by ID, including headers, body, and attachment metadata. | `draft_id`, `local_path?`, `include_body?` |
 | `update_draft` | Replace a draft's content without sending it. The draft keeps its ID. | `draft_id`, `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?`, `keep_attachments?` |
 | `delete_draft` | Permanently delete a draft. Unlike trash_message, it can't be recovered. | `draft_id` |
-| `reply_to_message` | Send a reply in an existing thread. | `message_id`, `body`, `body_html?`, `reply_all?` |
+| `reply_to_message` | Send a reply in an existing thread, after the user confirms it (by default). | `message_id`, `body`, `body_html?`, `reply_all?` |
 | `modify_labels` | Add or remove labels on a message or an entire thread. | `add_label_ids?`, `remove_label_ids?`, `message_id?`, `thread_id?` |
 | `trash_message` | Move a message to trash (recoverable). | `message_id` |
 

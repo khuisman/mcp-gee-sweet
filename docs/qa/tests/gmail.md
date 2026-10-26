@@ -14,6 +14,7 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 - **Sender mailbox.** TC-GM44–45 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
 - **Sharding.** Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.
 - **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 (replies into it).
+- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset), a client that shows form elicitations (Claude Code does), and the human at the keyboard to answer each form. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}`: under `direct` it returns `sent: true` (trash it); under `confirm` it opens a form (decline it, then `delete_draft` the returned `draft_id`).
 
 ---
 
@@ -1314,3 +1315,145 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+---
+
+## Send confirmation (`GMAIL_SEND=confirm`, #1081)
+
+Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human present (see Conventions, "Send mode"). The human answers each form; the case says how. TC-GM60–61 drive the server from a fresh interpreter instead, as the client under test. After every case, `list_messages` with `query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""` must find nothing unless the case says the email is sent.
+
+### TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ needs-human
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm56}"`, `cc: "{QA+tc-gm56-cc}"`, `subject: "[mcp-qa:tc-gm56] confirm"`, `body: "mcp-gee-sweet TC-GM56"`
+2. The human reads the form, checks **Send this email now**, and accepts.
+3. `get_message` with the returned `id`
+
+**Checks**
+- The form shows `From:` (the QA mailbox), `To: {QA+tc-gm56}`, `Cc: {QA+tc-gm56-cc}`, `Subject: [mcp-qa:tc-gm56] confirm`, and the body text
+- Step 1 returns `sent: true`, `id`, `thread_id`, `label_ids` with `SENT`, `draft_id`, and `recipient_flags: []`
+- Step 3: `label_ids` doesn't include `DRAFT`; `list_drafts` with `query: "subject:(mcp-qa tc-gm56)"` returns no drafts
+
+**Cleanup:** `trash_message` the step-1 `id`.
+
+---
+
+### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ needs-human
+
+**Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] decline"`, `body: "mcp-gee-sweet TC-GM57"`. The human **declines** the form.
+2. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] dismiss"`, `body: "mcp-gee-sweet TC-GM57"`. The human **dismisses** the form (Esc) without answering.
+3. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] unchecked"`, `body: "mcp-gee-sweet TC-GM57"`. The human accepts the form **without** checking the box.
+4. Playwright: open Gmail's Drafts folder for the QA mailbox (Playwright mutex per `run.md`)
+
+**Checks**
+- Steps 1–3 each return `sent: false`, a `draft_id`, and a `note` saying the email is in Gmail's Drafts folder. `reason` is `declined` for steps 1 and 3, and `cancelled` (or `declined`, if the client reports a dismissal as a decline) for step 2.
+- Step 4: all three `[mcp-qa:tc-gm57]` drafts are listed
+- Nothing was sent
+
+**Cleanup:** `delete_draft` each `draft_id`.
+
+---
+
+### TC-GM58: A held reply sits in the original thread ⚠️ needs-human
+
+**Playwright: required** (step 3, signed into the QA mailbox `{QA}`)
+
+**Setup:** run after TC-GM33. Take the `thread` fixture's first message ID as `{THREAD_MSG}` (`list_messages` with `query: "label:mcp-qa-fixture subject:(mcp-qa thread)"`).
+
+**Action**
+1. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM58 reply"`. The human declines the form.
+2. `get_draft` with the returned `draft_id`
+3. Playwright: open the `thread` fixture's conversation in the Gmail web UI
+
+**Checks**
+- The form shows `Subject: Re: [mcp-qa:thread] ...` and `To:` the original's sender
+- Step 1 returns `sent: false`, `reason: declined`, and `message.thread_id` equal to `{THREAD_MSG}`'s `thread_id`
+- Step 2: `message.headers.in_reply_to` equals the original's `headers.message_id`
+- Step 3: the conversation shows the unsent draft reply inside the thread
+- Nothing was sent
+
+**Cleanup:** `delete_draft` the step-1 `draft_id`. Don't touch the fixture.
+
+---
+
+### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ needs-human
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm59}"`, `subject: "[mcp-qa:tc-gm59] send_draft"`, `body: "mcp-gee-sweet TC-GM59"`. Record `id` as `{GM59_DRAFT}`.
+2. `send_draft` with `draft_id: "{GM59_DRAFT}"`. The human declines.
+3. `send_draft` with `draft_id: "{GM59_DRAFT}"` again. The human accepts with the box checked.
+
+**Checks**
+- Step 1 doesn't open a form
+- Step 2 returns `sent: false`, `reason: declined`, and a `note` saying the draft is still in the Drafts folder; `get_draft` on `{GM59_DRAFT}` still finds it
+- Step 3 returns `sent: true` with `label_ids` including `SENT`
+
+**Cleanup:** `trash_message` the step-3 `id`.
+
+---
+
+### TC-GM60: A client that can't ask gets drafts only ⚠️ requires-fresh-interpreter
+
+**Action:** in a fresh interpreter, start the slot's server with `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), ...)` (`GMAIL_SEND` unset), and run each step on a new client:
+1. `mode="legacy"`, no `elicitation_callback` (the client declares no elicitation): `send_message` with `to: "{QA+tc-gm60}"`, `subject: "[mcp-qa:tc-gm60] no elicitation"`, `body: "x"`
+2. Same client: `reply_to_message` with `message_id: "{THREAD_MSG}"` (TC-GM58), `body: "mcp-gee-sweet TC-GM60 reply"`
+3. Same client: `create_draft` (`to: "{QA+tc-gm60}"`, `subject: "[mcp-qa:tc-gm60] send_draft"`, `body: "x"`), then `send_draft` on its `id`
+4. `mode="2026-07-28"` with an `elicitation_callback` that always accepts with `{"send": true}`: repeat steps 1 and 3
+
+**Checks**
+- Every `send_message`, `reply_to_message` and `send_draft` result is a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation`, and a `draft_id` that `get_draft` finds
+- Step 2's draft has the original's `thread_id`
+- Step 4's callback is never called
+- Nothing was sent
+
+**Cleanup:** `delete_draft` every `draft_id`.
+
+---
+
+### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
+
+**Action:** fresh interpreter as in TC-GM60, `mode="legacy"`:
+1. `create_draft` with `to: "{QA+tc-gm61}"`, `subject: "[mcp-qa:tc-gm61] original"`, `body: "x"`. Record `id` as `{GM61_DRAFT}`.
+2. `send_draft` with `draft_id: "{GM61_DRAFT}"`, on a client whose `elicitation_callback` first calls `update_draft` on `{GM61_DRAFT}` through the same client (`subject: "[mcp-qa:tc-gm61] edited"`), then accepts with `{"send": true}`
+
+**Checks**
+- Step 2 returns `sent: false`, `reason: changed`
+- `get_draft` on `{GM61_DRAFT}` still finds it, with subject `[mcp-qa:tc-gm61] edited`
+- Nothing was sent
+
+**Cleanup:** `delete_draft` `{GM61_DRAFT}`.
+
+---
+
+### TC-GM62: Recipient flags show first in the form and in the result ⚠️ needs-human ⚠️ cross-mailbox
+
+Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a consumer QA mailbox, check instead that `outside_organization` never appears.
+
+**Action**
+1. `send_message` with `to: "{SENDER}"`, `cc: "{QA+tc-gm62-cc}"`, `bcc: "{QA+tc-gm62-bcc}"`, `subject: "[mcp-qa:tc-gm62] flags"`, `body: "mcp-gee-sweet TC-GM62"`. The human reads the form and declines.
+
+**Checks**
+- The form's first lines, before `From:`, are a `⚠` line naming `{SENDER}` as outside your organization and a `⚠` line naming `{QA+tc-gm62-bcc}` as a hidden (Bcc) recipient
+- The result has `sent: false` and `recipient_flags` with `outside_organization` (`addresses` is `{SENDER}` only, not the QA plus-addresses) and `hidden_recipients` (`count: 1`)
+- Nothing was sent, so `{SENDER}` received nothing
+
+**Cleanup:** `delete_draft` the returned `draft_id`.
+
+---
+
+### TC-GM63: `GMAIL_SEND=direct` sends at once
+
+Run on the `GMAIL_SEND=direct` slot.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm63}"`, `subject: "[mcp-qa:tc-gm63] direct"`, `body: "mcp-gee-sweet TC-GM63"`
+
+**Checks**
+- No form opens
+- Returns `sent: true`, `id`, `thread_id`, `label_ids` with `SENT`, and no `draft_id`
+- `list_drafts` with `query: "subject:(mcp-qa tc-gm63)"` returns no drafts
+
+**Cleanup:** `trash_message` the step-1 `id`.

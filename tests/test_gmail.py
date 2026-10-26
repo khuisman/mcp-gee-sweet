@@ -56,6 +56,15 @@ def _raw_payload_from_send_call(gmail_svc) -> bytes:
 _gmail_tool, _gmail_tools = _make_tool_registry()
 gmail_module.register(_gmail_tool)
 
+
+@pytest.fixture(autouse=True)
+def _direct_send(monkeypatch):
+    """Most tests here check what a send composes, so they run under GMAIL_SEND=direct.
+    The default confirm mode (#1081) is covered in tests/test_gmail_send_confirm.py,
+    which sets it explicitly."""
+    monkeypatch.setattr(gmail_module, "GMAIL_SEND", "direct")
+
+
 # Every header a shaped message surfaces, which a body-less fetch requests via
 # metadataHeaders (#793). Spelled out rather than imported from gmail.py, so a
 # change to the filter has to be made here too.
@@ -1163,7 +1172,12 @@ class TestSendMessage:
         assert parsed["To"] == "bob@example.com"
         assert parsed["Subject"] == "Hello"
         assert parsed["Cc"] == "cc@example.com"
-        assert result == {"id": "sent-1", "thread_id": "t-new", "label_ids": ["SENT"]}
+        assert result == {
+            "id": "sent-1",
+            "thread_id": "t-new",
+            "label_ids": ["SENT"],
+            "sent": True,
+        }
 
     async def test_encodes_non_ascii_display_names_without_mangling_address(self):
         gmail_svc = MagicMock()

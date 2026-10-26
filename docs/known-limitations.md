@@ -367,3 +367,29 @@ append.
 before repeating it. If a request legitimately takes Google longer than the timeout to start
 answering, such as a very large export or `batchUpdate`, raise `HTTP_TIMEOUT_SECONDS`. See
 `docs/decisions/decision-http-socket-timeout.md`.
+
+## Gmail
+
+### A send confirmation can't ask on a 2026-07-28 connection
+
+**What:** Under the default `GMAIL_SEND=confirm`, a client connected on MCP 2026-07-28 never
+sees a confirmation: `send_message` and `reply_to_message` save the email as a draft and return
+`sent: false`, and `send_draft` refuses. This happens even when the client declares form
+elicitation.
+
+**Why:** Revision 2026-07-28 removed server-initiated requests. Asking there takes an
+`InputRequiredResult` round trip, which isn't implemented yet (#1235).
+
+**Workaround:** Send the draft from Gmail's Drafts folder, connect with a client on the
+2025-11-25 `initialize` handshake, or set `GMAIL_SEND=direct`.
+
+### The changed-draft check has a short window before the send
+
+**What:** After the user confirms, the server reads the draft again and sends it only if its
+message ID is unchanged. An edit that lands between that read and Gmail's `drafts.send` would
+still be sent.
+
+**Why:** `drafts.send` takes no precondition, so the check has to be a separate request. The
+window is the time between two back-to-back API calls.
+
+**Workaround:** Don't edit a draft while its send confirmation is open.

@@ -38,7 +38,7 @@ uvx --prerelease=allow mcp-gee-sweet
 | **Google Drive** | 38 | File ops, sharing/permissions, local sync, revision history |
 | **Google Docs** | 34 | Full HTML→Doc pipeline, tables, range styling, themes, Markdown export |
 | **Google Calendar** | 17 | Event CRUD, free-slot finder across multiple calendars |
-| **Gmail** | 15 | Search and read messages and threads, send and reply, drafts you can review, edit, or discard before sending, labels (OAuth only) |
+| **Gmail** | 15 | Search and read messages and threads, send and reply, drafts you can review, edit, or discard before sending, labels (OAuth only). By default nothing is sent until the user confirms it; a client that can't ask leaves the email as a draft. See [Gmail sending](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#gmail-sending) |
 
 ---
 

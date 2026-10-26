@@ -21,6 +21,8 @@
 | `MAX_TOOL_RESPONSE_CHARS` | Safety cap on response size, in characters, for tools that can return large inline payloads (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `list_doc_comments`, `list_file_activity`, `export_file`, `sync_folder`, `list_all_events`, `list_calendar_acl`, `get_message`, `get_thread`). Defense-in-depth against MCP clients that don't degrade gracefully on an oversized tool response — see [decision-response-size-cap-reevaluation-519.md](decisions/decision-response-size-cap-reevaluation-519.md) for why the default was raised and what it does and doesn't protect against | `1000000` |
 | `LIST_ALL_EVENTS_MAX_CONCURRENCY` | Most calendars `list_all_events` queries at once, shared across every concurrent `list_all_events` call on the server, to stay under the Calendar API's per-user rate limit. Raise it for faster fan-out on accounts subscribed to many calendars; lower it for a stricter rate-limit posture. Values below 1 are treated as 1 | `20` |
 | `HTTP_TIMEOUT_SECONDS` | How long one socket operation of a Google API request (connecting, sending, or waiting for data) may block before the request fails. It applies per operation, not to the whole request: a long download or upload that keeps moving data never hits it. A read that times out is retried once on a new connection; a write isn't, and its error says it may still have been applied. Raise it if Google legitimately takes longer than this to start answering a request, such as a very large export or `batchUpdate`. An invalid or non-positive value logs a warning and uses the default; a value over one day (`86400`), `inf` included, logs a warning and uses one day. See [decision-http-socket-timeout.md](decisions/decision-http-socket-timeout.md) | `60` |
+| `GMAIL_SEND` | How `send_message`, `reply_to_message` and `send_draft` deliver mail: `confirm` or `direct`. An unrecognized value logs a warning and uses `confirm`. See [Gmail sending](#gmail-sending) | `confirm` |
+| `GMAIL_SEND_WARN_RECIPIENTS` | Flag a send whose unique To, Cc and Bcc addresses number more than this. An invalid or negative value logs a warning and uses the default. See [Gmail sending](#gmail-sending) | `10` |
 | `HOST` (or `FASTMCP_HOST`) | Bind address for the SSE and streamable HTTP transports. `FASTMCP_HOST` is a fallback if `HOST` isn't set. Any address other than loopback needs `MCP_SERVER_TOKEN`. See [HTTP transport authentication](#http-transport-authentication) | `127.0.0.1` |
 | `PORT` (or `FASTMCP_PORT`) | Port for the SSE and streamable HTTP transports. `FASTMCP_PORT` is a fallback if `PORT` isn't set | `8000` |
 | `MCP_SERVER_TOKEN` | Bearer token every SSE and streamable HTTP request must send. See [HTTP transport authentication](#http-transport-authentication) | — |
@@ -206,3 +208,28 @@ The cache directory is created owner-only (`0700`) and the DB and its `-wal`/`-s
 Each entry is stored under the Google identity it was fetched as (the account's Drive permission ID, or a service account's email when Drive can't say), so two accounts sharing one DB file never see each other's entries. Invalidation isn't per identity: `refresh_cache` and a write's invalidation reach every identity's copy. Until the server has read the identity (at connection start, retried on every tool call), nothing is cached. A cached sheet list is served stale only when Google couldn't answer (a 5xx, a 429, or a network failure), never in place of a refusal such as a 403 or 404.
 
 Versions up to 0.9.2 kept the cache in `/tmp/mcp_gee_sweet.db`, readable by every local user. The server never reads that file again; on start-up with `CACHE_DB_PATH` unset it makes the file owner-only if it's yours, but doesn't delete it. Delete `/tmp/mcp_gee_sweet.db` and its `-wal`/`-shm` files yourself.
+
+## Gmail sending
+
+By default (`GMAIL_SEND=confirm`) no email goes out on the agent's call alone:
+
+- `send_message` and `reply_to_message` first save the message as a Gmail draft. A reply draft goes in the original thread.
+- If the MCP client can show a form, the server asks the user to confirm. The form shows any recipient flags (below) first, then the From address, every recipient grouped by To, Cc and Bcc, the subject, the attachment names, and the start of the body. It's built from the draft as Gmail stores it.
+- Only an explicit yes sends the draft. Declining, cancelling, no answer within 10 minutes, or a failed request leaves the draft unsent. The tool then returns `sent: false`, a `reason`, the `draft_id`, and a note saying the email is waiting in Gmail's Drafts folder, where the user can review and send it.
+- If the client can't show a form, nothing is sent: `send_message` and `reply_to_message` return the held draft, and `send_draft` refuses.
+- A draft changed after the user confirmed it (for example by `update_draft`) isn't sent, since it's no longer what the user saw.
+
+Confirmation needs a client that connects with the 2025-11-25 `initialize` handshake and supports form elicitation (Claude Code, Cursor, VS Code, Codex and Goose do; Claude Desktop, claude.ai connectors, ChatGPT and several others don't). On a 2026-07-28 connection the server has no way to ask, so mail always stays a draft there.
+
+**A client hook that auto-accepts elicitations with a yes makes `confirm` behave like `direct`.** The server can't tell a hook's answer from the user's.
+
+`GMAIL_SEND=direct` restores immediate delivery for all three tools, with no draft step and no confirmation. Their only guard is then `destructiveHint`, which clients treat as a hint and skip once a tool is auto-approved.
+
+**Recipient flags.** Every send under `confirm` reports these in the confirmation and in the result's `recipient_flags`:
+
+| Flag | When |
+|---|---|
+| `outside_organization` | Google Workspace accounts only: a recipient whose domain isn't the account's own domain or one of its send-as alias domains. Matching is exact, so `sub.example.com` counts as outside `example.com`. Never shown on consumer accounts (`gmail.com`, `googlemail.com`) |
+| `outside_organization_unchecked` | The server couldn't look up the mailbox's own address, so the check above didn't run |
+| `many_recipients` | More than `GMAIL_SEND_WARN_RECIPIENTS` unique addresses across To, Cc and Bcc |
+| `hidden_recipients` | Any Bcc, with the count |
