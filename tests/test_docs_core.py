@@ -734,8 +734,8 @@ class TestBlockquoteEmitter:
         requests, _ = _html_to_doc_requests(html)
         return self._bullet_quote_requests(requests)
 
-    def test_quoted_bullet_indent_adds_to_list_level_indent(self):
-        """Level-0 list item: the preset's 36/18 plus the 36pt quote indent."""
+    def test_quoted_bullet_keeps_border_at_quote_indent(self):
+        """The border follows the quote while the text retains its list indent."""
         (req,) = self._html_bullet_quote_requests("<blockquote><ul><li>a</li></ul></blockquote>")
         style = req["paragraphStyle"]
         assert style["indentStart"]["magnitude"] == 36
@@ -757,7 +757,7 @@ class TestBlockquoteEmitter:
             {"startIndex": 6, "endIndex": 10},
             {"startIndex": 10, "endIndex": 12},
         ]
-        assert [r["paragraphStyle"]["indentStart"]["magnitude"] for r in reqs] == [72, 108, 144, 72]
+        assert [r["paragraphStyle"]["indentStart"]["magnitude"] for r in reqs] == [36, 36, 36, 36]
         assert [r["paragraphStyle"]["indentFirstLine"]["magnitude"] for r in reqs] == [
             54,
             90,
@@ -798,13 +798,12 @@ class TestBlockquoteEmitter:
         requests, _ = ast_to_requests(nodes)
         (req,) = self._bullet_quote_requests(requests)
         assert req["range"] == {"startIndex": 1, "endIndex": 6}
-        assert req["paragraphStyle"]["indentStart"]["magnitude"] == 72 + 72
+        assert req["paragraphStyle"]["indentStart"]["magnitude"] == 72
         assert req["paragraphStyle"]["indentFirstLine"]["magnitude"] == 54 + 72
 
     def test_quoted_bullet_list_level_capped_at_8(self):
-        """Docs caps nestingLevel at 8, so an item deeper than that sits at level 8 and
-        its quote indent adds to level 8's indents, not a level that doesn't exist
-        (PR #1089 QA round 1)."""
+        """Docs caps nestingLevel at 8; quoted items still anchor their border to the
+        quote indent while first-line positioning retains the capped list level."""
         from mcp_gee_sweet.tools.docs.ast import BulletItem, Run
         from mcp_gee_sweet.tools.docs.emitter import ast_to_requests
 
@@ -815,9 +814,9 @@ class TestBlockquoteEmitter:
         reqs = self._bullet_quote_requests(requests)
         starts = [r["paragraphStyle"]["indentStart"]["magnitude"] for r in reqs]
         first_lines = [r["paragraphStyle"]["indentFirstLine"]["magnitude"] for r in reqs]
-        assert starts[8:] == [36 + 36 * 8 + 36] * 3
+        assert starts[8:] == [36] * 3
         assert first_lines[8:] == [18 + 36 * 8 + 36] * 3
-        assert starts[7] == 36 + 36 * 7 + 36
+        assert starts[7] == 36
 
 
 class TestBlockquotePath:
