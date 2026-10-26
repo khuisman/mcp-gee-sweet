@@ -1336,6 +1336,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 
 **Cleanup:** `trash_message` the step-1 `id`.
 
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed From (the QA mailbox), To, Cc, Subject and the fenced body. The callback accepted with `send: true`: the result had `sent: true`, `id`, `thread_id`, `draft_id`, label_ids `SENT` (no `DRAFT`), and `recipient_flags: []`. `list_drafts` for `tc-gm56` returned 0. Message trashed.
+
 ---
 
 ### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ needs-human
@@ -1354,6 +1357,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 - Nothing was sent
 
 **Cleanup:** `delete_draft` each `draft_id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The callback declined (step 1), cancelled (step 2) and accepted with `send: false` (step 3). The results had `sent: false` with `reason` `declined`, `cancelled` and `declined` respectively, each with a `draft_id` and the Drafts-folder note. Step 4 (Playwright, Gmail search `in:drafts`) listed all three `[mcp-qa:tc-gm57]` drafts. Nothing sent; drafts deleted.
 
 ---
 
@@ -1377,6 +1383,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 
 **Cleanup:** `delete_draft` the step-1 `draft_id`. Don't touch the fixture.
 
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To:` the original's sender, and an `outside_organization` flag for that sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's. `get_draft`'s `in_reply_to` equals the original's `message_id`. Step 3 (Playwright) shows the thread with the unsent `Re:` reply draft open inline. Nothing sent; draft deleted, fixture untouched.
+
 ---
 
 ### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ needs-human
@@ -1392,6 +1401,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 - Step 3 returns `sent: true` with `label_ids` including `SENT`
 
 **Cleanup:** `trash_message` the step-3 `id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and the still-in-Drafts note; `get_draft` still found the draft. `send_draft` accepted: `sent: true` with label_ids `SENT`. Message trashed.
 
 ---
 
@@ -1414,6 +1426,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
 Fresh interpreter over stdio against the sky slot (oauth, `GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft's `message.thread_id` matched the original's. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `in:sent` found nothing for `tc-gm60`, and every draft was deleted.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Re-run after the fix commit's refactor (`_draft_then_confirm`): same outcomes as round 1, and the callback was called 0 times on the 2026-07-28 client.
+
 ---
 
 ### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
@@ -1432,6 +1447,9 @@ Fresh interpreter over stdio against the sky slot (oauth, `GMAIL_SEND` unset). L
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
 Fresh interpreter, legacy client. The elicitation callback's nested `update_draft` call succeeded and gave the draft a new message ID under the same draft ID. `send_draft` then returned `sent: false`, `reason: changed`. `get_draft` still found the draft, with subject `[mcp-qa:tc-gm61] edited`. `in:sent` found nothing for `tc-gm61`, and the draft was deleted.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Re-run: `reason: changed`, and the draft kept the edited subject.
+
 ---
 
 ### TC-GM62: Recipient flags show first in the form and in the result ⚠️ needs-human ⚠️ cross-mailbox
@@ -1448,6 +1466,9 @@ Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a cons
 
 **Cleanup:** `delete_draft` the returned `draft_id`.
 
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. Workspace QA mailbox, with `{SENDER}` on a consumer domain. The form's first lines, before `From:`, were a `⚠` outside-organization line naming `{SENDER}` and a `⚠` hidden-recipient line naming `{QA+tc-gm62-bcc}`. Declined: `sent: false`, `outside_organization` with `addresses` `{SENDER}` only, and `hidden_recipients` `count: 1`. Nothing sent; draft deleted.
+
 ---
 
 ### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ needs-human
@@ -1462,6 +1483,9 @@ Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a cons
 - Returns `sent: false`, `reason: declined`; nothing was sent
 
 **Cleanup:** `delete_draft` the returned `draft_id`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Driven from a fresh interpreter (legacy client, declining callback) for the reason under TC-GM56. `To:` read `José Ñúñez <…>`, with no `=?utf-8?`. `Body (84 characters):` was followed by the three body lines, each prefixed `│ `. The HTML section read `│ HTML-ONLY-CONTENT`, with no `hidden()`. `sent: false`, `reason: declined`. All checks pass. A separate probe, `body_html="<head><p>…</p>"`, gave an empty HTML section that a browser renders as visible text (send-back on the PR, not this case's checks).
 
 ---
 
