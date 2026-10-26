@@ -349,6 +349,28 @@ operator limits tools to directories meant for them.
 **Workaround:** Use `LOCAL_FILE_ACCESS=roots` with roots that hold only files meant for the
 server.
 
+---
+
+## MCP clients
+
+### Some clients refuse the full tool set
+
+**What:** With every tool registered (the default), the server is over the tool cap of several
+MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
+128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
+model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+Google Antigravity is reported to reject a server with more than 100 tools.
+
+**Why:** The caps are the clients' own, and the server registers every tool unless told
+otherwise, so it works out of the box on clients without a cap. A smaller default tool set is a
+separate design question.
+
+**Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
+[suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
+config is in [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
+
+---
+
 ## Google API requests
 
 ### A write that times out may still have been applied

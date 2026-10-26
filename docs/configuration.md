@@ -91,29 +91,53 @@ If neither is set, all tools are registered.
 
 ### Suggested subsets
 
-**Read-only Sheets:**
+Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On those clients, pick one of these subsets. Each one is under 100 tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
+
+To combine two subsets, join their lists with a comma (a name listed twice is fine) and add up the counts to check you're still under your client's limit. Windsurf's 100 also counts every other server's tools.
+
+**Read-only Sheets** (7 tools):
 ```
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets
 ```
 
-**Sheets read + write:**
+**Sheets read + write** (14 tools):
 ```
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns,import_csv_to_sheet
 ```
 
-**Docs only:**
+**Docs essentials** (12 tools):
 ```
 create_doc,create_doc_from_file,get_doc_content,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
 ```
 
-**Calendar only:**
+**Calendar only** (17 tools):
 ```
 list_calendars,get_calendar,create_calendar,update_calendar,delete_calendar,add_calendar_to_list,remove_calendar_from_list,list_calendar_acl,add_calendar_acl,remove_calendar_acl,list_events,list_all_events,get_event,create_event,update_event,delete_event,find_free_slots
 ```
 
-**Gmail only:**
+**Gmail only** (15 tools):
 ```
 list_messages,get_message,list_threads,get_thread,list_labels,send_message,create_draft,send_draft,list_drafts,get_draft,update_draft,delete_draft,reply_to_message,modify_labels,trash_message
+```
+
+**All Sheets tools** (40 tools):
+```
+get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,clear_values,update_cells,batch_update_cells,batch_update,list_sheets,copy_sheet,duplicate_sheet,rename_sheet,create_sheet,add_rows,add_columns,delete_sheet,delete_rows,delete_columns,hide_rows,unhide_rows,hide_columns,unhide_columns,resize_rows,resize_columns,format_cells,update_borders,add_data_validation,get_data_validation,clear_data_validation,merge_cells,unmerge_cells,freeze,update_sheet_properties,sort_range,add_chart,create_spreadsheet,import_csv_to_sheet,list_spreadsheets,search_spreadsheets
+```
+
+**All Drive tools** (34 tools):
+```
+list_folders,list_drives,list_files,search_files,get_file_metadata,create_folder,create_shortcut,copy_file,move_file,rename_file,star_file,unstar_file,list_shared_with_me,list_recent_files,get_storage_quota,delete_file,restore_file,empty_trash,export_file,list_revisions,export_revision,upload_file,upload_local_file,upload_local_folder,download_file,download_folder,sync_folder,share_spreadsheet,list_permissions,update_permission,remove_permission,transfer_ownership,share_file,list_file_activity
+```
+
+**All Docs tools** (34 tools):
+```
+create_doc,create_doc_from_file,get_doc_content,write_doc_content,update_doc_from_file,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,insert_page_break,insert_softbreak_paragraph,insert_inline_image,insert_local_images,insert_doc_table,insert_table_row,delete_table_row,insert_table_column,merge_table_cells,delete_table_column,style_doc_range,style_doc_table_cells,create_paragraph_bullets,delete_paragraph_bullets,get_doc_theme,get_doc_named_styles,apply_theme,create_header,create_footer,list_doc_comments,add_doc_comment,resolve_doc_comment,create_named_range,create_bookmark,get_doc_as_markdown
+```
+
+**Docs + Drive (combined example)** (68 tools):
+```
+create_doc,create_doc_from_file,get_doc_content,write_doc_content,update_doc_from_file,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,insert_page_break,insert_softbreak_paragraph,insert_inline_image,insert_local_images,insert_doc_table,insert_table_row,delete_table_row,insert_table_column,merge_table_cells,delete_table_column,style_doc_range,style_doc_table_cells,create_paragraph_bullets,delete_paragraph_bullets,get_doc_theme,get_doc_named_styles,apply_theme,create_header,create_footer,list_doc_comments,add_doc_comment,resolve_doc_comment,create_named_range,create_bookmark,get_doc_as_markdown,list_folders,list_drives,list_files,search_files,get_file_metadata,create_folder,create_shortcut,copy_file,move_file,rename_file,star_file,unstar_file,list_shared_with_me,list_recent_files,get_storage_quota,delete_file,restore_file,empty_trash,export_file,list_revisions,export_revision,upload_file,upload_local_file,upload_local_folder,download_file,download_folder,sync_folder,share_spreadsheet,list_permissions,update_permission,remove_permission,transfer_ownership,share_file,list_file_activity
 ```
 
 See [Tools](tools.md) for the full list of tool names.

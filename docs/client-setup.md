@@ -79,6 +79,88 @@ To restrict tools at the client level, pass `--include-tools` as a CLI arg:
 
 See [Configuration](configuration.md#tool-filtering) for suggested subsets.
 
+## Clients with a tool limit
+
+Several MCP clients cap how many tools they accept, and with every tool registered the server is over each of these caps:
+
+| Client | Limit | What happens over it |
+|---|---|---|
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, VS Code's built-in tools included ([docs](https://code.visualstudio.com/docs/agents/run/tools)) | The request fails with "Cannot have more than 128 tools per request" |
+| Windsurf | 100 tools in total, across every server ([docs](https://docs.devin.ai/desktop/cascade/mcp)) | Not documented |
+| Cursor | Depends on the model (older builds capped it at 40) | "Too many MCP tools are enabled for this mode", or only part of the tool list is used |
+| Google Antigravity | 100 tools per server (user report) | The server is rejected |
+
+The fix is the same everywhere: set `ENABLED_TOOLS` to one of the [suggested subsets](configuration.md#suggested-subsets), each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.
+
+The snippets below use the **Read-only Sheets** subset with the PyPI install (`uvx`); swap in the list you want. For a cloned repo, use the `uv run --directory` command from [Claude Desktop](#stdio-cloned-repo) instead. `--include-tools <list>` at the end of `args` works too, in place of the `ENABLED_TOOLS` entry.
+
+### VS Code + GitHub Copilot
+
+In `.vscode/mcp.json` (workspace) or your user-profile `mcp.json`. VS Code's format uses a top-level `servers` key ([reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)):
+
+```json
+{
+  "servers": {
+    "mcp-gee-sweet": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-gee-sweet"],
+      "env": {
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json",
+        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+      }
+    }
+  }
+}
+```
+
+The 128 includes VS Code's own tools and every other server's, so a subset near 100 can still go over it with other servers enabled. You can also deselect tools or whole servers in the chat view's tools picker. That choice is saved in your VS Code profile, while `ENABLED_TOOLS` travels with the server config.
+
+### Cursor
+
+In `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "mcp-gee-sweet": {
+      "command": "uvx",
+      "args": ["mcp-gee-sweet"],
+      "env": {
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json",
+        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+      }
+    }
+  }
+}
+```
+
+Cursor doesn't publish its per-model caps. If you still see "Too many MCP tools", use a smaller subset or switch to a model that allows more tools.
+
+### Windsurf
+
+In Windsurf's `mcp_config.json` (its location per platform is in Windsurf's [MCP docs](https://docs.devin.ai/desktop/cascade/mcp)):
+
+```json
+{
+  "mcpServers": {
+    "mcp-gee-sweet": {
+      "command": "uvx",
+      "args": ["mcp-gee-sweet"],
+      "env": {
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json",
+        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+      }
+    }
+  }
+}
+```
+
+Windsurf's 100 counts the tools from every server you have enabled. Windsurf also has a per-server `disabledTools` array, but it lists the tools to hide, so with this server you'd be naming most of them. `ENABLED_TOOLS` names the ones to keep.
+
 ## Finding Google IDs
 
 ```
