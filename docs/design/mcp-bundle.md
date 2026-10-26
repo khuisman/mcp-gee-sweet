@@ -2,7 +2,9 @@
 
 **Issue:** #1036. **Date:** 2026-10-25.
 
-The server ships as an [MCP Bundle](https://github.com/modelcontextprotocol/mcpb) alongside the PyPI package: a zip holding `manifest.json`, which tells an MCPB-aware host (Claude Desktop) how to launch the server and what to ask the user for at install. It's also the only form in which Smithery lists a local stdio server.
+The server ships as an [MCP Bundle](https://github.com/modelcontextprotocol/mcpb) alongside the PyPI package: a zip holding `manifest.json`, which tells an MCPB-aware host (Claude Desktop) how to launch the server and what to ask the user for at install.
+
+#1036 also meant the bundle for a Smithery listing, which takes a local stdio server only as a `.mcpb`. That part was dropped: on 2026-10-31 Smithery ends its connection services, deprecates its CLI, and keeps only a non-proxied registry of verified servers' direct MCP URLs ([smithery.ai/future](https://smithery.ai/future)), which says nothing about local bundles. The bundle is for one-click installs in an MCPB-aware host.
 
 ## Pieces
 
