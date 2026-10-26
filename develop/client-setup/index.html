@@ -503,6 +503,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#install-as-a-bundle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install as a bundle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#stdio-cloned-repo" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1527,7 +1538,16 @@
 
 <h1 id="mcp-client-setup">MCP Client Setup<a class="headerlink" href="#mcp-client-setup" title="Permanent link">&para;</a></h1>
 <h2 id="claude-desktop">Claude Desktop<a class="headerlink" href="#claude-desktop" title="Permanent link">&para;</a></h2>
-<p>Add a block under <code>mcpServers</code> in <code>claude_desktop_config.json</code>. Choose stdio (cloned repo) or SSE (Docker).</p>
+<p>Install the MCP Bundle, or add a block under <code>mcpServers</code> in <code>claude_desktop_config.json</code> yourself: stdio (cloned repo) or SSE (Docker).</p>
+<h3 id="install-as-a-bundle">Install as a bundle<a class="headerlink" href="#install-as-a-bundle" title="Permanent link">&para;</a></h3>
+<p>A <a href="https://github.com/khuisman/mcp-gee-sweet/releases">GitHub Release</a> carries an MCP Bundle, <code>mcp-gee-sweet-&lt;version&gt;.mcpb</code>, under its assets. Open it in Claude Desktop on macOS to install the server, without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.</p>
+<p>The install dialog asks for:</p>
+<ul>
+<li><strong>OAuth client file</strong> (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See <a href="../auth/#method-b-oauth-20-personal-use--local-dev">Authentication</a> for how to create one.</li>
+<li><strong>Enabled tools</strong> (optional): a comma-separated list of tool names. Leave it empty to enable every tool (see <a href="#tool-filtering-in-client-config">Tool filtering</a>).</li>
+</ul>
+<p>The bundle ships the source and <code>uv.lock</code>, not the dependencies: the first start runs <code>uv run --frozen</code>, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (<code>AUTH_METHOD=oauth</code>) and keeps the token at <code>~/.mcp-gee-sweet-token.json</code>, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.</p>
+<p>There's no token on the first start. The server starts without Google access, and its first tool call returns a Google consent link. Approve it in a browser, then retry the call. To authorize from a terminal instead, run <code>CREDENTIALS_PATH=/path/to/credentials.json TOKEN_PATH=~/.mcp-gee-sweet-token.json ENABLED_TOOLS=&lt;your Enabled tools value&gt; uvx mcp-gee-sweet auth</code>, then retry. Give <code>ENABLED_TOOLS</code> the same value as the install dialog's <strong>Enabled tools</strong>, or leave it out if that was empty: the consent asks for mailbox access only when a Gmail tool is enabled, so leaving it out after excluding Gmail grants a scope the server doesn't use.</p>
 <h3 id="stdio-cloned-repo">stdio — cloned repo<a class="headerlink" href="#stdio-cloned-repo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>

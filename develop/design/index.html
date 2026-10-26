@@ -1438,6 +1438,11 @@
 <td>2026-10-13</td>
 <td>#909: <code>images.ImageShareLifecycle</code> shared by <code>_apply_doc_content</code> and <code>insert_local_images</code> (shielded gather, pre-edit and post-revoke checkpoints, shielded revoke and log), <code>after_abandoned_calls</code> re-invalidating the doc cache once an abandoned edit lands, <code>created_in</code> tagging so each upload's folder is marked dirty</td>
 </tr>
+<tr>
+<td><a href="mcp-bundle/">MCP Bundle</a></td>
+<td>2026-10-25</td>
+<td>#1036: <code>.mcpb</code> with the <code>uv</code> server type and an explicit <code>mcp_config</code> (<code>uv run --frozen --no-dev python -m mcp_gee_sweet</code>), staged from files committed at <code>HEAD</code> only, version stamped at build time (with <code>UV_DYNAMIC_VERSIONING_BYPASS</code>) from the release tag or <code>server.json</code>, OAuth only with the token at <code>${HOME}/.mcp-gee-sweet-token.json</code>, attached to each GitHub Release</td>
+</tr>
 </tbody>
 </table>
 
