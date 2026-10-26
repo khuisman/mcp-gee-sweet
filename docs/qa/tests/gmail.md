@@ -1411,6 +1411,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 
 **Cleanup:** `delete_draft` every `draft_id`.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
+Fresh interpreter over stdio against the sky slot (oauth, `GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft's `message.thread_id` matched the original's. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `in:sent` found nothing for `tc-gm60`, and every draft was deleted.
+
 ---
 
 ### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
@@ -1425,6 +1428,9 @@ Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human
 - Nothing was sent
 
 **Cleanup:** `delete_draft` `{GM61_DRAFT}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
+Fresh interpreter, legacy client. The elicitation callback's nested `update_draft` call succeeded and gave the draft a new message ID under the same draft ID. `send_draft` then returned `sent: false`, `reason: changed`. `get_draft` still found the draft, with subject `[mcp-qa:tc-gm61] edited`. `in:sent` found nothing for `tc-gm61`, and the draft was deleted.
 
 ---
 
