@@ -2195,12 +2195,12 @@
 </ul>
 <p><strong>Feature set: Gmail sending safety</strong></p>
 <ul>
-<li>[ ] Safe-by-default sending: <code>send_message</code>/<code>reply_to_message</code>/<code>send_draft</code> don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a <code>CHANGELOG.md</code> note. Spec updated 2026-10-25 from Joy's design pass (detection needs <code>elicitation.form</code> and <code>can_send_request</code>; catch <code>NoBackChannelError</code>; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip, #1235, is not planned (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1081">#1081</a>)</li>
+<li>[x] Safe-by-default sending: <code>send_message</code>/<code>reply_to_message</code>/<code>send_draft</code> don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a <code>CHANGELOG.md</code> note. Spec updated 2026-10-25 from Joy's design pass (detection needs <code>elicitation.form</code> and <code>can_send_request</code>; catch <code>NoBackChannelError</code>; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip, #1235, is not planned (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1081">#1081</a>) (PR #1249)</li>
 <li>[x] Gmail: list, get, update and delete drafts, so a drafts-first flow can be managed end to end. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1205">#1205</a>) (PR #1227)</li>
 </ul>
 <p><strong>Feature set: launch readiness</strong></p>
 <ul>
-<li>[ ] Ship an MCP Bundle (.mcpb) for one-click install and Smithery listing (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1036">#1036</a>)</li>
+<li>[x] Ship an MCP Bundle (.mcpb) for one-click install and Smithery listing (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1036">#1036</a>) (PR #1255)</li>
 <li>[ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)</li>
 <li>[ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled <code>planned: ornithomimus</code> 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)</li>
 <li>[x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1212">#1212</a>) (PR #1222)</li>
