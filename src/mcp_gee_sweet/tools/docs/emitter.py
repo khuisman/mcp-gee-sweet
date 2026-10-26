@@ -724,12 +724,13 @@ def _blockquote_style_request(rng: dict, depth: int, list_level: int | None = No
 
     Both indents are set: indentFirstLine is absolute, not relative to indentStart, so
     leaving it unset put a single-line quote's only line at the margin (#1056). A list
-    item (`list_level` given) keeps its glyph's hanging indent, shifted by the quote
-    indent; the request must run after the item's createParagraphBullets."""
+    item (`list_level` given) keeps its list-level first-line indent, shifted by the
+    quote indent. Its start indent stays at the quote indent so the border aligns with
+    surrounding quoted paragraphs; the request must run after createParagraphBullets."""
     quote_indent = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * depth
     first_line, start = list_level_indents(list_level) if list_level is not None else (0, 0)
     first_line += quote_indent
-    start += quote_indent
+    start = quote_indent if list_level is not None else start + quote_indent
     return {
         "updateParagraphStyle": {
             "range": rng,

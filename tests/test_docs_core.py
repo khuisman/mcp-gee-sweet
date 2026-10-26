@@ -738,7 +738,7 @@ class TestBlockquoteEmitter:
         """Level-0 list item: the preset's 36/18 plus the 36pt quote indent."""
         (req,) = self._html_bullet_quote_requests("<blockquote><ul><li>a</li></ul></blockquote>")
         style = req["paragraphStyle"]
-        assert style["indentStart"]["magnitude"] == 72
+        assert style["indentStart"]["magnitude"] == 36
         assert style["indentFirstLine"]["magnitude"] == 54
         assert req["range"] == {"startIndex": 1, "endIndex": 3}
 
