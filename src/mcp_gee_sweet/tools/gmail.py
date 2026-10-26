@@ -1114,13 +1114,20 @@ class _DraftPreview:
 
 
 class _HtmlText(HTMLParser):
-    """An HTML body's visible text, one line per block, for the confirmation."""
+    """An HTML body's visible text, one line per block, for the confirmation. An
+    approximation of what a mail app shows, erring toward showing too much: only
+    elements whose content no client renders are hidden, and the content of an
+    Outlook conditional comment (<!--[if mso]>...<![endif]-->) is shown, since
+    Outlook renders it."""
 
     _BLOCKS = frozenset(
         {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}
         | {"blockquote", "pre", "table", "ul", "ol", "hr", "section", "article"}
     )
-    _HIDDEN = frozenset({"script", "style", "head", "title", "template"})
+    # Not "head": an HTML5 parser closes an unclosed <head> at the first body
+    # content, so hiding it would hide what recipients see (PR #1249 QA round 2).
+    # What legitimately sits in a head (title, style, script) is hidden by its own tag.
+    _HIDDEN = frozenset({"script", "style", "title", "template"})
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -1142,6 +1149,14 @@ class _HtmlText(HTMLParser):
     def handle_data(self, data: str) -> None:
         if not self._hidden_depth:
             self.parts.append(data)
+
+    def handle_comment(self, data: str) -> None:
+        # "[if mso]>...<![endif]" for <!--[if mso]>...<![endif]-->.
+        if self._hidden_depth or not data.lstrip().startswith("[if"):
+            return
+        _, _, inner = data.partition("]>")
+        inner = inner.rsplit("<![endif]", 1)[0]
+        self.parts += ["\n", _html_to_text(inner), "\n"]
 
 
 def _html_to_text(html: str) -> str:
@@ -1667,7 +1682,8 @@ def register(tool):
         of the body, and any recipient flags. Declining, cancelling, no answer, or a
         client that can't show the form leaves it as an unsent draft. Confirmation
         needs a client on the 2025-11-25 handshake; on 2026-07-28 connections mail
-        stays a draft. A client hook that auto-accepts confirmations with a yes
+        stays a draft. Claude Code currently connects on 2026-07-28, so from it every
+        send is held as a draft. A client hook that auto-accepts confirmations with a yes
         makes this the same as GMAIL_SEND=direct, which sends at once.
 
         Args:
@@ -1783,7 +1799,8 @@ def register(tool):
         doesn't confirm, nothing is sent and the draft stays in Gmail's Drafts
         folder. A draft changed after the confirmation (e.g. by update_draft) is
         refused, not sent. Confirmation needs a client on the 2025-11-25 handshake;
-        on 2026-07-28 connections this tool refuses. A client hook that
+        on 2026-07-28 connections (Claude Code, currently) this tool refuses. A client
+        hook that
         auto-accepts confirmations with a yes makes this the same as
         GMAIL_SEND=direct, which sends at once.
 

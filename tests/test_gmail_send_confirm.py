@@ -420,6 +420,23 @@ class TestSendMessageConfirm:
         assert "│ HTML-ONLY-CONTENT\n│ one" in text
         assert "hidden()" not in text
 
+    @pytest.mark.parametrize(
+        ("html", "shown"),
+        [
+            # PR #1249 QA round 2: an unclosed <head> hid everything after it, though
+            # an HTML5 parser (and so a mail app) renders the paragraph.
+            ("<head><p>HEAD-SMUGGLED recipients see this</p>", "HEAD-SMUGGLED recipients see this"),
+            ("<head><title>T</title><style>p{}</style></head><p>Visible</p>", "Visible"),
+            # Outlook renders a conditional comment's content.
+            ("<p>All</p><!--[if mso]><p>OUTLOOK-ONLY</p><![endif]-->", "All\nOUTLOOK-ONLY"),
+        ],
+    )
+    def test_html_text_shows_what_clients_render(self, html, shown):
+        assert gmail_module._html_to_text(html) == shown
+
+    def test_plain_comment_is_still_dropped(self):
+        assert gmail_module._html_to_text("<p>a</p><!-- note -->") == "a"
+
     async def test_html_matching_the_plain_body_is_not_repeated(self):
         fake = FakeGmail()
         ctx = _ctx(fake, answer=DeclinedElicitation())

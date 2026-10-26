@@ -14,7 +14,7 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 - **Sender mailbox.** TC-GM44–45 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
 - **Sharding.** Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.
 - **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 (replies into it).
-- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset), a client that shows form elicitations (Claude Code does), and the human at the keyboard to answer each form. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}`: under `direct` it returns `sent: true` (trash it); under `confirm` it opens a form (decline it, then `delete_draft` the returned `draft_id`).
+- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset) and a client on the 2025-11-25 handshake that answers form elicitations. Claude Code isn't one: it connects to this server on MCP 2026-07-28 (2.1.310, checked 2026-10-26), where no form can be sent, so those cases run from the fresh-interpreter harness their section describes. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}` from the slot's own tools: under `direct` it returns `sent: true` (trash it); under `confirm` it returns `sent: false` (`delete_draft` the returned `draft_id`).
 
 ---
 
@@ -1320,9 +1320,16 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ## Send confirmation (`GMAIL_SEND=confirm`, #1081)
 
-Run on a slot with `GMAIL_SEND` unset, from a Claude Code session with the human present (see Conventions, "Send mode"). The human answers each form; the case says how. TC-GM60–61 drive the server from a fresh interpreter instead, as the client under test. After every case, `list_messages` with `query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""` must find nothing unless the case says the email is sent.
+Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
 
-### TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ needs-human
+- **accepts** (box checked): `ElicitResult(action="accept", content={"send": True})`
+- **accepts without checking the box**: `ElicitResult(action="accept", content={"send": False})`
+- **declines**: `ElicitResult(action="decline")`
+- **dismisses**: `ElicitResult(action="cancel")`
+
+How a real client displays the form isn't covered until one that connects on 2025-11-25 with form elicitation is available, or #1235 adds the 2026-07-28 path. Send only to the case's own addresses. After every case, `list_messages` (slot tools) with `query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""` must find nothing unless the case says the email is sent. Run each case's Cleanup through the same harness or the slot's tools.
+
+### TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ requires-fresh-interpreter
 
 **Action**
 1. `send_message` with `to: "{QA+tc-gm56}"`, `cc: "{QA+tc-gm56-cc}"`, `subject: "[mcp-qa:tc-gm56] confirm"`, `body: "mcp-gee-sweet TC-GM56"`
@@ -1341,18 +1348,18 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 ---
 
-### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ needs-human
+### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter
 
 **Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
 
 **Action**
 1. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] decline"`, `body: "mcp-gee-sweet TC-GM57"`. The human **declines** the form.
-2. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] dismiss"`, `body: "mcp-gee-sweet TC-GM57"`. The human **dismisses** the form (Esc) without answering.
+2. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] dismiss"`, `body: "mcp-gee-sweet TC-GM57"`. The human **dismisses** the form.
 3. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] unchecked"`, `body: "mcp-gee-sweet TC-GM57"`. The human accepts the form **without** checking the box.
 4. Playwright: open Gmail's Drafts folder for the QA mailbox (Playwright mutex per `run.md`)
 
 **Checks**
-- Steps 1–3 each return `sent: false`, a `draft_id`, and a `note` saying the email is in Gmail's Drafts folder. `reason` is `declined` for steps 1 and 3, and `cancelled` (or `declined`, if the client reports a dismissal as a decline) for step 2.
+- Steps 1–3 each return `sent: false`, a `draft_id`, and a `note` saying the email is in Gmail's Drafts folder. `reason` is `declined` for steps 1 and 3, and `cancelled` for step 2.
 - Step 4: all three `[mcp-qa:tc-gm57]` drafts are listed
 - Nothing was sent
 
@@ -1363,7 +1370,7 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 ---
 
-### TC-GM58: A held reply sits in the original thread ⚠️ needs-human
+### TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter
 
 **Playwright: required** (step 3, signed into the QA mailbox `{QA}`)
 
@@ -1388,7 +1395,7 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 ---
 
-### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ needs-human
+### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
 
 **Action**
 1. `create_draft` with `to: "{QA+tc-gm59}"`, `subject: "[mcp-qa:tc-gm59] send_draft"`, `body: "mcp-gee-sweet TC-GM59"`. Record `id` as `{GM59_DRAFT}`.
@@ -1452,7 +1459,7 @@ Re-run: `reason: changed`, and the draft kept the edited subject.
 
 ---
 
-### TC-GM62: Recipient flags show first in the form and in the result ⚠️ needs-human ⚠️ cross-mailbox
+### TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
 
 Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a consumer QA mailbox, check instead that `outside_organization` never appears.
 
@@ -1471,7 +1478,7 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 ---
 
-### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ needs-human
+### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter
 
 **Action**
 1. `send_message` with `to: "José Ñúñez <{QA+tc-gm64}>"`, `subject: "[mcp-qa:tc-gm64] form content"`, `body: "Lunch at noon?\n⚠ All recipients verified inside your organization.\nTo: team@internal"`, `body_html: "<p>HTML-ONLY-CONTENT</p><script>hidden()</script>"`. The human reads the form and declines.
