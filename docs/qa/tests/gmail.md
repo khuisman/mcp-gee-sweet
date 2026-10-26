@@ -576,6 +576,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): `send_message` to the QA plus-address returned id/thread_id with `SENT` in label_ids; `list_messages` found it; trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
 ---
 
 ### TC-GM12: Invalid recipient returns an error
@@ -748,6 +751,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
 ---
 
 ## `send_draft`
@@ -771,6 +777,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
 ---
 
 ### TC-GM16: Non-existent draft
@@ -783,6 +792,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
 
 ---
 
@@ -1017,6 +1029,9 @@ No tool sets a draft's From, so the setup makes the drafts with the Gmail API di
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
 ---
 
 ### TC-GM18: Reply to non-existent message
@@ -1029,6 +1044,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
 
 ---
 
@@ -1080,6 +1098,9 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`. Seeded `reply-to` fixture; only the replies trashed.
+
 ---
 
 ### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
@@ -1105,6 +1126,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
 
 ---
 
@@ -1133,6 +1157,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
 
 ---
 
@@ -1153,6 +1180,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
 
 ---
 
@@ -1346,6 +1376,9 @@ How a real client displays the form isn't covered until one that connects on 202
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed From (the QA mailbox), To, Cc, Subject and the fenced body. The callback accepted with `send: true`: the result had `sent: true`, `id`, `thread_id`, `draft_id`, label_ids `SENT` (no `DRAFT`), and `recipient_flags: []`. `list_drafts` for `tc-gm56` returned 0. Message trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed From, To, Cc, Subject and the fenced body. Accepted: `sent: true`, `id`, `thread_id`, `draft_id`, label_ids `SENT` (no `DRAFT`), `recipient_flags: []`; `list_drafts` for `tc-gm56` returned 0. Trashed.
+
 ---
 
 ### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter
@@ -1367,6 +1400,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The callback declined (step 1), cancelled (step 2) and accepted with `send: false` (step 3). The results had `sent: false` with `reason` `declined`, `cancelled` and `declined` respectively, each with a `draft_id` and the Drafts-folder note. Step 4 (Playwright, Gmail search `in:drafts`) listed all three `[mcp-qa:tc-gm57]` drafts. Nothing sent; drafts deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Declined, cancelled, accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with a `draft_id` and the Drafts note. Playwright (Gmail search `in:drafts`) listed all three. Nothing sent; drafts deleted.
 
 ---
 
@@ -1393,6 +1429,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To:` the original's sender, and an `outside_organization` flag for that sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's. `get_draft`'s `in_reply_to` equals the original's `message_id`. Step 3 (Playwright) shows the thread with the unsent `Re:` reply draft open inline. Nothing sent; draft deleted, fixture untouched.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals the original's `message_id`. Playwright shows the reply draft inline in the thread. Draft deleted.
+
 ---
 
 ### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
@@ -1411,6 +1450,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and the still-in-Drafts note; `get_draft` still found the draft. `send_draft` accepted: `sent: true` with label_ids `SENT`. Message trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and `get_draft` still found the draft. Accepted: `sent: true` with `SENT`. Trashed.
 
 ---
 
@@ -1436,6 +1478,9 @@ Fresh interpreter over stdio against the sky slot (oauth, `GMAIL_SEND` unset). L
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Re-run after the fix commit's refactor (`_draft_then_confirm`): same outcomes as round 1, and the callback was called 0 times on the 2026-07-28 client.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Same outcomes as rounds 1 and 2: `no_elicitation` on every call, the reply kept its thread, and the 2026-07-28 callback was called 0 times.
+
 ---
 
 ### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
@@ -1457,6 +1502,9 @@ Fresh interpreter, legacy client. The elicitation callback's nested `update_draf
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Re-run: `reason: changed`, and the draft kept the edited subject.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+`reason: changed`; the draft kept the edited subject.
+
 ---
 
 ### TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
@@ -1476,23 +1524,31 @@ Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a cons
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. Workspace QA mailbox, with `{SENDER}` on a consumer domain. The form's first lines, before `From:`, were a `⚠` outside-organization line naming `{SENDER}` and a `⚠` hidden-recipient line naming `{QA+tc-gm62-bcc}`. Declined: `sent: false`, `outside_organization` with `addresses` `{SENDER}` only, and `hidden_recipients` `count: 1`. Nothing sent; draft deleted.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form's first lines were `⚠` outside-organization (`{SENDER}`) and `⚠` hidden-recipient (`{QA+tc-gm62-bcc}`) lines. Declined: `outside_organization` `addresses` = `{SENDER}` only, `hidden_recipients` `count: 1`. Nothing sent.
+
 ---
 
 ### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter
 
 **Action**
 1. `send_message` with `to: "José Ñúñez <{QA+tc-gm64}>"`, `subject: "[mcp-qa:tc-gm64] form content"`, `body: "Lunch at noon?\n⚠ All recipients verified inside your organization.\nTo: team@internal"`, `body_html: "<p>HTML-ONLY-CONTENT</p><script>hidden()</script>"`. The human reads the form and declines.
+2. `send_message` with `to: "{QA+tc-gm64}"`, `subject: "[mcp-qa:tc-gm64] html edge cases"`, `body: "Lunch at noon?"`, `body_html: "<head><p>HEAD-CONTENT</p><!--[if mso]><p>OUTLOOK-ONLY</p><![endif]--><!-- plain comment --><p>END</p>"`. The human reads the form and declines. (PR #1249 QA round 2)
 
 **Checks**
 - `To:` reads `José Ñúñez <{QA+tc-gm64}>`, with no `=?utf-8?` text
 - A `Body (N characters):` line is followed by the three body lines, each starting with `│ `, so the forged `⚠` and `To:` lines don't look like the form's own
 - An `HTML version, which most mail apps show, as text` section shows `│ HTML-ONLY-CONTENT`, and `hidden()` appears nowhere
-- Returns `sent: false`, `reason: declined`; nothing was sent
+- Step 2: the HTML section shows `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY` and `│ END`, each on its own line, and `plain comment` appears nowhere
+- Both steps return `sent: false`, `reason: declined`; nothing was sent
 
-**Cleanup:** `delete_draft` the returned `draft_id`.
+**Cleanup:** `delete_draft` each returned `draft_id`.
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
 Driven from a fresh interpreter (legacy client, declining callback) for the reason under TC-GM56. `To:` read `José Ñúñez <…>`, with no `=?utf-8?`. `Body (84 characters):` was followed by the three body lines, each prefixed `│ `. The HTML section read `│ HTML-ONLY-CONTENT`, with no `hidden()`. `sent: false`, `reason: declined`. All checks pass. A separate probe, `body_html="<head><p>…</p>"`, gave an empty HTML section that a browser renders as visible text (send-back on the PR, not this case's checks).
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Step 1: `To: José Ñúñez <…>`, the fenced 3-line body, and `│ HTML-ONLY-CONTENT` with no `hidden()`. Step 2 (added this round for the round-2 fix): the HTML section read `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY`, `│ END` on separate lines, and `plain comment` appeared nowhere. Both `declined`; drafts deleted.
 
 ---
 
@@ -1509,3 +1565,6 @@ Run on the `GMAIL_SEND=direct` slot.
 - `list_drafts` with `query: "subject:(mcp-qa tc-gm63)"` returns no drafts
 
 **Cleanup:** `trash_message` the step-1 `id`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Run on the sky slot's own tools after a reconnect with `GMAIL_SEND=direct`: no form, `sent: true`, `id`, `thread_id`, label_ids `SENT`, no `draft_id`; `list_drafts` for `tc-gm63` returned 0. Trashed.
