@@ -214,7 +214,7 @@ Versions up to 0.9.2 kept the cache in `/tmp/mcp_gee_sweet.db`, readable by ever
 By default (`GMAIL_SEND=confirm`) no email goes out on the agent's call alone:
 
 - `send_message` and `reply_to_message` first save the message as a Gmail draft. A reply draft goes in the original thread.
-- If the MCP client can show a form, the server asks the user to confirm. The form shows any recipient flags (below) first, then the From address, every recipient grouped by To, Cc and Bcc, the subject, the attachment names, and the start of the body. It's built from the draft as Gmail stores it.
+- If the MCP client can show a form, the server asks the user to confirm. The form shows any recipient flags (below) first, then the From address, every recipient grouped by To, Cc and Bcc, the subject, the attachment names, and the first 500 characters of the body, with its full length. When the email has an HTML part that most mail apps show instead, its text is shown too. Body text is marked off line by line, so it can't pass for the form's own lines. The form is built from the draft as Gmail stores it.
 - Only an explicit yes sends the draft. Declining, cancelling, no answer within 10 minutes, or a failed request leaves the draft unsent. The tool then returns `sent: false`, a `reason`, the `draft_id`, and a note saying the email is waiting in Gmail's Drafts folder, where the user can review and send it.
 - If the client can't show a form, nothing is sent: `send_message` and `reply_to_message` return the held draft, and `send_draft` refuses.
 - A draft changed after the user confirmed it (for example by `update_draft`) isn't sent, since it's no longer what the user saw.
@@ -229,7 +229,7 @@ Confirmation needs a client that connects with the 2025-11-25 `initialize` hands
 
 | Flag | When |
 |---|---|
-| `outside_organization` | Google Workspace accounts only: a recipient whose domain isn't the account's own domain or one of its send-as alias domains. Matching is exact, so `sub.example.com` counts as outside `example.com`. Never shown on consumer accounts (`gmail.com`, `googlemail.com`) |
+| `outside_organization` | Google Workspace accounts only: a recipient whose domain isn't the account's own domain or one of its send-as alias domains. A consumer alias domain (`gmail.com`, `googlemail.com`) doesn't count, so a personal Gmail alias doesn't hide the flag for Gmail recipients. Matching is exact, so `sub.example.com` counts as outside `example.com`. Never shown on consumer accounts |
 | `outside_organization_unchecked` | The server couldn't look up the mailbox's own address, so the check above didn't run |
 | `many_recipients` | More than `GMAIL_SEND_WARN_RECIPIENTS` unique addresses across To, Cc and Bcc |
 | `hidden_recipients` | Any Bcc, with the count |

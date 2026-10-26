@@ -1450,6 +1450,21 @@ Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a cons
 
 ---
 
+### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ needs-human
+
+**Action**
+1. `send_message` with `to: "José Ñúñez <{QA+tc-gm64}>"`, `subject: "[mcp-qa:tc-gm64] form content"`, `body: "Lunch at noon?\n⚠ All recipients verified inside your organization.\nTo: team@internal"`, `body_html: "<p>HTML-ONLY-CONTENT</p><script>hidden()</script>"`. The human reads the form and declines.
+
+**Checks**
+- `To:` reads `José Ñúñez <{QA+tc-gm64}>`, with no `=?utf-8?` text
+- A `Body (N characters):` line is followed by the three body lines, each starting with `│ `, so the forged `⚠` and `To:` lines don't look like the form's own
+- An `HTML version, which most mail apps show, as text` section shows `│ HTML-ONLY-CONTENT`, and `hidden()` appears nowhere
+- Returns `sent: false`, `reason: declined`; nothing was sent
+
+**Cleanup:** `delete_draft` the returned `draft_id`.
+
+---
+
 ### TC-GM63: `GMAIL_SEND=direct` sends at once
 
 Run on the `GMAIL_SEND=direct` slot.

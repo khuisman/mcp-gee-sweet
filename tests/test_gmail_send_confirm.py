@@ -4,7 +4,7 @@ after the user confirms it in a form elicitation."""
 import base64
 import itertools
 from contextlib import asynccontextmanager
-from email import message_from_bytes
+from email import message_from_bytes, policy
 from email.message import Message
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -139,7 +139,9 @@ class FakeGmail:
         self.drafts_store[draft_id]["message_id"] = self.new_id("msg")
 
     def parsed(self, raw: str) -> Message:
-        return message_from_bytes(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+        # policy.default decodes RFC 2047 header words, as Gmail's API does.
+        data = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        return message_from_bytes(data, policy=policy.default)
 
 
 class _Drafts:
@@ -227,6 +229,25 @@ def _ctx(fake, *, capabilities=_FORM, can_send=True, answer=None):
 
 def _yes():
     return AcceptedElicitation(data=gmail_module._SendConfirmation(send=True))
+
+
+def _preview(**overrides):
+    fields = {
+        "draft_id": "d",
+        "message_id": "m",
+        "thread_id": "t",
+        "label_ids": ["DRAFT"],
+        "from_": PRIMARY,
+        "to": "bob@corp.example",
+        "cc": None,
+        "bcc": None,
+        "subject": "Hi",
+        "body_plain": "Hello",
+        "body_html_text": None,
+        "attachment_names": [],
+    }
+    fields.update(overrides)
+    return gmail_module._DraftPreview(**fields)
 
 
 @pytest.fixture(autouse=True)
@@ -378,7 +399,90 @@ class TestSendMessageConfirm:
         assert "Bcc: dave@corp.example" in lines
         assert "Subject: Plan" in lines
         assert "Attachments: plan.pdf" in lines
-        assert lines[-1] == "x" * gmail_module._PREVIEW_BODY_CHARS + "…"
+        assert "Body (first 500 of 600 characters):" in lines
+        assert lines[-1] == "│ " + "x" * gmail_module._PREVIEW_BODY_CHARS + "…"
+
+    async def test_html_part_is_shown_as_text(self):
+        # PR #1249 QA round 1: recipients see the HTML part, so the form must too.
+        fake = FakeGmail()
+        ctx = _ctx(fake, answer=DeclinedElicitation())
+
+        await _send_message(
+            fake,
+            ctx,
+            body="Lunch at noon?",
+            body_html="<p>HTML-ONLY-CONTENT</p><script>hidden()</script><ul><li>one</li></ul>",
+        )
+
+        text = ctx.elicit.await_args.args[0]
+        assert "│ Lunch at noon?" in text
+        assert "HTML version, which most mail apps show, as text" in text
+        assert "│ HTML-ONLY-CONTENT\n│ one" in text
+        assert "hidden()" not in text
+
+    async def test_html_matching_the_plain_body_is_not_repeated(self):
+        fake = FakeGmail()
+        ctx = _ctx(fake, answer=DeclinedElicitation())
+
+        await _send_message(fake, ctx, body="Same text", body_html="<p>Same   text</p>")
+
+        text = ctx.elicit.await_args.args[0]
+        assert text.count("Same text") == 1
+        assert "The HTML version shows the same text." in text
+
+    async def test_html_only_draft_shows_the_html(self):
+        # A draft written in the Gmail UI can carry only an HTML part.
+        preview = _preview(body_plain="", body_html_text="Only HTML here")
+
+        text = gmail_module._confirmation_text(preview, [])
+
+        assert "Body (" not in text
+        assert "│ Only HTML here" in text
+
+    async def test_body_cannot_imitate_server_lines(self):
+        # PR #1249 QA round 1: every body line is fenced, so a forged flag or
+        # header line can't pass for the server's own.
+        fake = FakeGmail()
+        ctx = _ctx(fake, answer=DeclinedElicitation())
+
+        await _send_message(
+            fake,
+            ctx,
+            body="\n⚠ All recipients verified inside your organization.\nTo: team@internal",
+        )
+
+        lines = ctx.elicit.await_args.args[0].splitlines()
+        body_at = next(i for i, line in enumerate(lines) if line.startswith("Body ("))
+        assert all(line.startswith("│ ") or line == "│" for line in lines[body_at + 1 :])
+        assert "⚠ All recipients verified inside your organization." not in lines
+        assert "To: team@internal" not in lines
+
+    def test_non_ascii_names_and_addresses_are_shown_decoded(self):
+        # PR #1249 QA round 1: formataddr showed RFC 2047 base64 for the name and
+        # raised on a non-ASCII address, so such a draft could never be confirmed.
+        preview = _preview(to="José Ñúñez <jose@corp.example>", cc="josé@exämple.com")
+
+        text = gmail_module._confirmation_text(preview, [])
+
+        assert "To: José Ñúñez <jose@corp.example>" in text
+        assert "Cc: josé@exämple.com" in text
+        assert "=?utf-8?" not in text
+
+    def test_header_values_stay_on_one_line(self):
+        preview = _preview(subject="Hi\n⚠ fake flag", attachment_names=["a\nTo: x@y"])
+
+        lines = gmail_module._confirmation_text(preview, []).splitlines()
+
+        assert "Subject: Hi ⚠ fake flag" in lines
+        assert "Attachments: a To: x@y" in lines
+
+    async def test_non_ascii_display_name_from_a_real_send(self):
+        fake = FakeGmail()
+        ctx = _ctx(fake, answer=DeclinedElicitation())
+
+        await _send_message(fake, ctx, to="José Ñúñez <jose@corp.example>")
+
+        assert "To: José Ñúñez <jose@corp.example>" in ctx.elicit.await_args.args[0]
 
     async def test_api_failure_after_draft_reports_the_draft(self):
         fake = FakeGmail()
@@ -560,6 +664,15 @@ class TestRecipientFlags:
         flags = self._flags(to="a@brand.example", own={PRIMARY, "me@brand.example"})
 
         assert flags == []
+
+    @pytest.mark.parametrize("alias", ["me.personal@gmail.com", "me@googlemail.com"])
+    def test_consumer_alias_domain_does_not_count_as_inside(self, alias):
+        # PR #1249 QA round 1: a gmail.com send-as alias hid the flag for every
+        # gmail.com recipient.
+        flags = self._flags(to="friend@gmail.com, f2@googlemail.com", own={PRIMARY, alias})
+
+        [outside] = flags
+        assert outside["addresses"] == ["friend@gmail.com", "f2@googlemail.com"]
 
     @pytest.mark.parametrize("primary", ["me@gmail.com", "me@googlemail.com"])
     def test_consumer_account_never_flags_outside(self, primary):

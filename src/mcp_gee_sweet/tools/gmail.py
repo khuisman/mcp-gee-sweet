@@ -18,6 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.parser import BytesHeaderParser
 from email.utils import formataddr, getaddresses
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from ..auth import execute_in_thread, get_gmail_unauthorized_message
 from ..local_files import check_read, check_write
+from ..reauth import _session as reauth_session
 from .concurrency import gather_with_fallback
 from .mime_types import OCTET_STREAM, guess_mime_type
 from .response_limits import (
@@ -1032,8 +1034,9 @@ def _recipient_flags(
     """The warnings a send shows before (or instead of) delivery.
 
     - outside_organization: on a Workspace account (primary address outside
-      _CONSUMER_DOMAINS), each recipient whose domain isn't the primary's or a send-as
-      alias's. Exact match, so sub.example.com is outside example.com. If the primary
+      _CONSUMER_DOMAINS), each recipient whose domain isn't the primary's or a
+      non-consumer send-as alias's. Exact match, so sub.example.com is outside
+      example.com. If the primary
       address is unknown, an outside_organization_unchecked note says the check
       didn't run, rather than implying every recipient is inside.
     - many_recipients: more than `threshold` unique addresses across To, Cc and Bcc.
@@ -1052,7 +1055,11 @@ def _recipient_flags(
             }
         )
     elif _domain(primary) not in _CONSUMER_DOMAINS:
-        org = {_domain(primary), *(_domain(a) for a in own)}
+        # A consumer send-as alias (e.g. a personal gmail.com address added to a
+        # Workspace mailbox) doesn't make that domain part of the organization:
+        # counting it would hide the flag for every gmail.com recipient.
+        org = {_domain(primary)}
+        org |= {d for d in (_domain(a) for a in own) if d not in _CONSUMER_DOMAINS}
         outside = [a for a in everyone if _domain(a) not in org]
         if outside:
             flags.append(
@@ -1099,8 +1106,50 @@ class _DraftPreview:
     cc: str | None
     bcc: str | None
     subject: str | None
-    body_start: str
+    body_plain: str
+    # The HTML part as text, or None without one. Recipients' mail apps show the HTML
+    # part when there is one, so the confirmation has to show it too.
+    body_html_text: str | None
     attachment_names: list[str]
+
+
+class _HtmlText(HTMLParser):
+    """An HTML body's visible text, one line per block, for the confirmation."""
+
+    _BLOCKS = frozenset(
+        {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}
+        | {"blockquote", "pre", "table", "ul", "ol", "hr", "section", "article"}
+    )
+    _HIDDEN = frozenset({"script", "style", "head", "title", "template"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._hidden_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: Any) -> None:
+        if tag in self._HIDDEN:
+            self._hidden_depth += 1
+        elif tag in self._BLOCKS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._HIDDEN:
+            self._hidden_depth = max(0, self._hidden_depth - 1)
+        elif tag in self._BLOCKS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._hidden_depth:
+            self.parts.append(data)
+
+
+def _html_to_text(html: str) -> str:
+    parser = _HtmlText()
+    parser.feed(html)
+    parser.close()
+    lines = (" ".join(line.split()) for line in "".join(parser.parts).splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 async def _read_draft_preview(gmail_service: Any, draft_id: str) -> _DraftPreview:
@@ -1113,9 +1162,7 @@ async def _read_draft_preview(gmail_service: Any, draft_id: str) -> _DraftPrevie
     message = draft.get("message") or {}
     [shaped] = await _finish_shaping_all(gmail_service, [_start_shaping(message)])
     headers = shaped.get("headers") or {}
-    body = shaped.get("body_plain") or shaped.get("snippet") or ""
-    if len(body) > _PREVIEW_BODY_CHARS:
-        body = body[:_PREVIEW_BODY_CHARS].rstrip() + "…"
+    html = shaped.get("body_html")
     return _DraftPreview(
         draft_id=draft.get("id") or draft_id,
         message_id=message.get("id"),
@@ -1126,27 +1173,67 @@ async def _read_draft_preview(gmail_service: Any, draft_id: str) -> _DraftPrevie
         cc=headers.get("cc"),
         bcc=headers.get("bcc"),
         subject=headers.get("subject"),
-        body_start=body,
+        body_plain=shaped.get("body_plain") or "",
+        body_html_text=_html_to_text(html) if html else None,
         attachment_names=[
             a.get("filename") or "(unnamed)" for a in shaped.get("attachments") or []
         ],
     )
 
 
+def _one_line(value: str) -> str:
+    """A draft-supplied value (subject, display name, filename) on one line, so it
+    can't add a line of its own that reads like the server's."""
+    return " ".join(value.split())
+
+
+def _display_addresses(header: str | None) -> list[str]:
+    """A header's addresses for a person to read: the decoded display name as is,
+    never re-encoded (formataddr would show RFC 2047 base64 for a non-ASCII name, and
+    raises on a non-ASCII address)."""
+    out = []
+    for name, addr in getaddresses([header or ""]):
+        if addr:
+            out.append(_one_line(f"{name} <{addr}>" if name else addr))
+    return out
+
+
+def _fenced(label: str, text: str) -> list[str]:
+    """`text` under a label saying how much of it is shown, every line prefixed with
+    "│ ", so nothing in it can pass for one of the server's own lines."""
+    shown = text[:_PREVIEW_BODY_CHARS]
+    if len(text) > _PREVIEW_BODY_CHARS:
+        heading = f"{label} (first {_PREVIEW_BODY_CHARS} of {len(text)} characters):"
+        shown = shown.rstrip() + "…"
+    else:
+        heading = f"{label} ({len(text)} characters):"
+    return [heading, *(f"│ {line}" for line in shown.splitlines() or [""])]
+
+
 def _confirmation_text(preview: _DraftPreview, flags: list[dict[str, Any]]) -> str:
     """The confirmation message: flags first, then sender, every recipient grouped by
-    To/Cc/Bcc, subject, attachment names, and the start of the body."""
+    To/Cc/Bcc, subject, attachment names, and the body, fenced. An HTML part is shown
+    as text too, unless its text is the plain body's."""
     lines = ["Send this email?"]
-    lines += [f"⚠ {f['message']}" for f in flags]
+    lines += [f"⚠ {_one_line(f['message'])}" for f in flags]
     lines.append("")
-    lines.append(f"From: {preview.from_ or 'your default Gmail address'}")
+    lines.append(f"From: {_one_line(preview.from_ or 'your default Gmail address')}")
     for label, value in (("To", preview.to), ("Cc", preview.cc), ("Bcc", preview.bcc)):
-        if addresses := [formataddr(pair) for pair in getaddresses([value or ""]) if pair[1]]:
+        if addresses := _display_addresses(value):
             lines.append(f"{label}: " + ", ".join(addresses))
-    lines.append(f"Subject: {preview.subject or '(no subject)'}")
+    lines.append(f"Subject: {_one_line(preview.subject or '') or '(no subject)'}")
     if preview.attachment_names:
-        lines.append("Attachments: " + ", ".join(preview.attachment_names))
-    lines += ["", preview.body_start or "(empty body)"]
+        lines.append("Attachments: " + ", ".join(_one_line(n) for n in preview.attachment_names))
+    lines.append("")
+    plain, html = preview.body_plain, preview.body_html_text
+    if plain or html is None:
+        lines += _fenced("Body", plain) if plain else ["Body: (empty)"]
+    if html is not None:
+        if plain and " ".join(html.split()) == " ".join(plain.split()):
+            lines.append("The HTML version shows the same text.")
+        else:
+            lines.append("")
+            lines += _fenced("HTML version, which most mail apps show, as text", html)
     return "\n".join(lines)
 
 
@@ -1156,7 +1243,7 @@ def _can_elicit_form(ctx: Any) -> bool:
     the request has a back-channel to send it on. On a 2026-07-28 connection the
     client still declares the capability, but can_send_request is False (#1081
     design pass), so the capability alone isn't enough."""
-    session = getattr(getattr(ctx, "request_context", None), "session", None)
+    session = reauth_session(ctx)
     if getattr(session, "can_send_request", False) is not True:
         return False
     elicitation = getattr(getattr(session, "client_capabilities", None), "elicitation", None)
@@ -1232,11 +1319,26 @@ async def _confirm_and_send_draft(
         }
 
 
+async def _draft_then_confirm(ctx: Any, lc: Any, message: dict[str, Any]) -> dict[str, Any]:
+    """GMAIL_SEND=confirm's send_message/reply_to_message: save `message` ({"raw",
+    optional "threadId"}) as a draft, then confirm and send it like send_draft. A
+    drafts.create failure raises, for the tool's own {"error": ...}: nothing was
+    saved, so there's no draft to name."""
+    draft = await execute_in_thread(
+        lc.gmail_service.users().drafts().create(userId=_USER, body={"message": message}).execute,
+        lc.gmail_service,
+    )
+    return await _confirm_and_send_draft(ctx, lc, draft["id"], created=True)
+
+
 async def _confirm_and_send_steps(
     ctx: Any, lc: Any, draft_id: str, *, created: bool
 ) -> dict[str, Any]:
-    preview = await _read_draft_preview(lc.gmail_service, draft_id)
-    own, _ = await _own_addresses(lc)
+    # Independent reads; both finish before the form appears. _own_addresses never
+    # raises (it degrades to a warning), so a preview failure is the only error here.
+    preview, (own, _) = await asyncio.gather(
+        _read_draft_preview(lc.gmail_service, draft_id), _own_addresses(lc)
+    )
     primary = getattr(lc, "gmail_primary_address", None)
     flags = _recipient_flags(
         to=preview.to,
@@ -1604,14 +1706,7 @@ def register(tool):
                 attachments=attachments,
             )
             if GMAIL_SEND == "confirm":
-                draft = await execute_in_thread(
-                    lc.gmail_service.users()
-                    .drafts()
-                    .create(userId=_USER, body={"message": {"raw": raw}})
-                    .execute,
-                    lc.gmail_service,
-                )
-                return await _confirm_and_send_draft(ctx, lc, draft["id"], created=True)
+                return await _draft_then_confirm(ctx, lc, {"raw": raw})
             sent = await execute_in_thread(
                 lc.gmail_service.users().messages().send(userId=_USER, body={"raw": raw}).execute,
                 lc.gmail_service,
@@ -2060,14 +2155,7 @@ def register(tool):
             )
             reply = {"raw": raw, "threadId": original.get("threadId")}
             if GMAIL_SEND == "confirm":
-                draft = await execute_in_thread(
-                    lc.gmail_service.users()
-                    .drafts()
-                    .create(userId=_USER, body={"message": reply})
-                    .execute,
-                    lc.gmail_service,
-                )
-                out = await _confirm_and_send_draft(ctx, lc, draft["id"], created=True)
+                out = await _draft_then_confirm(ctx, lc, reply)
             else:
                 sent = await execute_in_thread(
                     lc.gmail_service.users().messages().send(userId=_USER, body=reply).execute,
