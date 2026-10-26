@@ -1627,6 +1627,21 @@ inside a root.</p>
 operator limits tools to directories meant for them.</p>
 <p><strong>Workaround:</strong> Use <code>LOCAL_FILE_ACCESS=roots</code> with roots that hold only files meant for the
 server.</p>
+<hr />
+<h2 id="mcp-clients">MCP clients<a class="headerlink" href="#mcp-clients" title="Permanent link">&para;</a></h2>
+<h3 id="some-clients-refuse-the-full-tool-set">Some clients refuse the full tool set<a class="headerlink" href="#some-clients-refuse-the-full-tool-set" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> With every tool registered (the default), the server is over the tool cap of several
+MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
+128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
+model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+Google Antigravity is reported to reject a server with more than 100 tools.</p>
+<p><strong>Why:</strong> The caps are the clients' own, and the server registers every tool unless told
+otherwise, so it works out of the box on clients without a cap. A smaller default tool set is a
+separate design question.</p>
+<p><strong>Workaround:</strong> Set <code>ENABLED_TOOLS</code> (or <code>--include-tools</code>) to one of the
+<a href="../configuration/#suggested-subsets">suggested subsets</a>, each under 100 tools. Per-client
+config is in <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a>.</p>
+<hr />
 <h2 id="google-api-requests">Google API requests<a class="headerlink" href="#google-api-requests" title="Permanent link">&para;</a></h2>
 <h3 id="a-write-that-times-out-may-still-have-been-applied">A write that times out may still have been applied<a class="headerlink" href="#a-write-that-times-out-may-still-have-been-applied" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A Google API request fails with <code>Google API request timed out:</code> once Google sends
