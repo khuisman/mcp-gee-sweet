@@ -93,6 +93,8 @@ Service accounts (recommended for headless server deployments, see Option B abov
 
 ## MCP client config
 
+**Claude Desktop — one-click bundle:** download `mcp-gee-sweet-<version>.mcpb` from the latest [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases/latest) and open it in Claude Desktop. It asks for your OAuth client file and needs no config editing ([details](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/client-setup.md#install-as-a-bundle)).
+
 **Claude Desktop — stdio (cloned repo):**
 ```json
 {

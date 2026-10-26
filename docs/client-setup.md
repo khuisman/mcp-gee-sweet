@@ -2,7 +2,20 @@
 
 ## Claude Desktop
 
-Add a block under `mcpServers` in `claude_desktop_config.json`. Choose stdio (cloned repo) or SSE (Docker).
+Install the MCP Bundle, or add a block under `mcpServers` in `claude_desktop_config.json` yourself: stdio (cloned repo) or SSE (Docker).
+
+### Install as a bundle
+
+A [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, under its assets. Open it in Claude Desktop on macOS to install the server, without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.
+
+The install dialog asks for:
+
+- **OAuth client file** (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See [Authentication](auth.md#method-b-oauth-20-personal-use--local-dev) for how to create one.
+- **Enabled tools** (optional): a comma-separated list of tool names. Leave it empty to enable every tool (see [Tool filtering](#tool-filtering-in-client-config)).
+
+The bundle ships the source and `uv.lock`, not the dependencies: the first start runs `uv run --frozen`, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (`AUTH_METHOD=oauth`) and keeps the token at `~/.mcp-gee-sweet-token.json`, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.
+
+There's no token on the first start. The server starts without Google access, and its first tool call returns a Google consent link. Approve it in a browser, then retry the call. To authorize from a terminal instead, run `CREDENTIALS_PATH=/path/to/credentials.json TOKEN_PATH=~/.mcp-gee-sweet-token.json uvx mcp-gee-sweet auth`, then retry.
 
 ### stdio — cloned repo
 

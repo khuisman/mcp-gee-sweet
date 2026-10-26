@@ -1,0 +1,10 @@
+# A backstop: scripts/build_mcpb.py packs a staging directory holding only
+# tracked files from an allowlist, never the repo root. These keep a local
+# credential or build artifact out even if one reaches that directory.
+.venv/
+__pycache__/
+*.pyc
+credentials*.json
+token*.json
+service_account*.json
+*.mcpb
