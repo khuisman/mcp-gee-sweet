@@ -24,19 +24,26 @@ person at a browser.
 
 import argparse
 import asyncio
+import io
 import json
-import os
 import re
 import shutil
+import sys
 import time
 import zipfile
 from pathlib import Path
 
+# Run as a script, this directory is first on sys.path.
+from build_mcpb import clean_env
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 _CONSENT_POLL_SECONDS = 2
 _CONSENT_DEADLINE_SECONDS = 300
+# The token file exists (O_CREAT) before it's written, and the server adopts it
+# after that, so the first call after it appears can still miss it.
+_RETRIES_AFTER_CONSENT = 3
+_CONSENT_LINK = re.compile(r"https://accounts\.google\.com/")
 
 
 def host_params(bundle: Path, credentials: Path, home: Path) -> tuple[StdioServerParameters, Path]:
@@ -59,12 +66,17 @@ def host_params(bundle: Path, credentials: Path, home: Path) -> tuple[StdioServe
     config = manifest["server"]["mcp_config"]
     env = {k: sub(v) for k, v in config.get("env", {}).items()}
     print("env:", json.dumps(env, indent=2))
-    # Drop this checkout's virtualenv, so uv builds the bundle's own, as a host would.
-    base = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     params = StdioServerParameters(
-        command=config["command"], args=[sub(a) for a in config["args"]], env={**base, **env}
+        command=config["command"], args=[sub(a) for a in config["args"]], env={**clean_env(), **env}
     )
     return params, Path(env["TOKEN_PATH"])
+
+
+def _token_written(path: Path) -> bool:
+    try:
+        return bool(json.loads(path.read_text()))
+    except (OSError, ValueError):
+        return False
 
 
 async def _call(session: ClientSession, tool: str) -> tuple[bool, str]:
@@ -83,19 +95,23 @@ async def run(args: argparse.Namespace) -> int:
         print("token file before the call:", token_path.exists())
         is_error, text = await _call(session, args.tool)
         print(f"{args.tool}: is_error={is_error}\n{text[:2000]}")
-        if not (is_error and args.wait_for_consent and "accounts.google.com" in text):
+        if not (is_error and args.wait_for_consent and _CONSENT_LINK.search(text)):
             return 1 if is_error else 0
         print("\nOpen the link above and approve it. Waiting for the token file...")
         deadline = time.monotonic() + _CONSENT_DEADLINE_SECONDS
-        while not token_path.exists():
+        while not _token_written(token_path):
             if time.monotonic() > deadline:
                 print("no token file before the deadline")
                 return 1
             await asyncio.sleep(_CONSENT_POLL_SECONDS)
         print("token file written, mode", oct(token_path.stat().st_mode & 0o777))
-        is_error, text = await _call(session, args.tool)
-        print(f"retried {args.tool}: is_error={is_error}\n{text[:2000]}")
-        return 1 if is_error else 0
+        for attempt in range(1, _RETRIES_AFTER_CONSENT + 1):
+            is_error, text = await _call(session, args.tool)
+            print(f"retry {attempt} of {args.tool}: is_error={is_error}\n{text[:2000]}")
+            if not is_error:
+                return 0
+            await asyncio.sleep(_CONSENT_POLL_SECONDS)
+        return 1
 
 
 def main() -> None:
@@ -106,6 +122,9 @@ def main() -> None:
     parser.add_argument("--tool", default="list_spreadsheets")
     parser.add_argument("--wait-for-consent", action="store_true")
     args = parser.parse_args()
+    # The consent link must show up even when stdout is redirected to a file.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
     args.home.mkdir(parents=True, exist_ok=True)
     raise SystemExit(asyncio.run(run(args)))
 

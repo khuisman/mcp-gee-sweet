@@ -15,7 +15,7 @@ The install dialog asks for:
 
 The bundle ships the source and `uv.lock`, not the dependencies: the first start runs `uv run --frozen`, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (`AUTH_METHOD=oauth`) and keeps the token at `~/.mcp-gee-sweet-token.json`, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.
 
-There's no token on the first start. The server starts without Google access, and its first tool call returns a Google consent link. Approve it in a browser, then retry the call. To authorize from a terminal instead, run `CREDENTIALS_PATH=/path/to/credentials.json TOKEN_PATH=~/.mcp-gee-sweet-token.json uvx mcp-gee-sweet auth`, then retry.
+There's no token on the first start. The server starts without Google access, and its first tool call returns a Google consent link. Approve it in a browser, then retry the call. To authorize from a terminal instead, run `CREDENTIALS_PATH=/path/to/credentials.json TOKEN_PATH=~/.mcp-gee-sweet-token.json ENABLED_TOOLS=<your Enabled tools value> uvx mcp-gee-sweet auth`, then retry. Give `ENABLED_TOOLS` the same value as the install dialog's **Enabled tools**, or leave it out if that was empty: the consent asks for mailbox access only when a Gmail tool is enabled, so leaving it out after excluding Gmail grants a scope the server doesn't use.
 
 ### stdio — cloned repo
 

@@ -2,7 +2,6 @@
   "manifest_version": "0.4",
   "name": "mcp-gee-sweet",
   "display_name": "mcp-gee-sweet",
-  "version": "0.9.5",
   "description": "MCP server for Google Workspace — Sheets, Drive, Docs (HTML or Markdown), Calendar, and Gmail.",
   "author": {
     "name": "Kevin Huisman",
@@ -32,7 +31,6 @@
         "mcp_gee_sweet"
       ],
       "env": {
-        "UV_DYNAMIC_VERSIONING_BYPASS": "0.9.5",
         "AUTH_METHOD": "oauth",
         "CREDENTIALS_PATH": "${user_config.credentials_path}",
         "TOKEN_PATH": "${HOME}/.mcp-gee-sweet-token.json",

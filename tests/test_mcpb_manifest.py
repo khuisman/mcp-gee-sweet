@@ -8,10 +8,12 @@ importlib rather than a normal import (same pattern as test_gen_tool_docs.py).
 import importlib.util
 import json
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPT_PATH = _REPO_ROOT / "scripts" / "build_mcpb.py"
@@ -25,7 +27,9 @@ _HOST_VARIABLES = {"__dirname", "HOME"}
 
 
 def _manifest():
-    return build_mcpb.load_manifest()
+    """The working-tree manifest.json: the file under review."""
+    with open(_REPO_ROOT / "manifest.json") as f:
+        return json.load(f)
 
 
 def _pyproject():
@@ -39,31 +43,27 @@ def _mcp_config_strings(manifest):
 
 
 class TestVersion:
-    def test_matches_server_json(self):
+    def test_manifest_keeps_no_version(self):
+        # The build stamps it, so no release step has a copy to bump by hand.
+        manifest = _manifest()
+        assert "version" not in manifest
+        assert build_mcpb._VERSION_ENV not in manifest["server"]["mcp_config"]["env"]
+
+    def test_defaults_to_server_json(self):
         with open(_REPO_ROOT / "server.json") as f:
             server_json = json.load(f)
-        assert _manifest()["version"] == server_json["version"]
+        assert build_mcpb.release_version(None) == server_json["version"]
 
-    def test_bypass_matches_version(self):
+    def test_release_tag_wins(self):
+        assert build_mcpb.release_version("v1.2.3") == "1.2.3"
+        assert build_mcpb.release_version("1.2.3") == "1.2.3"
+
+    def test_stamps_version_and_bypass(self):
         # Inside the bundle there's no git tag for uv-dynamic-versioning to read,
-        # so without this the installed package reports the 0.0.0 fallback.
-        manifest = _manifest()
-        env = manifest["server"]["mcp_config"]["env"]
-        assert env["UV_DYNAMIC_VERSIONING_BYPASS"] == manifest["version"]
-
-    def test_expect_version_accepts_the_tag(self):
-        manifest = _manifest()
-        build_mcpb.check_version(manifest, "v" + manifest["version"])
-
-    def test_expect_version_rejects_a_stale_manifest(self):
-        with pytest.raises(SystemExit, match=re.escape("expected '99.0.0'")):
-            build_mcpb.check_version(_manifest(), "v99.0.0")
-
-    def test_expect_version_rejects_a_stale_bypass(self):
-        manifest = _manifest()
-        manifest["server"]["mcp_config"]["env"]["UV_DYNAMIC_VERSIONING_BYPASS"] = "0.0.1"
-        with pytest.raises(SystemExit, match=re.escape("UV_DYNAMIC_VERSIONING_BYPASS '0.0.1'")):
-            build_mcpb.check_version(manifest, manifest["version"])
+        # so without the bypass the installed package reports the 0.0.0 fallback.
+        manifest = build_mcpb.stamped_manifest("1.2.3")
+        assert manifest["version"] == "1.2.3"
+        assert manifest["server"]["mcp_config"]["env"]["UV_DYNAMIC_VERSIONING_BYPASS"] == "1.2.3"
 
 
 class TestIdentity:
@@ -160,10 +160,84 @@ class TestBundleFiles:
             assert secret not in names
 
     def test_stage_resizes_the_icon(self, tmp_path):
-        from PIL import Image
-
-        build_mcpb.stage(tmp_path)
+        build_mcpb.stage(tmp_path, build_mcpb.stamped_manifest("1.2.3"))
         with Image.open(tmp_path / _manifest()["icon"]) as icon:
             assert max(icon.size) == build_mcpb._ICON_SIZE
-        assert (tmp_path / "manifest.json").is_file()
+        assert json.loads((tmp_path / "manifest.json").read_text())["version"] == "1.2.3"
         assert not (tmp_path / "src" / "mcp_gee_sweet" / ".env").exists()
+
+
+def _git(repo, *args):
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+
+
+@pytest.fixture
+def committed_repo(tmp_path, monkeypatch):
+    """A throwaway repo holding the allowlisted files, committed, with
+    build_mcpb pointed at it."""
+    repo = tmp_path / "repo"
+    pkg = repo / "src" / "mcp_gee_sweet"
+    pkg.mkdir(parents=True)
+    for rel in build_mcpb._ROOT_FILES:
+        (repo / rel).write_text(f"committed {rel}\n")
+    (repo / "manifest.json").write_text(json.dumps(_manifest()))
+    (repo / "server.json").write_text(json.dumps({"version": "1.2.3"}))
+    (pkg / "server.py").write_text("committed = True\n")
+    (pkg / "auth.py").write_text("committed = True\n")
+    (repo / "docs" / "assets").mkdir(parents=True)
+    Image.new("RGBA", (1024, 1024)).save(repo / build_mcpb._ICON_SOURCE)
+    _git(repo, "init", "-q")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    monkeypatch.setattr(build_mcpb, "ROOT", repo)
+    return repo
+
+
+class TestStagesWhatIsCommitted:
+    def test_uncommitted_edits_stay_out(self, committed_repo, tmp_path):
+        pkg = committed_repo / "src" / "mcp_gee_sweet"
+        (pkg / "server.py").write_text('TOKEN = "an uncommitted secret"\n')
+        (committed_repo / "README.md").write_text("uncommitted\n")
+        out = tmp_path / "out"
+        build_mcpb.stage(out, build_mcpb.stamped_manifest(build_mcpb.release_version(None)))
+        assert (out / "src" / "mcp_gee_sweet" / "server.py").read_text() == "committed = True\n"
+        assert (out / "README.md").read_text() == "committed README.md\n"
+
+    def test_untracked_files_stay_out(self, committed_repo, tmp_path):
+        pkg = committed_repo / "src" / "mcp_gee_sweet"
+        (pkg / ".env").write_text("SECRET=1\n")
+        (pkg / "token.json").write_text("{}\n")
+        out = tmp_path / "out"
+        build_mcpb.stage(out, build_mcpb.stamped_manifest("1.2.3"))
+        assert not (out / "src" / "mcp_gee_sweet" / ".env").exists()
+        assert not (out / "src" / "mcp_gee_sweet" / "token.json").exists()
+
+    def test_a_locally_deleted_file_still_stages(self, committed_repo, tmp_path):
+        (committed_repo / "src" / "mcp_gee_sweet" / "auth.py").unlink()
+        out = tmp_path / "out"
+        build_mcpb.stage(out, build_mcpb.stamped_manifest("1.2.3"))
+        assert (out / "src" / "mcp_gee_sweet" / "auth.py").read_text() == "committed = True\n"
+
+    def test_version_comes_from_committed_server_json(self, committed_repo):
+        (committed_repo / "server.json").write_text(json.dumps({"version": "9.9.9"}))
+        assert build_mcpb.release_version(None) == "1.2.3"
+
+    def test_missing_root_file_is_refused(self, committed_repo):
+        _git(committed_repo, "rm", "-q", "LICENSE")
+        _git(committed_repo, "commit", "-q", "-m", "drop")
+        with pytest.raises(SystemExit, match="LICENSE"):
+            build_mcpb.bundle_files()

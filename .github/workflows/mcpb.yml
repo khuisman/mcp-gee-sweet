@@ -15,6 +15,9 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - "server.json"
+      - "README.md"
+      - "LICENSE"
+      - "docs/assets/logo.png"
       - ".github/workflows/mcpb.yml"
   release:
     types: [published]
@@ -39,14 +42,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --dev --python 3.12
 
-      # A release fails here when manifest.json wasn't bumped to the tag, so no
-      # bundle with a stale version is attached.
+      # A release stamps its tag into the bundle's manifest; a pull request
+      # stamps server.json's version.
       - name: Build and smoke-test the bundle
         env:
-          EXPECT_VERSION: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [ -n "$EXPECT_VERSION" ]; then
-            uv run python scripts/build_mcpb.py --smoke --expect-version "$EXPECT_VERSION"
+          if [ -n "$RELEASE_TAG" ]; then
+            uv run python scripts/build_mcpb.py --smoke --version "$RELEASE_TAG"
           else
             uv run python scripts/build_mcpb.py --smoke
           fi
