@@ -2789,7 +2789,7 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - Error message is from the Calendar API</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-get_calendar('totally-invalid-cal-id@example.com') -&gt; {"error":"<HttpError 404 ... 'reason': 'notFound' ...>"}, not a top-level exception.</p>
+get_calendar('totally-invalid-cal-id@example.com') -&gt; {"error":"&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}, not a top-level exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).</p>
 <hr />
@@ -3201,7 +3201,7 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as <code>{"error": ...}</code> rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-remove_calendar_acl rule_id="totally-invalid-rule-id" -&gt; {"error":"<HttpError 400 ... 'Invalid resource id value.' ...>"}, not a top-level exception.</p>
+remove_calendar_acl rule_id="totally-invalid-rule-id" -&gt; {"error":"&lt;HttpError 400 ... 'Invalid resource id value.' ...&gt;"}, not a top-level exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).</p>
 <hr />

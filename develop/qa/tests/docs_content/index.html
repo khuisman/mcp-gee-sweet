@@ -1462,13 +1462,13 @@ Run 2 (ash).</p>
 - Response includes metadata (title, web link)
 - No <code>error</code> field</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-get_doc_content returned text content: "Test Document", paragraph, "<em> Item one"/"</em> Item two", metadata (name, modified_time, web_link), no error.</p>
+get_doc_content returned text content: "Test Document", paragraph, "* Item one"/"* Item two", metadata (name, modified_time, web_link), no error.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (ash).</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
 <code>kai-oauth</code>: get_doc_content(copy) returned "Test Document / This document is used… / * Item one / * Item two" plus name, modified_time and web_link. No error.</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
-<code>kai-sa</code>: <code>get_doc_content(TEST_DOC_ID)</code> returned "Test Document" (heading), the paragraph, and "<em> Item one"/"</em> Item two". Metadata included name, modified_time and web_link. No error.</p>
+<code>kai-sa</code>: <code>get_doc_content(TEST_DOC_ID)</code> returned "Test Document" (heading), the paragraph, and "* Item one"/"* Item two". Metadata included name, modified_time and web_link. No error.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): fixture doc content returned with name, modified_time, web_link; no error.</p>
 <hr />
