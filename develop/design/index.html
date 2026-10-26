@@ -1443,6 +1443,11 @@
 <td>2026-10-25</td>
 <td>#1036: <code>.mcpb</code> with the <code>uv</code> server type and an explicit <code>mcp_config</code> (<code>uv run --frozen --no-dev python -m mcp_gee_sweet</code>), staged from files committed at <code>HEAD</code> only, version stamped at build time (with <code>UV_DYNAMIC_VERSIONING_BYPASS</code>) from the release tag or <code>server.json</code>, OAuth only with the token at <code>${HOME}/.mcp-gee-sweet-token.json</code>, attached to each GitHub Release</td>
 </tr>
+<tr>
+<td><a href="gmail-send-confirmation/">Safe-by-Default Gmail Sending</a></td>
+<td>2026-10-25</td>
+<td>#1081: <code>GMAIL_SEND=confirm</code> saves a draft, confirms through a form elicitation only when <code>can_send_request</code> is true (not on 2026-07-28 connections), and sends only an unchanged draft (message ID re-checked before <code>drafts.send</code>); recipient flags keyed on the primary address domain</td>
+</tr>
 </tbody>
 </table>
 

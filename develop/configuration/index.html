@@ -556,6 +556,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#gmail-sending" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gmail sending
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1594,6 +1605,16 @@
 <td><code>60</code></td>
 </tr>
 <tr>
+<td><code>GMAIL_SEND</code></td>
+<td>How <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> deliver mail: <code>confirm</code> or <code>direct</code>. An unrecognized value logs a warning and uses <code>confirm</code>. See <a href="#gmail-sending">Gmail sending</a></td>
+<td><code>confirm</code></td>
+</tr>
+<tr>
+<td><code>GMAIL_SEND_WARN_RECIPIENTS</code></td>
+<td>Flag a send whose unique To, Cc and Bcc addresses number more than this. An invalid or negative value logs a warning and uses the default. See <a href="#gmail-sending">Gmail sending</a></td>
+<td><code>10</code></td>
+</tr>
+<tr>
 <td><code>HOST</code> (or <code>FASTMCP_HOST</code>)</td>
 <td>Bind address for the SSE and streamable HTTP transports. <code>FASTMCP_HOST</code> is a fallback if <code>HOST</code> isn't set. Any address other than loopback needs <code>MCP_SERVER_TOKEN</code>. See <a href="#http-transport-authentication">HTTP transport authentication</a></td>
 <td><code>127.0.0.1</code></td>
@@ -1770,6 +1791,46 @@
 <p>The cache directory is created owner-only (<code>0700</code>) and the DB and its <code>-wal</code>/<code>-shm</code> files are <code>0600</code>; an existing default directory with looser permissions is tightened. An explicit <code>CACHE_DB_PATH</code>'s files get the same <code>0600</code>, but its directory is left as it is. A cache directory or file owned by another user, or a symlink in place of one, isn't used: the server warns and caches in memory instead. The same happens when there's no home directory to put the cache in, e.g. a container run with <code>--user</code> and no home.</p>
 <p>Each entry is stored under the Google identity it was fetched as (the account's Drive permission ID, or a service account's email when Drive can't say), so two accounts sharing one DB file never see each other's entries. Invalidation isn't per identity: <code>refresh_cache</code> and a write's invalidation reach every identity's copy. Until the server has read the identity (at connection start, retried on every tool call), nothing is cached. A cached sheet list is served stale only when Google couldn't answer (a 5xx, a 429, or a network failure), never in place of a refusal such as a 403 or 404.</p>
 <p>Versions up to 0.9.2 kept the cache in <code>/tmp/mcp_gee_sweet.db</code>, readable by every local user. The server never reads that file again; on start-up with <code>CACHE_DB_PATH</code> unset it makes the file owner-only if it's yours, but doesn't delete it. Delete <code>/tmp/mcp_gee_sweet.db</code> and its <code>-wal</code>/<code>-shm</code> files yourself.</p>
+<h2 id="gmail-sending">Gmail sending<a class="headerlink" href="#gmail-sending" title="Permanent link">&para;</a></h2>
+<p>By default (<code>GMAIL_SEND=confirm</code>) no email goes out on the agent's call alone:</p>
+<ul>
+<li><code>send_message</code> and <code>reply_to_message</code> first save the message as a Gmail draft. A reply draft goes in the original thread.</li>
+<li>If the MCP client can show a form, the server asks the user to confirm. The form shows any recipient flags (below) first, then the From address, every recipient grouped by To, Cc and Bcc, the subject, the attachment names, and the first 500 characters of the body, with its full length. When the email has an HTML part that most mail apps show instead, its text is shown too. That text is an approximation of what a mail app renders: it errs toward showing more (for example, the content of Outlook-only conditional comments), not less. Body text is marked off line by line, so it can't pass for the form's own lines. The form is built from the draft as Gmail stores it.</li>
+<li>Only an explicit yes sends the draft. Declining, cancelling, no answer within 10 minutes, or a failed request leaves the draft unsent. The tool then returns <code>sent: false</code>, a <code>reason</code>, the <code>draft_id</code>, and a note saying the email is waiting in Gmail's Drafts folder, where the user can review and send it.</li>
+<li>If the client can't show a form, nothing is sent: <code>send_message</code> and <code>reply_to_message</code> return the held draft, and <code>send_draft</code> refuses.</li>
+<li>A draft changed after the user confirmed it (for example by <code>update_draft</code>) isn't sent, since it's no longer what the user saw.</li>
+</ul>
+<p>Confirmation needs a client that connects with the 2025-11-25 <code>initialize</code> handshake and supports form elicitation. On a 2026-07-28 connection the server has no way to ask, so mail always stays a draft there (#1235).</p>
+<p><strong>Claude Code currently connects on 2026-07-28</strong> (2.1.310, checked 2026-10-26). So under <code>confirm</code>, every send from Claude Code is held as a draft: <code>send_message</code> and <code>reply_to_message</code> return <code>sent: false</code>, and <code>send_draft</code> refuses. Send the drafts from Gmail's Drafts folder, or set <code>GMAIL_SEND=direct</code> to send at once.</p>
+<p><strong>A client hook that auto-accepts elicitations with a yes makes <code>confirm</code> behave like <code>direct</code>.</strong> The server can't tell a hook's answer from the user's.</p>
+<p><code>GMAIL_SEND=direct</code> restores immediate delivery for all three tools, with no draft step and no confirmation. Their only guard is then <code>destructiveHint</code>, which clients treat as a hint and skip once a tool is auto-approved.</p>
+<p><strong>Recipient flags.</strong> Every send under <code>confirm</code> reports these in the confirmation and in the result's <code>recipient_flags</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outside_organization</code></td>
+<td>Google Workspace accounts only: a recipient whose domain isn't the account's own domain or one of its send-as alias domains. A consumer alias domain (<code>gmail.com</code>, <code>googlemail.com</code>) doesn't count, so a personal Gmail alias doesn't hide the flag for Gmail recipients. Matching is exact, so <code>sub.example.com</code> counts as outside <code>example.com</code>. Never shown on consumer accounts</td>
+</tr>
+<tr>
+<td><code>outside_organization_unchecked</code></td>
+<td>The server couldn't look up the mailbox's own address, so the check above didn't run</td>
+</tr>
+<tr>
+<td><code>many_recipients</code></td>
+<td>More than <code>GMAIL_SEND_WARN_RECIPIENTS</code> unique addresses across To, Cc and Bcc</td>
+</tr>
+<tr>
+<td><code>hidden_recipients</code></td>
+<td>Any Bcc, with the count</td>
+</tr>
+</tbody>
+</table>
 
 
 

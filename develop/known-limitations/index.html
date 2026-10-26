@@ -1656,6 +1656,24 @@ append.</p>
 before repeating it. If a request legitimately takes Google longer than the timeout to start
 answering, such as a very large export or <code>batchUpdate</code>, raise <code>HTTP_TIMEOUT_SECONDS</code>. See
 <code>docs/decisions/decision-http-socket-timeout.md</code>.</p>
+<h2 id="gmail">Gmail<a class="headerlink" href="#gmail" title="Permanent link">&para;</a></h2>
+<h3 id="a-send-confirmation-cant-ask-on-a-2026-07-28-connection">A send confirmation can't ask on a 2026-07-28 connection<a class="headerlink" href="#a-send-confirmation-cant-ask-on-a-2026-07-28-connection" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Under the default <code>GMAIL_SEND=confirm</code>, a client connected on MCP 2026-07-28 never
+sees a confirmation: <code>send_message</code> and <code>reply_to_message</code> save the email as a draft and return
+<code>sent: false</code>, and <code>send_draft</code> refuses. This happens even when the client declares form
+elicitation. <strong>Claude Code currently connects on 2026-07-28</strong> (2.1.310, checked 2026-10-26),
+so every send from Claude Code is held as a draft.</p>
+<p><strong>Why:</strong> Revision 2026-07-28 removed server-initiated requests. Asking there takes an
+<code>InputRequiredResult</code> round trip, which isn't implemented yet (#1235).</p>
+<p><strong>Workaround:</strong> Send the draft from Gmail's Drafts folder, connect with a client on the
+2025-11-25 <code>initialize</code> handshake, or set <code>GMAIL_SEND=direct</code>.</p>
+<h3 id="the-changed-draft-check-has-a-short-window-before-the-send">The changed-draft check has a short window before the send<a class="headerlink" href="#the-changed-draft-check-has-a-short-window-before-the-send" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> After the user confirms, the server reads the draft again and sends it only if its
+message ID is unchanged. An edit that lands between that read and Gmail's <code>drafts.send</code> would
+still be sent.</p>
+<p><strong>Why:</strong> <code>drafts.send</code> takes no precondition, so the check has to be a separate request. The
+window is the time between two back-to-back API calls.</p>
+<p><strong>Workaround:</strong> Don't edit a draft while its send confirmation is open.</p>
 
 
 

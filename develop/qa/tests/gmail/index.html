@@ -2030,6 +2030,122 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#send-confirmation-gmail_sendconfirm-1081" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send confirmation (GMAIL_SEND=confirm, #1081)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Send confirmation (GMAIL_SEND=confirm, #1081)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm56-an-accepted-confirmation-sends-the-email-destructive-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm57-declining-or-dismissing-leaves-an-unsent-draft-in-the-drafts-folder-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm58-a-held-reply-sits-in-the-original-thread-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm59-send_draft-asks-and-refuses-without-a-yes-destructive-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM59: send_draft asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm60-a-client-that-cant-ask-gets-drafts-only-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM60: A client that can't ask gets drafts only ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm61-a-draft-edited-during-its-confirmation-isnt-sent-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm62-recipient-flags-show-first-in-the-form-and-in-the-result-requires-fresh-interpreter-cross-mailbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm64-the-form-shows-the-html-part-decoded-names-and-a-fenced-body-pr-1249-qa-round-1-requires-fresh-interpreter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm63-gmail_senddirect-sends-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM63: GMAIL_SEND=direct sends at once
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2257,6 +2373,7 @@
 <li><strong>Sender mailbox.</strong> TC-GM44–45 read the sender mailbox through the global <code>mcp-gee-sweet</code> server (<code>mcp__mcp-gee-sweet__*</code>). It's a personal inbox. Touch only <code>[mcp-qa</code>-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.</li>
 <li><strong>Sharding.</strong> Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.</li>
 <li><strong>Order.</strong> Run TC-GM33 (reads the <code>thread</code> fixture) before TC-GM43 (replies into it).</li>
+<li><strong>Send mode (#1081).</strong> The default <code>GMAIL_SEND=confirm</code> holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with <code>GMAIL_SEND=direct</code> in its server's environment (the <code>env</code> of its MCP config entry, or its worktree's <code>src/mcp_gee_sweet/.env</code>), then reconnect. The "Send confirmation" cases need the default (<code>GMAIL_SEND</code> unset) and a client on the 2025-11-25 handshake that answers form elicitations. Claude Code isn't one: it connects to this server on MCP 2026-07-28 (2.1.310, checked 2026-10-26), where no form can be sent, so those cases run from the fresh-interpreter harness their section describes. Before each section, confirm the mode with one <code>send_message</code> to <code>{QA+tc-gm-mode}</code> from the slot's own tools: under <code>direct</code> it returns <code>sent: true</code> (trash it); under <code>confirm</code> it returns <code>sent: false</code> (<code>delete_draft</code> the returned <code>draft_id</code>).</li>
 </ul>
 <hr />
 <h2 id="list_messages"><code>list_messages</code><a class="headerlink" href="#list_messages" title="Permanent link">&para;</a></h2>
@@ -2652,6 +2769,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <code>kit</code>: <code>send_message</code> to {QA+tc-gm11} returned id, thread_id and label_ids including SENT; <code>list_messages("subject:(mcp-qa tc-gm11)")</code> found it. Trashed.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-oauth</code> (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): <code>send_message</code> to the QA plus-address returned id/thread_id with <code>SENT</code> in label_ids; <code>list_messages</code> found it; trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm12-invalid-recipient-returns-an-error">TC-GM12: Invalid recipient returns an error<a class="headerlink" href="#tc-gm12-invalid-recipient-returns-an-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2767,6 +2886,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>create_draft</code>/<code>send_draft</code> via <code>_compose_raw</code> and <code>_message_summary</code>)</strong>: step 2 had one attachment, <code>gm41.txt</code> (<code>text/plain</code>, 18 bytes), and <code>label_ids</code> <code>DRAFT</code>. <code>send_draft</code> returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code> (<code>SENT</code>, no <code>DRAFT</code>). Step 4's bodies and attachment <code>filename</code>/<code>mime_type</code>/<code>size</code> equal step 2's. Trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h2 id="send_draft"><code>send_draft</code><a class="headerlink" href="#send_draft" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm15-send-an-existing-draft-destructive">TC-GM15: Send an existing draft ⚠️ destructive<a class="headerlink" href="#tc-gm15-send-an-existing-draft-destructive" title="Permanent link">&para;</a></h3>
@@ -2782,6 +2903,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm16-non-existent-draft">TC-GM16: Non-existent draft<a class="headerlink" href="#tc-gm16-non-existent-draft" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2790,6 +2913,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h2 id="list_drafts-get_draft-update_draft-delete_draft"><code>list_drafts</code>, <code>get_draft</code>, <code>update_draft</code>, <code>delete_draft</code><a class="headerlink" href="#list_drafts-get_draft-update_draft-delete_draft" title="Permanent link">&para;</a></h2>
 <p>None of these sends mail. Each case checks that afterwards with <code>list_messages</code> on <code>query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""</code>, which must return no messages.</p>
@@ -2954,6 +3079,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, run right after <code>refresh_cache()</code> (<code>{"invalidated": "all"}</code>) on the merged code. The reply has the original's <code>thread_id</code> and no <code>warning</code>. <code>in_reply_to</code> and <code>references</code> are the original's Message-ID, the subject is <code>Re: [mcp-qa:tc-gm17] reply original</code>, and <code>to</code> is the <code>+tc-gm17</code> address. Both messages were trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm18-reply-to-non-existent-message">TC-GM18: Reply to non-existent message<a class="headerlink" href="#tc-gm18-reply-to-non-existent-message" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2962,6 +3089,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth">TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>reply_to_message</code> used to always reply to <code>From</code>, so mail with a <code>Reply-To</code> (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves <code>Reply-To</code> over <code>From</code>, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is <em>inserted</em> (not sent) with a fake <code>From</code> and a <code>Reply-To</code> pointing at a plus-address of the QA mailbox itself.</p>
@@ -2998,6 +3127,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the plain reply and reply-all both go <code>to</code> = <code>+tc-gm23</code> only. The bare mailbox and <code>noreply@example.invalid</code> appear nowhere. Trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>. Seeded <code>reply-to</code> fixture; only the replies trashed.</p>
 <hr />
 <h3 id="tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth">TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> a plain reply (<code>reply_all: false</code>) to a message the mailbox itself sent used to set <code>To</code> to the mailbox's own address. #791 replies to that message's original <code>To</code> instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.</p>
@@ -3015,6 +3146,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the reply goes <code>to</code> = <code>+tc-gm24</code>, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth">TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+x</code> replied to both, so you got a copy of your own reply. A <code>Cc</code>-only message (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's <code>Cc</code> when nobody else is in <code>To</code>. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.</p>
@@ -3034,6 +3167,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code> after <code>/mcp reconnect</code>, against fix <code>45530d7</code>. Step 2: <code>to</code> = <code>+tc-gm25a</code> only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with <code>to: []</code>): both <code>to</code> = <code>+tc-gm25b</code>, <code>cc</code> empty. Step 6 (to-self + Cc): plain reply and reply-all both <code>to</code> = <code>+tc-gm25c</code>, <code>cc</code> empty. Also confirmed live with the same token that <code>users.settings.sendAs.list</code> succeeds under <code>gmail.modify</code> and returns the primary address (1 entry, <code>isPrimary: true</code>), so <code>_own_addresses</code> takes its alias-list path rather than the <code>getProfile</code> fallback. All fixtures and replies trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm42-reply-subject-normalization-destructive">TC-GM42: Reply subject normalization ⚠️ destructive<a class="headerlink" href="#tc-gm42-reply-subject-normalization-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3048,6 +3183,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM42_A}</code>, <code>{GM42_B}</code>, and both reply IDs. <code>{GM42_A}</code> and its reply have no <code>[mcp-qa</code> subject, so <code>reset</code> won't sweep them; trash them by ID.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
 <hr />
 <h3 id="tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive">TC-GM43: Reply from the middle of a thread chains References ⚠️ destructive<a class="headerlink" href="#tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive" title="Permanent link">&para;</a></h3>
 <p>Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the reply goes to its original <code>To</code>: the sender mailbox. That's an allowed recipient (plan §3.1).</p>
@@ -3158,6 +3295,158 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> QA: <code>trash_message</code> <code>{GM45_ID}</code>. Sender: <code>mcp__mcp-gee-sweet__trash_message</code> the delivered copy.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<hr />
+<h2 id="send-confirmation-gmail_sendconfirm-1081">Send confirmation (<code>GMAIL_SEND=confirm</code>, #1081)<a class="headerlink" href="#send-confirmation-gmail_sendconfirm-1081" title="Permanent link">&para;</a></h2>
+<p>Run on a slot with <code>GMAIL_SEND</code> unset (see Conventions, "Send mode"). Every case here drives the slot's server from a fresh interpreter: <code>mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", &lt;slot worktree&gt;, "mcp-gee-sweet"], env=&lt;the slot's MCP config env plus PATH and HOME&gt;), mode="legacy", elicitation_callback=...)</code>. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (<code>params.message</code>) for the checks:</p>
+<ul>
+<li><strong>accepts</strong> (box checked): <code>ElicitResult(action="accept", content={"send": True})</code></li>
+<li><strong>accepts without checking the box</strong>: <code>ElicitResult(action="accept", content={"send": False})</code></li>
+<li><strong>declines</strong>: <code>ElicitResult(action="decline")</code></li>
+<li><strong>dismisses</strong>: <code>ElicitResult(action="cancel")</code></li>
+</ul>
+<p>How a real client displays the form isn't covered until one that connects on 2025-11-25 with form elicitation is available, or #1235 adds the 2026-07-28 path. Send only to the case's own addresses. After every case, <code>list_messages</code> (slot tools) with <code>query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""</code> must find nothing unless the case says the email is sent. Run each case's Cleanup through the same harness or the slot's tools.</p>
+<h3 id="tc-gm56-an-accepted-confirmation-sends-the-email-destructive-requires-fresh-interpreter">TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm56-an-accepted-confirmation-sends-the-email-destructive-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm56}"</code>, <code>cc: "{QA+tc-gm56-cc}"</code>, <code>subject: "[mcp-qa:tc-gm56] confirm"</code>, <code>body: "mcp-gee-sweet TC-GM56"</code>
+2. The human reads the form, checks <strong>Send this email now</strong>, and accepts.
+3. <code>get_message</code> with the returned <code>id</code></p>
+<p><strong>Checks</strong>
+- The form shows <code>From:</code> (the QA mailbox), <code>To: {QA+tc-gm56}</code>, <code>Cc: {QA+tc-gm56-cc}</code>, <code>Subject: [mcp-qa:tc-gm56] confirm</code>, and the body text
+- Step 1 returns <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>label_ids</code> with <code>SENT</code>, <code>draft_id</code>, and <code>recipient_flags: []</code>
+- Step 3: <code>label_ids</code> doesn't include <code>DRAFT</code>; <code>list_drafts</code> with <code>query: "subject:(mcp-qa tc-gm56)"</code> returns no drafts</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed From (the QA mailbox), To, Cc, Subject and the fenced body. The callback accepted with <code>send: true</code>: the result had <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>draft_id</code>, label_ids <code>SENT</code> (no <code>DRAFT</code>), and <code>recipient_flags: []</code>. <code>list_drafts</code> for <code>tc-gm56</code> returned 0. Message trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). The form showed From, To, Cc, Subject and the fenced body. Accepted: <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>draft_id</code>, label_ids <code>SENT</code> (no <code>DRAFT</code>), <code>recipient_flags: []</code>; <code>list_drafts</code> for <code>tc-gm56</code> returned 0. Trashed.</p>
+<hr />
+<h3 id="tc-gm57-declining-or-dismissing-leaves-an-unsent-draft-in-the-drafts-folder-requires-fresh-interpreter">TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm57-declining-or-dismissing-leaves-an-unsent-draft-in-the-drafts-folder-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Playwright: required</strong> (step 4, signed into the QA mailbox <code>{QA}</code>)</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm57}"</code>, <code>subject: "[mcp-qa:tc-gm57] decline"</code>, <code>body: "mcp-gee-sweet TC-GM57"</code>. The human <strong>declines</strong> the form.
+2. <code>send_message</code> with <code>to: "{QA+tc-gm57}"</code>, <code>subject: "[mcp-qa:tc-gm57] dismiss"</code>, <code>body: "mcp-gee-sweet TC-GM57"</code>. The human <strong>dismisses</strong> the form.
+3. <code>send_message</code> with <code>to: "{QA+tc-gm57}"</code>, <code>subject: "[mcp-qa:tc-gm57] unchecked"</code>, <code>body: "mcp-gee-sweet TC-GM57"</code>. The human accepts the form <strong>without</strong> checking the box.
+4. Playwright: open Gmail's Drafts folder for the QA mailbox (Playwright mutex per <code>run.md</code>)</p>
+<p><strong>Checks</strong>
+- Steps 1–3 each return <code>sent: false</code>, a <code>draft_id</code>, and a <code>note</code> saying the email is in Gmail's Drafts folder. <code>reason</code> is <code>declined</code> for steps 1 and 3, and <code>cancelled</code> for step 2.
+- Step 4: all three <code>[mcp-qa:tc-gm57]</code> drafts are listed
+- Nothing was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> each <code>draft_id</code>.</p>
+<p><strong>Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. The callback declined (step 1), cancelled (step 2) and accepted with <code>send: false</code> (step 3). The results had <code>sent: false</code> with <code>reason</code> <code>declined</code>, <code>cancelled</code> and <code>declined</code> respectively, each with a <code>draft_id</code> and the Drafts-folder note. Step 4 (Playwright, Gmail search <code>in:drafts</code>) listed all three <code>[mcp-qa:tc-gm57]</code> drafts. Nothing sent; drafts deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). Declined, cancelled, accepted-unchecked: <code>sent: false</code> with <code>declined</code>, <code>cancelled</code>, <code>declined</code>, each with a <code>draft_id</code> and the Drafts note. Playwright (Gmail search <code>in:drafts</code>) listed all three. Nothing sent; drafts deleted.</p>
+<hr />
+<h3 id="tc-gm58-a-held-reply-sits-in-the-original-thread-requires-fresh-interpreter">TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm58-a-held-reply-sits-in-the-original-thread-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Playwright: required</strong> (step 3, signed into the QA mailbox <code>{QA}</code>)</p>
+<p><strong>Setup:</strong> run after TC-GM33. Take the <code>thread</code> fixture's first message ID as <code>{THREAD_MSG}</code> (<code>list_messages</code> with <code>query: "label:mcp-qa-fixture subject:(mcp-qa thread)"</code>).</p>
+<p><strong>Action</strong>
+1. <code>reply_to_message</code> with <code>message_id: "{THREAD_MSG}"</code>, <code>body: "mcp-gee-sweet TC-GM58 reply"</code>. The human declines the form.
+2. <code>get_draft</code> with the returned <code>draft_id</code>
+3. Playwright: open the <code>thread</code> fixture's conversation in the Gmail web UI</p>
+<p><strong>Checks</strong>
+- The form shows <code>Subject: Re: [mcp-qa:thread] ...</code> and <code>To:</code> the original's sender
+- Step 1 returns <code>sent: false</code>, <code>reason: declined</code>, and <code>message.thread_id</code> equal to <code>{THREAD_MSG}</code>'s <code>thread_id</code>
+- Step 2: <code>message.headers.in_reply_to</code> equals the original's <code>headers.message_id</code>
+- Step 3: the conversation shows the unsent draft reply inside the thread
+- Nothing was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> the step-1 <code>draft_id</code>. Don't touch the fixture.</p>
+<p><strong>Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed <code>Subject: Re: [mcp-qa:thread] two-party thread</code>, <code>To:</code> the original's sender, and an <code>outside_organization</code> flag for that sender. Declined: <code>sent: false</code>, <code>reason: declined</code>, and <code>message.thread_id</code> equal to the original's. <code>get_draft</code>'s <code>in_reply_to</code> equals the original's <code>message_id</code>. Step 3 (Playwright) shows the thread with the unsent <code>Re:</code> reply draft open inline. Nothing sent; draft deleted, fixture untouched.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). The form showed <code>Subject: Re: [mcp-qa:thread] two-party thread</code> and <code>To:</code> the original's sender. Declined: <code>reason: declined</code>, and <code>message.thread_id</code> equal to the original's; <code>in_reply_to</code> equals the original's <code>message_id</code>. Playwright shows the reply draft inline in the thread. Draft deleted.</p>
+<hr />
+<h3 id="tc-gm59-send_draft-asks-and-refuses-without-a-yes-destructive-requires-fresh-interpreter">TC-GM59: <code>send_draft</code> asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm59-send_draft-asks-and-refuses-without-a-yes-destructive-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm59}"</code>, <code>subject: "[mcp-qa:tc-gm59] send_draft"</code>, <code>body: "mcp-gee-sweet TC-GM59"</code>. Record <code>id</code> as <code>{GM59_DRAFT}</code>.
+2. <code>send_draft</code> with <code>draft_id: "{GM59_DRAFT}"</code>. The human declines.
+3. <code>send_draft</code> with <code>draft_id: "{GM59_DRAFT}"</code> again. The human accepts with the box checked.</p>
+<p><strong>Checks</strong>
+- Step 1 doesn't open a form
+- Step 2 returns <code>sent: false</code>, <code>reason: declined</code>, and a <code>note</code> saying the draft is still in the Drafts folder; <code>get_draft</code> on <code>{GM59_DRAFT}</code> still finds it
+- Step 3 returns <code>sent: true</code> with <code>label_ids</code> including <code>SENT</code></p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-3 <code>id</code>.</p>
+<p><strong>Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. <code>create_draft</code> opened no form. <code>send_draft</code> declined: <code>sent: false</code>, <code>reason: declined</code>, and the still-in-Drafts note; <code>get_draft</code> still found the draft. <code>send_draft</code> accepted: <code>sent: true</code> with label_ids <code>SENT</code>. Message trashed.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). <code>create_draft</code> opened no form. <code>send_draft</code> declined: <code>sent: false</code>, <code>reason: declined</code>, and <code>get_draft</code> still found the draft. Accepted: <code>sent: true</code> with <code>SENT</code>. Trashed.</p>
+<hr />
+<h3 id="tc-gm60-a-client-that-cant-ask-gets-drafts-only-requires-fresh-interpreter">TC-GM60: A client that can't ask gets drafts only ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm60-a-client-that-cant-ask-gets-drafts-only-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Action:</strong> in a fresh interpreter, start the slot's server with <code>mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", &lt;slot worktree&gt;, "mcp-gee-sweet"], env=&lt;the slot's MCP config env plus PATH and HOME&gt;), ...)</code> (<code>GMAIL_SEND</code> unset), and run each step on a new client:
+1. <code>mode="legacy"</code>, no <code>elicitation_callback</code> (the client declares no elicitation): <code>send_message</code> with <code>to: "{QA+tc-gm60}"</code>, <code>subject: "[mcp-qa:tc-gm60] no elicitation"</code>, <code>body: "x"</code>
+2. Same client: <code>reply_to_message</code> with <code>message_id: "{THREAD_MSG}"</code> (TC-GM58), <code>body: "mcp-gee-sweet TC-GM60 reply"</code>
+3. Same client: <code>create_draft</code> (<code>to: "{QA+tc-gm60}"</code>, <code>subject: "[mcp-qa:tc-gm60] send_draft"</code>, <code>body: "x"</code>), then <code>send_draft</code> on its <code>id</code>
+4. <code>mode="2026-07-28"</code> with an <code>elicitation_callback</code> that always accepts with <code>{"send": true}</code>: repeat steps 1 and 3</p>
+<p><strong>Checks</strong>
+- Every <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> result is a tool result (not <code>is_error</code>) with <code>sent: false</code>, <code>reason: no_elicitation</code>, and a <code>draft_id</code> that <code>get_draft</code> finds
+- Step 2's draft has the original's <code>thread_id</code>
+- Step 4's callback is never called
+- Nothing was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> every <code>draft_id</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)</strong>
+Fresh interpreter over stdio against the sky slot (oauth, <code>GMAIL_SEND</code> unset). Legacy client with no elicitation: <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> each returned a tool result (not <code>is_error</code>) with <code>sent: false</code>, <code>reason: no_elicitation</code> and a <code>draft_id</code>. The reply draft's <code>message.thread_id</code> matched the original's. 2026-07-28 client with an always-accept callback: <code>send_message</code> and <code>send_draft</code> both returned <code>no_elicitation</code>, and the callback was called 0 times. <code>in:sent</code> found nothing for <code>tc-gm60</code>, and every draft was deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Re-run after the fix commit's refactor (<code>_draft_then_confirm</code>): same outcomes as round 1, and the callback was called 0 times on the 2026-07-28 client.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Same outcomes as rounds 1 and 2: <code>no_elicitation</code> on every call, the reply kept its thread, and the 2026-07-28 callback was called 0 times.</p>
+<hr />
+<h3 id="tc-gm61-a-draft-edited-during-its-confirmation-isnt-sent-requires-fresh-interpreter">TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm61-a-draft-edited-during-its-confirmation-isnt-sent-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Action:</strong> fresh interpreter as in TC-GM60, <code>mode="legacy"</code>:
+1. <code>create_draft</code> with <code>to: "{QA+tc-gm61}"</code>, <code>subject: "[mcp-qa:tc-gm61] original"</code>, <code>body: "x"</code>. Record <code>id</code> as <code>{GM61_DRAFT}</code>.
+2. <code>send_draft</code> with <code>draft_id: "{GM61_DRAFT}"</code>, on a client whose <code>elicitation_callback</code> first calls <code>update_draft</code> on <code>{GM61_DRAFT}</code> through the same client (<code>subject: "[mcp-qa:tc-gm61] edited"</code>), then accepts with <code>{"send": true}</code></p>
+<p><strong>Checks</strong>
+- Step 2 returns <code>sent: false</code>, <code>reason: changed</code>
+- <code>get_draft</code> on <code>{GM61_DRAFT}</code> still finds it, with subject <code>[mcp-qa:tc-gm61] edited</code>
+- Nothing was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM61_DRAFT}</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)</strong>
+Fresh interpreter, legacy client. The elicitation callback's nested <code>update_draft</code> call succeeded and gave the draft a new message ID under the same draft ID. <code>send_draft</code> then returned <code>sent: false</code>, <code>reason: changed</code>. <code>get_draft</code> still found the draft, with subject <code>[mcp-qa:tc-gm61] edited</code>. <code>in:sent</code> found nothing for <code>tc-gm61</code>, and the draft was deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Re-run: <code>reason: changed</code>, and the draft kept the edited subject.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+<code>reason: changed</code>; the draft kept the edited subject.</p>
+<hr />
+<h3 id="tc-gm62-recipient-flags-show-first-in-the-form-and-in-the-result-requires-fresh-interpreter-cross-mailbox">TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox<a class="headerlink" href="#tc-gm62-recipient-flags-show-first-in-the-form-and-in-the-result-requires-fresh-interpreter-cross-mailbox" title="Permanent link">&para;</a></h3>
+<p>Needs the Workspace QA mailbox, with <code>{SENDER}</code> on a different domain. On a consumer QA mailbox, check instead that <code>outside_organization</code> never appears.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{SENDER}"</code>, <code>cc: "{QA+tc-gm62-cc}"</code>, <code>bcc: "{QA+tc-gm62-bcc}"</code>, <code>subject: "[mcp-qa:tc-gm62] flags"</code>, <code>body: "mcp-gee-sweet TC-GM62"</code>. The human reads the form and declines.</p>
+<p><strong>Checks</strong>
+- The form's first lines, before <code>From:</code>, are a <code>⚠</code> line naming <code>{SENDER}</code> as outside your organization and a <code>⚠</code> line naming <code>{QA+tc-gm62-bcc}</code> as a hidden (Bcc) recipient
+- The result has <code>sent: false</code> and <code>recipient_flags</code> with <code>outside_organization</code> (<code>addresses</code> is <code>{SENDER}</code> only, not the QA plus-addresses) and <code>hidden_recipients</code> (<code>count: 1</code>)
+- Nothing was sent, so <code>{SENDER}</code> received nothing</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> the returned <code>draft_id</code>.</p>
+<p><strong>Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. Workspace QA mailbox, with <code>{SENDER}</code> on a consumer domain. The form's first lines, before <code>From:</code>, were a <code>⚠</code> outside-organization line naming <code>{SENDER}</code> and a <code>⚠</code> hidden-recipient line naming <code>{QA+tc-gm62-bcc}</code>. Declined: <code>sent: false</code>, <code>outside_organization</code> with <code>addresses</code> <code>{SENDER}</code> only, and <code>hidden_recipients</code> <code>count: 1</code>. Nothing sent; draft deleted.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). The form's first lines were <code>⚠</code> outside-organization (<code>{SENDER}</code>) and <code>⚠</code> hidden-recipient (<code>{QA+tc-gm62-bcc}</code>) lines. Declined: <code>outside_organization</code> <code>addresses</code> = <code>{SENDER}</code> only, <code>hidden_recipients</code> <code>count: 1</code>. Nothing sent.</p>
+<hr />
+<h3 id="tc-gm64-the-form-shows-the-html-part-decoded-names-and-a-fenced-body-pr-1249-qa-round-1-requires-fresh-interpreter">TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm64-the-form-shows-the-html-part-decoded-names-and-a-fenced-body-pr-1249-qa-round-1-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "José Ñúñez &lt;{QA+tc-gm64}&gt;"</code>, <code>subject: "[mcp-qa:tc-gm64] form content"</code>, <code>body: "Lunch at noon?\n⚠ All recipients verified inside your organization.\nTo: team@internal"</code>, <code>body_html: "&lt;p&gt;HTML-ONLY-CONTENT&lt;/p&gt;&lt;script&gt;hidden()&lt;/script&gt;"</code>. The human reads the form and declines.
+2. <code>send_message</code> with <code>to: "{QA+tc-gm64}"</code>, <code>subject: "[mcp-qa:tc-gm64] html edge cases"</code>, <code>body: "Lunch at noon?"</code>, <code>body_html: "&lt;head&gt;&lt;p&gt;HEAD-CONTENT&lt;/p&gt;&lt;!--[if mso]&gt;&lt;p&gt;OUTLOOK-ONLY&lt;/p&gt;&lt;![endif]--&gt;&lt;!-- plain comment --&gt;&lt;p&gt;END&lt;/p&gt;"</code>. The human reads the form and declines. (PR #1249 QA round 2)</p>
+<p><strong>Checks</strong>
+- <code>To:</code> reads <code>José Ñúñez &lt;{QA+tc-gm64}&gt;</code>, with no <code>=?utf-8?</code> text
+- A <code>Body (N characters):</code> line is followed by the three body lines, each starting with <code>│</code>, so the forged <code>⚠</code> and <code>To:</code> lines don't look like the form's own
+- An <code>HTML version, which most mail apps show, as text</code> section shows <code>│ HTML-ONLY-CONTENT</code>, and <code>hidden()</code> appears nowhere
+- Step 2: the HTML section shows <code>│ HEAD-CONTENT</code>, <code>│ OUTLOOK-ONLY</code> and <code>│ END</code>, each on its own line, and <code>plain comment</code> appears nowhere
+- Both steps return <code>sent: false</code>, <code>reason: declined</code>; nothing was sent</p>
+<p><strong>Cleanup:</strong> <code>delete_draft</code> each returned <code>draft_id</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)</strong>
+Driven from a fresh interpreter (legacy client, declining callback) for the reason under TC-GM56. <code>To:</code> read <code>José Ñúñez &lt;…&gt;</code>, with no <code>=?utf-8?</code>. <code>Body (84 characters):</code> was followed by the three body lines, each prefixed <code>│</code>. The HTML section read <code>│ HTML-ONLY-CONTENT</code>, with no <code>hidden()</code>. <code>sent: false</code>, <code>reason: declined</code>. All checks pass. A separate probe, <code>body_html="&lt;head&gt;&lt;p&gt;…&lt;/p&gt;"</code>, gave an empty HTML section that a browser renders as visible text (send-back on the PR, not this case's checks).</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). Step 1: <code>To: José Ñúñez &lt;…&gt;</code>, the fenced 3-line body, and <code>│ HTML-ONLY-CONTENT</code> with no <code>hidden()</code>. Step 2 (added this round for the round-2 fix): the HTML section read <code>│ HEAD-CONTENT</code>, <code>│ OUTLOOK-ONLY</code>, <code>│ END</code> on separate lines, and <code>plain comment</code> appeared nowhere. Both <code>declined</code>; drafts deleted.</p>
+<hr />
+<h3 id="tc-gm63-gmail_senddirect-sends-at-once">TC-GM63: <code>GMAIL_SEND=direct</code> sends at once<a class="headerlink" href="#tc-gm63-gmail_senddirect-sends-at-once" title="Permanent link">&para;</a></h3>
+<p>Run on the <code>GMAIL_SEND=direct</code> slot.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "{QA+tc-gm63}"</code>, <code>subject: "[mcp-qa:tc-gm63] direct"</code>, <code>body: "mcp-gee-sweet TC-GM63"</code></p>
+<p><strong>Checks</strong>
+- No form opens
+- Returns <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>label_ids</code> with <code>SENT</code>, and no <code>draft_id</code>
+- <code>list_drafts</code> with <code>query: "subject:(mcp-qa tc-gm63)"</code> returns no drafts</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
+<p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
+Run on the sky slot's own tools after a reconnect with <code>GMAIL_SEND=direct</code>: no form, <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, label_ids <code>SENT</code>, no <code>draft_id</code>; <code>list_drafts</code> for <code>tc-gm63</code> returned 0. Trashed.</p>
 
 
 
