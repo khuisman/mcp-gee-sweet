@@ -70,6 +70,11 @@ What a release contains and when it's done. The maintainer decided these rules o
    - The number is whatever the next tag in sequence is. Dev builds are unaffected: their numbers come from the last git tag only.
    - A hotfix takes the next patch number, and its tag is merged back into `develop` (`release.md` step 8), or dev builds keep the pre-hotfix number and sort below it (#317).
    - A hotfix that takes the in-flight version's number sends that version back to the queue. It gets a `planned: <name>` label (name it now if it never had one), not the next number (maintainer, 2026-10-22).
+   - **`next-release` marks the next feature release** for contributors, since a codename doesn't say where a version sits in the queue (maintainer, 2026-10-23, #1185). It goes on every ticket in that release's feature set and fill, open and closed, alongside its `planned: <name>` label while queued and its `vX.Y.Z` label once in flight. The next feature release is the in-flight version if there is one, otherwise the first version in `docs/roadmap.md`'s queue order, even when that version's fill is locked. This is not "next version" as this section defines it. A hotfix never carries `next-release` and never moves it; when a hotfix sends the in-flight version back to the queue (above), `next-release` stays on that version's tickets. Keep it in step:
+     - Whenever a ticket gets that version's label, it gets `next-release` too; when a ticket moves to another version, it loses it.
+     - When the queue is reordered so a different version comes first, remove `next-release` from every ticket of the old version and apply it to every ticket of the new one.
+     - When the version ships, remove it from all of that version's tickets, open and closed, and apply it to the tickets of the version now first in the queue (`release.md` step 10). If nothing is queued, no ticket carries it.
+     - A closed ticket keeps it until its release's tag goes out.
 4. **Feature placement, first match wins:**
    1. Part of a version's feature set: that version.
    2. A prerequisite of a feature-set ticket: that version's feature set.

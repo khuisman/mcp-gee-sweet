@@ -1,0 +1,72 @@
+{
+  "manifest_version": "0.4",
+  "name": "mcp-gee-sweet",
+  "display_name": "mcp-gee-sweet",
+  "description": "MCP server for Google Workspace — Sheets, Drive, Docs (HTML or Markdown), Calendar, and Gmail.",
+  "author": {
+    "name": "Kevin Huisman",
+    "email": "khuisman@users.noreply.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khuisman/mcp-gee-sweet"
+  },
+  "homepage": "https://github.com/khuisman/mcp-gee-sweet",
+  "documentation": "https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/client-setup.md",
+  "support": "https://github.com/khuisman/mcp-gee-sweet/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/mcp_gee_sweet/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--frozen",
+        "--no-dev",
+        "python",
+        "-m",
+        "mcp_gee_sweet"
+      ],
+      "env": {
+        "AUTH_METHOD": "oauth",
+        "CREDENTIALS_PATH": "${user_config.credentials_path}",
+        "TOKEN_PATH": "${HOME}/.mcp-gee-sweet-token.json",
+        "ENABLED_TOOLS": "${user_config.enabled_tools}"
+      }
+    }
+  },
+  "tools_generated": true,
+  "keywords": [
+    "google-workspace",
+    "google-sheets",
+    "google-docs",
+    "google-drive",
+    "google-calendar",
+    "gmail"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "linux"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "user_config": {
+    "credentials_path": {
+      "type": "file",
+      "title": "OAuth client file",
+      "description": "The OAuth Client ID JSON (Desktop app) downloaded from Google Cloud Console. See docs/auth.md.",
+      "required": true
+    },
+    "enabled_tools": {
+      "type": "string",
+      "title": "Enabled tools",
+      "description": "Comma-separated tool names to register. Leave empty to enable every tool.",
+      "required": false,
+      "default": ""
+    }
+  }
+}

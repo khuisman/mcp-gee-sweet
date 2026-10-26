@@ -93,6 +93,8 @@ Service accounts (recommended for headless server deployments, see Option B abov
 
 ## MCP client config
 
+**Claude Desktop — one-click bundle:** download `mcp-gee-sweet-<version>.mcpb` from the latest [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases/latest) and open it in Claude Desktop. It asks for your OAuth client file and needs no config editing ([details](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/client-setup.md#install-as-a-bundle)).
+
 **Claude Desktop — stdio (cloned repo):**
 ```json
 {
@@ -125,6 +127,19 @@ Service accounts (recommended for headless server deployments, see Option B abov
 ```
 
 See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) for more options including tool filtering.
+
+### Using a client with a tool limit
+
+Some MCP clients cap how many tools they accept, and with every tool registered this server is over each cap:
+
+| Client | Limit |
+|---|---|
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, built-in tools included. Over it, every request fails with "Cannot have more than 128 tools per request" |
+| Windsurf | 100 tools in total, across all servers |
+| Cursor | Depends on the model ("Too many MCP tools are enabled for this mode") |
+| Google Antigravity | 100 tools per server (user report) |
+
+On these clients, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
 
 ---
 
