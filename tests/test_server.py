@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -66,6 +67,67 @@ class TestAllToolsAreAsync:
             t.name for t in tools if not inspect.iscoroutinefunction(inspect.unwrap(t.fn))
         )
         assert sync_tools == [], f"non-async tool(s) found: {sync_tools}"
+
+
+_INTERNAL_REF_PATTERNS = (
+    re.compile(r"(?<![0-9a-fA-F])#\d{2,5}(?![0-9a-fA-F])"),
+    re.compile(r"PR #"),
+    re.compile(r"confirmed live", re.IGNORECASE),
+)
+
+
+def _internal_refs(text: str) -> list[str]:
+    """Citations to this project's own issues and release notes that a calling model
+    has no way to act on.
+
+    The bare-number pattern is hex- and number-format-safe: a colour like `#000000`
+    and a spreadsheet format like `#,##0.00` both put digits after a `#` but are
+    caller-facing content, so they must not trip the guard.
+    """
+    found: list[str] = []
+    for pattern in _INTERNAL_REF_PATTERNS:
+        found += pattern.findall(text)
+    return found
+
+
+class TestToolDocstringsCarryNoInternalRefs:
+    """#1045: a tool's docstring is the description the caller reads, and this is the
+    third strip of the same class of references (#566, #571, #683). A one-off cleanup
+    demonstrably doesn't hold, so the registry itself is now the check.
+    """
+
+    def test_no_registered_tool_description_cites_internal_refs(self):
+        tools = mcp._tool_manager.list_tools()
+        assert tools, "no tools registered — registration may be broken"
+        offenders = sorted(
+            f"{t.name}: {sorted(set(_internal_refs(t.description)))}"
+            for t in tools
+            if _internal_refs(t.description)
+        )
+        assert offenders == [], f"tool description(s) cite internal refs: {offenders}"
+
+    def test_no_registered_tool_docstring_cites_internal_refs(self):
+        # The description is derived from the docstring at registration; check the
+        # source too so a docstring-only reference cannot hide behind a
+        # caller-supplied description override.
+        tools = mcp._tool_manager.list_tools()
+        offenders = sorted(
+            f"{t.name}: {sorted(set(_internal_refs(doc)))}"
+            for t in tools
+            if (doc := inspect.getdoc(inspect.unwrap(t.fn)) or "") and _internal_refs(doc)
+        )
+        assert offenders == [], f"tool docstring(s) cite internal refs: {offenders}"
+
+    def test_detector_flags_the_patterns_it_guards(self):
+        # Non-vacuous: without this, a broken pattern would silently pass the suite.
+        assert _internal_refs("Fixed in #432 by the maintainer.") == ["#432"]
+        assert _internal_refs("the same class of bug PR #432 fixed") == ["#432", "PR #"]
+        assert _internal_refs("Confirmed live 2026-07-18.") == ["Confirmed live"]
+        assert _internal_refs("see _DownloadCandidate's docstring") == []
+
+    def test_detector_ignores_hex_colours_and_number_formats(self):
+        assert _internal_refs("background #000000, foreground #ffffff") == []
+        assert _internal_refs("format as #,##0.00 or #,###") == []
 
 
 class TestGmailScopeGate:

@@ -28,7 +28,7 @@ def register(tool):
 
         Also useful for form-style column alignment (labels/values lined up without
         a visible table) — a zero-padding table gives exact column positions where
-        tabStops would otherwise be needed (tabStops itself is read-only, #404). See
+        tabStops would otherwise be needed (tabStops itself is read-only). See
         docs/design/borderless-table-columns.md for the full recipe.
 
         Args:
