@@ -103,8 +103,9 @@ def register(tool):
             Information about the newly created spreadsheet including its ID
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
@@ -188,8 +189,9 @@ def register(tool):
             per chunk that succeeded), so the missing rows can be retried precisely.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         try:
@@ -992,8 +994,9 @@ def register(tool):
             fileId, name, mimeType, parent, and webViewLink of the new copy.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot copy files into personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only copy files into a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
