@@ -220,6 +220,21 @@ class TestLaneState:
     def test_unknown_slot_is_busy(self):
         assert kai_status.lane_state("jay", None, []) == "busy"
 
+    def test_retro_pr_does_not_hold_the_lane(self):
+        pr = self._pr("doc/jay/retro-2026-10-25")
+        assert kai_status.lane_state("jay", "team/jay", [pr]) == "free"
+
+    def test_retro_pr_beside_a_parked_ticket(self):
+        prs = [self._pr("fix/jay/issue-1116", "parked"), self._pr("doc/jay/retro-2026-10-25")]
+        assert kai_status.lane_state("jay", "team/jay", prs) == "free"
+
+    def test_ticket_branch_shape(self):
+        assert kai_status.is_ticket_branch("fix/jay/issue-1116", "jay")
+        assert kai_status.is_ticket_branch("docs/jay/issue-590", "jay")
+        assert not kai_status.is_ticket_branch("doc/jay/retro-2026-10-25", "jay")
+        assert not kai_status.is_ticket_branch("fix/ash/issue-1116", "jay")
+        assert not kai_status.is_ticket_branch("fix/jay/issue-1116-followup", "jay")
+
 
 class TestParseWorktrees:
     MAIN = Path("/repo")
