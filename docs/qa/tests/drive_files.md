@@ -2141,4 +2141,7 @@ create_shortcut cases matched.
 
 **Cleanup:** trash `{SCRATCH}`.
 
+**Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07**
+Ran the script from the `kit` checkout with its own `TOKEN_PATH`, against a scratch folder on the Shared Drive. Every step printed the expected `(write landed: no)` line(s), then `cancelled <tool> …`, then the matching `(write landed: yes)` line(s), and ended `writes sent: 1; landed: 1`. Step 2 printed `folder cache: every folder marked dirty` both times. Step 4 printed lines for both `{SCRATCH}` and `{SUB}`. Final listings: `{SUB}` held `a.txt` and `TC-D1030 renamed`, and `{SCRATCH}` held only `TC-D1030 folder`. Note: the first `list_files({SCRATCH})` right after `refresh_cache` still showed the moved doc, though `get_file_metadata` already reported `{SUB}` as its only parent. A second refresh-and-list a few seconds later was correct. That points to lag in Drive's `in parents` index, not to the cache, so if the doc still shows up, wait a few seconds and list again.
+
 ---

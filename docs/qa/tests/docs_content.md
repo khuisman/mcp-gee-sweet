@@ -6341,3 +6341,6 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Cleanup:** trash `{DOC_ID}`.
 
+**Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07**
+Ran the script from the `kit` checkout with its own `TOKEN_PATH`, on a fresh doc (trashed afterward). Both steps printed `doc cache marked dirty for {DOC_ID} (write landed: no)`, then `cancelled <tool> while its write was in flight; the tool returned nothing`, then `(write landed: yes)`, and ended `writes sent: 1; landed: 1`. After `refresh_cache`, `get_doc_structure` showed an empty paragraph, a 1x1 table at index 2, and then `INFLIGHT1030 Before`, so both cancelled edits landed.
+
