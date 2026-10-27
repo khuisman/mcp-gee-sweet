@@ -5,7 +5,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread
+from ...auth import execute_in_thread, invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -44,23 +44,24 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         header_id = None
         try:
-            response = await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "createHeader": {
-                                    "type": header_type,
+            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                response = await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "createHeader": {
+                                        "type": header_type,
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
             replies = response.get("replies") or []
             if replies:
                 header_id = replies[0].get("createHeaderResponse", {}).get("headerId")
@@ -90,33 +91,32 @@ def register(tool):
 
         if content and header_id:
             try:
-                await execute_in_thread(
-                    lc.docs_service.documents()
-                    .batchUpdate(
-                        documentId=doc_id,
-                        body={
-                            "requests": [
-                                {
-                                    "insertText": {
-                                        "text": content,
-                                        "location": {"index": 0, "segmentId": header_id},
+                with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                    await execute_in_thread(
+                        lc.docs_service.documents()
+                        .batchUpdate(
+                            documentId=doc_id,
+                            body={
+                                "requests": [
+                                    {
+                                        "insertText": {
+                                            "text": content,
+                                            "location": {"index": 0, "segmentId": header_id},
+                                        }
                                     }
-                                }
-                            ]
-                        },
+                                ]
+                            },
+                        )
+                        .execute,
+                        lc.docs_service,
                     )
-                    .execute,
-                    lc.docs_service,
-                )
             except Exception as e:
-                lc.doc_cache.mark_dirty(doc_id)
                 return {
                     "docId": doc_id,
                     "headerId": header_id,
                     "warning": f"Header created but content insert failed: {e}",
                 }
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("create_header: type=%s headerId=%s in doc %s", header_type, header_id, doc_id)
         return {"docId": doc_id, "headerId": header_id}
 
@@ -153,23 +153,24 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         footer_id = None
         try:
-            response = await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "createFooter": {
-                                    "type": footer_type,
+            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                response = await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "createFooter": {
+                                        "type": footer_type,
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
             replies = response.get("replies") or []
             if replies:
                 footer_id = replies[0].get("createFooterResponse", {}).get("footerId")
@@ -199,32 +200,31 @@ def register(tool):
 
         if content and footer_id:
             try:
-                await execute_in_thread(
-                    lc.docs_service.documents()
-                    .batchUpdate(
-                        documentId=doc_id,
-                        body={
-                            "requests": [
-                                {
-                                    "insertText": {
-                                        "text": content,
-                                        "location": {"index": 0, "segmentId": footer_id},
+                with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                    await execute_in_thread(
+                        lc.docs_service.documents()
+                        .batchUpdate(
+                            documentId=doc_id,
+                            body={
+                                "requests": [
+                                    {
+                                        "insertText": {
+                                            "text": content,
+                                            "location": {"index": 0, "segmentId": footer_id},
+                                        }
                                     }
-                                }
-                            ]
-                        },
+                                ]
+                            },
+                        )
+                        .execute,
+                        lc.docs_service,
                     )
-                    .execute,
-                    lc.docs_service,
-                )
             except Exception as e:
-                lc.doc_cache.mark_dirty(doc_id)
                 return {
                     "docId": doc_id,
                     "footerId": footer_id,
                     "warning": f"Footer created but content insert failed: {e}",
                 }
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("create_footer: type=%s footerId=%s in doc %s", footer_type, footer_id, doc_id)
         return {"docId": doc_id, "footerId": footer_id}

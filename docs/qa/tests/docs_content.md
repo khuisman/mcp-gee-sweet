@@ -6319,3 +6319,25 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Result (2026-10-25) ✅ PASS — PR #1234 QA round 2 (Sky) @ 2af4b0b**
 `sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
+
+### TC-DOC237: A Docs edit tool cancelled while its edit is in flight re-invalidates the doc cache once the edit lands (#1030) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Same mechanism as TC-D300: `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its `batchUpdate` is held on its worker thread, printing every doc-cache invalidation as `doc cache marked dirty for <id> (write landed: yes|no)`. TC-DOC222 covers the image-embedding edits (#907); this case covers the edit tools outside `content.py`/`images.py`. `insert_doc_table` is included because it used to mark the doc dirty only once its re-fetch found the table.
+
+**Setup:**
+1. `create_doc(title="TC-DOC237", content="Before", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py insert_doc_text --doc-id {DOC_ID}`
+2. `uv run python scripts/qa_cancel_inflight_write.py insert_doc_table --doc-id {DOC_ID}`
+
+**Checks**
+- Each step prints `doc cache marked dirty for {DOC_ID} (write landed: no)`, then `cancelled <tool> while its write was in flight; the tool returned nothing`, then `doc cache marked dirty for {DOC_ID} (write landed: yes)`, and ends `writes sent: 1; landed: 1`. Before #1030, neither invalidation was printed
+- After `refresh_cache(doc_id={DOC_ID})`, `get_doc_structure(doc_id={DOC_ID})` shows a table at the start of the body and `INFLIGHT1030 Before` after it (both cancelled edits landed)
+- If a step shows only `(write landed: yes)`, the edit finished before the cancel reached the tool; re-run that step on a fresh doc
+
+**Cleanup:** trash `{DOC_ID}`.
+

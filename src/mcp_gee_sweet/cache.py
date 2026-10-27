@@ -832,8 +832,8 @@ class DocContentCache(_BaseCache):
         logger.debug("Doc cache hit: %s", file_id)
         return value
 
-    def store(self, file_id: str, doc: dict):
-        if self._replace(file_id, doc):
+    def store(self, file_id: str, doc: dict, epoch: int | None = None):
+        if self._replace(file_id, doc, epoch):
             logger.debug("Cached doc %s", file_id)
 
     def mark_dirty(self, file_id: str):

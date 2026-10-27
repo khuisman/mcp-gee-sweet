@@ -41,6 +41,26 @@ def after_abandoned_calls(callback: Callable[[], None]) -> Iterator[None]:
         _abandoned_call_hook.reset(token)
 
 
+@contextmanager
+def invalidating(callback: Callable[[], None], *, on_success: bool = True) -> Iterator[None]:
+    """Run `callback`, a cache invalidation for what the write requests inside this
+    block change, on every exit from it, and again whenever one of those requests is
+    abandoned and later finishes (`after_abandoned_calls`). Every exit, not just
+    success: a failed request (a timeout, a 5xx) may still have been applied, and a
+    cancelled one may still land (#907, #1030). `on_success=False` leaves a block
+    that exits normally to its caller, which knows whether anything changed (a
+    skipped upload changed nothing). A block nested inside another
+    `after_abandoned_calls` block replaces the outer callback for its own requests."""
+    completed = False
+    try:
+        with after_abandoned_calls(callback):
+            yield
+        completed = True
+    finally:
+        if on_success or not completed:
+            callback()
+
+
 class CallAuthState:
     """What a tool call's Google API requests learned about its credentials. Shared by
     every request the call makes, including those on gathered tasks and worker threads:

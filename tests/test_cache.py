@@ -369,6 +369,25 @@ class TestDocContentCache:
         self.cache.store("fid", new_doc)
         assert self.cache.get("fid") == new_doc
 
+    def test_store_with_stale_epoch_is_skipped(self):
+        """#1032: an edit's mark_dirty landing while a fetch is in flight must not be
+        overwritten by that fetch's pre-edit result."""
+        epoch = self.cache.snapshot_epoch()
+        self.cache.mark_dirty("fid")
+        self.cache.store("fid", self.doc, epoch=epoch)
+        assert self.cache.get("fid") is None
+
+    def test_store_with_current_epoch_succeeds(self):
+        epoch = self.cache.snapshot_epoch()
+        self.cache.store("fid", self.doc, epoch=epoch)
+        assert self.cache.get("fid") == self.doc
+
+    def test_invalidating_another_doc_does_not_skip_the_store(self):
+        epoch = self.cache.snapshot_epoch()
+        self.cache.mark_dirty("other")
+        self.cache.store("fid", self.doc, epoch=epoch)
+        assert self.cache.get("fid") == self.doc
+
     def test_set_ttl_shortens_window_for_existing_entry(self):
         self.cache.store("fid", self.doc)
         self.cache.set_ttl(0)

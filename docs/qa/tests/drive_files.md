@@ -2110,3 +2110,35 @@ create_shortcut(target='invalidid123xyz', folder=FOLDER_ID, name='QA-Shortcut-Ba
 create_shortcut cases matched.
 
 ---
+
+### TC-D300: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** No MCP client can cancel a tool call at a chosen point, so `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every folder-cache invalidation as `folder cache marked dirty for <id>` or `folder cache: every folder marked dirty`, each with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`).
+
+**Setup:**
+1. `create_folder(name="TC-D300", parent_folder_id={FOLDER_ID})`. Record `folderId` as `{SCRATCH}`.
+2. `create_doc(title="TC-D300 doc", folder_id={SCRATCH})`. Record `docId` as `{FILE_ID}`.
+3. A local directory `<dir>` holding one file, `a.txt`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py create_folder --folder-id {SCRATCH}`
+2. `uv run python scripts/qa_cancel_inflight_write.py rename_file --file-id {FILE_ID}`
+3. `list_files(folder_id={SCRATCH})`. Record the `TC-D1030 folder` entry's ID as `{SUB}`.
+4. `uv run python scripts/qa_cancel_inflight_write.py move_file --file-id {FILE_ID} --folder-id {SUB}`
+5. `uv run python scripts/qa_cancel_inflight_write.py sync_folder --folder-id {SUB} --local-path <dir>`
+
+**Checks**
+- Every step prints `cancelled <tool> while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
+- Step 1 prints `folder cache marked dirty for {SCRATCH} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1030, neither line was printed
+- Step 2 prints `folder cache: every folder marked dirty (write landed: no)`, then the same with `(write landed: yes)`. A rename's folder comes only from its response, which a cancelled call never reads
+- Step 4 prints a `(write landed: no)` line for both `{SCRATCH}` and `{SUB}`, then a `(write landed: yes)` line for both
+- Step 5 prints `folder cache marked dirty for {SUB} (write landed: no)`, then `(write landed: yes)`
+- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D300 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed)
+- If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
+
+**Cleanup:** trash `{SCRATCH}`.
+
+---

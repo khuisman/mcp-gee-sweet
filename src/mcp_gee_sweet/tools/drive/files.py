@@ -10,14 +10,19 @@ from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread
+from ...auth import execute_in_thread, invalidating
 from ...local_files import LocalFileAccessError, check_read
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..http_errors import is_storage_quota_error
 from ..pagination import iter_pages
 from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
-from . import _escape_drive_query_mime_type, _escape_drive_query_value, _quota_error_text
+from . import (
+    _escape_drive_query_mime_type,
+    _escape_drive_query_value,
+    _FolderInvalidation,
+    _quota_error_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +123,16 @@ def register(tool):
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
 
+        invalidate = _FolderInvalidation(lc, target_folder_id)
         try:
-            spreadsheet = await execute_in_thread(
-                drive_service.files()
-                .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-                .execute,
-                drive_service,
-            )
+            with invalidating(invalidate):
+                spreadsheet = await execute_in_thread(
+                    drive_service.files()
+                    .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
+                    .execute,
+                    drive_service,
+                )
+                invalidate.found(spreadsheet.get("parents"))
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
@@ -137,9 +145,6 @@ def register(tool):
             spreadsheet_id,
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         return {
             "spreadsheetId": spreadsheet_id,
@@ -224,17 +229,22 @@ def register(tool):
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
 
+        # Right after the create, not after the chunk writes: the spreadsheet is in
+        # the folder from here on, however the rest of the import ends.
+        invalidate = _FolderInvalidation(lc, target_folder_id)
         try:
-            spreadsheet = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    supportsAllDrives=True,
-                    body=file_body,
-                    fields="id, name, parents, webViewLink",
+            with invalidating(invalidate):
+                spreadsheet = await execute_in_thread(
+                    drive_service.files()
+                    .create(
+                        supportsAllDrives=True,
+                        body=file_body,
+                        fields="id, name, parents, webViewLink",
+                    )
+                    .execute,
+                    drive_service,
                 )
-                .execute,
-                drive_service,
-            )
+                invalidate.found(spreadsheet.get("parents"))
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
@@ -286,13 +296,13 @@ def register(tool):
             )
 
         if requests:
-            await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-                .execute,
-                sheets_service,
-            )
-            lc.cache.mark_dirty(spreadsheet_id)
+            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                    .execute,
+                    sheets_service,
+                )
 
         quoted_sheet = _quote_sheet_name(sheet_name)
 
@@ -353,13 +363,10 @@ def register(tool):
                 "error": str(exc),
             }
 
-        chunk_results: list[dict[str, Any]] = (
-            await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
-        )
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            chunk_results: list[dict[str, Any]] = (
+                await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
+            )
 
         failed_ranges = [
             {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}
@@ -884,19 +891,19 @@ def register(tool):
         if target_parent_id:
             file_body["parents"] = [target_parent_id]
 
-        folder = await execute_in_thread(
-            drive_service.files()
-            .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-            .execute,
-            drive_service,
-        )
+        invalidate = _FolderInvalidation(lc, target_parent_id)
+        with invalidating(invalidate):
+            folder = await execute_in_thread(
+                drive_service.files()
+                .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
+                .execute,
+                drive_service,
+            )
+            invalidate.found(folder.get("parents"))
 
         folder_id = folder.get("id")
         parents = folder.get("parents")
         logger.debug("Folder created with ID: %s", folder_id)
-
-        if target_parent_id:
-            lc.drive_folder_cache.mark_dirty(target_parent_id)
 
         return {
             "folderId": folder_id,
@@ -945,24 +952,24 @@ def register(tool):
         if target_parent_id:
             file_body["parents"] = [target_parent_id]
 
-        shortcut = await execute_in_thread(
-            drive_service.files()
-            .create(
-                supportsAllDrives=True,
-                body=file_body,
-                fields="id, name, parents, shortcutDetails",
+        invalidate = _FolderInvalidation(lc, target_parent_id)
+        with invalidating(invalidate):
+            shortcut = await execute_in_thread(
+                drive_service.files()
+                .create(
+                    supportsAllDrives=True,
+                    body=file_body,
+                    fields="id, name, parents, shortcutDetails",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
+            invalidate.found(shortcut.get("parents"))
 
         parents = shortcut.get("parents")
         logger.debug(
             "Shortcut created with ID: %s -> target %s", shortcut.get("id"), target_file_id
         )
-
-        if target_parent_id:
-            lc.drive_folder_cache.mark_dirty(target_parent_id)
 
         details = shortcut.get("shortcutDetails", {})
         return {
@@ -1005,26 +1012,27 @@ def register(tool):
         if folder_id:
             body["parents"] = [folder_id]
 
+        invalidate = _FolderInvalidation(lc, folder_id)
         try:
-            copied = await execute_in_thread(
-                drive_service.files()
-                .copy(
-                    fileId=file_id,
-                    body=body,
-                    supportsAllDrives=True,
-                    fields="id, name, mimeType, parents, webViewLink",
+            with invalidating(invalidate):
+                copied = await execute_in_thread(
+                    drive_service.files()
+                    .copy(
+                        fileId=file_id,
+                        body=body,
+                        supportsAllDrives=True,
+                        fields="id, name, mimeType, parents, webViewLink",
+                    )
+                    .execute,
+                    drive_service,
                 )
-                .execute,
-                drive_service,
-            )
+                invalidate.found(copied.get("parents"))
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
             raise
 
         parents = copied.get("parents", [])
-        for parent in parents:
-            lc.drive_folder_cache.mark_dirty(parent)
         logger.debug("Copied file %s → %s", file_id, copied.get("id"))
         return {
             "fileId": copied.get("id"),
@@ -1059,24 +1067,23 @@ def register(tool):
         )
         previous_parents = ",".join(existing.get("parents", []))
 
-        updated = await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                addParents=destination_folder_id,
-                removeParents=previous_parents,
-                supportsAllDrives=True,
-                fields="id, name, parents, mimeType",
+        with invalidating(
+            _FolderInvalidation(lc, destination_folder_id, *existing.get("parents", []))
+        ):
+            updated = await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    addParents=destination_folder_id,
+                    removeParents=previous_parents,
+                    supportsAllDrives=True,
+                    fields="id, name, parents, mimeType",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
 
         logger.debug("Moved file %s to folder %s", file_id, destination_folder_id)
-
-        for old_parent in existing.get("parents", []):
-            lc.drive_folder_cache.mark_dirty(old_parent)
-        lc.drive_folder_cache.mark_dirty(destination_folder_id)
 
         parents = updated.get("parents", [])
         return {
@@ -1101,21 +1108,22 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"name": new_name},
-                supportsAllDrives=True,
-                fields="id, name, parents",
+        invalidate = _FolderInvalidation(lc)
+        with invalidating(invalidate):
+            updated = await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"name": new_name},
+                    supportsAllDrives=True,
+                    fields="id, name, parents",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
+            invalidate.found(updated.get("parents"))
 
         parents = updated.get("parents", [])
-        for parent in parents:
-            lc.drive_folder_cache.mark_dirty(parent)
         logger.debug("Renamed file %s to %s", file_id, new_name)
         return {
             "fileId": updated.get("id"),
@@ -1137,20 +1145,20 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"starred": True},
-                supportsAllDrives=True,
-                fields="id, name, starred, parents",
+        invalidate = _FolderInvalidation(lc)
+        with invalidating(invalidate):
+            updated = await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"starred": True},
+                    supportsAllDrives=True,
+                    fields="id, name, starred, parents",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-
-        for parent in updated.get("parents", []):
-            lc.drive_folder_cache.mark_dirty(parent)
+            invalidate.found(updated.get("parents"))
         logger.debug("Starred file %s", file_id)
         return {
             "fileId": updated.get("id"),
@@ -1172,20 +1180,20 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"starred": False},
-                supportsAllDrives=True,
-                fields="id, name, starred, parents",
+        invalidate = _FolderInvalidation(lc)
+        with invalidating(invalidate):
+            updated = await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"starred": False},
+                    supportsAllDrives=True,
+                    fields="id, name, starred, parents",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-
-        for parent in updated.get("parents", []):
-            lc.drive_folder_cache.mark_dirty(parent)
+            invalidate.found(updated.get("parents"))
         logger.debug("Unstarred file %s", file_id)
         return {
             "fileId": updated.get("id"),
@@ -1349,28 +1357,27 @@ def register(tool):
                 f"Cannot permanently delete file {file_id}: the authenticated identity "
                 f"lacks permanent-delete permission on it.{shared_drive_note}{trash_hint}"
             )
-        for parent in existing.get("parents", []):
-            lc.drive_folder_cache.mark_dirty(parent)
-
+        with invalidating(_FolderInvalidation(lc, *existing.get("parents", []))):
+            if permanent:
+                await execute_in_thread(
+                    drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute,
+                    drive_service,
+                )
+            else:
+                await execute_in_thread(
+                    drive_service.files()
+                    .update(
+                        fileId=file_id,
+                        body={"trashed": True},
+                        supportsAllDrives=True,
+                        fields="id",
+                    )
+                    .execute,
+                    drive_service,
+                )
         if permanent:
-            await execute_in_thread(
-                drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute,
-                drive_service,
-            )
             logger.debug("Permanently deleted file %s", file_id)
             return {"fileId": file_id, "action": "deleted"}
-
-        await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"trashed": True},
-                supportsAllDrives=True,
-                fields="id",
-            )
-            .execute,
-            drive_service,
-        )
         logger.debug("Trashed file %s", file_id)
         return {"fileId": file_id, "action": "trashed"}
 
@@ -1392,19 +1399,20 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        result = await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"trashed": False},
-                supportsAllDrives=True,
-                fields="id,parents",
+        invalidate = _FolderInvalidation(lc)
+        with invalidating(invalidate):
+            result = await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"trashed": False},
+                    supportsAllDrives=True,
+                    fields="id,parents",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-        for parent in result.get("parents", []):
-            lc.drive_folder_cache.mark_dirty(parent)
+            invalidate.found(result.get("parents"))
 
         logger.debug("Restored file %s", file_id)
         return {"fileId": file_id, "action": "restored"}

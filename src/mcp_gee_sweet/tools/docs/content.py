@@ -13,10 +13,10 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread
+from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread, invalidating
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ...local_files import LocalFileAccessError, check_read, check_write
-from ..drive import _quota_error_text
+from ..drive import _FolderInvalidation, _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
@@ -424,7 +424,7 @@ async def _copy_for_backup(drive_service, doc_id: str, name: str) -> dict[str, A
     request = drive_service.files().copy(
         fileId=doc_id,
         body={"name": name},
-        fields="id,name,capabilities(canDelete)",
+        fields="id,name,parents,capabilities(canDelete)",
         supportsAllDrives=True,
     )
     with anyio.fail_after(_BACKUP_COPY_TIMEOUT):
@@ -521,9 +521,14 @@ async def _replace_doc_content(
         # Shielded, so a cancellation can't land after Drive made the copy but
         # before its ID is recorded (the PR #877 rule); bounded inside by
         # _BACKUP_COPY_TIMEOUT.
+        # The copy lands next to the doc, so that folder's listing changes too,
+        # even when the copy fails after Drive made it (#1030).
+        backup_folders = _FolderInvalidation(lc)
         with anyio.CancelScope(shield=True):
             try:
-                backup = await _copy_for_backup(drive_service, doc_id, backup_name)
+                with invalidating(backup_folders):
+                    backup = await _copy_for_backup(drive_service, doc_id, backup_name)
+                    backup_folders.found(backup.get("parents"))
             except Exception as e:
                 no_backup_reason = _no_backup_reason(e)
                 opt_in_reason = _opt_in_no_backup_reason(e)
@@ -578,7 +583,7 @@ async def _replace_doc_content(
         try:
             _, end_index = await _doc_end_index(docs_service, doc_id)
         except BaseException as e:
-            return await _unchanged_result(drive_service, backup, doc_id, e)
+            return await _unchanged_result(lc, backup, doc_id, e)
 
     def _failed(e: BaseException, cleared: str) -> dict[str, Any]:
         """The result for a failure once the clear was sent; `cleared` is "yes",
@@ -655,7 +660,7 @@ async def _replace_doc_content(
                 )
         except BaseException as e:
             if _was_rejected(e):
-                return await _unchanged_result(drive_service, backup, doc_id, e)
+                return await _unchanged_result(lc, backup, doc_id, e)
             return _failed(e, "maybe")
         cleared = "yes"
     else:
@@ -679,7 +684,7 @@ async def _replace_doc_content(
             # Cancelled during the image-share revoke, after the new content had
             # fully landed (PR #1029 QA round 1): the doc was replaced, so the
             # backup isn't needed.
-            warning = await _discard_backup(drive_service, backup)
+            warning = await _discard_backup(lc, backup)
             if warning:
                 logger.warning(
                     "Replacing doc %s was cancelled after it finished: %s", doc_id, warning
@@ -705,7 +710,7 @@ async def _replace_doc_content(
 
     async def _remove_backup() -> None:
         nonlocal warning
-        warning = await _discard_backup(drive_service, backup)
+        warning = await _discard_backup(lc, backup)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(_remove_backup)
@@ -740,11 +745,11 @@ async def _replace_doc_content(
 
 
 async def _unchanged_result(
-    drive_service, backup: dict[str, Any], doc_id: str, e: BaseException
+    lc: SpreadsheetContext, backup: dict[str, Any], doc_id: str, e: BaseException
 ) -> dict[str, Any]:
     """_replace_doc_content's result when it stopped before changing the doc: the
     backup isn't needed, so it's removed. A cancellation is re-raised after."""
-    warning = await _discard_backup(drive_service, backup)
+    warning = await _discard_backup(lc, backup)
     if not isinstance(e, Exception):
         raise e
     result: dict[str, Any] = {
@@ -756,7 +761,7 @@ async def _unchanged_result(
     return result
 
 
-async def _discard_backup(drive_service, backup: dict[str, Any]) -> str | None:
+async def _discard_backup(lc: SpreadsheetContext, backup: dict[str, Any]) -> str | None:
     """Remove _replace_doc_content's backup copy, if one was made. Shielded, so a
     cancellation doesn't leave the copy behind. Returns a warning for the caller's
     result if the removal failed, else None."""
@@ -764,8 +769,13 @@ async def _discard_backup(drive_service, backup: dict[str, Any]) -> str | None:
         return None
     with anyio.CancelScope(shield=True):
         cleanup_error = await _discard_temp_doc(
-            drive_service, backup["id"], backup.get("capabilities", {}).get("canDelete", True)
+            lc.drive_service,
+            backup["id"],
+            backup.get("capabilities", {}).get("canDelete", True),
         )
+    # A listing read while the copy existed still shows it; a failed removal may
+    # have landed too (#1030).
+    _FolderInvalidation(lc, *backup.get("parents", []))()
     if not cleanup_error:
         return None
     return (
@@ -1535,6 +1545,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
+        # Before any fetch: an edit's mark_dirty landing while this call reads the
+        # doc must stop the pre-edit result being stored over it (#1032).
+        epoch = doc_cache.snapshot_epoch()
 
         # When validation is on, fetch full metadata (not just modifiedTime) up
         # front: it's the same call cost as the lightweight helper, and reusing it
@@ -1581,7 +1594,7 @@ def register(tool):
                 "web_link": metadata.get("webViewLink"),
                 "content": content.decode("utf-8") if isinstance(content, bytes) else content,
             }
-            doc_cache.store(file_id, result)
+            doc_cache.store(file_id, result, epoch=epoch)
 
         if local_path:
             return await write_capped_result_to_disk(
