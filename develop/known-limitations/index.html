@@ -1511,6 +1511,38 @@ service account.</p>
 use <code>write_doc_content</code> or <code>update_cells</code> to populate it. Alternatively, use OAuth authentication
 (<code>AUTH_METHOD=oauth</code>) which authenticates as the user and has full personal Drive access.
 Related: project memory <code>service_account_limit</code>.</p>
+<h3 id="converting-md-on-upload-uses-drives-markdown-import-which-renders-differently">Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently<a class="headerlink" href="#converting-md-on-upload-uses-drives-markdown-import-which-renders-differently" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>upload_local_file(convert=True)</code>, <code>upload_local_folder(convert=True)</code>, and
+<code>sync_folder(convert_markdown=True)</code> hand a <code>.md</code> file to Drive's own Markdown importer. The
+Docs tools (<code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>)
+use this server's converter instead. The same Markdown comes out differently:</p>
+<ul>
+<li><strong>Bullets</strong> use a <code>-</code> glyph at every level, not ● / ○ / ■.</li>
+<li><strong>Numbered lists</strong> use <code>1.</code> numbering at every level, not <code>a.</code> / <code>i.</code> for nested levels. A
+  <code>1)</code> list keeps the <code>)</code>. A top-level item after a nested numbered sub-list can repeat the
+  previous number (1, 2, 2).</li>
+<li><strong>Code blocks</strong> (fenced or indented) aren't monospace: each line becomes its own Arial
+  paragraph, with paragraph spacing between lines.</li>
+<li><strong>Inline code</strong> is green monospace rather than Courier New, so <code>get_doc_as_markdown</code> reads it
+  back as plain text, without backticks.</li>
+<li><strong>Blockquotes</strong> are indented but have no left border.</li>
+<li><strong>Task lists</strong> become native Docs checklists rather than <code>☐</code> / <code>☑</code> text. A numbered task list
+  loses its numbers.</li>
+<li><strong>Sub-lists indented by 2 spaces</strong> under a numbered item don't nest; 3 or more spaces do.</li>
+<li><strong>Extra empty paragraphs</strong> appear around paragraphs, rules, and lists.</li>
+<li><strong><code>&lt;del&gt;</code> and <code>&lt;mark&gt;</code></strong> inline HTML isn't rendered as strikethrough or highlight.</li>
+<li><strong>Images</strong> with a local path or <code>drive:</code> source aren't embedded. Only this server's converter
+  uploads and shares those.</li>
+</ul>
+<p><strong>Why:</strong> The rendering is Drive's, not this server's. These tools upload the file and set a Google
+Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
+the #1044 Markdown baselines (<code>docs/qa/results/2026-10-18-markdown.md</code>,
+<code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>). Routing these tools
+through this server's converter is a design question (#1113).</p>
+<p><strong>Workaround:</strong> For a single file, use <code>create_doc_from_file</code>, and <code>update_doc_from_file</code> to
+refresh it. They render <code>.md</code> the same way as the other Docs tools. There's no equivalent for a
+whole folder or for <code>sync_folder</code>'s change tracking yet. Related: <code>get_doc_as_markdown</code> exports a
+Drive-imported list as blockquoted numbered items (#1104).</p>
 <h3 id="sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it"><code>sync_folder</code> — renaming a long-named <code>convert_markdown</code> Doc in Drive unlinks it<a class="headerlink" href="#sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>sync_folder(convert_markdown=True)</code> normally keeps matching a converted Doc to its
 local <code>.md</code> file even after the Doc is renamed in Drive. That doesn't hold for a <code>.md</code> filename
