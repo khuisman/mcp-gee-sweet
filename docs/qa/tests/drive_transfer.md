@@ -242,6 +242,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Regression check for `_upload_local_file`'s now-paged name lookup, run via `mcp-gee-sweet-sky` (OAuth) in a scratch folder on the Shared Drive. The second call returned the first call's `fileId` with `skipped: true`, and `list_files` showed a single `qa-test.png`.
+
 ---
 
 ### TC-D95: skip_if_exists=False creates duplicate ⚠️ local-filesystem
@@ -376,6 +379,9 @@ Delete both files (raw `qa-convert-215.csv` and converted `qa-convert-215`) from
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Regression check for the `convert=True` branch (which also reads `properties`) of `_upload_local_file`'s now-paged lookup. Run via `mcp-gee-sweet-sky` (OAuth) in a scratch folder on the Shared Drive. Step 2 returned `skipped: false` and a new Sheet named `qa-convert-215`, and `list_files` showed the raw CSV alongside the converted Sheet. An extra step 3 (the same `convert=True` call again) returned the Sheet's `fileId` with `skipped: true`.
 
 ---
 
@@ -3371,3 +3377,6 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Teardown**
 `delete_file(file_id="{P}")`, then `rm -rf /tmp/qa-300`.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Verified via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive at head `601b0b3e`. Call 1: 1,005 `uploaded`, `failed == []`. Call 2: `uploaded == []`, 1,005 `skipped`. Call 3 (written with `result_local_path`, since the inline result is large): `uploaded`/`failed`/`conflicts` empty, 1,005 `skipped`. Call 4: 1,005 `downloaded`, `failed == []`, `size_bytes: 1005`. Step 5: `1005`. Call 1 takes over 2 minutes, so the client moves it to the background.
