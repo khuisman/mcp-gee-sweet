@@ -3028,12 +3028,13 @@ def register(tool):
                      A .md conversion is recognized by sync_folder's convert_markdown
                      matching too (same underlying mechanism, #211) — a later
                      sync_folder call on the same folder won't create a duplicate.
-                     For .md specifically, create_doc_from_file is a local-pipeline
-                     alternative: it parses the file and rebuilds it via Docs API
-                     requests instead of Drive's importer, supporting more Markdown
-                     features (tables, nested lists, task items, fenced code blocks)
-                     at the cost of more API calls, versus this single-call
-                     Drive-native import.
+                     A .md file is rendered by Drive's Markdown importer, not this
+                     server's converter, so it looks different from create_doc's
+                     output: '-' bullets at every level, code blocks one Arial
+                     paragraph per line instead of monospace, quotes without a
+                     border, nested numbering '1.' rather than 'a.'. Full list:
+                     docs/known-limitations.md. To render a .md the way the Docs
+                     tools do, use create_doc_from_file instead.
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
@@ -3097,6 +3098,10 @@ def register(tool):
                      'failed' rather than uploaded as-is, matching upload_local_file's
                      own convert=True behavior for an unsupported extension. Default
                      False (upload every file preserving its original format).
+                     A .md file is rendered by Drive's Markdown importer, not this
+                     server's converter: '-' bullets at every level, code blocks
+                     not monospace, quotes without a border, nested numbering '1.'
+                     rather than 'a.'. Full list: docs/known-limitations.md.
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', 'skipped_unverified', and
@@ -3882,7 +3887,11 @@ def register(tool):
                            import conversion, landing as Google Docs (still named
                            '<name>.md') instead of raw text files — same mechanism as
                            upload_local_file's convert param (#188), and a Doc created
-                           either way is recognized by this matching. The converted Doc
+                           either way is recognized by this matching. Drive's importer
+                           renders the Markdown, not this server's converter: '-'
+                           bullets at every level, code blocks not monospace, quotes
+                           without a border, nested numbering '1.' rather than 'a.'
+                           (full list: docs/known-limitations.md). The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of
                            whether a later sync passes convert_markdown=True again),
