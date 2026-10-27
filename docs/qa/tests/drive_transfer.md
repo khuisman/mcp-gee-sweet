@@ -3346,3 +3346,28 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+### TC-D300: Folder transfers see every child of a folder with more than 1,000 entries (issue #1165) ⚠️ local-filesystem
+
+**Background:** `download_folder`, `sync_folder`, and `upload_local_folder(skip_if_exists=True)` listed a folder with one `pageSize=1000` request and never followed `nextPageToken`. Past 1,000 children, `download_folder` silently skipped the rest, and the two upload paths treated files past the first page as missing and uploaded duplicates. Each listing now reads every page.
+
+**Setup:**
+1. `rm -rf /tmp/qa-300 && mkdir -p /tmp/qa-300/src && for i in $(seq -w 1 1005); do printf x > /tmp/qa-300/src/f$i.txt; done` (1,005 one-byte files, `f0001.txt` … `f1005.txt`).
+2. `create_folder(name="qa-300-pagination", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{P}`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")`
+2. `upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")` (again; `skip_if_exists` defaults to `true`)
+3. `sync_folder(folder_id="{P}", local_path="/tmp/qa-300/src", direction="upload")`
+4. `download_folder(folder_id="{P}", local_path="/tmp/qa-300/dl/")`
+5. `ls /tmp/qa-300/dl | wc -l`
+
+**Checks**
+- Call 1: 1,005 entries in `uploaded`, `failed == []`.
+- Call 2: `uploaded == []` and all 1,005 names in `skipped`. Before the fix, the ~5 names past Drive's first page were uploaded again as duplicates.
+- Call 3: `uploaded == []`, `failed == []`, `conflicts == []`. A name in `failed` with a collision error means call 2 or 3 created a duplicate.
+- Call 4: 1,005 entries in `downloaded`, `failed == []`.
+- Step 5: `1005`.
+
+**Teardown**
+`delete_file(file_id="{P}")`, then `rm -rf /tmp/qa-300`.
