@@ -27,7 +27,7 @@ from ...local_files import (
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
-from ..pagination import iter_pages
+from ..pagination import PageLimitExceeded, iter_pages
 from ..response_limits import (
     _blocked_destination_error,
     _is_dangling_symlink,
@@ -924,28 +924,47 @@ def _local_md5(path: Path) -> str:
     return h.hexdigest()
 
 
-# 100 pages of 1,000 children: only a nextPageToken that never goes falsy reaches it.
+# A bound on pages, not on files: Drive may return short pages before the end
+# of a listing, so this is at most 100 pages of pageSize results, and in practice only a
+# nextPageToken that never goes falsy reaches it.
 _FILES_LIST_MAX_PAGES = 100
 
 
 async def _list_all_files(drive_service, *, file_fields: str, **list_kwargs) -> list[dict]:
-    """Every file a `files().list()` query matches, across all pages.
+    """Every file a `files().list()` query matches, across all pages, each
+    `id` once. `file_fields` must include `id`; `pageSize` defaults to 1000.
 
     Each listing here decides what to upload, download, or skip, so acting on
     a truncated first page duplicates or drops files (#1165). An error on any
-    page propagates rather than returning the pages already read.
+    page propagates rather than returning the pages already read. A folder
+    that changes while it's being paged can return the same file on two
+    pages; only its first entry is kept, so a single file never reads as a
+    name collision (PR #1261 QA round 1).
     """
+    list_kwargs.setdefault("pageSize", 1000)
     files: list[dict] = []
-    async for resp in iter_pages(
-        lambda token: drive_service.files().list(
-            fields=f"nextPageToken, files({file_fields})",
-            pageToken=token,
-            **list_kwargs,
-        ),
-        drive_service,
-        max_pages=_FILES_LIST_MAX_PAGES,
-    ):
-        files.extend(resp.get("files", []))
+    seen_ids: set[str] = set()
+    try:
+        async for resp in iter_pages(
+            lambda token: drive_service.files().list(
+                fields=f"nextPageToken, files({file_fields})",
+                pageToken=token,
+                **list_kwargs,
+            ),
+            drive_service,
+            max_pages=_FILES_LIST_MAX_PAGES,
+        ):
+            for f in resp.get("files", []):
+                if f["id"] not in seen_ids:
+                    seen_ids.add(f["id"])
+                    files.append(f)
+    except PageLimitExceeded as e:
+        raise RuntimeError(
+            f"Drive was still returning results after {e.max_pages} pages "
+            f"({len(files)} entries) listing folder contents. Stopped rather than "
+            "act on an incomplete listing. The folder may hold too many matching "
+            "entries to list in one call; split it into subfolders and retry."
+        ) from e
     return files
 
 
@@ -3180,7 +3199,7 @@ def register(tool):
                 supportsAllDrives=True,
                 # properties only under convert — nothing else reads the
                 # conversion marker (PR #800 QA round 1).
-                file_fields="name, mimeType, properties" if convert else "name, mimeType",
+                file_fields=("id, name, mimeType, properties" if convert else "id, name, mimeType"),
                 pageSize=1000,
             )
             for f in existing_files:

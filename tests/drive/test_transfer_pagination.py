@@ -79,7 +79,8 @@ def _assert_paged(svc, pages):
     calls = _list_calls(svc)
     assert [c.kwargs.get("pageToken") for c in calls] == [None, *[f"t{i}" for i in range(1, pages)]]
     for c in calls:
-        assert c.kwargs["fields"].startswith("nextPageToken, files(")
+        assert c.kwargs["fields"].startswith("nextPageToken, files(id, ")
+        assert c.kwargs["pageSize"] == 1000
 
 
 class TestListDriveChildren:
@@ -118,9 +119,33 @@ class TestListDriveChildren:
             "nextPageToken": "again",
         }
 
-        with pytest.raises(PageLimitExceeded):
+        # Reworded from iter_pages' own message, which reads like an API bug.
+        with pytest.raises(RuntimeError, match="still returning results after 3 pages") as exc:
             await _list_drive_children(svc, "root")
+        assert isinstance(exc.value.__cause__, PageLimitExceeded)
         assert len(_list_calls(svc)) == 3
+
+    async def test_file_repeated_across_pages_is_listed_once(self):
+        # A folder that changes mid-listing can shift a file across a page
+        # boundary, so Drive returns it on both pages (PR #1261 QA round 1).
+        svc = _paged_svc(
+            {
+                "files": [
+                    {"id": "f1", "name": "a.txt", "mimeType": "text/plain"},
+                    {"id": "f2", "name": "b.txt", "mimeType": "text/plain"},
+                ]
+            },
+            {
+                "files": [
+                    {"id": "f2", "name": "b.txt", "mimeType": "text/plain"},
+                    {"id": "f3", "name": "c.txt", "mimeType": "text/plain"},
+                ]
+            },
+        )
+
+        files, _ = await _list_drive_children(svc, "root")
+
+        assert [f["id"] for f in files] == ["f1", "f2", "f3"]
 
 
 class TestUploadLocalFileExistenceCheck:
@@ -145,8 +170,8 @@ class TestUploadLocalFolderBulkCheck:
         (tmp_path / "a.txt").write_text("a")
         (tmp_path / "b.txt").write_text("b")
         svc = _paged_svc(
-            {"files": [{"name": "a.txt", "mimeType": "text/plain"}]},
-            {"files": [{"name": "b.txt", "mimeType": "text/plain"}]},
+            {"files": [{"id": "fa", "name": "a.txt", "mimeType": "text/plain"}]},
+            {"files": [{"id": "fb", "name": "b.txt", "mimeType": "text/plain"}]},
         )
 
         result = await _transfer_tools["upload_local_folder"](
@@ -190,25 +215,33 @@ class TestDownloadFolder:
         _assert_paged(svc, 2)
 
 
+_SYNC_MTIME = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _in_sync_local_files(tmp_path, *names):
+    for name in names:
+        p = tmp_path / name
+        p.write_text("same")
+        os.utime(p, (_SYNC_MTIME.timestamp(), _SYNC_MTIME.timestamp()))
+
+
+def _in_sync_entry(fid, name):
+    return {
+        "id": fid,
+        "name": name,
+        "mimeType": "text/plain",
+        "modifiedTime": _SYNC_MTIME.isoformat().replace("+00:00", "Z"),
+        "size": "4",
+    }
+
+
 class TestSyncFolderUpload:
     async def test_drive_file_on_second_page_is_not_reuploaded(self, tmp_path):
-        mtime = datetime(2026, 1, 1, tzinfo=UTC)
-        for name in ("a.txt", "b.txt"):
-            p = tmp_path / name
-            p.write_text("same")
-            os.utime(p, (mtime.timestamp(), mtime.timestamp()))
-        stamp = mtime.isoformat().replace("+00:00", "Z")
-
-        def _entry(fid, name):
-            return {
-                "id": fid,
-                "name": name,
-                "mimeType": "text/plain",
-                "modifiedTime": stamp,
-                "size": "4",
-            }
-
-        svc = _paged_svc({"files": [_entry("f1", "a.txt")]}, {"files": [_entry("f2", "b.txt")]})
+        _in_sync_local_files(tmp_path, "a.txt", "b.txt")
+        svc = _paged_svc(
+            {"files": [_in_sync_entry("f1", "a.txt")]},
+            {"files": [_in_sync_entry("f2", "b.txt")]},
+        )
 
         result = await _transfer_tools["sync_folder"](
             folder_id="root", local_path=str(tmp_path), direction="upload", ctx=_ctx(svc)
@@ -218,3 +251,20 @@ class TestSyncFolderUpload:
         assert result["failed"] == []
         svc.files.return_value.create.assert_not_called()
         _assert_paged(svc, 2)
+
+    async def test_file_repeated_across_pages_is_not_a_collision(self, tmp_path):
+        # One Drive file returned on both pages must not read as two same-named
+        # files (PR #1261 QA round 1).
+        _in_sync_local_files(tmp_path, "a.txt", "b.txt")
+        svc = _paged_svc(
+            {"files": [_in_sync_entry("f1", "a.txt"), _in_sync_entry("f2", "b.txt")]},
+            {"files": [_in_sync_entry("f2", "b.txt")]},
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=_ctx(svc)
+        )
+
+        assert result["failed"] == []
+        assert result["conflicts"] == []
+        assert result["uploaded"] == []
