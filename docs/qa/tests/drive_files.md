@@ -2136,12 +2136,15 @@ create_shortcut cases matched.
 - Step 2 prints `folder cache: every folder marked dirty (write landed: no)`, then the same with `(write landed: yes)`. A rename's folder comes only from its response, which a cancelled call never reads
 - Step 4 prints a `(write landed: no)` line for both `{SCRATCH}` and `{SUB}`, then a `(write landed: yes)` line for both
 - Step 5 prints `folder cache marked dirty for {SUB} (write landed: no)`, then `(write landed: yes)`
-- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D300 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed)
+- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D300 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed). Drive's `in parents` index can lag the move by a few seconds, so if `{SCRATCH}` still lists `TC-D1030 renamed`, check that `get_file_metadata(file_id={FILE_ID})` shows `{SUB}` as its only parent, then refresh and list again
 - If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
 
 **Cleanup:** trash `{SCRATCH}`.
 
 **Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07**
 Ran the script from the `kit` checkout with its own `TOKEN_PATH`, against a scratch folder on the Shared Drive. Every step printed the expected `(write landed: no)` line(s), then `cancelled <tool> …`, then the matching `(write landed: yes)` line(s), and ended `writes sent: 1; landed: 1`. Step 2 printed `folder cache: every folder marked dirty` both times. Step 4 printed lines for both `{SCRATCH}` and `{SUB}`. Final listings: `{SUB}` held `a.txt` and `TC-D1030 renamed`, and `{SCRATCH}` held only `TC-D1030 folder`. Note: the first `list_files({SCRATCH})` right after `refresh_cache` still showed the moved doc, though `get_file_metadata` already reported `{SUB}` as its only parent. A second refresh-and-list a few seconds later was correct. That points to lag in Drive's `in parents` index, not to the cache, so if the doc still shows up, wait a few seconds and list again.
+
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3**
+Re-ran all five steps on a fresh scratch folder from the `kit` checkout at the fix commit. Every step printed the same lines as round 1: step 2 printed `every folder marked dirty` on both sides (the cancelled rename gets no response), and step 4 printed lines for both folders. The final listings were correct once Drive's index caught up; the same `in parents` lag appeared after the move and cleared on the next refresh-and-list. Extra round-2 checks in a fresh interpreter, against the real API with mocked caches: `rename_file` on a nonexistent ID raised `HttpError` (404) and marked nothing, and `mark_all_dirty` wasn't called. A successful `rename_file` marked only the parent named in its response, again without `mark_all_dirty`.
 
 ---
