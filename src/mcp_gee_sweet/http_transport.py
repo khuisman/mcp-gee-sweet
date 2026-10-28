@@ -14,6 +14,7 @@ import google_auth_httplib2
 import httplib2
 from google.auth.exceptions import RefreshError
 from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient.errors import HttpError
 from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,35 @@ def after_abandoned_calls(callback: Callable[[], None]) -> Iterator[None]:
         yield
     finally:
         _abandoned_call_hook.reset(token)
+
+
+def is_rejection(e: BaseException) -> bool:
+    """True if `e` is an HttpError the API answered with a 4xx, meaning the
+    request ran nothing. A 5xx, a timeout, or a transport error doesn't say
+    whether the request landed."""
+    return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
+
+
+@contextmanager
+def invalidating(callback: Callable[[], None], *, on_success: bool = True) -> Iterator[None]:
+    """Run `callback`, a cache invalidation for what the write requests inside this
+    block change, on every exit from it, and again whenever one of those requests is
+    abandoned and later finishes (`after_abandoned_calls`). Every exit, not just
+    success: a failed request (a timeout, a 5xx) may still have been applied, and a
+    cancelled one may still land (#907, #1030). The exception is a 4xx
+    (`is_rejection`), which ran nothing, so it skips the callback. `on_success=False`
+    leaves a block that exits normally to its caller, which knows whether anything
+    changed (a skipped upload changed nothing). A block nested inside another
+    `after_abandoned_calls` block replaces the outer callback for its own requests."""
+    try:
+        with after_abandoned_calls(callback):
+            yield
+    except BaseException as e:
+        if not is_rejection(e):
+            callback()
+        raise
+    if on_success:
+        callback()
 
 
 class CallAuthState:

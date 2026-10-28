@@ -5,6 +5,7 @@ import io
 import logging
 import os
 from collections.abc import Iterable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBa
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, thread_http
+from ...auth import execute_in_thread, invalidating, thread_http
 from ...local_files import (
     LocalFileAccessError,
     check_read,
@@ -39,6 +40,7 @@ from ..response_limits import (
 from . import (
     _escape_drive_query_mime_type,
     _escape_drive_query_value,
+    _FolderInvalidation,
     _quota_error_text,
 )
 
@@ -1391,6 +1393,20 @@ def _apply_resolve(
             )
 
 
+def _sync_level_invalidation(
+    lc, drive_folder_id: str | None, dry_run: bool
+) -> AbstractContextManager[None]:
+    """Wraps one `_sync_level` call (#1030). A level that exits normally marks its
+    folder dirty itself, only when something there changed, so this covers the
+    other exits: a level that raises or is cancelled mid-write, and a write that
+    lands after its call was abandoned. Each level's own wrapper replaces its
+    parent's for that level's requests, and a subfolder's creation is the parent
+    level's write. A dry run writes nothing."""
+    if dry_run or drive_folder_id is None:
+        return nullcontext()
+    return invalidating(_FolderInvalidation(lc, drive_folder_id), on_success=False)
+
+
 async def _sync_level(
     lc,
     drive_service,
@@ -1916,8 +1932,8 @@ async def _sync_level(
                 )
             elif isinstance(outcome, BaseException):
                 raise outcome
-            else:
-                recorded_metadata = True
+            # A failed write can still have been applied (a timeout, #1030).
+            recorded_metadata = True
 
     if legacy_resolve_jobs:
         legacy_revisions = await asyncio.gather(
@@ -2365,6 +2381,8 @@ async def _sync_level(
             rel_name = f"{rel_prefix}{step.name}"
             if isinstance(o, BaseException):
                 failed.append({"name": rel_name, "error": str(o)})
+                # Whatever the step was writing may have landed (#1030).
+                level_changed = True
                 continue
             kind = o["kind"]
             if kind == "skip":
@@ -2391,11 +2409,14 @@ async def _sync_level(
                     # (#420) — a genuine orphan now exists in Drive, so its ID
                     # rides along in the failed entry rather than being lost.
                     entry["fileId"] = o["fileId"]
-                    # create() genuinely succeeded here even though the overall
-                    # step is reported as upload_fail — the folder's contents
-                    # changed and the cache must be invalidated the same as a
-                    # real upload_ok, or a cached list_files/get_multiple_* call
-                    # on this folder won't reflect the orphan (QA round 1, PR #645).
+                if kind in ("upload_fail", "resolve_fail"):
+                    # The step's Drive write may have landed even though it's
+                    # reported as failed: a create() or update() can fail after
+                    # Drive applied it (a timeout, #1030), and one carrying
+                    # "fileId" genuinely succeeded. The cache must be invalidated
+                    # the same as a real upload_ok, or a cached
+                    # list_files/get_multiple_* call on this folder won't reflect
+                    # it (QA round 1, PR #645).
                     level_changed = True
                 failed.append(entry)
 
@@ -2507,57 +2528,58 @@ async def _sync_level(
                     child_drive_id = None  # simulate: not created yet
                 else:
                     try:
-                        created = await execute_in_thread(
-                            drive_service.files()
-                            .create(
-                                body={
-                                    "name": name,
-                                    "mimeType": "application/vnd.google-apps.folder",
-                                    "parents": [drive_folder_id],
-                                },
-                                supportsAllDrives=True,
-                                fields="id",
+                        with invalidating(_FolderInvalidation(lc, drive_folder_id)):
+                            created = await execute_in_thread(
+                                drive_service.files()
+                                .create(
+                                    body={
+                                        "name": name,
+                                        "mimeType": "application/vnd.google-apps.folder",
+                                        "parents": [drive_folder_id],
+                                    },
+                                    supportsAllDrives=True,
+                                    fields="id",
+                                )
+                                .execute,
+                                drive_service,
                             )
-                            .execute,
-                            drive_service,
-                        )
                     except Exception as e:
                         failed.append({"name": child_rel_prefix, "error": str(e)})
                         continue
                     child_drive_id = created["id"]
-                    lc.drive_folder_cache.mark_dirty(drive_folder_id)
 
             child_calls.append((child_drive_id, child_dest_dir, child_rel_prefix))
 
         async def _descend(
             child_drive_id: str | None, child_dest_dir: Path, child_rel_prefix: str
         ) -> int:
-            return await _sync_level(
-                lc,
-                drive_service,
-                child_drive_id,
-                child_dest_dir,
-                child_rel_prefix,
-                direction,
-                export_format,
-                convert_markdown,
-                use_checksum,
-                skip_system_files,
-                dry_run,
-                recursive,
-                uploaded,
-                downloaded,
-                skipped,
-                conflicts,
-                failed,
-                actions,
-                folders_skipped,
-                ctx,
-                progress_count,
-                progress_bytes,
-                resolved,
-                resolve,
-            )
+            with _sync_level_invalidation(lc, child_drive_id, dry_run):
+                return await _sync_level(
+                    lc,
+                    drive_service,
+                    child_drive_id,
+                    child_dest_dir,
+                    child_rel_prefix,
+                    direction,
+                    export_format,
+                    convert_markdown,
+                    use_checksum,
+                    skip_system_files,
+                    dry_run,
+                    recursive,
+                    uploaded,
+                    downloaded,
+                    skipped,
+                    conflicts,
+                    failed,
+                    actions,
+                    folders_skipped,
+                    ctx,
+                    progress_count,
+                    progress_bytes,
+                    resolved,
+                    resolve,
+                )
 
         # Sibling subfolders are independent — descend into all of them concurrently
         # instead of awaiting one at a time, same rationale as the file-level gather
@@ -2994,18 +3016,21 @@ def register(tool):
             file_body["mimeType"] = _GOOGLE_DOC_MIME
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
+        invalidate = _FolderInvalidation(lc, target_folder_id)
         try:
-            result = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    body=file_body,
-                    media_body=media,
-                    supportsAllDrives=True,
-                    fields="id, name, parents, webViewLink",
+            with invalidating(invalidate):
+                result = await execute_in_thread(
+                    drive_service.files()
+                    .create(
+                        body=file_body,
+                        media_body=media,
+                        supportsAllDrives=True,
+                        fields="id, name, parents, webViewLink",
+                    )
+                    .execute,
+                    drive_service,
                 )
-                .execute,
-                drive_service,
-            )
+                invalidate.found(result.get("parents"))
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
@@ -3014,9 +3039,6 @@ def register(tool):
         file_id = result.get("id")
         parents = result.get("parents", [])
         logger.debug("Uploaded %s as file %s (convert_to_doc=%s)", name, file_id, convert_to_doc)
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         return {
             "fileId": file_id,
@@ -3090,18 +3112,20 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        result = await _upload_local_file(
-            drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
-        )
-        # "fileId" alongside "error" means create() genuinely succeeded and only
-        # the follow-up restamp failed (#420) — the folder's contents changed
-        # even though this call reports an error, so the cache must still be
-        # invalidated. Checked as its own case, not just "fileId" in result" —
-        # a plain skip also carries the pre-existing file's fileId and must NOT
-        # mark the cache dirty, since nothing changed (QA round 1, PR #645).
-        orphaned = "error" in result and "fileId" in result
-        if ("error" not in result and not result.get("skipped")) or orphaned:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
+
+        with invalidating(invalidate, on_success=False):
+            result = await _upload_local_file(
+                drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
+            )
+        # Anything but a skip may have changed the folder. An error too: a
+        # create() can fail after Drive applied it (a timeout), and "fileId"
+        # alongside "error" means it genuinely succeeded and only the follow-up
+        # restamp failed (#420, #1030). A plain skip also carries the
+        # pre-existing file's fileId and must NOT mark the cache dirty, since
+        # nothing changed (QA round 1, PR #645).
+        if not result.get("skipped"):
+            invalidate()
         return result
 
     @tool(
@@ -3180,7 +3204,9 @@ def register(tool):
         skipped: list[str] = list(partials)
         skipped_unverified: list[dict[str, str]] = []
         failed: list[dict[str, str]] = []
-        any_created = False
+        may_have_changed = False
+
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
 
         # dict[str, list[dict]], not a single entry per name — Drive allows more
         # than one file to share a name, and collapsing to one (the previous
@@ -3210,8 +3236,9 @@ def register(tool):
             for f in existing_files:
                 existing_by_name.setdefault(f["name"], []).append(f)
 
-        # One deny-list snapshot for every entry this walk checks (#796).
-        with many_checks():
+        # One deny-list snapshot for every entry this walk checks (#796). A
+        # cancelled upload can still land after the call unwinds (#1030).
+        with many_checks(), invalidating(invalidate, on_success=False):
             for p in sorted(candidates):
                 # Gated explicitly on skip_if_exists here, rather than relying on
                 # existing_by_name being empty when it's False — a future change
@@ -3298,6 +3325,11 @@ def register(tool):
                     failed.append({"name": p.name, "error": str(e)})
                     continue
 
+                # An error result counts for cache invalidation below even though
+                # it never reaches `uploaded`: a create() can fail after Drive
+                # applied it (a timeout), and one carrying "fileId" genuinely
+                # succeeded (QA round 1, PR #645; #1030).
+                may_have_changed = True
                 if "error" in result:
                     entry = {"name": p.name, "error": result["error"]}
                     if "fileId" in result:
@@ -3305,19 +3337,13 @@ def register(tool):
                         # (#420) — a genuine orphan now exists in Drive, so its ID
                         # rides along in the failed entry rather than being lost.
                         entry["fileId"] = result["fileId"]
-                        # create() genuinely succeeded here despite the overall
-                        # failure — the folder changed, so this must still count
-                        # for cache invalidation below even though it never reaches
-                        # `uploaded` (QA round 1, PR #645).
-                        any_created = True
                     failed.append(entry)
                 else:
                     uploaded.append(p.name)
-                    any_created = True
                     logger.debug("Uploaded %s", p.name)
 
-        if any_created:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        if may_have_changed:
+            invalidate()
 
         return {
             "uploaded": uploaded,
@@ -4093,7 +4119,7 @@ def register(tool):
             resolved: list[str] = []
 
             # One deny-list snapshot for every entry this walk checks (#796).
-            with many_checks():
+            with many_checks(), _sync_level_invalidation(lc, folder_id, run_dry):
                 total_bytes = await _sync_level(
                     lc,
                     drive_service,

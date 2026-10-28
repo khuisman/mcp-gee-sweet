@@ -2110,3 +2110,44 @@ create_shortcut(target='invalidid123xyz', folder=FOLDER_ID, name='QA-Shortcut-Ba
 create_shortcut cases matched.
 
 ---
+
+### TC-D301: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** No MCP client can cancel a tool call at a chosen point, so `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every folder-cache invalidation as `folder cache marked dirty for <id>` or `folder cache: every folder marked dirty`, each with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`).
+
+**Setup:**
+1. `create_folder(name="TC-D301", parent_folder_id={FOLDER_ID})`. Record `folderId` as `{SCRATCH}`.
+2. `create_doc(title="TC-D301 doc", folder_id={SCRATCH})`. Record `docId` as `{FILE_ID}`.
+3. A local directory `<dir>` holding one file, `a.txt`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py create_folder --folder-id {SCRATCH}`
+2. `uv run python scripts/qa_cancel_inflight_write.py rename_file --file-id {FILE_ID}`
+3. `list_files(folder_id={SCRATCH})`. Record the `TC-D1030 folder` entry's ID as `{SUB}`.
+4. `uv run python scripts/qa_cancel_inflight_write.py move_file --file-id {FILE_ID} --folder-id {SUB}`
+5. `uv run python scripts/qa_cancel_inflight_write.py sync_folder --folder-id {SUB} --local-path <dir>`
+
+**Checks**
+- Every step prints `cancelled <tool> while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
+- Step 1 prints `folder cache marked dirty for {SCRATCH} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1030, neither line was printed
+- Step 2 prints `folder cache: every folder marked dirty (write landed: no)`, then the same with `(write landed: yes)`. A rename's folder comes only from its response, which a cancelled call never reads
+- Step 4 prints a `(write landed: no)` line for both `{SCRATCH}` and `{SUB}`, then a `(write landed: yes)` line for both
+- Step 5 prints `folder cache marked dirty for {SUB} (write landed: no)`, then `(write landed: yes)`
+- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D301 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed). Drive's `in parents` index can lag the move by a few seconds, so if `{SCRATCH}` still lists `TC-D1030 renamed`, check that `get_file_metadata(file_id={FILE_ID})` shows `{SUB}` as its only parent, then refresh and list again
+- If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
+
+**Cleanup:** trash `{SCRATCH}`.
+
+**Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07**
+Ran the script from the `kit` checkout with its own `TOKEN_PATH`, against a scratch folder on the Shared Drive. Every step printed the expected `(write landed: no)` line(s), then `cancelled <tool> …`, then the matching `(write landed: yes)` line(s), and ended `writes sent: 1; landed: 1`. Step 2 printed `folder cache: every folder marked dirty` both times. Step 4 printed lines for both `{SCRATCH}` and `{SUB}`. Final listings: `{SUB}` held `a.txt` and `TC-D1030 renamed`, and `{SCRATCH}` held only `TC-D1030 folder`. Note: the first `list_files({SCRATCH})` right after `refresh_cache` still showed the moved doc, though `get_file_metadata` already reported `{SUB}` as its only parent. A second refresh-and-list a few seconds later was correct. That points to lag in Drive's `in parents` index, not to the cache, so if the doc still shows up, wait a few seconds and list again.
+
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3**
+Re-ran all five steps on a fresh scratch folder from the `kit` checkout at the fix commit. Every step printed the same lines as round 1: step 2 printed `every folder marked dirty` on both sides (the cancelled rename gets no response), and step 4 printed lines for both folders. The final listings were correct once Drive's index caught up; the same `in parents` lag appeared after the move and cleared on the next refresh-and-list. Extra round-2 checks in a fresh interpreter, against the real API with mocked caches: `rename_file` on a nonexistent ID raised `HttpError` (404) and marked nothing, and `mark_all_dirty` wasn't called. A successful `rename_file` marked only the parent named in its response, again without `mark_all_dirty`.
+
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 3 (Kit) @ 51bc64f1**
+After the `develop` merge (1cdde06b, which brought in #1261's paged `transfer.py` listings), I re-ran steps 1 and 5 on a fresh scratch folder from the `kit` checkout, since those are the steps the merged `transfer.py` code runs. Both printed `(write landed: no)` and then `(write landed: yes)` for `{SCRATCH}`, and ended `writes sent: 1; landed: 1`. I didn't re-run steps 2–4: the merge doesn't touch `files.py`.
+
+---

@@ -134,6 +134,107 @@ async def test_failing_callback_is_logged_not_raised():
         await _wait_for(lambda: mock_logger.exception.called)
 
 
+async def test_invalidating_runs_callback_on_normal_exit():
+    calls = []
+    with http_transport.invalidating(lambda: calls.append(1)):
+        await http_transport.execute_in_thread(lambda **kw: {}, MagicMock())
+    assert calls == [1]
+
+
+async def test_invalidating_runs_callback_when_the_block_raises():
+    calls = []
+
+    def execute(**kwargs):
+        raise TimeoutError("may have been applied")
+
+    with pytest.raises(TimeoutError), http_transport.invalidating(lambda: calls.append(1)):
+        await http_transport.execute_in_thread(execute, MagicMock())
+    assert calls == [1]
+
+
+@pytest.mark.parametrize("status", [400, 403, 404, 409])
+async def test_invalidating_skips_callback_for_a_4xx(status):
+    # A 4xx ran nothing, so there's nothing to invalidate (PR #1264 QA round 1).
+    from googleapiclient.errors import HttpError
+
+    calls = []
+    resp = MagicMock()
+    resp.status = status
+
+    def execute(**kwargs):
+        raise HttpError(resp=resp, content=b"{}")
+
+    with pytest.raises(HttpError), http_transport.invalidating(lambda: calls.append(1)):
+        await http_transport.execute_in_thread(execute, MagicMock())
+    assert calls == []
+
+
+@pytest.mark.parametrize("status", [500, 503])
+async def test_invalidating_runs_callback_for_a_5xx(status):
+    from googleapiclient.errors import HttpError
+
+    calls = []
+    resp = MagicMock()
+    resp.status = status
+    with (
+        pytest.raises(HttpError),
+        http_transport.invalidating(lambda: calls.append(1), on_success=False),
+    ):
+        raise HttpError(resp=resp, content=b"{}")
+    assert calls == [1]
+
+
+async def _cancel_inside_invalidating(callback, started, release, landed, **kwargs):
+    # The block runs inside the cancelled task, as it does in a tool.
+    async def _call():
+        with http_transport.invalidating(callback, **kwargs):
+            await http_transport.execute_in_thread(
+                _blocking_execute(started, release, landed), MagicMock()
+            )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_call)
+        await anyio.to_thread.run_sync(started.wait, 5)
+        tg.cancel_scope.cancel()
+
+
+async def test_invalidating_runs_callback_on_cancel_and_again_once_the_request_lands():
+    # #1030: once on the cancel path, then again after the abandoned request lands,
+    # so a read cached between the two doesn't outlive the edit.
+    started, release, landed = threading.Event(), threading.Event(), []
+    seen = []
+    await _cancel_inside_invalidating(lambda: seen.append(bool(landed)), started, release, landed)
+    assert seen == [False]
+    release.set()
+    await _wait_for(lambda: len(seen) == 2)
+    assert seen == [False, True]
+
+
+async def test_invalidating_without_on_success_skips_a_normal_exit():
+    calls = []
+    with http_transport.invalidating(lambda: calls.append(1), on_success=False):
+        await http_transport.execute_in_thread(lambda **kw: {}, MagicMock())
+    assert calls == []
+
+
+async def test_invalidating_without_on_success_still_runs_on_raise_and_cancel():
+    calls = []
+    with (
+        pytest.raises(RuntimeError),
+        http_transport.invalidating(lambda: calls.append("raise"), on_success=False),
+    ):
+        raise RuntimeError("boom")
+    assert calls == ["raise"]
+
+    started, release, landed = threading.Event(), threading.Event(), []
+    await _cancel_inside_invalidating(
+        lambda: calls.append("cancel"), started, release, landed, on_success=False
+    )
+    assert calls == ["raise", "cancel"]
+    release.set()
+    await _wait_for(lambda: calls.count("cancel") == 2)
+
+
 class _ResettingServer:
     """Plain-HTTP keep-alive server that resets (RST) a connection left idle for
     `idle_reset` seconds: a local stand-in for Google's front end dropping a pooled

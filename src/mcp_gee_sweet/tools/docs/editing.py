@@ -6,6 +6,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from .indices import utf16_len
+from .invalidation import doc_invalidating
 from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
@@ -51,15 +52,15 @@ def register(tool):
                 if "segment_id" in op:
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_doc_text: %d insertions in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "insertions": len(requests)}
 
@@ -114,15 +115,15 @@ def register(tool):
                 }
                 for op in sorted_ops
             ]
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("delete_doc_range: %d deletions in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "deletions": len(requests)}
 
@@ -147,19 +148,19 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={"requests": [{"insertPageBreak": {"location": {"index": index}}}]},
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={"requests": [{"insertPageBreak": {"location": {"index": index}}}]},
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_page_break: at index %d in doc %s", index, doc_id)
         return {"docId": doc_id, "index": index}
 
@@ -266,16 +267,16 @@ def register(tool):
             cursor = line_end + (1 if i < len(lines) - 1 else 0)  # +1 for the "\v" separator
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "insert_softbreak_paragraph: %d lines at index %d in doc %s",
             len(lines),

@@ -6,6 +6,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from .indices import isolated_bullet_run_wrap_requests
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -318,16 +319,16 @@ def register(tool):
             return {"error": "no recognised style fields in any range"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("style_doc_range: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -488,16 +489,16 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -808,16 +809,16 @@ def register(tool):
                         )
                     )
 
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("create_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -856,16 +857,16 @@ def register(tool):
         ]
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -1202,15 +1203,15 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("apply_theme: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}

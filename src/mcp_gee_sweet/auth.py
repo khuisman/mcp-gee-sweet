@@ -35,6 +35,8 @@ from .cache import (
 from .http_transport import (  # noqa: F401 — re-exported for tool imports
     after_abandoned_calls,
     execute_in_thread,
+    invalidating,
+    is_rejection,
     thread_http,
 )
 

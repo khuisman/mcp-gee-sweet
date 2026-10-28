@@ -13,10 +13,11 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread
+from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread, invalidating
+from ...auth import is_rejection as _was_rejected
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ...local_files import LocalFileAccessError, check_read, check_write
-from ..drive import _quota_error_text
+from ..drive import _FolderInvalidation, _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
 from ..http_errors import http_error_has_reason, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
@@ -350,13 +351,6 @@ _BACKUP_COPY_TIMEOUT = 60
 _BACKUP_COPY_RATE_LIMIT_RETRIES = 3
 
 
-def _was_rejected(e: BaseException) -> bool:
-    """True if `e` is an HttpError the API answered with a 4xx, meaning the
-    request ran nothing. A 5xx, a timeout, or a transport error doesn't say
-    whether the request landed."""
-    return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
-
-
 def _no_backup_reason(e: BaseException) -> str | None:
     """Why a failed backup copy lets the replace go ahead without one, or None if
     the failure must stop it (#1018). Decided by Drive's error reason, not the
@@ -424,7 +418,7 @@ async def _copy_for_backup(drive_service, doc_id: str, name: str) -> dict[str, A
     request = drive_service.files().copy(
         fileId=doc_id,
         body={"name": name},
-        fields="id,name,capabilities(canDelete)",
+        fields="id,name,parents,capabilities(canDelete)",
         supportsAllDrives=True,
     )
     with anyio.fail_after(_BACKUP_COPY_TIMEOUT):
@@ -441,20 +435,22 @@ async def _copy_for_backup(drive_service, doc_id: str, name: str) -> dict[str, A
 async def _create_doc_file(
     lc: SpreadsheetContext, file_body: dict[str, Any], target_folder_id: str | None
 ) -> dict[str, Any]:
-    """Drive files.create for create_doc / create_doc_from_file. A cancelled create
-    can still land after the call unwinds, putting the Doc in the folder with no
-    later step to invalidate its listing, so the folder is marked dirty again once
-    an abandoned create finishes (#907; PR #1029 QA round 2)."""
+    """Drive files.create for create_doc / create_doc_from_file. The folder is
+    marked dirty right after the create, not after the content step: the Doc is in
+    the folder from here on, however the content step ends (PR #1029 QA round 1).
+    That includes a create that fails after Drive applied it, and a cancelled one
+    that lands after the call unwinds (#907, #1030)."""
     drive_service = lc.drive_service
     request = drive_service.files().create(
         supportsAllDrives=True,
         body=file_body,
         fields="id, name, parents, webViewLink",
     )
-    if not target_folder_id:
-        return await execute_in_thread(request.execute, drive_service)
-    with after_abandoned_calls(lambda: lc.drive_folder_cache.mark_dirty(target_folder_id)):
-        return await execute_in_thread(request.execute, drive_service)
+    invalidate = _FolderInvalidation(lc, target_folder_id)
+    with invalidating(invalidate):
+        doc = await execute_in_thread(request.execute, drive_service)
+        invalidate.found(doc.get("parents"))
+    return doc
 
 
 async def _doc_end_index(docs_service, doc_id: str) -> tuple[dict[str, Any], int]:
@@ -521,9 +517,14 @@ async def _replace_doc_content(
         # Shielded, so a cancellation can't land after Drive made the copy but
         # before its ID is recorded (the PR #877 rule); bounded inside by
         # _BACKUP_COPY_TIMEOUT.
+        # The copy lands next to the doc, so that folder's listing changes too,
+        # even when the copy fails after Drive made it (#1030).
+        backup_folders = _FolderInvalidation(lc)
         with anyio.CancelScope(shield=True):
             try:
-                backup = await _copy_for_backup(drive_service, doc_id, backup_name)
+                with invalidating(backup_folders):
+                    backup = await _copy_for_backup(drive_service, doc_id, backup_name)
+                    backup_folders.found(backup.get("parents"))
             except Exception as e:
                 no_backup_reason = _no_backup_reason(e)
                 opt_in_reason = _opt_in_no_backup_reason(e)
@@ -578,7 +579,7 @@ async def _replace_doc_content(
         try:
             _, end_index = await _doc_end_index(docs_service, doc_id)
         except BaseException as e:
-            return await _unchanged_result(drive_service, backup, doc_id, e)
+            return await _unchanged_result(lc, backup, doc_id, e)
 
     def _failed(e: BaseException, cleared: str) -> dict[str, Any]:
         """The result for a failure once the clear was sent; `cleared` is "yes",
@@ -655,7 +656,7 @@ async def _replace_doc_content(
                 )
         except BaseException as e:
             if _was_rejected(e):
-                return await _unchanged_result(drive_service, backup, doc_id, e)
+                return await _unchanged_result(lc, backup, doc_id, e)
             return _failed(e, "maybe")
         cleared = "yes"
     else:
@@ -679,7 +680,7 @@ async def _replace_doc_content(
             # Cancelled during the image-share revoke, after the new content had
             # fully landed (PR #1029 QA round 1): the doc was replaced, so the
             # backup isn't needed.
-            warning = await _discard_backup(drive_service, backup)
+            warning = await _discard_backup(lc, backup)
             if warning:
                 logger.warning(
                     "Replacing doc %s was cancelled after it finished: %s", doc_id, warning
@@ -705,7 +706,7 @@ async def _replace_doc_content(
 
     async def _remove_backup() -> None:
         nonlocal warning
-        warning = await _discard_backup(drive_service, backup)
+        warning = await _discard_backup(lc, backup)
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(_remove_backup)
@@ -740,11 +741,11 @@ async def _replace_doc_content(
 
 
 async def _unchanged_result(
-    drive_service, backup: dict[str, Any], doc_id: str, e: BaseException
+    lc: SpreadsheetContext, backup: dict[str, Any], doc_id: str, e: BaseException
 ) -> dict[str, Any]:
     """_replace_doc_content's result when it stopped before changing the doc: the
     backup isn't needed, so it's removed. A cancellation is re-raised after."""
-    warning = await _discard_backup(drive_service, backup)
+    warning = await _discard_backup(lc, backup)
     if not isinstance(e, Exception):
         raise e
     result: dict[str, Any] = {
@@ -756,7 +757,7 @@ async def _unchanged_result(
     return result
 
 
-async def _discard_backup(drive_service, backup: dict[str, Any]) -> str | None:
+async def _discard_backup(lc: SpreadsheetContext, backup: dict[str, Any]) -> str | None:
     """Remove _replace_doc_content's backup copy, if one was made. Shielded, so a
     cancellation doesn't leave the copy behind. Returns a warning for the caller's
     result if the removal failed, else None."""
@@ -764,8 +765,13 @@ async def _discard_backup(drive_service, backup: dict[str, Any]) -> str | None:
         return None
     with anyio.CancelScope(shield=True):
         cleanup_error = await _discard_temp_doc(
-            drive_service, backup["id"], backup.get("capabilities", {}).get("canDelete", True)
+            lc.drive_service,
+            backup["id"],
+            backup.get("capabilities", {}).get("canDelete", True),
         )
+    # A listing read while the copy existed still shows it; a failed removal may
+    # have landed too (#1030).
+    _FolderInvalidation(lc, *backup.get("parents", []))()
     if not cleanup_error:
         return None
     return (
@@ -1351,12 +1357,6 @@ def register(tool):
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
 
-        # Right after the create, not after the content: the doc is in the folder
-        # from here on, however the content step ends (a failure or a
-        # cancellation; PR #1029 QA round 1).
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-
         image_outcomes = None
         if content:
             try:
@@ -1472,12 +1472,6 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
-        # Right after the create, not after the content: the doc is in the folder
-        # from here on, however the content step ends (a failure or a
-        # cancellation; PR #1029 QA round 1).
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-
         image_outcomes = None
         if content:
             try:
@@ -1557,6 +1551,11 @@ def register(tool):
 
         result = doc_cache.get(file_id, current_modified_time=current_mtime)
         if result is None:
+            # After the cache read, not before it: get() marks a stale row dirty
+            # itself, which would also cancel this call's own store. Before the
+            # export, so an edit's mark_dirty landing during it stops the
+            # pre-edit text being stored over it (#1032).
+            epoch = doc_cache.snapshot_epoch()
             if metadata is None:
                 metadata = await execute_in_thread(
                     drive_service.files()
@@ -1581,7 +1580,7 @@ def register(tool):
                 "web_link": metadata.get("webViewLink"),
                 "content": content.decode("utf-8") if isinstance(content, bytes) else content,
             }
-            doc_cache.store(file_id, result)
+            doc_cache.store(file_id, result, epoch=epoch)
 
         if local_path:
             return await write_capped_result_to_disk(
