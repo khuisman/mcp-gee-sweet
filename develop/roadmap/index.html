@@ -2224,6 +2224,8 @@
 <li>[ ] qa: live verification for PR #1138 (blank paragraph before a table) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1160">#1160</a>)</li>
 <li>[ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1167">#1167</a>)</li>
 <li>[ ] qa: live verification for PR #1149 (scheme-less link targets) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1190">#1190</a>)</li>
+<li>[ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1268">#1268</a>)</li>
+<li>[ ] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1263">#1263</a>)</li>
 </ul>
 <p>Moved out 2026-10-18: <a href="https://github.com/khuisman/mcp-gee-sweet/issues/379">#379</a> (unversioned, Joy decides whether to do it); <a href="https://github.com/khuisman/mcp-gee-sweet/issues/378">#378</a> closed (ASYNC240 stays off). Everything else formerly here is under <em>ankylosaurus</em> below.</p>
 <h3 id="ankylosaurus-hardening-and-tool-surface-cleanup-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight">ankylosaurus — hardening and tool-surface cleanup <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22"><code>planned: ankylosaurus</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#ankylosaurus-hardening-and-tool-surface-cleanup-queued-label-planned-ankylosaurus-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
@@ -2291,6 +2293,7 @@
 <li>[ ] A list inside a blockquote draws its border at the list indent, not the quote's — <code>wrong/narrow</code>, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1242">#1242</a>)</li>
 <li>[x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1032">#1032</a>) (PR #1264)</li>
 <li>[x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1030">#1030</a>) (PR #1264)</li>
+<li>[ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. <code>wrong/rare</code>; found in PR #1264, the same gap #1030 closed for Docs and Drive (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1265">#1265</a>)</li>
 <li>[ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1087">#1087</a>)</li>
 <li>[ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1067">#1067</a>)</li>
 <li>[ ] Track release-QA spend across releases so passes can be sized ahead of time (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1068">#1068</a>)</li>
@@ -2306,6 +2309,7 @@
 <li>[ ] <code>insert_inline_image(drive_file_id=)</code> should grant and revoke the temporary <code>anyone:reader</code> share itself through <code>ImageShareLifecycle</code>, like the Markdown image path, instead of pushing a <code>share_file</code> call onto the caller. Tool-surface cleanup; version call 2026-10-25 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1183">#1183</a>)</li>
 <li>[ ] HTML table cells: source newlines become paragraph breaks instead of collapsing like a browser. Enhancement; whether a cell newline should collapse was left open in PR #1215 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1221">#1221</a>)</li>
 <li>[ ] HTML input: source line breaks at a block's start or end become empty paragraphs (pretty-printed HTML). <code>wrong/narrow</code>, not observed; found in PR #1228, grouped with #1221 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1229">#1229</a>)</li>
+<li>[ ] html_parser: edge cases in a list item's transparent <code>&lt;p&gt;</code> (trailing line breaks, etc.). <code>wrong/narrow</code>, not observed; found in PR #1164's review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1266">#1266</a>)</li>
 <li>[ ] Reauth offer (#873) on MCP 2026-07-28 connections: capability-only check and a retired <code>-32042</code>. <code>loud/rare</code>; found in #1081's design pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1236">#1236</a>)</li>
 </ul>
 <h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
@@ -2423,6 +2427,7 @@ The Sheets API requires each series in a COMBO chart to declare its own <code>ty
 <li>[x] Fork repo and rename to <code>mcp-gee-sweet</code>; README credits xing5, freema, and piotr-agier</li>
 <li>[x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes <code>0.7.0.devN</code> on every push to <code>develop</code></li>
 <li>[ ] Live QA system — fixture setup, per-release run files (<code>docs/qa/runs/vX.Y.Z.md</code>), Playwright OAuth automation (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/173">#173</a>) <em>(gate for v0.8.0)</em></li>
+<li>[ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent <code>&lt;p&gt;</code> (from PR #1164). Bob, no version (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1267">#1267</a>)</li>
 <li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure">GitHub Issues (label: infrastructure)</a> for open infrastructure work</li>
 </ul>
 <hr />
