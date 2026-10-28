@@ -1544,10 +1544,10 @@ accident, from the quote paragraph after it. Now the parser records its quote de
 the <code>Table</code> (<code>blockquote_depth</code>, no path), and its placeholder gets the quote's indent
 (36pt per level) and no border. A table can't take a left border, so a quoted table sits
 indented between the quote's bordered paragraphs, with a gap in the bar beside it.</p>
-<p><strong>Markdown input is still affected by the parser.</strong> Python-Markdown parses <code>&gt; a</code>, a blank
-line, <code>&gt; b</code> as one <code>&lt;blockquote&gt;</code> with two paragraphs, where CommonMark has two quotes. That
-reaches the AST as one quote, so it renders as one. Switching the parser (#1116) fixes it
-with no change here. HTML input with two <code>&lt;blockquote&gt;</code> elements already renders as two.</p>
+<p><strong>Markdown input was affected by the parser until #1116.</strong> Python-Markdown parsed <code>&gt; a</code>, a
+blank line, <code>&gt; b</code> as one <code>&lt;blockquote&gt;</code> with two paragraphs, where CommonMark has two quotes,
+so it rendered as one quote. The CommonMark parser (#1116, <code>docs/design/markdown-parser.md</code>)
+emits two <code>&lt;blockquote&gt;</code> elements, and they render as two with no change here.</p>
 <h2 id="qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration">QA round 1 (PR #546): two gaps in the interrupt/resume integration<a class="headerlink" href="#qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration" title="Permanent link">&para;</a></h2>
 <p>Reproduced directly against parser output (<code>html_to_ast</code>), no live Google API calls
 needed — both were pure AST-construction bugs.</p>

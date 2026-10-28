@@ -1,0 +1,1739 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/markdown-parser/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Design: CommonMark/GFM Markdown Parser - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-commonmarkgfm-markdown-parser" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design: CommonMark/GFM Markdown Parser
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="design-commonmarkgfm-markdown-parser">Design: CommonMark/GFM Markdown Parser<a class="headerlink" href="#design-commonmarkgfm-markdown-parser" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> Implemented in #1116 (closes #1071 too). Replaces the Python-Markdown call in
+<a href="../markdown-support/"><code>markdown-support.md</code></a>; the MD → HTML → AST → Docs pipeline that doc
+describes is unchanged. Also answers #1112's open questions (Joy's spike, closed into #1116).</p>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p><code>_md_to_html</code> parsed with Python-Markdown, which departs from CommonMark/GFM, the dialect
+models and most tools write: a list or table directly under a paragraph stayed text, <code>1)</code> wasn't
+a list, <code>\</code>-escapes kept their backslash, bold inside italic was lost, sub-lists needed 4 spaces,
+fenced code inside a list item was literal text, <code>~~</code> did nothing. The #1044 Phase 2 baseline
+(<code>docs/qa/results/2026-10-18-markdown-phase2.md</code>) found each one live. The maintainer decision
+(2026-10-18) was to replace the parser rather than patch Python-Markdown's grammar case by case.</p>
+<h2 id="solution">Solution<a class="headerlink" href="#solution" title="Permanent link">&para;</a></h2>
+<p><code>src/mcp_gee_sweet/tools/docs/md_to_html.py</code>, imported by <code>content.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>_md_to_html(md, autolink_urls)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  = markdown-it(&quot;commonmark&quot;, html=True) + table + strikethrough
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>      .render(_preprocess(normalize_line_endings(md)))
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>markdown-it-py, <code>commonmark</code> preset</td>
+<td>CommonMark-conformant, already in the lock as a transitive dependency (now a direct one). <code>html=True</code> keeps raw HTML passing through to <code>html_to_ast</code>, as before.</td>
+</tr>
+<tr>
+<td><code>table</code>, <code>strikethrough</code> rules</td>
+<td>GFM's two block/inline extensions. Task lists are left as literal <code>[ ]</code>/<code>[x]</code> text, which <code>html_to_ast</code> already turns into checkbox items, so no plugin is needed.</td>
+</tr>
+<tr>
+<td><code>_gfm_autolink_rule</code> (core rule)</td>
+<td>GFM extended autolinks: <code>www.</code>, <code>http(s)://</code>, email. See below.</td>
+</tr>
+<tr>
+<td><code>normalizeLink</code> = identity</td>
+<td>markdown-it percent-encodes destinations; a local image path like <code>café.png</code> would no longer open. <code>validateLink</code> still refuses <code>javascript:</code> and friends.</td>
+</tr>
+<tr>
+<td><code>_spaced_image_rule</code>, <code>_spaced_link_rule</code> (inline rules)</td>
+<td><code>![alt](/path/Screen Shot.png)</code>, <code>[notes](./My Notes.md "t")</code>: Python-Markdown accepted a space in a link or image destination, CommonMark doesn't, and existing <code>.md</code> files rely on it. Only that shape is taken: two or more space-separated pieces with no quotes, parens or angle brackets, then an optional quoted title. Anything CommonMark itself parses as a link or image never reaches them. The destination is unescaped like any other (<code>\_</code>, <code>&amp;amp;</code>) and refused if that yields a quote; the match stops at <code>posMax</code> (a link label's end, inside one); a label naming a reference definition stays that reference; and no link opens inside another's label.</td>
+</tr>
+<tr>
+<td><code>maxNesting</code> = 100</td>
+<td>The commonmark preset's 20 silently dropped everything deeper, and each list level costs two (<code>ul</code> + <code>li</code>), so an item's text vanished from about level 10. Python-Markdown kept it. 100 keeps 50 list levels and still parses <code>"&gt;" * 1200</code>.</td>
+</tr>
+<tr>
+<td><code>_preprocess</code> (one line-based pre-pass)</td>
+<td>Plan rules D1 and D2. See below.</td>
+</tr>
+<tr>
+<td><code>asyncio.to_thread</code> in <code>_apply_doc_content</code></td>
+<td>The parse is pure CPU, about 2× Python-Markdown's time on realistic input (0.2 s for 50 KB) and up to 5× on emphasis-heavy input, all linear. It ran on the event loop before too; now the Markdown step doesn't.</td>
+</tr>
+<tr>
+<td>Ruler caches built at import</td>
+<td>Both renderers and the block scanner are shared by every <code>to_thread</code> worker, and markdown-it builds a ruler's rule cache lazily on first use. Every ruler's cache is built at import, so concurrent first conversions never see a half-built one.</td>
+</tr>
+</tbody>
+</table>
+<p>Each conversion block-parses the document twice: once in <code>_preprocess</code> (<code>_verbatim_lines</code>, inline
+pass off) and once to render.</p>
+<p><code>markdown</code> (Python-Markdown) stays a dependency: <code>anchors.py</code> uses its <code>toc</code> slugify for the
+GitLab heading-anchor scheme, and <code>upload_file(source_format='markdown')</code> (EP-8) still renders
+with it until #1101 routes that entry point through this converter.</p>
+<h3 id="autolinks-a-gfm-rule-not-linkify-it">Autolinks: a GFM rule, not linkify-it<a class="headerlink" href="#autolinks-a-gfm-rule-not-linkify-it" title="Permanent link">&para;</a></h3>
+<p>markdown-it's own <code>linkify</code> needs <code>linkify-it-py</code> and doesn't follow GFM. Measured:
+with fuzzy links on, it links <code>README.md</code>, <code>file.py</code> and <code>example.com</code> (any TLD-looking token);
+with them off, it stops linking <code>www.</code> too; it also links <code>ftp://</code>. The GFM rule is short, so it's
+a core rule over text tokens instead:</p>
+<ul>
+<li><code>www.</code> or <code>http(s)://</code> plus a domain, or an email address, after whitespace, <code>*</code>, <code>_</code>, <code>~</code> or
+  <code>(</code>. A text token's own start counts only at the start of the inline content, after a line
+  break, or after an emphasis or strikethrough delimiter (<code>_AUTOLINK_BOUNDARY_TOKENS</code>). So, as in
+  GFM, a URL right after a code span, a link, an inline tag (<code>&lt;b&gt;https://x.com&lt;/b&gt;</code>) or a
+  character like <code>:</code> (<code>URL:https://x.com</code>) isn't linked. The Python-Markdown-era bare-URL
+  extension linked those last two; <code>CHANGELOG.md</code> says so.</li>
+<li>No <code>_</code> in the last two domain segments, and no empty segment. A scheme-ful link may have a
+  one-segment domain (<code>http://localhost:8000</code>), as in cmark-gfm.</li>
+<li>Trailing <code>?!.,:*_~'"</code>, an unbalanced <code>)</code>, and a trailing <code>&amp;entity;</code> are left outside the link.
+  The domain is checked after that trim, since it can eat the domain (<code>http://__</code>, <code>www.__</code>
+  aren't links), and a link is scheme-ful only if it starts with <code>http://</code> or <code>https://</code> (so
+  <code>www.x.com/a://b</code> still gets <code>http://</code>).</li>
+<li>Runs after inline parsing, so a code span, an <code>&lt;autolink&gt;</code> or raw HTML is never re-matched; text
+  inside a Markdown link or a raw-HTML <code>&lt;a&gt;</code> is skipped, since links can't nest.</li>
+<li>Linear in the text: emails are found outwards from each <code>@</code> (<code>_gfm_email_matches</code>), and
+  <code>_trim_autolink</code> works back from the end with running paren counts. See "Review history".</li>
+</ul>
+<p><code>autolink_urls=False</code> drops the rule, so <code>www.</code>, email and <code>https://</code> are all plain text.</p>
+<h3 id="_preprocess-plan-rules-d1-and-d2"><code>_preprocess</code>: plan rules D1 and D2<a class="headerlink" href="#_preprocess-plan-rules-d1-and-d2" title="Permanent link">&para;</a></h3>
+<p>One pass over the lines, keeping a stack of open list items (<code>_ListItemColumns</code>: original and
+rewritten marker and content columns). It keeps the line count, except for D2's inserted blank
+lines, which <code>_rewrite</code> returns as lines with no source index so a quote run can put its
+prefixes back.</p>
+<p><strong>Code and raw HTML are never read as Markdown.</strong> <code>_verbatim_lines</code> runs markdown-it's own block
+parser (inline pass off) once, and returns every line of an indented code block or raw HTML block
+and the body and closing fence of a fenced block, mapped to the block's first line. A fence
+opened on a marker line (<code>- ```</code>) or inside a quote is found the way the renderer finds it.
+Those lines are only moved with the item they belong to (a fence body by its opening line's
+shift), and only their item's own indentation is rewritten (<code>_shift_verbatim</code>): whitespace past
+the item's content column is the code's, tabs included, so a Makefile recipe keeps its tab.</p>
+<p><strong>D1: nesting width (#1071).</strong> Plan rule D1 (<code>docs/qa/tests/docs_markdown.md</code>): a marker indented
+at least 2 columns past the previous item's marker nests under it, whatever the parent marker's
+width. CommonMark nests only at the parent's content column, so <code>1. A</code> / <code>- a</code> (column 2 &lt; 3)
+doesn't nest, and under markdown-it the grandchildren of a 2-space numbered outline became
+literal <code>1. Grandchild</code> text. For each marker line:</p>
+<ul>
+<li>pop items until the top's marker is at least 2 columns left of this one; an item within 0–1
+  columns is a sibling, and the line moves as far as that sibling moved, not onto its column;</li>
+<li>under a parent, the marker moves to the parent's rewritten content column, plus however far
+  past the original content column it already was, so 4-space and tab indents are unchanged;</li>
+<li>continuation lines move by their owning item's shift.</li>
+</ul>
+<p>Right under paragraph text (a list item's own text counts), a marker opens a new list only if
+CommonMark lets it interrupt a paragraph: a bullet or <code>1.</code>/<code>1)</code> with text after it. Otherwise
+(<code>Some text</code> / <code>2019. A great year</code>) it is paragraph text. One exception: a child candidate short
+of its parent's content column isn't inside the parent's paragraph at all, so CommonMark reads it
+at the parent's own level (<code>1. A</code> / <code>2. b</code> is two items), and so does the pass.</p>
+<p>A tab after a moved marker is written as the spaces it spanned (<code>_moved_marker_line</code>): moved, the
+same tab would reach a different tab stop and change the item's content column. Tab widths
+after a marker count from the marker's column (<code>_space_after_marker</code>), and leading columns count
+tabs to the next multiple of 4, as CommonMark does.</p>
+<p>A run of quoted lines not indented into a list ends any open list and gets the same rules one
+level in: each line's <code>&gt;</code> prefix is stripped, the inner lines go through <code>_rewrite</code> with the
+verbatim map sliced to them by bisect (no second parse, no scan of the whole map), and the
+prefixes are put back, so <code>&gt; 1. A</code> / <code>&gt;   - a</code> nests. Past <code>_MAX_QUOTE_DEPTH</code> (markdown-it's
+<code>maxNesting</code>, 100) quotes are left as written. A quote inside a list item isn't rewritten, and
+neither is anything after a list ends (a blank line then unindented text, or a heading, quote,
+fence or thematic break). A lazy line starting with <code>|</code> that isn't a table is paragraph text and
+doesn't end the list.</p>
+<p><strong>D2: a table starts its own block.</strong> GFM lets a table interrupt a paragraph, but not a list
+item's or a quote's lazy continuation, so <code>- B</code> / <code>| K | V |</code> / <code>|---|---|</code> made the rows more
+item text. A blank line goes in before a table header only where it would be read that way:
+right under a list item's text (or lazy text continuing it) or a quote run, and not indented into
+the item. A table indented into an item already renders inside it, and one under a plain
+paragraph already renders as a table; a blank line there would only make a list loose (and
+<code>html_to_ast</code> then drops its bullets, #1111). A header needs a delimiter row with a <code>|</code> and the
+same number of cells, so a setext underline (<code>a | b</code> / <code>---</code>) isn't split from its heading text.
+Inside a quote, the inserted line is a bare <code>&gt;</code>, so the table stays in the quote. A table indented
+into an item right after a quote in that item (<code>- a</code> / <code>&gt; q</code> / <code>| x |</code>) would be the quote's
+lazy text, and a blank line would make the list loose; an HTML comment line (<code>_LAZY_BREAK</code>, which
+<code>html_to_ast</code> ignores) ends the quote instead and keeps the table in the item. Two tables with
+no blank line between stay one table (AJ-078: GFM ends a table only at a blank line or another
+block).</p>
+<p><strong>Where this departs from CommonMark.</strong> Running all 652 CommonMark spec examples through
+<code>_md_to_html</code> and plain markdown-it (same rules, raw destinations) differs in exactly four, all
+by design: example 297 (<code>10) foo</code> / <code>- bar</code>: the bullet nests), 311 and 313 (<code>1. a</code>, blank,
+<code>2. b</code>: <code>2.</code> nests under <code>1.</code>, where CommonMark has siblings or, in 313, a code block), and 488
+(<code>[link](/my uri)</code> is a link, <code>_spaced_link_rule</code>).</p>
+<h2 id="the-html-html_to_ast-sees">The HTML <code>html_to_ast</code> sees<a class="headerlink" href="#the-html-html_to_ast-sees" title="Permanent link">&para;</a></h2>
+<p>Inventory of where markdown-it's HTML differs from Python-Markdown's, and what handles it:</p>
+<table>
+<thead>
+<tr>
+<th>Shape</th>
+<th>Python-Markdown</th>
+<th>markdown-it</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tight item with a nested block</td>
+<td><code>&lt;li&gt;a&lt;ul&gt;</code></td>
+<td><code>&lt;li&gt;a\n&lt;ul&gt;</code> (also before <code>&lt;pre&gt;</code>, <code>&lt;table&gt;</code>, <code>&lt;blockquote&gt;</code>)</td>
+<td><strong>Changed:</strong> <code>_interrupt_open_block</code> drops trailing whitespace holding a line break from the raw text before the block. It was reaching the Docs API as an empty paragraph under every parent item. A <code>&lt;br&gt;</code>'s own break is kept.</td>
+</tr>
+<tr>
+<td>Rule inside an item</td>
+<td>(never produced)</td>
+<td><code>&lt;li&gt;item\n&lt;hr /&gt;\n&lt;/li&gt;</code></td>
+<td><strong>Changed:</strong> an <code>&lt;hr&gt;</code> after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. <code>&lt;li&gt;&lt;hr&gt;</code> with no text keeps #401's dropped-construct boundary.</td>
+</tr>
+<tr>
+<td>Text after a block in an item</td>
+<td>(never produced)</td>
+<td><code>&lt;hr /&gt;\nmore&lt;/li&gt;</code></td>
+<td><strong>Changed:</strong> a resumed segment drops the line break at its start, as the break before a block is dropped. An authored <code>&amp;nbsp;</code> there isn't ASCII whitespace and stays (#444).</td>
+</tr>
+<tr>
+<td>Loose item</td>
+<td><code>&lt;li&gt;\n&lt;p&gt;a&lt;/p&gt;\n&lt;/li&gt;</code></td>
+<td>same</td>
+<td>Unchanged here: handled by community PR #1164 (#1111), merged into <code>develop</code> before this PR. markdown-it produces it more often, since it attaches an indented paragraph or code block to the item instead of dropping it out of the list.</td>
+</tr>
+<tr>
+<td>Strikethrough</td>
+<td>(none)</td>
+<td><code>&lt;s&gt;</code></td>
+<td>Already handled (<code>_INLINE_STRIKE</code>).</td>
+</tr>
+<tr>
+<td>Table alignment</td>
+<td><code>align="left"</code></td>
+<td><code>style="text-align:left"</code></td>
+<td>Neither is read; no AST field for column alignment. No regression.</td>
+</tr>
+<tr>
+<td>Code block language</td>
+<td><code>class="language-x"</code></td>
+<td>same</td>
+<td>Unchanged.</td>
+</tr>
+<tr>
+<td>Hard break</td>
+<td><code>&lt;br /&gt;\n</code></td>
+<td>same</td>
+<td>Unchanged; the double break it produces is #1117. Now reachable from a trailing <code>\</code> too.</td>
+</tr>
+<tr>
+<td>Two quotes</td>
+<td>one <code>&lt;blockquote&gt;</code>, two <code>&lt;p&gt;</code></td>
+<td>two <code>&lt;blockquote&gt;</code></td>
+<td>Renders as two quotes (#1098's emitter work).</td>
+</tr>
+<tr>
+<td>Empty item</td>
+<td>(not produced)</td>
+<td><code>&lt;li&gt;&lt;/li&gt;</code></td>
+<td>Dropped by <code>_emit_block_node</code>'s no-content rule; #1075.</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>no trailing newline</td>
+<td>ends in <code>\n</code></td>
+<td>Harmless; one exact-match test updated.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="behavior-changes-for-existing-callers">Behavior changes for existing callers<a class="headerlink" href="#behavior-changes-for-existing-callers" title="Permanent link">&para;</a></h2>
+<p>Measured by rendering every fixture under <code>docs/qa/fixtures/md/</code> through both parsers into the
+AST and diffing (32 of 52 fixtures changed). Each change is one of the fixes in #1116's table,
+D1, D2, or listed here; <code>CHANGELOG.md</code> has the user-facing version.</p>
+<ul>
+<li><strong>Fixed:</strong> everything in #1116's table; 2-, 3- and 4-space nesting (TC-MD106 LN-01 to LN-16 all
+  match their expectation on screen; r16's agenda is one list numbered 1–4 in the HTML and the AST,
+  but on screen Docs still restarts it at 1 after each sub-list, which is the emitter's #1072,
+  live in TC-MD016); blocks inside list items (TC-MD201); fenced
+  code inside items renders as code without the info string as text; strikethrough; www/email
+  autolinks; <code>\</code> escapes; adjacent quotes; a bare <code>-</code> no longer becomes a setext heading.</li>
+<li><strong>Loose lists, with #1164 in:</strong> in CommonMark one blank line anywhere in a list (<code>- a</code>, <code>- b</code>,
+  blank, <code>- c</code>) makes the whole list loose (<code>&lt;li&gt;&lt;p&gt;</code>), and so does an item with an indented
+  paragraph or code block under it (r06's numbered steps, TC-MD107, TC-MD108 LX-08, TC-MD203's
+  list-after-list pairs, which CommonMark merges into one loose list). Without #1164 every such
+  item lost its bullet (#1111); with it, which this branch merged before approval, every one keeps
+  its bullet. Python-Markdown kept some of those items bulleted, or dropped the blocks out of the
+  list and restarted the numbering. A block inside a numbered item now stays inside one <code>&lt;ol&gt;</code>, so
+  the AST keeps every item ordered, but the emitter still splits the list around the block and
+  Docs restarts the numbering on screen (#1094).</li>
+<li><strong>A setext underline under an item's text</strong> (<code>- a</code> / <code>---</code>) makes that text a Heading 2 inside
+  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. The heading then
+  loses its bullet in the AST (#1094's open question). <code>***</code> is a rule in either parser.</li>
+<li><strong>Different, still wrong:</strong> front matter (DS-14) renders as a rule plus a Heading 2 instead of
+  a rule, a paragraph and a rule (#1173). A block inside a list item renders after the item, not
+  indented inside it: the AST has no blocks inside list items.</li>
+<li><strong>Unchanged:</strong> r03, r07, code blocks, inline code, inline HTML, images, unicode, and DS-01 to
+  DS-13 (CRLF included).</li>
+</ul>
+<h2 id="re-run-scope">Re-run scope<a class="headerlink" href="#re-run-scope" title="Permanent link">&para;</a></h2>
+<p>Every Markdown entry point that uses <code>_md_to_html</code> (EP-1 to EP-4). EP-5 to EP-7 (Drive's native
+import) and EP-8 don't use it.</p>
+<ul>
+<li><strong>The #1116 table:</strong> TC-MD202, TC-MD108 (LX-01, LX-02), TC-MD113 (TB-04, TB-08), TC-MD105
+  (LM-03), TC-MD114 (BR-03), TC-MD101 (HD-02, HD-04), TC-MD115 (ES-01), TC-MD102 (EM-04),
+  TC-MD204 (IN-05), TC-MD111 (LK-06, LK-07).</li>
+<li><strong>D1 (#1071):</strong> TC-MD106, TC-MD109 (TK-02), TC-MD016, TC-MD001, TC-MD002, TC-MD012.</li>
+<li><strong>Changed fixtures, for regressions:</strong> TC-MD004–TC-MD006, TC-MD008–TC-MD011, TC-MD013–TC-MD015,
+  TC-MD107, TC-MD110, TC-MD201, TC-MD203, TC-MD301 (DS-14), TC-MD302.</li>
+<li>The rest of <code>docs_markdown.md</code> produced the same AST and needs no re-run for this change.</li>
+</ul>
+<h2 id="what-this-does-not-do">What this does NOT do<a class="headerlink" href="#what-this-does-not-do" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Strip front matter (#1173), keep an empty list item (#1075), keep a loose item's bullet (#1164, already in <code>develop</code>),
+  or fix hard and soft breaks (#1117, #1093). Each is in the HTML → AST step or its own ticket.</li>
+<li>Change EP-8 (<code>upload_file</code>), which keeps Python-Markdown until #1101.</li>
+<li>Read table column alignment.</li>
+</ul>
+<h2 id="review-history">Review history<a class="headerlink" href="#review-history" title="Permanent link">&para;</a></h2>
+<p>PR #1228's QA rounds, and what each changed. The invariants they produced are in <code>CLAUDE.md</code>'s
+<code>docs/md_to_html.py</code> entry.</p>
+<ul>
+<li><strong>Round 1 (8 findings).</strong> The two pre-passes tracked fences by hand, so they missed a fence
+  opened on a list-marker line and every raw HTML block, and rewrote code inside them. Replaced
+  by <code>_verbatim_lines</code>, from markdown-it's own block parser. Also: the pass ignored CommonMark's
+  paragraph-interrupt rule (<code>2019. A great year</code> opened a list); a bare <code>---</code> counted as a
+  delimiter row, splitting a setext heading; the email regex was quadratic on <code>_</code>-heavy text
+  (<code>"a_" * 20000</code> took about a second), replaced by the scan out from each <code>@</code>; text after a code
+  span or link was autolinked; the spaced-image rule didn't unescape or respect <code>posMax</code>; tab
+  widths after a marker counted from column 0. A run of the CommonMark spec examples then found
+  siblings snapping onto their sibling's rewritten column (example 310).</li>
+<li><strong>Round 2 (9 findings).</strong> D2's blank line went in before a table already indented into an
+  item, which made the list loose and lost its bullets: D2 moved into the D1 pass, which knows
+  which item a line belongs to, and the separate table pass (and its second block parse) went
+  away. Also: <code>_trim_autolink</code> was quadratic on a run of entities or parens; the quote recursion
+  had no depth cap (<code>"&gt;" * 1200</code> raised <code>RecursionError</code>) and parsed again per quote run; the
+  shared parsers' ruler caches were built lazily, racing across <code>to_thread</code> workers;
+  <code>_md_to_html(x, None)</code> raised <code>KeyError</code>; and the <code>html_parser</code> trim before a block removed a
+  <code>&lt;br&gt;</code>'s break, now marked <code>_LineBreak</code> so only source text is trimmed. The stricter GFM link
+  boundary (<code>URL:https://x.com</code>, <code>&lt;b&gt;https://x.com&lt;/b&gt;</code> not linked) was kept and documented.</li>
+<li><strong>Round 3 (10 findings, plus the live matrix).</strong> The branch had fallen behind <code>develop</code>, so CI
+  hadn't run; merged. In <code>html_parser</code>, a rule after a nested list in an item took the
+  dropped-construct path and left the resumed segment's <code>\n</code>s as empty bullets, and text after a
+  rule kept a leading break: a resumed segment now takes the <code>&lt;hr&gt;</code> interrupt path and drops a
+  leading line break. In the pre-pass: each quote run scanned the whole verbatim map (now a bisect
+  slice); moving an item rebuilt a fence body's whole indentation, turning a recipe tab into
+  spaces (<code>_shift_verbatim</code> keeps the code's own whitespace); <code>maxNesting</code> 20 dropped deep list
+  text (now 100, with <code>_MAX_QUOTE_DEPTH</code> matching); a lazy <code>|</code> line ended the list; and a table
+  after a quote inside an item stayed the quote's lazy text (<code>_LAZY_BREAK</code>). Spaced destinations
+  now take a title, and links get the same rule as images, since existing <code>.md</code> files lose
+  <code>[notes](./My Notes.md)</code> otherwise; the CommonMark spec run caught two edges of that rule
+  (examples 41 and 568). The "r16 keeps 1–4" claim was the HTML's, not the screen's.</li>
+<li><strong>Round 4 (6 findings).</strong> The loose-list regression is wider than round 1's wording said: one
+  blank line anywhere makes a CommonMark list loose, and every item then loses its bullet until
+  #1164; the PR now waits for #1164 (QA won't approve without it). The autolink domain was checked
+  before trimming (<code>http://__</code> linked an empty host) and the scheme by <code>"://" in label</code>; the
+  resumed-segment trim lacked the <code>&lt;pre&gt;</code> guard its counterpart has; a setext underline under item
+  text is documented as a behavior change; and a stale dev-group <code>markdown-it-py</code> pin was removed.</li>
+<li><strong>Round 5 (the <code>develop</code> merge).</strong> #1164 merged, and <code>develop</code> was merged in: loose lists keep
+  their bullets, and a code block or paragraph inside a numbered item keeps one <code>&lt;ol&gt;</code>
+  (<code>TestLooseListsAfter1164</code>).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

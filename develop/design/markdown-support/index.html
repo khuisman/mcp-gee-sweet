@@ -1355,6 +1355,10 @@
 <code>create_doc_from_file</code>, landed via #102/#103/#104 (PR #105); bare-URL autolinking (<code>autolink_urls</code>)
 landed separately via #248 (PR #265). Live-verified: <a href="../../qa/results/2026-06-28/">2026-06-28 QA results</a>,
 <a href="../../qa/results/2026-07-04-docs/">2026-07-04 QA results</a>.</p>
+<p><strong>Parser superseded (#1116):</strong> the Python-Markdown call below was replaced with markdown-it-py
+(CommonMark plus GFM) in <code>docs/md_to_html.py</code>; see
+<a href="../markdown-parser/"><code>markdown-parser.md</code></a>. The MD → HTML → AST shape this doc argues for is
+unchanged.</p>
 <h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
 <p><code>create_doc</code> and <code>write_doc_content</code> only accept HTML. Users who work primarily with <code>.md</code> files
 have to convert manually before calling these tools. The project already has the <code>markdown</code>
