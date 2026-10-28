@@ -97,7 +97,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Setup**
 Apply formatting across a range with `format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")`, then call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True)`.
 
-Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side default (`MAX_TOOL_RESPONSE_CHARS=40000`, named `MAX_GRID_DATA_RESPONSE_CHARS` at the time this test was first run — renamed and generalized to 5 more tools by issue #242) sits below that with margin.
+Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side cap is `MAX_TOOL_RESPONSE_CHARS` (named `MAX_GRID_DATA_RESPONSE_CHARS` when this test was first run; renamed and generalized by issue #242). Its default was 40,000 then; issue #519 raised it to 1,000,000. This range still trips the current default: the 2026-09-04 run measured about 4.1M characters.
 
 **Checks**
 - The Sheets API fetch itself succeeds (it's fast either way) — the error comes from the size check on the result, not a failed API call
@@ -141,10 +141,10 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 ### TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)
 
 **Setup**
-Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.g. to match a `MAX_MCP_OUTPUT_TOKENS` raised in your MCP client config). Repeat the same call as TC-R03c: a formatted range whose response is over the *default* 40,000-character cap but under 200,000.
+Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server. The shipped default (1,000,000 since #519) is above this, so the override has to lower the cap to show it's read. Repeat TC-R38's call: its ~430,000-character response is under the default, so it succeeds on a default server, and over 200,000.
 
 **Checks**
-- Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
+- Call now raises the response-size `ValueError` instead of succeeding — confirms the cap is actually read from the env var, not hardcoded
 - Restore `MAX_TOOL_RESPONSE_CHARS` (unset it) after this test
 
 **Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the *shipped* default to 1,000,000, demonstrating configurability now requires setting `MAX_TOOL_RESPONSE_CHARS` below that default (e.g. `200000` as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.
@@ -937,11 +937,14 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the unbounded axis is query *count*, not just per-query range size — many small results can add up.
 
 **Setup**
-No fixture setup needed — repeat the same tiny query (`{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Sales"}`, a 6x4 range) 200 times in one `queries` list.
+The cap is on the serialized size of the whole response, not on the query count; there is no per-call query limit. Since #519 raised the default cap to 1,000,000 characters, 200 copies of the small `Sales` query (about 150,000 characters, measured 2026-07-03) no longer trip it. Use large cells instead, so that each query is under the cap and only their sum is over it: write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of `Empty!A1:A40` with `update_cells`, then call `get_multiple_sheet_data` with two queries, `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A1:A20"}` and `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A21:A40"}` (about 600,000 characters each, about 1.2M together). If TC-R35 runs in the same pass, reuse its setup.
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, and `MAX_TOOL_RESPONSE_CHARS`
-- Same call with only 2 queries + `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
+- Call raises `ValueError` mentioning the actual response size, the 1,000,000-character cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Same two queries with `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
+
+**Teardown**
+`clear_values` on the `Empty` sheet to remove the test data (once, after TC-R35 if it reuses this setup).
 
 **Result (2026-07-03) ✅ PASS**
 200 queries against the small `Sales` range (6 rows x 4 cols) raised: `get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` `local_path` with 2 queries succeeded, returned `{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}`; file verified on disk then cleaned up.
@@ -960,10 +963,10 @@ local_path part passes; the 200-query cap check is stale since #519 and was not 
 **Background:** `max_results` (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.
 
 **Setup**
-Write 10 cells (`Empty!A1:A10`) each containing a ~4,785-character string with a shared marker substring (e.g. repeated "PADTEST marker text..." sentence), then search for the marker.
+Write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of the 40 cells `Empty!A1:A40` with `update_cells`, about 1.2M characters in total, then search for `PADTEST`. The default cap is 1,000,000 characters since #519, so the matches have to add up to more than that; the 2026-07-03 setup (10 cells of ~4,785 characters, ~42,000 in total) only tripped the old 40,000 default.
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size and the cap, even though match count (10) is well under `max_results` (50)
+- Call raises `ValueError` mentioning the actual response size and the 1,000,000-character cap, even though the match count (40) is under `max_results` (50)
 - Same call with `local_path` set succeeds, returns `{local_path, spreadsheet_id, query, match_count, bytes_written}`, and the file on disk contains all matches
 
 **Teardown**

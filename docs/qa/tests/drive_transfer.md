@@ -100,11 +100,16 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Background:** #242 generalized #235's response-size safety net to `export_file`. Unlike the other capped tools, `export_file` has no `local_path` param — its base64 output written to a JSON file would be a worse artifact than `download_file` (pre-existing tool) already produces, so the error points there instead.
 
+**Setup:** the cap is `MAX_TOOL_RESPONSE_CHARS` (default `1000000`, see `docs/configuration.md`). `{SPREADSHEET_ID}` exported as `xlsx` is only about 9 KB, so it does not trip the default cap. To trip it, export a binary file large enough that its base64 content exceeds the cap: at the default, a raw file of about 800 KB or more. For example, upload an 800 KB non-text file (random bytes, `.bin`) to a scratch folder with `upload_local_file` and export it with `export_format='raw'`. Alternatively, run against a server started with a low `MAX_TOOL_RESPONSE_CHARS` (e.g. `40000`), where the fixture's `xlsx` export does trip it.
+
 **Prompt**
-> "Export {SPREADSHEET_ID} as xlsx"
+> "Export <the large binary file's ID> with export_format 'raw'" (or, on a low-cap server, "Export {SPREADSHEET_ID} as xlsx")
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and `download_file` as the recommended alternative — must NOT mention `local_path` (this tool doesn't have that param)
+- Call raises `ValueError`: `export_file: the response is <N> characters, over the <cap>-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`, where `<cap>` is the server's configured cap
+- The message must NOT mention `local_path` (this tool doesn't have that param)
+
+**Cleanup:** trash the uploaded large file, if one was used.
 
 **Result (2026-07-03) ✅ PASS**
 Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
@@ -719,7 +724,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Checks**
 - Step 1: `/tmp/qa-d254/new/sub/` exists as a **directory**; the file is at `/tmp/qa-d254/new/sub/<drive_name>` with the real content; the returned `local_path` is that full file path. There is **no** plain file at `/tmp/qa-d254/new/sub`.
 - Step 2: both downloads are present as separate files inside `/tmp/qa-d254/new/sub/` (named after each Drive file) — the second did not overwrite the first, and `/tmp/qa-d254/new/sub` is still a directory, not a file.
-- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'` (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
+- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead` (the trailing hint since #990, the rest since #855; before #855 it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
 
 **Teardown**
 `rm -rf /tmp/qa-d254`.
@@ -753,7 +758,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Checks**
 - Step 1 raises the Drive 404 `HttpError` ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. `/tmp/qa-d274/ok/` is **not** created, because mkdir runs after the metadata call.
-- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`.
+- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`. (The hint after the semicolon was added in #990.)
 
 **Teardown**
 `rm -rf /tmp/qa-d274`.
@@ -1286,7 +1291,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Background:** before the fix, only `sync_folder`'s own `create()` call stamped the marker property matching relies on — `upload_local_file(convert=True)`'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent `sync_folder` run on the same folder silently created a second Doc.
 
 **Prompt**
-> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then, with `/tmp/qa-sync-226/notes.md` containing identical content and mtime close to now:
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then create the sync copy with `mkdir -p /tmp/qa-sync-226 && cp -p /tmp/qa-sync-226-src/notes.md /tmp/qa-sync-226/notes.md`. The `-p` keeps the source file's mtime: the upload stamps that mtime on the Doc, and `sync_folder` compares a converted `.md` against the stamp exactly (`_CONVERTED_MD_STAMP_TOLERANCE`, 1 ms), so a plain `cp` makes the local file look changed. Then:
 > "Sync {FOLDER_ID} with `/tmp/qa-sync-226/` using direction='bidirectional' and convert_markdown set to true"
 
 **Checks**
@@ -1483,7 +1488,7 @@ In `{FOLDER_ID}`, create 3 Drive-only files (`drive-a.txt`, `drive-b.txt`, `driv
 - All 3 Drive-only files appear in `downloaded`; all 3 local-only files appear in `uploaded`; `failed` is empty
 - Each downloaded local file's content matches its *own* source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
 - Each uploaded Drive file's content matches its *own* source local file's marker (check via `export_file` or `download_file` on each)
-- `size_bytes` equals the sum of the 3 downloaded files' actual sizes
+- `size_bytes` equals the sum of the actual sizes of all 6 transferred files: the 3 downloaded and the 3 uploaded (#1003 made it count uploads too)
 
 **Teardown**
 Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded local-only files from Drive, remove `/tmp/qa-sync-183/`.
@@ -2350,16 +2355,19 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 ### TC-D148: Export a revision and read a cell range
 
-**Setup:**
-1. Write "QA-BEFORE" to Sales!A1 using `update_cells`
-2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
-3. Write "QA-AFTER" to Sales!A1
-4. Call `list_revisions` on {SPREADSHEET_ID} and identify the revision from between the two writes
+**Setup:** use a throwaway scratch spreadsheet, not `{SPREADSHEET_ID}`. These writes would change the shared fixture's `Sales!A1`, and both recorded runs already used a scratch sheet.
+1. Create a scratch spreadsheet (e.g. `QA-transfer-rev-test`) in a scratch folder with `create_spreadsheet`; note its ID as `{SCRATCH_SHEET_ID}`
+2. Write "QA-BEFORE" to its first sheet's A1 using `update_cells`
+3. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+4. Write "QA-AFTER" to the same A1
+5. Call `list_revisions` on `{SCRATCH_SHEET_ID}` and identify the revision from between the two writes
 
-> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.
+Past runs reused this scratch sheet for TC-D149 and TC-D150. Trash it once those are done.
+
+> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If no revision holds the "QA-BEFORE" state, the writes coalesced: SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk; the 2026-09-04 run coalesced after a 40 s wait, and the 2026-10-17 run coalesced too.
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} and show me the value in range A1"
 
 **Checks**
 - Returns `values` with "QA-BEFORE" in A1

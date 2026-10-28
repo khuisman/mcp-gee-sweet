@@ -352,13 +352,15 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Prompt**
 **Playwright: required**
-> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color red, width 1.5"
 
-Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])`
+Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 1, "green": 0, "blue": 0}, "width": 1.5}}])`
+
+Use a non-default color and width. A black 1pt border equals the table's default border, so the API omits it from the cell's `tableCellStyle` and the check below can't see it.
 
 **Checks**
 - Response succeeds, no `error` key, `requests: 1`
-- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested color/width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
+- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested red color and 1.5pt width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
 
 **Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no `tableCellStyle` border keys at all; after `style_doc_table_cells` with only `border_bottom` set, the cell showed a `borderBottom` entry with the requested color/width and no `borderTop`/`borderLeft`/`borderRight` keys. Confirmed with two distinct rows/widths for reproducibility.
 
@@ -567,7 +569,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 - Tool completes without error (no `HttpError 400` / "Links must include at least one type")
 - Response `requests: 1`
 - `get_doc_structure` shows the run over that range now has `link_url: null` (not still `"https://example.com"`)
-- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added `underline: true` from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since `link_url` and `underline` are unrelated fields in the request)
+- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling). The request names only the `link` field, but Docs removes the underline it auto-added with the link (TC-DOC30) when the link is cleared, so `get_doc_structure` shows the run without `underline: true` as well (observed in the v0.9.2 pass)
 
 **Cleanup:** delete the test paragraph
 
@@ -652,10 +654,11 @@ Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 
 **Checks**
 - First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
+- The three settings paragraphs' `text` keeps the Markdown marker as literal text: `"   - Instance identifier\n"`, `"   - Instance class\n"`, `"   - Storage encryption\n"`. Python-Markdown's `sane_lists` doesn't read a 3-space-indented `-` line as a sub-list (#1071), so the three lines stay part of item 2's text (`<li>Configure the instance:\n   - Instance identifier…</li>`), and each line becomes its own paragraph in the same list. This is expected, not a failure
 - `create_paragraph_bullets` call succeeds with no API error
 - Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
-- The three promoted paragraphs' own text is unchanged — no visible tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
-- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance", and "Click Restore" still numbers as item 3 (not item 6)
+- The three promoted paragraphs' own text is unchanged (still `"   - Instance identifier\n"` and so on) — no tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
+- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance" (each still showing its literal `   - ` prefix after the sub-list glyph), and "Click Restore" still numbers as item 3 (not item 6)
 
 **Cleanup:** write fixture content back
 

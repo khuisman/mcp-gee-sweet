@@ -221,7 +221,7 @@ Two-subagent barrier, 20/20 iterations on kai-sa: no cross-contamination, no SSL
 Server running with any auth method.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this server.
+Read the resource `server://auth-status` from this server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
@@ -251,7 +251,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+Read the resource `server://auth-status` from that server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `limited_tools` includes `"transfer_ownership"` alongside the existing quota-limited tools
@@ -279,7 +279,7 @@ SA checks pass; the OAuth sub-check needs a different auth method.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+Read the resource `server://auth-status` from that server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `"sync_folder" in limited_tools` is `True` (exact string match — not a substring like `"sync_folder (upload and bidirectional directions)"`)
@@ -304,7 +304,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 Server running with any auth method.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` against this server.
+Read the resource `spreadsheet://{SPREADSHEET_ID}/info` from this server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
@@ -362,7 +362,7 @@ Needs the mcp-publisher CLI and a registry publish.
 - **Service-account-backed ADC:** `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), `AUTH_METHOD=adc`.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against each server.
+Read the resource `server://auth-status` from each server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - User-backed ADC: `auth_method: "adc"`, `is_service_account_identity: false`, `can_create_in_personal_drive: true`, `limited_tools: []`, `limitations: []`.
@@ -758,7 +758,7 @@ Needs an SSE/streamable-http server or SIGTERM.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`), plus any OAuth server for the last check.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against the service-account server, then against the OAuth server.
+Read the resource `server://auth-status` from the service-account server, then from the OAuth server, with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `limitations` contains an entry with `category: "no_user_mailbox"`
@@ -793,7 +793,7 @@ Then call, in order:
 1. `list_spreadsheets` with `max_results: 1`
 2. `list_labels` (no arguments)
 3. `send_message` with `to: "nobody@example.com"`, `subject: "TC-I32"`, `body: "should not send"`
-4. `ReadMcpResourceTool` with `uri: "server://auth-status"`
+4. Read the resource `server://auth-status` with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config)
 
 **Checks**
 - The server connects (no `Connection closed`), with no browser window and no `Please visit this URL to authorize` prompt
@@ -830,7 +830,7 @@ AUTH_METHOD=oauth
 ENABLED_TOOLS=list_spreadsheets,get_cache_ttl
 ```
 
-Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with `uri: "server://auth-status"`.
+Call `list_spreadsheets` with `max_results: 1`, then read the resource `server://auth-status` with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - The server starts with no browser consent and no `MissingOAuthScopesError`

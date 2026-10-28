@@ -143,7 +143,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Checks**
 - F3 = "PlainValue" (written via a per-cell `values.batchUpdate` scoped to just F3, not a whole-range `values.update` — the whole-range write was retired because it required blanking G3 to "" first and relying on the rich-text pass to overwrite it back, losing G3's content for good if that second call failed)
-- G3 shows "Link" with `userEnteredFormat.hyperlinkDisplayType` = "LINKED" and a `textFormatRuns` entry linking to https://example.com/g3
+- G3 shows "Link" with `userEnteredFormat.hyperlinkDisplayType` = "LINKED" and the cell's `hyperlink` = https://example.com/g3. The tool sends the link as a text run, but a link that covers the cell's whole text is stored on the cell itself, so a `get_sheet_data(include_grid_data=True)` read-back may show no `textFormatRuns` link entry
 - Both cells are correct in a single tool call — confirms the plain-cell pass and the rich-text `batchUpdate` pass compose correctly over the same range
 - The tool's own return value is `{"values_update": {...}, "rich_text_update": {...}}` — both results present, not just the plain-cell one (previously the rich-text result was silently dropped whenever plain cells were also present in the same call)
 - 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text
@@ -200,6 +200,14 @@ F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 un
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Spot-check after the `_utf16_len` refactor** (moved from `docs_content.md`, #1060): `sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
+
+**Result (2026-10-17) ⏳ pending — v0.9.2 release pass**
+not reported by the shard that owned this file
+
+**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
+`oauth`: Run in a throwaway spreadsheet in the run folder, not the fixture. `update_cells` F5 [🚀, link→example.com]; `get_sheet_data(include_grid_data)` showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.
 
 ---
 
@@ -266,7 +274,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 > "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range `Sheet1!F9`, with `data` set to `[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]` (a mixed plain + rich-text call)"
 
 **Checks**
-- Returns `{"error": "Invalid A1 notation: Sheet1!F9"}` — a sheet-qualified range isn't valid A1 notation for the `range` param, which expects only the cell range (the `sheet` param already supplies the sheet name)
+- Returns `{"error": "Invalid A1 notation: 'Sheet1!F9'"}` (the range is quoted in the message) — a sheet-qualified range isn't valid A1 notation for the `range` param, which expects only the cell range (the `sheet` param already supplies the sheet name)
 - No `values().batchUpdate()` or `spreadsheets().batchUpdate()` call is made — F9 is unchanged
 - Before this fix, `_parse_a1_notation`'s `ValueError` propagated uncaught through the async tool to the MCP client instead of this `{"error": ...}` shape
 - QA round 1 found `update_cells` parsed `range` twice (once in the mixed-cell branch, once again in the rich-text branch) whenever both cell kinds were present in the same call — harmless but redundant, since the first parse already returns on failure before the second is ever reached. Fixed by parsing once, up front, whenever `rich_text_cells` is non-empty (the exact condition under which either branch needs it), and reusing the result — `update_cells` now has exactly one `_parse_a1_notation_or_error` call site, not two.
