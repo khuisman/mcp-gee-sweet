@@ -222,7 +222,7 @@ Both entries in successes; progress notifications aren't visible in this client.
 - Each entry has `id`, `type`, `role` — no `KeyError` or missing fields
 
 **Result (2026-09-04) ❌ FAIL**
-list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (kevin@mcpsuite.io) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
+list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (qa-workspace-user@example.org) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -241,7 +241,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Their `permission_id` is present for use in update/remove tests
 
 **Result (2026-09-04) ✅ PASS**
-(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows huismanfamily01@gmail.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
+(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows qa-recipient@example.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -377,7 +377,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 `docs/qa/.env` doesn't exist in this scoped role-worktree pass (a known gap — see `docs/qa/run.md`), so `TEST_PERMISSION_EMAIL` isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.
 
 **Result (2026-09-04) ⏭️ SKIP**
-environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, huismanfamily01@gmail.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the mcpsuite.io org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
+environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, qa-recipient@example.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the example.org org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDriveItemNotSupported).
@@ -438,7 +438,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up `list_permissions` confirms the new entry
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'huismanfamily01@gmail.com'}], failures:[]. Follow-up list_permissions confirms the entry.
+share_file(throwaway, [{type:user, email:qa-recipient@example.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'qa-recipient@example.com'}], failures:[]. Follow-up list_permissions confirms the entry.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -492,7 +492,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up `list_permissions` shows the domain permission entry
 
 **Result (2026-09-04) ✅ PASS**
-share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'mcpsuite.io'}]; list_permissions shows the domain entry (display_name "MCPSuite").
+share_file type='domain' domain='example.org' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'example.org'}]; list_permissions shows the domain entry (display_name "<QA org>").
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -511,7 +511,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - File accessible via its `web_link` without authentication (verify in incognito browser)
 
 **Result (2026-09-04) ✅ PASS**
-share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as kevin@mcpsuite.io, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
+share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as qa-workspace-user@example.org, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after removal.
@@ -530,7 +530,7 @@ anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after rem
 - A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
 **Result (2026-09-04) ⚠️ PARTIAL**
-share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+share_file(folder QA-v090-share-folder, [{type:user, email:qa-recipient@example.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
 **Corrected (2026-10-17, #1044 audit):** the child-file inherited-access check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
@@ -568,7 +568,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 > ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
+share_file(throwaway, qa-recipient@example.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -591,7 +591,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 `remove_permission` for each of the 4 test permissions.
 
 **Result (2026-09-04) ✅ PASS**
-share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.
+share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain example.org=reader (09502084656447390423). No cross-attribution.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 list_permissions cross-check: every principal had exactly its requested role.

@@ -1199,7 +1199,7 @@ restore_file restored; bad ID gives 404.
 **Result (2026-07-21) skipped, by operator decision** — unit tests (`test_empty_trash_defaults_to_my_drive_no_drive_id`, `test_empty_trash_api_error_propagates`) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.
 
 **Result (2026-09-04) ⏭️ SKIP**
-destructive — `empty_trash()` (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (kevin.huisman@gmail.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.
+destructive — `empty_trash()` (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (qa-owner@example.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 empty_trash on a whole trash; not run during a shared pass.
@@ -1573,7 +1573,7 @@ Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
 **Result (2026-06-21) ✅** OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have `id`, `name`, `mime_type`, `modified_time`, `owners` (flat email list), `web_link`. Ordered by `modifiedTime desc`. SA: 5 files returned — files explicitly shared with the service account (Budget & Savings spreadsheet plus 4 folders).
 
 **Result (2026-09-04) ⚠️ PARTIAL**
-list_shared_with_me() → `[]` cleanly, no error. The OAuth identity here is a Workspace-org QA account (kevin@mcpsuite.io, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
+list_shared_with_me() → `[]` cleanly, no error. The OAuth identity here is a Workspace-org QA account (qa-workspace-user@example.org, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
 **Corrected (2026-10-17, #1044 audit):** the fixture had no shared files, so the field and ordering checks weren't exercised.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
@@ -1794,7 +1794,7 @@ Run 1 (kai-oauth).
 **Result (2026-06-21) ✅** OAuth: `limit_bytes=16106127360` (15 GB), `usage_bytes=13760121856`, `usage_in_drive_bytes=875136784`, `usage_in_trash_bytes=93860012`. All integers. SA: `limit_bytes=0` (API returned `"0"` — expected for service accounts), all usage fields 0, `display_name` is the service account email. Note: docstring corrected — SA returns `0` not `None`.
 
 **Result (2026-09-04) ✅ PASS**
-get_storage_quota() → email "kevin@mcpsuite.io", display_name "Kevin Huisman", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.
+get_storage_quota() → email "qa-workspace-user@example.org", display_name "<QA user>", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
