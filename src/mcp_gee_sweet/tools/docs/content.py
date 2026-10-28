@@ -723,20 +723,34 @@ class DocEditError(Exception):
     """_apply_doc_content's doc edit raised after its images were resolved (#789).
     Carries the per-image outcome list, which would otherwise be lost with the
     exception, so the calling tool can return it alongside the error the way
-    insert_local_images does. The original exception is chained as __cause__."""
+    insert_local_images does. The original exception is chained as __cause__.
 
-    def __init__(self, cause: Exception, image_outcomes: list[dict[str, Any]]):
+    Also carries the dropped links known so far (#1180): text can land before the
+    failure (a split image retry commits its prefix, and the anchor pass runs after
+    the body and tables are written), and any of it written with a link dropped
+    must still be reported."""
+
+    def __init__(
+        self,
+        cause: Exception,
+        image_outcomes: list[dict[str, Any]],
+        dropped_links: list[dict[str, str]],
+    ):
         super().__init__(f"doc edit failed: {cause}")
         self.image_outcomes = image_outcomes
+        self.dropped_links = dropped_links
 
 
 def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
     """The tool response for a DocEditError: the error, the doc's ID (the doc
     exists, possibly partly written), and the per-image outcomes when there are
-    any, so every file ID an image step created or shared reaches the caller."""
+    any, so every file ID an image step created or shared reaches the caller, plus
+    any dropped links (#1180)."""
     result: dict[str, Any] = {"error": str(e), "docId": doc_id}
     if e.image_outcomes:
         result["images"] = e.image_outcomes
+    if e.dropped_links:
+        result["dropped_links"] = e.dropped_links
     return result
 
 
@@ -1058,7 +1072,7 @@ async def _apply_doc_content(
         # The outcome list rides on the error so the calling tool can return it; a
         # raise alone would lose every file ID (#789). The lifecycle has already
         # revoked the shares and logged the touched files.
-        raise DocEditError(e, image_outcomes) from e
+        raise DocEditError(e, image_outcomes, dropped_links) from e
     return AppliedContent(images=image_outcomes or None, dropped_links=dropped_links)
 
 
@@ -1306,7 +1320,7 @@ def register(tool):
             over https instead: //host/x as https://host/x, www.host as
             https://www.host.
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1421,7 +1435,7 @@ def register(tool):
             Includes "dropped_links" when a link was written as plain text instead
             (see create_doc).
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1640,7 +1654,7 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no
@@ -1727,7 +1741,7 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no

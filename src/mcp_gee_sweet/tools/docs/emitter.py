@@ -228,13 +228,14 @@ def unstorable_link_urls(nodes: list[DocNode]) -> list[str]:
     """Every distinct link target in `nodes` that _storable_link_url refuses, in
     document order: the links ast_to_requests and fill_tables will write as plain
     text (#1180). Walks the same leaves as extract_images, so a linked image and a
-    table cell's runs count too."""
+    table cell's runs count too. Each target is the stripped value _storable_link_url
+    judged, so " ./guide.md" and "./guide.md" are one target."""
     dropped: dict[str, None] = {}
     for node in nodes:
         items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
         for item in items:
             if item.link_url is not None and _storable_link_url(item.link_url) is None:
-                dropped[item.link_url] = None
+                dropped[item.link_url.strip()] = None
     return list(dropped)
 
 
@@ -945,10 +946,16 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
 # structural rather than a list that drops working targets every time a new
 # scheme shows up in a document.
 _STORABLE_LINK_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
-# A scheme-less target that still names a host: protocol-relative "//host/x" (not
-# "///x", which names none) and a bare "www." host. Both get https:// (#1180).
-_HOST_RELATIVE_LINK = re.compile(r"//(?!/)")
-_BARE_WWW_LINK = re.compile(r"www\.[^\s/.]", re.IGNORECASE)
+# A scheme-less target that still names a host gets https:// (#1180). Matched
+# against the whole target, which may hold no whitespace (a dead link either way).
+# Protocol-relative "//host/x": a host character must follow the "//", so "//",
+# "///x", "//?q" and "//#x" name none. A bare "www." host follows GFM's extended
+# www autolink: "www." then a valid domain with at least one more ".", so the
+# relative file "WWW.md" isn't taken for a host.
+_HOST_RELATIVE_LINK = re.compile(r"//[^\s/?#]\S*")
+_BARE_WWW_LINK = re.compile(
+    r"www\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+(?:[/:?#]\S*)?", re.IGNORECASE
+)
 
 
 def _storable_link_url(link_url: str | None) -> str | None:
@@ -973,17 +980,20 @@ def _storable_link_url(link_url: str | None) -> str | None:
     A scheme-less target that names a host is rewritten rather than dropped
     (#1180): "//example.com/x" becomes "https://example.com/x" and
     "www.example.com" becomes "https://www.example.com". Always https, never
-    http: a host that only serves plain http loses the link, by design.
+    http: a host that only serves plain http loses the link, by design. The www
+    rule runs before the scheme match, which would read "www.example.com:8443/x"
+    as a "www.example.com:" scheme and pass it through for Docs to prefix with
+    http://.
     """
     if link_url is None:
         return None
     url = link_url.strip()
+    if _BARE_WWW_LINK.fullmatch(url):
+        return "https://" + url
     if url.startswith("#") or _STORABLE_LINK_SCHEME.match(url):
         return url
-    if _HOST_RELATIVE_LINK.match(url):
+    if _HOST_RELATIVE_LINK.fullmatch(url):
         return "https:" + url
-    if _BARE_WWW_LINK.match(url):
-        return "https://" + url
     return None
 
 

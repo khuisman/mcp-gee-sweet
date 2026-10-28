@@ -6,9 +6,10 @@ matches. Both used to leave the tool reporting plain success. Every Markdown/HTM
 entry point now returns the dropped targets under "dropped_links".
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.docs.ast import Cell, Image, Paragraph, Row, Run, Table
 from mcp_gee_sweet.tools.docs.emitter import unstorable_link_urls
 
@@ -126,6 +127,16 @@ class TestUnstorableLinkUrls:
         ]
         assert unstorable_link_urls(nodes) == ["b.md", "a.md"]
 
+    def test_padded_target_reported_stripped_and_once(self):
+        # PR #1272 QA round 1: _storable_link_url judges the stripped value, so
+        # that's the target, and " ./guide.md" is the same one as "./guide.md".
+        nodes = [
+            Paragraph(
+                runs=[Run(text="a", link_url=" ./guide.md"), Run(text="b", link_url="./guide.md ")]
+            )
+        ]
+        assert unstorable_link_urls(nodes) == ["./guide.md"]
+
 
 class TestCreateDocReportsDroppedLinks:
     async def test_relative_link_is_reported(self):
@@ -207,6 +218,54 @@ class TestCreateDocReportsDroppedLinks:
             {"url": "notes.md", "reason": "no_scheme"},
             {"url": "#nope", "reason": "no_matching_heading"},
         ]
+
+
+class TestFailedEditStillReportsDroppedLinks:
+    """PR #1272 QA round 1: text can land before a failure (the anchor pass runs
+    after the body is written), so the failure result keeps the no_scheme list."""
+
+    async def test_create_doc_anchor_pass_failure(self):
+        drive_svc, docs_svc = _services()
+        with patch.object(
+            content_module, "_resolve_heading_anchors", side_effect=RuntimeError("anchor boom")
+        ):
+            result = await _docs_tools["create_doc"](
+                title="Doc",
+                content="[file](./guide.md) and [jump](#somewhere)",
+                content_format="markdown",
+                ctx=_ctx(drive_svc, docs_svc),
+            )
+        assert "anchor boom" in result["error"]
+        assert result["docId"] == "doc123"
+        assert result["dropped_links"] == [{"url": "./guide.md", "reason": "no_scheme"}]
+
+    async def test_write_doc_content_anchor_pass_failure(self):
+        drive_svc, docs_svc = _services()
+        with patch.object(
+            content_module, "_resolve_heading_anchors", side_effect=RuntimeError("anchor boom")
+        ):
+            result = await _docs_tools["write_doc_content"](
+                doc_id="doc123",
+                content="[file](./guide.md) and [jump](#somewhere)",
+                content_format="markdown",
+                ctx=_ctx(drive_svc, docs_svc),
+            )
+        assert "anchor boom" in result["error"]
+        assert result["dropped_links"] == [{"url": "./guide.md", "reason": "no_scheme"}]
+
+    async def test_no_dropped_links_key_on_failure_when_none_dropped(self):
+        drive_svc, docs_svc = _services()
+        with patch.object(
+            content_module, "_resolve_heading_anchors", side_effect=RuntimeError("anchor boom")
+        ):
+            result = await _docs_tools["create_doc"](
+                title="Doc",
+                content="[jump](#somewhere)",
+                content_format="markdown",
+                ctx=_ctx(drive_svc, docs_svc),
+            )
+        assert "error" in result
+        assert "dropped_links" not in result
 
 
 class TestOtherEntryPointsReportDroppedLinks:

@@ -74,6 +74,26 @@ class TestStorableLinkUrl:
         assert _storable_link_url("www.") is None
         assert _storable_link_url("www/guide.md") is None
 
+    def test_www_host_with_a_port_gets_https_not_a_scheme_pass_through(self):
+        # PR #1272 QA round 1: "www.example.com:" reads as a scheme, so the www
+        # rule must run first, or Docs stores the link as http://.
+        assert _storable_link_url("www.example.com:8443/x") == "https://www.example.com:8443/x"
+        assert _storable_link_url("www.example.com:8443") == "https://www.example.com:8443"
+
+    def test_double_slash_without_a_host_is_dropped(self):
+        for url in ("//", "//?q=1", "//#x", "// x", "//example.com/a b"):
+            assert _storable_link_url(url) is None, url
+
+    def test_www_needs_a_gfm_domain(self):
+        # GFM's extended www autolink: "www." then a domain with at least one more
+        # ".", and no whitespace anywhere.
+        for url in ("WWW.md", "www.md", "www.foo bar", "www.example.com/a b", "www..com"):
+            assert _storable_link_url(url) is None, url
+        assert _storable_link_url("www.config.js") == "https://www.config.js"
+        assert _storable_link_url("www.a-b_c.example.org?q=1#f") == (
+            "https://www.a-b_c.example.org?q=1#f"
+        )
+
     def test_none_stays_none(self):
         assert _storable_link_url(None) is None
 
