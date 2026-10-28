@@ -3077,8 +3077,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        def invalidate() -> None:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
 
         with invalidating(invalidate, on_success=False):
             result = await _upload_local_file(
@@ -3168,8 +3167,7 @@ def register(tool):
         failed: list[dict[str, str]] = []
         may_have_changed = False
 
-        def invalidate() -> None:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
 
         # dict[str, list[dict]], not a single entry per name — Drive allows more
         # than one file to share a name, and collapsing to one (the previous

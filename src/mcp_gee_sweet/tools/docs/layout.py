@@ -5,7 +5,8 @@ from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, invalidating
+from ...auth import execute_in_thread
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         header_id = None
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 response = await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(
@@ -91,7 +92,7 @@ def register(tool):
 
         if content and header_id:
             try:
-                with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                with doc_invalidating(lc.doc_cache, doc_id):
                     await execute_in_thread(
                         lc.docs_service.documents()
                         .batchUpdate(
@@ -153,7 +154,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         footer_id = None
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 response = await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(
@@ -200,7 +201,7 @@ def register(tool):
 
         if content and footer_id:
             try:
-                with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+                with doc_invalidating(lc.doc_cache, doc_id):
                     await execute_in_thread(
                         lc.docs_service.documents()
                         .batchUpdate(

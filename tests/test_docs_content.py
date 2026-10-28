@@ -1954,7 +1954,8 @@ class TestCreateDocImages:
             tg.start_soon(call)
             await anyio.to_thread.run_sync(started.wait, 5)
             tg.cancel_scope.cancel()
-        assert dirty_after_landing == []
+        # #1030: the cancel path marks it too, before the create lands.
+        assert dirty_after_landing == [("folder1", False)]
         release.set()
         with anyio.fail_after(2):
             while ("folder1", True) not in dirty_after_landing:
@@ -3715,6 +3716,26 @@ class TestGetDocContent:
         assert result["content"] == "pre-edit text"
         assert doc_cache.get("doc1") is None
 
+    async def test_refetch_of_a_stale_entry_is_cached(self, monkeypatch):
+        # PR #1264 QA round 1: get() marks a stale row dirty itself, which bumps the
+        # key's epoch. A snapshot taken before get() made every refetch's store a
+        # no-op, so a doc edited outside the server was re-exported on every call.
+        from mcp_gee_sweet.cache import DocContentCache
+
+        monkeypatch.setattr(content_module, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        doc_cache = DocContentCache(db_path=":memory:", ttl=60, principal="test")
+        doc_cache.store(
+            "doc1",
+            {"id": "doc1", "modified_time": "2025-01-01T00:00:00Z", "content": "old"},
+        )
+        drive_svc = self._drive_svc()  # reports modifiedTime 2026-01-01T00:00:00Z
+        ctx = self._ctx(drive_svc=drive_svc, doc_cache=doc_cache)
+
+        result = await _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+
+        assert result["content"] == "hello world"
+        assert doc_cache.get("doc1", "2026-01-01T00:00:00Z")["content"] == "hello world"
+
     async def test_fetch_with_no_concurrent_edit_is_cached(self):
         from mcp_gee_sweet.cache import DocContentCache
 
@@ -3985,6 +4006,18 @@ class TestReplaceDocBackup:
         ctx = self._ctx(drive_svc, docs_svc)
         await self._write(ctx)
         ctx.request_context.lifespan_context.drive_folder_cache.mark_all_dirty.assert_called()
+
+    @pytest.mark.parametrize("error", [_quota_http_error, _other_403_error])
+    async def test_rejected_backup_copy_invalidates_nothing(self, error):
+        # A 4xx copy made nothing, so there's no listing to invalidate (PR #1264
+        # QA round 1): a quota or permission refusal mustn't clear every folder.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.copy.return_value.execute.side_effect = error()
+        ctx = self._ctx(drive_svc, docs_svc)
+        await self._write(ctx)
+        folder_cache = ctx.request_context.lifespan_context.drive_folder_cache
+        folder_cache.mark_all_dirty.assert_not_called()
+        folder_cache.mark_dirty.assert_not_called()
 
     async def test_backup_trashed_when_it_cannot_be_deleted(self):
         # A Content manager on a Shared Drive can trash but not delete (#876).

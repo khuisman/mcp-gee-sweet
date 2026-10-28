@@ -4,8 +4,9 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, invalidating
+from ...auth import execute_in_thread
 from .indices import utf16_len
+from .invalidation import doc_invalidating
 from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def register(tool):
                 if "segment_id" in op:
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -114,7 +115,7 @@ def register(tool):
                 }
                 for op in sorted_ops
             ]
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -147,7 +148,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(
@@ -266,7 +267,7 @@ def register(tool):
             cursor = line_end + (1 if i < len(lines) - 1 else 0)  # +1 for the "\v" separator
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})

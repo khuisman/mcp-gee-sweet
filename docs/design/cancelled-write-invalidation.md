@@ -18,13 +18,13 @@ A cancelled call left the cache serving the pre-write state until the TTL or a `
 
 ### `http_transport.invalidating(callback, *, on_success=True)`
 
-A context manager around a tool's write requests. It enters `after_abandoned_calls(callback)` (#907), so an abandoned request reruns the callback once its thread finishes, and runs the callback once more on every exit from the block. Every exit includes a failure: the request may have landed. Each tool's old post-success `mark_dirty` is removed, since the block's own exit replaces it.
+A context manager around a tool's write requests. It enters `after_abandoned_calls(callback)` (#907), so an abandoned request reruns the callback once its thread finishes, and runs the callback once more on every exit from the block. Every exit includes a failure, since the request may have landed, except a 4xx (`is_rejection`): that's the API's answer that it ran nothing, so the callback is skipped (PR #1264 QA round 1). Each tool's old post-success `mark_dirty` is removed, since the block's own exit replaces it. Docs edits go through `tools/docs/invalidation.doc_invalidating`, so the rules live in `invalidating` alone.
 
-`on_success=False` skips the normal exit and leaves it to the caller. Three sites need that because they decide on a normal exit whether anything changed: `upload_local_file` and `upload_local_folder` (a skip must not invalidate, PR #645 QA round 1) and `sync_folder`'s levels (`level_changed`). Each of those now also counts a failed upload, a failed resolve, and an unexpected exception from a step as a change.
+`on_success=False` skips the normal exit and leaves it to the caller. Three sites need that because they decide on a normal exit whether anything changed: `upload_local_file` and `upload_local_folder` (a skip must not invalidate, PR #645 QA round 1) and `sync_folder`'s levels (`level_changed`). Each of those now also counts a failed upload, a failed resolve, and an unexpected exception from a step as a change. `_upload_local_file` catches its own errors and returns `{"error": ...}`, which doesn't say whether it was a 4xx, so a rejected upload still marks its one known folder. That costs one listing refetch, never the whole cache.
 
 ### `tools/drive._FolderInvalidation`
 
-The callback for a Drive write. It's built with the folders known before the write (a create's target, a move's old and new parents, a delete's parents from its pre-read), and `found(parents)` takes the response's parents when nothing was known up front. A rename, star/unstar, restore, or a copy with no destination only learns its folder from the response. If that write fails or is abandoned there is no response, so the callback marks every folder listing dirty (`mark_all_dirty()`). That fallback runs only on those rare paths, so a normal rename still invalidates just its own folder. Fetching the parents up front instead would add a `files.get` to every call to cover a rare case.
+The callback for a Drive write. It's built with the folders known before the write (a create's target, a move's old and new parents, a delete's parents from its pre-read), and `found(parents)` takes the response's parents when nothing was known up front. A rename, star/unstar, restore, or a copy with no destination only learns its folder from the response. If that write fails without a 4xx, or is abandoned, there is no response, so the callback marks every folder listing dirty (`mark_all_dirty()`). That fallback needs both: no folder known and no response (`found()` never called). A response that names no parents, such as a non-owner's rename of a file shared with them, marks nothing, since there's no listing of the caller's to mark (PR #1264 QA round 1). So a normal rename still invalidates just its own folder. Fetching the parents up front instead would add a `files.get` to every call to cover a rare case.
 
 ### `sync_folder`
 
@@ -32,11 +32,11 @@ The callback for a Drive write. It's built with the folders known before the wri
 
 ### #1032: the epoch guard
 
-`DocContentCache.store` takes `epoch=` like the sheet and folder caches, and `get_doc_content` snapshots it before its first Drive read, the metadata `files.get` when modifiedTime validation is on. `mark_dirty` already bumped the key's epoch, so only the snapshot and the conditional store were missing.
+`DocContentCache.store` takes `epoch=` like the sheet and folder caches. `get_doc_content` snapshots it after its cache lookup misses and before the export, the order `list_files` and `fetch_sheets` already use. `mark_dirty` already bumped the key's epoch, so only the snapshot and the conditional store were missing. Round 1 snapshotted before the lookup, and that broke caching: with modifiedTime validation on, a lookup that finds a stale row marks it dirty itself (`_check_modified_time`), which bumps the epoch past the snapshot, so every refetch of an edited doc skipped its store and re-exported on the next call (PR #1264 QA round 1).
 
 ### In the same files
 
-Two more gaps sat in files this PR already changes, so they're fixed here. `_replace_doc_content`'s backup copy (`content.py`) never marked its folder dirty, either after the copy or after removing it, so a listing read in between kept showing a deleted backup. `import_csv_to_sheet` (`files.py`) now wraps its sheet rename/resize in `invalidating` for `cache`, and its chunk writes for `sheet_data_cache`.
+Three more gaps sat in files this PR already changes, so they're fixed here. `create_doc`/`create_doc_from_file` (`_create_doc_file`) hooked only an abandoned create, and only when a folder was named, so a create that failed after Drive applied it left the listing stale; it now goes through `invalidating` and `_FolderInvalidation` like the other creates. `_replace_doc_content`'s backup copy (`content.py`) never marked its folder dirty, either after the copy or after removing it, so a listing read in between kept showing a deleted backup. `import_csv_to_sheet` (`files.py`) now wraps its sheet rename/resize in `invalidating` for `cache`, and its chunk writes for `sheet_data_cache`.
 
 ## Not covered
 

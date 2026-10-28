@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 
 import anyio
 import pytest
+from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.drive import _FolderInvalidation
@@ -38,6 +39,14 @@ docs_module.register(_docs_tool)
 _drive_tool, _drive_tools = _make_tool_registry()
 files_module.register(_drive_tool)
 transfer_module.register(_drive_tool)
+# create_doc / create_doc_from_file are Drive creates too (PR #1264 QA round 1).
+docs_module.register(_drive_tool)
+
+
+def _rejection(status=404):
+    resp = MagicMock()
+    resp.status = status
+    return HttpError(resp=resp, content=b'{"error": {"errors": [{"reason": "notFound"}]}}')
 
 
 class _Blocking:
@@ -225,6 +234,8 @@ def _drive_tool_calls(tmp_path):
     folder = tmp_path / "dir"
     folder.mkdir()
     (folder / "b.txt").write_text("hi")
+    md_file = tmp_path / "doc.md"
+    md_file.write_text("Text\n")
     return {
         "create_spreadsheet": ({"title": "t", "folder_id": "f1"}, {"f1"}),
         "import_csv_to_sheet": (
@@ -245,12 +256,16 @@ def _drive_tool_calls(tmp_path):
         "upload_file": ({"name": "n", "content": "c", "folder_id": "f1"}, {"f1"}),
         "upload_local_file": ({"local_path": str(local_file), "parent_folder_id": "f1"}, {"f1"}),
         "upload_local_folder": ({"local_path": str(folder), "parent_folder_id": "f1"}, {"f1"}),
+        "create_doc": ({"title": "t", "folder_id": "f1"}, {"f1"}),
+        "create_doc_from_file": ({"local_path": str(md_file), "folder_id": "f1"}, {"f1"}),
     }
 
 
 _DRIVE_TOOL_CASES = [
     "copy_file",
     "copy_file_in_place",
+    "create_doc",
+    "create_doc_from_file",
     "create_folder",
     "create_shortcut",
     "create_spreadsheet",
@@ -326,6 +341,51 @@ async def test_drive_tool_successful_write_marks_only_its_folders(case, tmp_path
     assert set(seen) == expected
 
 
+# The two uploads catch the error inside _upload_local_file and decide from its
+# result, which can't tell a 4xx from a timeout, so they mark their one known
+# folder; every other tool marks nothing.
+_REJECTION_STILL_MARKS = {"upload_local_file": {"f1"}, "upload_local_folder": {"f1"}}
+
+
+@pytest.mark.parametrize("case", _DRIVE_TOOL_CASES)
+async def test_drive_tool_rejected_write_marks_nothing(case, tmp_path):
+    # A 4xx ran nothing (PR #1264 QA round 1): a typo'd file ID passed to
+    # rename_file used to clear every folder listing.
+    kwargs, _ = _drive_tool_calls(tmp_path)[case]
+
+    def execute(**kw):
+        raise _rejection()
+
+    ctx, folder_cache = _drive_ctx(execute, tmp_path)
+    seen = _record(folder_cache)
+    with contextlib.suppress(HttpError):
+        await _tool_for(case)(ctx=ctx, **kwargs)
+    assert set(seen) == _REJECTION_STILL_MARKS.get(case, set())
+
+
+@pytest.mark.parametrize("case", _DRIVE_TOOL_CASES)
+async def test_drive_tool_success_whose_response_names_no_folder_marks_only_known_ones(
+    case, tmp_path
+):
+    # A non-owner's rename of a file shared with them: the response has no
+    # parents, and there's no listing of theirs to mark (PR #1264 QA round 1).
+    kwargs, folders = _drive_tool_calls(tmp_path)[case]
+    ctx, folder_cache = _drive_ctx(lambda **kw: {"id": "new"}, tmp_path)
+    seen = _record(folder_cache)
+    await _tool_for(case)(ctx=ctx, **kwargs)
+    assert set(seen) == (folders or set())
+
+
+@pytest.mark.parametrize("tool_name", sorted(_DOC_TOOL_CALLS))
+async def test_doc_tool_rejected_edit_marks_nothing(tool_name):
+    def execute(**kwargs):
+        raise _rejection(400)
+
+    ctx, doc_cache = _docs_ctx(execute)
+    await _docs_tools[tool_name](doc_id="doc1", ctx=ctx, **_DOC_TOOL_CALLS[tool_name])
+    doc_cache.mark_dirty.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # _FolderInvalidation
 # ---------------------------------------------------------------------------
@@ -363,6 +423,15 @@ def test_folder_invalidation_takes_response_parents_only_when_none_known():
     known.found(["p1"])
     known()
     lc.drive_folder_cache.mark_dirty.assert_called_once_with("f1")
+
+
+def test_folder_invalidation_answered_with_no_parents_marks_nothing():
+    lc = _lc()
+    invalidate = _FolderInvalidation(lc)
+    invalidate.found(None)
+    invalidate()
+    lc.drive_folder_cache.mark_all_dirty.assert_not_called()
+    lc.drive_folder_cache.mark_dirty.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

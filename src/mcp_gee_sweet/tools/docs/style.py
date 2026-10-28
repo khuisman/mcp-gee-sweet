@@ -4,8 +4,9 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, invalidating
+from ...auth import execute_in_thread
 from .indices import isolated_bullet_run_wrap_requests
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +319,7 @@ def register(tool):
             return {"error": "no recognised style fields in any range"}
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -488,7 +489,7 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -808,7 +809,7 @@ def register(tool):
                         )
                     )
 
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -856,7 +857,7 @@ def register(tool):
         ]
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -1202,7 +1203,7 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            with invalidating(lambda: lc.doc_cache.mark_dirty(doc_id)):
+            with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": requests})

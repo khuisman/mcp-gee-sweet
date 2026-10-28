@@ -152,6 +152,38 @@ async def test_invalidating_runs_callback_when_the_block_raises():
     assert calls == [1]
 
 
+@pytest.mark.parametrize("status", [400, 403, 404, 409])
+async def test_invalidating_skips_callback_for_a_4xx(status):
+    # A 4xx ran nothing, so there's nothing to invalidate (PR #1264 QA round 1).
+    from googleapiclient.errors import HttpError
+
+    calls = []
+    resp = MagicMock()
+    resp.status = status
+
+    def execute(**kwargs):
+        raise HttpError(resp=resp, content=b"{}")
+
+    with pytest.raises(HttpError), http_transport.invalidating(lambda: calls.append(1)):
+        await http_transport.execute_in_thread(execute, MagicMock())
+    assert calls == []
+
+
+@pytest.mark.parametrize("status", [500, 503])
+async def test_invalidating_runs_callback_for_a_5xx(status):
+    from googleapiclient.errors import HttpError
+
+    calls = []
+    resp = MagicMock()
+    resp.status = status
+    with (
+        pytest.raises(HttpError),
+        http_transport.invalidating(lambda: calls.append(1), on_success=False),
+    ):
+        raise HttpError(resp=resp, content=b"{}")
+    assert calls == [1]
+
+
 async def _cancel_inside_invalidating(callback, started, release, landed, **kwargs):
     # The block runs inside the cancelled task, as it does in a tool.
     async def _call():

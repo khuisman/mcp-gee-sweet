@@ -4,7 +4,8 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, invalidating
+from ...auth import execute_in_thread
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ async def _create_named_range(
     usable reply — never raises, matching every sibling tool in this file.
     """
     try:
-        with invalidating(lambda: doc_cache.mark_dirty(doc_id)):
+        with doc_invalidating(doc_cache, doc_id):
             response = await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(

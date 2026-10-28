@@ -14,6 +14,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread, invalidating
+from ...auth import is_rejection as _was_rejected
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ...local_files import LocalFileAccessError, check_read, check_write
 from ..drive import _FolderInvalidation, _quota_error_text
@@ -350,13 +351,6 @@ _BACKUP_COPY_TIMEOUT = 60
 _BACKUP_COPY_RATE_LIMIT_RETRIES = 3
 
 
-def _was_rejected(e: BaseException) -> bool:
-    """True if `e` is an HttpError the API answered with a 4xx, meaning the
-    request ran nothing. A 5xx, a timeout, or a transport error doesn't say
-    whether the request landed."""
-    return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
-
-
 def _no_backup_reason(e: BaseException) -> str | None:
     """Why a failed backup copy lets the replace go ahead without one, or None if
     the failure must stop it (#1018). Decided by Drive's error reason, not the
@@ -441,20 +435,22 @@ async def _copy_for_backup(drive_service, doc_id: str, name: str) -> dict[str, A
 async def _create_doc_file(
     lc: SpreadsheetContext, file_body: dict[str, Any], target_folder_id: str | None
 ) -> dict[str, Any]:
-    """Drive files.create for create_doc / create_doc_from_file. A cancelled create
-    can still land after the call unwinds, putting the Doc in the folder with no
-    later step to invalidate its listing, so the folder is marked dirty again once
-    an abandoned create finishes (#907; PR #1029 QA round 2)."""
+    """Drive files.create for create_doc / create_doc_from_file. The folder is
+    marked dirty right after the create, not after the content step: the Doc is in
+    the folder from here on, however the content step ends (PR #1029 QA round 1).
+    That includes a create that fails after Drive applied it, and a cancelled one
+    that lands after the call unwinds (#907, #1030)."""
     drive_service = lc.drive_service
     request = drive_service.files().create(
         supportsAllDrives=True,
         body=file_body,
         fields="id, name, parents, webViewLink",
     )
-    if not target_folder_id:
-        return await execute_in_thread(request.execute, drive_service)
-    with after_abandoned_calls(lambda: lc.drive_folder_cache.mark_dirty(target_folder_id)):
-        return await execute_in_thread(request.execute, drive_service)
+    invalidate = _FolderInvalidation(lc, target_folder_id)
+    with invalidating(invalidate):
+        doc = await execute_in_thread(request.execute, drive_service)
+        invalidate.found(doc.get("parents"))
+    return doc
 
 
 async def _doc_end_index(docs_service, doc_id: str) -> tuple[dict[str, Any], int]:
@@ -1361,12 +1357,6 @@ def register(tool):
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
 
-        # Right after the create, not after the content: the doc is in the folder
-        # from here on, however the content step ends (a failure or a
-        # cancellation; PR #1029 QA round 1).
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-
         image_outcomes = None
         if content:
             try:
@@ -1482,12 +1472,6 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
-        # Right after the create, not after the content: the doc is in the folder
-        # from here on, however the content step ends (a failure or a
-        # cancellation; PR #1029 QA round 1).
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
-
         image_outcomes = None
         if content:
             try:
@@ -1545,9 +1529,6 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
-        # Before any fetch: an edit's mark_dirty landing while this call reads the
-        # doc must stop the pre-edit result being stored over it (#1032).
-        epoch = doc_cache.snapshot_epoch()
 
         # When validation is on, fetch full metadata (not just modifiedTime) up
         # front: it's the same call cost as the lightweight helper, and reusing it
@@ -1570,6 +1551,11 @@ def register(tool):
 
         result = doc_cache.get(file_id, current_modified_time=current_mtime)
         if result is None:
+            # After the cache read, not before it: get() marks a stale row dirty
+            # itself, which would also cancel this call's own store. Before the
+            # export, so an edit's mark_dirty landing during it stops the
+            # pre-edit text being stored over it (#1032).
+            epoch = doc_cache.snapshot_epoch()
             if metadata is None:
                 metadata = await execute_in_thread(
                     drive_service.files()
