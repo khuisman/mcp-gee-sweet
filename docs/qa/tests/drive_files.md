@@ -2111,13 +2111,13 @@ create_shortcut cases matched.
 
 ---
 
-### TC-D300: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
+### TC-D301: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** No MCP client can cancel a tool call at a chosen point, so `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every folder-cache invalidation as `folder cache marked dirty for <id>` or `folder cache: every folder marked dirty`, each with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`).
 
 **Setup:**
-1. `create_folder(name="TC-D300", parent_folder_id={FOLDER_ID})`. Record `folderId` as `{SCRATCH}`.
-2. `create_doc(title="TC-D300 doc", folder_id={SCRATCH})`. Record `docId` as `{FILE_ID}`.
+1. `create_folder(name="TC-D301", parent_folder_id={FOLDER_ID})`. Record `folderId` as `{SCRATCH}`.
+2. `create_doc(title="TC-D301 doc", folder_id={SCRATCH})`. Record `docId` as `{FILE_ID}`.
 3. A local directory `<dir>` holding one file, `a.txt`.
 
 **Prompt**
@@ -2136,7 +2136,7 @@ create_shortcut cases matched.
 - Step 2 prints `folder cache: every folder marked dirty (write landed: no)`, then the same with `(write landed: yes)`. A rename's folder comes only from its response, which a cancelled call never reads
 - Step 4 prints a `(write landed: no)` line for both `{SCRATCH}` and `{SUB}`, then a `(write landed: yes)` line for both
 - Step 5 prints `folder cache marked dirty for {SUB} (write landed: no)`, then `(write landed: yes)`
-- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D300 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed). Drive's `in parents` index can lag the move by a few seconds, so if `{SCRATCH}` still lists `TC-D1030 renamed`, check that `get_file_metadata(file_id={FILE_ID})` shows `{SUB}` as its only parent, then refresh and list again
+- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D301 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed). Drive's `in parents` index can lag the move by a few seconds, so if `{SCRATCH}` still lists `TC-D1030 renamed`, check that `get_file_metadata(file_id={FILE_ID})` shows `{SUB}` as its only parent, then refresh and list again
 - If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
 
 **Cleanup:** trash `{SCRATCH}`.

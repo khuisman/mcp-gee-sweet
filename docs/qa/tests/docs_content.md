@@ -6322,7 +6322,7 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 ### TC-DOC237: A Docs edit tool cancelled while its edit is in flight re-invalidates the doc cache once the edit lands (#1030) ⚠️ requires-oauth ⚠️ destructive
 
-**Background:** Same mechanism as TC-D300: `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its `batchUpdate` is held on its worker thread, printing every doc-cache invalidation as `doc cache marked dirty for <id> (write landed: yes|no)`. TC-DOC222 covers the image-embedding edits (#907); this case covers the edit tools outside `content.py`/`images.py`. `insert_doc_table` is included because it used to mark the doc dirty only once its re-fetch found the table.
+**Background:** Same mechanism as TC-D301: `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its `batchUpdate` is held on its worker thread, printing every doc-cache invalidation as `doc cache marked dirty for <id> (write landed: yes|no)`. TC-DOC222 covers the image-embedding edits (#907); this case covers the edit tools outside `content.py`/`images.py`. `insert_doc_table` is included because it used to mark the doc dirty only once its re-fetch found the table.
 
 **Setup:**
 1. `create_doc(title="TC-DOC237", content="Before", content_format="markdown", folder_id={FOLDER_ID})`. Record `docId` as `{DOC_ID}`.
