@@ -188,6 +188,54 @@ class TestSoloOnlyConflict:
         assert not kai_status.solo_only_conflict([self._issue(), self._issue()])
 
 
+class TestLaneState:
+    """A `parked` PR doesn't hold its lane (#1250)."""
+
+    def _pr(self, branch, *labels):
+        return {"headRefName": branch, "labels": [{"name": lb} for lb in labels]}
+
+    def test_idle_slot_no_pr(self):
+        assert kai_status.lane_state("jay", "team/jay", []) == "free"
+
+    def test_open_pr_holds_the_lane(self):
+        pr = self._pr("fix/jay/issue-1116")
+        assert kai_status.lane_state("jay", "team/jay", [pr]) == "busy"
+
+    def test_parked_pr_with_slot_moved(self):
+        pr = self._pr("fix/jay/issue-1116", "parked")
+        assert kai_status.lane_state("jay", "team/jay", [pr]) == "free"
+
+    def test_parked_pr_with_slot_still_on_its_branch(self):
+        pr = self._pr("fix/jay/issue-1116", "parked")
+        assert kai_status.lane_state("jay", "fix/jay/issue-1116", [pr]) == "free"
+
+    def test_parked_pr_plus_an_active_one(self):
+        prs = [self._pr("fix/jay/issue-1116", "parked"), self._pr("fix/jay/issue-1036")]
+        assert kai_status.lane_state("jay", "fix/jay/issue-1036", prs) == "busy"
+
+    def test_ticket_branch_before_its_pr_opens(self):
+        pr = self._pr("fix/jay/issue-1116", "parked")
+        assert kai_status.lane_state("jay", "feat/jay/issue-1036", [pr]) == "busy"
+
+    def test_unknown_slot_is_busy(self):
+        assert kai_status.lane_state("jay", None, []) == "busy"
+
+    def test_retro_pr_does_not_hold_the_lane(self):
+        pr = self._pr("doc/jay/retro-2026-10-25")
+        assert kai_status.lane_state("jay", "team/jay", [pr]) == "free"
+
+    def test_retro_pr_beside_a_parked_ticket(self):
+        prs = [self._pr("fix/jay/issue-1116", "parked"), self._pr("doc/jay/retro-2026-10-25")]
+        assert kai_status.lane_state("jay", "team/jay", prs) == "free"
+
+    def test_ticket_branch_shape(self):
+        assert kai_status.is_ticket_branch("fix/jay/issue-1116", "jay")
+        assert kai_status.is_ticket_branch("docs/jay/issue-590", "jay")
+        assert not kai_status.is_ticket_branch("doc/jay/retro-2026-10-25", "jay")
+        assert not kai_status.is_ticket_branch("fix/ash/issue-1116", "jay")
+        assert not kai_status.is_ticket_branch("fix/jay/issue-1116-followup", "jay")
+
+
 class TestParseWorktrees:
     MAIN = Path("/repo")
 

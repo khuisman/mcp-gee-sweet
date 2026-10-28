@@ -83,6 +83,11 @@ def branch_owner(head_ref: str) -> str | None:
     return parts[1] if len(parts) >= 3 else None
 
 
+def is_ticket_branch(head_ref: str, dev: str) -> bool:
+    """`<type>/<dev>/issue-<n>`, the shape dev.md names for a ticket branch."""
+    return re.fullmatch(rf"[^/]+/{re.escape(dev)}/issue-\d+", head_ref) is not None
+
+
 def parse_worktrees(porcelain: str, main: Path) -> dict[str, str]:
     """`git worktree list --porcelain` → {slot name or path: branch}.
 
@@ -287,14 +292,36 @@ def section_worktrees() -> tuple[list[str], dict[str, str]]:
     return lines, branches
 
 
+def lane_state(dev: str, slot_branch: str | None, dev_prs: list[dict]) -> str:
+    """Whether a Dev lane is free or busy (kai.md step 4, #1250).
+
+    Only a ticket branch's PR holds the lane: a `doc/<dev>/retro-<date>` PR
+    claims no issue, and dev.md's pickup doesn't wait on it. A `parked` PR
+    doesn't hold it either: neither the PR nor the slot still sitting on its
+    branch (dev.md treats that slot as idle). An unknown slot branch counts as
+    busy, so a missing worktree never reads as free.
+    """
+    tickets = [p for p in dev_prs if is_ticket_branch(p["headRefName"], dev)]
+    if any("parked" not in _labels(p) for p in tickets):
+        return "busy"
+    parked_branches = {p["headRefName"] for p in tickets}
+    if slot_branch == f"team/{dev}" or slot_branch in parked_branches:
+        return "free"
+    return "busy"
+
+
 def section_lanes(branches: dict[str, str], prs: list[dict], rfd: list[dict]) -> list[str]:
     lines = []
     for dev, lane in LANE_OF_DEV.items():
         queued = [f"#{i['number']}" for i in rfd if lane in _labels(i)]
-        dev_prs = [f"#{p['number']}" for p in prs if branch_owner(p["headRefName"]) == dev]
+        mine = [p for p in prs if branch_owner(p["headRefName"]) == dev]
+        tickets = [p for p in mine if is_ticket_branch(p["headRefName"], dev)]
+        active = [f"#{p['number']}" for p in tickets if "parked" not in _labels(p)]
+        parked = [f"#{p['number']}" for p in tickets if "parked" in _labels(p)]
         lines.append(
-            f"{lane} ({dev}): slot on {branches.get(dev, '?')}; "
-            f"queued {', '.join(queued) or 'nothing'}; open PR {', '.join(dev_prs) or 'none'}"
+            f"{lane} ({dev}): {lane_state(dev, branches.get(dev), mine)}; "
+            f"slot on {branches.get(dev, '?')}; queued {', '.join(queued) or 'nothing'}; "
+            f"open PR {', '.join(active) or 'none'}; parked {', '.join(parked) or 'none'}"
         )
     return lines
 

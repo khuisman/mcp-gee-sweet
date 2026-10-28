@@ -5,6 +5,7 @@ import io
 import logging
 import os
 from collections.abc import Iterable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBa
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, thread_http
+from ...auth import execute_in_thread, invalidating, thread_http
 from ...local_files import (
     LocalFileAccessError,
     check_read,
@@ -27,7 +28,7 @@ from ...local_files import (
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
-from ..pagination import iter_pages
+from ..pagination import PageLimitExceeded, iter_pages
 from ..response_limits import (
     _blocked_destination_error,
     _is_dangling_symlink,
@@ -39,6 +40,7 @@ from ..response_limits import (
 from . import (
     _escape_drive_query_mime_type,
     _escape_drive_query_value,
+    _FolderInvalidation,
     _quota_error_text,
 )
 
@@ -791,29 +793,23 @@ async def _upload_local_file(
         name_clause = " or ".join(
             "name='{}'".format(n.replace("\\", "\\\\").replace("'", "\\'")) for n in lookup_names
         )
-        existing = await execute_in_thread(
-            drive_service.files()
-            .list(
-                q=f"({name_clause}) and '{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                # properties only under convert — nothing else reads the marker.
-                fields=(
-                    "files(id, name, webViewLink, mimeType, properties)"
-                    if convert_mime is not None
-                    else "files(id, name, webViewLink, mimeType)"
-                ),
-            )
-            .execute,
+        hits = await _list_all_files(
             drive_service,
+            q=f"({name_clause}) and '{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
+            spaces="drive",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+            # properties only under convert — nothing else reads the marker.
+            file_fields=(
+                "id, name, webViewLink, mimeType, properties"
+                if convert_mime is not None
+                else "id, name, webViewLink, mimeType"
+            ),
         )
-        hits = existing.get("files", [])
-        # pageSize deliberately left at the API default (100), not capped to 1
-        # — Drive allows more than one file to share this name, and the match
-        # (via _find_existing_upload, not necessarily hits[0]) needs every
-        # candidate visible to pick the correct one to report back (#514 QA
-        # round 1, PR #767).
+        # Every page, not capped to 1 result — Drive allows more than one file
+        # to share this name, and the match (via _find_existing_upload, not
+        # necessarily hits[0]) needs every candidate visible to pick the correct
+        # one to report back (#514 QA round 1, PR #767; paged since #1165).
         found = _find_existing_upload(
             convert_mime,
             file_name,
@@ -930,24 +926,64 @@ def _local_md5(path: Path) -> str:
     return h.hexdigest()
 
 
+# A bound on pages, not on files: Drive may return short pages before the end
+# of a listing, so this is at most 100 pages of pageSize results, and in practice only a
+# nextPageToken that never goes falsy reaches it.
+_FILES_LIST_MAX_PAGES = 100
+
+
+async def _list_all_files(drive_service, *, file_fields: str, **list_kwargs) -> list[dict]:
+    """Every file a `files().list()` query matches, across all pages, each
+    `id` once. `file_fields` must include `id`; `pageSize` defaults to 1000.
+
+    Each listing here decides what to upload, download, or skip, so acting on
+    a truncated first page duplicates or drops files (#1165). An error on any
+    page propagates rather than returning the pages already read. A folder
+    that changes while it's being paged can return the same file on two
+    pages; only its first entry is kept, so a single file never reads as a
+    name collision (PR #1261 QA round 1).
+    """
+    list_kwargs.setdefault("pageSize", 1000)
+    files: list[dict] = []
+    seen_ids: set[str] = set()
+    try:
+        async for resp in iter_pages(
+            lambda token: drive_service.files().list(
+                fields=f"nextPageToken, files({file_fields})",
+                pageToken=token,
+                **list_kwargs,
+            ),
+            drive_service,
+            max_pages=_FILES_LIST_MAX_PAGES,
+        ):
+            for f in resp.get("files", []):
+                if f["id"] not in seen_ids:
+                    seen_ids.add(f["id"])
+                    files.append(f)
+    except PageLimitExceeded as e:
+        raise RuntimeError(
+            f"Drive was still returning results after {e.max_pages} pages "
+            f"({len(files)} entries) listing folder contents. Stopped rather than "
+            "act on an incomplete listing. The folder may hold too many matching "
+            "entries to list in one call; split it into subfolders and retry."
+        ) from e
+    return files
+
+
 async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict], list[dict]]:
     """Return (files, folders) among the direct children of a Drive folder."""
-    results = await execute_in_thread(
-        drive_service.files()
-        .list(
-            q=f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false",
-            spaces="drive",
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-            fields="files(id, name, mimeType, modifiedTime, properties, md5Checksum, size)",
-            pageSize=1000,
-        )
-        .execute,
+    children = await _list_all_files(
         drive_service,
+        q=f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false",
+        spaces="drive",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        file_fields="id, name, mimeType, modifiedTime, properties, md5Checksum, size",
+        pageSize=1000,
     )
     files: list[dict] = []
     folders: list[dict] = []
-    for f in results.get("files", []):
+    for f in children:
         if f["mimeType"] == "application/vnd.google-apps.folder":
             folders.append(f)
         else:
@@ -1355,6 +1391,20 @@ def _apply_resolve(
                 action="resolve_fail",
                 reason=f"resolve not applied, nothing changed: {problem}",
             )
+
+
+def _sync_level_invalidation(
+    lc, drive_folder_id: str | None, dry_run: bool
+) -> AbstractContextManager[None]:
+    """Wraps one `_sync_level` call (#1030). A level that exits normally marks its
+    folder dirty itself, only when something there changed, so this covers the
+    other exits: a level that raises or is cancelled mid-write, and a write that
+    lands after its call was abandoned. Each level's own wrapper replaces its
+    parent's for that level's requests, and a subfolder's creation is the parent
+    level's write. A dry run writes nothing."""
+    if dry_run or drive_folder_id is None:
+        return nullcontext()
+    return invalidating(_FolderInvalidation(lc, drive_folder_id), on_success=False)
 
 
 async def _sync_level(
@@ -1882,8 +1932,8 @@ async def _sync_level(
                 )
             elif isinstance(outcome, BaseException):
                 raise outcome
-            else:
-                recorded_metadata = True
+            # A failed write can still have been applied (a timeout, #1030).
+            recorded_metadata = True
 
     if legacy_resolve_jobs:
         legacy_revisions = await asyncio.gather(
@@ -2331,6 +2381,8 @@ async def _sync_level(
             rel_name = f"{rel_prefix}{step.name}"
             if isinstance(o, BaseException):
                 failed.append({"name": rel_name, "error": str(o)})
+                # Whatever the step was writing may have landed (#1030).
+                level_changed = True
                 continue
             kind = o["kind"]
             if kind == "skip":
@@ -2357,11 +2409,14 @@ async def _sync_level(
                     # (#420) — a genuine orphan now exists in Drive, so its ID
                     # rides along in the failed entry rather than being lost.
                     entry["fileId"] = o["fileId"]
-                    # create() genuinely succeeded here even though the overall
-                    # step is reported as upload_fail — the folder's contents
-                    # changed and the cache must be invalidated the same as a
-                    # real upload_ok, or a cached list_files/get_multiple_* call
-                    # on this folder won't reflect the orphan (QA round 1, PR #645).
+                if kind in ("upload_fail", "resolve_fail"):
+                    # The step's Drive write may have landed even though it's
+                    # reported as failed: a create() or update() can fail after
+                    # Drive applied it (a timeout, #1030), and one carrying
+                    # "fileId" genuinely succeeded. The cache must be invalidated
+                    # the same as a real upload_ok, or a cached
+                    # list_files/get_multiple_* call on this folder won't reflect
+                    # it (QA round 1, PR #645).
                     level_changed = True
                 failed.append(entry)
 
@@ -2473,57 +2528,58 @@ async def _sync_level(
                     child_drive_id = None  # simulate: not created yet
                 else:
                     try:
-                        created = await execute_in_thread(
-                            drive_service.files()
-                            .create(
-                                body={
-                                    "name": name,
-                                    "mimeType": "application/vnd.google-apps.folder",
-                                    "parents": [drive_folder_id],
-                                },
-                                supportsAllDrives=True,
-                                fields="id",
+                        with invalidating(_FolderInvalidation(lc, drive_folder_id)):
+                            created = await execute_in_thread(
+                                drive_service.files()
+                                .create(
+                                    body={
+                                        "name": name,
+                                        "mimeType": "application/vnd.google-apps.folder",
+                                        "parents": [drive_folder_id],
+                                    },
+                                    supportsAllDrives=True,
+                                    fields="id",
+                                )
+                                .execute,
+                                drive_service,
                             )
-                            .execute,
-                            drive_service,
-                        )
                     except Exception as e:
                         failed.append({"name": child_rel_prefix, "error": str(e)})
                         continue
                     child_drive_id = created["id"]
-                    lc.drive_folder_cache.mark_dirty(drive_folder_id)
 
             child_calls.append((child_drive_id, child_dest_dir, child_rel_prefix))
 
         async def _descend(
             child_drive_id: str | None, child_dest_dir: Path, child_rel_prefix: str
         ) -> int:
-            return await _sync_level(
-                lc,
-                drive_service,
-                child_drive_id,
-                child_dest_dir,
-                child_rel_prefix,
-                direction,
-                export_format,
-                convert_markdown,
-                use_checksum,
-                skip_system_files,
-                dry_run,
-                recursive,
-                uploaded,
-                downloaded,
-                skipped,
-                conflicts,
-                failed,
-                actions,
-                folders_skipped,
-                ctx,
-                progress_count,
-                progress_bytes,
-                resolved,
-                resolve,
-            )
+            with _sync_level_invalidation(lc, child_drive_id, dry_run):
+                return await _sync_level(
+                    lc,
+                    drive_service,
+                    child_drive_id,
+                    child_dest_dir,
+                    child_rel_prefix,
+                    direction,
+                    export_format,
+                    convert_markdown,
+                    use_checksum,
+                    skip_system_files,
+                    dry_run,
+                    recursive,
+                    uploaded,
+                    downloaded,
+                    skipped,
+                    conflicts,
+                    failed,
+                    actions,
+                    folders_skipped,
+                    ctx,
+                    progress_count,
+                    progress_bytes,
+                    resolved,
+                    resolve,
+                )
 
         # Sibling subfolders are independent — descend into all of them concurrently
         # instead of awaiting one at a time, same rationale as the file-level gather
@@ -2960,18 +3016,21 @@ def register(tool):
             file_body["mimeType"] = _GOOGLE_DOC_MIME
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
+        invalidate = _FolderInvalidation(lc, target_folder_id)
         try:
-            result = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    body=file_body,
-                    media_body=media,
-                    supportsAllDrives=True,
-                    fields="id, name, parents, webViewLink",
+            with invalidating(invalidate):
+                result = await execute_in_thread(
+                    drive_service.files()
+                    .create(
+                        body=file_body,
+                        media_body=media,
+                        supportsAllDrives=True,
+                        fields="id, name, parents, webViewLink",
+                    )
+                    .execute,
+                    drive_service,
                 )
-                .execute,
-                drive_service,
-            )
+                invalidate.found(result.get("parents"))
         except HttpError as e:
             if is_storage_quota_error(e):
                 return {"error": _quota_error_text(drive_service)}
@@ -2980,9 +3039,6 @@ def register(tool):
         file_id = result.get("id")
         parents = result.get("parents", [])
         logger.debug("Uploaded %s as file %s (convert_to_doc=%s)", name, file_id, convert_to_doc)
-
-        if target_folder_id:
-            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         return {
             "fileId": file_id,
@@ -3028,12 +3084,13 @@ def register(tool):
                      A .md conversion is recognized by sync_folder's convert_markdown
                      matching too (same underlying mechanism, #211) — a later
                      sync_folder call on the same folder won't create a duplicate.
-                     For .md specifically, create_doc_from_file is a local-pipeline
-                     alternative: it parses the file and rebuilds it via Docs API
-                     requests instead of Drive's importer, supporting more Markdown
-                     features (tables, nested lists, task items, fenced code blocks)
-                     at the cost of more API calls, versus this single-call
-                     Drive-native import.
+                     A .md file is rendered by Drive's Markdown importer, not this
+                     server's converter, so it looks different from create_doc's
+                     output: '-' bullets at every level, code blocks one Arial
+                     paragraph per line instead of monospace, quotes without a
+                     border, nested numbering '1.' rather than 'a.'. Full list:
+                     docs/known-limitations.md. To render a .md the way the Docs
+                     tools do, use create_doc_from_file instead.
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
@@ -3055,18 +3112,20 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        result = await _upload_local_file(
-            drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
-        )
-        # "fileId" alongside "error" means create() genuinely succeeded and only
-        # the follow-up restamp failed (#420) — the folder's contents changed
-        # even though this call reports an error, so the cache must still be
-        # invalidated. Checked as its own case, not just "fileId" in result" —
-        # a plain skip also carries the pre-existing file's fileId and must NOT
-        # mark the cache dirty, since nothing changed (QA round 1, PR #645).
-        orphaned = "error" in result and "fileId" in result
-        if ("error" not in result and not result.get("skipped")) or orphaned:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
+
+        with invalidating(invalidate, on_success=False):
+            result = await _upload_local_file(
+                drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
+            )
+        # Anything but a skip may have changed the folder. An error too: a
+        # create() can fail after Drive applied it (a timeout), and "fileId"
+        # alongside "error" means it genuinely succeeded and only the follow-up
+        # restamp failed (#420, #1030). A plain skip also carries the
+        # pre-existing file's fileId and must NOT mark the cache dirty, since
+        # nothing changed (QA round 1, PR #645).
+        if not result.get("skipped"):
+            invalidate()
         return result
 
     @tool(
@@ -3097,6 +3156,10 @@ def register(tool):
                      'failed' rather than uploaded as-is, matching upload_local_file's
                      own convert=True behavior for an unsupported extension. Default
                      False (upload every file preserving its original format).
+                     A .md file is rendered by Drive's Markdown importer, not this
+                     server's converter: '-' bullets at every level, code blocks
+                     not monospace, quotes without a border, nested numbering '1.'
+                     rather than 'a.'. Full list: docs/known-limitations.md.
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', 'skipped_unverified', and
@@ -3141,7 +3204,9 @@ def register(tool):
         skipped: list[str] = list(partials)
         skipped_unverified: list[dict[str, str]] = []
         failed: list[dict[str, str]] = []
-        any_created = False
+        may_have_changed = False
+
+        invalidate = _FolderInvalidation(lc, parent_folder_id)
 
         # dict[str, list[dict]], not a single entry per name — Drive allows more
         # than one file to share a name, and collapsing to one (the previous
@@ -3157,28 +3222,23 @@ def register(tool):
             # can tell an already-converted duplicate apart from a same-named file
             # still in its original format — mirrors _upload_local_file's own
             # convert-aware skip_if_exists check (issue #411).
-            existing_resp = await execute_in_thread(
-                drive_service.files()
-                .list(
-                    q=f"'{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
-                    spaces="drive",
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    # properties only under convert — nothing else reads the
-                    # conversion marker (PR #800 QA round 1).
-                    fields=(
-                        "files(name, mimeType, properties)" if convert else "files(name, mimeType)"
-                    ),
-                    pageSize=1000,
-                )
-                .execute,
+            existing_files = await _list_all_files(
                 drive_service,
+                q=f"'{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                # properties only under convert — nothing else reads the
+                # conversion marker (PR #800 QA round 1).
+                file_fields=("id, name, mimeType, properties" if convert else "id, name, mimeType"),
+                pageSize=1000,
             )
-            for f in existing_resp.get("files", []):
+            for f in existing_files:
                 existing_by_name.setdefault(f["name"], []).append(f)
 
-        # One deny-list snapshot for every entry this walk checks (#796).
-        with many_checks():
+        # One deny-list snapshot for every entry this walk checks (#796). A
+        # cancelled upload can still land after the call unwinds (#1030).
+        with many_checks(), invalidating(invalidate, on_success=False):
             for p in sorted(candidates):
                 # Gated explicitly on skip_if_exists here, rather than relying on
                 # existing_by_name being empty when it's False — a future change
@@ -3265,6 +3325,11 @@ def register(tool):
                     failed.append({"name": p.name, "error": str(e)})
                     continue
 
+                # An error result counts for cache invalidation below even though
+                # it never reaches `uploaded`: a create() can fail after Drive
+                # applied it (a timeout), and one carrying "fileId" genuinely
+                # succeeded (QA round 1, PR #645; #1030).
+                may_have_changed = True
                 if "error" in result:
                     entry = {"name": p.name, "error": result["error"]}
                     if "fileId" in result:
@@ -3272,19 +3337,13 @@ def register(tool):
                         # (#420) — a genuine orphan now exists in Drive, so its ID
                         # rides along in the failed entry rather than being lost.
                         entry["fileId"] = result["fileId"]
-                        # create() genuinely succeeded here despite the overall
-                        # failure — the folder changed, so this must still count
-                        # for cache invalidation below even though it never reaches
-                        # `uploaded` (QA round 1, PR #645).
-                        any_created = True
                     failed.append(entry)
                 else:
                     uploaded.append(p.name)
-                    any_created = True
                     logger.debug("Uploaded %s", p.name)
 
-        if any_created:
-            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        if may_have_changed:
+            invalidate()
 
         return {
             "uploaded": uploaded,
@@ -3488,19 +3547,15 @@ def register(tool):
             safe = _escape_drive_query_mime_type(mime_type_filter)
             query += f" and mimeType='{safe}'"
 
-        results = await execute_in_thread(
-            drive_service.files()
-            .list(
-                q=query,
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name, mimeType, size)",
-                pageSize=1000,
-                orderBy="name",
-            )
-            .execute,
+        listed = await _list_all_files(
             drive_service,
+            q=query,
+            spaces="drive",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+            file_fields="id, name, mimeType, size",
+            pageSize=1000,
+            orderBy="name",
         )
 
         downloaded: list[str] = []
@@ -3512,7 +3567,7 @@ def register(tool):
         claimed_dest: set[str] = set()
         # One deny-list snapshot for every entry this walk checks (#796).
         with many_checks():
-            for f in results.get("files", []):
+            for f in listed:
                 fid = f["id"]
                 fname = f["name"]
                 fmime = f.get("mimeType", "")
@@ -3882,7 +3937,11 @@ def register(tool):
                            import conversion, landing as Google Docs (still named
                            '<name>.md') instead of raw text files — same mechanism as
                            upload_local_file's convert param (#188), and a Doc created
-                           either way is recognized by this matching. The converted Doc
+                           either way is recognized by this matching. Drive's importer
+                           renders the Markdown, not this server's converter: '-'
+                           bullets at every level, code blocks not monospace, quotes
+                           without a border, nested numbering '1.' rather than 'a.'
+                           (full list: docs/known-limitations.md). The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of
                            whether a later sync passes convert_markdown=True again),
@@ -4060,7 +4119,7 @@ def register(tool):
             resolved: list[str] = []
 
             # One deny-list snapshot for every entry this walk checks (#796).
-            with many_checks():
+            with many_checks(), _sync_level_invalidation(lc, folder_id, run_dry):
                 total_bytes = await _sync_level(
                     lc,
                     drive_service,

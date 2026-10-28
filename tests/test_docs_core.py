@@ -412,6 +412,155 @@ class TestHtmlToAst:
         assert nodes[0].style_type == "TITLE"
 
 
+class TestLooseListItemKeepsItsBullet:
+    """#1111: python-markdown wraps a *loose* list item's text in its own `<p>`
+    (so any list with a blank line between items), and the parser treated that
+    `<p>` as a sibling block — the `<li>` flushed empty, which emits no bullet at
+    all, and the text landed in a plain Paragraph. Every Markdown list with a
+    blank line between its items therefore arrived unbulleted."""
+
+    def test_p_directly_inside_li_becomes_the_item(self):
+        nodes = html_to_ast("<ul><li><p>Item</p></li></ul>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].runs[0].text == "Item"
+
+    def test_tight_item_is_unchanged(self):
+        nodes = html_to_ast("<ul><li>Item</li></ul>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].runs[0].text == "Item"
+
+    def test_ordered_loose_item_keeps_its_numbering(self):
+        nodes = html_to_ast("<ol><li><p>Item</p></li></ol>")
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].ordered is True
+
+    def test_loose_item_in_a_blockquote_keeps_both_carried_inwards(self):
+        # The issue asks for depth, ordered flag *and* blockquote depth to
+        # survive. Neither is a new property of this fix — the transparent `<p>`
+        # simply stops discarding the item that already carries them.
+        nodes = html_to_ast("<blockquote><ul><li><p>q</p></li></ul></blockquote>")
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].blockquote_depth == 1
+
+    def test_markdown_loose_list(self):
+        nodes = html_to_ast(_md_to_html("- a\n\n- b\n"))
+        assert all(isinstance(n, BulletItem) for n in nodes)
+        assert [n.runs[0].text for n in nodes] == ["a", "b"]
+        assert [n.depth for n in nodes] == [0, 0]
+        # One blank line anywhere makes python-markdown wrap *every* item, so the
+        # first two — written tight — take the same path (#1115's mixed list).
+        mixed = html_to_ast(_md_to_html("- a\n- b\n\n- c\n"))
+        assert [n.runs[0].text for n in mixed] == ["a", "b", "c"]
+        assert all(isinstance(n, BulletItem) for n in mixed)
+
+    def test_nested_loose_list_keeps_both_depths(self):
+        # The issue's own case: the top-level items lost their bullets while the
+        # tight nested item kept its depth, so the list arrived half-converted.
+        nodes = html_to_ast(_md_to_html("- a\n    - a1\n\n- b\n"))
+        assert all(isinstance(n, BulletItem) for n in nodes)
+        assert [n.depth for n in nodes] == [0, 1, 0]
+
+    def test_inline_formatting_survives_the_item(self):
+        nodes = html_to_ast("<ul><li><p><b>bold</b> plain</p></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert next(r for r in nodes[0].runs if r.bold).text == "bold"
+
+    def test_task_marker_in_a_loose_item(self):
+        # [x]/[ ] is read off the item's first run, so a lost bullet also lost
+        # the checkbox.
+        nodes = html_to_ast(_md_to_html("- [x] done\n\n- [ ] todo\n"))
+        assert [n.checked for n in nodes] == [True, False]
+
+    def test_tag_padding_stays_out_of_the_item_runs(self):
+        # What markdown actually emits: newlines between <li>, <p> and </li>.
+        # They are HTML padding, not item text — the tight form never sees them.
+        nodes = html_to_ast("<ul>\n<li>\n<p>a</p>\n</li>\n</ul>")
+        assert "".join(r.text for r in nodes[0].runs) == "a"
+
+    def test_whitespace_only_loose_item_is_dropped_like_the_tight_one(self):
+        # #402 keeps a whitespace-only *paragraph* as a deliberate spacer but
+        # drops a whitespace-only list item. A loose item's `<p>` is now the
+        # item itself, so the item rule is the one that applies — and the trim
+        # must not be what causes it: the authored "&nbsp;" reaches the flush
+        # intact, and _emit_block_node's own li rule drops the node.
+        assert html_to_ast("<ul><li><p>&nbsp;</p></li></ul>") == []
+        assert html_to_ast("<ul><li>&nbsp;</li></ul>") == []
+
+    def test_whitespace_only_loose_item_does_not_swallow_its_neighbours(self):
+        nodes = html_to_ast("<ul><li><p>Real</p></li><li><p>&nbsp;</p></li></ul>")
+        assert [n.runs[0].text for n in nodes] == ["Real"]
+
+    def test_empty_paragraph_item_makes_no_spurious_bullet(self):
+        nodes = html_to_ast("<ul><li><p></p></li><li>Real</li></ul>")
+        assert len(nodes) == 1
+        assert nodes[0].runs[0].text == "Real"
+
+    def test_second_paragraph_in_an_item_is_still_a_separate_block(self):
+        # Only the item's first paragraph is transparent. "Content under a list
+        # item" is #1094's open question, so its shape stays as it was.
+        nodes = html_to_ast("<ul><li><p>a</p><p>b</p></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph]
+
+    # Once the `<li>` resumes after a nested block, its first paragraph is
+    # already used, so the next `<p>` must not join the item again: that would
+    # emit it as a new bullet (or a new number in an ordered list).
+
+    def test_paragraph_after_a_nested_list_is_not_a_new_item(self):
+        nodes = html_to_ast(_md_to_html("- a\n    - b\n\n    c\n"))
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem, Paragraph]
+        assert [n.depth for n in nodes[:2]] == [0, 1]
+        assert nodes[2].runs[0].text == "c"
+
+    def test_third_paragraph_in_an_item_is_not_a_new_item(self):
+        nodes = html_to_ast(_md_to_html("- a\n\n    b\n\n    c\n"))
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert [n.runs[0].text for n in nodes] == ["a", "b", "c"]
+
+    def test_paragraph_after_a_quote_in_an_ordered_item_is_not_a_new_number(self):
+        nodes = html_to_ast(_md_to_html("1. a\n\n    > q\n\n    c\n"))
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert nodes[0].ordered is True
+        assert [n.blockquote_depth for n in nodes] == [0, 1, 0]
+        assert nodes[2].runs[0].text == "c"
+
+    def test_paragraph_after_a_code_block_in_an_ordered_item_is_not_a_new_number(self):
+        # An indented code block: python-markdown doesn't parse a fence inside a
+        # list item.
+        nodes = html_to_ast(_md_to_html("1. a\n\n        x\n\n    c\n"))
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert nodes[0].ordered is True
+        assert nodes[2].runs[0].text == "c"
+
+    def test_loose_list_after_a_resumed_item_keeps_its_bullets(self):
+        # The guard only stops a resumed item's `<p>`; the next item's first
+        # paragraph is still transparent.
+        nodes = html_to_ast(_md_to_html("- a\n    - b\n\n    c\n\n- d\n\n- e\n"))
+        assert [type(n) for n in nodes] == [
+            BulletItem,
+            BulletItem,
+            Paragraph,
+            BulletItem,
+            BulletItem,
+        ]
+        assert [n.runs[0].text for n in nodes] == ["a", "b", "c", "d", "e"]
+
+    def test_named_style_paragraph_inside_an_item_keeps_its_style(self):
+        nodes = html_to_ast('<ul><li><p data-style="title">T</p></li></ul>')
+        assert [type(n) for n in nodes] == [NamedBlock]
+        assert nodes[0].style_type == "TITLE"
+
+    def test_emitter_bullets_the_loose_list(self):
+        # End to end: the requests actually sent to Docs must carry the bullets,
+        # and the inserted text must not have gained the HTML padding.
+        requests, _ = _html_to_doc_requests(_md_to_html("- a\n\n- b\n"))
+        bullets = [r for r in requests if "createParagraphBullets" in r]
+        assert len(bullets) == 1
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\nb\n"
+
+
 class TestUnsupportedConstructPreservesParagraphBoundary:
     """#401: a construct the converter can't represent (<hr>) must leave
     behind an empty block rather than deleting the paragraph boundary

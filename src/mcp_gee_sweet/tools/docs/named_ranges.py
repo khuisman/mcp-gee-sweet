@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -18,27 +19,28 @@ async def _create_named_range(
     usable reply — never raises, matching every sibling tool in this file.
     """
     try:
-        response = await execute_in_thread(
-            docs_service.documents()
-            .batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "createNamedRange": {
-                                "name": name,
-                                "range": {
-                                    "startIndex": start_index,
-                                    "endIndex": end_index,
-                                },
+        with doc_invalidating(doc_cache, doc_id):
+            response = await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "createNamedRange": {
+                                    "name": name,
+                                    "range": {
+                                        "startIndex": start_index,
+                                        "endIndex": end_index,
+                                    },
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                docs_service,
             )
-            .execute,
-            docs_service,
-        )
         replies = response.get("replies") or []
         named_range_id = (
             replies[0].get("createNamedRange", {}).get("namedRangeId") if replies else None
@@ -48,7 +50,6 @@ async def _create_named_range(
     except Exception as e:
         return {"error": str(e)}
 
-    doc_cache.mark_dirty(doc_id)
     return {
         "docId": doc_id,
         "namedRangeId": named_range_id,

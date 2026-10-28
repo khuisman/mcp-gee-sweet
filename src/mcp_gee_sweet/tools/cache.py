@@ -106,4 +106,5 @@ def register(tool):
             lc.doc_cache.mark_all_dirty()
             lc.calendar_cache.mark_all_dirty()
             lc.gmail_own_addresses = None
+            lc.gmail_primary_address = None
             return {"invalidated": "all"}

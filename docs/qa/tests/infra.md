@@ -28,6 +28,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
 | TC-I66 (single publish workflow, issue #1124) | Not reachable via any MCP tool or unit test: it checks a GitHub Actions run and PyPI's attestation record. Manual / live QA only, once after #1124 merges and once at the next stable release — see TC-I66 below |
 | TC-I67 (socket timeout and resumable-upload 308, issue #1129) | Unit-tested in `tests/test_http_transport.py` (`TestSocketTimeout`, `TestResumableUploadStatus`) against local sockets that never answer or answer 308. Live QA for the real Drive upload path over 100 MB and the configured server's timeout message — see TC-I67 below |
+| TC-I68 (MCP Bundle install and OAuth, issue #1036) | `manifest.json`'s identity and `user_config` wiring, the build's version stamping, and its staging of committed files from an allowlist are unit-tested in `tests/test_mcpb_manifest.py`. The `MCP Bundle` workflow packs the bundle and installs it with uv on every PR that touches it. Consent needs a person at a browser, and the Claude Desktop install needs macOS with Claude Desktop, so both are manual — see TC-I68 below |
 
 ---
 
@@ -2009,3 +2010,40 @@ Step 1: `upload_local_file` of a 157286400-byte random file into `{TEST_FOLDER_I
 
 **Result (2026-10-24) ✅ PASS — PR #1198 round 2 (Sky) @ 4324571d**
 Step 1: a fresh 157286400-byte upload into `{TEST_FOLDER_ID}` succeeded (OAuth, Shared Drive, after `/mcp reconnect`). Step 2: `size` `157286400`, md5 matches the local file. Step 3: warning `Ignoring HTTP_TIMEOUT_SECONDS='abc': not a positive number; using 60`, and `list_sheets` returned `Sales | Notes & Misc | Empty` (the first attempt got a transient Sheets `503 The service is currently unavailable` after 51 s, and the rerun passed). Step 4: failed in 0.42 s with `... This was a read, so the connection layer resent it once on a new connection, which also failed. ...`. Step 5: failed in 0.05 s with `... This was a write, so the connection layer didn't resend it, and Google may still have applied it ...`. Step 6: warning `HTTP_TIMEOUT_SECONDS='inf' is over the 86400 s maximum; using 86400`, and `list_sheets` returned the sheet list with no `OverflowError`. An extra `1e10` probe behaved the same. Cleanup: no `TC-I67 timeout write` folder; upload trashed.
+
+### TC-I68: the MCP Bundle installs, offers OAuth consent, and reuses its token after a restart (issue #1036)
+
+**Background:** `scripts/build_mcpb.py` builds `mcp-gee-sweet-<version>.mcpb` from `manifest.json` (MCPB manifest v0.4, `uv` server type). The bundle ships the source and `uv.lock`, staged from files committed at `HEAD` only (an uncommitted edit is left out of the bundle, so commit before building), with the version stamped from `server.json` or the release tag, and the host runs `uv run --frozen --no-dev python -m mcp_gee_sweet`. It's OAuth only: the install dialog asks for the OAuth client file (`CREDENTIALS_PATH`), and the token lives at `${HOME}/.mcp-gee-sweet-token.json`, outside the extension directory. With no token, the stdio server starts degraded and its first tool call offers the consent link (#873). Unit tests and the `MCP Bundle` workflow cover the manifest, the file allowlist, and a uv install of the built bundle. Two things only a person can check: completing consent in a browser (steps 2–4), and a real Claude Desktop install (steps 5–7). `scripts/qa_launch_mcpb.py` runs the bundle's `mcp_config` the way a host does, with `${HOME}` pointed at a scratch directory, so steps 2–4 never touch a real token.
+
+**Setup**
+- This slot's OAuth client JSON (the file its server's `CREDENTIALS_PATH` names). Below, `<client.json>`.
+- An empty scratch directory, `<scratch>`, e.g. under `$CLAUDE_JOB_DIR/tmp`. It must not hold `.mcp-gee-sweet-token.json` yet.
+- For steps 5–7: macOS with Claude Desktop, and no `mcp-gee-sweet` extension installed. Back up `~/.mcp-gee-sweet-token.json` if one exists, and move it aside.
+
+**Action**
+1. `uv run python scripts/build_mcpb.py --smoke`, then `unzip -l dist/mcp-gee-sweet-<version>.mcpb`
+2. `uv run python scripts/qa_launch_mcpb.py dist/mcp-gee-sweet-<version>.mcpb --credentials <client.json> --home <scratch> --wait-for-consent`. Open the printed `accounts.google.com` link in a browser and approve it before the deadline in the message.
+3. `ls -l <scratch>/.mcp-gee-sweet-token.json`
+4. Repeat step 2's command with the same `--home`, without `--wait-for-consent`.
+5. Open `dist/mcp-gee-sweet-<version>.mcpb` in Claude Desktop (double-click, or drag it onto Settings → Extensions). Pick `<client.json>` for **OAuth client file** and leave **Enabled tools** empty.
+6. In a new chat, ask Claude to call `list_spreadsheets`. Open the consent link from the result, approve it, and ask again.
+7. Quit and reopen Claude Desktop, then ask Claude to call `list_spreadsheets` once more.
+
+**Checks**
+- 1: `mcpb pack` reports `Manifest schema validation passes!`, and the build ends with `smoke: bundle installs and imports as mcp-gee-sweet <version>` and the bundle's path. `unzip -l` lists `manifest.json`, `pyproject.toml`, `uv.lock`, `README.md`, `LICENSE`, `icon.png` and `src/mcp_gee_sweet/...` only: no `credentials.json`, `token.json`, `service_account.json`, `.env`, `.venv/` or `tests/`
+- 2: `env` shows `AUTH_METHOD` `oauth`, `TOKEN_PATH` `<scratch>/.mcp-gee-sweet-token.json` and `ENABLED_TOOLS` empty; `server:` and the full tool count print; `token file before the call: False`; the first call's error contains the consent link; after approval, `token file written, mode 0o600`, and a `retry N` line (at most 3) has `is_error=False` with the spreadsheet list
+- 3: the file exists, mode `-rw-------`
+- 4: `token file before the call: True`, and the first call has `is_error=False`, with no consent link
+- 5: Claude Desktop installs the extension, shows its name, version and icon, asks for the OAuth client file before enabling it, and lists the server's tools
+- 6: the first result carries a Google consent link; after approval the second call returns the spreadsheet list, and `~/.mcp-gee-sweet-token.json` exists with mode `-rw-------`
+- 7: the call returns the spreadsheet list with no consent link
+
+**Cleanup:** delete `<scratch>`. After steps 5–7, uninstall the extension in Claude Desktop, delete `~/.mcp-gee-sweet-token.json`, and restore the backup from Setup. Revoke the test grants at https://myaccount.google.com/permissions if you don't keep them.
+
+**Re-run cadence:** steps 1–4 whenever `manifest.json`, `scripts/build_mcpb.py` or the server's OAuth startup changes. Steps 5–7 once before the first release that attaches the bundle, and again when `manifest.json`'s `server` or `user_config` changes.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1255 round 1 (Kit) @ 2454722f**
+Steps 1–4 PASS; steps 5–7 SKIP (need a person with Claude Desktop on macOS; owed before the first release that attaches the bundle). Step 1: `Manifest schema validation passes!`, `smoke: bundle installs and imports as mcp-gee-sweet 0.9.5`; `unzip -l` lists 53 files: `LICENSE`, `README.md`, `icon.png`, `manifest.json`, `pyproject.toml`, `uv.lock` and `src/mcp_gee_sweet/*.py` only (`.mcpbignore` dropped `.mcpbignore` itself and `src/mcp_gee_sweet/.env.template`). Step 2: `env` shows `AUTH_METHOD` `oauth`, `TOKEN_PATH` under the scratch home, `ENABLED_TOOLS` empty; uv built the bundle on CPython 3.15.1; `server: Google Spreadsheet` (empty `server_info.version`: `server.py` never passes one, pre-existing), `tools: 143`, `token file before the call: False`, consent link in the first error; approved in this slot's browser, then `token file written, mode 0o600` and the retried `list_spreadsheets` returned the fixture spreadsheet with `is_error=False`. Step 3: `-rw-------`. Step 4: `token file before the call: True`, `is_error=False`, no consent link. Run under an agent, step 2 printed nothing past the uv install with stdout redirected to a file (block-buffered), so the link never appeared; `python -u` worked around it (sent back). Cleanup: scratch home deleted; the grant is this slot's own OAuth client, so it was kept.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1255 round 2 (Kit) @ c16fcacd**
+Steps 1–4 PASS; steps 5–7 SKIP (need a person with Claude Desktop on macOS; owed before the first release that attaches the bundle). Step 1: `Manifest schema validation passes!`, `smoke: bundle installs and imports as mcp-gee-sweet 0.9.5` (stamped from `server.json`), 53 files, same list as round 1. Extra: `--version v9.8.7` with an uncommitted `README.md` edit warned `building from HEAD; these uncommitted changes aren't in the bundle: M README.md`, stamped `version` and `UV_DYNAMIC_VERSIONING_BYPASS` `9.8.7`, smoke reported `9.8.7`, and the bundled `README.md` had no trace of the edit. Step 2, run with stdout redirected to a file and no `python -u`: the `env:` block and consent link appeared in the file as printed; `tools: 143`, `token file before the call: False`; after approval `token file written, mode 0o600` and `retry 1 of list_spreadsheets: is_error=False` with the fixture spreadsheet. Step 3: `-rw-------`. Step 4: `token file before the call: True`, `is_error=False`, no consent link. Cleanup: scratch home deleted; the grant is this slot's own OAuth client, so it was kept.

@@ -21,6 +21,8 @@
 | `MAX_TOOL_RESPONSE_CHARS` | Safety cap on response size, in characters, for tools that can return large inline payloads (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `list_doc_comments`, `list_file_activity`, `export_file`, `sync_folder`, `list_all_events`, `list_calendar_acl`, `get_message`, `get_thread`). Defense-in-depth against MCP clients that don't degrade gracefully on an oversized tool response — see [decision-response-size-cap-reevaluation-519.md](decisions/decision-response-size-cap-reevaluation-519.md) for why the default was raised and what it does and doesn't protect against | `1000000` |
 | `LIST_ALL_EVENTS_MAX_CONCURRENCY` | Most calendars `list_all_events` queries at once, shared across every concurrent `list_all_events` call on the server, to stay under the Calendar API's per-user rate limit. Raise it for faster fan-out on accounts subscribed to many calendars; lower it for a stricter rate-limit posture. Values below 1 are treated as 1 | `20` |
 | `HTTP_TIMEOUT_SECONDS` | How long one socket operation of a Google API request (connecting, sending, or waiting for data) may block before the request fails. It applies per operation, not to the whole request: a long download or upload that keeps moving data never hits it. A read that times out is retried once on a new connection; a write isn't, and its error says it may still have been applied. Raise it if Google legitimately takes longer than this to start answering a request, such as a very large export or `batchUpdate`. An invalid or non-positive value logs a warning and uses the default; a value over one day (`86400`), `inf` included, logs a warning and uses one day. See [decision-http-socket-timeout.md](decisions/decision-http-socket-timeout.md) | `60` |
+| `GMAIL_SEND` | How `send_message`, `reply_to_message` and `send_draft` deliver mail: `confirm` or `direct`. An unrecognized value logs a warning and uses `confirm`. See [Gmail sending](#gmail-sending) | `confirm` |
+| `GMAIL_SEND_WARN_RECIPIENTS` | Flag a send whose unique To, Cc and Bcc addresses number more than this. An invalid or negative value logs a warning and uses the default. See [Gmail sending](#gmail-sending) | `10` |
 | `HOST` (or `FASTMCP_HOST`) | Bind address for the SSE and streamable HTTP transports. `FASTMCP_HOST` is a fallback if `HOST` isn't set. Any address other than loopback needs `MCP_SERVER_TOKEN`. See [HTTP transport authentication](#http-transport-authentication) | `127.0.0.1` |
 | `PORT` (or `FASTMCP_PORT`) | Port for the SSE and streamable HTTP transports. `FASTMCP_PORT` is a fallback if `PORT` isn't set | `8000` |
 | `MCP_SERVER_TOKEN` | Bearer token every SSE and streamable HTTP request must send. See [HTTP transport authentication](#http-transport-authentication) | — |
@@ -91,29 +93,53 @@ If neither is set, all tools are registered.
 
 ### Suggested subsets
 
-**Read-only Sheets:**
+Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On those clients, pick one of these subsets. Each one is under 100 tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
+
+To combine two subsets, join their lists with a comma (a name listed twice is fine) and add up the counts to check you're still under your client's limit. Windsurf's 100 also counts every other server's tools.
+
+**Read-only Sheets** (7 tools):
 ```
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets
 ```
 
-**Sheets read + write:**
+**Sheets read + write** (14 tools):
 ```
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns,import_csv_to_sheet
 ```
 
-**Docs only:**
+**Docs essentials** (12 tools):
 ```
 create_doc,create_doc_from_file,get_doc_content,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
 ```
 
-**Calendar only:**
+**Calendar only** (17 tools):
 ```
 list_calendars,get_calendar,create_calendar,update_calendar,delete_calendar,add_calendar_to_list,remove_calendar_from_list,list_calendar_acl,add_calendar_acl,remove_calendar_acl,list_events,list_all_events,get_event,create_event,update_event,delete_event,find_free_slots
 ```
 
-**Gmail only:**
+**Gmail only** (15 tools):
 ```
 list_messages,get_message,list_threads,get_thread,list_labels,send_message,create_draft,send_draft,list_drafts,get_draft,update_draft,delete_draft,reply_to_message,modify_labels,trash_message
+```
+
+**All Sheets tools** (40 tools):
+```
+get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,clear_values,update_cells,batch_update_cells,batch_update,list_sheets,copy_sheet,duplicate_sheet,rename_sheet,create_sheet,add_rows,add_columns,delete_sheet,delete_rows,delete_columns,hide_rows,unhide_rows,hide_columns,unhide_columns,resize_rows,resize_columns,format_cells,update_borders,add_data_validation,get_data_validation,clear_data_validation,merge_cells,unmerge_cells,freeze,update_sheet_properties,sort_range,add_chart,create_spreadsheet,import_csv_to_sheet,list_spreadsheets,search_spreadsheets
+```
+
+**All Drive tools** (34 tools):
+```
+list_folders,list_drives,list_files,search_files,get_file_metadata,create_folder,create_shortcut,copy_file,move_file,rename_file,star_file,unstar_file,list_shared_with_me,list_recent_files,get_storage_quota,delete_file,restore_file,empty_trash,export_file,list_revisions,export_revision,upload_file,upload_local_file,upload_local_folder,download_file,download_folder,sync_folder,share_spreadsheet,list_permissions,update_permission,remove_permission,transfer_ownership,share_file,list_file_activity
+```
+
+**All Docs tools** (34 tools):
+```
+create_doc,create_doc_from_file,get_doc_content,write_doc_content,update_doc_from_file,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,insert_page_break,insert_softbreak_paragraph,insert_inline_image,insert_local_images,insert_doc_table,insert_table_row,delete_table_row,insert_table_column,merge_table_cells,delete_table_column,style_doc_range,style_doc_table_cells,create_paragraph_bullets,delete_paragraph_bullets,get_doc_theme,get_doc_named_styles,apply_theme,create_header,create_footer,list_doc_comments,add_doc_comment,resolve_doc_comment,create_named_range,create_bookmark,get_doc_as_markdown
+```
+
+**Docs + Drive (combined example)** (68 tools):
+```
+create_doc,create_doc_from_file,get_doc_content,write_doc_content,update_doc_from_file,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,insert_page_break,insert_softbreak_paragraph,insert_inline_image,insert_local_images,insert_doc_table,insert_table_row,delete_table_row,insert_table_column,merge_table_cells,delete_table_column,style_doc_range,style_doc_table_cells,create_paragraph_bullets,delete_paragraph_bullets,get_doc_theme,get_doc_named_styles,apply_theme,create_header,create_footer,list_doc_comments,add_doc_comment,resolve_doc_comment,create_named_range,create_bookmark,get_doc_as_markdown,list_folders,list_drives,list_files,search_files,get_file_metadata,create_folder,create_shortcut,copy_file,move_file,rename_file,star_file,unstar_file,list_shared_with_me,list_recent_files,get_storage_quota,delete_file,restore_file,empty_trash,export_file,list_revisions,export_revision,upload_file,upload_local_file,upload_local_folder,download_file,download_folder,sync_folder,share_spreadsheet,list_permissions,update_permission,remove_permission,transfer_ownership,share_file,list_file_activity
 ```
 
 See [Tools](tools.md) for the full list of tool names.
@@ -206,3 +232,30 @@ The cache directory is created owner-only (`0700`) and the DB and its `-wal`/`-s
 Each entry is stored under the Google identity it was fetched as (the account's Drive permission ID, or a service account's email when Drive can't say), so two accounts sharing one DB file never see each other's entries. Invalidation isn't per identity: `refresh_cache` and a write's invalidation reach every identity's copy. Until the server has read the identity (at connection start, retried on every tool call), nothing is cached. A cached sheet list is served stale only when Google couldn't answer (a 5xx, a 429, or a network failure), never in place of a refusal such as a 403 or 404.
 
 Versions up to 0.9.2 kept the cache in `/tmp/mcp_gee_sweet.db`, readable by every local user. The server never reads that file again; on start-up with `CACHE_DB_PATH` unset it makes the file owner-only if it's yours, but doesn't delete it. Delete `/tmp/mcp_gee_sweet.db` and its `-wal`/`-shm` files yourself.
+
+## Gmail sending
+
+By default (`GMAIL_SEND=confirm`) no email goes out on the agent's call alone:
+
+- `send_message` and `reply_to_message` first save the message as a Gmail draft. A reply draft goes in the original thread.
+- If the MCP client can show a form, the server asks the user to confirm. The form shows any recipient flags (below) first, then the From address, every recipient grouped by To, Cc and Bcc, the subject, the attachment names, and the first 500 characters of the body, with its full length. When the email has an HTML part that most mail apps show instead, its text is shown too. That text is an approximation of what a mail app renders: it errs toward showing more (for example, the content of Outlook-only conditional comments), not less. Body text is marked off line by line, so it can't pass for the form's own lines. The form is built from the draft as Gmail stores it.
+- Only an explicit yes sends the draft. Declining, cancelling, no answer within 10 minutes, or a failed request leaves the draft unsent. The tool then returns `sent: false`, a `reason`, the `draft_id`, and a note saying the email is waiting in Gmail's Drafts folder, where the user can review and send it.
+- If the client can't show a form, nothing is sent: `send_message` and `reply_to_message` return the held draft, and `send_draft` refuses.
+- A draft changed after the user confirmed it (for example by `update_draft`) isn't sent, since it's no longer what the user saw.
+
+Confirmation needs a client that connects with the 2025-11-25 `initialize` handshake and supports form elicitation. On a 2026-07-28 connection the server has no way to ask, so mail always stays a draft there (#1235).
+
+**Claude Code currently connects on 2026-07-28** (2.1.310, checked 2026-10-26). So under `confirm`, every send from Claude Code is held as a draft: `send_message` and `reply_to_message` return `sent: false`, and `send_draft` refuses. Send the drafts from Gmail's Drafts folder, or set `GMAIL_SEND=direct` to send at once.
+
+**A client hook that auto-accepts elicitations with a yes makes `confirm` behave like `direct`.** The server can't tell a hook's answer from the user's.
+
+`GMAIL_SEND=direct` restores immediate delivery for all three tools, with no draft step and no confirmation. Their only guard is then `destructiveHint`, which clients treat as a hint and skip once a tool is auto-approved.
+
+**Recipient flags.** Every send under `confirm` reports these in the confirmation and in the result's `recipient_flags`:
+
+| Flag | When |
+|---|---|
+| `outside_organization` | Google Workspace accounts only: a recipient whose domain isn't the account's own domain or one of its send-as alias domains. A consumer alias domain (`gmail.com`, `googlemail.com`) doesn't count, so a personal Gmail alias doesn't hide the flag for Gmail recipients. Matching is exact, so `sub.example.com` counts as outside `example.com`. Never shown on consumer accounts |
+| `outside_organization_unchecked` | The server couldn't look up the mailbox's own address, so the check above didn't run |
+| `many_recipients` | More than `GMAIL_SEND_WARN_RECIPIENTS` unique addresses across To, Cc and Bcc |
+| `hidden_recipients` | Any Bcc, with the count |

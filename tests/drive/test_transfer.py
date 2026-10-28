@@ -6,9 +6,11 @@ import os
 import threading
 import time
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import openpyxl
 import pytest
 from googleapiclient.errors import HttpError
@@ -826,7 +828,7 @@ class TestUploadLocalFileConvert:
         }
         drive_svc.files.return_value.create.assert_not_called()
         list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
-        assert "pageSize" not in list_kwargs
+        assert list_kwargs["pageSize"] == 1000
 
 
 class TestConvertSourceMarker:
@@ -1157,9 +1159,9 @@ class TestUploadLocalFileToolCacheInvalidation:
         assert result["skipped"] is True
         folder_cache.mark_dirty.assert_not_called()
 
-    async def test_create_failure_does_not_mark_folder_cache_dirty(self, tmp_path):
-        """Distinct from the orphan case: create() itself failing means nothing
-        was created, so the cache must stay untouched."""
+    async def test_create_failure_marks_folder_cache_dirty(self, tmp_path):
+        """Distinct from the skip case: a create() that fails can still have been
+        applied (a timeout), so the cache can't be trusted either way (#1030)."""
         local_file = tmp_path / "pic.png"
         local_file.write_bytes(b"fake-bytes")
         drive_svc = MagicMock()
@@ -1176,7 +1178,7 @@ class TestUploadLocalFileToolCacheInvalidation:
 
         assert "error" in result
         assert "fileId" not in result
-        folder_cache.mark_dirty.assert_not_called()
+        folder_cache.mark_dirty.assert_called_once_with("folder1")
 
 
 class TestUploadLocalFolder:
@@ -1305,7 +1307,7 @@ class TestUploadLocalFolder:
         (tmp_path / "c.txt").write_text("c")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1308", "name": "a.txt", "mimeType": "text/plain"}]
         }
         drive_svc.files.return_value.create.return_value.execute.return_value = {
             "id": "fid",
@@ -1369,7 +1371,7 @@ class TestUploadLocalFolder:
         (tmp_path / "archive.zip").write_bytes(b"fake")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "archive.zip", "mimeType": "application/zip"}]
+            "files": [{"id": "f1372", "name": "archive.zip", "mimeType": "application/zip"}]
         }
 
         result = await self._tool()(
@@ -1386,7 +1388,13 @@ class TestUploadLocalFolder:
         (tmp_path / "data.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+            "files": [
+                {
+                    "id": "f1389",
+                    "name": "data.csv",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1404,7 +1412,7 @@ class TestUploadLocalFolder:
         (tmp_path / "data.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "data.csv", "mimeType": "text/csv"}]
+            "files": [{"id": "f1407", "name": "data.csv", "mimeType": "text/csv"}]
         }
         drive_svc.files.return_value.create.return_value.execute.return_value = {
             "id": "fid-converted",
@@ -1436,6 +1444,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1438",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1462,7 +1471,13 @@ class TestUploadLocalFolder:
         (tmp_path / "report.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "report", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+            "files": [
+                {
+                    "id": "f1465",
+                    "name": "report",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1491,6 +1506,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1493",
                     "name": "report",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "report.xlsx"},
@@ -1519,8 +1535,13 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
                 {
+                    "id": "f1522",
+                    "name": "data",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                },
+                {
+                    "id": "f1523",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1544,6 +1565,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1546",
                     "name": "notes",
                     "mimeType": "application/vnd.google-apps.document",
                     "properties": {transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
@@ -1564,7 +1586,13 @@ class TestUploadLocalFolder:
         (tmp_path / "notes.md").write_text("# Heading")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "notes.md", "mimeType": "application/vnd.google-apps.document"}]
+            "files": [
+                {
+                    "id": "f1567",
+                    "name": "notes.md",
+                    "mimeType": "application/vnd.google-apps.document",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1579,7 +1607,7 @@ class TestUploadLocalFolder:
         (tmp_path / "a.txt").write_text("a")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1582", "name": "a.txt", "mimeType": "text/plain"}]
         }
 
         result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
@@ -1597,6 +1625,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1599",
                     "name": name[:-4],
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": transfer_module._convert_properties(name),
@@ -1623,8 +1652,9 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data.csv", "mimeType": "text/csv"},
+                {"id": "f1626", "name": "data.csv", "mimeType": "text/csv"},
                 {
+                    "id": "f1627",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1656,8 +1686,12 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"},
-                {"name": "data.csv", "mimeType": "text/csv"},
+                {
+                    "id": "f1659",
+                    "name": "data.csv",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                },
+                {"id": "f1660", "name": "data.csv", "mimeType": "text/csv"},
             ]
         }
 
@@ -1741,7 +1775,7 @@ class TestUploadLocalFolder:
         (tmp_path / "a.txt").write_text("a")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1744", "name": "a.txt", "mimeType": "text/plain"}]
         }
         ctx = self._ctx(drive_svc)
 
@@ -2083,6 +2117,123 @@ class TestSyncFolderSizeBytesCountsUploads:
 
         assert sorted(result["uploaded"]) == ["sub/nested.txt", "top.txt"]
         assert result["size_bytes"] == 10
+
+
+class _BlockingCreateFakeDriveFS(_FakeDriveFS):
+    """_FakeDriveFS whose file create()s block until `release` is set (#1030)."""
+
+    def __init__(self, children):
+        super().__init__(children)
+        self.started, self.release = threading.Event(), threading.Event()
+        self.landed = False
+
+    def _create(self, **kwargs):
+        resp = super()._create(**kwargs)
+        if kwargs["body"].get("mimeType") == "application/vnd.google-apps.folder":
+            return resp
+        result = resp.execute.return_value
+
+        def execute(**_kwargs):
+            self.started.set()
+            self.release.wait(5)
+            self.landed = True
+            return result
+
+        resp.execute.side_effect = execute
+        return resp
+
+
+class TestSyncFolderCancelledWriteInvalidation:
+    """#1030: a sync cancelled mid-upload, or whose upload fails, may still have
+    changed the Drive folder, so its listing is marked dirty."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def _cancel_mid_upload(self, fs, ctx, tmp_path, **kwargs):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                partial(
+                    _transfer_tools["sync_folder"],
+                    folder_id="root",
+                    local_path=str(tmp_path),
+                    direction="upload",
+                    ctx=ctx,
+                    **kwargs,
+                )
+            )
+            await anyio.to_thread.run_sync(fs.started.wait, 5)
+            tg.cancel_scope.cancel()
+
+    async def test_cancelled_mid_upload_marks_folder_dirty_again_once_it_lands(self, tmp_path):
+        (tmp_path / "a.txt").write_text("hello")
+        fs = _BlockingCreateFakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+        seen = []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.side_effect = (
+            lambda folder_id: seen.append((folder_id, fs.landed))
+        )
+
+        await self._cancel_mid_upload(fs, ctx, tmp_path)
+        assert seen == [("root", False)]
+
+        fs.release.set()
+        with anyio.fail_after(2):
+            while ("root", True) not in seen:
+                await anyio.sleep(0.01)
+
+    async def test_cancelled_mid_upload_in_a_subfolder_marks_that_folder(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "a.txt").write_text("hello")
+        fs = _BlockingCreateFakeDriveFS(
+            {"root": [_drive_file("sub", "sub-id", mime="application/vnd.google-apps.folder")]}
+        )
+        ctx = self._ctx(fs)
+        seen = []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.side_effect = (
+            lambda folder_id: seen.append((folder_id, fs.landed))
+        )
+
+        await self._cancel_mid_upload(fs, ctx, tmp_path, recursive=True)
+        assert ("sub-id", False) in seen
+
+        fs.release.set()
+        with anyio.fail_after(2):
+            while ("sub-id", True) not in seen:
+                await anyio.sleep(0.01)
+
+    async def test_failed_upload_marks_folder_dirty(self, tmp_path):
+        (tmp_path / "a.txt").write_text("hello")
+        fs = _FakeDriveFS({"root": []})
+
+        def create(**kwargs):
+            resp = MagicMock()
+            resp.execute.side_effect = TimeoutError("timed out; the upload may have landed")
+            return resp
+
+        fs.svc.files.return_value.create.side_effect = create
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=ctx
+        )
+
+        assert [f["name"] for f in result["failed"]] == ["a.txt"]
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "root"
+        )
+
+    async def test_sync_with_nothing_to_do_leaves_the_folder_cache_alone(self, tmp_path):
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+        await _transfer_tools["sync_folder"](
+            folder_id="root", local_path=str(tmp_path), direction="upload", ctx=ctx
+        )
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_not_called()
 
 
 class TestSyncFolderRecursive:

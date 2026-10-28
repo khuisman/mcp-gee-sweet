@@ -1,0 +1,82 @@
+# Builds the MCP Bundle (.mcpb, #1036) with scripts/build_mcpb.py: `mcpb pack`
+# validates manifest.json, and --smoke installs the built bundle with uv the
+# way a host does. A pull request only builds it; a published release also
+# attaches it to the GitHub Release. This is separate from publish.yml, whose
+# filename PyPI's trusted publisher is registered for.
+name: MCP Bundle
+
+on:
+  pull_request:
+    paths:
+      - "manifest.json"
+      - ".mcpbignore"
+      - "scripts/build_mcpb.py"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "server.json"
+      - "README.md"
+      - "LICENSE"
+      - "docs/assets/logo.png"
+      - ".github/workflows/mcpb.yml"
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Build MCP Bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev --python 3.12
+
+      # A release stamps its tag into the bundle's manifest; a pull request
+      # stamps server.json's version.
+      - name: Build and smoke-test the bundle
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            uv run python scripts/build_mcpb.py --smoke --version "$RELEASE_TAG"
+          else
+            uv run python scripts/build_mcpb.py --smoke
+          fi
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcpb
+          path: dist/*.mcpb
+
+  attach:
+    name: Attach MCP Bundle to the release
+    runs-on: ubuntu-latest
+    needs: bundle
+    if: github.event_name == 'release'
+    permissions:
+      contents: write  # gh release upload
+
+    steps:
+      - name: Download the bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: mcpb
+          path: dist/
+
+      - name: Attach it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/*.mcpb --clobber --repo "$GITHUB_REPOSITORY"
