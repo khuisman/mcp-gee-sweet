@@ -1139,6 +1139,8 @@ What our converter tells the caller about the conversion. EP-1 to EP-4 only: the
 - On screen, "kept site", "kept mail" and "jump to the heading" are linked; "jump to the heading" jumps to the "Dropped links" heading. None of the three is in `dropped_links`.
 - The second call's response has no `dropped_links` key.
 
+**Result (2026-10-27, PR #1272 @ a423b390, Sky) ✅ PASS — 4/4 case×EP cells pass in both runs.** EP-1 to EP-4 each returned exactly the four expected `dropped_links` entries in order, `./guide.md` once; the second call had no `dropped_links` key. `get_doc_as_markdown` on every Run 1 doc and on EP-1/EP-4 in Run 2: DL-01/DL-04/DL-05 and "jump nowhere" plain text, "the host" → `https://example.com/host`, "the www site" → `https://www.example.com/www`, "jump to the heading" → the doc's own `#heading=` URL. Screenshot (EP-1, Run 1) matches. Edge targets this case doesn't cover failed in a separate probe (round 1 comment on PR #1272): `www.example.com:8443/x` was stored as `http://…`, and `//`, `// x`, `www.foo bar`, `WWW.md` were stored as dead `https://` links that weren't reported. `href=" ./guide.md"` was reported separately from `./guide.md`, with its leading whitespace.
+
 ---
 
 ## Known gaps and not-applicable
