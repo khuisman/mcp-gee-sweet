@@ -2289,8 +2289,8 @@
 <ul>
 <li>[ ] <code>create_paragraph_bullets</code> drops a blockquoted paragraph's quote indent — <code>wrong/narrow</code>, observed; from PR #1089's review, after v0.9.3's lock (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1090">#1090</a>)</li>
 <li>[ ] A list inside a blockquote draws its border at the list indent, not the quote's — <code>wrong/narrow</code>, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1242">#1242</a>)</li>
-<li>[ ] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1032">#1032</a>)</li>
-<li>[ ] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1030">#1030</a>)</li>
+<li>[x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1032">#1032</a>) (PR #1264)</li>
+<li>[x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1030">#1030</a>) (PR #1264)</li>
 <li>[ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1087">#1087</a>)</li>
 <li>[ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1067">#1067</a>)</li>
 <li>[ ] Track release-QA spend across releases so passes can be sized ahead of time (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1068">#1068</a>)</li>
