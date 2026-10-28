@@ -188,10 +188,10 @@ the `Table` (`blockquote_depth`, no path), and its placeholder gets the quote's 
 (36pt per level) and no border. A table can't take a left border, so a quoted table sits
 indented between the quote's bordered paragraphs, with a gap in the bar beside it.
 
-**Markdown input is still affected by the parser.** Python-Markdown parses `> a`, a blank
-line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes. That
-reaches the AST as one quote, so it renders as one. Switching the parser (#1116) fixes it
-with no change here. HTML input with two `<blockquote>` elements already renders as two.
+**Markdown input was affected by the parser until #1116.** Python-Markdown parsed `> a`, a
+blank line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes,
+so it rendered as one quote. The CommonMark parser (#1116, `docs/design/markdown-parser.md`)
+emits two `<blockquote>` elements, and they render as two with no change here.
 
 ## QA round 1 (PR #546): two gaps in the interrupt/resume integration
 
