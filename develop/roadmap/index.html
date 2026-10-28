@@ -2164,7 +2164,7 @@
 <p><strong>Feature set: Markdown → Docs fidelity</strong></p>
 <ul>
 <li>[ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1044">#1044</a>)</li>
-<li>[ ] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>)</li>
+<li>[x] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>) (PR #1228)</li>
 <li>[ ] A numbered list restarts its numbering after a nested bullet list (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>)</li>
 <li>[x] Images inside table cells are dropped silently (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1073">#1073</a>) (PR #1215)</li>
 <li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>)</li>
@@ -2186,7 +2186,7 @@
 <li>[x] A table takes on the style of the paragraph that follows it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1097">#1097</a>) (PR #1201)</li>
 <li>[ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1101">#1101</a>)</li>
 <li>[ ] <code>upload_file(source_format="markdown", convert_to_doc=True)</code> (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1102">#1102</a>)</li>
-<li>[ ] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1112">#1112</a>, closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1116">#1116</a>)</li>
+<li>[x] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1112">#1112</a>, closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1116">#1116</a>) (PR #1228)</li>
 <li>[x] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1115">#1115</a>) (PR #1164)</li>
 <li>[ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1118">#1118</a>)</li>
 <li>[ ] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1122">#1122</a>)</li>
