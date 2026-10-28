@@ -191,6 +191,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, #1094, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: EP-3/EP-4 only) ❌ FAIL — 0/2 cells pass, identical in both runs and across EP-3/EP-4; #1111 is fixed (every step keeps its number marker), failures left: #1094 (numbering restarts after each step's code block), #1072 (step 5 restarts after step 4's bulleted sublist), #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
+
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -488,6 +490,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 4/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, LB-08 heading-in-item loses bullet (F4, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6) ❌ FAIL — 16/36 EP-1–EP-4 cells pass (LB-01, LB-02, LB-03, LB-07 in every EP; EP-1 to EP-4 exports byte-identical; Run 2 at EP-3 identical to Run 1). #1111 is fixed: every item keeps its bullet or number. Failures left: #1094 (LB-04, LB-05, LB-06: the item after a block inside an item starts a new Docs list), #1072 (LB-09: parent two restarts after the bulleted sublist; AST is identical to the tight form), F4 (LB-08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
+
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -508,6 +512,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 20/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (LX-04), #1115 + #1094 (LX-08), #1118 (LX-09), F2 (LX-05). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: LX-08 at EP-3/EP-4) ❌ FAIL — LX-08 0/2 cells, identical in both runs: step one keeps its number and the code block stays code (#1115/#1111 fixed), but step two restarts at 1. (#1094). The other cases rendered as in round 3 and weren't re-graded. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
 
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
@@ -1029,6 +1035,8 @@ The same 100 pairs separated by one blank line.
 **Result (2026-10-18) ❌ FAIL — 400/800 case×EP cells pass, in both runs; failures: #1115, #1056, #1096, #1097, #1098, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 304/400 EP-1–EP-4 cells pass, identical in both runs; failures: #1096, #1115. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: the five #1115 cases at EP-1 and EP-3) ❌ FAIL overall (#1096's 19 cases are unchanged) — AB-023, AB-025, AB-034, AB-043, AB-045 now pass at EP-1 (Run 1) and EP-3 (both runs): each is one list of four items under one `listId`, AB-034 numbered 1. to 4. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
 
 ### TC-MD204: Inline formatting matrix ⚠️ destructive
 **Prompt**
