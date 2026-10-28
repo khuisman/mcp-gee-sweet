@@ -2903,6 +2903,38 @@ create_shortcut(target='invalidid123xyz', folder=FOLDER_ID, name='QA-Shortcut-Ba
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 create_shortcut cases matched.</p>
 <hr />
+<h3 id="tc-d301-a-drive-write-cancelled-while-in-flight-still-lands-and-the-folder-listing-is-invalidated-on-the-cancel-and-again-once-it-lands-1030-requires-oauth-destructive-local-filesystem">TC-D301: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d301-a-drive-write-cancelled-while-in-flight-still-lands-and-the-folder-listing-is-invalidated-on-the-cancel-and-again-once-it-lands-1030-requires-oauth-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> No MCP client can cancel a tool call at a chosen point, so <code>scripts/qa_cancel_inflight_write.py</code> runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every folder-cache invalidation as <code>folder cache marked dirty for &lt;id&gt;</code> or <code>folder cache: every folder marked dirty</code>, each with <code>(write landed: yes|no)</code>, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (<code>TOKEN_PATH</code>).</p>
+<p><strong>Setup:</strong>
+1. <code>create_folder(name="TC-D301", parent_folder_id={FOLDER_ID})</code>. Record <code>folderId</code> as <code>{SCRATCH}</code>.
+2. <code>create_doc(title="TC-D301 doc", folder_id={SCRATCH})</code>. Record <code>docId</code> as <code>{FILE_ID}</code>.
+3. A local directory <code>&lt;dir&gt;</code> holding one file, <code>a.txt</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>(none — script-driven; the steps below are shell commands plus tool calls)</p>
+</blockquote>
+<p><strong>Steps</strong>
+1. <code>uv run python scripts/qa_cancel_inflight_write.py create_folder --folder-id {SCRATCH}</code>
+2. <code>uv run python scripts/qa_cancel_inflight_write.py rename_file --file-id {FILE_ID}</code>
+3. <code>list_files(folder_id={SCRATCH})</code>. Record the <code>TC-D1030 folder</code> entry's ID as <code>{SUB}</code>.
+4. <code>uv run python scripts/qa_cancel_inflight_write.py move_file --file-id {FILE_ID} --folder-id {SUB}</code>
+5. <code>uv run python scripts/qa_cancel_inflight_write.py sync_folder --folder-id {SUB} --local-path &lt;dir&gt;</code></p>
+<p><strong>Checks</strong>
+- Every step prints <code>cancelled &lt;tool&gt; while its write was in flight; the tool returned nothing</code> and ends with <code>writes sent: 1; landed: 1</code>
+- Step 1 prints <code>folder cache marked dirty for {SCRATCH} (write landed: no)</code>, then the same line with <code>(write landed: yes)</code>. Before #1030, neither line was printed
+- Step 2 prints <code>folder cache: every folder marked dirty (write landed: no)</code>, then the same with <code>(write landed: yes)</code>. A rename's folder comes only from its response, which a cancelled call never reads
+- Step 4 prints a <code>(write landed: no)</code> line for both <code>{SCRATCH}</code> and <code>{SUB}</code>, then a <code>(write landed: yes)</code> line for both
+- Step 5 prints <code>folder cache marked dirty for {SUB} (write landed: no)</code>, then <code>(write landed: yes)</code>
+- After <code>refresh_cache(folder_id={SCRATCH})</code> and <code>refresh_cache(folder_id={SUB})</code>: <code>list_files(folder_id={SCRATCH})</code> shows <code>TC-D1030 folder</code> and no <code>TC-D301 doc</code>; <code>list_files(folder_id={SUB})</code> shows <code>TC-D1030 renamed</code> and <code>a.txt</code> (every cancelled write landed). Drive's <code>in parents</code> index can lag the move by a few seconds, so if <code>{SCRATCH}</code> still lists <code>TC-D1030 renamed</code>, check that <code>get_file_metadata(file_id={FILE_ID})</code> shows <code>{SUB}</code> as its only parent, then refresh and list again
+- If a step shows only <code>(write landed: yes)</code> lines, the write finished before the cancel reached the tool; re-run that step</p>
+<p><strong>Cleanup:</strong> trash <code>{SCRATCH}</code>.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07</strong>
+Ran the script from the <code>kit</code> checkout with its own <code>TOKEN_PATH</code>, against a scratch folder on the Shared Drive. Every step printed the expected <code>(write landed: no)</code> line(s), then <code>cancelled &lt;tool&gt; …</code>, then the matching <code>(write landed: yes)</code> line(s), and ended <code>writes sent: 1; landed: 1</code>. Step 2 printed <code>folder cache: every folder marked dirty</code> both times. Step 4 printed lines for both <code>{SCRATCH}</code> and <code>{SUB}</code>. Final listings: <code>{SUB}</code> held <code>a.txt</code> and <code>TC-D1030 renamed</code>, and <code>{SCRATCH}</code> held only <code>TC-D1030 folder</code>. Note: the first <code>list_files({SCRATCH})</code> right after <code>refresh_cache</code> still showed the moved doc, though <code>get_file_metadata</code> already reported <code>{SUB}</code> as its only parent. A second refresh-and-list a few seconds later was correct. That points to lag in Drive's <code>in parents</code> index, not to the cache, so if the doc still shows up, wait a few seconds and list again.</p>
+<p><strong>Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3</strong>
+Re-ran all five steps on a fresh scratch folder from the <code>kit</code> checkout at the fix commit. Every step printed the same lines as round 1: step 2 printed <code>every folder marked dirty</code> on both sides (the cancelled rename gets no response), and step 4 printed lines for both folders. The final listings were correct once Drive's index caught up; the same <code>in parents</code> lag appeared after the move and cleared on the next refresh-and-list. Extra round-2 checks in a fresh interpreter, against the real API with mocked caches: <code>rename_file</code> on a nonexistent ID raised <code>HttpError</code> (404) and marked nothing, and <code>mark_all_dirty</code> wasn't called. A successful <code>rename_file</code> marked only the parent named in its response, again without <code>mark_all_dirty</code>.</p>
+<p><strong>Result (2026-10-27) ✅ PASS — PR #1264 QA round 3 (Kit) @ 51bc64f1</strong>
+After the <code>develop</code> merge (1cdde06b, which brought in #1261's paged <code>transfer.py</code> listings), I re-ran steps 1 and 5 on a fresh scratch folder from the <code>kit</code> checkout, since those are the steps the merged <code>transfer.py</code> code runs. Both printed <code>(write landed: no)</code> and then <code>(write landed: yes)</code> for <code>{SCRATCH}</code>, and ended <code>writes sent: 1; landed: 1</code>. I didn't re-run steps 2–4: the merge doesn't touch <code>files.py</code>.</p>
+<hr />
 
 
 
