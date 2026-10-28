@@ -145,7 +145,7 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Tight item with a nested block | `<li>a<ul>` | `<li>a\n<ul>` (also before `<pre>`, `<table>`, `<blockquote>`) | **Changed:** `_interrupt_open_block` drops trailing whitespace holding a line break from the raw text before the block. It was reaching the Docs API as an empty paragraph under every parent item. A `<br>`'s own break is kept. |
 | Rule inside an item | (never produced) | `<li>item\n<hr />\n</li>` | **Changed:** an `<hr>` after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. `<li><hr>` with no text keeps #401's dropped-construct boundary. |
 | Text after a block in an item | (never produced) | `<hr />\nmore</li>` | **Changed:** a resumed segment drops the line break at its start, as the break before a block is dropped. An authored `&nbsp;` there isn't ASCII whitespace and stays (#444). |
-| Loose item | `<li>\n<p>a</p>\n</li>` | same | Unchanged here: owned by community PR #1164 (#1111). markdown-it produces it more often, since it attaches an indented paragraph or code block to the item instead of dropping it out of the list, so **#1164 must land first or in the same release.** |
+| Loose item | `<li>\n<p>a</p>\n</li>` | same | Unchanged here: handled by community PR #1164 (#1111), merged into `develop` before this PR. markdown-it produces it more often, since it attaches an indented paragraph or code block to the item instead of dropping it out of the list. |
 | Strikethrough | (none) | `<s>` | Already handled (`_INLINE_STRIKE`). |
 | Table alignment | `align="left"` | `style="text-align:left"` | Neither is read; no AST field for column alignment. No regression. |
 | Code block language | `class="language-x"` | same | Unchanged. |
@@ -166,14 +166,15 @@ D1, D2, or listed here; `CHANGELOG.md` has the user-facing version.
   live in TC-MD016); blocks inside list items (TC-MD201); fenced
   code inside items renders as code without the info string as text; strikethrough; www/email
   autolinks; `\` escapes; adjacent quotes; a bare `-` no longer becomes a setext heading.
-- **Worse until #1164, so this PR waits for it:** every item of a loose list loses its bullet
-  (#1111). In CommonMark one blank line anywhere in a list (`- a`, `- b`, blank, `- c`) makes the
-  whole list loose (`<li><p>`), and so does an item with an indented paragraph or code block under
-  it (r06's numbered steps, TC-MD107, TC-MD108 LX-08, TC-MD203's list-after-list pairs, which
-  CommonMark merges into one loose list). Python-Markdown kept some of those items bulleted, or
-  dropped the blocks out of the list and restarted the numbering. #1164 keeps a loose item's
-  bullet; trial-merged into this branch, every one of those inputs keeps its bullets (PR #1228 QA
-  round 4).
+- **Loose lists, with #1164 in:** in CommonMark one blank line anywhere in a list (`- a`, `- b`,
+  blank, `- c`) makes the whole list loose (`<li><p>`), and so does an item with an indented
+  paragraph or code block under it (r06's numbered steps, TC-MD107, TC-MD108 LX-08, TC-MD203's
+  list-after-list pairs, which CommonMark merges into one loose list). Without #1164 every such
+  item lost its bullet (#1111); with it, which this branch merged before approval, every one keeps
+  its bullet. Python-Markdown kept some of those items bulleted, or dropped the blocks out of the
+  list and restarted the numbering. A block inside a numbered item now stays inside one `<ol>`, so
+  the AST keeps every item ordered, but the emitter still splits the list around the block and
+  Docs restarts the numbering on screen (#1094).
 - **A setext underline under an item's text** (`- a` / `  ---`) makes that text a Heading 2 inside
   the item, as CommonMark reads it; Python-Markdown kept the item and a rule. The heading then
   loses its bullet in the AST (#1094's open question). `***` is a rule in either parser.
@@ -198,7 +199,7 @@ import) and EP-8 don't use it.
 
 ## What this does NOT do
 
-- Strip front matter (#1173), keep an empty list item (#1075), keep a loose item's bullet (#1164),
+- Strip front matter (#1173), keep an empty list item (#1075), keep a loose item's bullet (#1164, already in `develop`),
   or fix hard and soft breaks (#1117, #1093). Each is in the HTML → AST step or its own ticket.
 - Change EP-8 (`upload_file`), which keeps Python-Markdown until #1101.
 - Read table column alignment.
@@ -244,3 +245,6 @@ PR #1228's QA rounds, and what each changed. The invariants they produced are in
   before trimming (`http://__` linked an empty host) and the scheme by `"://" in label`; the
   resumed-segment trim lacked the `<pre>` guard its counterpart has; a setext underline under item
   text is documented as a behavior change; and a stale dev-group `markdown-it-py` pin was removed.
+- **Round 5 (the `develop` merge).** #1164 merged, and `develop` was merged in: loose lists keep
+  their bullets, and a code block or paragraph inside a numbered item keeps one `<ol>`
+  (`TestLooseListsAfter1164`).

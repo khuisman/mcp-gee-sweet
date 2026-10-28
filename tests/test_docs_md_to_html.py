@@ -694,3 +694,45 @@ class TestHtmlShapesFromMarkdownIt:
             ("Paragraph", ""),
             ("Paragraph", "b"),
         ]
+
+
+class TestLooseListsAfter1164:
+    """With #1164 in, CommonMark's loose lists (`<li><p>…</p></li>`) keep their bullets
+    (#1111), and a block inside a numbered item leaves the parser's one `<ol>` intact."""
+
+    def test_blank_line_between_items_keeps_every_bullet(self):
+        assert _outline("- a\n- b\n\n- c\n- d\n") == [("UL", 0, t) for t in "abcd"]
+
+    def test_loose_numbered_list_keeps_every_number(self):
+        assert _outline("1. a\n2. b\n\n3. c\n") == [("OL", 0, t) for t in "abc"]
+
+    def test_indented_paragraph_under_item_keeps_the_bullet(self):
+        assert _outline("- a\n\n  more a\n- b\n") == [
+            ("UL", 0, "a"),
+            ("P", 0, "more a"),
+            ("UL", 0, "b"),
+        ]
+
+    def test_rule_in_loose_item_keeps_the_bullets(self):
+        assert _outline("- a\n\n  ---\n- b\n") == [("UL", 0, "a"), ("P", 0, ""), ("UL", 0, "b")]
+
+    @pytest.mark.parametrize(
+        "md",
+        [
+            "1. one\n\n       code\n\n2. two\n3. three\n",
+            "1. one\n\n   ```\n   code\n   ```\n\n2. two\n3. three\n",
+            "1. one\n   ```\n   code\n   ```\n2. two\n3. three\n",
+        ],
+        ids=["indented", "fenced-loose", "fenced-tight"],
+    )
+    def test_code_in_numbered_item_keeps_one_list(self, md):
+        html = _md_to_html(md)
+        assert html.count("<ol") == 1 and "start=" not in html
+        nodes = _ast(md)
+        assert _outline(md) == [
+            ("OL", 0, "one"),
+            ("P", 0, "code"),
+            ("OL", 0, "two"),
+            ("OL", 0, "three"),
+        ]
+        assert all(r.font_family == "Courier New" for r in nodes[1].runs if isinstance(r, Run))
