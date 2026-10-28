@@ -2147,4 +2147,7 @@ Ran the script from the `kit` checkout with its own `TOKEN_PATH`, against a scra
 **Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3**
 Re-ran all five steps on a fresh scratch folder from the `kit` checkout at the fix commit. Every step printed the same lines as round 1: step 2 printed `every folder marked dirty` on both sides (the cancelled rename gets no response), and step 4 printed lines for both folders. The final listings were correct once Drive's index caught up; the same `in parents` lag appeared after the move and cleared on the next refresh-and-list. Extra round-2 checks in a fresh interpreter, against the real API with mocked caches: `rename_file` on a nonexistent ID raised `HttpError` (404) and marked nothing, and `mark_all_dirty` wasn't called. A successful `rename_file` marked only the parent named in its response, again without `mark_all_dirty`.
 
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 3 (Kit) @ 51bc64f1**
+After the `develop` merge (1cdde06b, which brought in #1261's paged `transfer.py` listings), I re-ran steps 1 and 5 on a fresh scratch folder from the `kit` checkout, since those are the steps the merged `transfer.py` code runs. Both printed `(write landed: no)` and then `(write landed: yes)` for `{SCRATCH}`, and ended `writes sent: 1; landed: 1`. I didn't re-run steps 2–4: the merge doesn't touch `files.py`.
+
 ---
