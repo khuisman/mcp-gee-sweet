@@ -395,7 +395,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 **Feature set: Markdown → Docs fidelity**
 
 - [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
-- [ ] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071))
+- [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
 - [ ] A numbered list restarts its numbering after a nested bullet list ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072))
 - [x] Images inside table cells are dropped silently ([#1073](https://github.com/khuisman/mcp-gee-sweet/issues/1073)) (PR #1215)
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
@@ -417,7 +417,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] A table takes on the style of the paragraph that follows it ([#1097](https://github.com/khuisman/mcp-gee-sweet/issues/1097)) (PR #1201)
 - [ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101))
 - [ ] `upload_file(source_format="markdown", convert_to_doc=True)` (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line ([#1102](https://github.com/khuisman/mcp-gee-sweet/issues/1102))
-- [ ] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike [#1112](https://github.com/khuisman/mcp-gee-sweet/issues/1112), closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) ([#1116](https://github.com/khuisman/mcp-gee-sweet/issues/1116))
+- [x] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike [#1112](https://github.com/khuisman/mcp-gee-sweet/issues/1112), closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) ([#1116](https://github.com/khuisman/mcp-gee-sweet/issues/1116)) (PR #1228)
 - [x] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone ([#1115](https://github.com/khuisman/mcp-gee-sweet/issues/1115)) (PR #1164)
 - [ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding ([#1118](https://github.com/khuisman/mcp-gee-sweet/issues/1118))
 - [ ] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding ([#1122](https://github.com/khuisman/mcp-gee-sweet/issues/1122))
@@ -455,6 +455,8 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160))
 - [ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167))
 - [ ] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190))
+- [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
+- [ ] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263))
 
 Moved out 2026-10-18: [#379](https://github.com/khuisman/mcp-gee-sweet/issues/379) (unversioned, Joy decides whether to do it); [#378](https://github.com/khuisman/mcp-gee-sweet/issues/378) closed (ASYNC240 stays off). Everything else formerly here is under _ankylosaurus_ below.
 
@@ -526,6 +528,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] A list inside a blockquote draws its border at the list indent, not the quote's — `wrong/narrow`, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242))
 - [x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032)) (PR #1264)
 - [x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030)) (PR #1264)
+- [ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. `wrong/rare`; found in PR #1264, the same gap #1030 closed for Docs and Drive ([#1265](https://github.com/khuisman/mcp-gee-sweet/issues/1265))
 - [ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it ([#1087](https://github.com/khuisman/mcp-gee-sweet/issues/1087))
 - [ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass ([#1067](https://github.com/khuisman/mcp-gee-sweet/issues/1067))
 - [ ] Track release-QA spend across releases so passes can be sized ahead of time ([#1068](https://github.com/khuisman/mcp-gee-sweet/issues/1068))
@@ -541,6 +544,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `insert_inline_image(drive_file_id=)` should grant and revoke the temporary `anyone:reader` share itself through `ImageShareLifecycle`, like the Markdown image path, instead of pushing a `share_file` call onto the caller. Tool-surface cleanup; version call 2026-10-25 (maintainer) ([#1183](https://github.com/khuisman/mcp-gee-sweet/issues/1183))
 - [ ] HTML table cells: source newlines become paragraph breaks instead of collapsing like a browser. Enhancement; whether a cell newline should collapse was left open in PR #1215 ([#1221](https://github.com/khuisman/mcp-gee-sweet/issues/1221))
 - [ ] HTML input: source line breaks at a block's start or end become empty paragraphs (pretty-printed HTML). `wrong/narrow`, not observed; found in PR #1228, grouped with #1221 ([#1229](https://github.com/khuisman/mcp-gee-sweet/issues/1229))
+- [ ] html_parser: edge cases in a list item's transparent `<p>` (trailing line breaks, etc.). `wrong/narrow`, not observed; found in PR #1164's review ([#1266](https://github.com/khuisman/mcp-gee-sweet/issues/1266))
 - [ ] Reauth offer (#873) on MCP 2026-07-28 connections: capability-only check and a retired `-32042`. `loud/rare`; found in #1081's design pass ([#1236](https://github.com/khuisman/mcp-gee-sweet/issues/1236))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
@@ -680,6 +684,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 - [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
 - [ ] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_
+- [ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent `<p>` (from PR #1164). Bob, no version ([#1267](https://github.com/khuisman/mcp-gee-sweet/issues/1267))
 - See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 
 ---

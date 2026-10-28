@@ -122,6 +122,11 @@ def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
     return result
 
 
+class _LineBreak(str):
+    """The "\\n" a <br> puts in the run buffer, told apart from source text so trimming
+    source whitespace before a block (_interrupt_open_block) never removes it."""
+
+
 @dataclass
 class _BlockFrame:
     outer_tag: str  # the interrupted block's own tag (li, p, h1-6)
@@ -526,6 +531,18 @@ class _AstParser(HTMLParser):
             return
         outer_tag = self._block_tag
         outer_named_style = self._block_named_style
+        # Whitespace holding a line break just before a block element is source
+        # formatting, not content: markdown-it writes "<li>a\n<ul>" for every nested
+        # list (#1116), and the "\n" would reach the Docs API as an empty paragraph.
+        # Only the raw text not yet flushed is trimmed, so a <br>'s own break stays.
+        if self._run_buf and not self._in_pre:
+            last_br = max(
+                (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
+                default=-1,
+            )
+            kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
+            tail = _without_line_break_edge(text, leading=False)
+            self._run_buf = [*kept, tail] if tail else kept
         runs = self._flush_pending_runs()
         self._emit_block_node(
             outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
@@ -759,7 +776,7 @@ class _AstParser(HTMLParser):
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
         # image already reaches _emit_block_node's runs=[] handling above),
-        # python-markdown emits "---"/"___" thematic breaks as a bare <hr />
+        # the Markdown parser emits "---"/"___" thematic breaks as a bare <hr />
         # sibling with no wrapping tag at all — it never opens a block, so it
         # would otherwise vanish with zero trace, collapsing the paragraph
         # boundary between the surrounding content (#401). Scoped to <hr>
@@ -778,6 +795,26 @@ class _AstParser(HTMLParser):
             and self._tag_depth == 0
         ):
             self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            return
+        # An <hr> after text in an open block (markdown-it's "<li>item\n<hr />\n</li>"
+        # for a rule in a list item, #1116) is a block of its own: end the outer
+        # block's segment, emit the rule's boundary paragraph, then resume the outer
+        # block. Without this the rule vanished and the newlines around it became
+        # empty paragraphs. The same holds for a resumed segment, after a nested list,
+        # quote or paragraph in the item ("- a\n  - b\n  ---"), even with no text of
+        # its own. Only a fresh block with no text before the rule ("<li><hr>") keeps
+        # the dropped-construct handling below, which keeps its own boundary (#401).
+        if (
+            tag == "hr"
+            and self._block_tag is not None
+            and self._table_depth == 0
+            and self._tag_depth == 0
+            and not self._in_pre
+            and (self._block_resumed or "".join(self._run_buf).strip() or self._pending_runs)
+        ):
+            self._interrupt_open_block("hr")
+            self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            self._resume_interrupted_block("hr")
             return
 
         # --- bare top-level <img> with no open block (#333) ---
@@ -829,7 +866,7 @@ class _AstParser(HTMLParser):
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
             elif tag == "br":
-                self._run_buf.append("\n")
+                self._run_buf.append(_LineBreak("\n"))
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an
@@ -1093,6 +1130,19 @@ class _AstParser(HTMLParser):
             if len(text) < len(data):
                 self._hold_cell_whitespace(data[len(text) :])
         elif self._block_tag:
+            # Never in <pre>, where the line break and indentation are the code's.
+            if (
+                self._block_resumed
+                and not self._in_pre
+                and not (self._run_buf or self._pending_runs)
+            ):
+                # A resumed segment starts right after the block that interrupted it,
+                # and markdown-it writes a line break there ("<hr />\nmore"). Source
+                # formatting, like the break before the block (_interrupt_open_block);
+                # an authored "&nbsp;" is not ASCII whitespace and stays (#444).
+                data = _without_line_break_edge(data, leading=True)
+                if not data:
+                    return
             self._run_buf.append(data)
         elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
             # Genuinely bare text — no wrapping block tag, no enclosing tag of
