@@ -828,7 +828,7 @@ class TestUploadLocalFileConvert:
         }
         drive_svc.files.return_value.create.assert_not_called()
         list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
-        assert "pageSize" not in list_kwargs
+        assert list_kwargs["pageSize"] == 1000
 
 
 class TestConvertSourceMarker:
@@ -1307,7 +1307,7 @@ class TestUploadLocalFolder:
         (tmp_path / "c.txt").write_text("c")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1308", "name": "a.txt", "mimeType": "text/plain"}]
         }
         drive_svc.files.return_value.create.return_value.execute.return_value = {
             "id": "fid",
@@ -1371,7 +1371,7 @@ class TestUploadLocalFolder:
         (tmp_path / "archive.zip").write_bytes(b"fake")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "archive.zip", "mimeType": "application/zip"}]
+            "files": [{"id": "f1372", "name": "archive.zip", "mimeType": "application/zip"}]
         }
 
         result = await self._tool()(
@@ -1388,7 +1388,13 @@ class TestUploadLocalFolder:
         (tmp_path / "data.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+            "files": [
+                {
+                    "id": "f1389",
+                    "name": "data.csv",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1406,7 +1412,7 @@ class TestUploadLocalFolder:
         (tmp_path / "data.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "data.csv", "mimeType": "text/csv"}]
+            "files": [{"id": "f1407", "name": "data.csv", "mimeType": "text/csv"}]
         }
         drive_svc.files.return_value.create.return_value.execute.return_value = {
             "id": "fid-converted",
@@ -1438,6 +1444,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1438",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1464,7 +1471,13 @@ class TestUploadLocalFolder:
         (tmp_path / "report.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "report", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+            "files": [
+                {
+                    "id": "f1465",
+                    "name": "report",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1493,6 +1506,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1493",
                     "name": "report",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "report.xlsx"},
@@ -1521,8 +1535,13 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
                 {
+                    "id": "f1522",
+                    "name": "data",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                },
+                {
+                    "id": "f1523",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1546,6 +1565,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1546",
                     "name": "notes",
                     "mimeType": "application/vnd.google-apps.document",
                     "properties": {transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
@@ -1566,7 +1586,13 @@ class TestUploadLocalFolder:
         (tmp_path / "notes.md").write_text("# Heading")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "notes.md", "mimeType": "application/vnd.google-apps.document"}]
+            "files": [
+                {
+                    "id": "f1567",
+                    "name": "notes.md",
+                    "mimeType": "application/vnd.google-apps.document",
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -1581,7 +1607,7 @@ class TestUploadLocalFolder:
         (tmp_path / "a.txt").write_text("a")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1582", "name": "a.txt", "mimeType": "text/plain"}]
         }
 
         result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
@@ -1599,6 +1625,7 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {
+                    "id": "f1599",
                     "name": name[:-4],
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": transfer_module._convert_properties(name),
@@ -1625,8 +1652,9 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data.csv", "mimeType": "text/csv"},
+                {"id": "f1626", "name": "data.csv", "mimeType": "text/csv"},
                 {
+                    "id": "f1627",
                     "name": "data",
                     "mimeType": "application/vnd.google-apps.spreadsheet",
                     "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
@@ -1658,8 +1686,12 @@ class TestUploadLocalFolder:
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
-                {"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"},
-                {"name": "data.csv", "mimeType": "text/csv"},
+                {
+                    "id": "f1659",
+                    "name": "data.csv",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                },
+                {"id": "f1660", "name": "data.csv", "mimeType": "text/csv"},
             ]
         }
 
@@ -1743,7 +1775,7 @@ class TestUploadLocalFolder:
         (tmp_path / "a.txt").write_text("a")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+            "files": [{"id": "f1744", "name": "a.txt", "mimeType": "text/plain"}]
         }
         ctx = self._ctx(drive_svc)
 

@@ -180,6 +180,11 @@ class _AstParser(HTMLParser):
         # time. See self._block_had_unsupported_content for how an empty
         # flush's preserve-or-drop decision (#401) is actually made.
         self._block_resumed = False
+        # True while the segment about to be flushed is a list item whose text
+        # came through its own transparent `<p>` (#1111); makes
+        # _flush_pending_runs trim the HTML padding that follows that `</p>`.
+        # Per-segment state, so _open_block resets it along with the rest.
+        self._li_trailing_padding = False
         # True once some construct inside the current block's current segment
         # (since it was last freshly opened or resumed) was silently dropped
         # instead of contributing a run — an unsupported void element like
@@ -292,6 +297,20 @@ class _AstParser(HTMLParser):
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
+        if self._li_trailing_padding:
+            # A list item whose text arrived through its own transparent `<p>`
+            # (#1111) is followed in the source by the padding between `</p>`
+            # and the next tag, which handle_data buffers as the item's own
+            # text. Tight items never see it, so trim it here rather than
+            # handing `['a', '\n']` to the emitter. _is_formatting_whitespace,
+            # not str.strip(): an authored "&nbsp;" is a deliberate spacer and
+            # stays (#402's fresh-`<p>` rule, which this item's text still
+            # arrives through).
+            while runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text):
+                runs.pop()
+            # One shot: it describes the padding right after that `</p>`, not
+            # every flush for the rest of the document.
+            self._li_trailing_padding = False
         return runs
 
     def _open_block(self, tag: str, *, resumed: bool, named_style: str | None):
@@ -312,6 +331,7 @@ class _AstParser(HTMLParser):
         self._block_resumed = resumed
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
+        self._li_trailing_padding = False
         self._run_buf = []
         self._pending_runs = []
 
@@ -701,11 +721,38 @@ class _AstParser(HTMLParser):
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0:
-            self._interrupt_open_block(tag)
             named_style = None
             if tag == "p":
                 style = (attr_dict.get("data-style") or "").lower()
                 named_style = _NAMED_BLOCK_STYLES.get(style)
+            # A `<p>` opening as a list item's own wrapper *is* that item's
+            # content, not a sibling block (#1111). Interrupting would flush the
+            # still-empty `<li>` — no runs, so no bullet emitted at all — and
+            # then emit the text as a plain Paragraph, which is how every
+            # *loose* Markdown list lost its bullets: python-markdown wraps each
+            # loose item's text in `<p>`, so any blank line between items hits
+            # this. Only the item's first paragraph stays transparent; a second
+            # one still interrupts as before, because "content under a list
+            # item" is #1094's open question rather than this one's. So does any
+            # `<p>` once the `<li>` has resumed after a nested list, quote, code
+            # block or paragraph: joining the resumed item would emit it as a
+            # new bullet, or a new number in an ordered list. A
+            # `data-style` paragraph owns a NamedBlock identity, so it keeps
+            # interrupting too.
+            li_padding = "".join(self._run_buf)
+            if (
+                tag == "p"
+                and named_style is None
+                and self._block_tag == "li"
+                and not self._block_resumed
+                and not self._pending_runs
+                and (li_padding == "" or _is_formatting_whitespace(li_padding))
+            ):
+                # Drops the `<li>`-to-`<p>` padding that would otherwise be
+                # buffered as the item's own leading text.
+                self._run_buf = []
+                return
+            self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
             return
 
@@ -948,6 +995,17 @@ class _AstParser(HTMLParser):
             self._block_tag = None
             self._in_pre = False
             self._resume_interrupted_block("pre")
+            return
+
+        # --- transparent paragraph inside a list item (#1111) ---
+        # Its start tag opened no block of its own, so there is nothing here to
+        # emit: the item's `</li>` builds the BulletItem from the runs collected
+        # in the meantime. Flushing at this boundary keeps the paragraph's text,
+        # and arming the trim makes the `</p>`-to-next-tag padding that
+        # handle_data buffers next land outside the item's runs.
+        if tag == "p" and self._block_tag == "li" and self._table_depth == 0:
+            self._flush_run()
+            self._li_trailing_padding = True
             return
 
         # --- block elements ---
