@@ -247,6 +247,48 @@ def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     ]
 
 
+def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
+    """The [startIndex, endIndex) spans of directly bold runs inside a range. #1273
+
+    A `weightedFontFamily` update that sends no `bold` in the same request clears
+    the range's direct bold (the Docs API renders the new font at weight 400), so
+    `style_doc_range` reads these spans from the document first and restores
+    `bold: true` over them in the same batchUpdate, after the font request.
+    Only a run's own `textStyle.bold` counts — bold inherited from a named style
+    is not part of the run and is not affected by the font request. Adjacent bold
+    runs merge into one span, and table cells are walked with their content.
+    """
+    spans: list[dict[str, int]] = []
+
+    def _runs_of_paragraph(para: dict) -> None:
+        for element in para.get("elements") or []:
+            run = element.get("textRun")
+            if not run:
+                continue
+            run_start, run_end = element["startIndex"], element["endIndex"]
+            if run_end <= start_index or run_start >= end_index:
+                continue
+            if not (run.get("textStyle") or {}).get("bold"):
+                continue
+            span_start, span_end = max(run_start, start_index), min(run_end, end_index)
+            if spans and spans[-1]["endIndex"] == span_start:
+                spans[-1]["endIndex"] = span_end
+            else:
+                spans.append({"startIndex": span_start, "endIndex": span_end})
+
+    def _walk(items: list) -> None:
+        for item in items or []:
+            para = item.get("paragraph")
+            if para:
+                _runs_of_paragraph(para)
+            for row in (item.get("table") or {}).get("tableRows") or []:
+                for cell in row.get("tableCells") or []:
+                    _walk(cell.get("content") or [])
+
+    _walk((doc.get("body") or {}).get("content"))
+    return spans
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
     async def style_doc_range(
@@ -284,8 +326,26 @@ def register(tool):
         if not ranges:
             return {"error": "ranges list is empty"}
 
+        # #1273: a font_family range that sends no bold in the same request
+        # clears the range's direct bold, so the bold spans to restore are read
+        # before the batchUpdate is built.
+        font_only = [i for i, r in enumerate(ranges) if "font_family" in r and "bold" not in r]
+        bold_spans: dict[int, list[dict[str, int]]] = {}
+        if font_only:
+            try:
+                doc = await execute_in_thread(
+                    lc.docs_service.documents().get(documentId=doc_id).execute,
+                    lc.docs_service,
+                )
+            except Exception as e:
+                return {"error": str(e)}
+            bold_spans = {
+                i: _bold_runs_in_range(doc, ranges[i]["start_index"], ranges[i]["end_index"])
+                for i in font_only
+            }
+
         requests = []
-        for r in ranges:
+        for i, r in enumerate(ranges):
             rng = {"startIndex": r["start_index"], "endIndex": r["end_index"]}
 
             if "named_style_type" in r:
@@ -314,6 +374,20 @@ def register(tool):
                         }
                     }
                 )
+                # Restore the direct bold the font request clears (#1273), in
+                # the same batchUpdate and after the font request, so the range
+                # keeps the bold it already had. A range that sends bold itself
+                # is not in bold_spans and is left alone.
+                for span in bold_spans.get(i, []):
+                    requests.append(
+                        {
+                            "updateTextStyle": {
+                                "range": span,
+                                "textStyle": {"bold": True},
+                                "fields": "bold",
+                            }
+                        }
+                    )
 
         if not requests:
             return {"error": "no recognised style fields in any range"}
