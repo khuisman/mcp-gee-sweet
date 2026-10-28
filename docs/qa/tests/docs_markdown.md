@@ -21,7 +21,7 @@ Fixtures: [`docs/qa/fixtures/md/`](../fixtures/md/). The nesting, containment, a
 
 ## Entry points
 
-Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the `.md` file and Drive converts it). EP-8 converts with Python-Markdown's `extra` extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc.
+Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the `.md` file and Drive converts it). EP-8 converts with Python-Markdown's `extra` extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc. The exception is EP-5 to EP-7, whose expected rendering is Drive's documented one (decision D4 below).
 
 | EP | Tool call (fixture `F` = absolute path of the `.md` file) | Engine |
 |---|---|---|
@@ -41,7 +41,7 @@ Not an entry point: no tool inserts Markdown at an index in an existing Doc (`in
 Parameter variants that only some entry points take:
 
 - `autolink_urls=False` (EP-1 to EP-4 only; the Drive engines have no such switch): run `md-links.md` a second time with it. Cases LK-05 and LK-06 then expect plain, unlinked text; every other links case is unchanged.
-- Images with a local path or `drive:` source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them, so those cells expect whatever Drive does with an unresolvable image reference. Record what's on screen; a broken-image icon or literal `![...](...)` text is a FAIL for that engine.
+- Images with a local path or `drive:` source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them. On EP-5 to EP-7 the image not being embedded is documented Drive behavior (D4). On EP-8 those cells expect whatever Drive does with an unresolvable image reference: record what's on screen; a broken-image icon or literal `![...](...)` text is a FAIL.
 
 ---
 
@@ -67,11 +67,12 @@ Markdown describes HTML, and Docs has no direct equivalent for some constructs. 
 | C14 | Block inside a list item (paragraph, code, quote, table, heading) | Shown under the item, indented to the item's text, not as a new top-level block and not as literal Markdown; the list continues after it (next item keeps the list's numbering and nesting) | the screen is the verdict: the next item shows the continued number or glyph; it shares the preceding items' `listId` when they're the same type |
 | C15 | Empty paragraph spacing | No visible empty paragraph that the source doesn't imply. The known collapsed blank paragraph before each table (`docs/known-limitations.md`, "Blank paragraph before every table") must stay invisible | — |
 
-Decisions where CommonMark/GFM and what a user means disagree, approved by the maintainer on 2026-10-17. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.
+Decisions on the expected rendering. D1–D3, where CommonMark/GFM and what a user means disagree, were approved by the maintainer on 2026-10-17; D4 has its own date. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.
 
 - **D1 — nesting width.** A list marker indented at least 2 spaces (or one tab) further than the previous item's marker nests under that item, whatever the parent's marker width. CommonMark requires the child to reach the parent's content column, so `1. A` followed by `  - a1` (2 spaces) doesn't nest under CommonMark, but that is how models and people write sub-bullets, and #1044's own example expects it to nest.
 - **D2 — a table starts its own block.** A pipe table directly under a paragraph, list item or quote line (no blank line) renders as a separate table after that block, not as text joined to it.
 - **D3 — YAML front matter is not shown.** A leading `---`-delimited YAML block is omitted from the Doc (`docs/design/markdown-support.md` currently calls it "acceptable" that it renders as a rule; that is a FAIL under this plan).
+- **D4 — EP-5 to EP-7 render the way Drive's Markdown import does** (maintainer, 2026-10-18, #1101). `upload_local_file`, `upload_local_folder` and `sync_folder` stay on Drive's engine, so C1–C15 don't apply to those columns. Their expected rendering is the list in `docs/known-limitations.md`, "Converting `.md` on upload uses Drive's Markdown import, which renders differently". A cell passes when every construct either meets C1–C15 or differs only in a way that list names. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C15. EP-8 isn't covered: it stays FAIL on #1102.
 
 Anything CommonMark/GFM permits that the converter deliberately won't support goes into `docs/known-limitations.md`, tied to an open issue, and its cases stay FAIL until a decision changes the expected rendering here.
 
