@@ -524,8 +524,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] `create_paragraph_bullets` drops a blockquoted paragraph's quote indent — `wrong/narrow`, observed; from PR #1089's review, after v0.9.3's lock ([#1090](https://github.com/khuisman/mcp-gee-sweet/issues/1090))
 - [ ] A list inside a blockquote draws its border at the list indent, not the quote's — `wrong/narrow`, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242))
-- [ ] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032))
-- [ ] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030))
+- [x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032)) (PR #1264)
+- [x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030)) (PR #1264)
 - [ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it ([#1087](https://github.com/khuisman/mcp-gee-sweet/issues/1087))
 - [ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass ([#1067](https://github.com/khuisman/mcp-gee-sweet/issues/1067))
 - [ ] Track release-QA spend across releases so passes can be sized ahead of time ([#1068](https://github.com/khuisman/mcp-gee-sweet/issues/1068))
