@@ -7258,6 +7258,52 @@ class _OkDownloader:
         return None, True
 
 
+class TestTransferApiErrorsReturnErrorDicts:
+    """#1275: a Drive API failure inside the local transfer tools — a 404 for a
+    missing or inaccessible folder ID is the reported case — returns the tool's
+    error dict like every other Drive failure, not a protocol error."""
+
+    def _not_found(self):
+        resp = MagicMock(status=404, reason="Not Found")
+        return HttpError(
+            resp=resp, content=b'{"error": {"message": "File not found: bogusfolder"}}'
+        )
+
+    async def test_upload_local_file_parent_404_returns_error_dict(self, tmp_path):
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        svc = MagicMock()
+        # The skip_if_exists lookup is the first Drive call to touch the folder
+        # ID, so a 404 there is the missing-folder case from the report.
+        svc.files.return_value.list.return_value.execute.side_effect = self._not_found()
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=svc, drive_folder_cache=folder_cache)
+
+        result = await _transfer_tools["upload_local_file"](
+            local_path=str(local_file), parent_folder_id="bogusfolder", ctx=ctx
+        )
+
+        assert "File not found" in result["error"]
+        # Nothing was created, so the result carries no fileId and the folder
+        # cache stays clean.
+        assert "fileId" not in result
+        folder_cache.mark_dirty.assert_not_called()
+
+    async def test_upload_local_folder_parent_404_returns_error_dict(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.side_effect = self._not_found()
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=svc, drive_folder_cache=folder_cache)
+
+        result = await _transfer_tools["upload_local_folder"](
+            str(tmp_path), "bogusfolder", ctx=ctx
+        )
+
+        assert "File not found" in result["error"]
+        folder_cache.mark_dirty.assert_not_called()
+
+
 class TestCallsThatWriteNothingCreateNoDirectories:
     """#1012: download_file, sync_folder, and download_folder ran mkdir -p on
     the destination before they knew the call would write anything, so an
@@ -7352,17 +7398,20 @@ class TestCallsThatWriteNothingCreateNoDirectories:
         assert result["local_path"] == str(dest)
 
     async def test_download_folder_listing_error(self, tmp_path):
+        """#1275: a 404 listing the folder (a missing or inaccessible folder ID)
+        returns the tool's error dict like every other Drive failure, not a
+        protocol error."""
         svc = MagicMock()
         resp = MagicMock(status=404, reason="Not Found")
         svc.files.return_value.list.return_value.execute.side_effect = HttpError(
             resp=resp, content=b'{"error": {"message": "File not found: bogus"}}'
         )
 
-        with pytest.raises(HttpError):
-            await _transfer_tools["download_folder"](
-                folder_id="bogus", local_path=str(tmp_path / "new" / "dir"), ctx=self._ctx(svc)
-            )
+        result = await _transfer_tools["download_folder"](
+            folder_id="bogus", local_path=str(tmp_path / "new" / "dir"), ctx=self._ctx(svc)
+        )
 
+        assert "File not found" in result["error"]
         assert _tree(tmp_path) == set()
 
     @pytest.mark.parametrize(
@@ -7439,6 +7488,9 @@ class TestCallsThatWriteNothingCreateNoDirectories:
         assert _tree(tmp_path) == set()
 
     async def test_sync_folder_listing_error_on_missing_local_path(self, tmp_path):
+        """#1275: a 404 listing the folder (a missing or inaccessible folder ID)
+        returns the tool's error dict like every other Drive failure, not a
+        protocol error."""
         fs = _FakeDriveFS({})
         resp = MagicMock(status=404, reason="Not Found")
         listing = MagicMock()
@@ -7447,14 +7499,14 @@ class TestCallsThatWriteNothingCreateNoDirectories:
         )
         fs.svc.files.return_value.list.side_effect = lambda **_kwargs: listing
 
-        with pytest.raises(HttpError):
-            await _transfer_tools["sync_folder"](
-                folder_id="bogus",
-                local_path=str(tmp_path / "new"),
-                direction="download",
-                ctx=self._ctx(fs.svc),
-            )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="bogus",
+            local_path=str(tmp_path / "new"),
+            direction="download",
+            ctx=self._ctx(fs.svc),
+        )
 
+        assert "File not found" in result["error"]
         assert _tree(tmp_path) == set()
 
     @pytest.mark.parametrize("direction", ["upload", "bidirectional"])
