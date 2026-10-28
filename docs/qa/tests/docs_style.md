@@ -549,6 +549,26 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: Step 1 returned `requests: 3`, no error. Step 2 returned line_ranges [18,26] and [27,35], no error. Playwright, reading the toolbar after clicking into each word: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial. `get_doc_as_markdown` gives "Alpha \`Beta\` *Gamma*\n\nLine one<br>Line two", so only Beta is inline code. Structure shows "Line one\vLine two" as one paragraph [18,36]. Screenshot `2026-10-19-tc-doc230.png`. Doc trashed. Side note: `insert_softbreak_paragraph`'s docstring still doesn't list `font_family` (tracked, #1037).
 
+### TC-DOC238: `font_family` keeps the range's other text styles, and a call without it keeps the font (#720) ⚠️ destructive
+**Purpose:** TC-DOC230 checks that the font lands. This case checks what a `font_family` call leaves alone: bold already on the range, the other fields in the same call, and an existing font when a later call omits `font_family`. `get_doc_structure` doesn't report a run's font, so the checks read the raw `documents().get()` `textStyle`.
+
+**Setup:** `create_doc(title="QA-TC-DOC238", folder_id={FOLDER_ID})`, then `insert_doc_text(doc_id=<it>, insertions=[{"index": 1, "text": "Alpha Beta Gamma Delta\n"}])`. "Alpha" is [1, 6), "Beta" [7, 11), "Gamma" [12, 17), "Delta" [18, 23).
+
+1. `style_doc_range(doc_id=<it>, ranges=[{"start_index": 7, "end_index": 11, "bold": true}, {"start_index": 18, "end_index": 23, "font_family": "Courier New"}])`
+2. `style_doc_range(doc_id=<it>, ranges=[{"start_index": 1, "end_index": 6, "font_family": "Roboto Mono"}, {"start_index": 7, "end_index": 11, "font_family": "Georgia"}, {"start_index": 12, "end_index": 17, "font_family": "Georgia", "bold": true, "font_size": 18}, {"start_index": 18, "end_index": 23, "italic": true}])`
+
+**Checks**
+- Steps 1 and 2 return no `error`, with `requests: 2` and `requests: 4`.
+- Raw read after step 2: "Alpha" has `weightedFontFamily.fontFamily` "Roboto Mono", and the spaces on either side have no `weightedFontFamily`.
+- "Beta" is Georgia and still `bold: true`. The `font_family`-only call must not clear the bold step 1 set.
+- "Gamma" has `bold: true`, `fontSize` 18pt and Georgia.
+- "Delta" is `italic: true` and still Courier New.
+
+**Cleanup:** `delete_file` the doc.
+
+**Result (2026-10-27) ❌ FAIL — Beta loses its bold (#1273)**
+Run against PR #1026's merge in an isolated service-account sandbox on a Shared Drive. Steps 1 and 2 returned `requests: 2` and `requests: 4`, no error. Raw read: Alpha `{"weightedFontFamily": {"fontFamily": "Roboto Mono", "weight": 400}}`, with plain spaces around it. Gamma `bold: true`, `fontSize` 18pt, Georgia. Delta `italic: true`, Courier New. **Beta** is `{"weightedFontFamily": {"fontFamily": "Georgia", "weight": 400}}` with no `bold`. Re-bolding Beta and then sending `font_family: "Courier New"` alone cleared it again. The request's field mask is only `weightedFontFamily`, so the Docs API clears `bold` on its own. Docs UI rendering wasn't checked here (TC-DOC230 covers the font on screen). Doc trashed.
+
 ---
 
 ## `style_doc_range`: `link_url: null` now actually clears a link (issue #408)

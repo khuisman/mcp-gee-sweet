@@ -6347,3 +6347,111 @@ Ran the script from the `kit` checkout with its own `TOKEN_PATH`, on a fresh doc
 **Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3**
 Re-ran both steps on a fresh doc (trashed afterward) from the `kit` checkout at the fix commit. Same output as round 1, and `get_doc_structure` again showed the table followed by `INFLIGHT1030 Before`. Extra round-2 check for the `get_doc_content` epoch fix, in a fresh interpreter with a real in-memory `DocContentCache` and the real API: after one read, the cached row was overwritten with an older `modifiedTime` to stand in for an outside edit (Docs bumps `modifiedTime` minutes late, #814, so a real edit can't be timed reliably). The next read exported again, and the read after it served from cache with no further export, so the refetched content is now stored.
 
+
+---
+
+## `get_doc_structure`: inline images as runs (#1070)
+
+### TC-DOC239: An inline image is its own run, with indices `delete_doc_range` can use (#1070) ⚠️ destructive
+**Purpose:** #1070's failure was a paragraph of a tab then an image, where `get_doc_structure` gave no way to tell the image's index from the tab's. Each image is now a `{"type": "inlineObject", ...}` run with its own one-index span.
+
+**Setup:** `create_doc(title="QA-TC-DOC239", folder_id={FOLDER_ID})`, then `insert_doc_text(doc_id=<it>, insertions=[{"index": 1, "text": "\tafter\nplain text\nX Y\n"}])`. Insert a public PNG with `insert_inline_image(uri=..., width=60, height=20)` at 21, then 20, then 2 (high index first), so the first paragraph is tab, image, `after` and the third is `X`, image, space, image, `Y`.
+
+1. `get_doc_structure(doc_id=<it>)`
+2. `delete_doc_range` over the first paragraph's image run `[startIndex, endIndex)`.
+3. `insert_inline_image` at 2 again, `get_doc_structure`, then `delete_doc_range` over the tab `[1, 2)`.
+
+**Checks**
+- Step 1, first paragraph: `runs` are the `\t` text run, an `inlineObject` run spanning exactly one index (`[2, 3)`), then `after\n`. Its `inlineObjectId` is a key in the raw document's `inlineObjects`, and the paragraph `text` is still `"\tafter\n"`.
+- Third paragraph: two `inlineObject` runs, each with its own ID and non-overlapping one-index spans in order.
+- The second paragraph (no images) has one text run with no `type` key.
+- Step 2 leaves `\tafter\n`: the image is gone and the tab is kept.
+- Step 3 leaves the image at `[1, 2)` followed by `after\n`: the tab is gone and the image is kept.
+
+**Cleanup:** `delete_file` the doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1110's merge in an isolated service-account sandbox on a Shared Drive. Step 1: runs `\t`, `inlineObject` `[2,3)`, `after\n`; paragraph text `"\tafter\n"`. Third paragraph: `X`, `inlineObject` `[21,22)`, ` `, `inlineObject` `[23,24)`, `Y\n`. All three IDs match the raw `inlineObjects` keys. `plain text\n` has one run with no `type` key. Step 2 left `[1,8) '\tafter\n'`. Step 3 left `[1,2)` image then `after\n`. Doc trashed.
+
+---
+
+## Blank paragraph before a table (#1092)
+
+### TC-DOC240: The blank paragraph Docs leaves before a table is collapsed NORMAL_TEXT, not a second heading (#1092) ⚠️ destructive
+**Purpose:** Docs inserts a table after an empty paragraph, which inherits the style of the block before it. The collapse request now also sets `namedStyleType: NORMAL_TEXT`. This case also checks the other blocks that could leak their style into that paragraph.
+
+**Setup:** local Markdown files:
+- `heading.md`: `## Decisions`, a blank line, then a 2-row `| Item | Choice |` table.
+- `normal.md`: `Intro paragraph.`, then a 1-row table.
+- `bullet.md`: `- one` / `- two`, then a 1-row table.
+- `quote.md`: `> quoted line`, then a 1-row table.
+
+1. `create_doc_from_file` each file into `{FOLDER_ID}`.
+2. `create_doc_from_file` a one-line seed file, then `update_doc_from_file(doc_id=<it>, local_path=heading.md)`.
+
+**Checks** (raw `documents().get()` per Doc)
+- `heading.md`, both from step 1 and from the step 2 update: a `HEADING_2` "Decisions", then one `NORMAL_TEXT` blank paragraph with `spaceAbove`/`spaceBelow` 0, `lineSpacing` 1 and a 1pt `fontSize` on its newline, then the table. There's no second, empty heading.
+- Every table cell paragraph is `NORMAL_TEXT`, so a `#decisions` anchor can only resolve to the heading.
+- The paragraph after the table is a plain `NORMAL_TEXT` paragraph.
+- `normal.md`: the blank paragraph has the same collapse.
+- `bullet.md`: the blank paragraph has no `bullet`.
+- `quote.md`: the blank paragraph has no `borderLeft` or `indentStart`.
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1138's merge in an isolated service-account sandbox on a Shared Drive. Every check matched for all five Docs. The blank paragraph read `NORMAL_TEXT`, `spaceAbove`/`spaceBelow` 0pt, `lineSpacing` 1, newline `fontSize` 1pt, with no `bullet`, `borderLeft` or `indentStart`. All 6 cell paragraphs of the heading table, created or updated, are `NORMAL_TEXT`, and so is the trailing paragraph. Read through the API only, not on screen. Docs trashed.
+
+---
+
+## Link targets without a URI scheme (#1120)
+
+### TC-DOC241: A scheme-less link target lands as plain text; schemed targets land as written (#1120) ⚠️ destructive
+**Purpose:** Docs turned a relative target like `./guide.md` into a dead `http://./guide.md` link. The converter now keeps a target only if it starts with `#` or has a scheme, and leaves the run as plain text otherwise. TC-MD111 LK-12 covers the Markdown suite's case. This one covers each entry point, a range of schemes, padded targets and table cells.
+
+**Setup:**
+- `links.md`: a `## Target heading`, then one paragraph per link with targets `./guide.md`, `/guide.md`, `//example.com/x`, `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `file:///tmp/qa.txt`, `vscode://file/tmp/qa.txt`, `javascript:alert(1)`, `data:text/plain,hi`, `vbscript:msgbox`, `https://example.com/ok`, an image linked to `https://example.com/imglink` and `#target-heading`. Then a table whose cells hold `[cell anchor](#target-heading)` and `[cell rel](./guide.md)`.
+- `links.html`: an `<h2>`, then `<a>` targets `./guide.md`, `/guide.md`, `//example.com/x`, `" https://example.com/x "` (padded), `https://example.com/ok` and `#target-heading`.
+
+1. `create_doc_from_file` each file into `{FOLDER_ID}`.
+2. `write_doc_content(content_format="markdown")` into a fresh doc, with `./guide.md`, `/guide.md`, `//example.com/x` and `https://example.com/ok` links.
+
+**Checks** (raw `documents().get()`)
+- Every scheme-less target, in body text and in the table cell, is plain text with its link text kept and no `link`, through all three entry points.
+- Every schemed target is stored exactly as written, and no call fails.
+- The padded HTML target is stored as `https://example.com/x`.
+- Both `#target-heading` anchors (body and table cell) resolve to the heading's `headingId`.
+- The linked image keeps its link.
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1149's merge in an isolated service-account sandbox on a Shared Drive. `./guide.md`, `/guide.md`, `//example.com/x` and `cell rel` are plain text with no `link` through all three entry points. Stored as written: `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `file:///tmp/qa.txt`, `vscode://file/tmp/qa.txt`, `https://example.com/ok`, and the image link `https://example.com/imglink`. The padded HTML target is stored as `https://example.com/x`. Both anchors became `…/edit?tab=t.0#heading=h.w3lz134c9dxp`, the heading's own ID. Docs also stores `javascript:alert(1)`, `data:text/plain,hi` and `vbscript:msgbox` as written, with no API error. That's recorded for the script-scheme policy (#1189), not as a failure here. Whether Docs opens each scheme from the UI wasn't checked. Docs trashed.
+
+---
+
+## Loose lists (#1111)
+
+### TC-DOC242: A loose list (blank lines between items) keeps its bullets, numbers, levels and checkboxes (#1111) ⚠️ destructive
+**Purpose:** Python-Markdown wraps each loose item's text in `<p>`, and that `<p>` used to end the item, so the text landed as a plain paragraph. An item's first `<p>` is now part of the item.
+
+**Setup:**
+- `loose.md`: these groups, separated by `---`: `- a\n\n- b`; `1. a\n\n2. b`; `> - a\n>\n> - b`; `- a\n    - a1\n\n- b`; `- [x] done\n\n- [ ] todo`; and the tight `- t1\n- t2`.
+- `loose.html`: `<ul><li>\n  <p>a</p>\n</li><li>\n  <p>b</p>\n</li></ul>`, then `<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>`.
+
+1. `create_doc_from_file` each file into `{FOLDER_ID}`.
+
+**Checks** (`get_doc_structure` plus raw `documents().get()`)
+- `- a\n\n- b` is two items in one bullet list, and `1. a\n\n2. b` is one `DECIMAL` list.
+- The quoted list is one list whose paragraphs carry the quote's left border.
+- `- a / a1 / b` is one list with levels 0, 1, 0.
+- The task items read `☑ done` and `☐ todo`.
+- The tight list is unchanged: two items in one list.
+- No empty paragraph sits between the items of any list. The only empty paragraphs are the `---` separators.
+- Item text is `a\n` and `b\n`, with no leading or trailing newline, tab or space from the HTML's indentation (`loose.html` included).
+- The `data-style` item is a `SUBTITLE` paragraph with no bullet, as before #1164 (its `NamedBlock` keeps its own block).
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1164's merge in an isolated service-account sandbox on a Shared Drive. Every check matched, through the API only. `loose.md`'s items read `a\n`/`b\n` (●), `a\n`/`b\n` (DECIMAL), `a\n`/`b\n` with a left border at indent 72pt, `a`/`a1`/`b` at levels 0/1/0, then `☑ done`/`☐ todo` and `t1`/`t2`. Each group shares one `listId`, and the only empty paragraphs are the five separators and the body's final paragraph. In `loose.html`, `a\n`/`b\n` are one list with no padding, and `styled` is a bare `SUBTITLE` paragraph. #1115's on-screen done-when (the TC-MD cases through EP-1 to EP-4) is not covered here and stays pending in its tracking issue. Docs trashed.
