@@ -1123,6 +1123,24 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 
 ---
 
+## Conversion reporting
+
+What our converter tells the caller about the conversion. EP-1 to EP-4 only: the Drive-import entry points don't run our converter and report nothing about links.
+
+### TC-MD501: Dropped links are reported in the response, host links get https ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/dropped-links.md` through EP-1 to EP-4. Then render a Doc through EP-1 with `content="[site](https://example.com) and [mail](mailto:team@example.com)"`.
+
+**Checks**
+- Each fixture call's response has `dropped_links` equal to, in this order: `{"url": "./guide.md", "reason": "no_scheme"}`, `{"url": "/guide.md", "reason": "no_scheme"}`, `{"url": "cell.md", "reason": "no_scheme"}`, `{"url": "#no-such-heading", "reason": "no_matching_heading"}`. `./guide.md` is listed once, though DL-01 and DL-04 both link it.
+- On screen, every target in that list is plain text: "the guide", "the root guide", "jump nowhere", "the guide again" and "cell file" carry no link.
+- On screen, "the host" links to `https://example.com/host` and "the www site" to `https://www.example.com/www`: https, never http. Neither is in `dropped_links`.
+- On screen, "kept site", "kept mail" and "jump to the heading" are linked; "jump to the heading" jumps to the "Dropped links" heading. None of the three is in `dropped_links`.
+- The second call's response has no `dropped_links` key.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

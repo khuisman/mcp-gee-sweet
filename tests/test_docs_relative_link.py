@@ -58,11 +58,21 @@ class TestStorableLinkUrl:
             "./guide.md",
             "guide.md",
             "/guide.md",
-            "//example.com/x",
+            "///guide.md",
             "?q=1",
             " ./guide.md ",
         ):
             assert _storable_link_url(url) is None
+
+    def test_host_targets_without_a_scheme_get_https(self):
+        # #1180: a target that names a host is repaired, always to https.
+        assert _storable_link_url("//example.com/x") == "https://example.com/x"
+        assert _storable_link_url(" //example.com ") == "https://example.com"
+        assert _storable_link_url("www.example.com") == "https://www.example.com"
+        assert _storable_link_url("WWW.Example.com/a?b=1") == "https://WWW.Example.com/a?b=1"
+        # Not a host: "www." alone, or "www" as a path segment.
+        assert _storable_link_url("www.") is None
+        assert _storable_link_url("www/guide.md") is None
 
     def test_none_stays_none(self):
         assert _storable_link_url(None) is None
