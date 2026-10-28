@@ -1541,6 +1541,10 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 - Confirms the pre-check list query fires and short-circuits</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)</strong>
+Regression check for <code>_upload_local_file</code>'s now-paged name lookup, run via <code>mcp-gee-sweet-sky</code> (OAuth) in a scratch folder on the Shared Drive. The second call returned the first call's <code>fileId</code> with <code>skipped: true</code>, and <code>list_files</code> showed a single <code>qa-test.png</code>.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)</strong>
+Re-run at head <code>959ad211</code>, where the lookup now pages at <code>pageSize=1000</code> and requests <code>id</code>. Same outcome as round 1.</p>
 <hr />
 <h3 id="tc-d95-skip_if_existsfalse-creates-duplicate-local-filesystem">TC-D95: skip_if_exists=False creates duplicate ⚠️ local-filesystem<a class="headerlink" href="#tc-d95-skip_if_existsfalse-creates-duplicate-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1654,6 +1658,10 @@ Delete both files (raw <code>qa-convert-215.csv</code> and converted <code>qa-co
 <p><strong>Result (2026-07-24) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> against fixture folder <code>{FOLDER_ID}</code>. Step 2 returned <code>skipped: false</code> with a distinct <code>fileId</code> from step 1, <code>mimeType: application/vnd.google-apps.spreadsheet</code> confirmed via <code>get_file_metadata</code>, and <code>list_files</code> showed both the raw and converted files coexisting (converted copy named <code>qa-convert-215</code>, extension stripped by Drive itself — check text above corrected to reflect this).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)</strong>
+Regression check for the <code>convert=True</code> branch (which also reads <code>properties</code>) of <code>_upload_local_file</code>'s now-paged lookup. Run via <code>mcp-gee-sweet-sky</code> (OAuth) in a scratch folder on the Shared Drive. Step 2 returned <code>skipped: false</code> and a new Sheet named <code>qa-convert-215</code>, and <code>list_files</code> showed the raw CSV alongside the converted Sheet. An extra step 3 (the same <code>convert=True</code> call again) returned the Sheet's <code>fileId</code> with <code>skipped: true</code>.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)</strong>
+Re-run at head <code>959ad211</code> with the same steps, including the extra step 3. Same outcome as round 1.</p>
 <hr />
 <h3 id="tc-d216-converttrue-extension-is-derived-from-the-effective-name-not-local_path-pr-410-review-local-filesystem">TC-D216: convert=True extension is derived from the effective name, not local_path (PR #410 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d216-converttrue-extension-is-derived-from-the-effective-name-not-local_path-pr-410-review-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> the extension used to look up the conversion target was read from <code>local_path</code>'s suffix even when a <code>name</code> override changed the effective destination filename, so a no-extension local scratch file with a <code>.csv</code> name override incorrectly errored as an unsupported extension. Fixed by deriving the extension from the effective destination name.</p>
@@ -3921,6 +3929,29 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 - Call 3: <code>downloaded == ["mcp-gee-sweet-qa-fixtures.pdf", "mcp-gee-sweet-qa-fixtures-doc.pdf", "mcp-gee-sweet-qa-large-doc.pdf"]</code>, and all three are in <code>/tmp/qa-298/new/</code>. The subfolders stayed in <code>skipped</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
+<h3 id="tc-d300-folder-transfers-see-every-child-of-a-folder-with-more-than-1000-entries-issue-1165-local-filesystem">TC-D300: Folder transfers see every child of a folder with more than 1,000 entries (issue #1165) ⚠️ local-filesystem<a class="headerlink" href="#tc-d300-folder-transfers-see-every-child-of-a-folder-with-more-than-1000-entries-issue-1165-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>download_folder</code>, <code>sync_folder</code>, and <code>upload_local_folder(skip_if_exists=True)</code> listed a folder with one <code>pageSize=1000</code> request and never followed <code>nextPageToken</code>. Past 1,000 children, <code>download_folder</code> silently skipped the rest, and the two upload paths treated files past the first page as missing and uploaded duplicates. Each listing now reads every page.</p>
+<p><strong>Setup:</strong>
+1. <code>rm -rf /tmp/qa-300 &amp;&amp; mkdir -p /tmp/qa-300/src &amp;&amp; for i in $(seq -w 1 1005); do printf x &gt; /tmp/qa-300/src/f$i.txt; done</code> (1,005 one-byte files, <code>f0001.txt</code> … <code>f1005.txt</code>).
+2. <code>create_folder(name="qa-300-pagination", parent_folder_id="{FOLDER_ID}")</code>; call the returned ID <code>{P}</code>.</p>
+<p><strong>Tool calls</strong>
+1. <code>upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")</code>
+2. <code>upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")</code> (again; <code>skip_if_exists</code> defaults to <code>true</code>)
+3. <code>sync_folder(folder_id="{P}", local_path="/tmp/qa-300/src", direction="upload")</code>
+4. <code>download_folder(folder_id="{P}", local_path="/tmp/qa-300/dl/")</code>
+5. <code>ls /tmp/qa-300/dl | wc -l</code></p>
+<p><strong>Checks</strong>
+- Call 1: 1,005 entries in <code>uploaded</code>, <code>failed == []</code>.
+- Call 2: <code>uploaded == []</code> and all 1,005 names in <code>skipped</code>. Before the fix, the ~5 names past Drive's first page were uploaded again as duplicates.
+- Call 3: <code>uploaded == []</code>, <code>failed == []</code>, <code>conflicts == []</code>. A name in <code>failed</code> with a collision error means call 2 or 3 created a duplicate.
+- Call 4: 1,005 entries in <code>downloaded</code>, <code>failed == []</code>.
+- Step 5: <code>1005</code>.</p>
+<p><strong>Teardown</strong>
+<code>delete_file(file_id="{P}")</code>, then <code>rm -rf /tmp/qa-300</code>.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)</strong>
+Verified via <code>mcp-gee-sweet-sky</code> (OAuth) on the Shared Drive at head <code>601b0b3e</code>. Call 1: 1,005 <code>uploaded</code>, <code>failed == []</code>. Call 2: <code>uploaded == []</code>, 1,005 <code>skipped</code>. Call 3 (written with <code>result_local_path</code>, since the inline result is large): <code>uploaded</code>/<code>failed</code>/<code>conflicts</code> empty, 1,005 <code>skipped</code>. Call 4: 1,005 <code>downloaded</code>, <code>failed == []</code>, <code>size_bytes: 1005</code>. Step 5: <code>1005</code>. Call 1 takes over 2 minutes, so the client moves it to the background.</p>
+<p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)</strong>
+Re-run at head <code>959ad211</code> (dedupe by <code>id</code>, <code>pageSize</code> default 1000, clearer page-cap error) via <code>mcp-gee-sweet-sky</code> (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and <code>1005</code> files on disk.</p>
 
 
 
