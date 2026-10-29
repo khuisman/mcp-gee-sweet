@@ -23,8 +23,8 @@ Add a `markdown → HTML` shim at the docs layer, then expose it in two ways:
 1. A `content_format` parameter on `create_doc` and `write_doc_content`
 2. A new `create_doc_from_file` tool for uploading local `.md` / `.html` files
 
-This intentionally does **not** use Drive's native HTML importer (which `upload_file` already
-does when `convert_to_doc=True`). Routing through our AST pipeline gives consistent formatting
+This intentionally does **not** use Drive's native HTML importer (which `upload_file` did for a
+Markdown source with `convert_to_doc=True` until #1102 routed it through this pipeline too). Routing through our AST pipeline gives consistent formatting
 control and benefits from all the Phase 2 work (correct heading levels, colspan, header cells,
 column widths, etc.).
 

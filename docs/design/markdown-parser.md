@@ -39,8 +39,9 @@ Each conversion block-parses the document twice: once in `_preprocess` (`_verbat
 pass off) and once to render.
 
 `markdown` (Python-Markdown) stays a dependency: `anchors.py` uses its `toc` slugify for the
-GitLab heading-anchor scheme, and `upload_file(source_format='markdown')` (EP-8) still renders
-with it until #1101 routes that entry point through this converter.
+GitLab heading-anchor scheme. `upload_file(source_format='markdown')` (EP-8) renders with this
+converter since #1102: with `convert_to_doc=True` through `create_doc`'s whole path, and without
+it as the uploaded HTML file.
 
 ### Autolinks: a GFM rule, not linkify-it
 
@@ -201,7 +202,7 @@ import) and EP-8 don't use it.
 
 - Strip front matter (#1173), keep an empty list item (#1075), keep a loose item's bullet (#1164, already in `develop`),
   or fix hard and soft breaks (#1117, #1093). Each is in the HTML → AST step or its own ticket.
-- Change EP-8 (`upload_file`), which keeps Python-Markdown until #1101.
+- Change EP-8 (`upload_file`), which kept Python-Markdown until #1102.
 - Read table column alignment.
 
 ## Review history

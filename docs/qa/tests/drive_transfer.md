@@ -3389,3 +3389,50 @@ Verified via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive at head `601b0b3e`.
 
 **Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
 Re-run at head `959ad211` (dedupe by `id`, `pageSize` default 1000, clearer page-cap error) via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and `1005` files on disk.
+
+---
+
+### TC-D301: `upload_file` Markdown renders with our converter, the same way every run (issue #1102) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** `upload_file(source_format="markdown")` converted with Python-Markdown's `extra` extension. With `convert_to_doc=True` it handed that HTML to Drive's import, which flattened every nested list, left `[ ]`/`[x]` as literal text, didn't link bare URLs, and set code blocks in monospace on some runs and Arial on others. A Markdown Doc is now written through `create_doc(content_format="markdown")`'s path, images included. Without `convert_to_doc`, the uploaded HTML comes from the same converter.
+
+**Setup:**
+1. `rm -rf /tmp/qa-301 && mkdir -p /tmp/qa-301 && uv run python -c "from PIL import Image; Image.new('RGB', (40, 20), 'red').save('/tmp/qa-301/red.png')"`
+2. Let `MD` be this content (with real newlines):
+   ````
+   # EP-8 check
+
+   - top item
+     - nested item
+       - deeper item
+   - second top
+
+   - [ ] open task
+   - [x] done task
+
+   Inline `code span`. See https://example.com for more.
+
+   ```python
+   def f():
+       return 1
+   ```
+
+   ![red](/tmp/qa-301/red.png)
+   ````
+
+**Tool calls**
+1. `upload_file(name="qa-301-run1.md", content=MD, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)`
+2. The same call with `name="qa-301-run2.md"`, then again with `name="qa-301-run3.md"`.
+3. `get_doc_structure(doc_id=<call 1's fileId>)`
+4. `get_doc_as_markdown(doc_id=<fileId>)` for each of the three Docs.
+5. `upload_file(name="qa-301-raw.html", content=MD, source_format="markdown", folder_id="{FOLDER_ID}")` (no `convert_to_doc`)
+6. `download_file(file_id=<call 5's fileId>, local_path="/tmp/qa-301/")`, then `cat /tmp/qa-301/qa-301-raw.html`.
+
+**Checks**
+- Call 1 returns `fileId`, `name: "qa-301-run1.md"`, `parent`, `web_link`, and `images` with one entry for `/tmp/qa-301/red.png`: a `fileId`, `shared: true`, no `error` or `revoke_error`.
+- Call 3: "nested item" has `bullet.nestingLevel` 1 and "deeper item" 2, in the same `listId` as "top item" (level 0). The two task items have a `bullet` (checkbox list), and neither paragraph's text starts with `[ ]` or `[x]`. The run `https://example.com` has `link_url` `https://example.com`. One paragraph has an inline-image run.
+- Call 4: all three exports are identical. Each has the nested list at three levels, `- [ ] open task` and `- [x] done task`, `` `code span` ``, the linked URL, and the code block as a ```` ``` ```` fence (the export fences a paragraph only when it's set in Courier New, so this confirms the code font on every run).
+- Call 6's HTML has `<li>nested item` inside a nested `<ul>`, and `<a href="https://example.com">`. Before the fix, Python-Markdown's 2-space sub-bullet came out as a sibling item.
+
+**Teardown**
+`delete_file` on the three Docs, call 5's file, and each run's uploaded image (`images[0].fileId`), then `rm -rf /tmp/qa-301`.

@@ -32,7 +32,7 @@ Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 
 | EP-5 | `upload_local_file(local_path=F, parent_folder_id=<empty child of {FOLDER_ID} for EP-5>, convert=True)` | Drive Markdown import |
 | EP-6 | `upload_local_folder(local_path=<a temp dir holding only F>, parent_folder_id=<empty child of {FOLDER_ID} for EP-6>, convert=True)` | Drive Markdown import |
 | EP-7 | `sync_folder(local_path=<a temp dir holding only F>, folder_id=<empty child of {FOLDER_ID} for EP-7>, direction="upload", convert_markdown=True)` | Drive Markdown import |
-| EP-8 | `upload_file(name="<case>.md", content=<contents of F>, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)` | Python-Markdown `extra` + Drive HTML import |
+| EP-8 | `upload_file(name="<case>.md", content=<contents of F>, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)` | ours, through `create_doc`'s path (#1102) |
 
 EP-5, EP-6 and EP-7 each get their own empty child folder: these tools skip a file whose converted Doc already exists in the target folder (`skip_if_exists` defaults to `True`), so a shared folder would turn a later entry point's render into a `skipped`.
 
