@@ -1216,6 +1216,8 @@ What our converter tells the caller about the conversion. EP-1 to EP-4 only: the
 
 **Result (2026-10-28, PR #1272 @ f10ed9f7, Sky, round 2, after the `develop` merge brought in markdown-it) ✅ PASS — 4/4 case×EP cells pass.** EP-1 to EP-4 returned the same four `dropped_links` entries in order; the second call had no key; `get_doc_as_markdown` on EP-1 and EP-3 shows the same stored links as round 1. All of round 1's edge probes are fixed live: the port target is stored as `https://www.example.com:8443/x`, and `//`, `// x`, `www.foo bar`, `WWW.md` are dropped and reported, with the padded `./guide.md` reported once. New edge probes failed (round 2 comment): `//:80` and `//-` were stored as dead `https://` links; `href="  "` was reported as `{"url": ""}`; and a table cell's `href=" #missing"` was stored as a dead `#missing` link that wasn't reported.
 
+**Result (2026-10-28, PR #1272 @ f773c1c6, Sky, round 3) ✅ PASS — 4/4 case×EP cells pass.** EP-1 to EP-4 returned the same four `dropped_links` entries in order, and the second call had no key. `get_doc_as_markdown` on EP-1 shows the same stored links as before. Every edge probe from rounds 1 and 2 passes live. `//:80`, `//-`, `www.foo_bar.example_x` and `www.foo_bar.example_x:8443/x` are dropped and reported. `//example.com:8443/y` is stored as `https://example.com:8443/y`. `href="  "` is no longer reported. A table cell's `href=" #missing"` is reported as `no_matching_heading` and stored as plain text, and its `href=" #real-heading"` resolves to the heading. Markdown autolinks are unchanged by the shared `valid_gfm_domain`: bare `www.example.com` still gets `http://` (#1281), and `www.foo_bar.example_x` stays unlinked.
+
 ---
 
 ## Known gaps and not-applicable
