@@ -2214,7 +2214,7 @@
 <li>[x] get_doc_structure hides inline images, so an image's index can't be found (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1070">#1070</a>) (PR #1110)</li>
 <li>[x] thread_http's per-thread <code>httplib2.Http</code> has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. <code>severe</code>, observed: a 30-minute <code>create_doc_from_file</code> hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1129">#1129</a>) (PR #1198)</li>
 <li>[x] <code>transfer_ownership(send_notification=False)</code> can never succeed — <code>loud/narrow</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1055">#1055</a>) (PR #1142)</li>
-<li>[ ] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>)</li>
+<li>[x] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>) (PR #1271)</li>
 <li>[x] Test modules fail to collect on Windows (<code>os.geteuid()</code> in skipif decorators) — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1156">#1156</a>) (PR #1162)</li>
 <li>[x] <code>setup_team.sh</code> never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1223">#1223</a>) (PR #1225)</li>
 </ul>
