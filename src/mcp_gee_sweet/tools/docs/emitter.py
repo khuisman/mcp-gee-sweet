@@ -11,6 +11,7 @@ from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
 from .batch_retry import send_dropping_failed_images
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
+from .md_to_html import valid_gfm_domain
 
 logger = logging.getLogger(__name__)
 
@@ -229,13 +230,15 @@ def unstorable_link_urls(nodes: list[DocNode]) -> list[str]:
     document order: the links ast_to_requests and fill_tables will write as plain
     text (#1180). Walks the same leaves as extract_images, so a linked image and a
     table cell's runs count too. Each target is the stripped value _storable_link_url
-    judged, so " ./guide.md" and "./guide.md" are one target."""
+    judged, so " ./guide.md" and "./guide.md" are one target. An empty or
+    whitespace-only target names nothing to report and is skipped."""
     dropped: dict[str, None] = {}
     for node in nodes:
         items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
         for item in items:
-            if item.link_url is not None and _storable_link_url(item.link_url) is None:
-                dropped[item.link_url.strip()] = None
+            target = (item.link_url or "").strip()
+            if target and _storable_link_url(target) is None:
+                dropped[target] = None
     return list(dropped)
 
 
@@ -948,13 +951,14 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
 _STORABLE_LINK_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 # A scheme-less target that still names a host gets https:// (#1180). Matched
 # against the whole target, which may hold no whitespace (a dead link either way).
-# Protocol-relative "//host/x": a host character must follow the "//", so "//",
-# "///x", "//?q" and "//#x" name none. A bare "www." host follows GFM's extended
-# www autolink: "www." then a valid domain with at least one more ".", so the
+# Protocol-relative "//host/x": the host starts with a letter or digit, so "//",
+# "///x", "//?q", "//#x", "//:80" and "//-" name none. A bare "www." host follows
+# GFM's extended www autolink: "www." then a valid domain with at least one more
+# ".", checked by the autolinker's own md_to_html.valid_gfm_domain, so the
 # relative file "WWW.md" isn't taken for a host.
-_HOST_RELATIVE_LINK = re.compile(r"//[^\s/?#]\S*")
+_HOST_RELATIVE_LINK = re.compile(r"//[A-Za-z0-9][A-Za-z0-9.-]*(?:[:/?#]\S*)?")
 _BARE_WWW_LINK = re.compile(
-    r"www\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+(?:[/:?#]\S*)?", re.IGNORECASE
+    r"(www\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)(?:[/:?#]\S*)?", re.IGNORECASE
 )
 
 
@@ -988,7 +992,8 @@ def _storable_link_url(link_url: str | None) -> str | None:
     if link_url is None:
         return None
     url = link_url.strip()
-    if _BARE_WWW_LINK.fullmatch(url):
+    www = _BARE_WWW_LINK.fullmatch(url)
+    if www and valid_gfm_domain(www.group(1)):
         return "https://" + url
     if url.startswith("#") or _STORABLE_LINK_SCHEME.match(url):
         return url

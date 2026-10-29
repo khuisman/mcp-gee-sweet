@@ -719,41 +719,6 @@ async def _discard_backup(lc: SpreadsheetContext, backup: dict[str, Any]) -> str
     )
 
 
-class DocEditError(Exception):
-    """_apply_doc_content's doc edit raised after its images were resolved (#789).
-    Carries the per-image outcome list, which would otherwise be lost with the
-    exception, so the calling tool can return it alongside the error the way
-    insert_local_images does. The original exception is chained as __cause__.
-
-    Also carries the dropped links known so far (#1180): text can land before the
-    failure (a split image retry commits its prefix, and the anchor pass runs after
-    the body and tables are written), and any of it written with a link dropped
-    must still be reported."""
-
-    def __init__(
-        self,
-        cause: Exception,
-        image_outcomes: list[dict[str, Any]],
-        dropped_links: list[dict[str, str]],
-    ):
-        super().__init__(f"doc edit failed: {cause}")
-        self.image_outcomes = image_outcomes
-        self.dropped_links = dropped_links
-
-
-def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
-    """The tool response for a DocEditError: the error, the doc's ID (the doc
-    exists, possibly partly written), and the per-image outcomes when there are
-    any, so every file ID an image step created or shared reaches the caller, plus
-    any dropped links (#1180)."""
-    result: dict[str, Any] = {"error": str(e), "docId": doc_id}
-    if e.image_outcomes:
-        result["images"] = e.image_outcomes
-    if e.dropped_links:
-        result["dropped_links"] = e.dropped_links
-    return result
-
-
 # dropped_links "reason" values (#1180).
 _DROPPED_NO_SCHEME = "no_scheme"
 _DROPPED_NO_MATCHING_HEADING = "no_matching_heading"
@@ -779,6 +744,30 @@ class AppliedContent:
         if self.dropped_links:
             fields["dropped_links"] = self.dropped_links
         return fields
+
+
+class DocEditError(Exception):
+    """_apply_doc_content's doc edit raised after its images were resolved (#789).
+    Carries what the edit had to report so far as an AppliedContent: the per-image
+    outcome list, which would otherwise be lost with the exception, so the calling
+    tool can return it alongside the error the way insert_local_images does, and
+    the dropped links (#1180), since text can land before the failure (a split
+    image retry commits its prefix, and the anchor pass runs after the body and
+    tables are written). The original exception is chained as __cause__."""
+
+    def __init__(self, cause: Exception, applied: AppliedContent):
+        super().__init__(f"doc edit failed: {cause}")
+        self.applied = applied
+
+
+def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
+    """The tool response for a DocEditError: the error, the doc's ID (the doc
+    exists, possibly partly written), and the same fields a success reports
+    (AppliedContent.response_fields), so every file ID an image step created or
+    shared, and every dropped link, reaches the caller."""
+    result: dict[str, Any] = {"error": str(e), "docId": doc_id}
+    result.update(e.applied.response_fields())
+    return result
 
 
 async def _apply_doc_content(
@@ -838,6 +827,9 @@ async def _apply_doc_content(
     dropped_links = [
         {"url": url, "reason": _DROPPED_NO_SCHEME} for url in unstorable_link_urls(nodes)
     ]
+    # Filled by the anchor pass before it sends its write, so a write that raises
+    # after it may have landed still reports the anchors it strips.
+    stripped_anchors: list[str] = []
 
     images = extract_images(nodes)
     docs_service = lc.docs_service
@@ -915,6 +907,15 @@ async def _apply_doc_content(
         embedded = cell_images.embedded if cell_images is not None else set()
         for img_id in cell_uris.keys() - embedded:
             entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
+
+    def _applied() -> AppliedContent:
+        anchor_drops = [
+            {"url": anchor, "reason": _DROPPED_NO_MATCHING_HEADING}
+            for anchor in dict.fromkeys(stripped_anchors)
+        ]
+        return AppliedContent(
+            images=image_outcomes or None, dropped_links=dropped_links + anchor_drops
+        )
 
     try:
         async with lifecycle.edit():
@@ -1059,11 +1060,7 @@ async def _apply_doc_content(
             await fill_tables(docs_service, doc_id, tables, cell_images)
             _mark_unplaced_cell_images("its table cell wasn't found in the document")
             if _has_pending_anchor_links(content_requests, tables):
-                anchors = await _resolve_heading_anchors(docs_service, doc_id)
-                dropped_links.extend(
-                    {"url": anchor, "reason": _DROPPED_NO_MATCHING_HEADING}
-                    for anchor in dict.fromkeys(anchors["stripped"])
-                )
+                await _resolve_heading_anchors(docs_service, doc_id, stripped_out=stripped_anchors)
     except Exception as e:
         # The body batch or the fill can fail with some cell images placed (a split
         # batch lands its head first) or none. A cancellation isn't caught: its last
@@ -1072,15 +1069,16 @@ async def _apply_doc_content(
         # The outcome list rides on the error so the calling tool can return it; a
         # raise alone would lose every file ID (#789). The lifecycle has already
         # revoked the shares and logged the touched files.
-        raise DocEditError(e, image_outcomes, dropped_links) from e
-    return AppliedContent(images=image_outcomes or None, dropped_links=dropped_links)
+        raise DocEditError(e, _applied()) from e
+    return _applied()
 
 
 def _table_has_pending_anchor_link(table: Table) -> bool:
     """True if any cell in `table` (recursing into nested tables) carries a
-    Run or Image with a same-document '#slug' link_url."""
+    Run or Image with a same-document '#slug' link_url. Tested on the stripped
+    target, which is what the emitter stores, so " #slug" counts (PR #1272)."""
     return any(
-        leaf.link_url is not None and leaf.link_url.startswith("#")
+        leaf.link_url is not None and leaf.link_url.strip().startswith("#")
         for leaf in iter_cell_leaves(table)
     )
 
@@ -1176,7 +1174,9 @@ def _walk_headings_and_anchor_runs(
     return headings, anchor_runs
 
 
-async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
+async def _resolve_heading_anchors(
+    docs_service, doc_id: str, *, stripped_out: list[str] | None = None
+) -> dict[str, Any]:
     """Rewrite same-document '#slug' hyperlinks left over from markdown/HTML
     conversion (GitHub/GitLab-style heading anchors, issue #409) into working
     Docs heading-jump links, or strip them to plain text when no heading
@@ -1188,6 +1188,8 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
     the heading paragraph has actually been created. Returns a summary dict,
     whose "stripped" anchors _apply_doc_content reports as dropped links (#1180);
     matched and unmatched links are both handled here, nothing propagates as an error.
+    The stripped anchors also go into `stripped_out` before the write is sent, so a
+    caller still has them if that write raises after it landed (a timeout).
     """
     doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
@@ -1238,6 +1240,8 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
             }
         )
 
+    if stripped_out is not None:
+        stripped_out.extend(stripped)
     await execute_in_thread(
         docs_service.documents()
         .batchUpdate(documentId=doc_id, body={"requests": requests})

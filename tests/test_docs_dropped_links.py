@@ -137,6 +137,27 @@ class TestUnstorableLinkUrls:
         ]
         assert unstorable_link_urls(nodes) == ["./guide.md"]
 
+    def test_empty_or_whitespace_target_is_not_reported(self):
+        # PR #1272 QA round 2: href="  " was reported as {"url": ""}.
+        nodes = [
+            Paragraph(
+                runs=[
+                    Run(text="a", link_url="  "),
+                    Run(text="b", link_url=""),
+                    Run(text="c", link_url="x.md"),
+                ]
+            )
+        ]
+        assert unstorable_link_urls(nodes) == ["x.md"]
+
+
+class TestPaddedCellAnchor:
+    def test_padded_anchor_in_a_cell_triggers_the_anchor_pass(self):
+        # PR #1272 QA round 2: the emitter stores " #missing" stripped, so the
+        # pre-check must strip too, or the anchor pass never runs for it.
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="x", link_url=" #missing")])])])
+        assert content_module._has_pending_anchor_links([], [table])
+
 
 class TestCreateDocReportsDroppedLinks:
     async def test_relative_link_is_reported(self):
@@ -252,6 +273,28 @@ class TestFailedEditStillReportsDroppedLinks:
             )
         assert "anchor boom" in result["error"]
         assert result["dropped_links"] == [{"url": "./guide.md", "reason": "no_scheme"}]
+
+    async def test_anchor_write_raising_after_landing_keeps_stripped_anchors(self):
+        # PR #1272 QA round 2: a timeout on the anchor pass's batchUpdate may come
+        # after the write landed, so its stripped anchors must still be reported.
+        drive_svc, docs_svc = _services(
+            [_para(1, "Section\n", heading_id="h.section"), _para(9, "gone\n", link="#nope")]
+        )
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = [
+            {},
+            TimeoutError("timed out"),
+        ]
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="# Section\n\n[gone](#nope) [file](notes.md)\n",
+            content_format="markdown",
+            ctx=_ctx(drive_svc, docs_svc),
+        )
+        assert "timed out" in result["error"]
+        assert result["dropped_links"] == [
+            {"url": "notes.md", "reason": "no_scheme"},
+            {"url": "#nope", "reason": "no_matching_heading"},
+        ]
 
     async def test_no_dropped_links_key_on_failure_when_none_dropped(self):
         drive_svc, docs_svc = _services()
