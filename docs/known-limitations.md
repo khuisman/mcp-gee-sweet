@@ -82,9 +82,11 @@ U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. 
 as CommonMark plus GitHub-flavored Markdown (tables, strikethrough, task lists, autolinks). These
 constructs from Python-Markdown's `extra` extension aren't part of that:
 
-- Footnotes: `Text[^1]` and `[^1]: note`. CommonMark reads the note line as a link reference
-  definition, so the Doc shows `Text^1` with no link (the target `note` has no scheme, #1120) and
-  the note's text is dropped.
+- Footnotes: `Text[^1]` and `[^1]: …`. A note written as prose (`[^1]: This is the note.`)
+  stays literal text, both the `[^1]` marker and the note line. A note of a single word or URL
+  (`[^1]: note`) is a valid CommonMark link reference definition instead, so the note line
+  disappears and the marker shows as `^1`. It's linked when the note is a URL; otherwise the
+  link is dropped (no scheme, #1120) and reported in `dropped_links`.
 
 These come out as literal text:
 
