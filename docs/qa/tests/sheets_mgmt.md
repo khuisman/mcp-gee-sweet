@@ -2,7 +2,7 @@
 
 Source: `src/mcp_gee_sweet/tools/sheets.py`
 
-Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}` from `fixtures.local.md`.
+Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}` from `fixtures.local.md`, and `{DOC_ID}` (`TEST_DOC_ID`) for TC-S21 and TC-S22.
 
 Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures afterward.
 
@@ -1502,7 +1502,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 ### TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestFormatCells`
 
@@ -1523,8 +1523,8 @@ Destructive because a regressed build formats the whole sheet. Never run it agai
 > "Read `get_sheet_data(spreadsheet_id=<scratch id>, sheet=\"Sheet1\", range=\"A1:F8\", include_grid_data=True)`. Then call `format_cells(spreadsheet_id=<scratch id>, sheet=\"Sheet1\", range=\":\", bold=True)`, then `format_cells(..., range=\"A1\\n\", bold=True)` (a real trailing newline). Then read A1:F8 the same way again."
 
 **Checks**
-- `range=":"` → `{"error": "Invalid A1 notation: :"}`
-- `range="A1\n"` → `{"error": "Invalid A1 notation: A1\n"}`
+- `range=":"` → `{"error": "Invalid A1 notation: ':'"}`
+- `range="A1\n"` → `{"error": "Invalid A1 notation: 'A1\\n'"}` (the range is quoted with Python `repr`, so the newline shows as a literal `\n` inside the quotes)
 - The before and after A1:F8 reads are identical, with no bold cell (no `batchUpdate` reached the API)
 
 **Teardown:** none if TC-S132 runs next (it deletes the spreadsheet); otherwise `delete_file(file_id=<scratch id>)`.
@@ -1574,7 +1574,9 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Prompt**
 **Playwright: required**
-> "Merge cells A1:D1 on the Sales sheet to make a single header cell"
+> "Merge cells A1:D1 on the Empty sheet to make a single header cell"
+
+Run this on the `Empty` tab, not `Sales`: a merge keeps only the top-left value, so merging on `Sales` destroys fixture data.
 
 **Checks**
 - `mergeCells` request with `mergeType=MERGE_ALL`
@@ -1595,7 +1597,9 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
 
 **Prompt**
 **Playwright: required**
-> "Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"
+> "Merge each row independently in A3:C5 on the Empty sheet (merge_type=MERGE_ROWS)"
+
+Run this on the `Empty` tab, below TC-S38's A1:D1 merge so the two don't overlap. Unmerge A3:C5 afterward so `Empty` is left clear.
 
 **Checks**
 - `mergeCells` request with `mergeType=MERGE_ROWS`
@@ -1614,7 +1618,9 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
 
 **Prompt**
 **Playwright: required**
-> "Unmerge cells A1:D1 on the Sales sheet"
+> "Unmerge cells A1:D1 on the Empty sheet"
+
+Run this on the `Empty` tab, after TC-S38.
 
 **Checks**
 - `unmergeCells` request sent
@@ -1648,7 +1654,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 ### TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - `unmerge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → same error shape
 - Neither call makes a `batchUpdate` API call
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestMergeCells` and `TestUnmergeCells`
@@ -1816,7 +1822,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 ### TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestUpdateBorders`
 
@@ -1831,13 +1837,15 @@ Error text now repr-quotes the range; TC wording stale.
 
 **Prompt**
 **Playwright: required**
-> "Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"
+> "Add a dropdown to A1:A5 on the Empty sheet with the options Yes, No, Maybe"
 
 **Checks**
 - `setDataValidation` request sent with `condition.type == "ONE_OF_LIST"` and `condition.values` matching `["Yes", "No", "Maybe"]` (as `userEnteredValue` entries)
 - `range` covers A1:A5
 - Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
 - Calling `get_data_validation(range="A1:A5")` afterward returns one `{cell, rule}` entry per cell in the range, each with `condition.type == "ONE_OF_LIST"` and the same three values
+
+**Teardown:** `clear_data_validation(sheet="Empty", range="A1:A5")`. The strict dropdown would otherwise reject other cases' writes to `Empty!A1:A5` (TC-R34, TC-R35) and show up in later `get_data_validation` reads of `Empty`.
 
 **Result (2026-07-17) ⚠️ PARTIAL (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
 **Corrected (2026-10-17, #1044 audit):** the dropdown rendering wasn't checked.
@@ -1855,12 +1863,14 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 
 **Prompt**
 **Playwright: required**
-> "Add a checkbox to B1:B5 on the Sales sheet"
+> "Add a checkbox to B1:B5 on the Empty sheet"
 
 **Checks**
 - `setDataValidation` request sent with `condition == {"type": "BOOLEAN"}` — no `values` key
 - Cells B1:B5 render as checkboxes in the Sheets UI, not free text
 - `get_data_validation(range="B1:B5")` returns `condition.type == "BOOLEAN"` for each cell, no `values` key
+
+**Teardown:** `clear_data_validation(sheet="Empty", range="B1:B5")`, then `clear_values(sheet="Empty", range="B1:B5")`. The checkbox rule writes `FALSE` into each cell, and clearing the rule leaves those values behind.
 
 **Result (2026-09-04) ✅ PASS**
 add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells
@@ -1873,11 +1883,13 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 ### TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
 
 **Prompt**
-> "Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"
+> "Add data validation to C1:C5 on the Empty sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"
 
 **Checks**
 - `setDataValidation` request sent with `condition.type == "NUMBER_BETWEEN"`, `condition.values` = `["1", "10"]`, and `rule.strict == false`
 - No error in response
+
+**Teardown:** `clear_data_validation(sheet="Empty", range="C1:C5")`, so the rule doesn't show up in later `get_data_validation` reads of `Empty`.
 
 **Result (2026-09-04) ✅ PASS**
 add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error
@@ -1987,7 +1999,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 > `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")`
 
 **Checks**
-- Should return `{"error": "Sheet 'NonexistentSheetXYZ' not found"}`, matching every sibling tool's behavior for the same mistake.
+- Should return the clean error `{"error": "Sheet 'NonexistentSheetXYZ' not found"}`, matching every sibling tool's behavior for the same mistake. `get_data_validation`'s return type is `list | dict`, and MCP wraps a non-dict return type's structured output in `{"result": ...}`, so the client receives `{"result": {"error": "Sheet 'NonexistentSheetXYZ' not found"}}`.
 
 **Result (2026-07-17) ❌ FAIL** Raised an unhandled `HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"` straight through to the MCP client instead. `server.py`'s `_timed` wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.
 
@@ -2031,7 +2043,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 > `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")` — the exact call that raised in TC-S100.
 
 **Checks**
-- Returns `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` — no raw `HttpError` reaches the client
+- Returns `{"result": {"error": "Sheet 'NonexistentSheetXYZ' not found"}}`: the tool returns `{"error": ...}`, and MCP wraps it in `{"result": ...}` because the tool's return type is `list | dict` (see TC-S100). No raw `HttpError` reaches the client
 
 **Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S100 failing call — returned `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` cleanly, no raw `HttpError`.
 
@@ -2046,7 +2058,7 @@ Error is nested as {"result":{"error":…}} (list-typed output schema); TC says 
 ### TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="DATE_IS_VALID")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="DATE_IS_VALID")` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestAddDataValidation` — exercises the shared `_apply_data_validation` helper's `_grid_range` call
 
@@ -2115,7 +2127,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 ### TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestClearDataValidation` — exercises the same shared `_apply_data_validation` helper as TC-S126
 
@@ -2474,7 +2486,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 ### TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)
 
 **Checks (unit test)**
-- `sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: 'Sheet1!A1'"}`, not an uncaught `ValueError`
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestSortRange`
 
