@@ -469,6 +469,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 32/64 EP-1–EP-4 cells pass (nesting correct in all 16 cases), identical in both runs; failures: #1072 (8 mixed-type cases). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-10-28, PR #1286 @ 7ce37591) ✅ PASS — 64/64 EP-1–EP-4 cells pass, identical in Run 2 at EP-3 and on screen (LN-01/LN-02 captured): every mixed-type case continues Top two 2. / Child two b. EP-5–EP-8 not run (Drive's engines, unchanged by this PR). Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
+
 ### TC-MD107: Loose lists and blocks inside list items ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -491,6 +493,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 4/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, LB-08 heading-in-item loses bullet (F4, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6) ❌ FAIL — 16/36 EP-1–EP-4 cells pass (LB-01, LB-02, LB-03, LB-07 in every EP; EP-1 to EP-4 exports byte-identical; Run 2 at EP-3 identical to Run 1). #1111 is fixed: every item keeps its bullet or number. Failures left: #1094 (LB-04, LB-05, LB-06: the item after a block inside an item starts a new Docs list), #1072 (LB-09: parent two restarts after the bulleted sublist; AST is identical to the tight form), F4 (LB-08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
+
+**Result (2026-10-28, PR #1286 @ 7ce37591) ❌ FAIL — 15/27 cells pass at EP-1, EP-3, EP-4 (LB-01, 02, 03, 07, 09; EP-2 not run), identical in Run 2 at EP-3. #1072 is fixed: LB-09's parent two shows 2. Failures: #1094 (LB-04, 05, 06), F4 (LB-08). Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
@@ -515,6 +519,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 20/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (LX-04), #1115 + #1094 (LX-08), #1118 (LX-09), F2 (LX-05). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: LX-08 at EP-3/EP-4) ❌ FAIL — LX-08 0/2 cells, identical in both runs: step one keeps its number and the code block stays code (#1115/#1111 fixed), but step two restarts at 1. (#1094). The other cases rendered as in round 3 and weren't re-graded. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
+
+**Result (2026-10-28, PR #1286 @ 7ce37591) ❌ FAIL — 24/40 EP-1–EP-4 cells pass (LX-01, 02, 03, 06, 07, 10), identical in Run 2 at EP-3; LX-10 also checked on screen. Failures: #1093 (LX-04), #1241 (LX-05), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
@@ -804,6 +810,8 @@ Not expressible, so not in the matrix:
 **Result (2026-10-18) ❌ FAIL — 75/640 case×EP cells pass, in both runs; failures: #1115, #1094, #1072, #1056, #1122, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 96/320 EP-1–EP-4 cells pass, identical in both runs; failures: #1115, #1094, #1072, #1096, `<hr>` in a list item leaves an empty bullet (PR #1228 round-3 finding), F3. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-10-28, PR #1286 @ 7ce37591, list-in-list cases only) PARTIAL — the 18 list-in-list cases (CT-03–05, 13–15, 23–25, 33–35, 43–45, 53–55) pass at EP-3/EP-4, identical in Run 2: the sibling after each sublist keeps the container's numbering (CT-33 2., CT-43 b., CT-53 ii.). The other cases weren't re-graded; #1094 still splits the list after a contained block. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
