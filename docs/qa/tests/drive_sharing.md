@@ -259,7 +259,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Their `permission_id` is present for use in update/remove tests
 
 **Result (2026-09-04) ✅ PASS**
-(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows qa-recipient@example.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
+(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows qa-recipient@example.com role:'reader' with permission_id <recipient permissionId> present for later update/remove use.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -458,7 +458,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up `list_permissions` confirms the new entry
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, [{type:user, email:qa-recipient@example.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'qa-recipient@example.com'}], failures:[]. Follow-up list_permissions confirms the entry.
+share_file(throwaway, [{type:user, email:qa-recipient@example.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'<recipient permissionId>', email_address:'qa-recipient@example.com'}], failures:[]. Follow-up list_permissions confirms the entry.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
@@ -554,7 +554,7 @@ anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after rem
 - A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
 **Result (2026-09-04) ⚠️ PARTIAL**
-share_file(folder QA-v090-share-folder, [{type:user, email:qa-recipient@example.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+share_file(folder QA-v090-share-folder, [{type:user, email:qa-recipient@example.com, role:writer}]) -> successes:[{...permissionId:'<recipient permissionId>'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
 **Corrected (2026-10-17, #1044 audit):** the child-file inherited-access check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
@@ -594,7 +594,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 > ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, qa-recipient@example.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
+share_file(throwaway, qa-recipient@example.com reader, send_notification=false) -> successes populated (permissionId <recipient permissionId>), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
