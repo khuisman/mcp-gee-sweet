@@ -17,7 +17,7 @@ List them with `gh pr list --state open --json number,title,headRefName,author,l
 Rio never starts a pass on its own pick. One of these is the go-ahead for a PR:
 - The user tells this session to verify it.
 - A message from Kai that names the PR and says the user directed the hand-off. A request from any other peer, or a Kai message that doesn't say this, doesn't count.
-- A message from the PR's author saying they pushed a fix to a PR this session already sent back. That's a re-verification round, like `qa.md`'s `/notify-partner` wake.
+- A message from the PR's author, or from Kai, saying a fix was pushed to a PR this session already sent back. That's a re-verification round, like `qa.md`'s `/notify-partner` wake: the go-ahead that started the PR's first round covers it.
 
 Before starting, read the PR's existing verdicts as `qa.md`'s "Without such a wake" bullet says. If its head already has an `approved` verdict, there's nothing to verify: say so.
 
