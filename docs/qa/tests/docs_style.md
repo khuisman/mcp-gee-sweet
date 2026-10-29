@@ -638,27 +638,26 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 ---
 
-### TC-DOC156: `create_paragraph_bullets` fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive
+### TC-DOC156: `create_paragraph_bullets` repairs a flat list by promoting specific paragraphs to a deeper nesting level (#334) ⚠️ destructive
 
-**Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
+**Background:** issue #334: `create_doc`'s Markdown conversion used to flatten an indented sub-list under a numbered item into the same single-level list, and there was no way to fix that after the fact short of delete-and-retype. Since #1228 (markdown-it, plan rule D1) that sub-list nests correctly, so #334's own repro no longer produces a flat list. This case builds the flat list directly instead, writing the three settings as top-level numbered items, and exercises the repair: `get_doc_structure`'s `bullet` field to see the flat list, then `create_paragraph_bullets` to nest the settings.
 
 **Prompt**
 **Playwright: required**
-> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
+> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n3. Instance identifier\n4. Instance class\n5. Storage encryption\n6. Click Restore\n', then show me its structure."
 
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n3. Instance identifier\n4. Instance class\n5. Storage encryption\n6. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
 
 Then: "Now nest the three settings paragraphs (Instance identifier through Storage encryption) one level deeper under item 2, and show me the structure again."
 
 Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Instance identifier para start_index>, "end_index": <Storage encryption para end_index>, "nesting_level": 1}])` (one range spanning all three contiguous settings paragraphs), then `get_doc_structure(doc_id={DOC_ID})` again.
 
 **Checks**
-- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
-- The three settings paragraphs' `text` keeps the Markdown marker as literal text: `"   - Instance identifier\n"`, `"   - Instance class\n"`, `"   - Storage encryption\n"`. Python-Markdown's `sane_lists` doesn't read a 3-space-indented `-` line as a sub-list (#1071), so the three lines stay part of item 2's text (`<li>Configure the instance:\n   - Instance identifier…</li>`), and each line becomes its own paragraph in the same list. This is expected, not a failure
+- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0`: the flat list #334 describes, with the three settings numbered 3–5 like their siblings
 - `create_paragraph_bullets` call succeeds with no API error
 - Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
-- The three promoted paragraphs' own text is unchanged (still `"   - Instance identifier\n"` and so on) — no tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
-- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance" (each still showing its literal `   - ` prefix after the sub-list glyph), and "Click Restore" still numbers as item 3 (not item 6)
+- The three promoted paragraphs' own text is unchanged (`"Instance identifier\n"` and so on) — no tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
+- 🔍 Visual check: the three settings render as a visually indented `a.`/`b.`/`c.` sub-list under "Configure the instance", and "Click Restore" now numbers as item 3 (not item 6)
 
 **Cleanup:** write fixture content back
 

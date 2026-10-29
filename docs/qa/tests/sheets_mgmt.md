@@ -1845,6 +1845,8 @@ Error text now repr-quotes the range; TC wording stale.
 - Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
 - Calling `get_data_validation(range="A1:A5")` afterward returns one `{cell, rule}` entry per cell in the range, each with `condition.type == "ONE_OF_LIST"` and the same three values
 
+**Teardown:** `clear_data_validation(sheet="Empty", range="A1:A5")`. The strict dropdown would otherwise reject other cases' writes to `Empty!A1:A5` (TC-R34, TC-R35) and show up in later `get_data_validation` reads of `Empty`.
+
 **Result (2026-07-17) ⚠️ PARTIAL (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
 **Corrected (2026-10-17, #1044 audit):** the dropdown rendering wasn't checked.
 
@@ -1886,6 +1888,8 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 **Checks**
 - `setDataValidation` request sent with `condition.type == "NUMBER_BETWEEN"`, `condition.values` = `["1", "10"]`, and `rule.strict == false`
 - No error in response
+
+**Teardown:** `clear_data_validation(sheet="Empty", range="C1:C5")`, so the rule doesn't show up in later `get_data_validation` reads of `Empty`.
 
 **Result (2026-09-04) ✅ PASS**
 add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error

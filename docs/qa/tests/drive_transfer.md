@@ -2362,7 +2362,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 4. Write "QA-AFTER" to the same A1
 5. Call `list_revisions` on `{SCRATCH_SHEET_ID}` and identify the revision from between the two writes
 
-Past runs reused this scratch sheet for TC-D149 and TC-D150. Trash it once those are done.
+TC-D149 and TC-D150 reuse this scratch sheet. Trash it once those are done.
 
 > ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If no revision holds the "QA-BEFORE" state, the writes coalesced: SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk; the 2026-09-04 run coalesced after a 40 s wait, and the 2026-10-17 run coalesced too.
 
@@ -2384,8 +2384,10 @@ Environmental: revision coalescing left the scratch sheet with only 2 revisions.
 
 ### TC-D149: Export revision with explicit sheet name
 
+**Setup:** reuse TC-D148's `{SCRATCH_SHEET_ID}`. Add a second sheet with `create_sheet(spreadsheet_id={SCRATCH_SHEET_ID}, title="Sheet2")`, write distinct values (e.g. `S2-A1` …) to `Sheet2!A1:C7` with `update_cells`, then call `list_revisions` and use the newest revision, which includes Sheet2, as `{REVISION_ID}`.
+
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID}, sheet 'Sheet2', range A1:B5"
 
 **Checks**
 - Returns data from Sheet2, not the first sheet
@@ -2403,7 +2405,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 ### TC-D150: Export revision — no range returns all data
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} with no range filter"
+
+Use TC-D149's `{REVISION_ID}` (the newest revision of TC-D148's scratch sheet).
 
 **Checks**
 - Returns all rows and columns of the first sheet

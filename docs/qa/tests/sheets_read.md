@@ -932,9 +932,9 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 ---
 
-### TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)
+### TC-R34: get_multiple_sheet_data — queries that are each under the cap trip it together (issue #242)
 
-**Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the unbounded axis is query *count*, not just per-query range size — many small results can add up.
+**Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the cap applies to the combined response, so several queries that are each under it can be over it together.
 
 **Setup**
 The cap is on the serialized size of the whole response, not on the query count; there is no per-call query limit. Since #519 raised the default cap to 1,000,000 characters, 200 copies of the small `Sales` query (about 150,000 characters, measured 2026-07-03) no longer trip it. Use large cells instead, so that each query is under the cap and only their sum is over it: write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of `Empty!A1:A40` with `update_cells`, then call `get_multiple_sheet_data` with two queries, `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A1:A20"}` and `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A21:A40"}` (about 600,000 characters each, about 1.2M together). If TC-R35 runs in the same pass, reuse its setup.
@@ -944,7 +944,7 @@ The cap is on the serialized size of the whole response, not on the query count;
 - Same two queries with `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
 
 **Teardown**
-`clear_values` on the `Empty` sheet to remove the test data (once, after TC-R35 if it reuses this setup).
+`clear_values(sheet="Empty", range="A1:A40")` to remove the test data (once, after TC-R35 if it reuses this setup). Scope it to that range: sheets_mgmt cases (TC-S38–S40, TC-S93–S95) also use `Empty` and may run in a parallel shard.
 
 **Result (2026-07-03) ✅ PASS**
 200 queries against the small `Sales` range (6 rows x 4 cols) raised: `get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` `local_path` with 2 queries succeeded, returned `{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}`; file verified on disk then cleaned up.
@@ -970,7 +970,7 @@ Write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of the 40 c
 - Same call with `local_path` set succeeds, returns `{local_path, spreadsheet_id, query, match_count, bytes_written}`, and the file on disk contains all matches
 
 **Teardown**
-`clear_values` on the `Empty` sheet to remove the test data.
+`clear_values(sheet="Empty", range="A1:A40")` to remove the test data. Scope it to that range, as in TC-R34.
 
 **Result (2026-07-03) ✅ PASS**
 10 matches (42,491 chars total) raised: `find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...` despite being far under the `max_results=50` default — confirming match-count capping alone doesn't bound response size. `local_path` call succeeded: `{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}`; file verified then cleaned up. Test data cleared from the `Empty` sheet afterward.

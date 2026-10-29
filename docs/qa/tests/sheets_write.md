@@ -201,10 +201,10 @@ F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 un
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
-**Spot-check after the `_utf16_len` refactor** (moved from `docs_content.md`, #1060): `sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
+**Spot-check after the `_utf16_len` refactor** (moved from `docs_content.md`, #1060): `sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of this case was skipped in the round that made the refactor: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
 
 **Result (2026-10-17) ⏳ pending — v0.9.2 release pass**
-not reported by the shard that owned this file
+The spot-check was recorded as pending in `docs_content.md`'s v0.9.2 record. TC-W36 itself passed in the same pass (Run 2, kai-oauth, above), and the 2026-10-19 result below covers the spot-check.
 
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `oauth`: Run in a throwaway spreadsheet in the run folder, not the fixture. `update_cells` F5 [🚀, link→example.com]; `get_sheet_data(include_grid_data)` showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.

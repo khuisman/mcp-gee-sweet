@@ -3229,9 +3229,9 @@ Run 2 (ash).
 
 **Background:** #332/#333 established that an unsupported construct like `<img>` (markdown images convert to `<img>` before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire *paragraph* was also being deleted, not just the construct itself — `_emit_block_node` (`html_parser.py`) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported `<img>`), and a bare `<hr>` (python-markdown's rendering of both `---` and `___` thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's `endIndex` == the next one's `startIndex`), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (`runs=[]`) in the AST for both cases instead of dropping it — `emitter.py`'s `ast_to_requests` was updated to match, since its own `if not text.strip(): continue` guard would otherwise have skipped the now-empty node's contribution to `full_text` and lost the boundary anyway.
 
-### TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC135: An image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — a public `https://` image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
+**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — a public `https://` image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, plus the underscore-variant break called out in the issue's follow-up comment. The issue's own repro (`![Kindly Human](kh-logo.png)`) used an image that was dropped. This fixture's image embeds, so the case covers the boundaries around an embedded image and the two breaks, not #401's dropped-image boundary; a dropped image's boundary is covered by the #401 unit tests in `tests/test_docs_core.py`.
 
 **Prompt**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-paragraph-boundary.md, then show me its structure."
@@ -4215,8 +4215,7 @@ Run 2 (ash).
 **Checks**
 - Returns `doc_id`, `title`, and `markdown`
 - `markdown` contains `# Title`
-- `markdown` contains `**bold**`, `*italic*`, and `[link](https://example.com)`
-- `markdown` contains `\~\~strike\~\~`. The Markdown write path has no strikethrough support (`_md_to_html` loads no strikethrough extension), so `~~strike~~` is stored as literal text, and the export escapes literal tildes (`ast_to_markdown.py`). Write-side strikethrough is tracked in #1231 (formerly #1077); once it ships, this check becomes `~~strike~~` on a struck-through run
+- `markdown` contains `**bold**`, `*italic*`, `~~strike~~`, and `[link](https://example.com)`. The write path renders `~~strike~~` as a struck-through run since #1228 (markdown-it's GFM strikethrough rule), and the export writes it back as `~~strike~~`
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
