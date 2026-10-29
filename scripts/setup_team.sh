@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit/aziz/amy/joy/bob)
+# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit/rio/aziz/amy/joy/bob)
 # and write the MCP configs used by `make claude-team` and `make team-<name>`
 # (see write_team_mcp_configs.sh).
 #
@@ -7,10 +7,11 @@
 # that branch is always checked out in the main checkout). Dev slots branch
 # off `team/<name>` into `feat/<name>/issue-<n>` per ticket; QA slots stay on
 # `team/<name>` forever and get reset to whatever PR branch they're
-# verifying (see `/team-member`). Aziz, Amy, Joy, and Bob are also persistent
+# verifying (see `/team-member`); Rio is a QA slot too, for non-lane PRs
+# (`.claude/team-roles/rio.md`). Aziz, Amy, Joy, and Bob are also persistent
 # `team/<name>` slots but don't get a dedicated MCP server process — during a
 # release QA pass Aziz uses every mcp-gee-sweet-* slot already provisioned
-# here (all four lanes, kai-oauth/-sa, plus the standalone oauth/sa slots
+# here (all four lanes, rio, kai-oauth/-sa, plus the standalone oauth/sa slots
 # below), Amy just needs a worktree to write docs PRs from, Joy just needs
 # one for ad-hoc architecture work (see `.claude/team-roles/joy.md`), and Bob
 # just needs one to review other roles' self-edited process files (see
@@ -20,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-WORKTREE_ROLES=(ash sky jay kit aziz amy joy bob)
+WORKTREE_ROLES=(ash sky jay kit rio aziz amy joy bob)
 
 git fetch origin develop --quiet
 
