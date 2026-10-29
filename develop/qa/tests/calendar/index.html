@@ -2671,8 +2671,11 @@
 
 <h1 id="calendar-tools-qa-test-cases">Calendar Tools — QA Test Cases<a class="headerlink" href="#calendar-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
 <p>Source: <code>src/mcp_gee_sweet/tools/calendar.py</code></p>
-<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{CALENDAR_ID}</code> (a subscribed calendar the service account has access to) and <code>{EVENT_ID}</code> (a pre-existing event in that calendar) from <code>fixtures.local.md</code>.</p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{CALENDAR_ID}</code> (<code>TEST_CALENDAR_ID</code>) and <code>{EVENT_ID}</code> (<code>TEST_EVENT_ID</code>, a pre-existing event in that calendar) from <code>fixtures.local.md</code>.</p>
 <blockquote>
+<p>⚠️ <strong>Which identity these cases need.</strong> <code>{CALENDAR_ID}</code> is a secondary calendar that <code>setup.md</code>'s seed prompt creates with <code>create_calendar</code>, so it belongs to the account that ran the setup, not to the service account. It isn't shared with the service account, and returns 404 to it (2026-09-04 and v0.9.2). So:
+- <strong>OAuth server (e.g. <code>mcp-gee-sweet-oauth</code>, <code>-kai-oauth</code>):</strong> run the cases as written, against <code>{CALENDAR_ID}</code> and <code>{EVENT_ID}</code>.
+- <strong>Service-account server (e.g. <code>-sa</code>, <code>-kai-sa</code>):</strong> <code>{CALENDAR_ID}</code> can't be used. Do what v0.9.2 did: create scratch calendars with <code>create_calendar</code> (they're owned by the service account), create the events a case needs in them, substitute those IDs for <code>{CALENDAR_ID}</code> and <code>{EVENT_ID}</code>, and delete the scratch calendars at the end. Expect these limits under the service account: inviting attendees returns 403 <code>forbiddenForServiceAccounts</code> (TC-CAL17, TC-CAL22: SKIP or run on OAuth); it has no primary calendar; and the Playwright checks can't see its calendars, since the browser is signed in as the fixture owner, so those cases are API-only.</p>
 <p><strong>Service account note:</strong> the service account must have been added to each calendar via <code>calendarList().insert()</code> before it can read or write events. <code>list_calendars</code> only returns calendars the service account has explicitly subscribed to — it will not see calendars shared with the owning user's personal account. See <code>docs/project_calendar_setup.md</code> in memory.</p>
 </blockquote>
 <hr />

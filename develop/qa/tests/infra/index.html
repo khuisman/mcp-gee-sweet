@@ -2502,7 +2502,7 @@ Two-subagent barrier, 20/20 iterations on kai-sa: no cross-contamination, no SSL
 <p><strong>Setup</strong>
 Server running with any auth method.</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against this server.</p>
+Read the resource <code>server://auth-status</code> from this server with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - No <code>AttributeError</code> / <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>
 - Returns valid JSON with <code>auth_method</code> matching the server's actual configured auth method</p>
@@ -2520,7 +2520,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.</
 <p><strong>Setup</strong>
 Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>).</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against that server.</p>
+Read the resource <code>server://auth-status</code> from that server with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - <code>limited_tools</code> includes <code>"transfer_ownership"</code> alongside the existing quota-limited tools
 - <code>limitations</code> is a list of ≥2 entries, each with <code>category</code>, <code>tools</code>, <code>reason</code>, <code>alternatives</code>
@@ -2539,7 +2539,7 @@ SA checks pass; the OAuth sub-check needs a different auth method.</p>
 <p><strong>Setup</strong>
 Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>).</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against that server.</p>
+Read the resource <code>server://auth-status</code> from that server with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - <code>"sync_folder" in limited_tools</code> is <code>True</code> (exact string match — not a substring like <code>"sync_folder (upload and bidirectional directions)"</code>)
 - The <code>no_drive_storage_quota</code> entry's <code>reason</code> text mentions the upload/bidirectional-only distinction for <code>sync_folder</code></p>
@@ -2555,7 +2555,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.</
 <p><strong>Setup</strong>
 Server running with any auth method.</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "spreadsheet://{SPREADSHEET_ID}/info"</code> against this server.</p>
+Read the resource <code>spreadsheet://{SPREADSHEET_ID}/info</code> from this server with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - No <code>AttributeError</code> / <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>
 - Returns valid JSON with <code>title</code> and a <code>sheets</code> array matching the spreadsheet's actual tabs</p>
@@ -2593,7 +2593,7 @@ Needs the mcp-publisher CLI and a registry publish.</p>
 - <strong>User-backed ADC:</strong> same as TC-I11 (<code>gcloud auth application-default login</code>, all other auth env vars unset, <code>AUTH_METHOD=adc</code>).
 - <strong>Service-account-backed ADC:</strong> <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), <code>AUTH_METHOD=adc</code>.</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against each server.</p>
+Read the resource <code>server://auth-status</code> from each server with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - User-backed ADC: <code>auth_method: "adc"</code>, <code>is_service_account_identity: false</code>, <code>can_create_in_personal_drive: true</code>, <code>limited_tools: []</code>, <code>limitations: []</code>.
 - Service-account-backed ADC: <code>auth_method: "adc"</code> (not rewritten to <code>"service_account"</code>), <code>is_service_account_identity: true</code>, <code>can_create_in_personal_drive: false</code>, <code>limited_tools</code> includes the same tools a <code>service_account</code>-authed server reports (e.g. <code>create_spreadsheet</code>, <code>transfer_ownership</code>), and the <code>no_drive_storage_quota</code> entry's <code>alternatives</code> mentions pointing ADC at a real user credential rather than "switch to ADC" (contrast with TC-I27, where a genuine <code>AUTH_METHOD=service_account</code> session's <code>alternatives</code> still does mention ADC as a real escape hatch).</p>
@@ -2876,7 +2876,7 @@ Needs an SSE/streamable-http server or SIGTERM.</p>
 <p><strong>Setup</strong>
 Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>), plus any OAuth server for the last check.</p>
 <p><strong>Action</strong>
-Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against the service-account server, then against the OAuth server.</p>
+Read the resource <code>server://auth-status</code> from the service-account server, then from the OAuth server, with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - <code>limitations</code> contains an entry with <code>category: "no_user_mailbox"</code>
 - That entry's <code>tools</code> is exactly: <code>list_messages</code>, <code>get_message</code>, <code>list_threads</code>, <code>get_thread</code>, <code>list_labels</code>, <code>send_message</code>, <code>create_draft</code>, <code>send_draft</code>, <code>reply_to_message</code>, <code>modify_labels</code>, <code>trash_message</code> (order not significant)
@@ -2901,7 +2901,7 @@ Register this as a temporary stdio MCP server (or run it under an MCP client) wi
 1. <code>list_spreadsheets</code> with <code>max_results: 1</code>
 2. <code>list_labels</code> (no arguments)
 3. <code>send_message</code> with <code>to: "nobody@example.com"</code>, <code>subject: "TC-I32"</code>, <code>body: "should not send"</code>
-4. <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code></p>
+4. Read the resource <code>server://auth-status</code> with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config)</p>
 <p><strong>Checks</strong>
 - The server connects (no <code>Connection closed</code>), with no browser window and no <code>Please visit this URL to authorize</code> prompt
 - <code>list_spreadsheets</code> returns a normal result (the expired token refreshed at its own scopes)
@@ -2926,7 +2926,7 @@ Register this as a temporary stdio MCP server (or run it under an MCP client) wi
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AUTH_METHOD=oauth
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>ENABLED_TOOLS=list_spreadsheets,get_cache_ttl
 </code></pre></div>
-<p>Call <code>list_spreadsheets</code> with <code>max_results: 1</code>, then <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code>.</p>
+<p>Call <code>list_spreadsheets</code> with <code>max_results: 1</code>, then read the resource <code>server://auth-status</code> with any MCP client that can read resources (e.g. Claude Code's <code>ReadMcpResourceTool</code>, or an <code>mcp</code> SDK stdio client that spawns the server with the slot's config).</p>
 <p><strong>Checks</strong>
 - The server starts with no browser consent and no <code>MissingOAuthScopesError</code>
 - <code>list_spreadsheets</code> returns a normal result (the expired token refreshed successfully)

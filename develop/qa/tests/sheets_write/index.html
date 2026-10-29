@@ -2110,7 +2110,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 </blockquote>
 <p><strong>Checks</strong>
 - F3 = "PlainValue" (written via a per-cell <code>values.batchUpdate</code> scoped to just F3, not a whole-range <code>values.update</code> — the whole-range write was retired because it required blanking G3 to "" first and relying on the rich-text pass to overwrite it back, losing G3's content for good if that second call failed)
-- G3 shows "Link" with <code>userEnteredFormat.hyperlinkDisplayType</code> = "LINKED" and a <code>textFormatRuns</code> entry linking to https://example.com/g3
+- G3 shows "Link" with <code>userEnteredFormat.hyperlinkDisplayType</code> = "LINKED" and the cell's <code>hyperlink</code> = https://example.com/g3. The tool sends the link as a text run, but a link that covers the cell's whole text is stored on the cell itself, so a <code>get_sheet_data(include_grid_data=True)</code> read-back may show no <code>textFormatRuns</code> link entry
 - Both cells are correct in a single tool call — confirms the plain-cell pass and the rich-text <code>batchUpdate</code> pass compose correctly over the same range
 - The tool's own return value is <code>{"values_update": {...}, "rich_text_update": {...}}</code> — both results present, not just the plain-cell one (previously the rich-text result was silently dropped whenever plain cells were also present in the same call)
 - 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text</p>
@@ -2151,6 +2151,11 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 units), not 1; link.uri present. Visual blocked by chart pollution</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Spot-check after the <code>_utf16_len</code> refactor</strong> (moved from <code>docs_content.md</code>, #1060): <code>sheets/helpers.py</code>'s <code>_utf16_len</code> now delegates to the same shared <code>utf16_len</code> helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of this case was skipped in the round that made the refactor: the live sandbox's <code>ENABLED_TOOLS</code> included <code>update_cells</code> but not <code>get_sheet_data</code>, so a rich-text write couldn't be read back to confirm <code>textFormatRuns[1].startIndex</code>. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.</p>
+<p><strong>Result (2026-10-17) ⏳ pending — v0.9.2 release pass</strong>
+The spot-check was recorded as pending in <code>docs_content.md</code>'s v0.9.2 record. TC-W36 itself passed in the same pass (Run 2, kai-oauth, above), and the 2026-10-19 result below covers the spot-check.</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: Run in a throwaway spreadsheet in the run folder, not the fixture. <code>update_cells</code> F5 [🚀, link→example.com]; <code>get_sheet_data(include_grid_data)</code> showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.</p>
 <hr />
 <h3 id="tc-w37-rich-text-run-with-a-wrong-typed-text-value-returns-an-error-not-a-crash">TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash<a class="headerlink" href="#tc-w37-rich-text-run-with-a-wrong-typed-text-value-returns-an-error-not-a-crash" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2200,7 +2205,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p>"Call <code>update_cells</code> on {SPREADSHEET_ID}'s Sales sheet, range <code>Sheet1!F9</code>, with <code>data</code> set to <code>[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]</code> (a mixed plain + rich-text call)"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Returns <code>{"error": "Invalid A1 notation: Sheet1!F9"}</code> — a sheet-qualified range isn't valid A1 notation for the <code>range</code> param, which expects only the cell range (the <code>sheet</code> param already supplies the sheet name)
+- Returns <code>{"error": "Invalid A1 notation: 'Sheet1!F9'"}</code> (the range is quoted in the message) — a sheet-qualified range isn't valid A1 notation for the <code>range</code> param, which expects only the cell range (the <code>sheet</code> param already supplies the sheet name)
 - No <code>values().batchUpdate()</code> or <code>spreadsheets().batchUpdate()</code> call is made — F9 is unchanged
 - Before this fix, <code>_parse_a1_notation</code>'s <code>ValueError</code> propagated uncaught through the async tool to the MCP client instead of this <code>{"error": ...}</code> shape
 - QA round 1 found <code>update_cells</code> parsed <code>range</code> twice (once in the mixed-cell branch, once again in the rich-text branch) whenever both cell kinds were present in the same call — harmless but redundant, since the first parse already returns on failure before the second is ever reached. Fixed by parsing once, up front, whenever <code>rich_text_cells</code> is non-empty (the exact condition under which either branch needs it), and reusing the result — <code>update_cells</code> now has exactly one <code>_parse_a1_notation_or_error</code> call site, not two.</p>

@@ -3249,7 +3249,7 @@
 
 <h1 id="sheet-management-tools-qa-test-cases">Sheet Management Tools — QA Test Cases<a class="headerlink" href="#sheet-management-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
 <p>Source: <code>src/mcp_gee_sweet/tools/sheets.py</code></p>
-<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>, and <code>{DOC_ID}</code> (<code>TEST_DOC_ID</code>) for TC-S21 and TC-S22.</p>
 <p>Tests marked <strong>⚠️ destructive</strong> rename or delete sheets — reset fixtures afterward.</p>
 <hr />
 <h2 id="list_sheets"><code>list_sheets</code><a class="headerlink" href="#list_sheets" title="Permanent link">&para;</a></h2>
@@ -4346,7 +4346,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <hr />
 <h3 id="tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - No <code>batchUpdate</code> API call is made
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestFormatCells</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -4361,8 +4361,8 @@ Error text now repr-quotes the range; TC wording stale.</p>
 <p>"Read <code>get_sheet_data(spreadsheet_id=&lt;scratch id&gt;, sheet=\"Sheet1\", range=\"A1:F8\", include_grid_data=True)</code>. Then call <code>format_cells(spreadsheet_id=&lt;scratch id&gt;, sheet=\"Sheet1\", range=\":\", bold=True)</code>, then <code>format_cells(..., range=\"A1\\n\", bold=True)</code> (a real trailing newline). Then read A1:F8 the same way again."</p>
 </blockquote>
 <p><strong>Checks</strong>
-- <code>range=":"</code> → <code>{"error": "Invalid A1 notation: :"}</code>
-- <code>range="A1\n"</code> → <code>{"error": "Invalid A1 notation: A1\n"}</code>
+- <code>range=":"</code> → <code>{"error": "Invalid A1 notation: ':'"}</code>
+- <code>range="A1\n"</code> → <code>{"error": "Invalid A1 notation: 'A1\\n'"}</code> (the range is quoted with Python <code>repr</code>, so the newline shows as a literal <code>\n</code> inside the quotes)
 - The before and after A1:F8 reads are identical, with no bold cell (no <code>batchUpdate</code> reached the API)</p>
 <p><strong>Teardown:</strong> none if TC-S132 runs next (it deletes the spreadsheet); otherwise <code>delete_file(file_id=&lt;scratch id&gt;)</code>.</p>
 <p><strong>Result (2026-10-06) ✅ PASS</strong>
@@ -4398,8 +4398,9 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Merge cells A1:D1 on the Sales sheet to make a single header cell"</p>
+<p>"Merge cells A1:D1 on the Empty sheet to make a single header cell"</p>
 </blockquote>
+<p>Run this on the <code>Empty</code> tab, not <code>Sales</code>: a merge keeps only the top-left value, so merging on <code>Sales</code> destroys fixture data.</p>
 <p><strong>Checks</strong>
 - <code>mergeCells</code> request with <code>mergeType=MERGE_ALL</code>
 - Range covers A1:D1
@@ -4414,8 +4415,9 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"</p>
+<p>"Merge each row independently in A3:C5 on the Empty sheet (merge_type=MERGE_ROWS)"</p>
 </blockquote>
+<p>Run this on the <code>Empty</code> tab, below TC-S38's A1:D1 merge so the two don't overlap. Unmerge A3:C5 afterward so <code>Empty</code> is left clear.</p>
 <p><strong>Checks</strong>
 - <code>mergeCells</code> request with <code>mergeType=MERGE_ROWS</code></p>
 <p><strong>Result (2026-06-21) ✅</strong> H1:J3 on Empty merged with MERGE_ROWS. <code>replies: [{}]</code> — no error.</p>
@@ -4428,8 +4430,9 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Unmerge cells A1:D1 on the Sales sheet"</p>
+<p>"Unmerge cells A1:D1 on the Empty sheet"</p>
 </blockquote>
+<p>Run this on the <code>Empty</code> tab, after TC-S38.</p>
 <p><strong>Checks</strong>
 - <code>unmergeCells</code> request sent
 - No error in response</p>
@@ -4450,7 +4453,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <hr />
 <h3 id="tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - <code>unmerge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → same error shape
 - Neither call makes a <code>batchUpdate</code> API call
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestMergeCells</code> and <code>TestUnmergeCells</code></p>
@@ -4563,7 +4566,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <hr />
 <h3 id="tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - No <code>batchUpdate</code> API call is made
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestUpdateBorders</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -4574,13 +4577,14 @@ Error text now repr-quotes the range; TC wording stale.</p>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"</p>
+<p>"Add a dropdown to A1:A5 on the Empty sheet with the options Yes, No, Maybe"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - <code>setDataValidation</code> request sent with <code>condition.type == "ONE_OF_LIST"</code> and <code>condition.values</code> matching <code>["Yes", "No", "Maybe"]</code> (as <code>userEnteredValue</code> entries)
 - <code>range</code> covers A1:A5
 - Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
 - Calling <code>get_data_validation(range="A1:A5")</code> afterward returns one <code>{cell, rule}</code> entry per cell in the range, each with <code>condition.type == "ONE_OF_LIST"</code> and the same three values</p>
+<p><strong>Teardown:</strong> <code>clear_data_validation(sheet="Empty", range="A1:A5")</code>. The strict dropdown would otherwise reject other cases' writes to <code>Empty!A1:A5</code> (TC-R34, TC-R35) and show up in later <code>get_data_validation</code> reads of <code>Empty</code>.</p>
 <p><strong>Result (2026-07-17) ⚠️ PARTIAL (direct tool call, not Playwright UI)</strong> — ran against a scratch range on the fixture's <code>Empty</code> sheet rather than <code>Sales</code>, but the tool logic is sheet-agnostic. <code>add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])</code> succeeded; <code>get_data_validation</code> read back all 5 cells with <code>condition.type == "ONE_OF_LIST"</code> and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the dropdown rendering wasn't checked.</p>
 <p><strong>Result (2026-09-04) ⚠️ PARTIAL</strong>
@@ -4593,12 +4597,13 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Add a checkbox to B1:B5 on the Sales sheet"</p>
+<p>"Add a checkbox to B1:B5 on the Empty sheet"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - <code>setDataValidation</code> request sent with <code>condition == {"type": "BOOLEAN"}</code> — no <code>values</code> key
 - Cells B1:B5 render as checkboxes in the Sheets UI, not free text
 - <code>get_data_validation(range="B1:B5")</code> returns <code>condition.type == "BOOLEAN"</code> for each cell, no <code>values</code> key</p>
+<p><strong>Teardown:</strong> <code>clear_data_validation(sheet="Empty", range="B1:B5")</code>, then <code>clear_values(sheet="Empty", range="B1:B5")</code>. The checkbox rule writes <code>FALSE</code> into each cell, and clearing the rule leaves those values behind.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -4607,11 +4612,12 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 <h3 id="tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting">TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting<a class="headerlink" href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"</p>
+<p>"Add data validation to C1:C5 on the Empty sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - <code>setDataValidation</code> request sent with <code>condition.type == "NUMBER_BETWEEN"</code>, <code>condition.values</code> = <code>["1", "10"]</code>, and <code>rule.strict == false</code>
 - No error in response</p>
+<p><strong>Teardown:</strong> <code>clear_data_validation(sheet="Empty", range="C1:C5")</code>, so the rule doesn't show up in later <code>get_data_validation</code> reads of <code>Empty</code>.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -4687,7 +4693,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code></p>
 </blockquote>
 <p><strong>Checks</strong>
-- Should return <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code>, matching every sibling tool's behavior for the same mistake.</p>
+- Should return the clean error <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code>, matching every sibling tool's behavior for the same mistake. <code>get_data_validation</code>'s return type is <code>list | dict</code>, and MCP wraps a non-dict return type's structured output in <code>{"result": ...}</code>, so the client receives <code>{"result": {"error": "Sheet 'NonexistentSheetXYZ' not found"}}</code>.</p>
 <p><strong>Result (2026-07-17) ❌ FAIL</strong> Raised an unhandled <code>HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"</code> straight through to the MCP client instead. <code>server.py</code>'s <code>_timed</code> wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 get_data_validation(sheet="NonexistentSheetXYZ") → clean {"error":"Sheet 'NonexistentSheetXYZ' not found"} — confirms the documented fix is live, no raw HttpError</p>
@@ -4718,7 +4724,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code> — the exact call that raised in TC-S100.</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Returns <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> — no raw <code>HttpError</code> reaches the client</p>
+- Returns <code>{"result": {"error": "Sheet 'NonexistentSheetXYZ' not found"}}</code>: the tool returns <code>{"error": ...}</code>, and MCP wraps it in <code>{"result": ...}</code> because the tool's return type is <code>list | dict</code> (see TC-S100). No raw <code>HttpError</code> reaches the client</p>
 <p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S100 failing call — returned <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> cleanly, no raw <code>HttpError</code>.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)</p>
@@ -4727,7 +4733,7 @@ Error is nested as {"result":{"error":…}} (list-typed output schema); TC says 
 <hr />
 <h3 id="tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="DATE_IS_VALID")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="DATE_IS_VALID")</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - No <code>batchUpdate</code> API call is made
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestAddDataValidation</code> — exercises the shared <code>_apply_data_validation</code> helper's <code>_grid_range</code> call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -4779,7 +4785,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <hr />
 <h3 id="tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - No <code>batchUpdate</code> API call is made
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestClearDataValidation</code> — exercises the same shared <code>_apply_data_validation</code> helper as TC-S126</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -5038,7 +5044,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <hr />
 <h3 id="tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
-- <code>sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: 'Sheet1!A1'"}</code>, not an uncaught <code>ValueError</code>
 - No <code>batchUpdate</code> API call is made
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestSortRange</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>

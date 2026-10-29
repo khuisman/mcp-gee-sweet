@@ -1425,12 +1425,15 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <hr />
 <h3 id="tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242">TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)<a class="headerlink" href="#tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #242 generalized #235's response-size safety net to <code>export_file</code>. Unlike the other capped tools, <code>export_file</code> has no <code>local_path</code> param — its base64 output written to a JSON file would be a worse artifact than <code>download_file</code> (pre-existing tool) already produces, so the error points there instead.</p>
+<p><strong>Setup:</strong> the cap is <code>MAX_TOOL_RESPONSE_CHARS</code> (default <code>1000000</code>, see <code>docs/configuration.md</code>). <code>{SPREADSHEET_ID}</code> exported as <code>xlsx</code> is only about 9 KB, so it does not trip the default cap. To trip it, export a binary file large enough that its base64 content exceeds the cap: at the default, a raw file of about 800 KB or more. For example, upload an 800 KB non-text file (random bytes, <code>.bin</code>) to a scratch folder with <code>upload_local_file</code> and export it with <code>export_format='raw'</code>. Alternatively, run against a server started with a low <code>MAX_TOOL_RESPONSE_CHARS</code> (e.g. <code>40000</code>), where the fixture's <code>xlsx</code> export does trip it.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Export {SPREADSHEET_ID} as xlsx"</p>
+<p>"Export &lt;the large binary file's ID&gt; with export_format 'raw'" (or, on a low-cap server, "Export {SPREADSHEET_ID} as xlsx")</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Call raises <code>ValueError</code> mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and <code>download_file</code> as the recommended alternative — must NOT mention <code>local_path</code> (this tool doesn't have that param)</p>
+- Call raises <code>ValueError</code>: <code>export_file: the response is &lt;N&gt; characters, over the &lt;cap&gt;-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code>, where <code>&lt;cap&gt;</code> is the server's configured cap
+- The message must NOT mention <code>local_path</code> (this tool doesn't have that param)</p>
+<p><strong>Cleanup:</strong> trash the uploaded large file, if one was used.</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately exceeded the cap: <code>export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> Confirms <code>export_file</code>'s cap trips far more readily than the other capped tools given base64 inflation — <code>download_file</code> is the practical default for anything but tiny files.</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
@@ -1922,7 +1925,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <p><strong>Checks</strong>
 - Step 1: <code>/tmp/qa-d254/new/sub/</code> exists as a <strong>directory</strong>; the file is at <code>/tmp/qa-d254/new/sub/&lt;drive_name&gt;</code> with the real content; the returned <code>local_path</code> is that full file path. There is <strong>no</strong> plain file at <code>/tmp/qa-d254/new/sub</code>.
 - Step 2: both downloads are present as separate files inside <code>/tmp/qa-d254/new/sub/</code> (named after each Drive file) — the second did not overwrite the first, and <code>/tmp/qa-d254/new/sub</code> is still a directory, not a file.
-- Step 3: the call raises a <code>ValueError</code> <code>local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'</code> (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); <code>/tmp/qa-d254/clash</code> still contains <code>x</code>, untouched.</p>
+- Step 3: the call raises a <code>ValueError</code> <code>local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead</code> (the trailing hint since #990, the rest since #855; before #855 it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); <code>/tmp/qa-d254/clash</code> still contains <code>x</code>, untouched.</p>
 <p><strong>Teardown</strong>
 <code>rm -rf /tmp/qa-d254</code>.</p>
 <p><strong>Result (2026-09-09) ✅ PASS</strong> — verified live via <code>mcp-gee-sweet-kit</code>. Fixtures: two throwaway binary files (<code>alpha.bin</code> 15 B, <code>beta.bin</code> 25 B) uploaded to a scratch subfolder of <code>{FOLDER_ID}</code> (<code>qa-d254-kit</code>, deleted after); local target under a job-scoped dir.
@@ -1949,7 +1952,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Step 1 raises the Drive 404 <code>HttpError</code> ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. <code>/tmp/qa-d274/ok/</code> is <strong>not</strong> created, because mkdir runs after the metadata call.
-- Step 2 raises <code>ValueError</code> <code>local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'</code>, with <strong>no</strong> 404. <code>/tmp/qa-d274/clash</code> still contains <code>x</code>.</p>
+- Step 2 raises <code>ValueError</code> <code>local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead</code>, with <strong>no</strong> 404. <code>/tmp/qa-d274/clash</code> still contains <code>x</code>. (The hint after the semicolon was added in #990.)</p>
 <p><strong>Teardown</strong>
 <code>rm -rf /tmp/qa-d274</code>.</p>
 <p><strong>Result (2026-10-03) ✅ PASS</strong> — via an isolated service-account sandbox (PR #855), with a job-scoped local directory standing in for <code>/tmp/qa-d274</code>. Step 1: <code>HttpError 404 … "File not found: pr855-bogus-file-id."</code>, and the <code>control/</code> directory was not created. Step 2: <code>ValueError</code> <code>local_path '…/clash/' has a non-directory path component at '…/clash'</code>, no 404, and <code>clash</code> still contained <code>x</code>.</p>
@@ -2363,7 +2366,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <p><strong>Background:</strong> before the fix, only <code>sync_folder</code>'s own <code>create()</code> call stamped the marker property matching relies on — <code>upload_local_file(convert=True)</code>'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent <code>sync_folder</code> run on the same folder silently created a second Doc.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>In <code>{FOLDER_ID}</code>, call <code>upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)</code> <em>(create that local file first, with any content)</em>. Then, with <code>/tmp/qa-sync-226/notes.md</code> containing identical content and mtime close to now:
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)</code> <em>(create that local file first, with any content)</em>. Then create the sync copy with <code>mkdir -p /tmp/qa-sync-226 &amp;&amp; cp -p /tmp/qa-sync-226-src/notes.md /tmp/qa-sync-226/notes.md</code>. The <code>-p</code> keeps the source file's mtime: the upload stamps that mtime on the Doc, and <code>sync_folder</code> compares a converted <code>.md</code> against the stamp exactly (<code>_CONVERTED_MD_STAMP_TOLERANCE</code>, 1 ms), so a plain <code>cp</code> makes the local file look changed. Then:
 "Sync {FOLDER_ID} with <code>/tmp/qa-sync-226/</code> using direction='bidirectional' and convert_markdown set to true"</p>
 </blockquote>
 <p><strong>Checks</strong>
@@ -2513,7 +2516,7 @@ In <code>{FOLDER_ID}</code>, create 3 Drive-only files (<code>drive-a.txt</code>
 - All 3 Drive-only files appear in <code>downloaded</code>; all 3 local-only files appear in <code>uploaded</code>; <code>failed</code> is empty
 - Each downloaded local file's content matches its <em>own</em> source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
 - Each uploaded Drive file's content matches its <em>own</em> source local file's marker (check via <code>export_file</code> or <code>download_file</code> on each)
-- <code>size_bytes</code> equals the sum of the 3 downloaded files' actual sizes</p>
+- <code>size_bytes</code> equals the sum of the actual sizes of all 6 transferred files: the 3 downloaded and the 3 uploaded (#1003 made it count uploads too)</p>
 <p><strong>Teardown</strong>
 Delete the 3 Drive-only test files from <code>{FOLDER_ID}</code>, delete the 3 uploaded local-only files from Drive, remove <code>/tmp/qa-sync-183/</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -3178,17 +3181,19 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <hr />
 <h2 id="export_revision"><code>export_revision</code><a class="headerlink" href="#export_revision" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d148-export-a-revision-and-read-a-cell-range">TC-D148: Export a revision and read a cell range<a class="headerlink" href="#tc-d148-export-a-revision-and-read-a-cell-range" title="Permanent link">&para;</a></h3>
-<p><strong>Setup:</strong>
-1. Write "QA-BEFORE" to Sales!A1 using <code>update_cells</code>
-2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
-3. Write "QA-AFTER" to Sales!A1
-4. Call <code>list_revisions</code> on {SPREADSHEET_ID} and identify the revision from between the two writes</p>
+<p><strong>Setup:</strong> use a throwaway scratch spreadsheet, not <code>{SPREADSHEET_ID}</code>. These writes would change the shared fixture's <code>Sales!A1</code>, and both recorded runs already used a scratch sheet.
+1. Create a scratch spreadsheet (e.g. <code>QA-transfer-rev-test</code>) in a scratch folder with <code>create_spreadsheet</code>; note its ID as <code>{SCRATCH_SHEET_ID}</code>
+2. Write "QA-BEFORE" to its first sheet's A1 using <code>update_cells</code>
+3. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+4. Write "QA-AFTER" to the same A1
+5. Call <code>list_revisions</code> on <code>{SCRATCH_SHEET_ID}</code> and identify the revision from between the two writes</p>
+<p>TC-D149 and TC-D150 reuse this scratch sheet. Trash it once those are done.</p>
 <blockquote>
-<p>⚠️ <strong>Known limitation:</strong> Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.</p>
+<p>⚠️ <strong>Known limitation:</strong> Drive's revision API coalesces writes that occur within a short window into a single revision. If no revision holds the "QA-BEFORE" state, the writes coalesced: SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk; the 2026-09-04 run coalesced after a 40 s wait, and the 2026-10-17 run coalesced too.</p>
 </blockquote>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"</p>
+<p>"Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} and show me the value in range A1"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>values</code> with "QA-BEFORE" in A1
@@ -3200,9 +3205,10 @@ SKIP(environmental — Drive revision coalescing). Setup: created scratch spread
 Environmental: revision coalescing left the scratch sheet with only 2 revisions.</p>
 <hr />
 <h3 id="tc-d149-export-revision-with-explicit-sheet-name">TC-D149: Export revision with explicit sheet name<a class="headerlink" href="#tc-d149-export-revision-with-explicit-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> reuse TC-D148's <code>{SCRATCH_SHEET_ID}</code>. Add a second sheet with <code>create_sheet(spreadsheet_id={SCRATCH_SHEET_ID}, title="Sheet2")</code>, write distinct values (e.g. <code>S2-A1</code> …) to <code>Sheet2!A1:C7</code> with <code>update_cells</code>, then call <code>list_revisions</code> and use the newest revision, which includes Sheet2, as <code>{REVISION_ID}</code>.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"</p>
+<p>"Export revision {REVISION_ID} of {SCRATCH_SHEET_ID}, sheet 'Sheet2', range A1:B5"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Returns data from Sheet2, not the first sheet
@@ -3216,8 +3222,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <h3 id="tc-d150-export-revision-no-range-returns-all-data">TC-D150: Export revision — no range returns all data<a class="headerlink" href="#tc-d150-export-revision-no-range-returns-all-data" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"</p>
+<p>"Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} with no range filter"</p>
 </blockquote>
+<p>Use TC-D149's <code>{REVISION_ID}</code> (the newest revision of TC-D148's scratch sheet).</p>
 <p><strong>Checks</strong>
 - Returns all rows and columns of the first sheet
 - No error from omitting the range parameter</p>

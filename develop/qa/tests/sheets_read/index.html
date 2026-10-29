@@ -1842,10 +1842,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#tc-r34-get_multiple_sheet_data-many-small-queries-trips-the-response-size-cap-issue-242" class="md-nav__link">
+  <a href="#tc-r34-get_multiple_sheet_data-queries-that-are-each-under-the-cap-trip-it-together-issue-242" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)
+        TC-R34: get_multiple_sheet_data — queries that are each under the cap trip it together (issue #242)
       
     </span>
   </a>
@@ -2106,7 +2106,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <h3 id="tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235">TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)<a class="headerlink" href="#tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
 Apply formatting across a range with <code>format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")</code>, then call <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True)</code>.</p>
-<p>Note: cell <em>count</em> alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits <code>rowData</code> for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (<code>MAX_MCP_OUTPUT_TOKENS</code>) at ~2 chars/token for this kind of repeated-key JSON. The server-side default (<code>MAX_TOOL_RESPONSE_CHARS=40000</code>, named <code>MAX_GRID_DATA_RESPONSE_CHARS</code> at the time this test was first run — renamed and generalized to 5 more tools by issue #242) sits below that with margin.</p>
+<p>Note: cell <em>count</em> alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits <code>rowData</code> for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (<code>MAX_MCP_OUTPUT_TOKENS</code>) at ~2 chars/token for this kind of repeated-key JSON. The server-side cap is <code>MAX_TOOL_RESPONSE_CHARS</code> (named <code>MAX_GRID_DATA_RESPONSE_CHARS</code> when this test was first run; renamed and generalized by issue #242). Its default was 40,000 then; issue #519 raised it to 1,000,000. This range still trips the current default: the 2026-09-04 run measured about 4.1M characters.</p>
 <p><strong>Checks</strong>
 - The Sheets API fetch itself succeeds (it's fast either way) — the error comes from the size check on the result, not a failed API call
 - Error message states the actual response size in characters, the cap, and mentions narrowing the range, <code>local_path</code>, or <code>MAX_TOOL_RESPONSE_CHARS</code> as options
@@ -2136,9 +2136,9 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <hr />
 <h3 id="tc-r03e-max_tool_response_chars-raises-the-cap-issue-235">TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)<a class="headerlink" href="#tc-r03e-max_tool_response_chars-raises-the-cap-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
-Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the server (e.g. to match a <code>MAX_MCP_OUTPUT_TOKENS</code> raised in your MCP client config). Repeat the same call as TC-R03c: a formatted range whose response is over the <em>default</em> 40,000-character cap but under 200,000.</p>
+Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the server. The shipped default (1,000,000 since #519) is above this, so the override has to lower the cap to show it's read. Repeat TC-R38's call: its ~430,000-character response is under the default, so it succeeds on a default server, and over 200,000.</p>
 <p><strong>Checks</strong>
-- Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
+- Call now raises the response-size <code>ValueError</code> instead of succeeding — confirms the cap is actually read from the env var, not hardcoded
 - Restore <code>MAX_TOOL_RESPONSE_CHARS</code> (unset it) after this test</p>
 <p><strong>Result:</strong> ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (<code>test_cap_is_configurable</code> in <code>tests/sheets/test_data.py</code>, <code>test_env_var_sets_cap_at_import_time</code> in <code>tests/test_response_limits.py</code>) in the meantime. Var renamed from <code>MAX_GRID_DATA_RESPONSE_CHARS</code> by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the <em>shipped</em> default to 1,000,000, demonstrating configurability now requires setting <code>MAX_TOOL_RESPONSE_CHARS</code> below that default (e.g. <code>200000</code> as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.</p>
 <p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
@@ -2718,13 +2718,15 @@ B2 numberFormat {CURRENCY, "$#,##0.00"}, formattedValue "$100.00", effectiveValu
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
 <hr />
-<h3 id="tc-r34-get_multiple_sheet_data-many-small-queries-trips-the-response-size-cap-issue-242">TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)<a class="headerlink" href="#tc-r34-get_multiple_sheet_data-many-small-queries-trips-the-response-size-cap-issue-242" title="Permanent link">&para;</a></h3>
-<p><strong>Background:</strong> #242 generalized #235's response-size safety net beyond <code>get_sheet_data</code>. For <code>get_multiple_sheet_data</code>, the unbounded axis is query <em>count</em>, not just per-query range size — many small results can add up.</p>
+<h3 id="tc-r34-get_multiple_sheet_data-queries-that-are-each-under-the-cap-trip-it-together-issue-242">TC-R34: get_multiple_sheet_data — queries that are each under the cap trip it together (issue #242)<a class="headerlink" href="#tc-r34-get_multiple_sheet_data-queries-that-are-each-under-the-cap-trip-it-together-issue-242" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #242 generalized #235's response-size safety net beyond <code>get_sheet_data</code>. For <code>get_multiple_sheet_data</code>, the cap applies to the combined response, so several queries that are each under it can be over it together.</p>
 <p><strong>Setup</strong>
-No fixture setup needed — repeat the same tiny query (<code>{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Sales"}</code>, a 6x4 range) 200 times in one <code>queries</code> list.</p>
+The cap is on the serialized size of the whole response, not on the query count; there is no per-call query limit. Since #519 raised the default cap to 1,000,000 characters, 200 copies of the small <code>Sales</code> query (about 150,000 characters, measured 2026-07-03) no longer trip it. Use large cells instead, so that each query is under the cap and only their sum is over it: write <code>=REPT("PADTEST marker ", 2000)</code> (30,000 characters) into each of <code>Empty!A1:A40</code> with <code>update_cells</code>, then call <code>get_multiple_sheet_data</code> with two queries, <code>{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A1:A20"}</code> and <code>{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A21:A40"}</code> (about 600,000 characters each, about 1.2M together). If TC-R35 runs in the same pass, reuse its setup.</p>
 <p><strong>Checks</strong>
-- Call raises <code>ValueError</code> mentioning the actual response size, the 40,000-character cap, and <code>MAX_TOOL_RESPONSE_CHARS</code>
-- Same call with only 2 queries + <code>local_path</code> set succeeds, returns <code>{local_path, query_count, bytes_written}</code>, and the file on disk contains the full per-query results</p>
+- Call raises <code>ValueError</code> mentioning the actual response size, the 1,000,000-character cap, and <code>MAX_TOOL_RESPONSE_CHARS</code>
+- Same two queries with <code>local_path</code> set succeeds, returns <code>{local_path, query_count, bytes_written}</code>, and the file on disk contains the full per-query results</p>
+<p><strong>Teardown</strong>
+<code>clear_values(sheet="Empty", range="A1:A40")</code> to remove the test data (once, after TC-R35 if it reuses this setup). Scope it to that range: sheets_mgmt cases (TC-S38–S40, TC-S93–S95) also use <code>Empty</code> and may run in a parallel shard.</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 200 queries against the small <code>Sales</code> range (6 rows x 4 cols) raised: <code>get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> <code>local_path</code> with 2 queries succeeded, returned <code>{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}</code>; file verified on disk then cleaned up.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
@@ -2736,12 +2738,12 @@ local_path part passes; the 200-query cap check is stale since #519 and was not 
 <h3 id="tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242">TC-R35: find_in_spreadsheet — max_results bounds count, not size (issue #242)<a class="headerlink" href="#tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>max_results</code> (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.</p>
 <p><strong>Setup</strong>
-Write 10 cells (<code>Empty!A1:A10</code>) each containing a ~4,785-character string with a shared marker substring (e.g. repeated "PADTEST marker text..." sentence), then search for the marker.</p>
+Write <code>=REPT("PADTEST marker ", 2000)</code> (30,000 characters) into each of the 40 cells <code>Empty!A1:A40</code> with <code>update_cells</code>, about 1.2M characters in total, then search for <code>PADTEST</code>. The default cap is 1,000,000 characters since #519, so the matches have to add up to more than that; the 2026-07-03 setup (10 cells of ~4,785 characters, ~42,000 in total) only tripped the old 40,000 default.</p>
 <p><strong>Checks</strong>
-- Call raises <code>ValueError</code> mentioning the actual response size and the cap, even though match count (10) is well under <code>max_results</code> (50)
+- Call raises <code>ValueError</code> mentioning the actual response size and the 1,000,000-character cap, even though the match count (40) is under <code>max_results</code> (50)
 - Same call with <code>local_path</code> set succeeds, returns <code>{local_path, spreadsheet_id, query, match_count, bytes_written}</code>, and the file on disk contains all matches</p>
 <p><strong>Teardown</strong>
-<code>clear_values</code> on the <code>Empty</code> sheet to remove the test data.</p>
+<code>clear_values(sheet="Empty", range="A1:A40")</code> to remove the test data. Scope it to that range, as in TC-R34.</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 10 matches (42,491 chars total) raised: <code>find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...</code> despite being far under the <code>max_results=50</code> default — confirming match-count capping alone doesn't bound response size. <code>local_path</code> call succeeded: <code>{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}</code>; file verified then cleaned up. Test data cleared from the <code>Empty</code> sheet afterward.</p>
 <p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
