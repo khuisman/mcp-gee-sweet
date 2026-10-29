@@ -2954,6 +2954,7 @@ def register(tool):
         source_format: str = "text",
         folder_id: str | None = None,
         convert_to_doc: bool = False,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -2963,7 +2964,9 @@ def register(tool):
             name: File name (include extension, e.g. 'notes.md', 'report.html').
             content: Text content to upload.
             source_format: How to interpret the content. One of:
-                           'markdown' — Markdown text; converted to HTML before upload.
+                           'markdown' — Markdown text. Uploaded as an HTML file, or with
+                                        convert_to_doc=True written into a new Doc
+                                        (see convert_to_doc).
                            'html'     — Raw HTML.
                            'text'     — Plain text (default).
             folder_id: Destination folder ID. Defaults to the configured folder or Drive root.
@@ -2975,6 +2978,11 @@ def register(tool):
                             linked). An 'html' source keeps its heading, list, and link
                             formatting via Drive's HTML import. 'text' uploads as plain
                             text and Drive converts it (no formatting preserved).
+            auto_downscale: For a 'markdown' source with convert_to_doc=True, resize a
+                local-path/drive: image over Google Docs' inline-image limit instead of
+                failing it (default False), as create_doc's auto_downscale does: a
+                drive: source gets a new " (resized)" copy beside the original, a
+                local-path source uploads the resized bytes. No effect otherwise.
 
         Returns:
             fileId, name, parent folder ID, and webViewLink of the created file, plus
@@ -3005,7 +3013,7 @@ def register(tool):
                 target_folder_id,
                 autolink_urls=True,
                 revoke_sharing=True,
-                auto_downscale=False,
+                auto_downscale=auto_downscale,
             )
             if "docId" not in doc:
                 return doc
@@ -3016,7 +3024,10 @@ def register(tool):
                 result.update(name=doc["title"], parent=doc["folder"], web_link=doc["web_link"])
             if "images" in doc:
                 result["images"] = doc["images"]
-            logger.debug("Uploaded %s as Doc %s via the Markdown converter", name, doc["docId"])
+            if "error" in doc:
+                logger.debug("Writing Markdown Doc %s (%s) failed", doc["docId"], name)
+            else:
+                logger.debug("Uploaded %s as Doc %s via the Markdown converter", name, doc["docId"])
             return result
 
         if source_format == "markdown":

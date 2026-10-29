@@ -16,6 +16,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import atomic_write, response_limits
+from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import (
@@ -182,7 +183,7 @@ class TestUploadFileMarkdown:
             for r in requests
             if "link" in r.get("updateTextStyle", {}).get("textStyle", {})
         ]
-        assert "https://example.com" in links  # bare URL autolinked
+        assert links.count("https://example.com") == 1  # bare URL autolinked
         fonts = [
             r["updateTextStyle"]["textStyle"]["weightedFontFamily"]["fontFamily"]
             for r in requests
@@ -225,6 +226,56 @@ class TestUploadFileMarkdown:
         assert result["fileId"] == "doc1"
         assert "error" in result
         assert "name" not in result
+
+    async def test_convert_to_doc_passes_image_outcomes_through(self, monkeypatch):
+        image = {"src": "/tmp/a.png", "fileId": "img1", "shared": False}
+        calls = []
+
+        async def fake_create(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {
+                "docId": "doc1",
+                "title": "n.md",
+                "folder": "folder1",
+                "web_link": "https://docs.example.com/doc1",
+                "images": [image],
+            }
+
+        monkeypatch.setattr(content_module, "_create_doc_with_content", fake_create)
+        drive, docs = self._services()
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="![a](/tmp/a.png)",
+            source_format="markdown",
+            convert_to_doc=True,
+            auto_downscale=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result == {
+            "fileId": "doc1",
+            "name": "n.md",
+            "parent": "folder1",
+            "web_link": "https://docs.example.com/doc1",
+            "images": [image],
+        }
+        assert calls[0][1]["auto_downscale"] is True
+
+    async def test_convert_to_doc_failure_passes_image_outcomes_through(self, monkeypatch):
+        image = {"src": "/tmp/a.png", "fileId": "img1", "shared": False}
+
+        async def fake_create(*args, **kwargs):
+            return {"error": "doc edit failed", "docId": "doc1", "images": [image]}
+
+        monkeypatch.setattr(content_module, "_create_doc_with_content", fake_create)
+        drive, docs = self._services()
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="![a](/tmp/a.png)",
+            source_format="markdown",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result == {"error": "doc edit failed", "fileId": "doc1", "images": [image]}
 
     async def test_raw_markdown_upload_uses_our_converter(self):
         drive, docs = self._services()
