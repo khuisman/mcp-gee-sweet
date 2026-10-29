@@ -30,7 +30,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-LANE_NAMES = ("ash", "jay", "sky", "kit")
+LANE_NAMES = ("ash", "jay", "sky", "kit", "rio")
 
 DEFAULT_WARN_TOKENS = 250_000
 DEFAULT_WARN_STEP = 50_000

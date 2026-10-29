@@ -4,7 +4,7 @@ The incidents behind the rules in the `.claude/team-roles/` files `dev.md`, `qa.
 
 Each entry below is the full original text of one paragraph or bullet the move rewrote or removed, in the file's original order, under a heading taken from its opening words. Where an entry was dropped from the role file instead of compressed, the note under its heading says where its rule lives now. Read the entry for a rule before loosening or reversing it.
 
-Issue and PR numbers, step numbers, and cross-references inside the quoted text are as they were at the move (2026-10-08), so a "step 2" or "above" refers to the old file. Later history belongs in a decision doc of its own, not appended here.
+Issue and PR numbers, step numbers, and cross-references inside the quoted text are as they were at the move (2026-10-08), so a "step 2" or "above" refers to the old file. Entries after the move record later incidents behind a role-file rule. A decision whose reasoning outgrows a few paragraphs gets its own doc in `docs/decisions/`, with a pointer here.
 
 ## `dev.md`
 

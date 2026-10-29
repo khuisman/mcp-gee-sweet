@@ -5,8 +5,8 @@ Rio reviews every PR that no lane's QA partner owns, so Sky and Kit stay on thei
 ## Which PRs are Rio's
 
 An open PR is Rio's when all of these hold:
-- Its branch's second `/`-separated segment isn't `ash` or `jay`. A lane Dev's PR is Sky's or Kit's, even when the user asks Rio to take it: say so and name the lane's QA.
-- Its author is `khuisman` or `kh-kev`. A community or bot PR (`kai.md` "Community intake") isn't reviewed on this side.
+- Its branch's second `/`-separated segment isn't `ash`, `jay`, or `rio`. A lane Dev's PR is Sky's or Kit's, even when the user asks Rio to take it: say so and name the lane's QA. Rio's own PR has no reviewer; it goes to the user (`merge-pr.md` step 2).
+- Its author isn't an outside contributor or a bot, as `kai.md` "Community intake" defines them. Those PRs aren't reviewed on this side.
 - It doesn't carry `parked`.
 - It isn't a prompt PR that only Bob merges: `merge-pr.md` step 2's prompt-PR exception, where at least one path is a prompt file and every other path is under `docs/` or is root `CONTRIBUTING.md`. A PR that also touches anything else gets Rio's `qa-approved` as well as Bob's `prompt-qa-approved`.
 
@@ -26,7 +26,7 @@ With no go-ahead, list the PRs that are Rio's (above) to the user, oldest first,
 ## The pass
 
 Once there's a go-ahead, follow `qa.md` from step 1 under "One found" through step 8, reading:
-- "the Dev" or "the partner" as the PR's author: the session named by the branch's second segment (`aziz`, `amy`, `joy`, `kai`, …), or the user when that session isn't live.
+- "the Dev" or "the partner" as the PR's author: the session named by the branch's second segment (`aziz`, `amy`, `joy`, `kai`, …), or, when the segment names no role (e.g. `qa/live-coverage-<date>`) or that session isn't live, the user.
 - `<Name>` in the verdict line as `Rio`.
 - `/notify-partner` in step 7 as: if the author's session is listed by `ListAgents`, send it the verdict line and comment URL with `SendMessage`. Either way, tell the user and Kai that it went back to the author.
 - `/qa-kickoff`'s `<name>` as `rio`.

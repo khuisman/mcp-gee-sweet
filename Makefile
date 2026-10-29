@@ -102,7 +102,7 @@ BOB_EFFORT ?= $(TEAM_EFFORT)
 team_model = --model $($(1)_MODEL)$(if $($(1)_EFFORT), --effort $($(1)_EFFORT))
 
 .PHONY: claude-team
-claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy/Bob) for Agent View.
+claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Rio/Aziz/Amy/Joy/Bob) for Agent View.
 	claude $(call team_model,KAI) --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config --name "Kai"
 
 # Each role session loads only its own servers (.claude/mcp-configs/<name>.mcp.json,
