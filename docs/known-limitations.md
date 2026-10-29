@@ -196,7 +196,9 @@ use this server's converter instead. The same Markdown comes out differently:
 - **Task lists** become native Docs checklists rather than `☐` / `☑` text. A numbered task list
   loses its numbers.
 - **Sub-lists indented by 2 spaces** under a numbered item don't nest; 3 or more spaces do.
-- **Extra empty paragraphs** appear around paragraphs, rules, and lists.
+- **Extra empty paragraphs** appear around paragraphs, rules, lists, and tables. A table gets a
+  visible empty line above it when it starts the document, and between it and a paragraph
+  directly before it.
 - **`<del>` and `<mark>`** inline HTML isn't rendered as strikethrough or highlight.
 - **Images** with a local path or `drive:` source aren't embedded. Only this server's converter
   uploads and shares those.
