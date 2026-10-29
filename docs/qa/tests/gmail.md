@@ -7,7 +7,7 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 ## Conventions
 
 - **Fixtures.** Read cases use the seeded fixture set, never real inbox contents. Seed it with `scripts/qa_gmail_fixtures.py` (setup.md §"Gmail fixture setup") and run its `status` command first. Placeholders in `{TEST_…}` form are the `.env` keys that script writes. Every fixture carries the user label `mcp-qa-fixture` (`{TEST_GMAIL_LABEL_ID}`) and a `[mcp-qa:<key>]` subject.
-- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except the cross-mailbox cases (TC-GM44–45), which also send to `{SENDER}`. Nothing else is ever a recipient.
+- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except the cross-mailbox cases (TC-GM44–45), which also send to `{SENDER}`, and TC-GM25, which also sends to the bare `{QA}`. Nothing else is ever a recipient.
 - **Subjects.** Every message a case sends or drafts has a subject starting `[mcp-qa:tc-gmNN]`, so `qa_gmail_fixtures.py reset` sweeps anything a failed run leaves behind. (TC-GM42's empty-subject message is the one exception; its Cleanup trashes it by ID.)
 - **Sending to yourself is one message.** Mail to `{QA+tag}` comes back as one ID labeled `SENT`+`INBOX`, not a sent copy plus a delivered copy. Cleanup trashes that one ID.
 - **Don't break fixtures.** Never trash a fixture, and never remove `mcp-qa-fixture` from one. Cases that change a fixture's labels (TC-GM19) restore them in the same case.
@@ -212,7 +212,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Checks**
 - `headers.subject` is `[mcp-qa:alt-unicode] Ünïcødé ✓ 🎉 subject`
-- `body_plain` is `Grüße aus Zürich — naïve café, 日本語, emoji 🎉🚀.` (ignore trailing whitespace)
+- `body_plain` is `Grüße aus *Zürich* — naïve café, 日本語, emoji 🎉🚀.` (ignore trailing whitespace). The asterisks are expected: Gmail stores the text/plain part with the bold `Zürich` rendered as `*Zürich*` (seen in a raw `messages.get(format=full)` in the v0.9.2 pass), and the tool returns that part as stored.
 - `body_html` contains `Grüße aus <b>Zürich</b> — naïve café, 日本語, emoji 🎉🚀.`
 - No mojibake (`Ã`, `â€`) and no `�` in any header or body
 - No `error` or `body_decode_errors` field
@@ -647,7 +647,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 3. `list_messages` with `query: "subject:(mcp-qa tc-gm40)"`, `include_spam_trash: true`
 
 **Checks**
-- Steps 1 and 2: each returns `{"error": "..."}` and no `id`. A local probe (2026-09-26) raises `HeaderParseError` for step 1 and `HeaderWriteError` for step 2, both inside the tool's `try`.
+- Steps 1 and 2: each returns `{"error": "..."}` and no `id`. The error is the text of the exception Python's `email` package raises while the tool builds the message (`HeaderParseError` for step 1, `HeaderWriteError` for step 2); the exception class name isn't in it. On Python 3.13, step 1's error starts `header value appears to contain an embedded header:` and step 2's starts `folded header contains newline:`, each followed by the offending header.
 - Step 3: `messages` is empty, so nothing was sent
 
 **Cleanup:** none expected. If step 3 finds anything, record FAIL and trash it.
@@ -1108,14 +1108,14 @@ Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards
 **Background:** a plain reply (`reply_all: false`) to a message the mailbox itself sent used to set `To` to the mailbox's own address. #791 replies to that message's original `To` instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.
 
 **Action**
-1. `send_message` with `to: "<mailbox local part>+tc-gm24@<mailbox domain>"`, `subject: "TC-GM24 own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
+1. `send_message` with `to: "{QA+tc-gm24}"`, `subject: "[mcp-qa:tc-gm24] own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
 2. `get_message` with `message_id: "{OWN_SENT_ID}"`
 3. `reply_to_message` with `message_id: "{OWN_SENT_ID}"`, `body: "mcp-gee-sweet TC-GM24 reply"`
 4. `get_message` with `message_id` set to the `id` returned by step 3
 
 **Checks**
 - Step 2: `label_ids` includes `SENT`
-- Step 4: `headers.to` is the `+tc-gm24` address, **not** the bare QA mailbox address
+- Step 4: `headers.to` is `{QA+tc-gm24}`, **not** the bare `{QA}` address
 - Step 4: `thread_id` matches `{OWN_SENT_ID}`'s thread
 
 **Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
@@ -1134,15 +1134,15 @@ Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards
 
 ### TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth
 
-**Background:** PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. `To: <mailbox>, <mailbox>+x` replied to both, so you got a copy of your own reply. A `Cc`-only message (no `To`) replied `To: <mailbox>` and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's `Cc` when nobody else is in `To`. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.
+**Background:** PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. `To: <mailbox>, <mailbox>+x` replied to both, so you got a copy of your own reply. A `Cc`-only message (no `To`) replied `To: <mailbox>` and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's `Cc` when nobody else is in `To`. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases. Steps 1 and 6 also send to the bare `{QA}` address on purpose, since the case needs the mailbox's own address among the recipients. That's an exception to the file's address convention, and it's still the QA mailbox, so nothing leaves it.
 
 **Action**
-1. `send_message` with `to: ["<mailbox>", "<mailbox local part>+tc-gm25a@<mailbox domain>"]`, `subject: "TC-GM25 multi-recipient fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture A"`. Record its `id` as `{GM25_A}`.
+1. `send_message` with `to: ["{QA}", "{QA+tc-gm25a}"]`, `subject: "[mcp-qa:tc-gm25] multi-recipient fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture A"`. Record its `id` as `{GM25_A}`.
 2. `reply_to_message` with `message_id: "{GM25_A}"`, `body: "mcp-gee-sweet TC-GM25 reply A"`, then `get_message` on the returned `id`.
-3. `send_message` with `to: ""`, `cc: "<mailbox local part>+tc-gm25b@<mailbox domain>"`, `subject: "TC-GM25 Cc-only fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture B"` (the round-1 Cc-only repro). Record its `id` as `{GM25_B}`.
+3. `send_message` with `to: []`, `cc: "{QA+tc-gm25b}"`, `subject: "[mcp-qa:tc-gm25] Cc-only fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture B"` (the round-1 Cc-only repro). Record its `id` as `{GM25_B}`.
 4. `reply_to_message` with `message_id: "{GM25_B}"`, `body: "mcp-gee-sweet TC-GM25 reply B"`, then `get_message` on the returned `id`.
 5. `reply_to_message` with `message_id: "{GM25_B}"`, `reply_all: true`, `body: "mcp-gee-sweet TC-GM25 reply-all B"`, then `get_message` on the returned `id`.
-6. Repeat steps 3–5 with `to: "<mailbox>"` instead of `to: ""` and `+tc-gm25c` as the Cc (a message to yourself that also Cc's someone).
+6. Repeat steps 3–5 with `to: "{QA}"` instead of `to: []` and `{QA+tc-gm25c}` as the Cc (a message to yourself that also Cc's someone).
 
 **Checks**
 - Step 2: `headers.to` is exactly the `+tc-gm25a` address. The bare mailbox address appears nowhere in `to`/`cc`.
