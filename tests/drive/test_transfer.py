@@ -263,8 +263,15 @@ class TestUploadFileMarkdown:
     async def test_convert_to_doc_failure_passes_image_outcomes_through(self, monkeypatch):
         image = {"src": "/tmp/a.png", "fileId": "img1", "shared": False}
 
+        dropped = [{"url": "./x.md", "reason": "no_scheme"}]
+
         async def fake_create(*args, **kwargs):
-            return {"error": "doc edit failed", "docId": "doc1", "images": [image]}
+            return {
+                "error": "doc edit failed",
+                "docId": "doc1",
+                "images": [image],
+                "dropped_links": dropped,
+            }
 
         monkeypatch.setattr(content_module, "_create_doc_with_content", fake_create)
         drive, docs = self._services()
@@ -275,7 +282,12 @@ class TestUploadFileMarkdown:
             convert_to_doc=True,
             ctx=self._ctx(drive, docs),
         )
-        assert result == {"error": "doc edit failed", "fileId": "doc1", "images": [image]}
+        assert result == {
+            "error": "doc edit failed",
+            "fileId": "doc1",
+            "images": [image],
+            "dropped_links": dropped,
+        }
 
     async def test_raw_markdown_upload_uses_our_converter(self):
         drive, docs = self._services()

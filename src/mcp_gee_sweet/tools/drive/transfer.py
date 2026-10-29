@@ -2985,10 +2985,11 @@ def register(tool):
                 local-path source uploads the resized bytes. No effect otherwise.
 
         Returns:
-            fileId, name, parent folder ID, and webViewLink of the created file, plus
-            "images" (per-image outcomes, as create_doc returns them) for a Markdown Doc
-            whose content had any. If writing a Markdown Doc's content fails after the
-            Doc was created, returns {"error", "fileId", "images"} instead.
+            fileId, name, parent folder ID, and webViewLink of the created file. A
+            Markdown Doc also gets create_doc's "images" (per-image outcomes) and
+            "dropped_links" (links written as plain text) when there are any. If writing
+            a Markdown Doc's content fails after the Doc was created, returns
+            {"error", "fileId"} plus those fields instead.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -3022,8 +3023,14 @@ def register(tool):
                 result = {"error": doc["error"], **result}
             else:
                 result.update(name=doc["title"], parent=doc["folder"], web_link=doc["web_link"])
-            if "images" in doc:
-                result["images"] = doc["images"]
+            # images, dropped_links, and whatever else create_doc reports.
+            result.update(
+                {
+                    k: v
+                    for k, v in doc.items()
+                    if k not in ("docId", "title", "folder", "web_link", "error")
+                }
+            )
             if "error" in doc:
                 logger.debug("Writing Markdown Doc %s (%s) failed", doc["docId"], name)
             else:

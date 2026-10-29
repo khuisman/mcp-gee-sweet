@@ -2985,7 +2985,9 @@ class TestUpdateDocFromFile:
         drive_svc, docs_svc = self._make_services(end_index=2)
         ctx = self._ctx(drive_svc, docs_svc)
         real_apply = content_module._apply_doc_content
-        with patch.object(content_module, "_apply_doc_content", return_value=None) as apply:
+        with patch.object(
+            content_module, "_apply_doc_content", return_value=content_module.AppliedContent()
+        ) as apply:
             await _docs_tools["update_doc_from_file"](
                 doc_id="doc1", local_path=str(md_file), ctx=ctx, **flags
             )
