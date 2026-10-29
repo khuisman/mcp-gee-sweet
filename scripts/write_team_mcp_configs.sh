@@ -25,7 +25,7 @@ REPO_ROOT="$1"
 shift
 WORKTREE_ROLES=("$@")
 CONFIG_DIR="$REPO_ROOT/.claude/mcp-configs"
-ALL_SERVERS=(mcp-gee-sweet-ash mcp-gee-sweet-sky mcp-gee-sweet-jay mcp-gee-sweet-kit
+ALL_SERVERS=(mcp-gee-sweet-ash mcp-gee-sweet-sky mcp-gee-sweet-jay mcp-gee-sweet-kit mcp-gee-sweet-rio
   mcp-gee-sweet-kai-oauth mcp-gee-sweet-kai-sa mcp-gee-sweet-oauth mcp-gee-sweet-sa playwright)
 
 oauth_server() {
@@ -61,7 +61,7 @@ JSON
 
 server_entry() {
   case "$1" in
-    mcp-gee-sweet-ash | mcp-gee-sweet-sky | mcp-gee-sweet-jay | mcp-gee-sweet-kit)
+    mcp-gee-sweet-ash | mcp-gee-sweet-sky | mcp-gee-sweet-jay | mcp-gee-sweet-kit | mcp-gee-sweet-rio)
       oauth_server "$1" "$REPO_ROOT/.claude/worktrees/${1#mcp-gee-sweet-}" ;;
     mcp-gee-sweet-kai-oauth | mcp-gee-sweet-oauth) oauth_server "$1" "$REPO_ROOT" ;;
     mcp-gee-sweet-kai-sa | mcp-gee-sweet-sa) sa_server "$1" "$REPO_ROOT" ;;
@@ -100,7 +100,7 @@ write_config() {
 role_servers() {
   case "$1" in
     ash | jay) echo "mcp-gee-sweet-$1" ;;
-    sky | kit) echo "mcp-gee-sweet-$1 playwright" ;;
+    sky | kit | rio) echo "mcp-gee-sweet-$1 playwright" ;;
     aziz) echo "unscoped" ;;
     amy | joy | bob) echo "" ;;
     *) echo "unknown role: $1" >&2; return 1 ;;

@@ -86,6 +86,8 @@ JAY_MODEL ?= $(TEAM_MODEL)
 JAY_EFFORT ?= $(TEAM_EFFORT)
 KIT_MODEL ?= $(TEAM_MODEL)
 KIT_EFFORT ?= $(TEAM_EFFORT)
+RIO_MODEL ?= $(TEAM_MODEL)
+RIO_EFFORT ?= $(TEAM_EFFORT)
 KAI_MODEL ?= $(TEAM_MODEL)
 KAI_EFFORT ?= $(TEAM_EFFORT)
 AZIZ_MODEL ?= $(TEAM_MODEL)
@@ -100,7 +102,7 @@ BOB_EFFORT ?= $(TEAM_EFFORT)
 team_model = --model $($(1)_MODEL)$(if $($(1)_EFFORT), --effort $($(1)_EFFORT))
 
 .PHONY: claude-team
-claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy/Bob) for Agent View.
+claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Rio/Aziz/Amy/Joy/Bob) for Agent View.
 	claude $(call team_model,KAI) --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config --name "Kai"
 
 # Each role session loads only its own servers (.claude/mcp-configs/<name>.mcp.json,
@@ -126,6 +128,10 @@ team-jay: setup-team ## Launch Claude Code backgrounded directly into the Jay pe
 .PHONY: team-kit
 team-kit: setup-team ## Launch Claude Code backgrounded directly into the Kit persona (QA, lane B); shows up in `claude agents`.
 	claude --bg --name "Kit" $(call team_model,KIT) "/team-member Kit" $(call team_mcp,kit)
+
+.PHONY: team-rio
+team-rio: setup-team ## Launch Claude Code backgrounded directly into the Rio persona (QA, non-lane PRs); shows up in `claude agents`.
+	claude --bg --name "Rio" $(call team_model,RIO) "/team-member Rio" $(call team_mcp,rio)
 
 .PHONY: team-aziz
 team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz persona (Release QA lead); shows up in `claude agents`.

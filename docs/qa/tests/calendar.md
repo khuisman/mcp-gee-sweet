@@ -2,7 +2,11 @@
 
 Source: `src/mcp_gee_sweet/tools/calendar.py`
 
-Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}` (a subscribed calendar the service account has access to) and `{EVENT_ID}` (a pre-existing event in that calendar) from `fixtures.local.md`.
+Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}` (`TEST_CALENDAR_ID`) and `{EVENT_ID}` (`TEST_EVENT_ID`, a pre-existing event in that calendar) from `fixtures.local.md`.
+
+> ⚠️ **Which identity these cases need.** `{CALENDAR_ID}` is a secondary calendar that `setup.md`'s seed prompt creates with `create_calendar`, so it belongs to the account that ran the setup, not to the service account. It isn't shared with the service account, and returns 404 to it (2026-09-04 and v0.9.2). So:
+> - **OAuth server (e.g. `mcp-gee-sweet-oauth`, `-kai-oauth`):** run the cases as written, against `{CALENDAR_ID}` and `{EVENT_ID}`.
+> - **Service-account server (e.g. `-sa`, `-kai-sa`):** `{CALENDAR_ID}` can't be used. Do what v0.9.2 did: create scratch calendars with `create_calendar` (they're owned by the service account), create the events a case needs in them, substitute those IDs for `{CALENDAR_ID}` and `{EVENT_ID}`, and delete the scratch calendars at the end. Expect these limits under the service account: inviting attendees returns 403 `forbiddenForServiceAccounts` (TC-CAL17, TC-CAL22: SKIP or run on OAuth); it has no primary calendar; and the Playwright checks can't see its calendars, since the browser is signed in as the fixture owner, so those cases are API-only.
 
 > **Service account note:** the service account must have been added to each calendar via `calendarList().insert()` before it can read or write events. `list_calendars` only returns calendars the service account has explicitly subscribed to — it will not see calendars shared with the owning user's personal account. See `docs/project_calendar_setup.md` in memory.
 

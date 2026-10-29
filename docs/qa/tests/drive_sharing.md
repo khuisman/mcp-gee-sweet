@@ -4,6 +4,16 @@ Source: `src/mcp_gee_sweet/tools/drive/sharing.py`
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}`, `{DOC_ID}`, and `{FOLDER_ID}` from `fixtures.local.md`.
 
+> ⚠️ **Approval needed before running this file.** Every case here that creates a permission is a permission grant, which the auto-mode safety classifier denies unless the user's own words in the session name that kind of grant. A general "drive sharing" approval is not enough: in v0.9.2 it covered `TEST_PERMISSION_EMAIL` and the org domain, and the classifier still denied `@example.com` recipients, `type='anyone'`, and `role="owner"` (`docs/qa/runs/v0.9.2.md`). Ask for one approval that names each category, as listed in `.claude/team-roles/aziz.md`:
+> - shares to `TEST_PERMISSION_EMAIL` and to `@example.com` test addresses (a reserved domain, so nobody receives them). This covers the multi-recipient cases (TC-D176, TC-D177, TC-D258).
+> - an "anyone with the link" reader share (TC-D136, TC-D259)
+> - the `role="owner"` calls in TC-D21 and TC-D128. `aziz.md`'s list names only TC-D128, so add TC-D21 to the request.
+> - a share to the org's Workspace domain, `{GWS_DOMAIN}` (TC-D135, TC-D177, TC-D259). `aziz.md`'s list doesn't name this one, so add it to the request.
+>
+> Run every grant on a throwaway spreadsheet or folder in the Shared Drive, not on `{SPREADSHEET_ID}` or `{FOLDER_ID}`, and remove each grant right after its case. Where a prompt below says `{SPREADSHEET_ID}`, substitute the throwaway file.
+>
+> **`@example.com` recipients need `send_notification` left at its default (`True`).** These addresses have no Google account, and Drive refuses to share with such an address without a notification email. The literal address `test@example.com` has also been rejected by Google's address validation ("There's a problem with this email or domain"); use a distinct address such as `qa-recipient1@example.com`. To test `send_notification=False`, share to `TEST_PERMISSION_EMAIL` instead.
+
 ---
 
 ## `share_spreadsheet`
@@ -70,8 +80,10 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 ### TC-D21: Invalid role
 
+**Approval:** the `role="owner"` call in TC-D21, named in the user's approval (see the note at the top of this file). The tool rejects the role before any API call, but the classifier judges the call by its arguments.
+
 **Prompt**
-> "Share {SPREADSHEET_ID} with test@example.com as an 'owner'"
+> "Share {SPREADSHEET_ID} with qa-recipient1@example.com as an 'owner'"
 
 **Checks**
 - Entry goes to `failures` list (invalid role)
@@ -126,11 +138,13 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 ### TC-D24: send_notification=False
 
 **Prompt**
-> "Share {SPREADSHEET_ID} with test@example.com as reader but don't send them a notification email"
+> "Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as reader but don't send them a notification email"
+
+`TEST_PERMISSION_EMAIL`, not an `@example.com` address: Drive refuses `send_notification=False` for an address with no Google account (see the approval note at the top of this file).
 
 **Checks**
 - Share succeeds
-- No notification email sent (verify by using an email you control)
+- No notification email sent (verify by checking the `TEST_PERMISSION_EMAIL` inbox)
 
 **Result (2026-09-04) ❌ FAIL**
 send_notification=False -> API path -> "File not found" (supportsAllDrives bug). Cannot verify notification suppression.
@@ -164,6 +178,8 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 **Background:** #183 made `share_spreadsheet` issue its per-recipient `permissions().create()` calls concurrently via `asyncio.gather()` instead of one at a time. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable recipients at once to surface any result mixed up between concurrent calls (wrong role or permissionId attributed to the wrong email).
 
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
+
 **Prompt**
 > "Share {SPREADSHEET_ID} with these 5 recipients at once: recipient1@example.com as reader, recipient2@example.com as commenter, recipient3@example.com as writer, recipient4@example.com as reader, recipient5@example.com as writer"
 
@@ -191,6 +207,8 @@ list_permissions cross-check: every principal had exactly its requested role.
 **Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_spreadsheet`'s concurrent per-recipient shares (the same concurrent loop TC-D176 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{email_address}: {outcome}")` fires from inside each recipient's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareSpreadsheet::test_reports_progress_per_recipient`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
 
 **Prompt**
 > "Share {SPREADSHEET_ID} with recipient1@example.com as reader and recipient2@example.com as reader"
@@ -286,6 +304,8 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 ---
 
 ### TC-D128: Invalid role value
+
+**Approval:** the `role="owner"` call in TC-D128, named in the user's approval (see the note at the top of this file). The tool rejects the role before any API call, but the classifier judges the call by its arguments and denied it in v0.9.2 without that approval.
 
 **Prompt**
 > "Update permission {PERMISSION_ID} on {SPREADSHEET_ID} to role 'owner'"
@@ -425,7 +445,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 ## `share_file`
 
-> ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not valid Google accounts and Drive will reject sharing with them. TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental.
+> ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not Google accounts: Drive accepts a share to one only with `send_notification` left at `True` (TC-D138, TC-D177), and refuses it with `send_notification=False` (seen in TC-D138's v0.9.2 run; see the note at the top of this file). TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental. See the approval note at the top of this file before running any case here.
 
 ### TC-D132: Share with type=user as reader
 
@@ -484,6 +504,8 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 > ⚠️ **Environmental:** `example.com` is not a Google Workspace domain; Drive will reject this with a domain validation error. Replace with your actual GWS domain if available, or SKIP and record as environmental.
 
+**Approval:** a share to the org's Workspace domain, `{GWS_DOMAIN}`, named in the user's approval (see the note at the top of this file).
+
 **Prompt**
 > "Share {SPREADSHEET_ID} with everyone at {GWS_DOMAIN} as a reader using share_file with type='domain'"
 
@@ -500,6 +522,8 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 ---
 
 ### TC-D136: Share with type=anyone (public link)
+
+**Approval:** an "anyone with the link" reader share, named in the user's approval (see the note at the top of this file). Remove the `anyoneWithLink` permission right after the case.
 
 **Prompt**
 **Playwright: required**
@@ -540,8 +564,10 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 ### TC-D138: Mixed success and failure in one call
 
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default: with `send_notification=False`, Drive puts the `@example.com` entry in `failures` too (v0.9.2).
+
 **Prompt**
-> "Share {SPREADSHEET_ID} using share_file with two permissions: first type='user' email=test@example.com role='reader', second type='user' role='writer' (no email_address)"
+> "Share {SPREADSHEET_ID} using share_file with two permissions: first type='user' email=qa-mixed-recipient@example.com role='reader', second type='user' role='writer' (no email_address)"
 
 **Checks**
 - First entry in `successes`, second entry in `failures`
@@ -579,6 +605,8 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 **Background:** Same concurrency change as TC-D176, applied to `share_file`'s richer type/domain/anyone permission model. This mixes distinct types and roles across several entries at once to catch a result attributed to the wrong entry under concurrent execution.
 
+**Approval:** shares to `@example.com` test addresses and to the org's Workspace domain, both named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
+
 **Prompt**
 > "Share {SPREADSHEET_ID} using share_file with these 4 permissions at once: type='user' email=recipient1@example.com role='reader', type='user' email=recipient2@example.com role='writer', type='user' email=recipient3@example.com role='commenter', type='domain' domain={GWS_DOMAIN} role='reader'"
 
@@ -603,6 +631,8 @@ list_permissions cross-check: every principal had exactly its requested role.
 **Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{perm_type}: {outcome}")` fires from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Approval:** an "anyone with the link" reader share and a share to the org's Workspace domain, both named in the user's approval (see the note at the top of this file).
 
 **Prompt**
 > "Share {SPREADSHEET_ID} using share_file with type='anyone' role='reader' and type='domain' domain={GWS_DOMAIN} role='reader'"

@@ -1492,18 +1492,19 @@ Run 1 (kai-oauth).
 
 ### TC-D121: Filter by name
 
-**Fixture:** the QA environment has exactly one Shared Drive, `SHARED_DRIVE_ID`
-("mcp-gee-sweet-shared"). A `name contains "Marketing"` filter should therefore return
-`[]`; run a second call with `name contains "mcp-gee"` and confirm that one returns the
-fixture drive.
+**Fixture:** the QA environment's Shared Drives include `SHARED_DRIVE_ID`
+("mcp-gee-sweet-shared"), and none of them has "Marketing" in its name. A
+`name contains "Marketing"` filter should therefore return `[]`. Run a second call with
+`name contains "mcp-gee"` and confirm that it returns the fixture drive. Other drives whose
+names contain "mcp-gee" may also be returned; the check doesn't depend on how many exist.
 
 **Prompt**
 > "List shared drives whose name contains 'Marketing'", then "List shared drives whose name contains 'mcp-gee'"
 
 **Checks**
 - `query='name contains "Marketing"'` passed to API; result is `[]`
-- `query='name contains "mcp-gee"'` returns exactly the `SHARED_DRIVE_ID` fixture drive
-- A drive not matching the name is absent from results
+- `query='name contains "mcp-gee"'` includes the `SHARED_DRIVE_ID` fixture drive, and every drive returned has "mcp-gee" in its name
+- A drive not matching the name is absent from results (compare against an unfiltered `list_drives()`)
 
 **Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(query='name contains "Marketing"')` returned `[]`; `list_drives(query='name contains "mcp-gee"')` returned exactly one drive, `mcp-gee-sweet-shared`, whose `id` matches `.env`'s `SHARED_DRIVE_ID`. Unfiltered `list_drives()` returns that same single drive.
 
@@ -1517,17 +1518,18 @@ Filter correct; "exactly one drive" wording is stale (a second mcp-gee* drive ex
 
 ### TC-D122: max_results clamping
 
-**Fixture:** with exactly one Shared Drive in the environment (`SHARED_DRIVE_ID`),
-`max_results=0` exercises the clamp-to-1 path (returns the one drive, not zero). The
-clamp-to-200 ceiling can't be exercised live with one drive; the clamp is inline in
-`list_drives` (`max_results = min(max(1, max_results), 200)`), no dedicated unit test.
+**Fixture:** the environment has at least one Shared Drive (`SHARED_DRIVE_ID`); more than
+one is fine. `max_results=0` exercises the clamp-to-1 path (returns one drive, not zero). The
+clamp-to-200 ceiling can't be exercised live with fewer than 200 drives; `list_drives` clamps
+with `clamp_max_results(max_results, 200)` (`tools/response_limits.py`) and trims the result
+to that count.
 
 **Prompt**
 > "List shared drives with max_results=0" then "List shared drives with max_results=300"
 
 **Checks**
-- `max_results=0` clamped to 1; at most 1 drive returned (not `[]`)
-- `max_results=300` clamped to 200 in the API call; returns the 1 available drive
+- `max_results=0` clamped to 1; exactly 1 drive returned (not `[]`), even when more exist
+- `max_results=300` clamped to 200 in the API call; returns every available drive
 
 **Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(max_results=0)` returned 1 drive (`mcp-gee-sweet-shared`), not `[]` — clamp-to-1 path confirmed. `list_drives(max_results=300)` returned the 1 available drive; the clamp-to-200 ceiling isn't directly observable with a single drive (matches this case's own note).
 
@@ -2071,12 +2073,14 @@ create_shortcut cases matched.
 
 **Setup:** Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.
 
+The default folder is the server's `DRIVE_FOLDER_ID`, which `setup.md` sets to the Shared Drive's root (the same value as `SHARED_DRIVE_ID`). It is not `{FOLDER_ID}` (`TEST_FOLDER_ID`), so the shortcut lands in the Shared Drive root, not next to its target. With `DRIVE_FOLDER_ID` unset, the default is My Drive root.
+
 **Prompt**
 > "Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"
 
 **Checks**
-- Response `parent` matches the server's configured default folder (`{FOLDER_ID}` in this fixture setup)
-- `list_files` on `{FOLDER_ID}` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
+- Response `parent` matches the server's configured default folder, `DRIVE_FOLDER_ID`
+- `list_files` on `DRIVE_FOLDER_ID` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
 - Confirms `drive_folder_cache.mark_dirty` fired for the parent (cache reflects the new shortcut without a manual refresh)
 
 **Cleanup:** Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.
