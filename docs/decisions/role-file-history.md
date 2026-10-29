@@ -302,6 +302,12 @@ PR #1006 (#989, lane B) took seven rounds, and `qa.md` changed under it twice. K
 
 On 2026-10-28, four docs-only QA PRs (#1270, #1271, #1274, #1276, none of them a lane Dev's) were waiting at once. Kit reviewed #1270 and sent it back. That bound the session to #1270, so #1274, a results-only PR in the same `docs/qa/` tree, needed a fresh Kit session, and Kit would have to `/clear` again for Jay's next PR. The rule's reason (#843) is the cost of carrying a finished review's context into every later turn. A `docs/qa/` PR changes no code the slot's server runs, so a reset to its branch can't leave the server running stale code. The maintainer asked for the exception. It's scoped by path, never by diff size (#1271 is `docs/qa/`-only at an 87 KB patch): every changed path under `docs/qa/`, never the partner Dev's PR, judged on each head before resetting to it, so a QA-docs PR that later adds code is re-classified. A session that has reset to any PR's branch still needs `/clear` before a partner or code PR (Bob's prompt-QA round 1).
 
+## `rio.md`
+
+### Why a non-lane QA role exists
+
+Until 2026-10-28, `kai.md` sent each non-lane PR (Aziz's, Amy's, Joy's, Kai's) to whichever of Sky or Kit had no partner PR in review. That day four non-lane `docs/qa/` PRs (#1270, #1271, #1274, #1276) queued behind Sky's lane-A PR (#1272) and Kit's lane-B PR (#1283). Kit reviewed #1270 and sent it back, which bound its session to #1270 under the one-PR rule. When Jay opened #1283, Kit had to `/clear`, so #1270's re-verification had to move to another session. Every hand-off also needed the user to type a go-ahead in a QA window, since `qa.md` accepts no peer's go-ahead for a non-partner PR. The team opened PRs faster than it merged them. The maintainer asked for a QA persona that owns every non-lane PR, so Sky and Kit stay on their partners. Rio takes Kai's hand-off as the go-ahead when it names the PR and says the user directed it, the same rule as `amy.md`'s.
+
 ## `aziz.md`
 
 ### Server slots during a release pass

@@ -86,6 +86,8 @@ JAY_MODEL ?= $(TEAM_MODEL)
 JAY_EFFORT ?= $(TEAM_EFFORT)
 KIT_MODEL ?= $(TEAM_MODEL)
 KIT_EFFORT ?= $(TEAM_EFFORT)
+RIO_MODEL ?= $(TEAM_MODEL)
+RIO_EFFORT ?= $(TEAM_EFFORT)
 KAI_MODEL ?= $(TEAM_MODEL)
 KAI_EFFORT ?= $(TEAM_EFFORT)
 AZIZ_MODEL ?= $(TEAM_MODEL)
@@ -126,6 +128,10 @@ team-jay: setup-team ## Launch Claude Code backgrounded directly into the Jay pe
 .PHONY: team-kit
 team-kit: setup-team ## Launch Claude Code backgrounded directly into the Kit persona (QA, lane B); shows up in `claude agents`.
 	claude --bg --name "Kit" $(call team_model,KIT) "/team-member Kit" $(call team_mcp,kit)
+
+.PHONY: team-rio
+team-rio: setup-team ## Launch Claude Code backgrounded directly into the Rio persona (QA, non-lane PRs); shows up in `claude agents`.
+	claude --bg --name "Rio" $(call team_model,RIO) "/team-member Rio" $(call team_mcp,rio)
 
 .PHONY: team-aziz
 team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz persona (Release QA lead); shows up in `claude agents`.
