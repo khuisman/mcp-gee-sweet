@@ -298,6 +298,10 @@ Round 1 of PR #1079 (`ac33f711`) was sent back with ten findings, while all four
 
 PR #1006 (#989, lane B) took seven rounds, and `qa.md` changed under it twice. Kit read `qa.md` once, at session start, from a checkout whose step 8 had no CI wait. In round 3, Jay merged `develop` into the branch, bringing in #1008's new bar-2 boundary. Kit noticed the bar change in that merge's diff and re-triaged round 2's ticket lines: #1009 turned into a send-back. The CI wait already on `develop` went unnoticed, so rounds 5 and 7 applied `qa-approved` without waiting for CI. After round 5's label, Kai found the PR `CONFLICTING` with `develop` (PR #1011 had merged, touching the same quota sites), with only CodeQL run on the head and no `Lint and test`. Step 1 now diffs the process files after a `develop` merge and re-reads what changed, and step 6 does the same when its mid-pass rebase brings in a `develop` merge (Bob's prompt-QA round 1: step 1 alone didn't cover a merge pushed during a pass). Step 8 checks `mergeable` (re-reading once on `UNKNOWN`) before retriggering an absent `Lint and test`, since a conflicting PR never runs it.
 
+### One PR per session: QA-docs PRs exception
+
+On 2026-10-28, four docs-only QA PRs (#1270, #1271, #1274, #1276, none of them a lane Dev's) were waiting at once. Kit reviewed #1270 and sent it back. That bound the session to #1270, so #1274, a results-only PR in the same `docs/qa/` tree, needed a fresh Kit session, and Kit would have to `/clear` again for Jay's next PR. The rule's reason (#843) is the cost of carrying a finished review's context into every later turn. A `docs/qa/` diff carries little, and it changes no code the slot's server runs, so a reset to its branch can't leave the server running stale code. The maintainer asked for the exception. It's scoped by path, not size: every changed path under `docs/qa/`, never the partner Dev's PR. A session that reviewed any PR still needs `/clear` before a partner or code PR.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
