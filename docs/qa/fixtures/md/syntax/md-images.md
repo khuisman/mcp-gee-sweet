@@ -39,3 +39,7 @@ Text before ![inline icon](https://www.gstatic.com/images/branding/product/2x/do
 | Name | Icon |
 |------|------|
 | Docs | ![icon](https://www.gstatic.com/images/branding/product/2x/docs_48dp.png) |
+
+### IM-10 — local path with a space and a non-ASCII character
+
+![Spaced accented pixel](../../qa fixture pixel é.png)

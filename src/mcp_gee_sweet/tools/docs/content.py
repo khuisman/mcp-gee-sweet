@@ -1,15 +1,12 @@
 import asyncio
 import logging
 import re
-import xml.etree.ElementTree as etree
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import anyio
-import markdown as _md
 from googleapiclient.errors import HttpError
-from markdown.extensions import Extension
-from markdown.inlinepatterns import InlineProcessor
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
@@ -24,7 +21,14 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Image, Table
 from .batch_retry import send_dropping_failed_images
-from .emitter import CellImages, ast_to_requests, extract_images, fill_tables, iter_cell_leaves
+from .emitter import (
+    CellImages,
+    ast_to_requests,
+    extract_images,
+    fill_tables,
+    iter_cell_leaves,
+    unstorable_link_urls,
+)
 from .html_parser import html_to_ast
 from .images import (
     ImageShareLifecycle,
@@ -37,74 +41,10 @@ from .images import (
 )
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 from .markdown_export import _discard_temp_doc
+from .md_to_html import _md_to_html
 from .style import _add_or_clear_field
 
 logger = logging.getLogger(__name__)
-
-
-class _DollarEscapeExtension(Extension):
-    """Treat \\$ as an escape for a literal $, matching CommonMark's escapable-punctuation
-    set. Python-Markdown's default ESCAPED_CHARS omits $ (issue #213), so \\$ otherwise
-    passes through untouched into the rendered Doc as a literal backslash+dollar — visible
-    in prose written to defeat LaTeX/math renderers that treat $ as a delimiter."""
-
-    def extendMarkdown(self, md):
-        if "$" not in md.ESCAPED_CHARS:
-            md.ESCAPED_CHARS.append("$")
-
-
-_BARE_URL_PATTERN = r'(https?://[^\s<>"]+)'
-_BARE_URL_TRAILING_PUNCT = ".,;:!?"
-
-
-class _BareUrlInlineProcessor(InlineProcessor):
-    """Autolink a bare http(s) URL left as plain text.
-
-    Registered at low priority so it only sees text that survived
-    Python-Markdown's built-in link/autolink/code-span processing untouched —
-    an already-linked or code-spanned URL is never re-matched here."""
-
-    def handleMatch(self, m, data):
-        url = m.group(1)
-        # Trim trailing sentence punctuation and an unmatched closing paren, matching
-        # CommonMark/GFM extended autolink behavior — "see https://x.com." shouldn't
-        # swallow the period, and "(https://x.com)" shouldn't swallow the paren.
-        while url:
-            if url[-1] in _BARE_URL_TRAILING_PUNCT or (
-                url[-1] == ")" and url.count("(") < url.count(")")
-            ):
-                url = url[:-1]
-            else:
-                break
-        el = etree.Element("a")
-        el.set("href", url)
-        el.text = url
-        return el, m.start(1), m.start(1) + len(url)
-
-
-class _BareUrlAutolinkExtension(Extension):
-    """Autolink bare http(s):// URLs, matching CommonMark/GFM extended autolinks.
-    Python-Markdown's core autolink only fires on <https://...> or [text](url)
-    (issue #248) — a bare URL in prose is otherwise left as inert text."""
-
-    def extendMarkdown(self, md):
-        md.inlinePatterns.register(
-            _BareUrlInlineProcessor(_BARE_URL_PATTERN, md), "bare_url_autolink", 3
-        )
-
-
-def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
-    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code,
-    sane_lists extensions, plus bare-URL autolinking and the \\$ escape fix).
-
-    autolink_urls=False skips the bare-URL extension for callers who want a URL to
-    render as plain text — e.g. a placeholder or example. Per-URL suppression (rather
-    than disabling it for the whole call) is available by wrapping just that URL in
-    backticks, which already protects it as an inline code span."""
-    extensions = ["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
-    if autolink_urls:
-        extensions.append(_BareUrlAutolinkExtension())
-    return _md.markdown(md_text, extensions=extensions)
 
 
 def _to_doc_requests(
@@ -664,7 +604,7 @@ async def _replace_doc_content(
 
     lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
     try:
-        image_outcomes = await _apply_doc_content(
+        applied = await _apply_doc_content(
             lc,
             doc_id,
             content,
@@ -731,8 +671,7 @@ async def _replace_doc_content(
 
     logger.debug("Replaced content in doc %s", doc_id)
     result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
-    if image_outcomes is not None:
-        result["images"] = image_outcomes
+    result.update(applied.response_fields())
     if warning:
         result["warning"] = warning
     elif no_backup_warning:
@@ -780,24 +719,54 @@ async def _discard_backup(lc: SpreadsheetContext, backup: dict[str, Any]) -> str
     )
 
 
+# dropped_links "reason" values (#1180).
+_DROPPED_NO_SCHEME = "no_scheme"
+_DROPPED_NO_MATCHING_HEADING = "no_matching_heading"
+
+
+@dataclass
+class AppliedContent:
+    """What _apply_doc_content reports back for the calling tool's response.
+
+    images is the per-image outcome list (None if the content had no images).
+    dropped_links lists each link written as plain text instead (#1180), as
+    {"url", "reason"}: "no_scheme" for a target the Docs API can't store
+    (emitter._storable_link_url), "no_matching_heading" for a "#slug" anchor
+    _resolve_heading_anchors found no heading for."""
+
+    images: list[dict[str, Any]] | None = None
+    dropped_links: list[dict[str, str]] = field(default_factory=list)
+
+    def response_fields(self) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+        if self.images is not None:
+            fields["images"] = self.images
+        if self.dropped_links:
+            fields["dropped_links"] = self.dropped_links
+        return fields
+
+
 class DocEditError(Exception):
     """_apply_doc_content's doc edit raised after its images were resolved (#789).
-    Carries the per-image outcome list, which would otherwise be lost with the
-    exception, so the calling tool can return it alongside the error the way
-    insert_local_images does. The original exception is chained as __cause__."""
+    Carries what the edit had to report so far as an AppliedContent: the per-image
+    outcome list, which would otherwise be lost with the exception, so the calling
+    tool can return it alongside the error the way insert_local_images does, and
+    the dropped links (#1180), since text can land before the failure (a split
+    image retry commits its prefix, and the anchor pass runs after the body and
+    tables are written). The original exception is chained as __cause__."""
 
-    def __init__(self, cause: Exception, image_outcomes: list[dict[str, Any]]):
+    def __init__(self, cause: Exception, applied: AppliedContent):
         super().__init__(f"doc edit failed: {cause}")
-        self.image_outcomes = image_outcomes
+        self.applied = applied
 
 
 def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
     """The tool response for a DocEditError: the error, the doc's ID (the doc
-    exists, possibly partly written), and the per-image outcomes when there are
-    any, so every file ID an image step created or shared reaches the caller."""
+    exists, possibly partly written), and the same fields a success reports
+    (AppliedContent.response_fields), so every file ID an image step created or
+    shared, and every dropped link, reaches the caller."""
     result: dict[str, Any] = {"error": str(e), "docId": doc_id}
-    if e.image_outcomes:
-        result["images"] = e.image_outcomes
+    result.update(e.applied.response_fields())
     return result
 
 
@@ -812,7 +781,7 @@ async def _apply_doc_content(
     revoke_sharing: bool,
     auto_downscale: bool = False,
     lifecycle: ImageShareLifecycle | None = None,
-) -> list[dict[str, Any]] | None:
+) -> AppliedContent:
     """Shared content-insertion body for create_doc / create_doc_from_file /
     write_doc_content (#333): converts content to AST, resolves any markdown/HTML
     images to fetchable URIs (uploading + temporarily sharing local paths and
@@ -836,8 +805,9 @@ async def _apply_doc_content(
     each image — see that function's own docstring for the per-source-kind behavior
     and the http(s) scope boundary.
 
-    Returns the per-image outcome list (None if the content had no images at all)
-    for the caller to fold into its own response — each entry has src, plus either
+    Returns an AppliedContent for the caller to fold into its own response
+    (response_fields()): the links written as plain text (#1180), and the per-image
+    outcome list (None if the content had no images at all) — each entry has src, plus either
     fileId + shared (+ revoke_error if a revoke attempt failed, + downscaled if
     auto_downscale resized it, + already_shared if the file was link-shared before
     this call, so its link was left in place) on success, or error
@@ -845,12 +815,21 @@ async def _apply_doc_content(
     created/found before a subsequent sharing failure — #649). Mirrors
     insert_local_images's own outcome shape for consistency.
     """
+    # The Markdown parse is pure CPU and grows with the content (about 0.2s for a
+    # 50 KB document), so it runs off the event loop rather than stalling every other
+    # connection's tool calls while it does.
     html_content = (
-        _md_to_html(content, autolink_urls=autolink_urls)
+        await asyncio.to_thread(_md_to_html, content, autolink_urls)
         if content_format == "markdown"
         else content
     )
     nodes = html_to_ast(html_content)
+    dropped_links = [
+        {"url": url, "reason": _DROPPED_NO_SCHEME} for url in unstorable_link_urls(nodes)
+    ]
+    # Filled by the anchor pass before it sends its write, so a write that raises
+    # after it may have landed still reports the anchors it strips.
+    stripped_anchors: list[str] = []
 
     images = extract_images(nodes)
     docs_service = lc.docs_service
@@ -928,6 +907,15 @@ async def _apply_doc_content(
         embedded = cell_images.embedded if cell_images is not None else set()
         for img_id in cell_uris.keys() - embedded:
             entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
+
+    def _applied() -> AppliedContent:
+        anchor_drops = [
+            {"url": anchor, "reason": _DROPPED_NO_MATCHING_HEADING}
+            for anchor in dict.fromkeys(stripped_anchors)
+        ]
+        return AppliedContent(
+            images=image_outcomes or None, dropped_links=dropped_links + anchor_drops
+        )
 
     try:
         async with lifecycle.edit():
@@ -1072,7 +1060,7 @@ async def _apply_doc_content(
             await fill_tables(docs_service, doc_id, tables, cell_images)
             _mark_unplaced_cell_images("its table cell wasn't found in the document")
             if _has_pending_anchor_links(content_requests, tables):
-                await _resolve_heading_anchors(docs_service, doc_id)
+                await _resolve_heading_anchors(docs_service, doc_id, stripped_out=stripped_anchors)
     except Exception as e:
         # The body batch or the fill can fail with some cell images placed (a split
         # batch lands its head first) or none. A cancellation isn't caught: its last
@@ -1081,15 +1069,16 @@ async def _apply_doc_content(
         # The outcome list rides on the error so the calling tool can return it; a
         # raise alone would lose every file ID (#789). The lifecycle has already
         # revoked the shares and logged the touched files.
-        raise DocEditError(e, image_outcomes) from e
-    return image_outcomes or None
+        raise DocEditError(e, _applied()) from e
+    return _applied()
 
 
 def _table_has_pending_anchor_link(table: Table) -> bool:
     """True if any cell in `table` (recursing into nested tables) carries a
-    Run or Image with a same-document '#slug' link_url."""
+    Run or Image with a same-document '#slug' link_url. Tested on the stripped
+    target, which is what the emitter stores, so " #slug" counts (PR #1272)."""
     return any(
-        leaf.link_url is not None and leaf.link_url.startswith("#")
+        leaf.link_url is not None and leaf.link_url.strip().startswith("#")
         for leaf in iter_cell_leaves(table)
     )
 
@@ -1185,7 +1174,9 @@ def _walk_headings_and_anchor_runs(
     return headings, anchor_runs
 
 
-async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
+async def _resolve_heading_anchors(
+    docs_service, doc_id: str, *, stripped_out: list[str] | None = None
+) -> dict[str, Any]:
     """Rewrite same-document '#slug' hyperlinks left over from markdown/HTML
     conversion (GitHub/GitLab-style heading anchors, issue #409) into working
     Docs heading-jump links, or strip them to plain text when no heading
@@ -1194,9 +1185,11 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
 
     Runs as a second pass after the doc's content already exists: the target
     heading's headingId is generated server-side and isn't knowable until
-    the heading paragraph has actually been created. Returns a summary dict;
-    callers only need this for QA/debugging, not error handling — matched
-    and unmatched links are both handled here, nothing propagates as an error.
+    the heading paragraph has actually been created. Returns a summary dict,
+    whose "stripped" anchors _apply_doc_content reports as dropped links (#1180);
+    matched and unmatched links are both handled here, nothing propagates as an error.
+    The stripped anchors also go into `stripped_out` before the write is sent, so a
+    caller still has them if that write raises after it landed (a timeout).
     """
     doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
@@ -1247,6 +1240,8 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
             }
         )
 
+    if stripped_out is not None:
+        stripped_out.extend(stripped)
     await execute_in_thread(
         docs_service.documents()
         .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -1303,10 +1298,11 @@ def register(tool):
             folder_id: Optional Google Drive folder ID where the document should be created.
                       If not provided, creates in the root of My Drive.
             content_format: 'html' (default) or 'markdown'
-            autolink_urls: When content_format='markdown', whether a bare http(s) URL (not
-                already wrapped in a Markdown link or angle brackets) becomes a real
-                hyperlink (default True). Set False to leave bare URLs as plain text; to
-                suppress just one URL instead of the whole call, wrap it in backticks.
+            autolink_urls: When content_format='markdown', whether a bare http(s)://
+                URL, www. address or email address (not already wrapped in a Markdown
+                link or angle brackets) becomes a real hyperlink, as in GitHub Markdown
+                (default True). Set False to leave them as plain text; to suppress just
+                one instead of the whole call, wrap it in backticks.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1320,8 +1316,15 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when content contained any images.
+            Includes "dropped_links" when a link was written as plain text instead:
+            a list of {"url", "reason"}, where reason is "no_scheme" for a target
+            Docs can't store as a link (a relative path such as ./guide.md or
+            /guide.md), or "no_matching_heading" for a "#slug" anchor that no
+            heading matches. A scheme-less target that names a host is linked
+            over https instead: //host/x as https://host/x, www.host as
+            https://www.host.
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1357,10 +1360,10 @@ def register(tool):
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
 
-        image_outcomes = None
+        applied = AppliedContent()
         if content:
             try:
-                image_outcomes = await _apply_doc_content(
+                applied = await _apply_doc_content(
                     lc,
                     doc_id,
                     content,
@@ -1379,8 +1382,7 @@ def register(tool):
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
-        if image_outcomes is not None:
-            result["images"] = image_outcomes
+        result.update(applied.response_fields())
         return result
 
     @tool(
@@ -1420,10 +1422,10 @@ def register(tool):
             local_path: Absolute or relative path to the local file.
             title: Document title. Defaults to the filename stem.
             folder_id: Optional Google Drive folder ID. Defaults to server default folder.
-            autolink_urls: For .md files, whether a bare http(s) URL becomes a real
-                hyperlink (default True). Set False to leave bare URLs as plain text;
-                to suppress just one URL, wrap it in backticks instead. No effect on
-                .html files.
+            autolink_urls: For .md files, whether a bare http(s):// URL, www. address
+                or email address becomes a real hyperlink (default True). Set False to
+                leave them as plain text; to suppress just one, wrap it in backticks
+                instead. No effect on .html files.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1434,8 +1436,10 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when the file contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1472,10 +1476,10 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
-        image_outcomes = None
+        applied = AppliedContent()
         if content:
             try:
-                image_outcomes = await _apply_doc_content(
+                applied = await _apply_doc_content(
                     lc,
                     doc_id,
                     content,
@@ -1494,8 +1498,7 @@ def register(tool):
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
-        if image_outcomes is not None:
-            result["images"] = image_outcomes
+        result.update(applied.response_fields())
         return result
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
@@ -1624,9 +1627,10 @@ def register(tool):
             doc_id: The Google Doc file ID.
             content: Content to write into the document body.
             content_format: 'html' (default) or 'markdown'
-            autolink_urls: When content_format='markdown', whether a bare http(s) URL
-                becomes a real hyperlink (default True). Set False to leave bare URLs as
-                plain text; to suppress just one URL, wrap it in backticks instead.
+            autolink_urls: When content_format='markdown', whether a bare http(s):// URL,
+                www. address or email address becomes a real hyperlink (default True). Set
+                False to leave them as plain text; to suppress just one, wrap it in
+                backticks instead.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1642,6 +1646,8 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when content contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
             Includes "warning" if the backup copy (below) couldn't be removed, or
             if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
@@ -1652,7 +1658,7 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no
@@ -1708,10 +1714,10 @@ def register(tool):
             content_format: 'markdown' or 'html'. Defaults to inferring from
                 local_path's extension (.md -> markdown, .html/.htm -> html); pass
                 explicitly to override the extension-based guess.
-            autolink_urls: For markdown content, whether a bare http(s) URL becomes a
-                real hyperlink (default True). Set False to leave bare URLs as plain
-                text; to suppress just one URL, wrap it in backticks instead. No
-                effect on HTML content.
+            autolink_urls: For markdown content, whether a bare http(s):// URL, www.
+                address or email address becomes a real hyperlink (default True). Set
+                False to leave them as plain text; to suppress just one, wrap it in
+                backticks instead. No effect on HTML content.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True). An
                 image file that was already link-shared before the call keeps its
@@ -1727,6 +1733,8 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when the file contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
             Includes "warning" if the backup copy (below) couldn't be removed, or
             if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
@@ -1737,7 +1745,7 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no

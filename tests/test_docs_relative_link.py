@@ -12,6 +12,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _run_style_requests,
     _storable_link_url,
 )
+from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 
 
 def _link(text_style):
@@ -58,11 +59,57 @@ class TestStorableLinkUrl:
             "./guide.md",
             "guide.md",
             "/guide.md",
-            "//example.com/x",
+            "///guide.md",
             "?q=1",
             " ./guide.md ",
         ):
             assert _storable_link_url(url) is None
+
+    def test_host_targets_without_a_scheme_get_https(self):
+        # #1180: a target that names a host is repaired, always to https.
+        assert _storable_link_url("//example.com/x") == "https://example.com/x"
+        assert _storable_link_url(" //example.com ") == "https://example.com"
+        assert _storable_link_url("www.example.com") == "https://www.example.com"
+        assert _storable_link_url("WWW.Example.com/a?b=1") == "https://WWW.Example.com/a?b=1"
+        # Not a host: "www." alone, or "www" as a path segment.
+        assert _storable_link_url("www.") is None
+        assert _storable_link_url("www/guide.md") is None
+
+    def test_www_host_with_a_port_gets_https_not_a_scheme_pass_through(self):
+        # PR #1272 QA round 1: "www.example.com:" reads as a scheme, so the www
+        # rule must run first, or Docs stores the link as http://.
+        assert _storable_link_url("www.example.com:8443/x") == "https://www.example.com:8443/x"
+        assert _storable_link_url("www.example.com:8443") == "https://www.example.com:8443"
+
+    def test_double_slash_without_a_host_is_dropped(self):
+        for url in ("//", "//?q=1", "//#x", "// x", "//example.com/a b"):
+            assert _storable_link_url(url) is None, url
+
+    def test_double_slash_host_starts_with_a_letter_or_digit(self):
+        # PR #1272 QA round 2: "//:80" and "//-" were stored as dead https links.
+        for url in ("//:80", "//-", "//.example.com", "//_x"):
+            assert _storable_link_url(url) is None, url
+        assert _storable_link_url("//localhost:8080/x") == "https://localhost:8080/x"
+        assert _storable_link_url("//10.0.0.1/x") == "https://10.0.0.1/x"
+
+    def test_www_needs_a_gfm_domain(self):
+        # GFM's extended www autolink: "www." then a domain with at least one more
+        # ".", and no whitespace anywhere.
+        for url in ("WWW.md", "www.md", "www.foo bar", "www.example.com/a b", "www..com"):
+            assert _storable_link_url(url) is None, url
+        assert _storable_link_url("www.config.js") == "https://www.config.js"
+        assert _storable_link_url("www.a-b_c.example.org?q=1#f") == (
+            "https://www.a-b_c.example.org?q=1#f"
+        )
+
+    def test_www_domain_check_matches_the_autolinker(self):
+        # PR #1272 QA round 2: GFM allows no "_" in a domain's last two segments,
+        # and the rewrite uses the autolinker's own check, so the two agree.
+        assert _storable_link_url("www.foo_bar.example_x") is None
+        assert _storable_link_url("www.example.foo_bar") is None
+        assert _md_to_html("see www.example.foo_bar") == "<p>see www.example.foo_bar</p>\n"
+        assert _storable_link_url("www.foo_bar.example.com") == "https://www.foo_bar.example.com"
+        assert 'href="http://www.foo_bar.example.com"' in _md_to_html("www.foo_bar.example.com")
 
     def test_none_stays_none(self):
         assert _storable_link_url(None) is None
