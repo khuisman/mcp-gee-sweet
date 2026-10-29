@@ -53,7 +53,7 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Cleanup:** trash 'QA-Create-Root'.
 
 **Result (2026-09-04) ✅ PASS**
-Created 'QA-Create-Root' with no folder; get_file_metadata parents=["0APfXAGTeZYz3Uk9PVA"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).
+Created 'QA-Create-Root' with no folder; get_file_metadata parents=["{DRIVE_FOLDER_ID}"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
@@ -735,7 +735,7 @@ Run 1 (kai-oauth).
 **Cleanup:** trash 'QA-Folder-Test'.
 
 **Result (2026-09-04) ✅ PASS**
-create_folder('QA-Folder-Test', no parent) → `{folderId, name, parent:"0APfXAGTeZYz3Uk9PVA"}` = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.
+create_folder('QA-Folder-Test', no parent) → `{folderId, name, parent:"{DRIVE_FOLDER_ID}"}` = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
@@ -755,7 +755,7 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Cleanup:** trash 'QA-Folder-Root'.
 
 **Result (2026-09-04) ✅ PASS**
-create_folder('QA-Folder-Root', no parent) → parent = "0APfXAGTeZYz3Uk9PVA" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.
+create_folder('QA-Folder-Root', no parent) → parent = "{DRIVE_FOLDER_ID}" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
@@ -1483,7 +1483,7 @@ Run 1 (kai-oauth).
 - No error if zero shared drives accessible — returns `[]`
 
 **Result (2026-09-04) ✅ PASS**
-list_drives() → 1 drive 'mcp-gee-sweet-shared' (id 0APfXAGTeZYz3Uk9PVA = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).
+list_drives() → 1 drive 'mcp-gee-sweet-shared' (id {DRIVE_FOLDER_ID} = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
@@ -2088,7 +2088,7 @@ The default folder is the server's `DRIVE_FOLDER_ID`, which `setup.md` sets to t
 **Result (2026-07-22) ✅ (behavior) / environment note** — This live server has no `DRIVE_FOLDER_ID` configured, so its "configured default folder" is `My Drive` root, not `{FOLDER_ID}` — confirmed by comparison: `create_spreadsheet` with no `folder_id` also lands in the same root (`0ACZ5KALjwnmUUk9PVA`). `create_shortcut`'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a `create_shortcut` defect — the parenthetical `({FOLDER_ID} in this fixture setup)` only holds when the server's `DRIVE_FOLDER_ID` is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's `list_files` call, which showed the new shortcut with no manual `refresh_cache`. All three probe files trashed after the test.
 
 **Result (2026-09-04) ✅ PASS**
-create_shortcut(target in FOLDER_ID, no folder_id) → `{parent:"0APfXAGTeZYz3Uk9PVA", ...}` = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.
+create_shortcut(target in FOLDER_ID, no folder_id) → `{parent:"{DRIVE_FOLDER_ID}", ...}` = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Parent is DRIVE_FOLDER_ID; the "({FOLDER_ID})" parenthetical is stale.
