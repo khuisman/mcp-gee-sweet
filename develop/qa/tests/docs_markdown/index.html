@@ -1359,14 +1359,14 @@
 <ol>
 <li><strong>Playwright is the oracle.</strong> Every case is <strong>Playwright: required</strong>. The verdict comes from the rendered Doc on screen, with one screenshot saved per case per entry point. <code>get_doc_structure</code> and <code>get_doc_as_markdown</code> are supporting evidence only, never the verdict: the Markdown export writes every numbered item as <code>1.</code>, so it can't see a numbering restart, and it may be blind to more. "Confirmed via unit tests" or "known gap, visual only" is not a result.</li>
 <li><strong>The expected rendering is written down before a case runs</strong> (this file). It says what a reader sees: numbering, indent level, glyph, font, link target. Where the screen alone can't settle a detail, the case names the structural check that does (the <strong>Structural</strong> column or line).</li>
-<li><strong>A known failure is a FAIL.</strong> "Matches documented failure mode," "known gap," "pre-existing," and "not a new regression" are never a PASS. A failing case stays FAIL, linked to an <strong>open</strong> issue, until the fix lands and the case passes on screen.</li>
+<li><strong>A known failure is a FAIL.</strong> "Matches documented failure mode," "known gap," "pre-existing," and "not a new regression" are never a PASS. A failing case stays FAIL, linked to an <strong>open</strong> issue, until the fix lands and the case passes on screen. The one exception is a decision below that changes a case's expected rendering: a cell that matches the rendering the decision sets is a PASS, as D4 does for EP-5 to EP-7.</li>
 <li><strong>Nondeterminism is a FAIL.</strong> The whole matrix runs twice (Run 1, Run 2). A case that renders differently across the two runs fails, even if both renderings look acceptable.</li>
 <li><strong>No sampling.</strong> Every case goes through every entry point in the table below, unless the case is marked N/A for an entry point with a reason. Shared code is how a path-specific wrapper bug hides.</li>
 <li><strong>Anything that looks wrong is a finding</strong>, whether or not a case below covers it. Phase 1 especially: read each document top to bottom against its source.</li>
 </ol>
 <hr />
 <h2 id="entry-points">Entry points<a class="headerlink" href="#entry-points" title="Permanent link">&para;</a></h2>
-<p>Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the <code>.md</code> file and Drive converts it). EP-8 converts with Python-Markdown's <code>extra</code> extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc.</p>
+<p>Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the <code>.md</code> file and Drive converts it). EP-8 converts with Python-Markdown's <code>extra</code> extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc. The exception is EP-5 to EP-7, whose expected rendering is Drive's documented one (decision D4 below).</p>
 <table>
 <thead>
 <tr>
@@ -1423,7 +1423,7 @@
 <p>Parameter variants that only some entry points take:</p>
 <ul>
 <li><code>autolink_urls=False</code> (EP-1 to EP-4 only; the Drive engines have no such switch): run <code>md-links.md</code> a second time with it. Cases LK-05 and LK-06 then expect plain, unlinked text; every other links case is unchanged.</li>
-<li>Images with a local path or <code>drive:</code> source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them, so those cells expect whatever Drive does with an unresolvable image reference. Record what's on screen; a broken-image icon or literal <code>![...](...)</code> text is a FAIL for that engine.</li>
+<li>Images with a local path or <code>drive:</code> source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them. On EP-5 to EP-7 the image not being embedded is documented Drive behavior (D4): the case's heading is followed by an empty line, with no image, no alt text, no broken-image icon and no literal <code>![...](...)</code> text (both runs of the 2026-10-18 Phase 2 baseline showed exactly that). Anything else in its place is a FAIL. On EP-8 those cells expect whatever Drive does with an unresolvable image reference: record what's on screen; a broken-image icon or literal <code>![...](...)</code> text is a FAIL.</li>
 </ul>
 <hr />
 <h2 id="what-correct-looks-like-in-a-google-doc">What correct looks like in a Google Doc<a class="headerlink" href="#what-correct-looks-like-in-a-google-doc" title="Permanent link">&para;</a></h2>
@@ -1530,11 +1530,12 @@
 </tr>
 </tbody>
 </table>
-<p>Decisions where CommonMark/GFM and what a user means disagree, approved by the maintainer on 2026-10-17. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.</p>
+<p>Decisions on the expected rendering. D1–D3, where CommonMark/GFM and what a user means disagree, were approved by the maintainer on 2026-10-17; D4 has its own date. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.</p>
 <ul>
 <li><strong>D1 — nesting width.</strong> A list marker indented at least 2 spaces (or one tab) further than the previous item's marker nests under that item, whatever the parent's marker width. CommonMark requires the child to reach the parent's content column, so <code>1. A</code> followed by <code>- a1</code> (2 spaces) doesn't nest under CommonMark, but that is how models and people write sub-bullets, and #1044's own example expects it to nest.</li>
 <li><strong>D2 — a table starts its own block.</strong> A pipe table directly under a paragraph, list item or quote line (no blank line) renders as a separate table after that block, not as text joined to it.</li>
 <li><strong>D3 — YAML front matter is not shown.</strong> A leading <code>---</code>-delimited YAML block is omitted from the Doc (<code>docs/design/markdown-support.md</code> currently calls it "acceptable" that it renders as a rule; that is a FAIL under this plan).</li>
+<li><strong>D4 — EP-5 to EP-7 render the way Drive's Markdown import does</strong> (maintainer, 2026-10-18, #1101). <code>upload_local_file</code>, <code>upload_local_folder</code> and <code>sync_folder</code> stay on Drive's engine. On those columns C1–C15 and D1–D3 still apply, except where the list in <code>docs/known-limitations.md</code>, "Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently", names a difference. A cell passes when every construct either meets C1–C15 and D1–D3 or differs only in a way that list names. So a 2-space sub-list under a numbered item that doesn't nest passes (the list names it, overriding D1), while D2 and D3 apply unchanged, since the list names nothing about them. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C15. EP-8 isn't covered: it stays FAIL on #1102.</li>
 </ul>
 <p>Anything CommonMark/GFM permits that the converter deliberately won't support goes into <code>docs/known-limitations.md</code>, tied to an open issue, and its cases stay FAIL until a decision changes the expected rendering here.</p>
 <hr />

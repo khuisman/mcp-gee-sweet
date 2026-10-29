@@ -1505,7 +1505,9 @@ use this server's converter instead. The same Markdown comes out differently:</p
 <li><strong>Task lists</strong> become native Docs checklists rather than <code>☐</code> / <code>☑</code> text. A numbered task list
   loses its numbers.</li>
 <li><strong>Sub-lists indented by 2 spaces</strong> under a numbered item don't nest; 3 or more spaces do.</li>
-<li><strong>Extra empty paragraphs</strong> appear around paragraphs, rules, and lists.</li>
+<li><strong>Extra empty paragraphs</strong> appear around paragraphs, rules, lists, and tables. A table gets a
+  visible empty line above it when it starts the document, and between it and a paragraph
+  directly before it.</li>
 <li><strong><code>&lt;del&gt;</code> and <code>&lt;mark&gt;</code></strong> inline HTML isn't rendered as strikethrough or highlight.</li>
 <li><strong>Images</strong> with a local path or <code>drive:</code> source aren't embedded. Only this server's converter
   uploads and shares those.</li>
