@@ -32,6 +32,10 @@ All notable changes to this project are documented in this file.
   - A list with a blank line between items, or with a paragraph or code block indented under an item, stays one list with every bullet and number, where Python-Markdown dropped some of those items out of the list (#1111, fixed by #1164). On screen, Docs still restarts the numbering after a block inside a numbered item, as it did before (#1094).
   - A line of `---` (or `===`) right under a list item's text makes that text a heading inside the item, as CommonMark reads a setext underline: `- a` then `  ---` is a Heading 2 "a", not an item followed by a rule. Write the rule as `***` to keep the item and the rule.
 
+### Bug fixes
+
+- A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level. Each Markdown or HTML list is now one Google Docs list; a sublist nested in one of the other type used to split the outer list into separate lists. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
+
 ---
 
 ## [0.9.5] — 2026-10-24

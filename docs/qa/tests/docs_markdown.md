@@ -508,6 +508,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-07 | A bullet list, then a separate numbered list starting at 1. |
 | LX-08 | 1., the code block under it, then **2.** and **3.** |
 | LX-09 | 1., then an unindented code block, then a new numbered list starting at **2.** (the source says `2.`) |
+| LX-10 | Top one 1.; Child one a., Child two b.; Bullet child ○ at level 1; New child one restarts at **a.** (a marker change ends a list, so it's a third sublist); Top two **2.** (#1072) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 

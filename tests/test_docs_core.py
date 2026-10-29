@@ -1763,17 +1763,33 @@ class TestBulletDepthEdgeCases:
 
 
 def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
-    """Apply the text and bullet requests in `requests` to an empty doc and return
-    each paragraph's (text, nestingLevel), nestingLevel None for a non-bullet.
+    """Each paragraph's (text, nestingLevel) after `requests`, nestingLevel None for a
+    non-bullet. See _render_lists."""
+    return [(text, level) for text, level, _, _ in _render_lists(requests)]
 
-    Models the two API behaviors the isolated-run anchor wrap depends on (#715),
-    both confirmed live by TC-DOC190: createParagraphBullets sets each paragraph's
-    nestingLevel to its leading-tab count minus the minimum across the call's range,
-    then removes those tabs; and a paragraph's properties live on its trailing
-    newline, so deleting an empty anchor paragraph leaves the next one's level
-    intact. Other request types don't change text or levels and are ignored."""
-    # One entry per character from index 1; a "\n" entry carries its paragraph's level.
+
+def _render_lists(requests: list[dict]) -> list[tuple[str, int | None, str | None, int | None]]:
+    """Apply the text and bullet requests in `requests` to an empty doc and return
+    each paragraph's (text, nestingLevel, list, ordinal), all but text None for a
+    non-bullet. `list` names the paragraph's Docs list by its preset's first letter
+    ("N" numbered, "B" bulleted) and its order of creation ("N1", "B2"); `ordinal` is
+    the number Docs shows it at, counted per list and level, a level restarting after
+    an item at a shallower level of the same list.
+
+    Models the API behaviors the bullet pass depends on, confirmed live (TC-DOC190,
+    #1072): createParagraphBullets sets each paragraph's nestingLevel to its
+    leading-tab count minus the minimum across the call's range, then removes those
+    tabs, and puts every paragraph in its range into one new list, including one
+    already in a list; a paragraph's properties live on its trailing newline, so
+    deleting an empty anchor paragraph leaves the next one's level intact; and
+    deleteParagraphBullets leaves the level's indent, which a later
+    createParagraphBullets reads as extra depth (#1069), so bulleting such a paragraph
+    before an updateParagraphStyle zeroes its indent is unmodeled and fails here.
+    Other request types don't change text or lists and are ignored."""
+    # One entry per character from index 1; a "\n" entry carries its paragraph's
+    # properties: level, list, and whether it holds a stale list indent.
     chars: list[list] = [["\n", None]]  # an empty doc is one empty paragraph
+    lists: list[str] = []
 
     def paragraphs() -> list[tuple[int, int]]:
         """(start, end) list positions of each paragraph, end inclusive of its newline."""
@@ -1784,6 +1800,10 @@ def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
                 start = i + 1
         return out
 
+    def covered(rng: dict) -> list[tuple[int, int]]:
+        lo, hi = rng["startIndex"] - 1, rng["endIndex"] - 1
+        return [(a, b) for a, b in paragraphs() if a < hi and b >= lo]
+
     for req in requests:
         if "insertText" in req:
             pos = req["insertText"]["location"]["index"] - 1
@@ -1791,23 +1811,47 @@ def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
         elif "deleteContentRange" in req:
             rng = req["deleteContentRange"]["range"]
             del chars[rng["startIndex"] - 1 : rng["endIndex"] - 1]
+        elif "deleteParagraphBullets" in req:
+            for _, b in covered(req["deleteParagraphBullets"]["range"]):
+                if chars[b][1] is not None:
+                    chars[b][1] = {"stale_indent": True}
+        elif "updateParagraphStyle" in req:
+            update = req["updateParagraphStyle"]
+            if "indentStart" in update["paragraphStyle"]:
+                for _, b in covered(update["range"]):
+                    if chars[b][1] is not None and chars[b][1].get("stale_indent"):
+                        chars[b][1] = None
         elif "createParagraphBullets" in req:
-            rng = req["createParagraphBullets"]["range"]
-            lo, hi = rng["startIndex"] - 1, rng["endIndex"] - 1
-            covered = [(a, b) for a, b in paragraphs() if a < hi and b >= lo]
+            create = req["createParagraphBullets"]
+            paras = covered(create["range"])
             tabs = []
-            for a, b in covered:
+            for a, b in paras:
+                assert not (chars[b][1] or {}).get("stale_indent"), "unmodeled stale indent"
                 n = 0
                 while a + n < b and chars[a + n][0] == "\t":
                     n += 1
                 tabs.append(n)
             base = min(tabs)
+            lists.append(f"{create.get('bulletPreset', 'B')[0]}{len(lists) + 1}")
             # Latest-first, so stripping one paragraph's tabs doesn't shift the next.
-            for (a, b), n in reversed(list(zip(covered, tabs, strict=True))):
-                chars[b][1] = n - base
+            for (a, b), n in reversed(list(zip(paras, tabs, strict=True))):
+                chars[b][1] = {"level": n - base, "list": lists[-1]}
                 del chars[a : a + n]
 
-    return [("".join(ch for ch, _ in chars[a:b]), chars[b][1]) for a, b in paragraphs()[:-1]]
+    rendered = []
+    counters: dict[str, list[int]] = {}
+    for a, b in paragraphs()[:-1]:
+        text, props = "".join(ch for ch, _ in chars[a:b]), chars[b][1]
+        if props is None or "level" not in props:
+            rendered.append((text, None, None, None))
+            continue
+        level, list_name = props["level"], props["list"]
+        counts = counters.setdefault(list_name, [])
+        del counts[level + 1 :]
+        counts.extend([0] * (level + 1 - len(counts)))
+        counts[level] += 1
+        rendered.append((text, level, list_name, counts[level]))
+    return rendered
 
 
 class TestRenderBulletLevelsModel:
@@ -1887,6 +1931,163 @@ class TestIsolatedDepthRunGlyph:
         html = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
         requests, _ = _to_doc_requests(html)
         assert _render_bullet_levels(requests) == [("C1", 1), ("C2", 1)]
+
+
+class TestMixedTypeNestedListKeepsNumbering:
+    """#1072: a list nested in one of the other type ended the outer list's
+    createParagraphBullets run, so the outer list became separate Docs lists and its
+    numbering restarted after the nested one (1, ○, ○, 1, 2). Now each top-level list
+    is one call and each nested list of the other type is taken back out of it, so
+    every list in the source is one Docs list. Asserted through _render_lists, which
+    models list identity and per-list numbering."""
+
+    def test_issue_repro_numbering_continues_after_nested_bullets(self):
+        html = "<ol><li>A<ul><li>a1</li><li>a2</li></ul></li><li>B</li><li>C</li></ol>"
+        requests, _ = _to_doc_requests(html)
+        assert _render_lists(requests) == [
+            ("A", 0, "N1", 1),
+            ("a1", 1, "B2", 1),
+            ("a2", 1, "B2", 2),
+            ("B", 0, "N1", 2),
+            ("C", 0, "N1", 3),
+        ]
+
+    def test_issue_repro_through_markdown(self):
+        html = _md_to_html("1. A\n    - a1\n    - a2\n2. B\n3. C\n")
+        requests, _ = _to_doc_requests(html)
+        assert [(text, ordinal) for text, _, _, ordinal in _render_lists(requests)] == [
+            ("A", 1),
+            ("a1", 1),
+            ("a2", 2),
+            ("B", 2),
+            ("C", 3),
+        ]
+
+    def test_nested_numbered_level_continues_after_deeper_bullets(self):
+        # Every level keeps counting, not just the top one.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1, ordered=True),
+            BulletItem(runs=[Run("x")], depth=2, ordered=False),
+            BulletItem(runs=[Run("a2")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 0, "N1", 1),
+            ("a1", 1, "N1", 1),
+            ("x", 2, "B2", 1),
+            ("a2", 1, "N1", 2),
+            ("B", 0, "N1", 2),
+        ]
+
+    def test_three_alternating_levels(self):
+        # A nested list's range holds the list nested in it, which is taken out in turn.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0),
+            BulletItem(runs=[Run("n1")], depth=1, ordered=True),
+            BulletItem(runs=[Run("b1")], depth=2),
+            BulletItem(runs=[Run("n2")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 0, "B1", 1),
+            ("n1", 1, "N2", 1),
+            ("b1", 2, "B3", 1),
+            ("n2", 1, "N2", 2),
+            ("B", 0, "B1", 2),
+        ]
+
+    def test_second_nested_list_under_one_item_restarts(self):
+        # `1. a` / `- b` / `1. c` under one item are three Markdown lists, so c
+        # restarts rather than continuing a's numbering.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a")], depth=1, ordered=True),
+            BulletItem(runs=[Run("b")], depth=1),
+            BulletItem(runs=[Run("c")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        rendered = _render_lists(requests)
+        assert [(text, ordinal) for text, _, _, ordinal in rendered] == [
+            ("A", 1),
+            ("a", 1),
+            ("b", 1),
+            ("c", 1),
+            ("B", 2),
+        ]
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["A"] == lists["a"] == lists["B"]
+        assert len({lists["a"], lists["b"], lists["c"]}) == 3
+
+    def test_sibling_lists_of_different_type_stay_separate(self):
+        # A same-depth type change is a new Markdown list, so the next numbered list
+        # restarts.
+        nodes = [
+            BulletItem(runs=[Run("n1")], depth=0, ordered=True),
+            BulletItem(runs=[Run("b")], depth=0),
+            BulletItem(runs=[Run("m1")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("n1", 0, "N3", 1),
+            ("b", 0, "B2", 1),
+            ("m1", 0, "N1", 1),
+        ]
+
+    def test_isolated_fragment_with_nested_other_type(self):
+        # A top-level list with no depth-0 item still takes the anchor wrap, and its
+        # nested list comes out of it at its own depth.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=1, ordered=True),
+            BulletItem(runs=[Run("x")], depth=2),
+            BulletItem(runs=[Run("B")], depth=1, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 1, "N1", 1),
+            ("x", 2, "B2", 1),
+            ("B", 1, "N1", 2),
+        ]
+
+    def test_following_table_position_unchanged(self):
+        # Taking a nested list out inserts its tabs again and consumes them again, so a
+        # later table sits where a single call would leave it: "A\n\ta1\nB\n" is 8
+        # characters, then the placeholder at 9, less the one consumed tab.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 8
+
+    def test_later_list_unaffected_by_earlier_mixed_list(self):
+        # Lists are applied latest-first, so a mixed list after a paragraph doesn't
+        # disturb an earlier one, and vice versa.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+            Paragraph(runs=[Run("P")]),
+            BulletItem(runs=[Run("C")], depth=0, ordered=True),
+            BulletItem(runs=[Run("c1")], depth=1),
+            BulletItem(runs=[Run("D")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert [(text, level, ordinal) for text, level, _, ordinal in _render_lists(requests)] == [
+            ("A", 0, 1),
+            ("a1", 1, 1),
+            ("B", 0, 2),
+            ("P", None, None),
+            ("C", 0, 1),
+            ("c1", 1, 1),
+            ("D", 0, 2),
+        ]
 
 
 class TestBuildBlankParaBeforeTableCollapses:
