@@ -506,6 +506,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-29, PR #1286 @ 0fa54712, round 2, EP-3) ✅ PASS — 16/16 at EP-3, same as round 1; the fix commit's requests are byte-identical to round 1's for every fixture, so the EP-1–EP-4 grid carries over. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md) §"Round 2"**
 
+**Result (2026-10-29, PR #1295 @ 47607c8f, EP-3, Run 1 only) ✅ PASS — 16/16 at EP-3: Top two 2. / Child two b. (or ○) in every case, with the barrier paragraph now on every nested list. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)**
+
 ### TC-MD107: Loose lists and blocks inside list items ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -532,6 +534,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-28, PR #1286 @ 7ce37591) ❌ FAIL — 15/27 cells pass at EP-1, EP-3, EP-4 (LB-01, 02, 03, 07, 09; EP-2 not run), identical in Run 2 at EP-3. #1072 is fixed: LB-09's parent two shows 2. Failures: #1094 (LB-04, 05, 06), F4 (LB-08). Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 **Result (2026-10-29, PR #1286 @ 0fa54712, round 2, EP-3) ❌ FAIL — 5/9 at EP-3, same as round 1: LB-01, 02, 03, 07, 09 pass; #1094 (LB-04, 05, 06), F4 (LB-08). Requests byte-identical to round 1's. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md) §"Round 2"**
+
+**Result (2026-10-29, PR #1295 @ 47607c8f, EP-3, Run 1 only) ❌ FAIL — 5/9 at EP-3, same as PR #1286: LB-01, 02, 03, 07, 09 pass; #1094 (LB-04, 05, 06), F4 (LB-08). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)**
 
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
@@ -562,6 +566,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-28, PR #1286 @ 7ce37591) ❌ FAIL — 24/40 EP-1–EP-4 cells pass (LX-01, 02, 03, 06, 07, 10), identical in Run 2 at EP-3; LX-10 also checked on screen. Failures: #1093 (LX-04), #1241 (LX-05), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 **Result (2026-10-29, PR #1286 @ 0fa54712, round 2, EP-3) ❌ FAIL — 6/10 at EP-3, same as round 1: LX-01, 02, 03, 06, 07, 10 pass (LX-10 a., b., ○, a., 2.); #1093 (LX-04), #1241 (LX-05), #1094 (LX-08), #1118 (LX-09). Requests byte-identical to round 1's. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md) §"Round 2"**
+
+**Result (2026-10-29, PR #1295 @ 47607c8f, Run 1 only) ❌ FAIL — 45/60 EP-1–EP-4 + EP-8 cells pass, identical across all five EPs; LX-10–LX-12 also checked on screen at EP-3. LX-01, 02, 03, 05, 06, 07, 10, 11, 12 pass (LX-05 two `listId`s; LX-11 Paren one 1., Paren child a.; LX-12 Restarted child a. in its own list). Failures: #1093 (LX-04), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)**
 
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
