@@ -2165,7 +2165,8 @@
 <ul>
 <li>[ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1044">#1044</a>)</li>
 <li>[x] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>) (PR #1228)</li>
-<li>[ ] A numbered list restarts its numbering after a nested bullet list (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>)</li>
+<li>[ ] A numbered list restarts its numbering after a nested bullet list; folds in #1241, the reverse case in the same run grouping (maintainer, 2026-10-28) — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>)</li>
+<li>[ ] Two adjacent Markdown lists render as one Docs list. <code>wrong/narrow</code>, observed in TC-MD105/108; folded into #1072 (maintainer, 2026-10-28) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1241">#1241</a>)</li>
 <li>[x] Images inside table cells are dropped silently (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1073">#1073</a>) (PR #1215)</li>
 <li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>)</li>
 <li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>)</li>
@@ -2217,6 +2218,8 @@
 <li>[x] Refresh stale TC expectations found in the v0.9.2 pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1060">#1060</a>) (PR #1271)</li>
 <li>[x] Test modules fail to collect on Windows (<code>os.geteuid()</code> in skipif decorators) — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1156">#1156</a>) (PR #1162)</li>
 <li>[x] <code>setup_team.sh</code> never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1223">#1223</a>) (PR #1225)</li>
+<li>[ ] <code>write_doc_content</code>/<code>update_doc_from_file</code> clear the Doc before converting the Markdown, so a failed conversion with no backup leaves it empty. <code>severe/rare</code>; joined the locked fill 2026-10-28 (maintainer) — lane B after #1102 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1240">#1240</a>)</li>
+<li>[ ] A bare <code>www.</code> autolink gets <code>http://</code> while an explicit <code>www.</code> target gets <code>https://</code> (#1180). <code>wrong/common</code> now that the maintainer chose https for both, 2026-10-28; joined the locked fill (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1281">#1281</a>)</li>
 </ul>
 <p><strong>Live QA for merged community PRs</strong> <em>(their code ships in this release; run on the gee-sweet-biz side)</em></p>
 <ul>
@@ -2311,6 +2314,15 @@
 <li>[ ] HTML input: source line breaks at a block's start or end become empty paragraphs (pretty-printed HTML). <code>wrong/narrow</code>, not observed; found in PR #1228, grouped with #1221 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1229">#1229</a>)</li>
 <li>[ ] html_parser: edge cases in a list item's transparent <code>&lt;p&gt;</code> (trailing line breaks, etc.). <code>wrong/narrow</code>, not observed; found in PR #1164's review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1266">#1266</a>)</li>
 <li>[ ] Reauth offer (#873) on MCP 2026-07-28 connections: capability-only check and a retired <code>-32042</code>. <code>loud/rare</code>; found in #1081's design pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1236">#1236</a>)</li>
+</ul>
+<p><strong>Triaged in 2026-10-28</strong></p>
+<ul>
+<li>[ ] <code>style_doc_range</code> with only <code>font_family</code> clears bold on the range. <code>wrong/narrow</code>, observed, not a regression; community PR #1279 open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1273">#1273</a>)</li>
+<li>[ ] Drive transfer tools raise <code>HttpError</code> on a 404 instead of returning an error result. <code>loud/narrow</code>; community PR #1278 open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1275">#1275</a>)</li>
+<li>[ ] Drive tools: one <code>HttpError</code> policy after #1278 (lost logging and access-log status, the <code>isError</code> contract across sibling tools, stale text, quota/5xx tests). <code>loud/narrow</code>; from the #1278 review, after it merges (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1287">#1287</a>)</li>
+<li>[ ] <code>style_doc_range</code> font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. <code>wrong/rare</code>; from the #1279 review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1289">#1289</a>)</li>
+<li>[ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1243">#1243</a>)</li>
+<li>[ ] Markdown task lists as native Docs checkboxes (<code>BULLET_CHECKBOX</code>) instead of a disc bullet plus a glyph. First check live whether the API can set the checked state (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1280">#1280</a>)</li>
 </ul>
 <h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Queued after <em>ankylosaurus</em> (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.</p>
