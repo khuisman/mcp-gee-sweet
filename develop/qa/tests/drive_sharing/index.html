@@ -1529,7 +1529,7 @@ Both entries in successes; progress notifications aren't visible in this client.
 - 🔍 On a Shared Drive item: at least one entry has <code>role: 'organizer'</code> (the de-facto owner there); on a personal-Drive file: an entry has <code>role: 'owner'</code>
 - Each entry has <code>id</code>, <code>type</code>, <code>role</code> — no <code>KeyError</code> or missing fields</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
-list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (kevin@mcpsuite.io) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.</p>
+list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (qa-workspace-user@example.org) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <hr />
@@ -1543,7 +1543,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - The test user's email appears with <code>role: 'reader'</code>
 - Their <code>permission_id</code> is present for use in update/remove tests</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows huismanfamily01@gmail.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.</p>
+(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows qa-recipient@example.com role:'reader' with permission_id <recipient permissionId> present for later update/remove use.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <hr />
@@ -1645,7 +1645,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 <p><strong>Result (2026-07-27) ⏭️ SKIP — environmental</strong>
 <code>docs/qa/.env</code> doesn't exist in this scoped role-worktree pass (a known gap — see <code>docs/qa/run.md</code>), so <code>TEST_PERMISSION_EMAIL</code> isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.</p>
 <p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
-environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, huismanfamily01@gmail.com) -&gt; HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the mcpsuite.io org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).</p>
+environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, qa-recipient@example.com) -&gt; HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the example.org org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).</p>
 <p><strong>Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass</strong>
 A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDriveItemNotSupported).</p>
 <hr />
@@ -1692,7 +1692,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - <code>failures</code> is empty
 - Follow-up <code>list_permissions</code> confirms the new entry</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}]) -&gt; successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'huismanfamily01@gmail.com'}], failures:[]. Follow-up list_permissions confirms the entry.</p>
+share_file(throwaway, [{type:user, email:qa-recipient@example.com, role:reader}]) -&gt; successes:[{type:'user', role:'reader', permissionId:'<recipient permissionId>', email_address:'qa-recipient@example.com'}], failures:[]. Follow-up list_permissions confirms the entry.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <hr />
@@ -1736,7 +1736,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Response <code>successes</code> contains an entry with <code>type: 'domain'</code> and <code>domain: '{GWS_DOMAIN}'</code>
 - Follow-up <code>list_permissions</code> shows the domain permission entry</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' -&gt; successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'mcpsuite.io'}]; list_permissions shows the domain entry (display_name "MCPSuite").</p>
+share_file type='domain' domain='example.org' (real GWS domain) role='reader' -&gt; successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'example.org'}]; list_permissions shows the domain entry (display_name "<QA org>").</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <hr />
@@ -1752,7 +1752,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up <code>list_permissions</code> shows an <code>anyone</code> entry
 - File accessible via its <code>web_link</code> without authentication (verify in incognito browser)</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-share_file type='anyone' role='reader' -&gt; successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as kevin@mcpsuite.io, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.</p>
+share_file type='anyone' role='reader' -&gt; successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as qa-workspace-user@example.org, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after removal.</p>
 <hr />
@@ -1767,7 +1767,7 @@ anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after rem
 - <code>list_permissions</code> on the folder shows the new permission
 - A child file's own Share dialog in Drive UI shows the inherited access — <code>list_permissions</code> on the child itself does not surface a folder-level grant (confirmed live: the Drive API's <code>permissions.list</code> only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative</p>
 <p><strong>Result (2026-09-04) ⚠️ PARTIAL</strong>
-share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -&gt; successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+share_file(folder QA-v090-share-folder, [{type:user, email:qa-recipient@example.com, role:writer}]) -&gt; successes:[{...permissionId:'<recipient permissionId>'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the child-file inherited-access check wasn't run.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
@@ -1799,7 +1799,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 <p>⚠️ <strong>Note:</strong> Drive requires <code>sendNotificationEmail=True</code> when sharing with non-Google Workspace accounts. If <code>TEST_PERMISSION_EMAIL</code> is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.</p>
 </blockquote>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false) -&gt; successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.</p>
+share_file(throwaway, qa-recipient@example.com reader, send_notification=false) -&gt; successes populated (permissionId <recipient permissionId>), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <hr />
@@ -1817,7 +1817,7 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 <p><strong>Teardown</strong>
 <code>remove_permission</code> for each of the 4 test permissions.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.</p>
+share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain example.org=reader (09502084656447390423). No cross-attribution.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 list_permissions cross-check: every principal had exactly its requested role.</p>
 <hr />

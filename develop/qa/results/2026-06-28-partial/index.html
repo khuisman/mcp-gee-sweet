@@ -2219,7 +2219,7 @@
 <td>TC-D03</td>
 <td>Create at root</td>
 <td>PASS</td>
-<td><code>QA-Create-Root</code>; created at Drive root (folder="0ACZ5KALjwnmUUk9PVA")</td>
+<td><code>QA-Create-Root</code>; created at Drive root (folder="<My Drive root>")</td>
 </tr>
 <tr>
 <td>TC-D04</td>
@@ -2945,13 +2945,13 @@
 <td>TC-D124</td>
 <td>list_permissions owner entry</td>
 <td>PASS</td>
-<td>5 permissions returned; owner=kevin.huisman@gmail.com role:owner type:user; all have id/type/role</td>
+<td>5 permissions returned; owner=qa-owner@example.com role:owner type:user; all have id/type/role</td>
 </tr>
 <tr>
 <td>TC-D125</td>
 <td>list_permissions after sharing</td>
 <td>PASS</td>
-<td>huismanfamily01@gmail.com visible with role:reader, permissionId:17827006775376940548 after TC-D132</td>
+<td>qa-recipient@example.com visible with role:reader, permissionId:<recipient permissionId> after TC-D132</td>
 </tr>
 <tr>
 <td>TC-D126</td>
@@ -2981,7 +2981,7 @@
 <td>TC-D130</td>
 <td>remove_permission</td>
 <td>PASS</td>
-<td><code>{"action":"removed"}</code>; follow-up list_permissions confirmed huismanfamily01@gmail.com absent; Playwright: share button still showed 3 shared users</td>
+<td><code>{"action":"removed"}</code>; follow-up list_permissions confirmed qa-recipient@example.com absent; Playwright: share button still showed 3 shared users</td>
 </tr>
 <tr>
 <td>TC-D131</td>
@@ -2993,7 +2993,7 @@
 <td>TC-D132</td>
 <td>share_file type=user reader</td>
 <td>PASS</td>
-<td>successes=[{type:user, role:reader, permissionId:17827006775376940548, email:huismanfamily01@gmail.com}]; failures=[]</td>
+<td>successes=[{type:user, role:reader, permissionId:<recipient permissionId>, email:qa-recipient@example.com}]; failures=[]</td>
 </tr>
 <tr>
 <td>TC-D133</td>
@@ -3161,7 +3161,7 @@
 <td>TC-D160</td>
 <td>get_storage_quota</td>
 <td>PASS</td>
-<td>email=kevin.huisman@gmail.com; limit_bytes=107374182400 (100 GB); usage_bytes=14806598059; all integers</td>
+<td>email=qa-owner@example.com; limit_bytes=107374182400 (100 GB); usage_bytes=14806598059; all integers</td>
 </tr>
 <tr>
 <td>TC-D161</td>

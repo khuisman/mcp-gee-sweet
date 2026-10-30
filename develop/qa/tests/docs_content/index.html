@@ -3336,10 +3336,10 @@ These operate on the Drive `comments`/`replies` resource, not the Docs API — t
 **Cleanup:** none available — no `delete_doc_comment` tool exists; the comment persists on the fixture doc (see section note above)
 
 **Result (2026-07-16) ✅ PASS**
-`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "Kevin Huisman"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
+`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "<QA user>"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
 
 **Result (2026-09-04) ✅ PASS**
-add_doc_comment (no anchor) returned id, content match, author.display_name="Kevin Huisman" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
+add_doc_comment (no anchor) returned id, content match, author.display_name="<QA user>" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).

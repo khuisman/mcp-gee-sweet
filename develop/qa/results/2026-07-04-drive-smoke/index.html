@@ -1352,7 +1352,7 @@
 
 <h1 id="qa-run-2026-07-04-drive-scoped-smoke-remainder">QA Run — 2026-07-04 (Drive (scoped) + Smoke remainder)<a class="headerlink" href="#qa-run-2026-07-04-drive-scoped-smoke-remainder" title="Permanent link">&para;</a></h1>
 <p><strong>Auth:</strong> OAuth
-<strong>Fixtures:</strong> SPREADSHEET_ID=<code>15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA</code> · DOC_ID=<code>1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA</code> · FOLDER_ID=<code>1RCnhFTjh4aT8AJ_Rx5J9s8O2Kqta1vJE</code> · CALENDAR_ID=<code>kevin.huisman@gmail.com</code>
+<strong>Fixtures:</strong> SPREADSHEET_ID=<code>{SPREADSHEET_ID}</code> · DOC_ID=<code>{DOC_ID}</code> · FOLDER_ID=<code>{FOLDER_ID}</code> · CALENDAR_ID=<code>qa-owner@example.com</code>
 <strong>Scope:</strong> This is one of four parallel shards for the v0.8.1 live QA gate. This shard covers a narrow, precisely-scoped list of 20 TCs spanning <code>drive.md</code> (export_file / list_file_activity remainder), <code>sheets_write.md</code> (TC-W01, TC-W06 — rows 7–9, non-overlapping with the sheets_read shard's rows 1–6 / A1:B2 work), <code>sheets_mgmt.md</code> (TC-S01, TC-S15, TC-S20), <code>sheets_charts.md</code> (TC-C01), and <code>calendar.md</code> (TC-CAL01, TC-CAL09, TC-CAL20). No server restarts or env var/config changes were performed (would drop the shared MCP connection all four shards depend on).</p>
 <p><strong>Playwright note:</strong> TC-CAL20 is the only Playwright-tagged case in this shard's scope. Per the concurrent docs shard's heavy use of the shared Playwright browser tab, visual verification was skipped for TC-CAL20 — confirmation relied on the <code>create_event</code>/<code>get_event</code> API responses instead (the same fallback pattern <code>run.md</code> already prescribes for permission-change tests).</p>
 <h2 id="step-0-fixture-verification">Step 0 — Fixture verification<a class="headerlink" href="#step-0-fixture-verification" title="Permanent link">&para;</a></h2>
@@ -1598,7 +1598,7 @@
 <td>TC-S20</td>
 <td>Refresh by spreadsheet ID only</td>
 <td><strong>PASS</strong></td>
-<td><code>refresh_cache(spreadsheet_id=SPREADSHEET_ID)</code> → <code>{"invalidated": ["spreadsheet:15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA"]}</code>. Follow-up <code>list_sheets</code> returned <code>["Sales", "Empty", "Notes &amp; Misc", "BrandNew"]</code> — confirms the cache was actually invalidated and the next call re-fetched fresh data (BrandNew, created moments earlier by TC-S15, was visible).</td>
+<td><code>refresh_cache(spreadsheet_id=SPREADSHEET_ID)</code> → <code>{"invalidated": ["spreadsheet:{SPREADSHEET_ID}"]}</code>. Follow-up <code>list_sheets</code> returned <code>["Sales", "Empty", "Notes &amp; Misc", "BrandNew"]</code> — confirms the cache was actually invalidated and the next call re-fetched fresh data (BrandNew, created moments earlier by TC-S15, was visible).</td>
 </tr>
 <tr>
 <td>TC-C01</td>
@@ -1610,19 +1610,19 @@
 <td>TC-CAL01</td>
 <td>Returns subscribed calendars</td>
 <td><strong>PASS</strong></td>
-<td><code>list_calendars()</code> → 11 calendars returned. Each has <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>. Exactly one (<code>kevin.huisman@gmail.com</code>) has <code>primary: true</code>.</td>
+<td><code>list_calendars()</code> → 11 calendars returned. Each has <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>. Exactly one (<code>qa-owner@example.com</code>) has <code>primary: true</code>.</td>
 </tr>
 <tr>
 <td>TC-CAL09</td>
 <td>No time filters — upcoming events</td>
 <td><strong>PASS</strong></td>
-<td><code>list_events(calendar_id="kevin.huisman@gmail.com")</code> (no time filter) → events ordered by start time, earliest returned event starts 2026-07-07 (after "now" = 2026-07-04) — no past events present. Each entry has <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>status</code>.</td>
+<td><code>list_events(calendar_id="qa-owner@example.com")</code> (no time filter) → events ordered by start time, earliest returned event starts 2026-07-07 (after "now" = 2026-07-04) — no past events present. Each entry has <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>status</code>.</td>
 </tr>
 <tr>
 <td>TC-CAL20</td>
 <td>Timed event ⚠️ destructive</td>
 <td><strong>PASS</strong></td>
-<td><code>create_event(calendar_id="kevin.huisman@gmail.com", summary="QA-Timed-Test", start="2026-07-01T10:00:00-07:00", end="2026-07-01T11:00:00-07:00", timezone="America/Los_Angeles")</code> → <code>id: "7p8utbir5rmagpjl2n67rke8pg"</code>, <code>start</code>/<code>end</code> are RFC 3339 with <code>-07:00</code> offset, <code>html_link</code> present, <code>status: "confirmed"</code>. Confirmed via follow-up <code>get_event</code> (same calendar_id/event_id) — full details echoed back including <code>created</code>/<code>updated</code> timestamps. Playwright visual verification was <strong>skipped</strong> per the concurrent docs shard's heavy use of the shared browser tab; API-response confirmation (<code>create_event</code> + <code>get_event</code>) was used instead, consistent with <code>run.md</code>'s prescribed fallback pattern for cases where Playwright isn't practical.</td>
+<td><code>create_event(calendar_id="qa-owner@example.com", summary="QA-Timed-Test", start="2026-07-01T10:00:00-07:00", end="2026-07-01T11:00:00-07:00", timezone="America/Los_Angeles")</code> → <code>id: "7p8utbir5rmagpjl2n67rke8pg"</code>, <code>start</code>/<code>end</code> are RFC 3339 with <code>-07:00</code> offset, <code>html_link</code> present, <code>status: "confirmed"</code>. Confirmed via follow-up <code>get_event</code> (same calendar_id/event_id) — full details echoed back including <code>created</code>/<code>updated</code> timestamps. Playwright visual verification was <strong>skipped</strong> per the concurrent docs shard's heavy use of the shared browser tab; API-response confirmation (<code>create_event</code> + <code>get_event</code>) was used instead, consistent with <code>run.md</code>'s prescribed fallback pattern for cases where Playwright isn't practical.</td>
 </tr>
 </tbody>
 </table>

@@ -1393,7 +1393,7 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 - 🔍 The "no parent → personal My-Drive root" behavior is only reachable on a <code>DRIVE_FOLDER_ID</code>-unset deployment; not testable in this run (#680)</p>
 <p><strong>Cleanup:</strong> trash 'QA-Create-Root'.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-Created 'QA-Create-Root' with no folder; get_file_metadata parents=["0APfXAGTeZYz3Uk9PVA"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).</p>
+Created 'QA-Create-Root' with no folder; get_file_metadata parents=["{DRIVE_FOLDER_ID}"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.</p>
 <hr />
@@ -1900,7 +1900,7 @@ Run 1 (kai-oauth).</p>
 - Folder visible in Drive</p>
 <p><strong>Cleanup:</strong> trash 'QA-Folder-Test'.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-create_folder('QA-Folder-Test', no parent) → <code>{folderId, name, parent:"0APfXAGTeZYz3Uk9PVA"}</code> = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.</p>
+create_folder('QA-Folder-Test', no parent) → <code>{folderId, name, parent:"{DRIVE_FOLDER_ID}"}</code> = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 <hr />
@@ -1915,7 +1915,7 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 - 🔍 "no parent → personal My-Drive root" is only reachable on a <code>DRIVE_FOLDER_ID</code>-unset deployment; not testable in this run</p>
 <p><strong>Cleanup:</strong> trash 'QA-Folder-Root'.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-create_folder('QA-Folder-Root', no parent) → parent = "0APfXAGTeZYz3Uk9PVA" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.</p>
+create_folder('QA-Folder-Root', no parent) → parent = "{DRIVE_FOLDER_ID}" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.</p>
 <hr />
@@ -2243,7 +2243,7 @@ restore_file restored; bad ID gives 404.</p>
 <p><strong>Note (2026-07-21):</strong> the original single <code>empty_trash</code> test case was held, not run, during code review — <code>empty_trash</code> omitted Shared Drive scoping (<code>driveId</code>) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.</p>
 <p><strong>Result (2026-07-21) skipped, by operator decision</strong> — unit tests (<code>test_empty_trash_defaults_to_my_drive_no_drive_id</code>, <code>test_empty_trash_api_error_propagates</code>) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.</p>
 <p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
-destructive — <code>empty_trash()</code> (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (kevin.huisman@gmail.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.</p>
+destructive — <code>empty_trash()</code> (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (qa-owner@example.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.</p>
 <p><strong>Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass</strong>
 empty_trash on a whole trash; not run during a shared pass.</p>
 <hr />
@@ -2449,7 +2449,7 @@ Run 1 (kai-oauth).</p>
 - <code>capabilities</code> is a non-empty dict (e.g. contains <code>canAddChildren</code>)
 - No error if zero shared drives accessible — returns <code>[]</code></p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-list_drives() → 1 drive 'mcp-gee-sweet-shared' (id 0APfXAGTeZYz3Uk9PVA = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).</p>
+list_drives() → 1 drive 'mcp-gee-sweet-shared' (id {DRIVE_FOLDER_ID} = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
 <hr />
@@ -2518,7 +2518,7 @@ Standing unit-test-only (docs/qa/runs/README.md pre-approved list).</p>
 - <code>owners</code> field is a flat list of email strings</p>
 <p><strong>Result (2026-06-21) ✅</strong> OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have <code>id</code>, <code>name</code>, <code>mime_type</code>, <code>modified_time</code>, <code>owners</code> (flat email list), <code>web_link</code>. Ordered by <code>modifiedTime desc</code>. SA: 5 files returned — files explicitly shared with the service account (Budget &amp; Savings spreadsheet plus 4 folders).</p>
 <p><strong>Result (2026-09-04) ⚠️ PARTIAL</strong>
-list_shared_with_me() → <code>[]</code> cleanly, no error. The OAuth identity here is a Workspace-org QA account (kevin@mcpsuite.io, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
+list_shared_with_me() → <code>[]</code> cleanly, no error. The OAuth identity here is a Workspace-org QA account (qa-workspace-user@example.org, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the fixture had no shared files, so the field and ordering checks weren't exercised.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
@@ -2681,7 +2681,7 @@ Run 1 (kai-oauth).</p>
 - <code>display_name</code> matches the authenticated account</p>
 <p><strong>Result (2026-06-21) ✅</strong> OAuth: <code>limit_bytes=16106127360</code> (15 GB), <code>usage_bytes=13760121856</code>, <code>usage_in_drive_bytes=875136784</code>, <code>usage_in_trash_bytes=93860012</code>. All integers. SA: <code>limit_bytes=0</code> (API returned <code>"0"</code> — expected for service accounts), all usage fields 0, <code>display_name</code> is the service account email. Note: docstring corrected — SA returns <code>0</code> not <code>None</code>.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-get_storage_quota() → email "kevin@mcpsuite.io", display_name "Kevin Huisman", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.</p>
+get_storage_quota() → email "qa-workspace-user@example.org", display_name "<QA user>", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-oauth).</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
@@ -2885,9 +2885,9 @@ create_shortcut cases matched.</p>
 - <code>list_files</code> on <code>DRIVE_FOLDER_ID</code> includes 'QA-Shortcut-Default' with <code>mimeType: application/vnd.google-apps.shortcut</code>
 - Confirms <code>drive_folder_cache.mark_dirty</code> fired for the parent (cache reflects the new shortcut without a manual refresh)</p>
 <p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.</p>
-<p><strong>Result (2026-07-22) ✅ (behavior) / environment note</strong> — This live server has no <code>DRIVE_FOLDER_ID</code> configured, so its "configured default folder" is <code>My Drive</code> root, not <code>{FOLDER_ID}</code> — confirmed by comparison: <code>create_spreadsheet</code> with no <code>folder_id</code> also lands in the same root (<code>0ACZ5KALjwnmUUk9PVA</code>). <code>create_shortcut</code>'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a <code>create_shortcut</code> defect — the parenthetical <code>({FOLDER_ID} in this fixture setup)</code> only holds when the server's <code>DRIVE_FOLDER_ID</code> is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's <code>list_files</code> call, which showed the new shortcut with no manual <code>refresh_cache</code>. All three probe files trashed after the test.</p>
+<p><strong>Result (2026-07-22) ✅ (behavior) / environment note</strong> — This live server has no <code>DRIVE_FOLDER_ID</code> configured, so its "configured default folder" is <code>My Drive</code> root, not <code>{FOLDER_ID}</code> — confirmed by comparison: <code>create_spreadsheet</code> with no <code>folder_id</code> also lands in the same root (<code>&lt;My Drive root&gt;</code>). <code>create_shortcut</code>'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a <code>create_shortcut</code> defect — the parenthetical <code>({FOLDER_ID} in this fixture setup)</code> only holds when the server's <code>DRIVE_FOLDER_ID</code> is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's <code>list_files</code> call, which showed the new shortcut with no manual <code>refresh_cache</code>. All three probe files trashed after the test.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
-create_shortcut(target in FOLDER_ID, no folder_id) → <code>{parent:"0APfXAGTeZYz3Uk9PVA", ...}</code> = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.</p>
+create_shortcut(target in FOLDER_ID, no folder_id) → <code>{parent:"{DRIVE_FOLDER_ID}", ...}</code> = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Parent is DRIVE_FOLDER_ID; the "({FOLDER_ID})" parenthetical is stale.</p>
 <hr />
