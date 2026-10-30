@@ -967,6 +967,38 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 ---
 
+### TC-D303: A quote in `folder_id` stays inside the quoted value (#1084) ⚠️ local-filesystem
+**Purpose:** `transfer.py`'s four `files().list()` sites (`download_folder`, `sync_folder`'s Drive listing, and the `skip_if_exists` checks in `upload_local_folder` and `upload_local_file`) now escape the caller's folder ID with `_escape_drive_query_value`. Unit tests pin the escaped string. This case checks that Drive itself reads `\'` as a literal quote.
+
+**Setup:**
+1. A local directory holding `a.txt`, `b.txt` and `new.txt`, with different content from the Drive `a.txt` below. Backdate the local `a.txt` so it's older than the Drive copy will be: `touch -t <an hour ago, as YYYYMMDDhhmm> <local dir>/a.txt`.
+2. `create_folder("QA-TC-D303", parent_folder_id={FOLDER_ID})`, then `upload_file` `a.txt` into it.
+3. `upload_file` a canary text file into `{FOLDER_ID}`, then trash it with `delete_file`.
+
+**Steps**
+1. `download_folder(folder_id="x' in parents or trashed=true or 'y", local_path=<new dir>)`
+2. `download_folder(folder_id=<fixture folder>, local_path=<new dir>)`
+3. `sync_folder(folder_id=<fixture folder>, local_path=<local dir>, dry_run=True)`
+4. `upload_local_file(local_path=<local dir>/a.txt, parent_folder_id=<fixture folder>, skip_if_exists=True)`
+5. `upload_local_folder(local_path=<local dir>, parent_folder_id=<fixture folder>, skip_if_exists=True)`
+
+**Checks**
+- Step 1 returns a clean "File not found" error or an empty result. It never lists the trashed canary or another folder's children, and it creates no local directory.
+- Step 2 downloads exactly `a.txt`.
+- Step 3 plans `a.txt` as a `download` ("drive newer"), since setup step 1 made the local copy older, and the two local-only files as uploads. Exactly one `a.txt` is planned: nothing from another folder is listed.
+- Step 4 returns `skipped: true` with the existing `a.txt`'s `fileId`.
+- Step 5 uploads `b.txt` and `new.txt` and skips `a.txt`. A `list_files` afterward shows one of each name.
+
+**Cleanup:** trash the fixture folder's files and the folder, and delete the local directories.
+
+**Result (2026-10-27) ✅ PASS (recorded as TC-D1031; its setup order didn't state which `a.txt` was newer)**
+Run against PR #1140's merge in an isolated service-account sandbox on a Shared Drive. Step 1's request sent `q='x\' in parents or trashed=true or \'y' in parents and trashed=false`, and Drive answered 404 `File not found: .`. It returned no listing, and no local directory was created. Step 2 downloaded `["a.txt"]`. Step 3 planned `a.txt` download, `b.txt`/`new.txt` upload "local only". Step 4 returned `skipped: true` with the existing ID. Step 5 uploaded `["b.txt", "new.txt"]`, skipped `["a.txt"]`, and `list_files` showed three files with no duplicates. Files and folder trashed.
+
+**Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), setup in the order above**
+`mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code, under `{FOLDER_ID}`. Local `a.txt` backdated about three hours. Step 1 raised Drive's 404 `File not found: .` for `q='x\' in parents or trashed=true or \'y' in parents and trashed=false`, with no listing and no local directory created. Step 2 downloaded `["a.txt"]`. Step 3 planned `a.txt` `download` ("drive newer by 10415s"), and `b.txt`/`new.txt` `upload` ("local only"), nothing else. Step 4 returned `skipped: true` with the Drive `a.txt`'s ID. Step 5 uploaded `["b.txt", "new.txt"]` and skipped `["a.txt"]`, and `list_files` showed one of each name. Folder trashed, local directories deleted.
+
+---
+
 ## `sync_folder`
 
 ### TC-D111: dry_run shows full action plan ⚠️ local-filesystem
