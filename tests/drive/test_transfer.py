@@ -7296,9 +7296,7 @@ class TestTransferApiErrorsReturnErrorDicts:
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=svc, drive_folder_cache=folder_cache)
 
-        result = await _transfer_tools["upload_local_folder"](
-            str(tmp_path), "bogusfolder", ctx=ctx
-        )
+        result = await _transfer_tools["upload_local_folder"](str(tmp_path), "bogusfolder", ctx=ctx)
 
         assert "File not found" in result["error"]
         folder_cache.mark_dirty.assert_not_called()

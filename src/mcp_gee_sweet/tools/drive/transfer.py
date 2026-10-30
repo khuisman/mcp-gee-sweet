@@ -3238,7 +3238,9 @@ def register(tool):
                     supportsAllDrives=True,
                     # properties only under convert — nothing else reads the
                     # conversion marker (PR #800 QA round 1).
-                    file_fields=("id, name, mimeType, properties" if convert else "id, name, mimeType"),
+                    file_fields=(
+                        "id, name, mimeType, properties" if convert else "id, name, mimeType"
+                    ),
                     pageSize=1000,
                 )
                 for f in existing_files:
@@ -3724,7 +3726,10 @@ def register(tool):
 
                     size = candidate.dest_file.stat().st_size
                     logger.debug(
-                        "Downloaded %s → %s (%d bytes)", candidate.file_id, candidate.dest_file, size
+                        "Downloaded %s → %s (%d bytes)",
+                        candidate.file_id,
+                        candidate.dest_file,
+                        size,
                     )
                     result: dict[str, Any] = {
                         "kind": "ok",
@@ -3773,7 +3778,9 @@ def register(tool):
             # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
             # was a sequential `for` loop awaiting one transfer at a time (#316), which
             # measured 1.04s/file and scaled linearly with folder size.
-            raw = await asyncio.gather(*(_download_one(c) for c in candidates), return_exceptions=True)
+            raw = await asyncio.gather(
+                *(_download_one(c) for c in candidates), return_exceptions=True
+            )
 
             for c, o in zip(candidates, raw, strict=True):
                 if isinstance(o, BaseException):
@@ -4246,4 +4253,3 @@ def register(tool):
             # like every other Drive failure, as an error result, not a protocol
             # error. Quota errors keep their friendly text (#670).
             return {"error": _quota_error_detail(e, drive_service)}
-
