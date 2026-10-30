@@ -416,7 +416,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] A thematic break (`---`) renders as an empty paragraph ([#1096](https://github.com/khuisman/mcp-gee-sweet/issues/1096))
 - [ ] GFM table column alignment is ignored ([#1095](https://github.com/khuisman/mcp-gee-sweet/issues/1095))
 - [x] A table takes on the style of the paragraph that follows it ([#1097](https://github.com/khuisman/mcp-gee-sweet/issues/1097)) (PR #1201)
-- [ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101))
+- [x] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101)) (PR #1270)
 - [ ] `upload_file(source_format="markdown", convert_to_doc=True)` (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line ([#1102](https://github.com/khuisman/mcp-gee-sweet/issues/1102))
 - [x] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike [#1112](https://github.com/khuisman/mcp-gee-sweet/issues/1112), closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) ([#1116](https://github.com/khuisman/mcp-gee-sweet/issues/1116)) (PR #1228)
 - [x] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone ([#1115](https://github.com/khuisman/mcp-gee-sweet/issues/1115)) (PR #1164)
@@ -446,7 +446,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] get_doc_structure hides inline images, so an image's index can't be found ([#1070](https://github.com/khuisman/mcp-gee-sweet/issues/1070)) (PR #1110)
 - [x] thread_http's per-thread `httplib2.Http` has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. `severe`, observed: a 30-minute `create_doc_from_file` hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 ([#1129](https://github.com/khuisman/mcp-gee-sweet/issues/1129)) (PR #1198)
 - [x] `transfer_ownership(send_notification=False)` can never succeed — `loud/narrow` ([#1055](https://github.com/khuisman/mcp-gee-sweet/issues/1055)) (PR #1142)
-- [ ] Refresh stale TC expectations found in the v0.9.2 pass ([#1060](https://github.com/khuisman/mcp-gee-sweet/issues/1060))
+- [x] Refresh stale TC expectations found in the v0.9.2 pass ([#1060](https://github.com/khuisman/mcp-gee-sweet/issues/1060)) (PR #1271)
 - [x] Test modules fail to collect on Windows (`os.geteuid()` in skipif decorators) — community PR ([#1156](https://github.com/khuisman/mcp-gee-sweet/issues/1156)) (PR #1162)
 - [x] `setup_team.sh` never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz ([#1223](https://github.com/khuisman/mcp-gee-sweet/issues/1223)) (PR #1225)
 - [ ] `write_doc_content`/`update_doc_from_file` clear the Doc before converting the Markdown, so a failed conversion with no backup leaves it empty. `severe/rare`; joined the locked fill 2026-10-28 (maintainer) — lane B after #1102 ([#1240](https://github.com/khuisman/mcp-gee-sweet/issues/1240))
@@ -459,7 +459,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167))
 - [ ] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190))
 - [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
-- [ ] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263))
+- [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
 Moved out 2026-10-18: [#379](https://github.com/khuisman/mcp-gee-sweet/issues/379) (unversioned, Joy decides whether to do it); [#378](https://github.com/khuisman/mcp-gee-sweet/issues/378) closed (ASYNC240 stays off). Everything else formerly here is under _ankylosaurus_ below.
 
