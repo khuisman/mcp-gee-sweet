@@ -2114,6 +2114,30 @@ download_folder mime_type_filter=application/vnd.google-apps.document, export_fo
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 <hr />
+<h3 id="tc-d303-a-quote-in-folder_id-stays-inside-the-quoted-value-1084-local-filesystem">TC-D303: A quote in <code>folder_id</code> stays inside the quoted value (#1084) ⚠️ local-filesystem<a class="headerlink" href="#tc-d303-a-quote-in-folder_id-stays-inside-the-quoted-value-1084-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> <code>transfer.py</code>'s four <code>files().list()</code> sites (<code>download_folder</code>, <code>sync_folder</code>'s Drive listing, and the <code>skip_if_exists</code> checks in <code>upload_local_folder</code> and <code>upload_local_file</code>) now escape the caller's folder ID with <code>_escape_drive_query_value</code>. Unit tests pin the escaped string. This case checks that Drive itself reads <code>\'</code> as a literal quote.</p>
+<p><strong>Setup:</strong>
+1. A local directory holding <code>a.txt</code>, <code>b.txt</code> and <code>new.txt</code>, with different content from the Drive <code>a.txt</code> below. Backdate the local <code>a.txt</code> so it's older than the Drive copy will be: <code>touch -t &lt;an hour ago, as YYYYMMDDhhmm&gt; &lt;local dir&gt;/a.txt</code>.
+2. <code>create_folder("QA-TC-D303", parent_folder_id={FOLDER_ID})</code>, then <code>upload_file</code> <code>a.txt</code> into it.
+3. <code>upload_file</code> a canary text file into <code>{FOLDER_ID}</code>, then trash it with <code>delete_file</code>.</p>
+<p><strong>Steps</strong>
+1. <code>download_folder(folder_id="x' in parents or trashed=true or 'y", local_path=&lt;new dir&gt;)</code>
+2. <code>download_folder(folder_id=&lt;fixture folder&gt;, local_path=&lt;new dir&gt;)</code>
+3. <code>sync_folder(folder_id=&lt;fixture folder&gt;, local_path=&lt;local dir&gt;, dry_run=True)</code>
+4. <code>upload_local_file(local_path=&lt;local dir&gt;/a.txt, parent_folder_id=&lt;fixture folder&gt;, skip_if_exists=True)</code>
+5. <code>upload_local_folder(local_path=&lt;local dir&gt;, parent_folder_id=&lt;fixture folder&gt;, skip_if_exists=True)</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns a clean "File not found" error or an empty result. It never lists the trashed canary or another folder's children, and it creates no local directory.
+- Step 2 downloads exactly <code>a.txt</code>.
+- Step 3 plans <code>a.txt</code> as a <code>download</code> ("drive newer"), since setup step 1 made the local copy older, and the two local-only files as uploads. Exactly one <code>a.txt</code> is planned: nothing from another folder is listed.
+- Step 4 returns <code>skipped: true</code> with the existing <code>a.txt</code>'s <code>fileId</code>.
+- Step 5 uploads <code>b.txt</code> and <code>new.txt</code> and skips <code>a.txt</code>. A <code>list_files</code> afterward shows one of each name.</p>
+<p><strong>Cleanup:</strong> trash the fixture folder's files and the folder, and delete the local directories.</p>
+<p><strong>Result (2026-10-27) ✅ PASS (recorded as TC-D1031; its setup order didn't state which <code>a.txt</code> was newer)</strong>
+Run against PR #1140's merge in an isolated service-account sandbox on a Shared Drive. Step 1's request sent <code>q='x\' in parents or trashed=true or \'y' in parents and trashed=false</code>, and Drive answered 404 <code>File not found: .</code>. It returned no listing, and no local directory was created. Step 2 downloaded <code>["a.txt"]</code>. Step 3 planned <code>a.txt</code> download, <code>b.txt</code>/<code>new.txt</code> upload "local only". Step 4 returned <code>skipped: true</code> with the existing ID. Step 5 uploaded <code>["b.txt", "new.txt"]</code>, skipped <code>["a.txt"]</code>, and <code>list_files</code> showed three files with no duplicates. Files and folder trashed.</p>
+<p><strong>Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), setup in the order above</strong>
+<code>mcp-gee-sweet-jay</code> (OAuth) at <code>develop</code> b2f868f2's code, under <code>{FOLDER_ID}</code>. Local <code>a.txt</code> backdated about three hours. Step 1 raised Drive's 404 <code>File not found: .</code> for <code>q='x\' in parents or trashed=true or \'y' in parents and trashed=false</code>, with no listing and no local directory created. Step 2 downloaded <code>["a.txt"]</code>. Step 3 planned <code>a.txt</code> <code>download</code> ("drive newer by 10415s"), and <code>b.txt</code>/<code>new.txt</code> <code>upload</code> ("local only"), nothing else. Step 4 returned <code>skipped: true</code> with the Drive <code>a.txt</code>'s ID. Step 5 uploaded <code>["b.txt", "new.txt"]</code> and skipped <code>["a.txt"]</code>, and <code>list_files</code> showed one of each name. Folder trashed, local directories deleted.</p>
+<hr />
 <h2 id="sync_folder"><code>sync_folder</code><a class="headerlink" href="#sync_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d111-dry_run-shows-full-action-plan-local-filesystem">TC-D111: dry_run shows full action plan ⚠️ local-filesystem<a class="headerlink" href="#tc-d111-dry_run-shows-full-action-plan-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>

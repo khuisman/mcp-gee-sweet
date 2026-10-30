@@ -7536,6 +7536,132 @@ Ran the script from the `kit` checkout with its own `TOKEN_PATH`, on a fresh doc
 Re-ran both steps on a fresh doc (trashed afterward) from the `kit` checkout at the fix commit. Same output as round 1, and `get_doc_structure` again showed the table followed by `INFLIGHT1030 Before`. Extra round-2 check for the `get_doc_content` epoch fix, in a fresh interpreter with a real in-memory `DocContentCache` and the real API: after one read, the cached row was overwritten with an older `modifiedTime` to stand in for an outside edit (Docs bumps `modifiedTime` minutes late, #814, so a real edit can't be timed reliably). The next read exported again, and the read after it served from cache with no further export, so the refetched content is now stored.
 
 
+---
+
+## `get_doc_structure`: inline images as runs (#1070)
+
+### TC-DOC239: An inline image is its own run, with indices `delete_doc_range` can use (#1070) ⚠️ destructive
+**Purpose:** #1070's failure was a paragraph of a tab then an image, where `get_doc_structure` gave no way to tell the image's index from the tab's. Each image is now a `{"type": "inlineObject", ...}` run with its own one-index span.
+
+**Setup:** `create_doc(title="QA-TC-DOC239", folder_id={FOLDER_ID})`, then `insert_doc_text(doc_id=<it>, insertions=[{"index": 1, "text": "\tafter\nplain text\nX Y\n"}])`. Insert a public PNG with `insert_inline_image(uri=..., width=60, height=20)` at 21, then 20, then 2 (high index first), so the first paragraph is tab, image, `after` and the third is `X`, image, space, image, `Y`.
+
+1. `get_doc_structure(doc_id=<it>)`
+2. `delete_doc_range` over the first paragraph's image run `[startIndex, endIndex)`.
+3. `insert_inline_image` at 2 again, `get_doc_structure`, then `delete_doc_range` over the tab `[1, 2)`.
+
+**Checks**
+- Step 1, first paragraph: `runs` are the `\t` text run, an `inlineObject` run spanning exactly one index (`[2, 3)`), then `after\n`. Its `inlineObjectId` is a key in the raw document's `inlineObjects`, and the paragraph `text` is still `"\tafter\n"`.
+- Third paragraph: two `inlineObject` runs, each with its own ID and non-overlapping one-index spans in order.
+- The second paragraph (no images) has one text run with no `type` key.
+- Step 2 leaves `\tafter\n`: the image is gone and the tab is kept.
+- Step 3 leaves the image at `[1, 2)` followed by `after\n`: the tab is gone and the image is kept.
+
+**Cleanup:** `delete_file` the doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1110's merge in an isolated service-account sandbox on a Shared Drive. Step 1: runs `\t`, `inlineObject` `[2,3)`, `after\n`; paragraph text `"\tafter\n"`. Third paragraph: `X`, `inlineObject` `[21,22)`, ` `, `inlineObject` `[23,24)`, `Y\n`. All three IDs match the raw `inlineObjects` keys. `plain text\n` has one run with no `type` key. Step 2 left `[1,8) '\tafter\n'`. Step 3 left `[1,2)` image then `after\n`. Doc trashed.
+
+---
+
+## Blank paragraph before a table (#1092)
+
+### TC-DOC240: The blank paragraph Docs leaves before a table is collapsed NORMAL_TEXT, not a second heading (#1092) ⚠️ destructive
+**Purpose:** Docs inserts a table after an empty paragraph, which inherits the style of the block before it. The collapse request now also sets `namedStyleType: NORMAL_TEXT`. This case also checks the other blocks that could leak their style into that paragraph.
+
+**Setup:** fixtures in `docs/qa/fixtures/`:
+- `tc-doc240-heading.md`: `## Decisions`, a blank line, a `| Item | Choice |` table with two body rows (3 rows × 2 columns), then `After the table.`
+- `tc-doc240-normal.md`: `Intro paragraph.`, then a table with one body row (2 × 2).
+- `tc-doc240-bullet.md`: `- one` / `- two`, then the same 2 × 2 table.
+- `tc-doc240-quote.md`: `> quoted line`, then the same 2 × 2 table.
+- `tc-doc240-seed.md`: one line, `Seed line.`
+
+1. `create_doc_from_file` each of the four table fixtures into `{FOLDER_ID}`.
+2. `create_doc_from_file(local_path=docs/qa/fixtures/tc-doc240-seed.md, folder_id={FOLDER_ID})`, then `update_doc_from_file(doc_id=<it>, local_path=docs/qa/fixtures/tc-doc240-heading.md)`.
+
+**Checks** (raw `documents().get()` per Doc)
+- `tc-doc240-heading.md`, both from step 1 and from the step 2 update: a `HEADING_2` "Decisions", then one `NORMAL_TEXT` blank paragraph with `spaceAbove`/`spaceBelow` 0, `lineSpacing` 1 and a 1pt `fontSize` on its newline, then the table. There's no second, empty heading.
+- Every table cell paragraph is `NORMAL_TEXT`, so a `#decisions` anchor can only resolve to the heading.
+- The paragraph after the heading Doc's table, `After the table.`, is a plain `NORMAL_TEXT` paragraph.
+- `tc-doc240-normal.md`: the blank paragraph has the same collapse.
+- `tc-doc240-bullet.md`: the blank paragraph has no `bullet`.
+- `tc-doc240-quote.md`: the blank paragraph has no `borderLeft` or `indentStart`.
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1138's merge in an isolated service-account sandbox on a Shared Drive. Every check matched for all five Docs. The blank paragraph read `NORMAL_TEXT`, `spaceAbove`/`spaceBelow` 0pt, `lineSpacing` 1, newline `fontSize` 1pt, with no `bullet`, `borderLeft` or `indentStart`. Every cell paragraph of the heading table, created or updated, is `NORMAL_TEXT`, and so is the trailing paragraph. Read through the API only, not on screen. Docs trashed. (This run's inputs were written by hand before the fixtures were committed; the run below uses the fixtures.)
+
+**Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), committed fixtures**
+`mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code, in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. In all five Docs, the paragraph before the table is `NORMAL_TEXT` with `spaceAbove`/`spaceBelow` 0pt, `lineSpacing` 1 and newline `fontSize` 1pt, with no `bullet`, `borderLeft` or `indentStart`. Both heading Docs (created, and updated from the seed) read `HEADING_2` "Decisions", the blank paragraph, a 3 × 2 table, then `After the table.` as `NORMAL_TEXT`. All 6 cell paragraphs per Doc (12 across the two) are `NORMAL_TEXT`. The bullet Doc's items keep their own list, and the quote Doc's border stays on `quoted line`. Docs trashed.
+
+---
+
+## Link targets without a URI scheme (#1120)
+
+### TC-DOC241: A scheme-less link target lands as plain text and is reported; a host-only one is linked over https; schemed targets land as written (#1120, #1180) ⚠️ destructive
+**Purpose:** Docs turned a relative target like `./guide.md` into a dead `http://./guide.md` link. The converter now keeps a target that starts with `#` or has a scheme, and rewrites a scheme-less one that names a host (`//host/x`, `www.host`) to `https://` (#1180). It writes any other target's run as plain text and lists the target under `dropped_links` with `reason: "no_scheme"`. TC-MD111 LK-12 covers the Markdown suite's case. This one covers each entry point, a range of schemes, padded targets and table cells.
+
+**Setup:** fixtures in `docs/qa/fixtures/`:
+- `tc-doc241-links.md`: a `## Target heading`, then one paragraph per link with targets `./guide.md`, `/guide.md`, `//example.com/x`, `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `file:///tmp/qa.txt`, `vscode://file/tmp/qa.txt`, `javascript:alert(1)`, `data:text/plain,hi`, `vbscript:msgbox`, `https://example.com/ok`, an image linked to `https://example.com/imglink` and `#target-heading`. Then a table whose cells hold `[cell anchor](#target-heading)` and `[cell rel](./guide.md)`.
+- `tc-doc241-links.html`: an `<h2>`, then `<a>` targets `./guide.md`, `/guide.md`, `//example.com/x`, `" https://example.com/x "` (padded), `https://example.com/ok` and `#target-heading`.
+- `tc-doc241-write.md`: links to `./guide.md`, `/guide.md`, `//example.com/x` and `https://example.com/ok`.
+
+1. `create_doc_from_file` each of `tc-doc241-links.md` and `tc-doc241-links.html` into `{FOLDER_ID}`.
+2. `create_doc(title="QA-TC-DOC241-write", folder_id={FOLDER_ID})`, then `write_doc_content(doc_id=<it>, content=<tc-doc241-write.md's text>, content_format="markdown")`.
+
+**Checks** (raw `documents().get()`)
+- `./guide.md`, `/guide.md` and the table cell's `cell rel` are plain text with their link text kept and no `link`, through all three entry points.
+- Each of the three calls returns `dropped_links` of exactly `[{"url": "./guide.md", "reason": "no_scheme"}, {"url": "/guide.md", "reason": "no_scheme"}]`. The list holds distinct targets, so `cell rel`'s `./guide.md` shares the body link's entry.
+- `//example.com/x` is linked as `https://example.com/x` through all three entry points, and isn't in `dropped_links`.
+- `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `vscode://file/tmp/qa.txt`, `https://example.com/ok` and the image link `https://example.com/imglink` are stored exactly as written, and no call fails.
+- The padded HTML target is stored as `https://example.com/x`.
+- Both `#target-heading` anchors (body and table cell) resolve to the heading's `headingId`.
+- The linked image keeps its link.
+- Observation only, not a PASS/FAIL check: record what `file:///tmp/qa.txt`, `javascript:alert(1)`, `data:text/plain,hi` and `vbscript:msgbox` become. Whether the script schemes should be stored is #1189's question (now bundled in #1238), so this case doesn't judge it.
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS (pre-#1228/#1272 code, superseded by the run below)**
+Run against PR #1149's merge in an isolated service-account sandbox on a Shared Drive. `./guide.md`, `/guide.md`, `//example.com/x` and `cell rel` are plain text with no `link` through all three entry points. Stored as written: `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `file:///tmp/qa.txt`, `vscode://file/tmp/qa.txt`, `https://example.com/ok`, and the image link `https://example.com/imglink`. The padded HTML target is stored as `https://example.com/x`. Both anchors became `…/edit?tab=t.0#heading=<the heading's headingId>`, the heading's own ID. Docs also stores `javascript:alert(1)`, `data:text/plain,hi` and `vbscript:msgbox` as written, with no API error. That's recorded for the script-scheme policy (#1189), not as a failure here. Whether Docs opens each scheme from the UI wasn't checked. Docs trashed.
+
+**Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), committed fixtures**
+`mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code, in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. All three calls returned no error and `dropped_links` `[{"url": "./guide.md", "reason": "no_scheme"}, {"url": "/guide.md", "reason": "no_scheme"}]`. `relative`, `root relative` and `cell rel` are plain text with no `link` in every Doc. `protocol relative` is linked to `https://example.com/x` in all three. Stored as written: `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `vscode://file/tmp/qa.txt`, `https://example.com/ok`, and the image link `https://example.com/imglink`. The padded HTML target is stored as `https://example.com/x`. Both Markdown anchors and the HTML anchor became `…/edit?tab=t.0#heading=<the heading's headingId>`, the Doc's own heading. Observation: in the Markdown Doc, `file:`, `javascript:`, `data:` and `vbscript:` aren't links at all. markdown-it's `validateLink` refuses those schemes, so each paragraph holds its literal Markdown source, e.g. `[file](file:///tmp/qa.txt)`. Docs trashed.
+
+**Result (2026-10-29) ✅ PASS — PR #1274 QA round 2 (Rio), committed fixtures**
+`mcp-gee-sweet-rio` (OAuth) at PR head 68f2dc91, whose `src/` matches `develop` b2f868f2. The Docs went into the Shared Drive default folder, and the raw `documents().get()` came from a fresh interpreter. All three calls returned no error and `dropped_links` exactly `[{"url": "./guide.md", "reason": "no_scheme"}, {"url": "/guide.md", "reason": "no_scheme"}]`. `relative`, `root relative` and `cell rel` are plain text with no `link`. `protocol relative` is linked to `https://example.com/x` in all three Docs, and the padded HTML target is stored as `https://example.com/x`. Stored as written: `HTTPS://Example.com`, `Mailto:qa@example.com`, `tel:+15555550100`, `ftps://example.com/f`, `vscode://file/tmp/qa.txt`, `https://example.com/ok`, and the image link `https://example.com/imglink`. The Markdown body anchor, the cell anchor and the HTML anchor each became `…/edit?tab=t.0#heading=<the heading's headingId>`, the Doc's own `HEADING_2`. Observation: same as the run above. `file:`, `javascript:`, `data:` and `vbscript:` paragraphs hold their literal Markdown source, now tracked as #1290. Docs trashed.
+
+---
+
+## Loose lists (#1111)
+
+### TC-DOC242: A loose list (blank lines between items) keeps its bullets, numbers, levels and checkboxes (#1111) ⚠️ destructive
+**Purpose:** The Markdown parser wraps each loose item's text in `<p>`, and that `<p>` used to end the item, so the text landed as a plain paragraph. An item's first `<p>` is now part of the item.
+
+**Setup:** fixtures in `docs/qa/fixtures/`:
+- `tc-doc242-loose.md`: these groups, separated by `---`: `- a\n\n- b`; `1. a\n\n2. b`; `> - a\n>\n> - b`; `- a\n    - a1\n\n- b`; `- [x] done\n\n- [ ] todo`; and the tight `- t1\n- t2`.
+- `tc-doc242-loose.html`: `<ul><li>\n  <p>a</p>\n</li><li>\n  <p>b</p>\n</li></ul>`, then `<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>`.
+
+1. `create_doc_from_file` each fixture into `{FOLDER_ID}`.
+
+**Checks** (`get_doc_structure` plus raw `documents().get()`)
+- `- a\n\n- b` is two items in one bullet list, and `1. a\n\n2. b` is one `DECIMAL` list.
+- The quoted list is one list whose paragraphs carry the quote's left border.
+- `- a / a1 / b` is one list with levels 0, 1, 0.
+- The task items read `☑ done` and `☐ todo`.
+- The tight list is unchanged: two items in one list.
+- No empty paragraph sits between the items of any list. In the Markdown Doc, the only empty paragraphs are the five `---` separators and the body's final paragraph, which every Doc ends with. In the HTML Doc, the only one is the body's final paragraph.
+- Item text is `a\n` and `b\n`, with no leading or trailing newline, tab or space from the HTML's indentation (`tc-doc242-loose.html` included).
+- The `data-style` item is a `SUBTITLE` paragraph with no bullet, as before #1164 (its `NamedBlock` keeps its own block).
+
+**Cleanup:** `delete_file` each doc.
+
+**Result (2026-10-27) ✅ PASS**
+Run against PR #1164's merge in an isolated service-account sandbox on a Shared Drive. Every check matched, through the API only. `loose.md`'s items read `a\n`/`b\n` (●), `a\n`/`b\n` (DECIMAL), `a\n`/`b\n` with a left border at indent 72pt, `a`/`a1`/`b` at levels 0/1/0, then `☑ done`/`☐ todo` and `t1`/`t2`. Each group shares one `listId`, and the only empty paragraphs are the five separators and the body's final paragraph. In `loose.html`, `a\n`/`b\n` are one list with no padding, and `styled` is a bare `SUBTITLE` paragraph. #1115's on-screen done-when (the TC-MD cases through EP-1 to EP-4) is not covered here and stays pending in its tracking issue. Docs trashed.
+
+**Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), committed fixtures**
+`mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code (markdown-it), in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. `tc-doc242-loose.md`: `a\n`/`b\n` (●), `a\n`/`b\n` (`DECIMAL`), `a\n`/`b\n` with a left border at `indentStart` 72pt, `a`/`a1`/`b` at levels 0/1/0, `☑ done`/`☐ todo`, then `t1`/`t2`. Each group has a `listId` of its own shared by its items, and the only empty paragraphs are the five separators and the body's final paragraph. `tc-doc242-loose.html`: `a\n`/`b\n` in one list with no padding, `styled` a `SUBTITLE` paragraph with no bullet, `plain` a bullet item, then the final empty paragraph. Docs trashed.
+
+
 
 
 
