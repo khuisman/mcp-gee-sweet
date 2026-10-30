@@ -396,7 +396,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 - [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
 - [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
-- [ ] A numbered list restarts its numbering after a nested bullet list; folds in #1241, the reverse case in the same run grouping (maintainer, 2026-10-28) — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072))
+- [x] A numbered list restarts its numbering after a nested bullet list; folds in #1241, the reverse case in the same run grouping (maintainer, 2026-10-28) — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
 - [ ] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108; folded into #1072 (maintainer, 2026-10-28) ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241))
 - [x] Images inside table cells are dropped silently ([#1073](https://github.com/khuisman/mcp-gee-sweet/issues/1073)) (PR #1215)
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
