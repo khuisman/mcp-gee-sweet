@@ -1,7 +1,7 @@
 # QA Run — 2026-07-04 (Sheets Read shard)
 
 **Auth:** OAuth
-**Fixtures:** SPREADSHEET_ID=`15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA`
+**Fixtures:** SPREADSHEET_ID=`{SPREADSHEET_ID}`
 **Scope:** This is one of four parallel shards for the v0.8.1 live QA gate. This shard covers ONLY `docs/qa/tests/sheets_read.md` (39 TCs) — a full run, since `get_sheet_data` changed for issue #235 in this release. No server restarts or env var/config changes were performed (would drop the shared MCP connection all four shards depend on).
 **Start:** ~20:11 · **End:** ~20:57 (run cut short at the very last step — TC-R35 teardown — by a shared-server auth outage; see "Known issues" below)
 

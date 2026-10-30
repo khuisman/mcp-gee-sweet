@@ -524,7 +524,7 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 - Returns a list with at least one rule (typically the owner's own `user` rule with `role: owner`)
 - Each item has `id`, `role`, `scope_type`, `scope_value`
 
-**Result:** PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on `kevin.huisman@gmail.com`, each with all four fields.
+**Result:** PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on `qa-owner@example.com`, each with all four fields.
 
 **Result (2026-09-04) ✅ PASS**
 No (same shape, different rule count since real fixture is narrowly shared)
