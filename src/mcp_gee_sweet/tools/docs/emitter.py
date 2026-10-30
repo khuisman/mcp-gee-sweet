@@ -163,6 +163,199 @@ def _after_bullet_pass(position: int, tabs_before: int) -> int:
     return position - tabs_before
 
 
+@dataclass(eq=False)
+class _BulletList:
+    """One Docs list: the BulletItems one createParagraphBullets call bullets, as
+    segment_meta indices. `first`..`last` also spans every item nested inside it, of
+    either type (#1072).
+
+    A list at the top of its contiguous block of items holds, in `nested`, every list
+    nested anywhere inside it that isn't merged into it, in document order, so a list
+    always comes before the lists nested in it. Such a nested list is usually of the
+    other type, but not always: a same-type list that follows another sublist under
+    the same item (ordered, bullet, ordered) is one too, so it restarts."""
+
+    ordered: bool
+    first: int
+    last: int
+    min_depth: int
+    top: _BulletList | None  # the top-level list this one is nested in
+    nested: list[_BulletList]  # top-level lists only
+
+
+@dataclass
+class _OpenList:
+    """A list level that's still open while _bullet_lists walks the items: its depth,
+    its list, and whether its current item already has a list nested in it."""
+
+    depth: int
+    bullet_list: _BulletList
+    had_child: bool = False
+
+
+def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
+    """Group the BulletItems in `segment_meta` into Docs lists and return the
+    top-level ones, in document order, each holding the lists nested in it.
+
+    A list of the other type nested in a list stays its own Docs list, at every level
+    (#1072). An item continues the open list at its depth when the types match. A
+    different type at that depth starts a new list, and so does a shallower item with
+    no open list left. A nested list joins its parent's list when it has the same
+    type and is the first list nested in that parent item, which keeps
+    numbered-in-numbered one Docs list as before; a later one under the same item is
+    a list of its own, so it restarts. A run of contiguous items whose parents were
+    dropped (#714), shallower than the block's first list, joins that list when the
+    types match, as one run did before.
+
+    The AST has no list boundary, only each item's depth and type, so two adjacent
+    same-type lists at one depth still merge into one Docs list: `1.` then `1)`
+    markers, whether at the top level or as the first sublists under an item (#1241).
+
+    A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
+    between two items keeps them in one list, as before."""
+    tops: list[_BulletList] = []
+    stack: list[_OpenList] = []
+    root: _BulletList | None = None
+    for i, seg in enumerate(segment_meta):
+        node = seg.node
+        if not isinstance(node, BulletItem):
+            stack, root = [], None
+            continue
+        depth, ordered = node.depth, node.ordered
+        while stack and stack[-1].depth > depth:
+            stack.pop()
+        if stack and stack[-1].depth == depth:
+            if stack[-1].bullet_list.ordered == ordered:
+                stack[-1].bullet_list.last = i
+                stack[-1].had_child = False
+                continue
+            stack.pop()
+        if stack:
+            enclosing = stack[-1]
+            if enclosing.bullet_list.ordered == ordered and not enclosing.had_child:
+                bullet_list = enclosing.bullet_list
+            else:
+                top = enclosing.bullet_list.top or enclosing.bullet_list
+                bullet_list = _BulletList(ordered, i, i, depth, top=top, nested=[])
+                top.nested.append(bullet_list)
+            enclosing.had_child = True
+        elif root is not None and root.ordered == ordered:
+            bullet_list = root
+        else:
+            bullet_list = root = _BulletList(ordered, i, i, depth, top=None, nested=[])
+            tops.append(bullet_list)
+        bullet_list.last = i
+        bullet_list.min_depth = min(bullet_list.min_depth, depth)
+        stack.append(_OpenList(depth, bullet_list))
+    return tops
+
+
+def _bullet_preset(ordered: bool) -> str:
+    return "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+
+
+def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> list[dict]:
+    """The bullet requests for one top-level list and every list nested in it (#1072).
+
+    One createParagraphBullets call over `top`'s whole range puts every item in it,
+    nested lists included, into one list at its tab-encoded level. A Docs list has a
+    single preset and numbers each level by listId, so the items of `top` (and of a
+    same-type list merged into it) keep counting past a nested list, even though that
+    list sits inside the range. Then each list in `top.nested`, parent before child,
+    is taken back out (confirmed live, #1072), whatever its type: its bullets are deleted,
+    its indent zeroed (deleteParagraphBullets leaves the level's indent, which the next
+    createParagraphBullets would read as extra depth, #1069), its items' depth-tabs
+    inserted again (the first call consumed them), and the range bulleted with its
+    own preset through the anchor wrap, since its items all sit at depth > 0. A
+    nested list's range contains the lists nested in it, which the later ones take
+    back out in turn. The listId left behind on a paragraph is the list it belongs to.
+
+    Every nested list's tabs are inserted and consumed again, so the whole sequence
+    removes each item's tabs once, as a single call would: _after_bullet_pass holds.
+    Positions after the first call are in `top`'s own coordinates, with its tabs gone;
+    nothing before `top` has shifted yet (the lists are applied latest-first)."""
+    start = segment_meta[top.first].doc_start
+    end = segment_meta[top.last].doc_end
+    preset = _bullet_preset(top.ordered)
+    if top.min_depth == 0:
+        requests: list[dict] = [
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "bulletPreset": preset,
+                }
+            }
+        ]
+    else:
+        # Isolated list: every item sits at depth > 0 with no depth-0 sibling in this
+        # same call to anchor nesting level 0. createParagraphBullets assigns each
+        # paragraph nestingLevel = (its leading-tab count) - (the minimum leading-tab
+        # count across the whole range), so a list with no 0-tab paragraph collapses
+        # entirely to nestingLevel 0 — rendering the depth-0 glyph (● disc) even though
+        # the per-level indent is bumped so the item still *looks* nested (confirmed
+        # live, #439). isolated_bullet_run_wrap_requests (indices.py, shared with
+        # style.py per #727) prepends a throwaway 0-tab anchor paragraph, bullets the
+        # extended range (anchor -> level 0, real items -> their true level and its
+        # correct glyph), then deletes the anchor. The insert (+1) and delete (-1)
+        # cancel, so every position outside [start, end] — later lists, table/image
+        # inserts — is left exactly where an ordinary single call would leave it.
+        #
+        # Because the anchor always contributes 0 tabs, the minimum across the
+        # extended range is always 0 regardless of min_depth — so every item lands at
+        # nestingLevel == its own depth exactly (min_depth == 1 -> level 1,
+        # min_depth == 2 -> level 2, etc.), never clamped to level 1. This is a
+        # deliberate decision (#714, following the #439 fix in PR #711): the converter
+        # renders the source's true nesting depth faithfully rather than clamping a
+        # deeply-nested fragment (whose ancestors were dropped for having no text of
+        # their own) to look one level deep.
+        requests = isolated_bullet_run_wrap_requests(start, end, preset)
+
+    tabs_ahead = segment_meta[top.first].tabs_through - segment_meta[top.first].own_tabs
+
+    def after_top(index: int) -> tuple[int, int]:
+        """Segment `index`'s (start, end) once `top`'s first call consumed its tabs."""
+        seg = segment_meta[index]
+        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead
+        return seg.doc_start - own_start, seg.doc_end - (seg.tabs_through - tabs_ahead)
+
+    for bullet_list in top.nested:
+        list_start = after_top(bullet_list.first)[0]
+        list_end = after_top(bullet_list.last)[1]
+        rng = {"startIndex": list_start, "endIndex": list_end}
+        requests.append({"deleteParagraphBullets": {"range": rng}})
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": {
+                        "indentStart": {"magnitude": 0, "unit": "PT"},
+                        "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                    },
+                    "fields": "indentStart,indentFirstLine",
+                }
+            }
+        )
+        tabs = 0
+        for index in range(bullet_list.last, bullet_list.first - 1, -1):
+            # Every item here sits deeper than the list it's nested in, so it has tabs.
+            own_tabs = segment_meta[index].own_tabs
+            requests.append(
+                {
+                    "insertText": {
+                        "location": {"index": after_top(index)[0]},
+                        "text": "\t" * own_tabs,
+                    }
+                }
+            )
+            tabs += own_tabs
+        requests.extend(
+            isolated_bullet_run_wrap_requests(
+                list_start, list_end + tabs, _bullet_preset(bullet_list.ordered)
+            )
+        )
+    return requests
+
+
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
     """Return `runs` with literal leading tab character(s) removed from the
     start of its own text, without mutating the caller's Run/Image objects —
@@ -268,9 +461,10 @@ def ast_to_requests(
          inline run styles) — these assume no position has shifted yet, since every
          index they reference was computed against the freshly-built full_text before
          any other request has run.
-      2. createParagraphBullets calls for BulletItem nesting (#336) — grouped into
-         one call per contiguous same-preset run and applied in descending document
-         order (see the grouping loop below). Each call consumes/removes its own
+      2. createParagraphBullets calls for BulletItem nesting (#336) — one call per
+         top-level list, followed by the requests that take each nested list not
+         merged into it back out (#1072), applied in descending document order
+         (see the grouping loop below). Each call consumes/removes its own
          leading tab characters, shifting every later position backward, so this
          stage must run after stage 1 (which assumes nothing has shifted) but before
          stage 3 (whose own positions are pre-adjusted for exactly this shift).
@@ -448,8 +642,9 @@ def ast_to_requests(
     # below (which all assume no positions have shifted yet) but before the combined
     # table/image insertion pass further down — see the loop after segment_meta for why
     # they're applied in descending document order. Each entry's value is a list because
-    # an isolated depth>0 run (no depth-0 anchor item) expands to three requests — a
-    # throwaway anchor insert, the bullets call, and the anchor delete — see below.
+    # an isolated depth>0 list (no depth-0 anchor item) expands to three requests — a
+    # throwaway anchor insert, the bullets call, and the anchor delete — and a nested
+    # list taken back out adds its own (#1072); see _top_list_requests.
     bullet_run_requests: list[tuple[int, list[dict]]] = []
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
@@ -542,75 +737,23 @@ def ast_to_requests(
                     requests.extend(style_reqs)
                 offset += run_len
 
-        # Group maximal contiguous runs of same-preset BulletItems into ONE
-        # createParagraphBullets call per run, rather than one call per paragraph.
-        # createParagraphBullets infers nesting level from each paragraph's own leading
-        # tab count, but only reliably does so *relative to the other paragraphs covered
-        # by the same call* — issuing one call per paragraph let call order/adjacency to
-        # an already-bulleted neighbor override the tab-encoded depth, producing visibly
-        # inconsistent nesting live even though each call's own leading-tab count and
-        # range boundaries were individually correct (confirmed live, PR #432 QA round 1:
-        # same-depth siblings landed at different indentation levels, and ordered lists
-        # lost continuous numbering). One atomic call spanning the whole contiguous block
-        # is the pattern Google's own Docs API samples use for building nested lists.
-        i = 0
-        while i < len(segment_meta):
-            node = segment_meta[i].node
-            run_start, run_end = segment_meta[i].doc_start, segment_meta[i].doc_end
-            if not isinstance(node, BulletItem):
-                i += 1
-                continue
-            ordered = node.ordered
-            j = i
-            # node.depth is never negative — see the matching comment where `tabs`
-            # is built above (#434 finding 3/4): html_parser.py clamps an orphan
-            # <li>'s depth to 0 at the source now, so this always routes through
-            # the same min_depth==0 path a normal depth-0 item does.
-            min_depth = node.depth
-            while (
-                j < len(segment_meta)
-                and isinstance(segment_meta[j].node, BulletItem)
-                and segment_meta[j].node.ordered == ordered
-            ):
-                run_end = segment_meta[j].doc_end
-                min_depth = min(min_depth, segment_meta[j].node.depth)
-                j += 1
-            preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
-            if min_depth == 0:
-                run_requests: list[dict] = [
-                    {
-                        "createParagraphBullets": {
-                            "range": {"startIndex": run_start, "endIndex": run_end},
-                            "bulletPreset": preset,
-                        }
-                    }
-                ]
-            else:
-                # Isolated run: every item sits at depth > 0 with no depth-0 sibling in
-                # this same call to anchor nesting level 0. createParagraphBullets assigns
-                # each paragraph nestingLevel = (its leading-tab count) - (the minimum
-                # leading-tab count across the whole range), so a run with no 0-tab
-                # paragraph collapses entirely to nestingLevel 0 — rendering the depth-0
-                # glyph (● disc) even though the per-level indent is bumped so the item
-                # still *looks* nested (confirmed live, #439). isolated_bullet_run_wrap_requests
-                # (indices.py, shared with style.py per #727) prepends a throwaway 0-tab
-                # anchor paragraph, bullets the extended range (anchor -> level 0, real
-                # items -> their true level and its correct glyph), then deletes the
-                # anchor. The insert (+1) and delete (-1) cancel, so every position
-                # outside [run_start, run_end] — later bullet runs, table/image inserts —
-                # is left exactly where an ordinary single call would leave it.
-                #
-                # Because the anchor always contributes 0 tabs, the minimum across the
-                # extended range is always 0 regardless of min_depth — so every item lands
-                # at nestingLevel == its own depth exactly (min_depth == 1 -> level 1,
-                # min_depth == 2 -> level 2, etc.), never clamped to level 1. This is a
-                # deliberate decision (#714, following the #439 fix in PR #711): the
-                # converter renders the source's true nesting depth faithfully rather than
-                # clamping a deeply-nested fragment (whose ancestors were dropped for
-                # having no text of their own) to look one level deep.
-                run_requests = isolated_bullet_run_wrap_requests(run_start, run_end, preset)
-            bullet_run_requests.append((run_start, run_requests))
-            i = j
+        # One createParagraphBullets call per top-level list, rather than one call per
+        # paragraph. createParagraphBullets infers nesting level from each paragraph's
+        # own leading tab count, but only reliably does so *relative to the other
+        # paragraphs covered by the same call* — issuing one call per paragraph let call
+        # order/adjacency to an already-bulleted neighbor override the tab-encoded depth,
+        # producing visibly inconsistent nesting live even though each call's own
+        # leading-tab count and range boundaries were individually correct (confirmed
+        # live, PR #432 QA round 1: same-depth siblings landed at different indentation
+        # levels, and ordered lists lost continuous numbering). One atomic call spanning
+        # the whole list is the pattern Google's own Docs API samples use for building
+        # nested lists. Each list nested in it that isn't merged into it is taken back
+        # out afterward, so the outer list keeps counting past it (#1072,
+        # _top_list_requests).
+        for top in _bullet_lists(segment_meta):
+            bullet_run_requests.append(
+                (segment_meta[top.first].doc_start, _top_list_requests(top, segment_meta))
+            )
 
         # Applied latest-in-document-first: each call's own range is still valid at the
         # point it runs (nothing before it in the doc has shifted yet), and processing

@@ -66,3 +66,12 @@ unindented code block
 ```
 
 2. Step two (a new list per CommonMark; renders starting at 2)
+
+### LX-10 — three sublists under one numbered item
+
+1. Top one
+    1. Child one
+    2. Child two
+    - Bullet child
+    1. New child one
+2. Top two
