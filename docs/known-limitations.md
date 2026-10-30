@@ -49,52 +49,59 @@ response). Related: #133.
 or `create_doc_from_file` (`.md` files) cannot produce a nested table — a table inside a table
 cell.
 
-**Why:** The Python `markdown` library's `tables` extension has no syntax for a table nested
-inside another table's cell.
+**Why:** GFM's pipe-table syntax has no way to write a table inside another table's cell.
 
 **Workaround:** Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
 (see #109). Related: `docs/qa/tests/docs_content.md` TC-DOC51.
 
 ---
 
-### A bare `-` line is never recognized as an empty list item
+### An empty list item (a bare `-` line) is dropped
 
-**What:** In Markdown input, a line containing only `-` (optionally with trailing whitespace) is
-never recognized as an empty list item, regardless of indentation. What happens instead depends
-on what precedes it:
+**What:** In Markdown input, a list item with no text, a line of only `-`, leaves no bullet in the
+Doc. The items around it keep theirs, and a list nested under it keeps its level:
+`"- item one\n-\n- item three\n"` renders two bullets, not three.
 
-1. **As the first line of a would-be list** (e.g. right after a heading, as in the
-   `tc-doc106-nested-lists-4space.md` fixture's Case 2 — a bare `-` meant to hold only a nested
-   sub-list): the whole block, including the following well-formed list-item lines, collapses
-   into a single plain paragraph of literal text. No list is produced at all.
-   `"-\n- item two\n- item three\n"` → `<p>-\n- item two\n- item three</p>`.
-2. **Immediately following a text line** (e.g. `"- item one\n-\n- item three\n"`): it's instead
-   consumed together with the preceding line as a Setext-style H2 heading, since a line of only
-   `-` characters is also CommonMark/Setext heading-underline syntax. Renders
-   `<h2>- item one</h2>` followed by a list containing only `"item three"` — the first item's
-   bullet and the empty second item are both silently lost.
+**Why:** The Markdown parser reads it as an empty item (`<li></li>`), as CommonMark says. The
+HTML→AST step then drops a list item with no content, the rule that keeps a stray
+`<li>&nbsp;</li>` or an `<li>` wrapping only a nested list from becoming an empty bullet. Before
+the switch to a CommonMark parser (#1116), Python-Markdown didn't recognize a bare `-` at all:
+it turned the list into a paragraph of literal text, or read the `-` as a setext heading
+underline (#692).
 
-**Why:** This is a Python `markdown` library parsing-priority issue, not something this
-project's own HTML→AST pipeline controls. The list-item regex (`sane_lists` and core alike)
-requires a marker *and* a space *and* content (`"- "` + text) to recognize a line as a list item
-— a bare `-` with nothing after it never matches, so it falls through to whatever else can claim
-the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
-check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
-empty) list item (case 2). This fires regardless of indentation and is distinct from the
-`sane_lists` indentation-threshold defect (2- and 3-space nested lists don't nest; see
-`docs/qa/tests/docs_content.md`'s TC-DOC105 and `docs/qa/tests/docs_markdown.md`'s TC-MD106,
-tracked in #1071) — that bug is about sub-list nesting depth, not this marker-recognition
-gap. Working around this by changing how bare markers or Setext headings are
-parsed would change behavior for every other document using either construct, a much larger and
-riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
-warrants.
-
-**Workaround:** Give the list item a non-breaking space instead of a bare `-` (i.e. `- ` followed
-by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (`<li></li>`)
-in both contexts above. Confirmed via direct execution of `_md_to_html` — a local, offline
-markdown→HTML conversion, not a live Google API round trip. CommonMark does allow an empty list
-item, so this stays open as #1075 (#692, closed, is the earlier triage). Related:
+**Workaround:** None in Markdown: an item holding only a non-breaking space (`- ` followed by
+U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. Related:
 `docs/qa/tests/docs_markdown.md` TC-MD301.
+
+---
+
+### Markdown input doesn't read footnotes, definition lists, or other Python-Markdown `extra` syntax
+
+**What:** Markdown passed to `create_doc`/`write_doc_content` (`content_format='markdown'`),
+`create_doc_from_file`/`update_doc_from_file`, or `upload_file(source_format='markdown')` is read
+as CommonMark plus GitHub-flavored Markdown (tables, strikethrough, task lists, autolinks). These
+constructs from Python-Markdown's `extra` extension aren't part of that:
+
+- Footnotes: `Text[^1]` and `[^1]: …`. A note written as prose (`[^1]: This is the note.`)
+  stays literal text, both the `[^1]` marker and the note line. A note of a single word or URL
+  (`[^1]: note`) is a valid CommonMark link reference definition instead, so the note line
+  disappears and the marker shows as `^1`. It's linked when the note is a URL; otherwise the
+  link is dropped (no scheme, #1120) and reported in `dropped_links`.
+
+These come out as literal text:
+
+- Definition lists: `Term` followed by `: definition`.
+- Abbreviations: `*[HTML]: Hyper Text Markup Language`.
+- Attribute lists: `{#id}` or `{.class}` after a heading or paragraph.
+- Markdown inside an HTML block marked `markdown="1"`; the block's contents stay as written.
+
+**Why:** `upload_file` converted with Python-Markdown `extra` until #1102 moved it onto this
+server's CommonMark/GFM converter, which the Docs tools already used. They never read these
+constructs.
+
+**Workaround:** Write a footnote as an inline parenthetical or a "Notes" list at the end (creating
+real Docs footnotes is #149), a definition list as `**Term**: definition` lines, and put HTML that
+needs Markdown inside it as HTML instead.
 
 ---
 
@@ -219,7 +226,9 @@ use this server's converter instead. The same Markdown comes out differently:
 - **Task lists** become native Docs checklists rather than `☐` / `☑` text. A numbered task list
   loses its numbers.
 - **Sub-lists indented by 2 spaces** under a numbered item don't nest; 3 or more spaces do.
-- **Extra empty paragraphs** appear around paragraphs, rules, and lists.
+- **Extra empty paragraphs** appear around paragraphs, rules, lists, and tables. A table gets a
+  visible empty line above it when it starts the document, and between it and a paragraph
+  directly before it.
 - **`<del>` and `<mark>`** inline HTML isn't rendered as strikethrough or highlight.
 - **Images** with a local path or `drive:` source aren't embedded. Only this server's converter
   uploads and shares those.

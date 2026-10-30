@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
-import markdown as _md
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.mcpserver import Context
@@ -2955,6 +2954,7 @@ def register(tool):
         source_format: str = "text",
         folder_id: str | None = None,
         convert_to_doc: bool = False,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -2964,20 +2964,32 @@ def register(tool):
             name: File name (include extension, e.g. 'notes.md', 'report.html').
             content: Text content to upload.
             source_format: How to interpret the content. One of:
-                           'markdown' — Markdown text; converted to HTML before upload.
+                           'markdown' — Markdown text. Uploaded as an HTML file, or with
+                                        convert_to_doc=True written into a new Doc
+                                        (see convert_to_doc).
                            'html'     — Raw HTML.
                            'text'     — Plain text (default).
             folder_id: Destination folder ID. Defaults to the configured folder or Drive root.
             convert_to_doc: If True, create a Google Doc instead of a raw file.
-                            'markdown' and 'html' sources retain heading, list, and link
-                            formatting via Drive's HTML import. 'text' uploads as plain text
-                            and Drive converts it (no formatting preserved). Uses the same
-                            Drive native-import-conversion trick as upload_local_file's
-                            convert param, simplified to always target a Doc since this
-                            tool has no file extension to dispatch Sheets/Slides on.
+                            A 'markdown' source is written with the same converter as
+                            create_doc(content_format='markdown'), so it renders the same
+                            way, images included (a local path, drive:<file_id> or public
+                            http(s) URL, embedded as create_doc does; bare URLs are
+                            linked). An 'html' source keeps its heading, list, and link
+                            formatting via Drive's HTML import. 'text' uploads as plain
+                            text and Drive converts it (no formatting preserved).
+            auto_downscale: For a 'markdown' source with convert_to_doc=True, resize a
+                local-path/drive: image over Google Docs' inline-image limit instead of
+                failing it (default False), as create_doc's auto_downscale does: a
+                drive: source gets a new " (resized)" copy beside the original, a
+                local-path source uploads the resized bytes. No effect otherwise.
 
         Returns:
-            fileId, name, parent folder ID, and webViewLink of the created file.
+            fileId, name, parent folder ID, and webViewLink of the created file. A
+            Markdown Doc also gets create_doc's "images" (per-image outcomes) and
+            "dropped_links" (links written as plain text) when there are any. If writing
+            a Markdown Doc's content fails after the Doc was created, returns
+            {"error", "fileId"} plus those fields instead.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -2988,8 +3000,47 @@ def register(tool):
         drive_service = lc.drive_service
         target_folder_id = folder_id or lc.folder_id
 
+        if source_format == "markdown" and convert_to_doc:
+            # create_doc's own Markdown path, not Drive's HTML import, which flattened
+            # nested lists and picked the code font nondeterministically (#1102).
+            # Imported here because docs.content imports this module.
+            from ..docs.content import _create_doc_with_content
+
+            doc = await _create_doc_with_content(
+                lc,
+                name,
+                content,
+                "markdown",
+                target_folder_id,
+                autolink_urls=True,
+                revoke_sharing=True,
+                auto_downscale=auto_downscale,
+            )
+            if "docId" not in doc:
+                return doc
+            result: dict[str, Any] = {"fileId": doc["docId"]}
+            if "error" in doc:
+                result = {"error": doc["error"], **result}
+            else:
+                result.update(name=doc["title"], parent=doc["folder"], web_link=doc["web_link"])
+            # images, dropped_links, and whatever else create_doc reports.
+            result.update(
+                {
+                    k: v
+                    for k, v in doc.items()
+                    if k not in ("docId", "title", "folder", "web_link", "error")
+                }
+            )
+            if "error" in doc:
+                logger.debug("Writing Markdown Doc %s (%s) failed", doc["docId"], name)
+            else:
+                logger.debug("Uploaded %s as Doc %s via the Markdown converter", name, doc["docId"])
+            return result
+
         if source_format == "markdown":
-            html_body = _md.markdown(content, extensions=["extra"])
+            from ..docs.md_to_html import _md_to_html
+
+            html_body = await asyncio.to_thread(_md_to_html, content, True)
             upload_content = (
                 f"<!DOCTYPE html><html><head><meta charset='utf-8'></head>"
                 f"<body>{html_body}</body></html>"

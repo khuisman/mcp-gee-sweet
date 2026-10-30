@@ -576,7 +576,7 @@ Run 2 (ash).
 **Checks**
 - `<th>` cells are included in the table (not ignored)
 - First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
-- Google Docs doesn't distinguish th vs td styling — both rows are plain table cells
+- Both rows are ordinary table cells (Docs has no header-cell type). The `<th>` cells' runs are bold (`bold: true`); the `<td>` cells' runs are not. TC-DOC32 covers the bold styling in detail.
 
 **Result (2026-09-04) ✅ PASS**
 <th> cells included as normal cells: row0 Col1/Col2, row1 Val1/Val2.
@@ -1951,15 +1951,15 @@ Run 2 (ash).
 
 ### TC-DOC57: Insert an image by public URI ⚠️ requires-oauth ⚠️ destructive
 **Setup:**
-1. `upload_local_file(local_path="<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png", parent_folder_id={FOLDER_ID}, name="qa-fixture-pixel.png", skip_if_exists=False)` — note the returned `fileId` as `{FIXTURE_FILE_ID}`
+1. `upload_local_file(local_path="<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png", parent_folder_id={FOLDER_ID}, name="qa-fixture-pixel.png", skip_if_exists=False)` — note the returned `fileId` as `{FIXTURE_FILE_ID}` and `web_content_link` (a direct-download link, returned for a new non-converted upload) as `{FIXTURE_WEB_CONTENT_LINK}`
 2. `share_file(file_id={FIXTURE_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`
 3. Fetch structure; note the `endIndex` of a paragraph to insert after as `{N}`
 
 **Prompt**
 **Playwright: required**
-> "Insert an image from URI 'https://drive.google.com/uc?export=download&id={FIXTURE_FILE_ID}' at index {N} in doc {DOC_ID}"
+> "Insert an image from URI '{FIXTURE_WEB_CONTENT_LINK}' at index {N} in doc {DOC_ID}"
 
-Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, uri="https://drive.google.com/uc?export=download&id={FIXTURE_FILE_ID}")` — the `uc?export=download` link form is the same convention TC-DOC163 established, since neither `get_file_metadata` nor `upload_local_file` surfaces Drive's own `webContentLink` field.
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, uri="{FIXTURE_WEB_CONTENT_LINK}")`. `upload_local_file` returns Drive's `webContentLink` as `web_content_link` (#511), so no hand-built `uc?export=download` URL is needed.
 
 **Checks**
 - Call succeeds with no API error
@@ -2120,10 +2120,10 @@ These operate on the Drive `comments`/`replies` resource, not the Docs API — t
 **Cleanup:** none available — no `delete_doc_comment` tool exists; the comment persists on the fixture doc (see section note above)
 
 **Result (2026-07-16) ✅ PASS**
-`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "Kevin Huisman"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
+`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "<QA user>"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
 
 **Result (2026-09-04) ✅ PASS**
-add_doc_comment (no anchor) returned id, content match, author.display_name="Kevin Huisman" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
+add_doc_comment (no anchor) returned id, content match, author.display_name="<QA user>" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (ash).
@@ -2729,7 +2729,7 @@ Run 2 (ash).
 Not tagged `⚠️ requires-oauth` — like `insert_doc_text`/`style_doc_range`, the tool itself is auth-agnostic; only the fixture doc happens to live in personal Drive.
 
 ### TC-DOC116: Two lines join into a single soft-break paragraph with an explicit style ⚠️ destructive
-**Setup:** create a doc with a placeholder paragraph via `write_doc_content`; note the placeholder paragraph's `startIndex`
+**Setup:** create a doc with a placeholder paragraph via `write_doc_content`; note the placeholder paragraph's `startIndex` ({N}) and `endIndex`. Then empty it with `delete_doc_range` over `{N}` to `endIndex - 1`, which keeps the paragraph's own `\n`. The tool inserts no trailing `\n`, so inserting at the start of a non-empty paragraph merges the block into it (the placeholder text would end up on line 2, e.g. "…Databaseplaceholder").
 
 **Prompt**
 **Playwright: required**
@@ -2737,7 +2737,7 @@ Not tagged `⚠️ requires-oauth` — like `insert_doc_text`/`style_doc_range`,
 
 **Checks**
 - Response has no `error`; `start_index`/`end_index`/`line_ranges` are present, and each `line_ranges` entry's span matches its line's text length
-- `get_doc_structure` shows **one** paragraph element spanning the inserted block (not two) — confirms the `\v` separator did not create a paragraph break
+- `get_doc_structure` shows **one** paragraph element spanning the inserted block (not two) — confirms the `\v` separator did not create a paragraph break. Its text is exactly the two lines joined by `\v`, with no leftover placeholder text
 - That paragraph's `namedStyleType` is `HEADING_2`
 - 🔍 Visual check in Google Docs: the two lines render as one tight paragraph (no blank-line gap between them) with a visible line break; only the first line is bold
 
@@ -2797,9 +2797,9 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 > "In doc {DOC_ID}, insert local images: marker 'IMGMARKERONE', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"
 
 **Checks**
-- `results` has exactly one entry with no `error`, a `fileId`, and an `index` equal to the "IMGMARKERONE" paragraph's `startIndex` (from a prior `get_doc_structure`)
+- `results` has exactly one entry with no `error`, a `fileId`, `shared: false`, and an `index` equal to the "IMGMARKERONE" paragraph's `startIndex` (from a prior `get_doc_structure`)
 - `get_doc_structure` afterward: the marker text is gone, the "before"/"after" paragraphs are unaffected, and the middle paragraph's `endIndex - startIndex` is now 2 (one image "character" + the paragraph's trailing `\n`)
-- The uploaded file (`results[0].fileId`) is shared `anyone`/`reader` (`list_permissions`)
+- The uploaded file (`results[0].fileId`) has no `anyone` permission (`list_permissions`). `revoke_sharing` defaults to `True`, so the temporary `anyone`/`reader` share is revoked once the image is embedded (see TC-DOC152)
 - 🔍 Visual check in Google Docs: an image renders where the marker used to be, and the literal marker text is gone
 
 **Cleanup:** delete the created doc; delete the uploaded image file
@@ -3225,32 +3225,21 @@ Run 2 (ash).
 
 ---
 
-### TC-W36 regression spot-check — not run
-`sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
-
-**Result (2026-10-17) ⏳ pending — v0.9.2 release pass**
-not reported by the shard that owned this file
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: Run in a throwaway spreadsheet in the run folder, not the fixture. `update_cells` F5 [🚀, link→example.com]; `get_sheet_data(include_grid_data)` showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.
-
----
-
 ## Unsupported markdown constructs preserve paragraph boundaries (issue #401)
 
 **Background:** #332/#333 established that an unsupported construct like `<img>` (markdown images convert to `<img>` before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire *paragraph* was also being deleted, not just the construct itself — `_emit_block_node` (`html_parser.py`) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported `<img>`), and a bare `<hr>` (python-markdown's rendering of both `---` and `___` thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's `endIndex` == the next one's `startIndex`), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (`runs=[]`) in the AST for both cases instead of dropping it — `emitter.py`'s `ast_to_requests` was updated to match, since its own `if not text.strip(): continue` guard would otherwise have skipped the now-empty node's contribution to `full_text` and lost the boundary anyway.
 
-### TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC135: An image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — an unsupported image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
+**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — a public `https://` image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, plus the underscore-variant break called out in the issue's follow-up comment. The issue's own repro (`![Kindly Human](kh-logo.png)`) used an image that was dropped. This fixture's image embeds, so the case covers the boundaries around an embedded image and the two breaks, not #401's dropped-image boundary; a dropped image's boundary is covered by the #401 unit tests in `tests/test_docs_core.py`.
 
 **Prompt**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-paragraph-boundary.md, then show me its structure."
 
 **Checks**
 - Tool completes without error
-- `get_doc_structure` lists, in order: an empty (non-heading, non-bulleted) paragraph — the dropped image's boundary — then HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", another empty paragraph (the `---` break), HEADING_2 "PURPOSE", a plain paragraph "Body text after the thematic break.", another empty paragraph (the `___` break), HEADING_2 "SCOPE", and a plain paragraph "Body text after the underscore break."
-- Confirm each empty paragraph is a real, distinct structural element (own `startIndex`/`endIndex`, one index unit wide) sitting *between* the two real elements around it — not the two real elements landing with one's `endIndex` equal to the next one's `startIndex` with nothing between them
+- `get_doc_structure` lists, in order: a plain (non-heading, non-bulleted) paragraph holding only the embedded image, 2 index units wide (the image plus its `\n`); the fixture's image is a public URL, which embeds since #333 instead of being dropped — then HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", an empty paragraph (the `---` break), HEADING_2 "PURPOSE", a plain paragraph "Body text after the thematic break.", another empty paragraph (the `___` break), HEADING_2 "SCOPE", and a plain paragraph "Body text after the underscore break."
+- Confirm the image paragraph is its own element, and each empty paragraph is a real, distinct structural element (own `startIndex`/`endIndex`, one index unit wide) sitting *between* the two real elements around it — not the two real elements landing with one's `endIndex` equal to the next one's `startIndex` with nothing between them
 
 **Cleanup:** delete the created doc
 
@@ -3922,7 +3911,7 @@ Needs a persistent anyone share; ran before the user's explicit sharing approval
 ---
 
 ### TC-DOC163: `insert_inline_image` with a too-large public `uri` gets Google's error rewritten with the size-limit explanation, not pre-validated
-**Setup:** temporarily share the oversized PNG for a public URL — upload it (`upload_local_file` as in TC-DOC161), then `share_file(file_id={OVERSIZED_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`, and use `https://drive.google.com/uc?export=download&id={OVERSIZED_FILE_ID}` as `{OVERSIZED_WEB_CONTENT_LINK}` — neither `get_file_metadata` nor `upload_local_file`'s response actually surfaces Drive's `webContentLink` field (confirmed live 2026-08-09: `get_file_metadata`'s field mask requests `webViewLink` only), so the direct-download URL convention is the only way to get a fetchable link from these tools alone.
+**Setup:** temporarily share the oversized PNG for a public URL — upload it (`upload_local_file` as in TC-DOC161), then `share_file(file_id={OVERSIZED_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`, and use the `web_content_link` from the `upload_local_file` response as `{OVERSIZED_WEB_CONTENT_LINK}`. `upload_local_file` returns Drive's `webContentLink` as `web_content_link` for a new non-converted upload (#511).
 
 **Prompt**
 > "Insert the image at uri '{OVERSIZED_WEB_CONTENT_LINK}' at index 1 in doc {DOC_ID}"
@@ -4226,7 +4215,7 @@ Run 2 (ash).
 **Checks**
 - Returns `doc_id`, `title`, and `markdown`
 - `markdown` contains `# Title`
-- `markdown` contains `**bold**`, `*italic*`, `~~strike~~`, and `[link](https://example.com)`
+- `markdown` contains `**bold**`, `*italic*`, `~~strike~~`, and `[link](https://example.com)`. The write path renders `~~strike~~` as a struck-through run since #1228 (markdown-it's GFM strikethrough rule), and the export writes it back as `~~strike~~`
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
@@ -4360,6 +4349,7 @@ Run 2 (ash).
 **Checks**
 - `markdown` contains "outer text" in the corresponding cell
 - That same cell contains a placeholder phrase (e.g. "nested table omitted") rather than silently losing the inner table's content with no trace
+- The placeholder's opening `*` is separated from "outer text" by a space (or a `<br>`). Run together as `outer text*(nested table omitted…)*`, the `*` sits between a letter and `(`, so CommonMark doesn't treat it as opening emphasis and the note doesn't render in italics. Open as #1078; until it's fixed this check fails
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 

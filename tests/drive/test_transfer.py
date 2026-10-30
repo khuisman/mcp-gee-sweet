@@ -16,6 +16,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import atomic_write, response_limits
+from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.drive import _SA_QUOTA_ERROR, _USER_QUOTA_ERROR
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import (
@@ -112,6 +113,210 @@ class TestUploadFile:
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
+
+
+class TestUploadFileMarkdown:
+    """#1102: a Markdown Doc is written with create_doc's converter, not imported
+    from Python-Markdown HTML by Drive; a raw Markdown upload's HTML comes from the
+    same converter."""
+
+    _MD = "# Notes\n\n- top\n  - nested\n\nSee https://example.com\n\n```\ncode\n```\n"
+
+    def _services(self):
+        drive = MagicMock()
+        drive.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "notes.md",
+            "parents": ["folder1"],
+            "webViewLink": "https://docs.example.com/doc1",
+        }
+        docs = MagicMock()
+        return drive, docs
+
+    def _ctx(self, drive, docs):
+        return _make_ctx(
+            drive_service=drive,
+            docs_service=docs,
+            folder_id=None,
+            drive_folder_cache=MagicMock(),
+            doc_cache=MagicMock(),
+        )
+
+    def _requests(self, docs):
+        return [
+            r
+            for c in docs.documents.return_value.batchUpdate.call_args_list
+            for r in c.kwargs["body"]["requests"]
+        ]
+
+    async def test_convert_to_doc_writes_through_docs_api(self):
+        drive, docs = self._services()
+        result = await _transfer_tools["upload_file"](
+            name="notes.md",
+            content=self._MD,
+            source_format="markdown",
+            folder_id="folder1",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+
+        assert result == {
+            "fileId": "doc1",
+            "name": "notes.md",
+            "parent": "folder1",
+            "web_link": "https://docs.example.com/doc1",
+        }
+        create = drive.files.return_value.create.call_args.kwargs
+        assert create["body"] == {
+            "name": "notes.md",
+            "mimeType": transfer_module._GOOGLE_DOC_MIME,
+            "parents": ["folder1"],
+        }
+        assert "media_body" not in create  # no Drive HTML import
+
+        requests = self._requests(docs)
+        text = "".join(r["insertText"]["text"] for r in requests if "insertText" in r)
+        assert "\tnested" in text  # nesting kept as a level-1 bullet
+        assert any("createParagraphBullets" in r for r in requests)
+        links = [
+            r["updateTextStyle"]["textStyle"]["link"]["url"]
+            for r in requests
+            if "link" in r.get("updateTextStyle", {}).get("textStyle", {})
+        ]
+        assert links.count("https://example.com") == 1  # bare URL autolinked
+        fonts = [
+            r["updateTextStyle"]["textStyle"]["weightedFontFamily"]["fontFamily"]
+            for r in requests
+            if "weightedFontFamily" in r.get("updateTextStyle", {}).get("textStyle", {})
+        ]
+        assert "Courier New" in fonts  # code styled by us, not left to Drive
+
+    async def test_convert_to_doc_quota_error_is_friendly(self):
+        drive, docs = self._services()
+        resp = MagicMock()
+        resp.status = 403
+        drive.files.return_value.create.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}'
+        )
+        as_service_account(drive)
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="# x",
+            source_format="markdown",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result == {"error": _SA_QUOTA_ERROR}
+        docs.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_convert_to_doc_content_failure_reports_file_id(self):
+        drive, docs = self._services()
+        resp = MagicMock()
+        resp.status = 400
+        docs.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"message": "bad request"}}'
+        )
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="# x",
+            source_format="markdown",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result["fileId"] == "doc1"
+        assert "error" in result
+        assert "name" not in result
+
+    async def test_convert_to_doc_passes_image_outcomes_through(self, monkeypatch):
+        image = {"src": "/tmp/a.png", "fileId": "img1", "shared": False}
+        calls = []
+
+        async def fake_create(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {
+                "docId": "doc1",
+                "title": "n.md",
+                "folder": "folder1",
+                "web_link": "https://docs.example.com/doc1",
+                "images": [image],
+            }
+
+        monkeypatch.setattr(content_module, "_create_doc_with_content", fake_create)
+        drive, docs = self._services()
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="![a](/tmp/a.png)",
+            source_format="markdown",
+            convert_to_doc=True,
+            auto_downscale=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result == {
+            "fileId": "doc1",
+            "name": "n.md",
+            "parent": "folder1",
+            "web_link": "https://docs.example.com/doc1",
+            "images": [image],
+        }
+        assert calls[0][1]["auto_downscale"] is True
+
+    async def test_convert_to_doc_failure_passes_image_outcomes_through(self, monkeypatch):
+        image = {"src": "/tmp/a.png", "fileId": "img1", "shared": False}
+
+        dropped = [{"url": "./x.md", "reason": "no_scheme"}]
+
+        async def fake_create(*args, **kwargs):
+            return {
+                "error": "doc edit failed",
+                "docId": "doc1",
+                "images": [image],
+                "dropped_links": dropped,
+            }
+
+        monkeypatch.setattr(content_module, "_create_doc_with_content", fake_create)
+        drive, docs = self._services()
+        result = await _transfer_tools["upload_file"](
+            name="n.md",
+            content="![a](/tmp/a.png)",
+            source_format="markdown",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+        assert result == {
+            "error": "doc edit failed",
+            "fileId": "doc1",
+            "images": [image],
+            "dropped_links": dropped,
+        }
+
+    async def test_raw_markdown_upload_uses_our_converter(self):
+        drive, docs = self._services()
+        await _transfer_tools["upload_file"](
+            name="notes.html",
+            content=self._MD,
+            source_format="markdown",
+            ctx=self._ctx(drive, docs),
+        )
+        create = drive.files.return_value.create.call_args.kwargs
+        assert create["media_body"].mimetype() == "text/html"
+        html = create["media_body"].getbytes(0, create["media_body"].size()).decode()
+        assert "<ul>\n<li>nested</li>\n</ul>" in html  # nested, not flattened
+        assert '<a href="https://example.com">' in html
+        docs.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_html_convert_to_doc_still_uses_drive_import(self):
+        drive, docs = self._services()
+        await _transfer_tools["upload_file"](
+            name="r.html",
+            content="<h1>x</h1>",
+            source_format="html",
+            convert_to_doc=True,
+            ctx=self._ctx(drive, docs),
+        )
+        create = drive.files.return_value.create.call_args.kwargs
+        assert create["body"]["mimeType"] == transfer_module._GOOGLE_DOC_MIME
+        assert create["media_body"].mimetype() == "text/html"
+        docs.documents.return_value.batchUpdate.assert_not_called()
 
 
 class TestShouldSkipExistingUpload:

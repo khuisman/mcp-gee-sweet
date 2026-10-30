@@ -100,11 +100,16 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Background:** #242 generalized #235's response-size safety net to `export_file`. Unlike the other capped tools, `export_file` has no `local_path` param — its base64 output written to a JSON file would be a worse artifact than `download_file` (pre-existing tool) already produces, so the error points there instead.
 
+**Setup:** the cap is `MAX_TOOL_RESPONSE_CHARS` (default `1000000`, see `docs/configuration.md`). `{SPREADSHEET_ID}` exported as `xlsx` is only about 9 KB, so it does not trip the default cap. To trip it, export a binary file large enough that its base64 content exceeds the cap: at the default, a raw file of about 800 KB or more. For example, upload an 800 KB non-text file (random bytes, `.bin`) to a scratch folder with `upload_local_file` and export it with `export_format='raw'`. Alternatively, run against a server started with a low `MAX_TOOL_RESPONSE_CHARS` (e.g. `40000`), where the fixture's `xlsx` export does trip it.
+
 **Prompt**
-> "Export {SPREADSHEET_ID} as xlsx"
+> "Export <the large binary file's ID> with export_format 'raw'" (or, on a low-cap server, "Export {SPREADSHEET_ID} as xlsx")
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and `download_file` as the recommended alternative — must NOT mention `local_path` (this tool doesn't have that param)
+- Call raises `ValueError`: `export_file: the response is <N> characters, over the <cap>-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`, where `<cap>` is the server's configured cap
+- The message must NOT mention `local_path` (this tool doesn't have that param)
+
+**Cleanup:** trash the uploaded large file, if one was used.
 
 **Result (2026-07-03) ✅ PASS**
 Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
@@ -719,7 +724,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Checks**
 - Step 1: `/tmp/qa-d254/new/sub/` exists as a **directory**; the file is at `/tmp/qa-d254/new/sub/<drive_name>` with the real content; the returned `local_path` is that full file path. There is **no** plain file at `/tmp/qa-d254/new/sub`.
 - Step 2: both downloads are present as separate files inside `/tmp/qa-d254/new/sub/` (named after each Drive file) — the second did not overwrite the first, and `/tmp/qa-d254/new/sub` is still a directory, not a file.
-- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'` (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
+- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead` (the trailing hint since #990, the rest since #855; before #855 it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
 
 **Teardown**
 `rm -rf /tmp/qa-d254`.
@@ -753,7 +758,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Checks**
 - Step 1 raises the Drive 404 `HttpError` ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. `/tmp/qa-d274/ok/` is **not** created, because mkdir runs after the metadata call.
-- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`.
+- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`. (The hint after the semicolon was added in #990.)
 
 **Teardown**
 `rm -rf /tmp/qa-d274`.
@@ -1315,7 +1320,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Background:** before the fix, only `sync_folder`'s own `create()` call stamped the marker property matching relies on — `upload_local_file(convert=True)`'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent `sync_folder` run on the same folder silently created a second Doc.
 
 **Prompt**
-> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then, with `/tmp/qa-sync-226/notes.md` containing identical content and mtime close to now:
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then create the sync copy with `mkdir -p /tmp/qa-sync-226 && cp -p /tmp/qa-sync-226-src/notes.md /tmp/qa-sync-226/notes.md`. The `-p` keeps the source file's mtime: the upload stamps that mtime on the Doc, and `sync_folder` compares a converted `.md` against the stamp exactly (`_CONVERTED_MD_STAMP_TOLERANCE`, 1 ms), so a plain `cp` makes the local file look changed. Then:
 > "Sync {FOLDER_ID} with `/tmp/qa-sync-226/` using direction='bidirectional' and convert_markdown set to true"
 
 **Checks**
@@ -1512,7 +1517,7 @@ In `{FOLDER_ID}`, create 3 Drive-only files (`drive-a.txt`, `drive-b.txt`, `driv
 - All 3 Drive-only files appear in `downloaded`; all 3 local-only files appear in `uploaded`; `failed` is empty
 - Each downloaded local file's content matches its *own* source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
 - Each uploaded Drive file's content matches its *own* source local file's marker (check via `export_file` or `download_file` on each)
-- `size_bytes` equals the sum of the 3 downloaded files' actual sizes
+- `size_bytes` equals the sum of the actual sizes of all 6 transferred files: the 3 downloaded and the 3 uploaded (#1003 made it count uploads too)
 
 **Teardown**
 Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded local-only files from Drive, remove `/tmp/qa-sync-183/`.
@@ -2379,16 +2384,19 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 ### TC-D148: Export a revision and read a cell range
 
-**Setup:**
-1. Write "QA-BEFORE" to Sales!A1 using `update_cells`
-2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
-3. Write "QA-AFTER" to Sales!A1
-4. Call `list_revisions` on {SPREADSHEET_ID} and identify the revision from between the two writes
+**Setup:** use a throwaway scratch spreadsheet, not `{SPREADSHEET_ID}`. These writes would change the shared fixture's `Sales!A1`, and both recorded runs already used a scratch sheet.
+1. Create a scratch spreadsheet (e.g. `QA-transfer-rev-test`) in a scratch folder with `create_spreadsheet`; note its ID as `{SCRATCH_SHEET_ID}`
+2. Write "QA-BEFORE" to its first sheet's A1 using `update_cells`
+3. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+4. Write "QA-AFTER" to the same A1
+5. Call `list_revisions` on `{SCRATCH_SHEET_ID}` and identify the revision from between the two writes
 
-> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.
+TC-D149 and TC-D150 reuse this scratch sheet. Trash it once those are done.
+
+> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If no revision holds the "QA-BEFORE" state, the writes coalesced: SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk; the 2026-09-04 run coalesced after a 40 s wait, and the 2026-10-17 run coalesced too.
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} and show me the value in range A1"
 
 **Checks**
 - Returns `values` with "QA-BEFORE" in A1
@@ -2405,8 +2413,10 @@ Environmental: revision coalescing left the scratch sheet with only 2 revisions.
 
 ### TC-D149: Export revision with explicit sheet name
 
+**Setup:** reuse TC-D148's `{SCRATCH_SHEET_ID}`. Add a second sheet with `create_sheet(spreadsheet_id={SCRATCH_SHEET_ID}, title="Sheet2")`, write distinct values (e.g. `S2-A1` …) to `Sheet2!A1:C7` with `update_cells`, then call `list_revisions` and use the newest revision, which includes Sheet2, as `{REVISION_ID}`.
+
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID}, sheet 'Sheet2', range A1:B5"
 
 **Checks**
 - Returns data from Sheet2, not the first sheet
@@ -2424,7 +2434,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 ### TC-D150: Export revision — no range returns all data
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} with no range filter"
+
+Use TC-D149's `{REVISION_ID}` (the newest revision of TC-D148's scratch sheet).
 
 **Checks**
 - Returns all rows and columns of the first sheet
@@ -3418,3 +3430,56 @@ Verified via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive at head `601b0b3e`.
 
 **Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
 Re-run at head `959ad211` (dedupe by `id`, `pageSize` default 1000, clearer page-cap error) via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and `1005` files on disk.
+
+---
+
+### TC-D302: `upload_file` Markdown renders with our converter, the same way every run (issue #1102) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** `upload_file(source_format="markdown")` converted with Python-Markdown's `extra` extension. With `convert_to_doc=True` it handed that HTML to Drive's import, which flattened every nested list, left `[ ]`/`[x]` as literal text, didn't link bare URLs, and set code blocks in monospace on some runs and Arial on others. A Markdown Doc is now written through `create_doc(content_format="markdown")`'s path, images included. Without `convert_to_doc`, the uploaded HTML comes from the same converter.
+
+**Setup:**
+1. `rm -rf /tmp/qa-302 && mkdir -p /tmp/qa-302 && uv run python -c "from PIL import Image; Image.new('RGB', (40, 20), 'red').save('/tmp/qa-302/red.png')"`
+2. Let `MD` be this content (with real newlines):
+   ````
+   # EP-8 check
+
+   - top item
+     - nested item
+       - deeper item
+   - second top
+
+   - [ ] open task
+   - [x] done task
+
+   Inline `code span`. See https://example.com for more.
+
+   ```python
+   def f():
+       return 1
+   ```
+
+   ![red](/tmp/qa-302/red.png)
+   ````
+
+**Tool calls**
+1. `upload_file(name="qa-302-run1.md", content=MD, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)`
+2. The same call with `name="qa-302-run2.md"`, then again with `name="qa-302-run3.md"`.
+3. `get_doc_structure(doc_id=<call 1's fileId>)`
+4. `get_doc_as_markdown(doc_id=<fileId>)` for each of the three Docs.
+5. `upload_file(name="qa-302-raw.html", content=MD, source_format="markdown", folder_id="{FOLDER_ID}")` (no `convert_to_doc`)
+6. `download_file(file_id=<call 5's fileId>, local_path="/tmp/qa-302/")`, then `cat /tmp/qa-302/qa-302-raw.html`.
+
+**Checks**
+- Call 1 returns `fileId`, `name: "qa-302-run1.md"`, `parent`, `web_link`, and `images` with one entry for `/tmp/qa-302/red.png`: a `fileId`, `shared: false` (the temporary share was revoked after embedding; `true` would mean it was left in place), no `error` or `revoke_error`.
+- Call 3: "nested item" has `bullet.nestingLevel` 1 and "deeper item" 2, in the same `listId` as "top item" (level 0). The two task items have a `bullet`, and their text starts with the `☐ ` / `☑ ` glyph (#336's convention), not `[ ]` or `[x]`. The run `https://example.com` has `link_url` `https://example.com`. One paragraph has an inline-image run.
+- Call 4: all three exports are identical apart from the image's temporary `docs-images-rt` URL, which differs per Doc. Each has the nested list at three levels, `- [ ] open task` and `- [x] done task`, `` `code span` ``, the linked URL, and the code block as a ```` ``` ```` fence (the export fences a paragraph only when it's set in Courier New, so this confirms the code font on every run).
+- Call 6's HTML has `<li>nested item` inside a nested `<ul>`, and `<a href="https://example.com">`. Before the fix, Python-Markdown's 2-space sub-bullet came out as a sibling item.
+
+**Teardown**
+`delete_file` on the three Docs, call 5's file, and each run's uploaded image (`images[0].fileId`), then `rm -rf /tmp/qa-302`.
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 1 (Kit)**
+Run via `mcp-gee-sweet-kit` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive, at head `9f07b5b0`. Call 1 returned `fileId`, `name`, `parent`, `web_link`, and one `images` entry with a `fileId`, `shared: false`, and no `error`/`revoke_error`. The case text had expected `shared: true`; corrected above, since `false` means the share was revoked. Call 3: levels 0/1/2 in one `listId`, tasks `☐ open task` / `☑ done task` with a `bullet`, the URL run linked, and one inline-image run. Call 4: the three exports match apart from each image's `docs-images-rt` URL, with the nested list at three levels, both tasks, `` `code span` ``, the linked URL, and the code fenced. Call 6: `<li>nested item` sits inside a nested `<ul>`, plus `<a href="https://example.com">`. Not part of this case: the same probe with a 6000x5000 PNG returned the image error "…or pass auto_downscale=True…", a parameter `upload_file` doesn't take, and a footnote and a definition list came out as literal text (both sent back in round 1).
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 2 (Kit)**
+Re-run at head `56895d03` (the round-1 fixes plus a `develop` merge bringing #1180's `dropped_links`) via `mcp-gee-sweet-kit` (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: `shared: false` image outcomes, levels 0/1/2 in one `listId`, `☐`/`☑` tasks, the linked URL, an inline-image run, three exports identical once the `docs-images-rt` URLs are normalized, and a nested `<ul>` plus `<a href="https://example.com">` in the raw HTML. Not part of this case: `auto_downscale=True` with a 6000x5000 PNG returned `downscaled: true`, and a no-scheme link came back under `dropped_links` (`reason: no_scheme`).
