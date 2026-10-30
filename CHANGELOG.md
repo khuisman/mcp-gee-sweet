@@ -35,7 +35,8 @@ All notable changes to this project are documented in this file.
 
 ### Bug fixes
 
-- A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level; a sublist nested in one of the other type used to split the outer list into separate lists. A sublist that follows another sublist of a different type under the same item starts its own numbering. Two adjacent lists of the same type still merge into one (`1.` then `1)` markers, #1241). Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
+- A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level; a sublist nested in one of the other type used to split the outer list into separate lists. A sublist that follows another sublist of a different type under the same item starts its own numbering. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
+- Two lists of the same type written one after the other, with a different marker (`-` then `*`, or `1.` then `1)`), render as two lists instead of one: the second numbered list starts again at 1, at the top level and as a second sublist under one item (`1. P`, `    1. a`, `    1) b` shows b as a., not b.). A numbered sublist that follows a deeper numbered list (`1. A`, `   - b`, `     1. c`, `   1. d`) no longer joins it. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file` and `upload_file`'s Markdown Doc — #1241
 
 ---
 

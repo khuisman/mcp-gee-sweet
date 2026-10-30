@@ -186,11 +186,21 @@ class _BulletList:
 @dataclass
 class _OpenList:
     """A list level that's still open while _bullet_lists walks the items: its depth,
-    its list, and whether its current item already has a list nested in it."""
+    its list, the source list its items come from (BulletItem.list_id), and whether
+    its current item already has a list nested in it."""
 
     depth: int
     bullet_list: _BulletList
+    list_id: int | None
     had_child: bool = False
+
+
+def _continues(open_list: _OpenList, node: BulletItem) -> bool:
+    """Whether `node`, at `open_list`'s depth, is the next item of that open list: the
+    same type, and the same source list when both ids are known (#1241)."""
+    if open_list.bullet_list.ordered != node.ordered:
+        return False
+    return open_list.list_id is None or node.list_id is None or open_list.list_id == node.list_id
 
 
 def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
@@ -198,18 +208,20 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
     top-level ones, in document order, each holding the lists nested in it.
 
     A list of the other type nested in a list stays its own Docs list, at every level
-    (#1072). An item continues the open list at its depth when the types match. A
-    different type at that depth starts a new list, and so does a shallower item with
-    no open list left. A nested list joins its parent's list when it has the same
+    (#1072). An item continues the open list at its depth when it comes from the same
+    source list (`_continues`). A different list at that depth starts a new list, and
+    so does a shallower item with no open list left. A nested list joins its parent's list when it has the same
     type and is the first list nested in that parent item, which keeps
     numbered-in-numbered one Docs list as before; a later one under the same item is
     a list of its own, so it restarts. A run of contiguous items whose parents were
     dropped (#714), shallower than the block's first list, joins that list when the
     types match, as one run did before.
 
-    The AST has no list boundary, only each item's depth and type, so two adjacent
-    same-type lists at one depth still merge into one Docs list: `1.` then `1)`
-    markers, whether at the top level or as the first sublists under an item (#1241).
+    Two adjacent same-type lists at one depth (`1.` then `1)` markers, or `-` then
+    `*`) stay two Docs lists, at the top level or as sublists under one item, since
+    each item carries its source list's id (#1241). The later one is a new top-level
+    list, or a nested list that restarts. Items with no id (an AST not built by
+    html_parser) group by type alone, as before.
 
     A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
     between two items keeps them in one list, as before."""
@@ -224,11 +236,15 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
         depth, ordered = node.depth, node.ordered
         while stack and stack[-1].depth > depth:
             stack.pop()
+        # A same-type source list ended at this depth: the item can't rejoin the
+        # block's first list through `root` either (#1241).
+        new_source_list = False
         if stack and stack[-1].depth == depth:
-            if stack[-1].bullet_list.ordered == ordered:
+            if _continues(stack[-1], node):
                 stack[-1].bullet_list.last = i
                 stack[-1].had_child = False
                 continue
+            new_source_list = stack[-1].bullet_list.ordered == ordered
             stack.pop()
         if stack:
             enclosing = stack[-1]
@@ -239,14 +255,14 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
                 bullet_list = _BulletList(ordered, i, i, depth, top=top, nested=[])
                 top.nested.append(bullet_list)
             enclosing.had_child = True
-        elif root is not None and root.ordered == ordered:
+        elif root is not None and root.ordered == ordered and not new_source_list:
             bullet_list = root
         else:
             bullet_list = root = _BulletList(ordered, i, i, depth, top=None, nested=[])
             tops.append(bullet_list)
         bullet_list.last = i
         bullet_list.min_depth = min(bullet_list.min_depth, depth)
-        stack.append(_OpenList(depth, bullet_list))
+        stack.append(_OpenList(depth, bullet_list, node.list_id))
     return tops
 
 
@@ -266,7 +282,10 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
     its indent zeroed (deleteParagraphBullets leaves the level's indent, which the next
     createParagraphBullets would read as extra depth, #1069), its items' depth-tabs
     inserted again (the first call consumed them), and the range bulleted with its
-    own preset through the anchor wrap, since its items all sit at depth > 0. A
+    own preset through the anchor wrap, since its items all sit at depth > 0. The
+    paragraph just before a nested list is always listed by then, and Docs would join
+    the range to that paragraph's list when the presets match (a restarted same-type
+    sublist, #1241), so the wrap puts a barrier paragraph between them. A
     nested list's range contains the lists nested in it, which the later ones take
     back out in turn. The listId left behind on a paragraph is the list it belongs to.
 
@@ -350,7 +369,7 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
             tabs += own_tabs
         requests.extend(
             isolated_bullet_run_wrap_requests(
-                list_start, list_end + tabs, _bullet_preset(bullet_list.ordered)
+                list_start, list_end + tabs, _bullet_preset(bullet_list.ordered), barrier=True
             )
         )
     return requests

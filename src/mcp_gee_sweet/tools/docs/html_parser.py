@@ -205,6 +205,10 @@ class _AstParser(HTMLParser):
         # and must NOT be preserved as a spurious empty bullet.
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
+        # gets a fresh one, so two adjacent lists stay distinguishable (#1241).
+        self._list_ids: list[int] = []
+        self._list_count = 0
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
         # Ids of the open <blockquote> tags, outermost first (#476, #1098); its
@@ -369,8 +373,18 @@ class _AstParser(HTMLParser):
                 if not runs[0].text:
                     runs.pop(0)
         return BulletItem(
-            runs=runs, depth=depth, ordered=ordered, checked=checked, **self._blockquote_fields()
+            runs=runs,
+            depth=depth,
+            ordered=ordered,
+            checked=checked,
+            list_id=self._list_ids[-1] if self._list_ids else None,
+            **self._blockquote_fields(),
         )
+
+    def _push_list(self, ordered: bool) -> None:
+        self._list_count += 1
+        self._list_ordered.append(ordered)
+        self._list_ids.append(self._list_count)
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -709,11 +723,11 @@ class _AstParser(HTMLParser):
         # --- list context ---
         if tag == "ol":
             self._interrupt_open_block("ol")
-            self._list_ordered.append(True)
+            self._push_list(True)
             return
         if tag == "ul":
             self._interrupt_open_block("ul")
-            self._list_ordered.append(False)
+            self._push_list(False)
             return
 
         # --- blockquote (#476) ---
@@ -947,6 +961,7 @@ class _AstParser(HTMLParser):
         if tag in ("ol", "ul"):
             if self._list_ordered:
                 self._list_ordered.pop()
+                self._list_ids.pop()
             self._resume_interrupted_block(tag)
             return
 
