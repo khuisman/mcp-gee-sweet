@@ -34,7 +34,7 @@ All notable changes to this project are documented in this file.
 
 ### Bug fixes
 
-- A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level. Each Markdown or HTML list is now one Google Docs list; a sublist nested in one of the other type used to split the outer list into separate lists. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
+- A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level; a sublist nested in one of the other type used to split the outer list into separate lists. A sublist that follows another sublist of a different type under the same item starts its own numbering. Two adjacent lists of the same type still merge into one (`1.` then `1)` markers, #1241). Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
 
 ---
 

@@ -167,14 +167,20 @@ def _after_bullet_pass(position: int, tabs_before: int) -> int:
 class _BulletList:
     """One Docs list: the BulletItems one createParagraphBullets call bullets, as
     segment_meta indices. `first`..`last` also spans every item nested inside it, of
-    either type. `parent` is the list of the other type this one is nested in, None
-    for a list at the top of its contiguous block of items (#1072)."""
+    either type (#1072).
+
+    A list at the top of its contiguous block of items holds, in `nested`, every list
+    nested anywhere inside it that isn't merged into it, in document order, so a list
+    always comes before the lists nested in it. Such a nested list is usually of the
+    other type, but not always: a same-type list that follows another sublist under
+    the same item (ordered, bullet, ordered) is one too, so it restarts."""
 
     ordered: bool
     first: int
     last: int
     min_depth: int
-    parent: _BulletList | None
+    top: _BulletList | None  # the top-level list this one is nested in
+    nested: list[_BulletList]  # top-level lists only
 
 
 @dataclass
@@ -188,22 +194,26 @@ class _OpenList:
 
 
 def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
-    """Group the BulletItems in `segment_meta` into Docs lists, in document order of
-    their first item (so a parent list always comes before the lists nested in it).
+    """Group the BulletItems in `segment_meta` into Docs lists and return the
+    top-level ones, in document order, each holding the lists nested in it.
 
-    One list per Markdown list, at every level (#1072). An item continues the open
-    list at its depth when the types match. A different type at that depth starts a
-    new list, and so does a shallower item with no open list left. A nested list
-    joins its parent's list when it has the same type and is the first list nested
-    in that parent item, which keeps numbered-in-numbered one Docs list as before; a
-    later one under the same item is a list of its own, so it restarts. A list of the
-    other type is its own list with `parent` set. A run of contiguous items whose
-    parents were dropped (#714), shallower than the block's first list, joins that
-    list when the types match, as one run did before.
+    A list of the other type nested in a list stays its own Docs list, at every level
+    (#1072). An item continues the open list at its depth when the types match. A
+    different type at that depth starts a new list, and so does a shallower item with
+    no open list left. A nested list joins its parent's list when it has the same
+    type and is the first list nested in that parent item, which keeps
+    numbered-in-numbered one Docs list as before; a later one under the same item is
+    a list of its own, so it restarts. A run of contiguous items whose parents were
+    dropped (#714), shallower than the block's first list, joins that list when the
+    types match, as one run did before.
+
+    The AST has no list boundary, only each item's depth and type, so two adjacent
+    same-type lists at one depth still merge into one Docs list: `1.` then `1)`
+    markers, whether at the top level or as the first sublists under an item (#1241).
 
     A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
     between two items keeps them in one list, as before."""
-    lists: list[_BulletList] = []
+    tops: list[_BulletList] = []
     stack: list[_OpenList] = []
     root: _BulletList | None = None
     for i, seg in enumerate(segment_meta):
@@ -225,41 +235,34 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
             if enclosing.bullet_list.ordered == ordered and not enclosing.had_child:
                 bullet_list = enclosing.bullet_list
             else:
-                bullet_list = _BulletList(ordered, i, i, depth, enclosing.bullet_list)
-                lists.append(bullet_list)
+                top = enclosing.bullet_list.top or enclosing.bullet_list
+                bullet_list = _BulletList(ordered, i, i, depth, top=top, nested=[])
+                top.nested.append(bullet_list)
             enclosing.had_child = True
         elif root is not None and root.ordered == ordered:
             bullet_list = root
         else:
-            bullet_list = root = _BulletList(ordered, i, i, depth, None)
-            lists.append(bullet_list)
+            bullet_list = root = _BulletList(ordered, i, i, depth, top=None, nested=[])
+            tops.append(bullet_list)
         bullet_list.last = i
         bullet_list.min_depth = min(bullet_list.min_depth, depth)
         stack.append(_OpenList(depth, bullet_list))
-    return lists
-
-
-def _top_list(bullet_list: _BulletList) -> _BulletList:
-    while bullet_list.parent is not None:
-        bullet_list = bullet_list.parent
-    return bullet_list
+    return tops
 
 
 def _bullet_preset(ordered: bool) -> str:
     return "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
 
 
-def _top_list_requests(
-    top: _BulletList, nested: list[_BulletList], segment_meta: list[_SegmentMeta]
-) -> list[dict]:
+def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> list[dict]:
     """The bullet requests for one top-level list and every list nested in it (#1072).
 
     One createParagraphBullets call over `top`'s whole range puts every item in it,
     nested lists included, into one list at its tab-encoded level. A Docs list has a
     single preset and numbers each level by listId, so the items of `top` (and of a
-    same-type list merged into it) keep counting past a nested list of the other type,
-    even though that list sits inside the range. Then each nested list, parent before
-    child, is taken back out (confirmed live, #1072): its bullets are deleted,
+    same-type list merged into it) keep counting past a nested list, even though that
+    list sits inside the range. Then each list in `top.nested`, parent before child,
+    is taken back out (confirmed live, #1072), whatever its type: its bullets are deleted,
     its indent zeroed (deleteParagraphBullets leaves the level's indent, which the next
     createParagraphBullets would read as extra depth, #1069), its items' depth-tabs
     inserted again (the first call consumed them), and the range bulleted with its
@@ -315,7 +318,7 @@ def _top_list_requests(
         own_start = seg.tabs_through - seg.own_tabs - tabs_ahead
         return seg.doc_start - own_start, seg.doc_end - (seg.tabs_through - tabs_ahead)
 
-    for bullet_list in nested:
+    for bullet_list in top.nested:
         list_start = after_top(bullet_list.first)[0]
         list_end = after_top(bullet_list.last)[1]
         rng = {"startIndex": list_start, "endIndex": list_end}
@@ -459,8 +462,8 @@ def ast_to_requests(
          index they reference was computed against the freshly-built full_text before
          any other request has run.
       2. createParagraphBullets calls for BulletItem nesting (#336) — one call per
-         top-level list, followed by the requests that take each nested list of the
-         other type back out of it (#1072), applied in descending document order
+         top-level list, followed by the requests that take each nested list not
+         merged into it back out (#1072), applied in descending document order
          (see the grouping loop below). Each call consumes/removes its own
          leading tab characters, shifting every later position backward, so this
          stage must run after stage 1 (which assumes nothing has shifted) but before
@@ -641,7 +644,7 @@ def ast_to_requests(
     # they're applied in descending document order. Each entry's value is a list because
     # an isolated depth>0 list (no depth-0 anchor item) expands to three requests — a
     # throwaway anchor insert, the bullets call, and the anchor delete — and a nested
-    # list of the other type adds its own (#1072); see _top_list_requests.
+    # list taken back out adds its own (#1072); see _top_list_requests.
     bullet_run_requests: list[tuple[int, list[dict]]] = []
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
@@ -744,22 +747,12 @@ def ast_to_requests(
         # live, PR #432 QA round 1: same-depth siblings landed at different indentation
         # levels, and ordered lists lost continuous numbering). One atomic call spanning
         # the whole list is the pattern Google's own Docs API samples use for building
-        # nested lists. A list nested in one of the other type is taken back out of it
-        # afterward, so the outer list keeps counting past it (#1072, _top_list_requests).
-        bullet_lists = _bullet_lists(segment_meta)
-        for top in bullet_lists:
-            if top.parent is not None:
-                continue
-            nested = [
-                bullet_list
-                for bullet_list in bullet_lists
-                if bullet_list is not top and _top_list(bullet_list) is top
-            ]
+        # nested lists. Each list nested in it that isn't merged into it is taken back
+        # out afterward, so the outer list keeps counting past it (#1072,
+        # _top_list_requests).
+        for top in _bullet_lists(segment_meta):
             bullet_run_requests.append(
-                (
-                    segment_meta[top.first].doc_start,
-                    _top_list_requests(top, nested, segment_meta),
-                )
+                (segment_meta[top.first].doc_start, _top_list_requests(top, segment_meta))
             )
 
         # Applied latest-in-document-first: each call's own range is still valid at the
