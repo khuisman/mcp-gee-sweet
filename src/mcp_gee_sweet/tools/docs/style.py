@@ -402,7 +402,7 @@ def register(tool):
                         continue
                     spans = _subtract_span(spans, lo, hi)
                     if r["bold"]:
-                        spans = _normalize_spans(spans + [{"startIndex": lo, "endIndex": hi}])
+                        spans = _normalize_spans([*spans, {"startIndex": lo, "endIndex": hi}])
                 bold_spans[i] = spans
 
         requests = []
