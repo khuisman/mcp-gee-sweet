@@ -393,6 +393,74 @@ async def _create_doc_file(
     return doc
 
 
+async def _create_doc_with_content(
+    lc: SpreadsheetContext,
+    title: str,
+    content: str | None,
+    content_format: str,
+    target_folder_id: str | None,
+    *,
+    autolink_urls: bool,
+    revoke_sharing: bool,
+    auto_downscale: bool,
+) -> dict[str, Any]:
+    """create_doc's body: creates the Doc, then writes `content` through
+    _apply_doc_content. Shared with upload_file's Markdown-to-Doc path (#1102), so
+    that tool renders Markdown with our converter rather than Drive's HTML import.
+
+    Returns create_doc's response: docId, title, folder, web_link, and
+    AppliedContent's response_fields (images, dropped_links); {"error"} when the
+    create hits the storage quota; and {"error", "docId"} plus those fields when the
+    content step fails after the create."""
+    drive_service = lc.drive_service
+    file_body: dict[str, Any] = {
+        "name": title,
+        "mimeType": _GOOGLE_DOC_MIME,
+    }
+    if target_folder_id:
+        file_body["parents"] = [target_folder_id]
+
+    try:
+        doc = await _create_doc_file(lc, file_body, target_folder_id)
+    except HttpError as e:
+        if is_storage_quota_error(e):
+            return {"error": _quota_error_text(drive_service)}
+        raise
+
+    doc_id = doc.get("id")
+    parents = doc.get("parents")
+    logger.debug(
+        "Doc created with ID: %s%s",
+        doc_id,
+        f" in folder {target_folder_id}" if target_folder_id else " in root",
+    )
+
+    applied = AppliedContent()
+    if content:
+        try:
+            applied = await _apply_doc_content(
+                lc,
+                doc_id,
+                content,
+                content_format,
+                autolink_urls=autolink_urls,
+                target_folder_id=target_folder_id,
+                revoke_sharing=revoke_sharing,
+                auto_downscale=auto_downscale,
+            )
+        except DocEditError as e:
+            return _doc_edit_failure_result(e, doc_id)
+
+    result: dict[str, Any] = {
+        "docId": doc_id,
+        "title": doc.get("name", title),
+        "folder": parents[0] if parents else "root",
+        "web_link": doc.get("webViewLink"),
+    }
+    result.update(applied.response_fields())
+    return result
+
+
 async def _doc_end_index(docs_service, doc_id: str) -> tuple[dict[str, Any], int]:
     """The doc and its body's endIndex (2 for an empty doc)."""
     doc = await execute_in_thread(
@@ -1335,55 +1403,16 @@ def register(tool):
             auth method.
         """
         lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
-        target_folder_id = folder_id or lc.folder_id
-
-        file_body: dict[str, Any] = {
-            "name": title,
-            "mimeType": _GOOGLE_DOC_MIME,
-        }
-        if target_folder_id:
-            file_body["parents"] = [target_folder_id]
-
-        try:
-            doc = await _create_doc_file(lc, file_body, target_folder_id)
-        except HttpError as e:
-            if is_storage_quota_error(e):
-                return {"error": _quota_error_text(drive_service)}
-            raise
-
-        doc_id = doc.get("id")
-        parents = doc.get("parents")
-        logger.debug(
-            "Doc created with ID: %s%s",
-            doc_id,
-            f" in folder {target_folder_id}" if target_folder_id else " in root",
+        return await _create_doc_with_content(
+            lc,
+            title,
+            content,
+            content_format,
+            folder_id or lc.folder_id,
+            autolink_urls=autolink_urls,
+            revoke_sharing=revoke_sharing,
+            auto_downscale=auto_downscale,
         )
-
-        applied = AppliedContent()
-        if content:
-            try:
-                applied = await _apply_doc_content(
-                    lc,
-                    doc_id,
-                    content,
-                    content_format,
-                    autolink_urls=autolink_urls,
-                    target_folder_id=target_folder_id,
-                    revoke_sharing=revoke_sharing,
-                    auto_downscale=auto_downscale,
-                )
-            except DocEditError as e:
-                return _doc_edit_failure_result(e, doc_id)
-
-        result: dict[str, Any] = {
-            "docId": doc_id,
-            "title": doc.get("name", title),
-            "folder": parents[0] if parents else "root",
-            "web_link": doc.get("webViewLink"),
-        }
-        result.update(applied.response_fields())
-        return result
 
     @tool(
         annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True),

@@ -3401,3 +3401,56 @@ Verified via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive at head `601b0b3e`.
 
 **Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
 Re-run at head `959ad211` (dedupe by `id`, `pageSize` default 1000, clearer page-cap error) via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and `1005` files on disk.
+
+---
+
+### TC-D302: `upload_file` Markdown renders with our converter, the same way every run (issue #1102) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** `upload_file(source_format="markdown")` converted with Python-Markdown's `extra` extension. With `convert_to_doc=True` it handed that HTML to Drive's import, which flattened every nested list, left `[ ]`/`[x]` as literal text, didn't link bare URLs, and set code blocks in monospace on some runs and Arial on others. A Markdown Doc is now written through `create_doc(content_format="markdown")`'s path, images included. Without `convert_to_doc`, the uploaded HTML comes from the same converter.
+
+**Setup:**
+1. `rm -rf /tmp/qa-302 && mkdir -p /tmp/qa-302 && uv run python -c "from PIL import Image; Image.new('RGB', (40, 20), 'red').save('/tmp/qa-302/red.png')"`
+2. Let `MD` be this content (with real newlines):
+   ````
+   # EP-8 check
+
+   - top item
+     - nested item
+       - deeper item
+   - second top
+
+   - [ ] open task
+   - [x] done task
+
+   Inline `code span`. See https://example.com for more.
+
+   ```python
+   def f():
+       return 1
+   ```
+
+   ![red](/tmp/qa-302/red.png)
+   ````
+
+**Tool calls**
+1. `upload_file(name="qa-302-run1.md", content=MD, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)`
+2. The same call with `name="qa-302-run2.md"`, then again with `name="qa-302-run3.md"`.
+3. `get_doc_structure(doc_id=<call 1's fileId>)`
+4. `get_doc_as_markdown(doc_id=<fileId>)` for each of the three Docs.
+5. `upload_file(name="qa-302-raw.html", content=MD, source_format="markdown", folder_id="{FOLDER_ID}")` (no `convert_to_doc`)
+6. `download_file(file_id=<call 5's fileId>, local_path="/tmp/qa-302/")`, then `cat /tmp/qa-302/qa-302-raw.html`.
+
+**Checks**
+- Call 1 returns `fileId`, `name: "qa-302-run1.md"`, `parent`, `web_link`, and `images` with one entry for `/tmp/qa-302/red.png`: a `fileId`, `shared: false` (the temporary share was revoked after embedding; `true` would mean it was left in place), no `error` or `revoke_error`.
+- Call 3: "nested item" has `bullet.nestingLevel` 1 and "deeper item" 2, in the same `listId` as "top item" (level 0). The two task items have a `bullet`, and their text starts with the `☐ ` / `☑ ` glyph (#336's convention), not `[ ]` or `[x]`. The run `https://example.com` has `link_url` `https://example.com`. One paragraph has an inline-image run.
+- Call 4: all three exports are identical apart from the image's temporary `docs-images-rt` URL, which differs per Doc. Each has the nested list at three levels, `- [ ] open task` and `- [x] done task`, `` `code span` ``, the linked URL, and the code block as a ```` ``` ```` fence (the export fences a paragraph only when it's set in Courier New, so this confirms the code font on every run).
+- Call 6's HTML has `<li>nested item` inside a nested `<ul>`, and `<a href="https://example.com">`. Before the fix, Python-Markdown's 2-space sub-bullet came out as a sibling item.
+
+**Teardown**
+`delete_file` on the three Docs, call 5's file, and each run's uploaded image (`images[0].fileId`), then `rm -rf /tmp/qa-302`.
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 1 (Kit)**
+Run via `mcp-gee-sweet-kit` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive, at head `9f07b5b0`. Call 1 returned `fileId`, `name`, `parent`, `web_link`, and one `images` entry with a `fileId`, `shared: false`, and no `error`/`revoke_error`. The case text had expected `shared: true`; corrected above, since `false` means the share was revoked. Call 3: levels 0/1/2 in one `listId`, tasks `☐ open task` / `☑ done task` with a `bullet`, the URL run linked, and one inline-image run. Call 4: the three exports match apart from each image's `docs-images-rt` URL, with the nested list at three levels, both tasks, `` `code span` ``, the linked URL, and the code fenced. Call 6: `<li>nested item` sits inside a nested `<ul>`, plus `<a href="https://example.com">`. Not part of this case: the same probe with a 6000x5000 PNG returned the image error "…or pass auto_downscale=True…", a parameter `upload_file` doesn't take, and a footnote and a definition list came out as literal text (both sent back in round 1).
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 2 (Kit)**
+Re-run at head `56895d03` (the round-1 fixes plus a `develop` merge bringing #1180's `dropped_links`) via `mcp-gee-sweet-kit` (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: `shared: false` image outcomes, levels 0/1/2 in one `listId`, `☐`/`☑` tasks, the linked URL, an inline-image run, three exports identical once the `docs-images-rt` URLs are normalized, and a nested `<ul>` plus `<a href="https://example.com">` in the raw HTML. Not part of this case: `auto_downscale=True` with a 6000x5000 PNG returned `downscaled: true`, and a no-scheme link came back under `dropped_links` (`reason: no_scheme`).

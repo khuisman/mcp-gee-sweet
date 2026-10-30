@@ -75,6 +75,36 @@ U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. 
 
 ---
 
+### Markdown input doesn't read footnotes, definition lists, or other Python-Markdown `extra` syntax
+
+**What:** Markdown passed to `create_doc`/`write_doc_content` (`content_format='markdown'`),
+`create_doc_from_file`/`update_doc_from_file`, or `upload_file(source_format='markdown')` is read
+as CommonMark plus GitHub-flavored Markdown (tables, strikethrough, task lists, autolinks). These
+constructs from Python-Markdown's `extra` extension aren't part of that:
+
+- Footnotes: `Text[^1]` and `[^1]: …`. A note written as prose (`[^1]: This is the note.`)
+  stays literal text, both the `[^1]` marker and the note line. A note of a single word or URL
+  (`[^1]: note`) is a valid CommonMark link reference definition instead, so the note line
+  disappears and the marker shows as `^1`. It's linked when the note is a URL; otherwise the
+  link is dropped (no scheme, #1120) and reported in `dropped_links`.
+
+These come out as literal text:
+
+- Definition lists: `Term` followed by `: definition`.
+- Abbreviations: `*[HTML]: Hyper Text Markup Language`.
+- Attribute lists: `{#id}` or `{.class}` after a heading or paragraph.
+- Markdown inside an HTML block marked `markdown="1"`; the block's contents stay as written.
+
+**Why:** `upload_file` converted with Python-Markdown `extra` until #1102 moved it onto this
+server's CommonMark/GFM converter, which the Docs tools already used. They never read these
+constructs.
+
+**Workaround:** Write a footnote as an inline parenthetical or a "Notes" list at the end (creating
+real Docs footnotes is #149), a definition list as `**Term**: definition` lines, and put HTML that
+needs Markdown inside it as HTML instead.
+
+---
+
 ### `create_bookmark` doesn't create a bookmark Docs lists
 
 **What:** `create_bookmark` creates a one-character named range. It doesn't appear under
