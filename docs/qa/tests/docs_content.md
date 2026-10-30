@@ -6462,3 +6462,82 @@ Run against PR #1164's merge in an isolated service-account sandbox on a Shared 
 
 **Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), committed fixtures**
 `mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code (markdown-it), in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. `tc-doc242-loose.md`: `a\n`/`b\n` (●), `a\n`/`b\n` (`DECIMAL`), `a\n`/`b\n` with a left border at `indentStart` 72pt, `a`/`a1`/`b` at levels 0/1/0, `☑ done`/`☐ todo`, then `t1`/`t2`. Each group has a `listId` of its own shared by its items, and the only empty paragraphs are the five separators and the body's final paragraph. `tc-doc242-loose.html`: `a\n`/`b\n` in one list with no padding, `styled` a `SUBTITLE` paragraph with no bullet, `plain` a bullet item, then the final empty paragraph. Docs trashed.
+
+---
+
+## Conversion before the replace (#1240)
+
+### TC-DOC243: A replace converts its content before it touches the doc, and an unresolved image's request is dropped with its link ⚠️ destructive
+**Purpose:** `write_doc_content` and `update_doc_from_file` used to copy and clear the doc before they converted the new Markdown, so a conversion that raised or was cancelled left the doc empty. Without a backup (`allow_no_backup=True`, or a `_no_backup_reason` case), nothing could restore it. The whole Markdown → HTML → AST → requests conversion now runs first, in one `asyncio.to_thread` call. Requests are now built before images resolve, with a placeholder for every image; an image that fails to resolve has its request and its link request dropped (part A). No input is known to make the conversion raise, so parts B and C inject the failure from a scratch script against the checkout under test, the way TC-DOC219 part B does.
+
+Run on a server whose account can own a copy of `{DOC_ID}` (see TC-DOC219).
+
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC243 before</p>")`. Note the doc's `name` from `get_file_metadata(file_id={DOC_ID})`.
+
+**Steps (part A, tool calls)**
+1. `write_doc_content(doc_id={DOC_ID}, content_format="markdown", content="# TC-DOC243 A\n\n[![Logo](https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png)](https://example.com/good-link)\n\n[![Missing](/tmp/tc-doc243-missing.png)](https://example.com/bad-link)\n\nAfter the images.\n")`
+2. `get_doc_as_markdown(doc_id={DOC_ID})`
+
+**Steps (part B, a conversion that raises; scratch script, same OAuth token as the server under test)**
+
+3. Run, with `{DOC_ID}` filled in, once with `ALLOW=0` and once with `ALLOW=1`:
+```
+ALLOW=0 uv run python3 -c "
+import asyncio, os, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+with patch.object(c, '_convert_doc_content', side_effect=RuntimeError('injected parser failure')):
+    print(asyncio.run(c._replace_doc_content(lc, '{DOC_ID}', '# never written', 'markdown',
+        autolink_urls=True, revoke_sharing=True, auto_downscale=False,
+        allow_no_backup=os.environ['ALLOW'] == '1')))
+"
+```
+4. `refresh_cache(doc_id={DOC_ID})`, `get_doc_as_markdown(doc_id={DOC_ID})`, and `search_files(query="<name> (backup before replace)")`
+
+**Steps (part C, a conversion cancelled mid-parse)**
+
+5. Run, with `{DOC_ID}` filled in:
+```
+uv run python3 -c "
+import asyncio, time, mcp_gee_sweet
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+real = c._convert_doc_content
+def slow(*args):
+    time.sleep(3)
+    return real(*args)
+async def main():
+    with patch.object(c, '_convert_doc_content', slow):
+        try:
+            await asyncio.wait_for(c._replace_doc_content(lc, '{DOC_ID}', '# never written',
+                'markdown', autolink_urls=True, revoke_sharing=True, auto_downscale=False,
+                allow_no_backup=True), 1)
+        except TimeoutError:
+            print('cancelled')
+asyncio.run(main())
+"
+```
+6. Repeat step 4.
+
+**Checks**
+- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'"
+- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then "After the images.". `https://example.com/bad-link` appears nowhere, linked to nothing: the dropped image's link didn't land on the text around it
+- Both step 3 runs print `{'error': "Couldn't convert the content, so the document was left unchanged: RuntimeError: injected parser failure", 'docId': '{DOC_ID}'}`
+- Step 4 shows step 2's content unchanged, and `search_files` finds no backup copy: nothing was copied
+- Step 5 prints `cancelled`, and step 6 shows step 2's content unchanged with no backup copy
+
+**Cleanup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC243 done</p>")`

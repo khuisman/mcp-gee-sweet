@@ -660,7 +660,7 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
 
 _MARKDOWN_PARSERS = {flag: _build_markdown_parser(flag) for flag in (True, False)}
 
-# The parsers are shared by every asyncio.to_thread worker (_apply_doc_content), and
+# The parsers are shared by every asyncio.to_thread worker (content._convert_doc_content), and
 # markdown-it builds each ruler's rule cache lazily on first use. Build every one
 # here, at import, so concurrent first conversions never see a half-built cache.
 for _parser in (*_MARKDOWN_PARSERS.values(), _BLOCK_SCANNER):
