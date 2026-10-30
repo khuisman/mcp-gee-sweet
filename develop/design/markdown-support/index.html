@@ -1368,8 +1368,8 @@ markdown content never flows through that pipeline.</p>
 <p>Add a <code>markdown → HTML</code> shim at the docs layer, then expose it in two ways:
 1. A <code>content_format</code> parameter on <code>create_doc</code> and <code>write_doc_content</code>
 2. A new <code>create_doc_from_file</code> tool for uploading local <code>.md</code> / <code>.html</code> files</p>
-<p>This intentionally does <strong>not</strong> use Drive's native HTML importer (which <code>upload_file</code> already
-does when <code>convert_to_doc=True</code>). Routing through our AST pipeline gives consistent formatting
+<p>This intentionally does <strong>not</strong> use Drive's native HTML importer (which <code>upload_file</code> did for a
+Markdown source with <code>convert_to_doc=True</code> until #1102 routed it through this pipeline too). Routing through our AST pipeline gives consistent formatting
 control and benefits from all the Phase 2 work (correct heading levels, colspan, header cells,
 column widths, etc.).</p>
 <h2 id="why-md-html-ast-not-a-direct-md-ast-parser">Why MD → HTML → AST (not a direct MD → AST parser)<a class="headerlink" href="#why-md-html-ast-not-a-direct-md-ast-parser" title="Permanent link">&para;</a></h2>

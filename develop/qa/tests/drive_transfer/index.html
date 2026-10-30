@@ -3959,6 +3959,49 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.</p>
 Verified via <code>mcp-gee-sweet-sky</code> (OAuth) on the Shared Drive at head <code>601b0b3e</code>. Call 1: 1,005 <code>uploaded</code>, <code>failed == []</code>. Call 2: <code>uploaded == []</code>, 1,005 <code>skipped</code>. Call 3 (written with <code>result_local_path</code>, since the inline result is large): <code>uploaded</code>/<code>failed</code>/<code>conflicts</code> empty, 1,005 <code>skipped</code>. Call 4: 1,005 <code>downloaded</code>, <code>failed == []</code>, <code>size_bytes: 1005</code>. Step 5: <code>1005</code>. Call 1 takes over 2 minutes, so the client moves it to the background.</p>
 <p><strong>Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)</strong>
 Re-run at head <code>959ad211</code> (dedupe by <code>id</code>, <code>pageSize</code> default 1000, clearer page-cap error) via <code>mcp-gee-sweet-sky</code> (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and <code>1005</code> files on disk.</p>
+<hr />
+<h3 id="tc-d302-upload_file-markdown-renders-with-our-converter-the-same-way-every-run-issue-1102-requires-oauth-local-filesystem">TC-D302: <code>upload_file</code> Markdown renders with our converter, the same way every run (issue #1102) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d302-upload_file-markdown-renders-with-our-converter-the-same-way-every-run-issue-1102-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>upload_file(source_format="markdown")</code> converted with Python-Markdown's <code>extra</code> extension. With <code>convert_to_doc=True</code> it handed that HTML to Drive's import, which flattened every nested list, left <code>[ ]</code>/<code>[x]</code> as literal text, didn't link bare URLs, and set code blocks in monospace on some runs and Arial on others. A Markdown Doc is now written through <code>create_doc(content_format="markdown")</code>'s path, images included. Without <code>convert_to_doc</code>, the uploaded HTML comes from the same converter.</p>
+<p><strong>Setup:</strong>
+1. <code>rm -rf /tmp/qa-302 &amp;&amp; mkdir -p /tmp/qa-302 &amp;&amp; uv run python -c "from PIL import Image; Image.new('RGB', (40, 20), 'red').save('/tmp/qa-302/red.png')"</code>
+2. Let <code>MD</code> be this content (with real newlines):
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># EP-8 check
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>- top item
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  - nested item
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    - deeper item
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>- second top
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>- [ ] open task
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>- [x] done task
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>Inline `code span`. See https://example.com for more.
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>```python
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>def f():
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    return 1
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>```
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>![red](/tmp/qa-302/red.png)
+</code></pre></div></p>
+<p><strong>Tool calls</strong>
+1. <code>upload_file(name="qa-302-run1.md", content=MD, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)</code>
+2. The same call with <code>name="qa-302-run2.md"</code>, then again with <code>name="qa-302-run3.md"</code>.
+3. <code>get_doc_structure(doc_id=&lt;call 1's fileId&gt;)</code>
+4. <code>get_doc_as_markdown(doc_id=&lt;fileId&gt;)</code> for each of the three Docs.
+5. <code>upload_file(name="qa-302-raw.html", content=MD, source_format="markdown", folder_id="{FOLDER_ID}")</code> (no <code>convert_to_doc</code>)
+6. <code>download_file(file_id=&lt;call 5's fileId&gt;, local_path="/tmp/qa-302/")</code>, then <code>cat /tmp/qa-302/qa-302-raw.html</code>.</p>
+<p><strong>Checks</strong>
+- Call 1 returns <code>fileId</code>, <code>name: "qa-302-run1.md"</code>, <code>parent</code>, <code>web_link</code>, and <code>images</code> with one entry for <code>/tmp/qa-302/red.png</code>: a <code>fileId</code>, <code>shared: false</code> (the temporary share was revoked after embedding; <code>true</code> would mean it was left in place), no <code>error</code> or <code>revoke_error</code>.
+- Call 3: "nested item" has <code>bullet.nestingLevel</code> 1 and "deeper item" 2, in the same <code>listId</code> as "top item" (level 0). The two task items have a <code>bullet</code>, and their text starts with the <code>☐</code> / <code>☑</code> glyph (#336's convention), not <code>[ ]</code> or <code>[x]</code>. The run <code>https://example.com</code> has <code>link_url</code> <code>https://example.com</code>. One paragraph has an inline-image run.
+- Call 4: all three exports are identical apart from the image's temporary <code>docs-images-rt</code> URL, which differs per Doc. Each has the nested list at three levels, <code>- [ ] open task</code> and <code>- [x] done task</code>, <code>`code span`</code>, the linked URL, and the code block as a <code>```</code> fence (the export fences a paragraph only when it's set in Courier New, so this confirms the code font on every run).
+- Call 6's HTML has <code>&lt;li&gt;nested item</code> inside a nested <code>&lt;ul&gt;</code>, and <code>&lt;a href="https://example.com"&gt;</code>. Before the fix, Python-Markdown's 2-space sub-bullet came out as a sibling item.</p>
+<p><strong>Teardown</strong>
+<code>delete_file</code> on the three Docs, call 5's file, and each run's uploaded image (<code>images[0].fileId</code>), then <code>rm -rf /tmp/qa-302</code>.</p>
+<p><strong>Result (2026-10-28) ✅ PASS — PR #1283 QA round 1 (Kit)</strong>
+Run via <code>mcp-gee-sweet-kit</code> (OAuth) in <code>TEST_FOLDER_ID</code> on the Shared Drive, at head <code>9f07b5b0</code>. Call 1 returned <code>fileId</code>, <code>name</code>, <code>parent</code>, <code>web_link</code>, and one <code>images</code> entry with a <code>fileId</code>, <code>shared: false</code>, and no <code>error</code>/<code>revoke_error</code>. The case text had expected <code>shared: true</code>; corrected above, since <code>false</code> means the share was revoked. Call 3: levels 0/1/2 in one <code>listId</code>, tasks <code>☐ open task</code> / <code>☑ done task</code> with a <code>bullet</code>, the URL run linked, and one inline-image run. Call 4: the three exports match apart from each image's <code>docs-images-rt</code> URL, with the nested list at three levels, both tasks, <code>`code span`</code>, the linked URL, and the code fenced. Call 6: <code>&lt;li&gt;nested item</code> sits inside a nested <code>&lt;ul&gt;</code>, plus <code>&lt;a href="https://example.com"&gt;</code>. Not part of this case: the same probe with a 6000x5000 PNG returned the image error "…or pass auto_downscale=True…", a parameter <code>upload_file</code> doesn't take, and a footnote and a definition list came out as literal text (both sent back in round 1).</p>
+<p><strong>Result (2026-10-28) ✅ PASS — PR #1283 QA round 2 (Kit)</strong>
+Re-run at head <code>56895d03</code> (the round-1 fixes plus a <code>develop</code> merge bringing #1180's <code>dropped_links</code>) via <code>mcp-gee-sweet-kit</code> (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: <code>shared: false</code> image outcomes, levels 0/1/2 in one <code>listId</code>, <code>☐</code>/<code>☑</code> tasks, the linked URL, an inline-image run, three exports identical once the <code>docs-images-rt</code> URLs are normalized, and a nested <code>&lt;ul&gt;</code> plus <code>&lt;a href="https://example.com"&gt;</code> in the raw HTML. Not part of this case: <code>auto_downscale=True</code> with a 6000x5000 PNG returned <code>downscaled: true</code>, and a no-scheme link came back under <code>dropped_links</code> (<code>reason: no_scheme</code>).</p>
 
 
 

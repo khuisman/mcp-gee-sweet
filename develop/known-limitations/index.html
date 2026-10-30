@@ -1403,6 +1403,32 @@ underline (#692).</p>
 U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. Related:
 <code>docs/qa/tests/docs_markdown.md</code> TC-MD301.</p>
 <hr />
+<h3 id="markdown-input-doesnt-read-footnotes-definition-lists-or-other-python-markdown-extra-syntax">Markdown input doesn't read footnotes, definition lists, or other Python-Markdown <code>extra</code> syntax<a class="headerlink" href="#markdown-input-doesnt-read-footnotes-definition-lists-or-other-python-markdown-extra-syntax" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Markdown passed to <code>create_doc</code>/<code>write_doc_content</code> (<code>content_format='markdown'</code>),
+<code>create_doc_from_file</code>/<code>update_doc_from_file</code>, or <code>upload_file(source_format='markdown')</code> is read
+as CommonMark plus GitHub-flavored Markdown (tables, strikethrough, task lists, autolinks). These
+constructs from Python-Markdown's <code>extra</code> extension aren't part of that:</p>
+<ul>
+<li>Footnotes: <code>Text[^1]</code> and <code>[^1]: …</code>. A note written as prose (<code>[^1]: This is the note.</code>)
+  stays literal text, both the <code>[^1]</code> marker and the note line. A note of a single word or URL
+  (<code>[^1]: note</code>) is a valid CommonMark link reference definition instead, so the note line
+  disappears and the marker shows as <code>^1</code>. It's linked when the note is a URL; otherwise the
+  link is dropped (no scheme, #1120) and reported in <code>dropped_links</code>.</li>
+</ul>
+<p>These come out as literal text:</p>
+<ul>
+<li>Definition lists: <code>Term</code> followed by <code>: definition</code>.</li>
+<li>Abbreviations: <code>*[HTML]: Hyper Text Markup Language</code>.</li>
+<li>Attribute lists: <code>{#id}</code> or <code>{.class}</code> after a heading or paragraph.</li>
+<li>Markdown inside an HTML block marked <code>markdown="1"</code>; the block's contents stay as written.</li>
+</ul>
+<p><strong>Why:</strong> <code>upload_file</code> converted with Python-Markdown <code>extra</code> until #1102 moved it onto this
+server's CommonMark/GFM converter, which the Docs tools already used. They never read these
+constructs.</p>
+<p><strong>Workaround:</strong> Write a footnote as an inline parenthetical or a "Notes" list at the end (creating
+real Docs footnotes is #149), a definition list as <code>**Term**: definition</code> lines, and put HTML that
+needs Markdown inside it as HTML instead.</p>
+<hr />
 <h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
 Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to it.</p>

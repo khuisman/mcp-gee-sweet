@@ -1366,7 +1366,7 @@
 </ol>
 <hr />
 <h2 id="entry-points">Entry points<a class="headerlink" href="#entry-points" title="Permanent link">&para;</a></h2>
-<p>Every case runs through every entry point. EP-1 to EP-4 use our converter. EP-5 to EP-7 use Drive's native Markdown import (they upload the <code>.md</code> file and Drive converts it). EP-8 converts with Python-Markdown's <code>extra</code> extension and then uses Drive's HTML import. A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc. The exception is EP-5 to EP-7, whose expected rendering is Drive's documented one (decision D4 below).</p>
+<p>Every case runs through every entry point. EP-1 to EP-4 and EP-8 use our converter (EP-8 through <code>create_doc</code>'s path since #1102). EP-5 to EP-7 use Drive's native Markdown import (they upload the <code>.md</code> file and Drive converts it). A rendering difference between engines is itself a finding: the same Markdown should read the same way whichever tool turned it into a Doc. The exception is EP-5 to EP-7, whose expected rendering is Drive's documented one (decision D4 below).</p>
 <table>
 <thead>
 <tr>
@@ -1414,7 +1414,7 @@
 <tr>
 <td>EP-8</td>
 <td><code>upload_file(name="&lt;case&gt;.md", content=&lt;contents of F&gt;, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)</code></td>
-<td>Python-Markdown <code>extra</code> + Drive HTML import</td>
+<td>ours, through <code>create_doc</code>'s path (#1102)</td>
 </tr>
 </tbody>
 </table>
@@ -1422,8 +1422,8 @@
 <p>Not an entry point: no tool inserts Markdown at an index in an existing Doc (<code>insert_doc_text</code> takes plain text). The "insert at an index" state in #1044 is therefore N/A; if such a tool is added, it joins this table.</p>
 <p>Parameter variants that only some entry points take:</p>
 <ul>
-<li><code>autolink_urls=False</code> (EP-1 to EP-4 only; the Drive engines have no such switch): run <code>md-links.md</code> a second time with it. Cases LK-05 and LK-06 then expect plain, unlinked text; every other links case is unchanged.</li>
-<li>Images with a local path or <code>drive:</code> source (IM-04 to IM-06): EP-5 to EP-8 don't resolve them. On EP-5 to EP-7 the image not being embedded is documented Drive behavior (D4): the case's heading is followed by an empty line, with no image, no alt text, no broken-image icon and no literal <code>![...](...)</code> text (both runs of the 2026-10-18 Phase 2 baseline showed exactly that). Anything else in its place is a FAIL. On EP-8 those cells expect whatever Drive does with an unresolvable image reference: record what's on screen; a broken-image icon or literal <code>![...](...)</code> text is a FAIL.</li>
+<li><code>autolink_urls=False</code> (EP-1 to EP-4 only; the Drive engines and EP-8's <code>upload_file</code> have no such switch): run <code>md-links.md</code> a second time with it. Cases LK-05 and LK-06 then expect plain, unlinked text; every other links case is unchanged.</li>
+<li>Images with a local path or <code>drive:</code> source (IM-04 to IM-06): EP-1 to EP-4 and EP-8 resolve and embed them; EP-5 to EP-7 don't. On EP-5 to EP-7 the image not being embedded is documented Drive behavior (D4): the case's heading is followed by an empty line, with no image, no alt text, no broken-image icon and no literal <code>![...](...)</code> text (both runs of the 2026-10-18 Phase 2 baseline showed exactly that). Anything else in its place is a FAIL. On EP-8 those cells expect the embedded image, as on EP-1.</li>
 </ul>
 <hr />
 <h2 id="what-correct-looks-like-in-a-google-doc">What correct looks like in a Google Doc<a class="headerlink" href="#what-correct-looks-like-in-a-google-doc" title="Permanent link">&para;</a></h2>
@@ -1535,7 +1535,7 @@
 <li><strong>D1 — nesting width.</strong> A list marker indented at least 2 spaces (or one tab) further than the previous item's marker nests under that item, whatever the parent's marker width. CommonMark requires the child to reach the parent's content column, so <code>1. A</code> followed by <code>- a1</code> (2 spaces) doesn't nest under CommonMark, but that is how models and people write sub-bullets, and #1044's own example expects it to nest.</li>
 <li><strong>D2 — a table starts its own block.</strong> A pipe table directly under a paragraph, list item or quote line (no blank line) renders as a separate table after that block, not as text joined to it.</li>
 <li><strong>D3 — YAML front matter is not shown.</strong> A leading <code>---</code>-delimited YAML block is omitted from the Doc (<code>docs/design/markdown-support.md</code> currently calls it "acceptable" that it renders as a rule; that is a FAIL under this plan).</li>
-<li><strong>D4 — EP-5 to EP-7 render the way Drive's Markdown import does</strong> (maintainer, 2026-10-18, #1101). <code>upload_local_file</code>, <code>upload_local_folder</code> and <code>sync_folder</code> stay on Drive's engine. On those columns C1–C15 and D1–D3 still apply, except where the list in <code>docs/known-limitations.md</code>, "Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently", names a difference. A cell passes when every construct either meets C1–C15 and D1–D3 or differs only in a way that list names. So a 2-space sub-list under a numbered item that doesn't nest passes (the list names it, overriding D1), while D2 and D3 apply unchanged, since the list names nothing about them. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C15. EP-8 isn't covered: it stays FAIL on #1102.</li>
+<li><strong>D4 — EP-5 to EP-7 render the way Drive's Markdown import does</strong> (maintainer, 2026-10-18, #1101). <code>upload_local_file</code>, <code>upload_local_folder</code> and <code>sync_folder</code> stay on Drive's engine. On those columns C1–C15 and D1–D3 still apply, except where the list in <code>docs/known-limitations.md</code>, "Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently", names a difference. A cell passes when every construct either meets C1–C15 and D1–D3 or differs only in a way that list names. So a 2-space sub-list under a numbered item that doesn't nest passes (the list names it, overriding D1), while D2 and D3 apply unchanged, since the list names nothing about them. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C15. EP-8 isn't covered: it uses our converter since #1102, so C1–C15 and D1–D3 apply to it in full.</li>
 </ul>
 <p>Anything CommonMark/GFM permits that the converter deliberately won't support goes into <code>docs/known-limitations.md</code>, tied to an open issue, and its cases stay FAIL until a decision changes the expected rendering here.</p>
 <hr />
@@ -1569,6 +1569,7 @@
 - The closing italic line is italic.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1056, #1098, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md002-project-plan-destructive">TC-MD002: Project plan ⚠️ destructive<a class="headerlink" href="#tc-md002-project-plan-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1583,6 +1584,7 @@
 - <code>**30%**</code> bold in the overview.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md003-spec-prd-destructive">TC-MD003: Spec / PRD ⚠️ destructive<a class="headerlink" href="#tc-md003-spec-prd-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1596,6 +1598,7 @@
 - <code>http</code> code block: monospace, blank line inside it kept, JSON line intact.
 - Appendix links: both link to their URLs; the titled link shows no title text.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1093, #1095, #1096, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md004-readme-destructive">TC-MD004: README ⚠️ destructive<a class="headerlink" href="#tc-md004-readme-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1611,6 +1614,7 @@
 - <code>©</code> renders.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1099, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1094, #1093, #1099 (bundle #1232). Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: code blocks and inline code monospace, bullets at level 0. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md005-status-report-destructive">TC-MD005: Status report ⚠️ destructive<a class="headerlink" href="#tc-md005-status-report-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1624,6 +1628,7 @@
 - Asks: numbered 1–2.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1095, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md006-how-to-with-numbered-steps-and-code-destructive">TC-MD006: How-to with numbered steps and code ⚠️ destructive<a class="headerlink" href="#tc-md006-how-to-with-numbered-steps-and-code-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1640,6 +1645,7 @@
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1072, #1071, #1056, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1115/#1111, #1094, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
 <p><strong>Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: EP-3/EP-4 only) ❌ FAIL — 0/2 cells pass, identical in both runs and across EP-3/EP-4; #1111 is fixed (every step keeps its number marker), failures left: #1094 (numbering restarts after each step's code block), #1072 (step 5 restarts after step 4's bulleted sublist), #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a> §"Round 6"</strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md007-comparison-with-tables-destructive">TC-MD007: Comparison with tables ⚠️ destructive<a class="headerlink" href="#tc-md007-comparison-with-tables-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1651,6 +1657,7 @@
 - Scoring table: Weight/A/B/C right-aligned; the bold "Weighted total" row bold in every cell.
 - Each provider's <strong>Pros</strong> / <strong>Cons</strong> bold paragraphs followed by their own bullet lists (separate lists).</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md008-research-summary-with-quotes-and-links-destructive">TC-MD008: Research summary with quotes and links ⚠️ destructive<a class="headerlink" href="#tc-md008-research-summary-with-quotes-and-links-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1664,6 +1671,7 @@
 - The data table's two numeric columns right-aligned.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1098, #1056, #1095, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072, #1095. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md009-changelog-destructive">TC-MD009: Changelog ⚠️ destructive<a class="headerlink" href="#tc-md009-changelog-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1676,6 +1684,7 @@
 - "<strong>Breaking:</strong>" bold.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1094, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1094, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md010-checklist-heavy-task-plan-destructive">TC-MD010: Checklist-heavy task plan ⚠️ destructive<a class="headerlink" href="#tc-md010-checklist-heavy-task-plan-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1689,6 +1698,7 @@
 - <code>5% → 20% → 50% → 100%</code> bold, arrows intact.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1056, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, quoted-list border offset (F3, no issue). Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md011-incident-postmortem-destructive">TC-MD011: Incident postmortem ⚠️ destructive<a class="headerlink" href="#tc-md011-incident-postmortem-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1702,6 +1712,7 @@
 - Lessons: 1–2 numbered; three nested bullets under item 2.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md012-interview-guide-numbered-in-numbered-destructive">TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive<a class="headerlink" href="#tc-md012-interview-guide-numbered-in-numbered-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1716,6 +1727,7 @@
 - <code>résumé</code> renders.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md013-api-reference-destructive">TC-MD013: API reference ⚠️ destructive<a class="headerlink" href="#tc-md013-api-reference-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1729,6 +1741,7 @@
 - Query-parameter table: the Required column centered.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1071, #1097, #1098, #1056, #1093, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: code blocks and inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md014-study-notes-destructive">TC-MD014: Study notes ⚠️ destructive<a class="headerlink" href="#tc-md014-study-notes-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1742,6 +1755,7 @@
 - Questions: numbered 1–3.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md015-travel-itinerary-destructive">TC-MD015: Travel itinerary ⚠️ destructive<a class="headerlink" href="#tc-md015-travel-itinerary-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1755,6 +1769,7 @@
 - Accented Portuguese names render.</p>
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1097, #1095, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1095. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h3 id="tc-md016-planning-notes-the-1044-report-document-destructive">TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive<a class="headerlink" href="#tc-md016-planning-notes-the-1044-report-document-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -1769,6 +1784,7 @@
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
 <hr />
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
+<p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <h2 id="phase-2-syntax-coverage">Phase 2 — Syntax coverage<a class="headerlink" href="#phase-2-syntax-coverage" title="Permanent link">&para;</a></h2>
 <p>Each TC renders one fixture; the cases are the <code>###</code> sections inside it. "Expected" is what a reader sees, per the conventions above.</p>
 <h3 id="tc-md101-headings-destructive">TC-MD101: Headings ⚠️ destructive<a class="headerlink" href="#tc-md101-headings-destructive" title="Permanent link">&para;</a></h3>

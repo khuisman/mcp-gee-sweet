@@ -1416,8 +1416,9 @@ fenced code inside a list item was literal text, <code>~~</code> did nothing. Th
 <p>Each conversion block-parses the document twice: once in <code>_preprocess</code> (<code>_verbatim_lines</code>, inline
 pass off) and once to render.</p>
 <p><code>markdown</code> (Python-Markdown) stays a dependency: <code>anchors.py</code> uses its <code>toc</code> slugify for the
-GitLab heading-anchor scheme, and <code>upload_file(source_format='markdown')</code> (EP-8) still renders
-with it until #1101 routes that entry point through this converter.</p>
+GitLab heading-anchor scheme. <code>upload_file(source_format='markdown')</code> (EP-8) renders with this
+converter since #1102: with <code>convert_to_doc=True</code> through <code>create_doc</code>'s whole path, and without
+it as the uploaded HTML file.</p>
 <h3 id="autolinks-a-gfm-rule-not-linkify-it">Autolinks: a GFM rule, not linkify-it<a class="headerlink" href="#autolinks-a-gfm-rule-not-linkify-it" title="Permanent link">&para;</a></h3>
 <p>markdown-it's own <code>linkify</code> needs <code>linkify-it-py</code> and doesn't follow GFM. Measured:
 with fuzzy links on, it links <code>README.md</code>, <code>file.py</code> and <code>example.com</code> (any TLD-looking token);
@@ -1627,7 +1628,7 @@ import) and EP-8 don't use it.</p>
 <ul>
 <li>Strip front matter (#1173), keep an empty list item (#1075), keep a loose item's bullet (#1164, already in <code>develop</code>),
   or fix hard and soft breaks (#1117, #1093). Each is in the HTML → AST step or its own ticket.</li>
-<li>Change EP-8 (<code>upload_file</code>), which keeps Python-Markdown until #1101.</li>
+<li>Change EP-8 (<code>upload_file</code>), which kept Python-Markdown until #1102.</li>
 <li>Read table column alignment.</li>
 </ul>
 <h2 id="review-history">Review history<a class="headerlink" href="#review-history" title="Permanent link">&para;</a></h2>
