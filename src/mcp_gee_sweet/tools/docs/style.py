@@ -5,7 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
-from .indices import isolated_bullet_run_wrap_requests
+from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
@@ -247,6 +247,32 @@ def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     ]
 
 
+def _normalize_spans(spans: list[dict[str, int]]) -> list[dict[str, int]]:
+    """Sorted, disjoint [startIndex, endIndex) spans; overlapping or adjacent
+    spans merge into one."""
+    merged: list[dict[str, int]] = []
+    for span in sorted(spans, key=lambda s: (s["startIndex"], s["endIndex"])):
+        if merged and span["startIndex"] <= merged[-1]["endIndex"]:
+            merged[-1]["endIndex"] = max(merged[-1]["endIndex"], span["endIndex"])
+        else:
+            merged.append(dict(span))
+    return merged
+
+
+def _subtract_span(spans: list[dict[str, int]], lo: int, hi: int) -> list[dict[str, int]]:
+    """Remove the [lo, hi) interval from the [startIndex, endIndex) spans."""
+    out: list[dict[str, int]] = []
+    for s in spans:
+        if s["endIndex"] <= lo or s["startIndex"] >= hi:
+            out.append(s)
+            continue
+        if s["startIndex"] < lo:
+            out.append({"startIndex": s["startIndex"], "endIndex": lo})
+        if hi < s["endIndex"]:
+            out.append({"startIndex": hi, "endIndex": s["endIndex"]})
+    return out
+
+
 def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
     """The [startIndex, endIndex) spans of directly bold runs inside a range. #1273
 
@@ -257,15 +283,32 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
     Only a run's own `textStyle.bold` counts — bold inherited from a named style
     is not part of the run and is not affected by the font request. Adjacent bold
     runs merge into one span, and table cells are walked with their content.
+    A ParagraphElement sometimes carries no `startIndex` — the Docs API omits
+    it, usually on a document's very first element — so the offset is carried
+    forward from the paragraph's own start the way
+    `indices._collect_doc_paragraphs` does, instead of raising a KeyError.
     """
     spans: list[dict[str, int]] = []
 
-    def _runs_of_paragraph(para: dict) -> None:
+    def _runs_of_paragraph(para: dict, para_start: int) -> None:
+        offset = para_start
         for element in para.get("elements") or []:
             run = element.get("textRun")
-            if not run:
+            run_start = element.get("startIndex")
+            if run_start is None:
+                # No startIndex on this element (usually a document's first
+                # one): carry the offset forward from the paragraph's start,
+                # like indices._collect_doc_paragraphs.
+                run_start = offset
+            run_end = element.get("endIndex")
+            if run_end is None:
+                run_end = run_start
+                if run and run.get("content"):
+                    for ch in run["content"]:
+                        run_end += utf16_len(ch)
+            offset = run_end
+            if not run or run_end <= run_start:
                 continue
-            run_start, run_end = element["startIndex"], element["endIndex"]
             if run_end <= start_index or run_start >= end_index:
                 continue
             if not (run.get("textStyle") or {}).get("bold"):
@@ -280,7 +323,7 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
         for item in items or []:
             para = item.get("paragraph")
             if para:
-                _runs_of_paragraph(para)
+                _runs_of_paragraph(para, item.get("startIndex", 1))
             for row in (item.get("table") or {}).get("tableRows") or []:
                 for cell in row.get("tableCells") or []:
                     _walk(cell.get("content") or [])
@@ -343,6 +386,24 @@ def register(tool):
                 i: _bold_runs_in_range(doc, ranges[i]["start_index"], ranges[i]["end_index"])
                 for i in font_only
             }
+            # The document read predates every request in this batch, so an
+            # earlier range in the same call that sets bold over text a
+            # font-only range covers changes what the restore must do: a
+            # bold=True range means the overlap must end up bold, and a
+            # bold=False range means it must stay unbolded (#1273 review).
+            for i in font_only:
+                spans = bold_spans[i]
+                for r in ranges[:i]:
+                    if "bold" not in r:
+                        continue
+                    lo = max(ranges[i]["start_index"], r["start_index"])
+                    hi = min(ranges[i]["end_index"], r["end_index"])
+                    if lo >= hi:
+                        continue
+                    spans = _subtract_span(spans, lo, hi)
+                    if r["bold"]:
+                        spans = _normalize_spans(spans + [{"startIndex": lo, "endIndex": hi}])
+                bold_spans[i] = spans
 
         requests = []
         for i, r in enumerate(ranges):
