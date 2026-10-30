@@ -396,7 +396,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 - [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
 - [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
-- [x] A numbered list restarts its numbering after a nested bullet list; folds in #1241, the reverse case in the same run grouping (maintainer, 2026-10-28) — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
+- [x] A numbered list restarts its numbering after a nested bullet list. #1241, the reverse case in the same run grouping, was folded in (maintainer, 2026-10-28) but PR #1286 didn't fix it, so #1241 stays open below — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
 - [ ] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241))
 - [x] Images inside table cells are dropped silently ([#1073](https://github.com/khuisman/mcp-gee-sweet/issues/1073)) (PR #1215)
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
@@ -528,7 +528,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-10-18**
 
 - [ ] `create_paragraph_bullets` drops a blockquoted paragraph's quote indent — `wrong/narrow`, observed; from PR #1089's review, after v0.9.3's lock ([#1090](https://github.com/khuisman/mcp-gee-sweet/issues/1090))
-- [ ] Document as a known limitation: a list inside a blockquote draws its border at the list indent, not the quote's. Maintainer's call 2026-10-29, after community PR #1258 (closed) showed Docs draws the border at `indentStart`, the same setting as the item's hanging indent. Docs ticket, no version label; Amy ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242))
+- [ ] Document as a known limitation: a list inside a blockquote draws its border at the list indent, not the quote's. Maintainer's call 2026-10-29, after community PR #1258 (closed) showed Docs draws the border at `indentStart`, the same setting as the item's hanging indent. Out of ankylosaurus since then: a docs ticket with no version label, which Amy's PR #1294 closes ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242))
 - [x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032)) (PR #1264)
 - [x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030)) (PR #1264)
 - [ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. `wrong/rare`; found in PR #1264, the same gap #1030 closed for Docs and Drive ([#1265](https://github.com/khuisman/mcp-gee-sweet/issues/1265))
@@ -561,7 +561,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-10-29**
 
-- [ ] Markdown links to `file:` and script schemes render as literal `[text](target)` source, with no `dropped_links` entry. `wrong/narrow`, regression since v0.9.5 (PR #1228's markdown-it switch); placed here by the maintainer, not in ornithomimus's locked fill. #1291 closed as its duplicate ([#1290](https://github.com/khuisman/mcp-gee-sweet/issues/1290))
+- [ ] Markdown links to `file:` and script schemes render as literal `[text](target)` source, with no `dropped_links` entry. `wrong/narrow`, regression since v0.9.5 (PR #1228's markdown-it switch); placed here by the maintainer (2026-10-29), not in ornithomimus's locked fill, though the rubric allows a regression there. #1291 closed as its duplicate ([#1290](https://github.com/khuisman/mcp-gee-sweet/issues/1290))
+- [ ] `create_paragraph_bullets` restarts a numbered list's numbering after a nested list of the other type: its same-`listId` expansion walks only adjacent paragraphs, so it re-bullets the items after the nested list as a new list. `wrong/narrow`, observed (live on PR #1286), not a regression; from PR #1286's review. Grouped with #1090, the same function ([#1288](https://github.com/khuisman/mcp-gee-sweet/issues/1288))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
@@ -641,9 +642,7 @@ Net-new capabilities substantial enough (new subsystem, external infra like webh
 
 ### Decisions Needed — blocking backlog _(no assigned version)_
 
-All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to _ankylosaurus_ as small fixes.
-
-- [ ] `create_paragraph_bullets` restarts a numbered list's numbering after a nested list of the other type: its same-`listId` expansion walks only adjacent paragraphs, so it re-bullets the items after the nested list as a new list. From PR #1286's review. `needs-version-call` ([#1288](https://github.com/khuisman/mcp-gee-sweet/issues/1288))
+All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to _ankylosaurus_ as small fixes. Nothing is open here.
 
 ---
 
