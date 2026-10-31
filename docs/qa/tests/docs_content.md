@@ -6604,3 +6604,6 @@ asyncio.run(main())
 - Step 3's export equals step 2's, except that LB-10 has two fewer blank lines: the rule exports as an empty paragraph, which the re-import drops (#1096)
 
 **Cleanup:** `delete_file` both docs
+
+**Result (2026-10-31) ✅ PASS — PR #1311 round 1 (Sky)**
+`mcp-gee-sweet-sky` at ac35a485, reconnected after the reset, on scratch docs in `{FOLDER_ID}`. Step 2: every check holds: LB-04 3-space second paragraph, LB-05 fence at 3 spaces, LB-06 `  > Quoted text inside the item.` with no `> >`, LB-07 table at 3 spaces between items 1 and 2, LB-08 `- # Heading inside an item`, LB-10 `   After the rule`, LB-11 the two quotes at 3 spaces with three blank lines between, LB-12 `    Inner second paragraph`, LB-13 the quoted list with `>    More of quoted one`, LB-14 the table at the margin then `1. Step two`. Step 3's export equals step 2's except LB-10's two fewer blank lines (#1096). The case passes, but the review probes outside it found send-backs (PR comment): a table inside a quoted item drops out of the quote, a table before a different-type sublist exports at the margin, a table after a sublist goes under the sublist's item, and a margin `> > b` after a list exports as `  > b` inside the item. Scratch docs trashed.
