@@ -258,12 +258,15 @@ use this server's converter instead. The same Markdown comes out differently:
 - **`<del>` and `<mark>`** inline HTML isn't rendered as strikethrough or highlight.
 - **Images** with a local path or `drive:` source aren't embedded. Only this server's converter
   uploads and shares those.
+- **`www.` links**, bare (`www.example.com`) or written (`[x](www.example.com)`), point to
+  `http://`. This server's converter gives both `https://` (#1180, #1281).
 
 **Why:** The rendering is Drive's, not this server's. These tools upload the file and set a Google
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (`docs/qa/results/2026-10-18-markdown.md`,
-`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`). Routing these tools
-through this server's converter is a design question (#1113).
+`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`); the `www.` scheme in
+PR #1298's QA round 1. Routing these tools through this server's converter is a design question
+(#1113).
 
 **Workaround:** For a single file, use `create_doc_from_file`, and `update_doc_from_file` to
 refresh it. They render `.md` the same way as the other Docs tools. There's no equivalent for a
