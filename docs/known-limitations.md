@@ -105,20 +105,25 @@ needs Markdown inside it as HTML instead.
 
 ---
 
-### `get_doc_as_markdown` exports a table after a list's last item outside the list
+### `get_doc_as_markdown` exports a table or quote that ends a list's last item outside the list
 
 **What:** A table inside a list's last item (`1. a\n\n   | x |\n   |---|\n`) is written to the
-Doc indented under the item, but `get_doc_as_markdown` exports it at the margin, after the list. A
-table inside an item that another item of the same list follows exports inside the item, as do a
-paragraph, code block, quote, or heading inside any item.
+Doc indented under the item, but `get_doc_as_markdown` exports it at the margin, after the list.
+A quote that ends a list's last item (`- a\n\n  > q\n`) exports as a deeper quote at the margin
+(`> > q`). Either one exports inside its item when the list goes on after it: a later item of the
+list, a sublist nested under the item (of either type), or a paragraph indented in the item. A
+paragraph, code block, or heading inside any item always exports inside it.
 
-**Why:** The export finds a block inside an item from its indent (#1302). A paragraph's indent is
-in the Docs API's `paragraphStyle`, but a table's isn't reported anywhere: the JSON of a table
-inside an item matches one at the margin (checked live). So a table counts as inside an item only
-when the same Docs list continues after it, which a list's last item never has.
+**Why:** The export finds a block inside an item from its indent (#1302). A table's indent isn't
+reported anywhere in the Docs API: the JSON of a table inside an item matches one at the margin
+(checked live). A quote's is, but a quote inside an item sits exactly where a deeper quote at the
+margin would (a quote in a top-level item is at 72pt, like a margin `> >`), so the indent can't
+tell them apart. Such a block counts as inside an item only when the list goes on after it, which
+it never does after a list's last item. Reading an ambiguous quote as the margin quote keeps every
+quote level; reading it into the item would drop one.
 
-**Workaround:** None in the export. Indent the table under its item by hand in the exported
-Markdown. Related: `docs/qa/tests/docs_content.md` TC-DOC244.
+**Workaround:** None in the export. Indent the table or quote under its item by hand in the
+exported Markdown. Related: `docs/qa/tests/docs_content.md` TC-DOC244.
 
 ---
 

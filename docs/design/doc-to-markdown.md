@@ -104,17 +104,25 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   two indents are equal and land on the text indent of that item's level or a shallower one,
   gets that level as `list_depth`, and its quote depth counts from the text indent, not the
   margin (from the margin, a quote in an item at 72pt read as `> >`). The deepest matching level
-  wins, and the block closes the levels deeper than it. Anything else, a paragraph at the margin
-  or an item of another list, ends the list. A table has no indent the API reports (checked
-  live: an in-item table's JSON matches a margin table's), so a table, and the empty unindented
-  paragraph Docs puts before a table inserted in an item, waits: it's inside the item when the
-  same list continues after it, else outside. A table after a list's last item therefore reads
-  as outside it. A margin table between two items comes back as outside too, because the write
-  side splits the list there into two Docs lists (measured live).
+  wins, and the block closes the levels deeper than it. The context keeps the `listId` open at
+  each depth, since #1072 gives a sublist of the other type its own `listId`. Anything else, a
+  paragraph at the margin or an item of a list that isn't open, ends the list. Some blocks wait
+  instead of being placed at once: a table, which has no indent the API reports (checked live:
+  an in-item table's JSON matches a margin table's); the empty unindented paragraph Docs puts
+  before a table inserted in an item; and a quote whose indent also reads as a deeper quote at
+  the margin (a quote in a top-level item is at 72pt, like a margin `> >`; PR #1311 QA round 1).
+  A waiting block is inside an item when the list goes on: an item of a list open at its depth,
+  a sublist nested under the last item, or a plainly in-item block. A table then takes the depth
+  of the item that ends the wait, capped at the last item's (so a table after a sublist, before
+  the parent's next item, is the parent's). Otherwise it stays outside, as read: a table at the
+  margin, a quote at its margin depth. A block that ends a list's last item therefore reads as
+  outside it (`known-limitations.md`). A margin table between two items comes back as outside
+  too, because the write side splits the list there into two Docs lists (measured live).
 - **Bulleted headings** (#1302): a bulleted `HEADING_N` paragraph (what `- # Title` writes,
   #1094) reads back as a `BulletItem` with `heading_level`. Since it renders as a heading inside
   its item, `markdown_export._rendered_heading_slugs` counts it, like the write side's anchor
-  resolver does.
+  resolver does. A checkbox item doesn't get one: GFM reads `- [ ] ## Title` as task text, so
+  it would neither render nor take a slug as a heading (PR #1311 QA round 1).
 - **Trailing paragraph newline**: every paragraph's content ends with a `"\n"` in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors `html_parser.py`'s own `<pre>`-close trailing-newline handling.
@@ -212,12 +220,14 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
 - **Blocks inside a list item** (#1302): a node with a `list_depth` is indented to its item's
   content column, the width of the item's own indent and marker (`_item_prefix`), so CommonMark
   keeps it in the item and the list going past it. `_OpenItems` records the column of the last
-  item at each depth. A quoted item's quote markers come before its indent (`> - a`), so a block
-  inside it splits its quote levels the same way: as many as the item's go outside the indent,
-  the rest inside, and the blank lines around it carry the shared levels (`>`) so the quote
-  doesn't end. A bulleted heading renders as `- ## Title`. Every item's text now goes through
-  `_escape_leading_block_marker`, since text after the marker starts the item's first block:
-  `- # a` is a heading inside the item, and `- 1. a` a sublist.
+  item at each depth. A quoted item's quote markers come before its indent (`> - a`). A block
+  inside it is inside that quote too, whatever depth it reads with (a table reads none, and
+  neither does the empty paragraph Docs puts before one), so the item's quote levels go outside
+  the indent and only the block's extra levels inside, and the blank lines around it carry the
+  item's levels (`>`) so the quote doesn't end (PR #1311 QA round 1). A bulleted heading renders
+  as `- ## Title`. Every other item's text now goes through `_escape_leading_block_marker`,
+  since text after the marker starts the item's first block: `- # a` is a heading inside the
+  item, and `- 1. a` a sublist.
 - **Tables**: the first row is always rendered as the header row — GFM pipe-table syntax
   structurally requires exactly one header + separator row, and the Docs API has no per-row
   "is this the header" signal to read back (unlike the AST's own `is_header_row`, which only

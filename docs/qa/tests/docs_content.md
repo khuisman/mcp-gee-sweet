@@ -6589,6 +6589,48 @@ asyncio.run(main())
    ```
 2. `get_doc_as_markdown(doc_id=<step 1's docId>)`
 3. `create_doc(title="TC-DOC244 round trip", content_format="markdown", folder_id="{FOLDER_ID}", content=<step 2's markdown>)`, then `get_doc_as_markdown` on it
+4. `create_doc(title="TC-DOC244 waits", content_format="markdown", folder_id="{FOLDER_ID}", content=<the text below>)`, then `get_doc_as_markdown` on it. These are the blocks whose place the export decides by whether the list goes on after them (PR #1311 QA round 1):
+   ```
+   ### W-1 — table inside a quoted item
+
+   > - a
+   >
+   >   | x | y |
+   >   |---|---|
+   >   | 1 | 2 |
+   >
+   > - c
+
+   ### W-2 — table before a sublist of the other type
+
+   1. a
+
+      | x | y |
+      |---|---|
+      | 1 | 2 |
+
+      - b
+   2. c
+
+   ### W-3 — table in a parent item after its sublist
+
+   - a
+     - b
+
+     | x | y |
+     |---|---|
+     | 1 | 2 |
+
+   - c
+
+   ### W-4 — a nested quote at the margin right after a list
+
+   - a
+
+   > > b
+
+   After.
+   ```
 
 **Checks**
 - Step 2, LB-04: `1. First paragraph of item one.`, a blank line, `   Second paragraph of item one.` (3 spaces), a blank line, `2. Item two.`
@@ -6602,8 +6644,13 @@ asyncio.run(main())
 - LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
 - LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
 - Step 3's export equals step 2's, except that LB-10 has two fewer blank lines: the rule exports as an empty paragraph, which the re-import drops (#1096)
+- Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
+- W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
+- W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
+- W-4: `> > b` at the margin, not `  > b`
+- An ambiguous block that ends a list's last item reads as outside the list (`docs/known-limitations.md`)
 
-**Cleanup:** `delete_file` both docs
+**Cleanup:** `delete_file` all three docs
 
 **Result (2026-10-31) ✅ PASS — PR #1311 round 1 (Sky)**
 `mcp-gee-sweet-sky` at ac35a485, reconnected after the reset, on scratch docs in `{FOLDER_ID}`. Step 2: every check holds: LB-04 3-space second paragraph, LB-05 fence at 3 spaces, LB-06 `  > Quoted text inside the item.` with no `> >`, LB-07 table at 3 spaces between items 1 and 2, LB-08 `- # Heading inside an item`, LB-10 `   After the rule`, LB-11 the two quotes at 3 spaces with three blank lines between, LB-12 `    Inner second paragraph`, LB-13 the quoted list with `>    More of quoted one`, LB-14 the table at the margin then `1. Step two`. Step 3's export equals step 2's except LB-10's two fewer blank lines (#1096). The case passes, but the review probes outside it found send-backs (PR comment): a table inside a quoted item drops out of the quote, a table before a different-type sublist exports at the margin, a table after a sublist goes under the sublist's item, and a margin `> > b` after a list exports as `  > b` inside the item. Scratch docs trashed.

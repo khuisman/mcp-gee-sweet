@@ -114,9 +114,10 @@ class _OpenItems:
     by the column of the last item at that depth. The block ends the deeper items.
     A node with no `list_depth` ends them all.
 
-    A quoted item's quote markers come before its indent ("> - a"). A quoted block
-    inside it ("> - a" then ">   > b") has its own quote levels split the same way:
-    as many as the item's go outside the indent, the rest inside it. The blank line
+    A quoted item's quote markers come before its indent ("> - a"). A block inside
+    it is inside that quote too, whatever depth it reads with (a table reads none),
+    so the item's quote levels go outside the block's indent and only its own extra
+    levels inside ("> - a" then ">   > b"). The blank line
     before such a block, and before the item after it, keeps those shared quote
     levels (">"), or it would end the quote the list is in.
 
@@ -144,8 +145,12 @@ class _OpenItems:
             return _render_table(node) if isinstance(node, Table) else _render_block(node)
         del self._items[list_depth + 1 :]
         column, item_quote = self._items[list_depth]
-        quote = node.blockquote_depth if not isinstance(node, Table) else 0
-        outer = min(quote, item_quote)
+        # A block inside a quoted list's item is inside that list's quote too. Its
+        # own depth can read lower: a table has no indent in the API, and Docs puts
+        # an unindented empty paragraph before a table in an item.
+        quote = 0 if isinstance(node, Table) else node.blockquote_depth
+        quote = max(quote, item_quote)
+        outer = item_quote
         self.shared_quote = outer
         if isinstance(node, Table):
             body = _render_table(node)
