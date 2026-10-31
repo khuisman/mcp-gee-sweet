@@ -453,7 +453,6 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] A bare `www.` autolink gets `http://` while an explicit `www.` target gets `https://` (#1180). `wrong/common` now that the maintainer chose https for both, 2026-10-28; joined the locked fill ([#1281](https://github.com/khuisman/mcp-gee-sweet/issues/1281)) (PR #1298)
 - [x] Drive transfer tools raise `HttpError` on a 404 instead of returning an error result. `loud/narrow`; community PR #1278 merged 2026-10-31; moved from ankylosaurus, the maintainer's call to ship it here ([#1275](https://github.com/khuisman/mcp-gee-sweet/issues/1275)) (PR #1278)
 - [x] `style_doc_range` with only `font_family` clears bold on the range. `wrong/narrow`, observed, not a regression; community PR #1279 merged 2026-10-31; moved from ankylosaurus, the maintainer's call to ship it here ([#1273](https://github.com/khuisman/mcp-gee-sweet/issues/1273)) (PR #1279)
-- [x] qa: live verification for PR #1026 (`font_family` in `style_doc_range`). Moved from ankylosaurus 2026-10-31 so the #1273 fix shipping here is checked live. PR #1026's scope passed; the heading-bold add-on failed and is #1300 ([#1153](https://github.com/khuisman/mcp-gee-sweet/issues/1153)) (live check 2026-10-31)
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
@@ -461,6 +460,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160)) (live PASS 2026-10-27)
 - [x] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167)) (live PASS 2026-10-27)
 - [x] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1026 (`font_family` in `style_doc_range`). Moved from ankylosaurus 2026-10-31 (maintainer) so the #1273 fix shipping here is checked live ([#1153](https://github.com/khuisman/mcp-gee-sweet/issues/1153)) (live PASS 2026-10-31; heading-bold add-on failed → #1300)
 - [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
 - [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
@@ -557,7 +557,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] Drive tools: one `HttpError` policy after #1278 (lost logging and access-log status, the `isError` contract across sibling tools, stale text, quota/5xx tests). `loud/narrow`; from the #1278 review, after it merges ([#1287](https://github.com/khuisman/mcp-gee-sweet/issues/1287))
 - [ ] `style_doc_range` font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. `wrong/rare`; from the #1279 review ([#1289](https://github.com/khuisman/mcp-gee-sweet/issues/1289))
-- [ ] `style_doc_range`: a `font_family`-only change turns off bold inherited from a named style (Docs writes `bold: false`). `wrong/narrow`, observed in #1153's live check; the second follow-up in #1273's family, after #1289 ([#1300](https://github.com/khuisman/mcp-gee-sweet/issues/1300))
 - [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
 - [ ] Markdown task lists as native Docs checkboxes (`BULLET_CHECKBOX`) instead of a disc bullet plus a glyph. First check live whether the API can set the checked state ([#1280](https://github.com/khuisman/mcp-gee-sweet/issues/1280))
 
@@ -566,6 +565,10 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Markdown links to `file:` and script schemes render as literal `[text](target)` source, with no `dropped_links` entry. `wrong/narrow`, regression since v0.9.5 (PR #1228's markdown-it switch); placed here by the maintainer (2026-10-29), not in ornithomimus's locked fill, though the rubric allows a regression there. #1291 closed as its duplicate ([#1290](https://github.com/khuisman/mcp-gee-sweet/issues/1290))
 - [ ] `create_paragraph_bullets` restarts a numbered list's numbering after a nested list of the other type: its same-`listId` expansion walks only adjacent paragraphs, so it re-bullets the items after the nested list as a new list. `wrong/narrow`, observed (live on PR #1286), not a regression; from PR #1286's review. Grouped with #1090, the same function ([#1288](https://github.com/khuisman/mcp-gee-sweet/issues/1288))
 - [ ] `create_paragraph_bullets` puts a paragraph one level too deep, in the wrong list, when the paragraph before it is in a same-preset list. `wrong/narrow`, observed (live, PR #1295); from PR #1295's review. `decision-needed`: whether it should join that list at the requested level or start its own ([#1297](https://github.com/khuisman/mcp-gee-sweet/issues/1297))
+
+**Triaged in 2026-10-31**
+
+- [ ] `style_doc_range`: a `font_family`-only change turns off bold inherited from a named style (Docs writes `bold: false`). `wrong/narrow`, observed in #1153's live check; the second follow-up in #1273's family, after #1289 ([#1300](https://github.com/khuisman/mcp-gee-sweet/issues/1300))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
