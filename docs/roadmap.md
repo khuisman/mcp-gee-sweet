@@ -451,6 +451,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] `setup_team.sh` never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz ([#1223](https://github.com/khuisman/mcp-gee-sweet/issues/1223)) (PR #1225)
 - [x] `write_doc_content`/`update_doc_from_file` clear the Doc before converting the Markdown, so a failed conversion with no backup leaves it empty. `severe/rare`; joined the locked fill 2026-10-28 (maintainer) — lane B after #1102 ([#1240](https://github.com/khuisman/mcp-gee-sweet/issues/1240)) (PR #1296)
 - [ ] A bare `www.` autolink gets `http://` while an explicit `www.` target gets `https://` (#1180). `wrong/common` now that the maintainer chose https for both, 2026-10-28; joined the locked fill ([#1281](https://github.com/khuisman/mcp-gee-sweet/issues/1281))
+- [x] Drive transfer tools raise `HttpError` on a 404 instead of returning an error result. `loud/narrow`; community PR #1278 merged 2026-10-31; moved from ankylosaurus, the maintainer's call to ship it here ([#1275](https://github.com/khuisman/mcp-gee-sweet/issues/1275)) (PR #1278)
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
@@ -553,7 +554,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-10-28**
 
 - [ ] `style_doc_range` with only `font_family` clears bold on the range. `wrong/narrow`, observed, not a regression; community PR #1279 open ([#1273](https://github.com/khuisman/mcp-gee-sweet/issues/1273))
-- [ ] Drive transfer tools raise `HttpError` on a 404 instead of returning an error result. `loud/narrow`; community PR #1278 open ([#1275](https://github.com/khuisman/mcp-gee-sweet/issues/1275))
 - [ ] Drive tools: one `HttpError` policy after #1278 (lost logging and access-log status, the `isError` contract across sibling tools, stale text, quota/5xx tests). `loud/narrow`; from the #1278 review, after it merges ([#1287](https://github.com/khuisman/mcp-gee-sweet/issues/1287))
 - [ ] `style_doc_range` font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. `wrong/rare`; from the #1279 review ([#1289](https://github.com/khuisman/mcp-gee-sweet/issues/1289))
 - [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
