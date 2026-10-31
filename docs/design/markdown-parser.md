@@ -174,16 +174,19 @@ D1, D2, or listed here; `CHANGELOG.md` has the user-facing version.
   item lost its bullet (#1111); with it, which this branch merged before approval, every one keeps
   its bullet. Python-Markdown kept some of those items bulleted, or dropped the blocks out of the
   list and restarted the numbering. A block inside a numbered item now stays inside one `<ol>`, so
-  the AST keeps every item ordered, but the emitter still splits the list around the block and
-  Docs restarts the numbering on screen (#1094). Since #1094 the block is marked as inside its
-  item and the list continues past it.
+  the AST keeps every item ordered. At the switch, the emitter still split the list around the
+  block and Docs restarted the numbering on screen; #1094 later fixed that (see "Fixed after the
+  switch" below).
 - **A setext underline under an item's text** (`- a` / `  ---`) makes that text a Heading 2 inside
-  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. The heading then
-  loses its bullet in the AST (#1094's open question; since #1094 the item is a bulleted Heading 2).
+  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. At the switch the
+  heading lost its bullet in the AST; #1094 later made the item a bulleted Heading 2.
   `***` is a rule in either parser.
 - **Different, still wrong:** front matter (DS-14) renders as a rule plus a Heading 2 instead of
-  a rule, a paragraph and a rule (#1173). A block inside a list item renders after the item, not
-  indented inside it: the AST has no blocks inside list items (added by #1094: `list_depth`).
+  a rule, a paragraph and a rule (#1173).
+- **Fixed after the switch (#1094):** a block inside a list item rendered after the item, at the
+  margin, since the AST had no way to put a block inside an item, and the next item restarted
+  the numbering. The block now carries its item's `list_depth`: it's indented under the item and
+  the list continues past it.
 - **Unchanged:** r03, r07, code blocks, inline code, inline HTML, images, unicode, and DS-01 to
   DS-13 (CRLF included).
 

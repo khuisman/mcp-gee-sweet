@@ -864,21 +864,20 @@ def ast_to_requests(
         # text.
         for seg in segment_meta:
             node = seg.node
-            content_depth = _list_content_depth(node)
-            if not (
-                (isinstance(node, BulletItem) and node.blockquote_depth > 0)
-                or content_depth is not None
-            ):
-                continue
             rng = {
                 "startIndex": _after_bullet_pass(seg.doc_start, seg.tabs_through - seg.own_tabs),
                 "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
             }
             if isinstance(node, BulletItem):
+                if node.blockquote_depth == 0:
+                    continue
                 requests.append(
                     _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
                 )
-            elif content_depth is not None:
+            else:
+                content_depth = _list_content_depth(node)
+                if content_depth is None:
+                    continue
                 requests.append(
                     _list_content_style_request(rng, content_depth, node.blockquote_depth)
                 )
@@ -984,47 +983,35 @@ def list_level_indents(level: int) -> tuple[int, int]:
     return _LIST_INDENT_FIRST_LINE_PT + level_indent, _LIST_INDENT_START_PT + level_indent
 
 
-def _blockquote_style_request(rng: dict, depth: int, list_level: int | None = None) -> dict:
-    """updateParagraphStyle request giving a blockquote paragraph a left border and an
-    indent scaled by nesting depth — Google Docs has no native blockquote paragraph
-    style, so this is the closest visual equivalent the API's ParagraphStyle exposes.
+def _block_indents(
+    blockquote_depth: int, *, item_level: int | None = None, content_level: int | None = None
+) -> tuple[int, int]:
+    """(indentFirstLine, indentStart), in points, of a block: the one place the list and
+    quote indents combine, for quoted list items, blocks inside list items and quoted
+    tables alike. A list item at `item_level` keeps its glyph's hanging indent; a block
+    inside an item at `content_level` (#1094) sits at that item's text indent, both
+    lines alike; anything else starts at the margin. Each quote level adds its step on
+    top, whichever of the list and the quote encloses the other."""
+    if item_level is not None:
+        first_line, start = list_level_indents(item_level)
+    elif content_level is not None:
+        first_line = start = list_level_indents(content_level)[1]
+    else:
+        first_line = start = 0
+    quote_indent = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * blockquote_depth
+    return first_line + quote_indent, start + quote_indent
 
-    Both indents are set: indentFirstLine is absolute, not relative to indentStart, so
-    leaving it unset put a single-line quote's only line at the margin (#1056). A list
-    item (`list_level` given) keeps its glyph's hanging indent, shifted by the quote
-    indent; the request must run after the item's createParagraphBullets."""
-    quote_indent = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * depth
-    first_line, start = list_level_indents(list_level) if list_level is not None else (0, 0)
-    first_line += quote_indent
-    start += quote_indent
-    return {
-        "updateParagraphStyle": {
-            "range": rng,
-            "paragraphStyle": {
-                "indentStart": {"magnitude": start, "unit": "PT"},
-                "indentFirstLine": {"magnitude": first_line, "unit": "PT"},
-                "borderLeft": _BLOCKQUOTE_BORDER,
-            },
-            "fields": "indentStart,indentFirstLine,borderLeft",
-        }
+
+def _indent_style_request(rng: dict, indents: tuple[int, int], *, border: bool) -> dict:
+    """updateParagraphStyle request setting both indents (indentFirstLine is absolute,
+    not relative to indentStart: leaving it unset put a single-line quote's only line at
+    the margin, #1056), plus the quote's left border when `border`."""
+    first_line, start = indents
+    paragraph_style: dict = {
+        "indentStart": {"magnitude": start, "unit": "PT"},
+        "indentFirstLine": {"magnitude": first_line, "unit": "PT"},
     }
-
-
-def _list_content_indent(list_depth: int, blockquote_depth: int) -> int:
-    """Indent, in points, of a block inside a list item at `list_depth` (#1094): the
-    item's text indent (its wrapped lines' indentStart), plus a quote's own indent
-    step per level when the block is quoted, whichever of the two encloses the other."""
-    return list_level_indents(list_depth)[1] + _BLOCKQUOTE_INDENT_PT_PER_LEVEL * blockquote_depth
-
-
-def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: int) -> dict:
-    """updateParagraphStyle request indenting a block inside a list item (#1094) to its
-    item's text, both lines alike, with a quote's left border when it's quoted. Must run
-    after the bullet pass: the block may have been bulleted and taken back out, which
-    leaves the list level's indents."""
-    indent = {"magnitude": _list_content_indent(list_depth, blockquote_depth), "unit": "PT"}
-    paragraph_style: dict = {"indentStart": indent, "indentFirstLine": indent}
-    if blockquote_depth > 0:
+    if border:
         paragraph_style["borderLeft"] = _BLOCKQUOTE_BORDER
     return {
         "updateParagraphStyle": {
@@ -1033,6 +1020,25 @@ def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: in
             "fields": ",".join(paragraph_style),
         }
     }
+
+
+def _blockquote_style_request(rng: dict, depth: int, list_level: int | None = None) -> dict:
+    """updateParagraphStyle request giving a blockquote paragraph a left border and an
+    indent scaled by nesting depth — Google Docs has no native blockquote paragraph
+    style, so this is the closest visual equivalent the API's ParagraphStyle exposes.
+
+    A list item (`list_level` given) keeps its glyph's hanging indent, shifted by the
+    quote indent; the request must run after the item's createParagraphBullets."""
+    return _indent_style_request(rng, _block_indents(depth, item_level=list_level), border=True)
+
+
+def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: int) -> dict:
+    """updateParagraphStyle request indenting a block inside a list item (#1094) to its
+    item's text, with a quote's left border when it's quoted. Must run after the bullet
+    pass: the block may have been bulleted and taken back out, which leaves the list
+    level's indents."""
+    indents = _block_indents(blockquote_depth, content_level=list_depth)
+    return _indent_style_request(rng, indents, border=blockquote_depth > 0)
 
 
 # Space above and below a code block, and around a quote where it meets other content
@@ -1194,14 +1200,10 @@ def _table_placeholder_requests(
     Bullets go first: deleteParagraphBullets adds indent, which the reset clears."""
     rng = {"startIndex": position, "endIndex": position + 1}
     paragraph_style: dict = {"namedStyleType": "NORMAL_TEXT"}
-    if list_depth is not None:
-        magnitude = _list_content_indent(list_depth, blockquote_depth)
-    else:
-        magnitude = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * blockquote_depth
-    if magnitude > 0:
-        indent = {"magnitude": magnitude, "unit": "PT"}
-        paragraph_style["indentStart"] = indent
-        paragraph_style["indentFirstLine"] = indent
+    first_line, start = _block_indents(blockquote_depth, content_level=list_depth)
+    if start > 0:
+        paragraph_style["indentStart"] = {"magnitude": start, "unit": "PT"}
+        paragraph_style["indentFirstLine"] = {"magnitude": first_line, "unit": "PT"}
     return [
         {"deleteParagraphBullets": {"range": rng}},
         {

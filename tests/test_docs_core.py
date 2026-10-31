@@ -604,6 +604,29 @@ class TestBlockInsideListItemAst:
         assert nodes[2].runs[0].text == "tail"
         assert nodes[2].list_depth == 0
 
+    def test_block_left_open_until_its_list_closes_keeps_its_item(self):
+        # PR #1301 QA round 1: flushed after </ul> popped the list, so the live stack
+        # no longer matched the item and b fell to the margin.
+        nodes = html_to_ast("<ul><li>a<p>b</ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph]
+        assert nodes[1].list_depth == 0
+
+    def test_heading_item_interrupted_before_its_close_tag(self):
+        # PR #1301 QA round 1: </h1> after the nested list fell through to the inline
+        # end-tag path and decremented _tag_depth, so the later bare "z" and <hr>
+        # became paragraphs inside the <span>.
+        interrupted = html_to_ast(
+            "<span><ul><li><h1>T<ul><li>x</li></ul></h1>a</li></ul>z<hr></span>"
+        )
+        plain = html_to_ast("<span><ul><li><h1>T</h1>a</li></ul>z<hr></span>")
+        assert [(type(n), n.runs[0].text) for n in interrupted] == [
+            (BulletItem, "T"),
+            (BulletItem, "x"),
+            (Paragraph, "a"),
+        ]
+        assert interrupted[0].heading_level == 1
+        assert [type(n) for n in plain] == [BulletItem, Paragraph]
+
     def test_block_loose_in_a_nested_list_belongs_to_no_item(self):
         # Not inside the outer item's own content: a list opened since.
         nodes = html_to_ast("<ul><li>a<ul><li>b</li><p>stray</p></ul></li></ul>")

@@ -220,6 +220,11 @@ class _AstParser(HTMLParser):
         # makes the item a bulleted heading (#1094). Per-segment, like the fields
         # _open_block resets.
         self._li_heading_level: int | None = None
+        # The tags of the open item headings, which outlive their segment: a nested
+        # block can interrupt the item before the heading's </hN>, which must still be
+        # consumed here rather than reach the inline end-tag path and decrement
+        # _tag_depth, which its start tag never incremented (PR #1301 QA round 1).
+        self._li_heading_tags: list[str] = []
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
         # Ids of the open <blockquote> tags, outermost first (#476, #1098); its
@@ -418,7 +423,12 @@ class _AstParser(HTMLParser):
         nested block interrupted. An item counts only while no list has opened inside
         it since, so a block in a nested list's own items, or loose in that list,
         isn't taken for content of the outer item. Every non-item leaf construction
-        passes these, like _blockquote_fields."""
+        passes these, like _blockquote_fields.
+
+        "Since" is measured against the lists open when the block's own segment began
+        (_block_lists), not the live stack: a block left open until its list's </ul>
+        is flushed after the pop, the same case _make_bullet_item reads _block_lists
+        for (#1241). A node built with no block open uses the live stack."""
         if self._block_tag == "li" and self._block_resumed:
             lists = self._block_lists
         else:
@@ -427,7 +437,8 @@ class _AstParser(HTMLParser):
                 return {}
             lists = frame.lists
         ordered, path = lists
-        if not ordered or len(ordered) != len(self._list_ordered):
+        open_lists = self._block_lists[0] if self._block_tag is not None else self._list_ordered
+        if not ordered or len(ordered) != len(open_lists):
             return {}
         return {"list_depth": len(ordered) - 1, "list_path": path}
 
@@ -846,6 +857,7 @@ class _AstParser(HTMLParser):
             ):
                 self._run_buf = []
                 self._li_heading_level = int(tag[1])
+                self._li_heading_tags.append(tag)
                 return
             self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
@@ -1125,15 +1137,23 @@ class _AstParser(HTMLParser):
         # --- heading that is a list item's own text (#1094) ---
         # The item ends with its heading: anything after it in the <li> is a block
         # inside the item, so the item is emitted here and its later segment resumed.
+        # If a nested block interrupted the item first, the item was emitted then, and
+        # this end tag only closes the heading. A heading opened as a block of its own
+        # (self._block_tag == tag) closes through the block-element branch below.
         if (
             tag in _HEADING_TAGS
             and self._table_depth == 0
-            and self._block_tag == "li"
-            and self._li_heading_level == int(tag[1])
+            and self._li_heading_tags
+            and self._li_heading_tags[-1] == tag
+            and self._block_tag != tag
         ):
-            runs = self._flush_pending_runs()
-            self._emit_block_node("li", runs, preserve_if_empty=self._block_had_unsupported_content)
-            self._open_block("li", resumed=True, named_style=None)
+            self._li_heading_tags.pop()
+            if self._block_tag == "li" and self._li_heading_level == int(tag[1]):
+                runs = self._flush_pending_runs()
+                self._emit_block_node(
+                    "li", runs, preserve_if_empty=self._block_had_unsupported_content
+                )
+                self._open_block("li", resumed=True, named_style=None)
             return
 
         # --- transparent paragraph inside a list item (#1111) ---
