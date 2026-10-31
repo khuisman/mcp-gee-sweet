@@ -649,7 +649,6 @@ Net-new capabilities substantial enough (new subsystem, external infra like webh
 
 **Infrastructure**
 - [x] `notifications/progress` feedback for long-running transfer calls (`download_folder`, `sync_folder`) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (PR #351) ([#319](https://github.com/khuisman/mcp-gee-sweet/issues/319))
-- [ ] `kai_status.py`: report open code-scanning alerts on `develop`, and say in `kai.md` what Kai does with them. On deck, no version; the `kai.md` part needs Bob's prompt-QA ([#1304](https://github.com/khuisman/mcp-gee-sweet/issues/1304))
 
 ### Decisions Needed — blocking backlog _(no assigned version)_
 
@@ -715,6 +714,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
 - [x] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_ (done 2026-06-26)
 - [ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent `<p>` (from PR #1164). Bob, no version ([#1267](https://github.com/khuisman/mcp-gee-sweet/issues/1267))
+- [ ] `kai_status.py`: report open code-scanning alerts on `develop`, and say in `kai.md` what Kai does with them. On deck, no version; the `kai.md` part needs Bob's prompt-QA ([#1304](https://github.com/khuisman/mcp-gee-sweet/issues/1304))
 - See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 
 ---
