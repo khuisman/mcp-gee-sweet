@@ -2220,6 +2220,7 @@
 <li>[x] <code>setup_team.sh</code> never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1223">#1223</a>) (PR #1225)</li>
 <li>[x] <code>write_doc_content</code>/<code>update_doc_from_file</code> clear the Doc before converting the Markdown, so a failed conversion with no backup leaves it empty. <code>severe/rare</code>; joined the locked fill 2026-10-28 (maintainer) — lane B after #1102 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1240">#1240</a>) (PR #1296)</li>
 <li>[ ] A bare <code>www.</code> autolink gets <code>http://</code> while an explicit <code>www.</code> target gets <code>https://</code> (#1180). <code>wrong/common</code> now that the maintainer chose https for both, 2026-10-28; joined the locked fill (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1281">#1281</a>)</li>
+<li>[x] Drive transfer tools raise <code>HttpError</code> on a 404 instead of returning an error result. <code>loud/narrow</code>; community PR #1278 merged 2026-10-31; moved from ankylosaurus, the maintainer's call to ship it here (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1275">#1275</a>) (PR #1278)</li>
 </ul>
 <p><strong>Live QA for merged community PRs</strong> <em>(their code ships in this release; run on the gee-sweet-biz side)</em></p>
 <ul>
@@ -2318,7 +2319,6 @@
 <p><strong>Triaged in 2026-10-28</strong></p>
 <ul>
 <li>[ ] <code>style_doc_range</code> with only <code>font_family</code> clears bold on the range. <code>wrong/narrow</code>, observed, not a regression; community PR #1279 open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1273">#1273</a>)</li>
-<li>[ ] Drive transfer tools raise <code>HttpError</code> on a 404 instead of returning an error result. <code>loud/narrow</code>; community PR #1278 open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1275">#1275</a>)</li>
 <li>[ ] Drive tools: one <code>HttpError</code> policy after #1278 (lost logging and access-log status, the <code>isError</code> contract across sibling tools, stale text, quota/5xx tests). <code>loud/narrow</code>; from the #1278 review, after it merges (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1287">#1287</a>)</li>
 <li>[ ] <code>style_doc_range</code> font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. <code>wrong/rare</code>; from the #1279 review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1289">#1289</a>)</li>
 <li>[ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1243">#1243</a>)</li>
