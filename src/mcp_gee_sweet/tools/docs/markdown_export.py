@@ -33,7 +33,7 @@ from ..drive.transfer import (
 from ..pagination import iter_pages
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import _github_style_slugify, _slugs_with_dedup
-from .ast import Heading, NamedBlock, Run
+from .ast import BulletItem, Heading, NamedBlock, Run
 from .ast_to_markdown import ast_to_markdown
 from .comments import _COMMENT_FIELDS, _map_comment
 from .doc_to_ast import _paragraph_to_node, document_to_ast
@@ -89,10 +89,11 @@ def _rendered_heading_slugs(document: dict) -> dict[str, str]:
 
     Classified by doc_to_ast's own _paragraph_to_node rather than by
     namedStyleType, since a paragraph with a headingId doesn't always render as
-    a heading: a bulleted heading renders as a list item, and one in a table
-    cell as cell text (PR #988 QA round 1). Counting those would shift every
-    later duplicate's -1/-2 suffix onto the wrong heading. TITLE/SUBTITLE
-    render as H1/H2, so they count."""
+    a heading: one in a table cell renders as cell text (PR #988 QA round 1).
+    Counting it would shift every later duplicate's -1/-2 suffix onto the
+    wrong heading. TITLE/SUBTITLE render as H1/H2, so they count, and so does
+    a bulleted heading, which renders as a heading inside its item
+    ("- # Title", #1302)."""
     ids: list[str] = []
     texts: list[str] = []
     for elem in document.get("body", {}).get("content", []):
@@ -104,7 +105,10 @@ def _rendered_heading_slugs(document: dict) -> dict[str, str]:
             continue
         # Only headings are kept, and only headingId paragraphs are seen: no list numbers.
         node = _paragraph_to_node(para, document, list_counter=None)
-        if not isinstance(node, Heading | NamedBlock):
+        if isinstance(node, BulletItem):
+            if node.heading_level is None:
+                continue
+        elif not isinstance(node, Heading | NamedBlock):
             continue
         ids.append(heading_id)
         texts.append("".join(r.text for r in node.runs if isinstance(r, Run)).strip())

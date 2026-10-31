@@ -54,10 +54,10 @@ _BACKTICK_RUN = re.compile(r"`+")
 # misread by any CommonMark parser as a different block type entirely — an ATX
 # heading, a blockquote, a bullet item, or an ordered-list item — rather than
 # the plain paragraph text it actually is (#591 QA round 1, live-confirmed for
-# "1. Not actually a list item" and "# Not a heading either"). Scoped to plain
-# Paragraph rendering only: Heading/NamedBlock/BulletItem already have their
-# own legitimate prefix on the same line, so content following it is never
-# re-parsed as a new block starting mid-line.
+# "1. Not actually a list item" and "# Not a heading either"). Applied to a
+# plain Paragraph and to a list item's text, which starts the item's first
+# block, so "- # a" is a heading inside the item (#1302). Heading/NamedBlock
+# text follows its own "#" prefix, where it's never re-parsed as a new block.
 _LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[>*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
@@ -75,18 +75,21 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
     """Serialize a list of DocNode into a single Markdown document string."""
     parts: list[str] = []
     prev_node: DocNode | None = None
+    open_items = _OpenItems()
     for node in nodes:
-        if isinstance(node, Table):
-            rendered = _render_table(node)
-        else:
-            rendered = _render_block(node, opens_sublist=_opens_sublist(node, prev_node))
+        rendered = open_items.render(node, prev_node)
         if prev_node is not None:
             # Consecutive list items get a single newline, not a blank line, so
             # they render as one "tight" list (CommonMark still parses a blank-
             # line-separated run as the same list, just needlessly "loose" —
             # no correctness difference, only readability of the output).
             same_list_run = isinstance(node, BulletItem) and isinstance(prev_node, BulletItem)
-            parts.append("\n" if same_list_run else "\n\n")
+            if same_list_run:
+                parts.append("\n")
+            elif open_items.shared_quote:
+                parts.append(f"\n{'>' * open_items.shared_quote}\n")
+            else:
+                parts.append("\n\n")
         parts.append(rendered)
         prev_node = node
 
@@ -99,6 +102,68 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
         markdown += "\n".join(_render_comment(c) for c in comments)
 
     return markdown
+
+
+class _OpenItems:
+    """Renders each node, writing a block inside a list item (its `list_depth`,
+    #1302) under that item instead of at the margin.
+
+    CommonMark keeps a block in an item when it's indented to the item's content
+    column, the width of the item's own indent and marker. So every list item
+    records that column for its depth, and a block with a `list_depth` is indented
+    by the column of the last item at that depth. The block ends the deeper items.
+    A node with no `list_depth` ends them all.
+
+    A quoted item's quote markers come before its indent ("> - a"). A block inside
+    it is inside that quote too, whatever depth it reads with (a table reads none),
+    so the item's quote levels go outside the block's indent and only its own extra
+    levels inside ("> - a" then ">   > b"). The blank line
+    before such a block, and before the item after it, keeps those shared quote
+    levels (">"), or it would end the quote the list is in.
+
+    After `render`, `shared_quote` is how many quote levels the node shares with
+    the one before it, which the blank line between them must carry."""
+
+    def __init__(self) -> None:
+        # Per open item depth: (content column, blockquote_depth).
+        self._items: list[tuple[int, int]] = []
+        self.shared_quote = 0
+
+    def render(self, node: DocNode, prev_node: DocNode | None) -> str:
+        self.shared_quote = 0
+        if isinstance(node, BulletItem):
+            opens_sublist = _opens_sublist(node, prev_node)
+            if self._items:
+                self.shared_quote = min(node.blockquote_depth, self._items[0][1])
+            del self._items[node.depth :]
+            self._items.extend([(0, 0)] * (node.depth - len(self._items)))
+            self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
+            return _render_block(node, opens_sublist=opens_sublist)
+        list_depth = node.list_depth
+        if list_depth is None or list_depth >= len(self._items):
+            self._items.clear()
+            return _render_table(node) if isinstance(node, Table) else _render_block(node)
+        del self._items[list_depth + 1 :]
+        column, item_quote = self._items[list_depth]
+        # A block inside a quoted list's item is inside that list's quote too. Its
+        # own depth can read lower: a table has no indent in the API, and Docs puts
+        # an unindented empty paragraph before a table in an item.
+        quote = 0 if isinstance(node, Table) else node.blockquote_depth
+        quote = max(quote, item_quote)
+        outer = item_quote
+        self.shared_quote = outer
+        if isinstance(node, Table):
+            body = _render_table(node)
+        else:
+            body = _render_block(node, blockquote_depth=quote - outer)
+        body = _indent_lines(body, column)
+        return _blockquote(body, outer) if outer else body
+
+
+def _indent_lines(body: str, column: int) -> str:
+    # Blank lines stay empty: CommonMark keeps them in the item either way.
+    pad = " " * column
+    return "\n".join(f"{pad}{line}" if line else line for line in body.split("\n"))
 
 
 def _is_code_block(node: Paragraph) -> bool:
@@ -171,9 +236,25 @@ def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
     return f"{node.number}. "
 
 
+def _item_prefix(node: BulletItem, opens_sublist: bool) -> str:
+    """A list item's indent and marker, before its text; its length is the item's
+    content column."""
+    if node.checked is not None:
+        marker = "- [x] " if node.checked else "- [ ] "
+    elif node.ordered:
+        marker = _ordered_marker(node, opens_sublist)
+    else:
+        marker = "- "
+    return "  " * node.depth + marker
+
+
 def _render_block(
-    node: Heading | Paragraph | BulletItem | NamedBlock, opens_sublist: bool = False
+    node: Heading | Paragraph | BulletItem | NamedBlock,
+    opens_sublist: bool = False,
+    blockquote_depth: int | None = None,
 ) -> str:
+    """`blockquote_depth` overrides the node's own, for a block whose outer quote
+    levels its caller writes (see `_OpenItems`)."""
     if isinstance(node, Paragraph) and _is_code_block(node):
         body = _render_code_block(node)
     elif isinstance(node, Heading):
@@ -184,18 +265,19 @@ def _render_block(
         level = 1 if node.style_type == "TITLE" else 2
         body = f"{'#' * level} {_render_inline(node.runs)}".rstrip()
     elif isinstance(node, BulletItem):
-        indent = "  " * node.depth
-        if node.checked is not None:
-            marker = "- [x] " if node.checked else "- [ ] "
-        elif node.ordered:
-            marker = _ordered_marker(node, opens_sublist)
+        text = _render_inline(node.runs)
+        if node.heading_level:
+            # An item whose text is a heading (#1302): "- # Title".
+            text = f"{'#' * node.heading_level} {text}".rstrip()
         else:
-            marker = "- "
-        body = f"{indent}{marker}{_render_inline(node.runs)}"
+            # Text after the marker starts the item's first block, so "# a" or
+            # "> a" there would read as a heading or quote inside the item.
+            text = _escape_leading_block_marker(text)
+        body = f"{_item_prefix(node, opens_sublist)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 
-    depth = getattr(node, "blockquote_depth", 0)
+    depth = node.blockquote_depth if blockquote_depth is None else blockquote_depth
     if depth:
         body = _blockquote(body, depth)
     return body
