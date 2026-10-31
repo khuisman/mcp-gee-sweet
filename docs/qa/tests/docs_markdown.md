@@ -168,6 +168,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: code blocks and inline code monospace, bullets at level 0. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (usage notes 1–4, code under item 3, item 4 is 4.). The Note quote splits at its soft break (#1230), and the SVG badge isn't embedded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
+
 ### TC-MD005: Status report ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -205,6 +207,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: EP-3/EP-4 only) ❌ FAIL — 0/2 cells pass, identical in both runs and across EP-3/EP-4; #1111 is fixed (every step keeps its number marker), failures left: #1094 (numbering restarts after each step's code block), #1072 (step 5 restarts after step 4's bulleted sublist), #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 checks pass on screen (steps 1–5 in one list, code and step 3's paragraph under their steps, step 4's sub-bullets at level 1). The Troubleshooting lead-ins split at their soft break (#1230). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
@@ -252,6 +256,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1094, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (the code block under "Added" stays under it). Version-heading links not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
 ### TC-MD010: Checklist-heavy task plan ⚠️ destructive
 **Prompt**
@@ -545,6 +551,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2, EP-3) ❌ FAIL — 5/9 at EP-3, identical to round 1: #1094 (LB-04, 05, 06), F4 (LB-08). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
 
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — 10/11 at EP-3, on screen: LB-04–LB-08 now pass (#1094 and F4 fixed), and so does new LB-11. New LB-10 is correct for #1094 but its rule is an empty line (#1096). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
+
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -579,6 +587,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-29, PR #1295 @ 47607c8f, Run 1 only) ❌ FAIL — 45/60 EP-1–EP-4 + EP-8 cells pass, identical across all five EPs; LX-10–LX-12 also checked on screen at EP-3. LX-01, 02, 03, 05, 06, 07, 10, 11, 12 pass (LX-05 two `listId`s; LX-11 Paren one 1., Paren child a.; LX-12 Restarted child a. in its own list). Failures: #1093 (LX-04), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)**
 
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2) ❌ FAIL — 50/65 EP-1–EP-4 + EP-8 cells pass, identical across all five EPs and in Run 2 at EP-3; LX-11–LX-13 checked on screen. LX-01, 02, 03, 05, 06, 07, 10, 11, 12, 13 pass (LX-13 ●, ○, ●, a., b.). Failures: #1093 (LX-04), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
+
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — 11/13 at EP-3: **LX-08** now passes (1., code, 2., 3.), #1094 fixed. LX-04 #1230, LX-09 #1118. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
@@ -872,6 +882,8 @@ Not expressible, so not in the matrix:
 **Result (2026-10-28, PR #1286 @ 7ce37591, list-in-list cases only) PARTIAL — the 18 list-in-list cases (CT-03–05, 13–15, 23–25, 33–35, 43–45, 53–55) pass at EP-3/EP-4, identical in Run 2: the sibling after each sublist keeps the container's numbering (CT-33 2., CT-43 b., CT-53 ii.). The other cases weren't re-graded; #1094 still splits the list after a contained block. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md)**
 
 **Result (2026-10-29, PR #1286 @ 0fa54712, round 2, list-in-list cases only, EP-3) PARTIAL — the 18 list-in-list cases pass at EP-3, same as round 1 (CT-33 2., CT-43 b., CT-53 ii.); the other cases weren't re-graded. Requests byte-identical to round 1's. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md) §"Round 2"**
+
+**Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ⚠️ PARTIAL — 54/60 list-container cases (CT-01–CT-60) pass at EP-3: every block sits at its item's text indent and the sibling after it continues the container's list (#1094 fixed). The six rule cases (CT-10, 20, 30, 40, 50, 60) fail on #1096. CT-61–CT-80 not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
