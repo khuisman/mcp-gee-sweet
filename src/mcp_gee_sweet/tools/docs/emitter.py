@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Awaitable, Callable, Iterator, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
@@ -176,7 +176,11 @@ class _BulletList:
     other type, but not always: a same-type list that follows another sublist under
     the same item (ordered, bullet, ordered) is one too, so it restarts.
 
-    `source_path` is the BulletItem.list_path of the item that started it."""
+    `source_path` is the BulletItem.list_path of the item that started it.
+
+    A top-level list's `continuations` are the blocks inside its items (#1094), in
+    document order: they don't end the list, and the ones inside its range are taken
+    back out of it after its bullet requests."""
 
     ordered: bool
     first: int
@@ -185,6 +189,7 @@ class _BulletList:
     source_path: tuple[int, ...]
     top: _BulletList | None  # the top-level list this one is nested in
     nested: list[_BulletList]  # top-level lists only
+    continuations: list[int] = field(default_factory=list)  # top-level lists only
 
 
 @dataclass
@@ -200,7 +205,13 @@ class _OpenList:
     had_child: bool = False
 
 
-def _encloses(open_list: _OpenList, node: BulletItem) -> bool:
+def _list_content_depth(node: DocNode) -> int | None:
+    """The depth of the list item a non-item block sits in (its list_depth, #1094), or
+    None for a list item or a block outside every item."""
+    return None if isinstance(node, BulletItem) else node.list_depth
+
+
+def _encloses(open_list: _OpenList, node: DocNode) -> bool:
     """Whether `node` sits in `open_list`'s source list or in a list nested in it
     (#1241). True when either side's ids are unknown, which leaves depth and type to
     decide, as before."""
@@ -240,14 +251,26 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
     The later one is a new top-level list, or a nested list that restarts. Items with
     no ids (an AST not built by html_parser) group by depth and type alone, as before.
 
-    A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
-    between two items keeps them in one list, as before."""
+    A block inside an item (`_list_content_depth`, #1094) closes the lists nested deeper
+    than that item and doesn't end the block, so the item's list continues past it; the
+    block is recorded in its top-level list's `continuations`. Any other non-BulletItem
+    segment ends the block, and so does a block inside an item with no open list left
+    to belong to. A Table isn't in segment_meta, so a table between two items keeps
+    them in one list, as before."""
     tops: list[_BulletList] = []
     stack: list[_OpenList] = []
     root: _BulletList | None = None
     for i, seg in enumerate(segment_meta):
         node = seg.node
         if not isinstance(node, BulletItem):
+            content_depth = _list_content_depth(node)
+            if content_depth is not None:
+                while stack and (stack[-1].depth > content_depth or not _encloses(stack[-1], node)):
+                    stack.pop()
+                if stack:
+                    top = stack[-1].bullet_list.top or stack[-1].bullet_list
+                    top.continuations.append(i)
+                    continue
             stack, root = [], None
             continue
         depth, ordered = node.depth, node.ordered
@@ -376,7 +399,10 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
         tabs = 0
         for index in range(bullet_list.last, bullet_list.first - 1, -1):
             # Every item here sits deeper than the list it's nested in, so it has tabs.
+            # A block inside an item has none (#1094); it's taken out below.
             own_tabs = segment_meta[index].own_tabs
+            if not own_tabs:
+                continue
             requests.append(
                 {
                     "insertText": {
@@ -390,6 +416,17 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
             isolated_bullet_run_wrap_requests(
                 list_start, list_end + tabs, _bullet_preset(bullet_list.ordered), barrier=True
             )
+        )
+    # A block inside an item that sits in the range was bulleted with it; it comes out
+    # last, once no later call can bullet it again (#1094). Docs numbers a list's items
+    # by listId, so the items after it keep counting (confirmed live). Its indent is set
+    # after the whole bullet pass (ast_to_requests).
+    for index in top.continuations:
+        if index > top.last:
+            break
+        start, end = after_top(index)
+        requests.append(
+            {"deleteParagraphBullets": {"range": {"startIndex": start, "endIndex": end}}}
         )
     return requests
 
@@ -726,8 +763,25 @@ def ast_to_requests(
                     }
                 )
                 requests.append({"deleteParagraphBullets": {"range": rng}})
+            elif isinstance(node, BulletItem) and node.heading_level is not None:
+                # A heading that is the item's own text (#1094): createParagraphBullets
+                # keeps a paragraph's named style (confirmed live).
+                requests.append(
+                    {
+                        "updateParagraphStyle": {
+                            "range": rng,
+                            "paragraphStyle": {"namedStyleType": f"HEADING_{node.heading_level}"},
+                            "fields": "namedStyleType",
+                        }
+                    }
+                )
             # BulletItem's own createParagraphBullets request is handled by the grouping
             # pass below, not here.
+
+            # A block inside a list item gets its indent, quote styling and spacing
+            # after the bullet pass (#1094), since that pass may bullet it before
+            # taking it back out, and createParagraphBullets overwrites both indents.
+            deferred = isinstance(node, BulletItem) or _list_content_depth(node) is not None
 
             # Blockquote styling (#476): a left border + scaled indent, applied uniformly
             # regardless of node type (Heading/Paragraph/NamedBlock/BulletItem can all be
@@ -736,14 +790,14 @@ def ast_to_requests(
             # A BulletItem's waits until after the bullet pass below:
             # createParagraphBullets overwrites both paragraph indents with the list
             # preset's own, so a quote indent set here was lost (#1056).
-            if node.blockquote_depth > 0 and not isinstance(node, BulletItem):
+            if node.blockquote_depth > 0 and not deferred:
                 requests.append(_blockquote_style_request(rng, node.blockquote_depth))
 
             # Block spacing and quote separators (#1098). A BulletItem's spacing waits for
             # the bullet pass, like its quote styling above.
             if id(node) in separators:
                 requests.extend(_collapse_paragraph_requests(rng))
-            elif seg.order in spacing and not isinstance(node, BulletItem):
+            elif seg.order in spacing and not deferred:
                 requests.extend(_spacing_requests(rng, *spacing[seg.order]))
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
@@ -806,21 +860,29 @@ def ast_to_requests(
         # pass: createParagraphBullets overwrites both paragraph indents. Every tab has
         # been consumed by then, so ranges map through _after_bullet_pass like the
         # table/image inserts below; paragraph styling shifts nothing for them.
+        # A block inside a list item (#1094) is styled here too, indented to its item's
+        # text.
         for seg in segment_meta:
-            if isinstance(seg.node, BulletItem) and seg.node.blockquote_depth > 0:
-                rng = {
-                    "startIndex": _after_bullet_pass(
-                        seg.doc_start, seg.tabs_through - seg.own_tabs
-                    ),
-                    "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
-                }
+            node = seg.node
+            rng = {
+                "startIndex": _after_bullet_pass(seg.doc_start, seg.tabs_through - seg.own_tabs),
+                "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
+            }
+            if isinstance(node, BulletItem):
+                if node.blockquote_depth == 0:
+                    continue
                 requests.append(
-                    _blockquote_style_request(
-                        rng, seg.node.blockquote_depth, list_level=seg.node.depth
-                    )
+                    _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
                 )
-                if seg.order in spacing:
-                    requests.extend(_spacing_requests(rng, *spacing[seg.order]))
+            else:
+                content_depth = _list_content_depth(node)
+                if content_depth is None:
+                    continue
+                requests.append(
+                    _list_content_style_request(rng, content_depth, node.blockquote_depth)
+                )
+            if seg.order in spacing and id(node) not in separators:
+                requests.extend(_spacing_requests(rng, *spacing[seg.order]))
 
         # Each table's placeholder, reset to plain after the bullet pass, since a table
         # between two same-preset list items sits inside their one createParagraphBullets
@@ -828,7 +890,11 @@ def ast_to_requests(
         # _after_bullet_pass like the inserts below.
         for pending in pending_tables:
             position = _after_bullet_pass(pending.position, pending.tab_offset)
-            requests.extend(_table_placeholder_requests(position, pending.node.blockquote_depth))
+            requests.extend(
+                _table_placeholder_requests(
+                    position, pending.node.blockquote_depth, pending.node.list_depth
+                )
+            )
 
     # Queue each table's insertTable request into the same positional_inserts pass
     # images use above. Position is adjusted for any nested-bullet leading tabs already
@@ -917,30 +983,62 @@ def list_level_indents(level: int) -> tuple[int, int]:
     return _LIST_INDENT_FIRST_LINE_PT + level_indent, _LIST_INDENT_START_PT + level_indent
 
 
+def _block_indents(
+    blockquote_depth: int, *, item_level: int | None = None, content_level: int | None = None
+) -> tuple[int, int]:
+    """(indentFirstLine, indentStart), in points, of a block: the one place the list and
+    quote indents combine, for quoted list items, blocks inside list items and quoted
+    tables alike. A list item at `item_level` keeps its glyph's hanging indent; a block
+    inside an item at `content_level` (#1094) sits at that item's text indent, both
+    lines alike; anything else starts at the margin. Each quote level adds its step on
+    top, whichever of the list and the quote encloses the other."""
+    if item_level is not None:
+        first_line, start = list_level_indents(item_level)
+    elif content_level is not None:
+        first_line = start = list_level_indents(content_level)[1]
+    else:
+        first_line = start = 0
+    quote_indent = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * blockquote_depth
+    return first_line + quote_indent, start + quote_indent
+
+
+def _indent_style_request(rng: dict, indents: tuple[int, int], *, border: bool) -> dict:
+    """updateParagraphStyle request setting both indents (indentFirstLine is absolute,
+    not relative to indentStart: leaving it unset put a single-line quote's only line at
+    the margin, #1056), plus the quote's left border when `border`."""
+    first_line, start = indents
+    paragraph_style: dict = {
+        "indentStart": {"magnitude": start, "unit": "PT"},
+        "indentFirstLine": {"magnitude": first_line, "unit": "PT"},
+    }
+    if border:
+        paragraph_style["borderLeft"] = _BLOCKQUOTE_BORDER
+    return {
+        "updateParagraphStyle": {
+            "range": rng,
+            "paragraphStyle": paragraph_style,
+            "fields": ",".join(paragraph_style),
+        }
+    }
+
+
 def _blockquote_style_request(rng: dict, depth: int, list_level: int | None = None) -> dict:
     """updateParagraphStyle request giving a blockquote paragraph a left border and an
     indent scaled by nesting depth — Google Docs has no native blockquote paragraph
     style, so this is the closest visual equivalent the API's ParagraphStyle exposes.
 
-    Both indents are set: indentFirstLine is absolute, not relative to indentStart, so
-    leaving it unset put a single-line quote's only line at the margin (#1056). A list
-    item (`list_level` given) keeps its glyph's hanging indent, shifted by the quote
-    indent; the request must run after the item's createParagraphBullets."""
-    quote_indent = _BLOCKQUOTE_INDENT_PT_PER_LEVEL * depth
-    first_line, start = list_level_indents(list_level) if list_level is not None else (0, 0)
-    first_line += quote_indent
-    start += quote_indent
-    return {
-        "updateParagraphStyle": {
-            "range": rng,
-            "paragraphStyle": {
-                "indentStart": {"magnitude": start, "unit": "PT"},
-                "indentFirstLine": {"magnitude": first_line, "unit": "PT"},
-                "borderLeft": _BLOCKQUOTE_BORDER,
-            },
-            "fields": "indentStart,indentFirstLine,borderLeft",
-        }
-    }
+    A list item (`list_level` given) keeps its glyph's hanging indent, shifted by the
+    quote indent; the request must run after the item's createParagraphBullets."""
+    return _indent_style_request(rng, _block_indents(depth, item_level=list_level), border=True)
+
+
+def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: int) -> dict:
+    """updateParagraphStyle request indenting a block inside a list item (#1094) to its
+    item's text, with a quote's left border when it's quoted. Must run after the bullet
+    pass: the block may have been bulleted and taken back out, which leaves the list
+    level's indents."""
+    indents = _block_indents(blockquote_depth, content_level=list_depth)
+    return _indent_style_request(rng, indents, border=blockquote_depth > 0)
 
 
 # Space above and below a code block, and around a quote where it meets other content
@@ -957,6 +1055,8 @@ def _has_named_spacing(node: DocNode) -> bool:
     """Whether the emitter gives `node` a named style with spacing of its own."""
     if isinstance(node, Heading):
         return True
+    if isinstance(node, BulletItem):
+        return node.heading_level is not None
     return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
 
 
@@ -973,6 +1073,9 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     outer quote's border, its near-zero height left a stray dash of that bar (confirmed
     live), and the outer bar is already broken around the deeper-indented nested ones.
     _collapse_paragraph_requests shrinks it.
+
+    A separator between two quotes inside one list item belongs to that item too
+    (#1094), so it doesn't end the item's list.
     """
     result: list[DocNode] = []
     separators: set[int] = set()
@@ -981,7 +1084,17 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
         if prev is not None and _quoted(prev) and _quoted(node):
             a, b = prev.blockquote_path, node.blockquote_path
             if a[: len(b)] != b and b[: len(a)] != a:
-                separator = Paragraph(runs=[])
+                content_depth = _list_content_depth(node)
+                in_item = (
+                    content_depth is not None
+                    and _list_content_depth(prev) == content_depth
+                    and prev.list_path == node.list_path
+                )
+                separator = (
+                    Paragraph(runs=[], list_depth=content_depth, list_path=node.list_path)
+                    if in_item
+                    else Paragraph(runs=[])
+                )
                 result.append(separator)
                 separators.add(id(separator))
         result.append(node)
@@ -1030,7 +1143,7 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
     whole range put a gap inside it (confirmed live)."""
     start, end = rng["startIndex"], rng["endIndex"]
     requests = []
-    for field, magnitude, sub_range in (
+    for style_field, magnitude, sub_range in (
         ("spaceAbove", above, {"startIndex": start, "endIndex": start + 1}),
         ("spaceBelow", below, {"startIndex": end - 1, "endIndex": end}),
     ):
@@ -1039,8 +1152,8 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
                 {
                     "updateParagraphStyle": {
                         "range": sub_range,
-                        "paragraphStyle": {field: {"magnitude": magnitude, "unit": "PT"}},
-                        "fields": field,
+                        "paragraphStyle": {style_field: {"magnitude": magnitude, "unit": "PT"}},
+                        "fields": style_field,
                     }
                 }
             )
@@ -1074,20 +1187,23 @@ def _collapse_paragraph_requests(rng: dict) -> list[dict]:
     ]
 
 
-def _table_placeholder_requests(position: int, blockquote_depth: int) -> list[dict]:
+def _table_placeholder_requests(
+    position: int, blockquote_depth: int, list_depth: int | None = None
+) -> list[dict]:
     """Reset a table's placeholder paragraph (#1097) to plain before its insertTable,
     since the table takes its indent and every empty cell its text style. Plain means
     no bullet (a table between two list items sits inside their bullet range), every
     paragraph field at its default (`*`: the doc's surviving final paragraph mark can
     carry a heading's style into new content), and no text style. A table inside a
-    quote keeps the quote's indent, with no border, which a table doesn't take.
+    quote keeps the quote's indent, with no border, which a table doesn't take, and a
+    table inside a list item (`list_depth`, #1094) is indented to the item's text.
     Bullets go first: deleteParagraphBullets adds indent, which the reset clears."""
     rng = {"startIndex": position, "endIndex": position + 1}
     paragraph_style: dict = {"namedStyleType": "NORMAL_TEXT"}
-    if blockquote_depth > 0:
-        indent = {"magnitude": _BLOCKQUOTE_INDENT_PT_PER_LEVEL * blockquote_depth, "unit": "PT"}
-        paragraph_style["indentStart"] = indent
-        paragraph_style["indentFirstLine"] = indent
+    first_line, start = _block_indents(blockquote_depth, content_level=list_depth)
+    if start > 0:
+        paragraph_style["indentStart"] = {"magnitude": start, "unit": "PT"}
+        paragraph_style["indentFirstLine"] = {"magnitude": first_line, "unit": "PT"}
     return [
         {"deleteParagraphBullets": {"range": rng}},
         {
