@@ -1555,6 +1555,18 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td>bullet with a <code>☑</code>/<code>☐</code> glyph prefix</td>
 </tr>
 <tr>
+<td>a block indented under an item (a second paragraph, code, a quote, a heading, a table, a rule, an image)</td>
+<td>the block inside the <code>&lt;li&gt;</code></td>
+<td>that block's own node with <code>list_depth</code> = the item's depth (#1094)</td>
+<td>no bullet, indented to the item's text (a quote one step further, with its border); the list continues past it, so the next item keeps its number</td>
+</tr>
+<tr>
+<td><code>- # Heading</code> (a heading as the item's own text)</td>
+<td><code>&lt;li&gt;&lt;h1&gt;</code></td>
+<td><code>BulletItem(heading_level=1)</code></td>
+<td>a bulleted HEADING_1 paragraph (#1094)</td>
+</tr>
+<tr>
 <td><code>\| a \| b \|</code></td>
 <td><code>&lt;table&gt;</code></td>
 <td><code>Table</code></td>

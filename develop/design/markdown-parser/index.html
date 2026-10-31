@@ -1604,14 +1604,19 @@ D1, D2, or listed here; <code>CHANGELOG.md</code> has the user-facing version.</
   item lost its bullet (#1111); with it, which this branch merged before approval, every one keeps
   its bullet. Python-Markdown kept some of those items bulleted, or dropped the blocks out of the
   list and restarted the numbering. A block inside a numbered item now stays inside one <code>&lt;ol&gt;</code>, so
-  the AST keeps every item ordered, but the emitter still splits the list around the block and
-  Docs restarts the numbering on screen (#1094).</li>
+  the AST keeps every item ordered. At the switch, the emitter still split the list around the
+  block and Docs restarted the numbering on screen; #1094 later fixed that (see "Fixed after the
+  switch" below).</li>
 <li><strong>A setext underline under an item's text</strong> (<code>- a</code> / <code>---</code>) makes that text a Heading 2 inside
-  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. The heading then
-  loses its bullet in the AST (#1094's open question). <code>***</code> is a rule in either parser.</li>
+  the item, as CommonMark reads it; Python-Markdown kept the item and a rule. At the switch the
+  heading lost its bullet in the AST; #1094 later made the item a bulleted Heading 2.
+  <code>***</code> is a rule in either parser.</li>
 <li><strong>Different, still wrong:</strong> front matter (DS-14) renders as a rule plus a Heading 2 instead of
-  a rule, a paragraph and a rule (#1173). A block inside a list item renders after the item, not
-  indented inside it: the AST has no blocks inside list items.</li>
+  a rule, a paragraph and a rule (#1173).</li>
+<li><strong>Fixed after the switch (#1094):</strong> a block inside a list item rendered after the item, at the
+  margin, since the AST had no way to put a block inside an item, and the next item restarted
+  the numbering. The block now carries its item's <code>list_depth</code>: it's indented under the item and
+  the list continues past it.</li>
 <li><strong>Unchanged:</strong> r03, r07, code blocks, inline code, inline HTML, images, unicode, and DS-01 to
   DS-13 (CRLF included).</li>
 </ul>
