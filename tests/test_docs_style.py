@@ -573,6 +573,295 @@ class TestStyleDocRangeTool:
         assert update["fields"] == "weightedFontFamily"
         assert update["textStyle"]["weightedFontFamily"] == {"fontFamily": "Courier New"}
 
+    async def test_font_family_only_restores_bold_over_bold_runs(self):
+        """#1273: a weightedFontFamily request with no bold in the same call clears
+        the range's direct bold, so the bold runs read before the batchUpdate are
+        restored in the same batch, after the font request."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 22,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Alpha ", "textStyle": {}},
+                                },
+                                {
+                                    "startIndex": 6,
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "Beta",
+                                        "textStyle": {"bold": True},
+                                    },
+                                },
+                                {
+                                    "startIndex": 10,
+                                    "endIndex": 22,
+                                    "textRun": {"content": " Gamma Delta\n", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 7, "end_index": 11, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert len(reqs) == 2
+        font_update = reqs[0]["updateTextStyle"]
+        assert font_update["fields"] == "weightedFontFamily"
+        bold_update = reqs[1]["updateTextStyle"]
+        assert bold_update["fields"] == "bold"
+        assert bold_update["textStyle"] == {"bold": True}
+        # only the bold part of the requested range [7, 11) is restored: [7, 10)
+        assert bold_update["range"] == {"startIndex": 7, "endIndex": 10}
+
+    async def test_adjacent_bold_runs_merge_into_one_restore_request(self):
+        """#1273: two adjacent bold runs inside the range restore as one span."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 4,
+                                    "textRun": {"content": "abc", "textStyle": {"bold": True}},
+                                },
+                                {
+                                    "startIndex": 4,
+                                    "endIndex": 7,
+                                    "textRun": {"content": "def", "textStyle": {"bold": True}},
+                                },
+                                {
+                                    "startIndex": 7,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "ghi", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 10, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        assert len(bold_updates) == 1
+        assert bold_updates[0]["range"] == {"startIndex": 1, "endIndex": 7}
+
+    async def test_font_family_with_bold_true_reads_nothing_and_restores_nothing(self):
+        """#1273's not-affected case: bold in the same range dict keeps the bold,
+        so no document read and no restore request."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "font_family": "Courier New", "bold": True}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        mock_docs.documents().get.assert_not_called()
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert len(reqs) == 1
+
+    async def test_font_family_read_failure_returns_error_dict(self):
+        """#1273: a failed document read before styling returns the error dict,
+        with no batchUpdate sent."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.side_effect = Exception("boom")
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert "boom" in result["error"]
+        mock_docs.documents().batchUpdate.assert_not_called()
+
+    async def test_font_only_restore_handles_element_without_start_index(self):
+        """The Docs API sometimes omits startIndex on an element, usually a
+        document's first one (indices._collect_doc_paragraphs guards this).
+        The restore must carry the offset forward from the paragraph's start
+        instead of raising a KeyError (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    # no startIndex, as on a first element;
+                                    # its bold run starts at the paragraph's own start
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "boldtext",
+                                        "textStyle": {"bold": True},
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 10, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"]
+            for r in reqs
+            if r["updateTextStyle"]["fields"] == "bold"
+            and r["updateTextStyle"]["textStyle"] == {"bold": True}
+        ]
+        assert bold_updates[0]["range"] == {"startIndex": 1, "endIndex": 10}
+
+    async def test_font_only_after_bold_false_range_stays_unbold(self):
+        """An earlier range in the same call that sets bold=False over the same
+        text must win over the pre-batch read: on bold text, bold=False then
+        font_family ends unbolded — no restore request re-bolds the overlap
+        (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "boldtext",
+                                        "textStyle": {"bold": True},
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 10, "bold": False},
+                {"start_index": 1, "end_index": 10, "font_family": "Georgia"},
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        # the earlier range set bold=False over the whole overlap, so the
+        # restore must not re-bold any of it
+        assert [u for u in bold_updates if u["textStyle"] == {"bold": True}] == []
+        assert reqs[0]["updateTextStyle"]["textStyle"] == {"bold": False}
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_font_only_after_bold_true_range_restores_bold(self):
+        """The reverse direction: bold=True then font_family on plain text must
+        end bolded — the restore accounts for the earlier range instead of
+        trusting the pre-batch read (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "plaintext", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 10, "bold": True},
+                {"start_index": 1, "end_index": 10, "font_family": "Georgia"},
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        assert bold_updates[0]["textStyle"] == {"bold": True}
+        assert bold_updates[1]["textStyle"] == {"bold": True}
+        assert bold_updates[1]["range"] == {"startIndex": 1, "endIndex": 10}
+
 
 # ---------------------------------------------------------------------------
 # create_paragraph_bullets / delete_paragraph_bullets tools (#334)
