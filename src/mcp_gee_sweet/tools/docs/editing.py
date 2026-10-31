@@ -191,6 +191,11 @@ def register(tool):
         To replace existing content with a soft-break block: delete it first with
         delete_doc_range, then call this tool at the same index.
 
+        This block sets namedStyleType explicitly, so any inline text styles the target
+        paragraph carried are cleared by the Docs API behaviour documented on
+        style_doc_range. Set the styles you want on the line dicts rather than relying
+        on the paragraph's previous formatting.
+
         Args:
             doc_id: The Google Doc file ID.
             index: Document position to insert at. Use get_doc_structure to find it.

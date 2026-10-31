@@ -279,6 +279,16 @@ def register(tool):
 
         Returns:
             Confirmation with docId and count of batchUpdate requests sent.
+
+        Note:
+            Setting named_style_type also clears the paragraph's existing inline text
+            styles. The v0.9.2 release QA pass reproduced an existing strikethrough being
+            removed, including in a control that set no other style fields, and it
+            reproduces when the named style written is the one the paragraph already
+            had. The cause is the Docs API's updateParagraphStyle(namedStyleType)
+            re-applying the named style's own text properties, not this tool's request
+            building: set the named style first, then re-apply text styles in a second
+            call. Passing only text-style fields never takes that path.
         """
         lc = ctx.request_context.lifespan_context
         if not ranges:
