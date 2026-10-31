@@ -112,6 +112,74 @@ class TestSyncFolder:
         assert result["uploaded"] == ["notes.md"]
         media = fs.svc.files.return_value.create.call_args_list[-1].kwargs["media_body"]
         assert _media_bytes(media) == BODY
+        # The bytes sent, not the file's size on disk (PR #1303 QA round 1).
+        assert result["size_bytes"] == len(BODY)
+
+    async def test_size_bytes_of_a_converted_md_without_front_matter(self, tmp_path):
+        (tmp_path / "notes.md").write_bytes(BODY)
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=_resolve_helpers()._ctx(fs),
+        )
+
+        assert result["size_bytes"] == len(BODY)
+
+    async def test_early_return_doesnt_read_the_file(self, tmp_path, monkeypatch):
+        """The plain-file-not-a-Doc upload_fail returns before the body is built
+        (PR #1303 QA round 1)."""
+        (tmp_path / "notes.md").write_bytes(FRONT_MATTER)
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    test_transfer._drive_file(
+                        "notes.md", "fa", mtime="2020-01-01T00:00:00.000Z", mime="text/markdown"
+                    )
+                ]
+            }
+        )
+
+        def _no_read(path):
+            raise AssertionError("read the file before an early return")
+
+        monkeypatch.setattr(transfer_module, "_read_md_without_front_matter", _no_read)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            convert_markdown=True,
+            ctx=_resolve_helpers()._ctx(fs),
+        )
+
+        assert "plain file" in result["failed"][0]["error"]
+
+    async def test_revision_moved_conflict_doesnt_read_the_file(self, tmp_path, monkeypatch):
+        """The revision-moved conflict returns before the body is built."""
+        resolve = _resolve_helpers()
+        fs = resolve._drive_edited(tmp_path, local_offset=600)
+        # Planning sees revision 2; the upload's fresh read sees 3.
+        resolve._revision_reads(fs, ["1", "2"], ["1", "2"], ["1", "2", "3"])
+
+        def _no_read(path):
+            raise AssertionError("read the file before an early return")
+
+        monkeypatch.setattr(transfer_module, "_read_md_without_front_matter", _no_read)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            resolve={"notes.md": "keep_local"},
+            ctx=resolve._ctx(fs),
+        )
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["failed"] == []
+        assert result["uploaded"] == []
+        assert fs.updated_files == []
 
     async def test_reupload_strips_front_matter(self, tmp_path):
         resolve = _resolve_helpers()

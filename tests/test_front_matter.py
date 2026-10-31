@@ -4,6 +4,7 @@ import time
 
 import pytest
 
+from mcp_gee_sweet.tools import front_matter
 from mcp_gee_sweet.tools.front_matter import strip_front_matter
 
 FIXTURE = "---\ntitle: Front matter\nauthor: QA\n---\n\n# Body heading\n\nBody text.\n"
@@ -51,7 +52,50 @@ class TestStripped:
         assert strip_front_matter("---\ntitle: x\n---") == ""
 
     def test_blank_lines_after_are_dropped_but_not_indentation(self):
-        assert strip_front_matter("---\na: 1\n---\n\n  \n    code\n") == "    code\n"
+        assert strip_front_matter("---\na: 1\n---\n\n \t\n    code\n") == "    code\n"
+
+    def test_no_break_space_line_after_is_kept(self):
+        """A line holding a no-break space is an authored spacer, not blank."""
+        text = "---\ntitle: x\n---\n\N{NO-BREAK SPACE}\nBody\n"
+        assert strip_front_matter(text) == "\N{NO-BREAK SPACE}\nBody\n"
+
+    def test_column_0_list_under_a_key(self):
+        """What yaml.dump and many Jekyll/Hugo templates write (PR #1303 QA round 1)."""
+        text = "---\ntitle: Post\ntags:\n- one\n- two\n-\n---\nBody\n"
+        assert strip_front_matter(text) == "Body\n"
+
+    def test_column_0_list_under_a_key_with_a_comment(self):
+        assert strip_front_matter("---\ntags: # list\n- one\n---\nBody\n") == "Body\n"
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            "tags: [a,\nb]\n",
+            "tags: [a, [b,\nc], d]\nnext: 1\n",
+            "map: {a: 1,\nb: 2}\n",
+            'desc: "multi\nline"\n',
+            'desc: "escaped \\" quote\nstill open"\n',
+            "desc: 'it''s\nopen'\n",
+            'tags: [a, "b,\n]c"]\n',
+            "tags: [a, # comment ]\nb]\n",
+        ],
+        ids=[
+            "flow-sequence",
+            "nested-flow",
+            "flow-mapping",
+            "double-quoted",
+            "escaped-quote",
+            "single-quoted",
+            "quoted-in-flow",
+            "comment-in-flow",
+        ],
+    )
+    def test_value_continued_on_column_0_lines(self, block):
+        assert strip_front_matter(f"---\n{block}---\nBody\n") == "Body\n"
+
+    def test_quotes_inside_a_plain_value_open_nothing(self):
+        text = "---\ntitle: Don't \"stop\"\nlist: [it's, x]\n---\nBody\n"
+        assert strip_front_matter(text) == "Body\n"
 
 
 class TestUnchanged:
@@ -80,15 +124,56 @@ class TestUnchanged:
             "----\ntitle: x\n----\n",
             # \v and \f don't end a line, so this opening line isn't "---".
             "---\vtitle: x\n---\n",
+            # A list item after a key that has a value on its line isn't YAML.
+            "---\ntitle: x\n- one\n---\n",
+            # A list before any key.
+            "---\n- one\ntitle: x\n---\n",
+            # A value still open at the closing line: not a valid mapping.
+            '---\ndesc: "never closed\n---\nBody\n',
+            "---\ntags: [a,\n---\nBody\n",
         ],
     )
     def test_not_front_matter(self, text):
         assert strip_front_matter(text) == text
 
+    def test_text_not_starting_with_a_delimiter_isnt_split(self, monkeypatch):
+        """The common case, most Markdown, returns before any line splitting."""
 
-def test_linear_on_long_lines():
-    """A long line inside an unclosed block doesn't backtrack quadratically."""
-    text = "---\n" + "a" + " " * 200_000 + "\n"
+        class _NoSplit:
+            def finditer(self, *args):
+                raise AssertionError("split into lines")
+
+        monkeypatch.setattr(front_matter, "_LINE_RE", _NoSplit())
+        assert strip_front_matter("# Heading\n\nBody\n") == "# Heading\n\nBody\n"
+
+    def test_lines_after_the_block_arent_split(self, monkeypatch):
+        """Scanning stops at the closing delimiter (and the blank lines after it)."""
+        seen = []
+        real = front_matter._LINE_RE
+
+        class _Counting:
+            def finditer(self, text, pos=0):
+                for m in real.finditer(text, pos):
+                    seen.append(m.group())
+                    yield m
+
+        monkeypatch.setattr(front_matter, "_LINE_RE", _Counting())
+        assert strip_front_matter("---\na: 1\n---\nBody\nmore\nlines\n") == "Body\nmore\nlines\n"
+        assert "more\n" not in seen
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "---\n" + "a" + " " * 200_000 + "\n",
+        "---\nk: [" + "[" * 200_000 + "\n",
+        '---\nk: "' + "\\ " * 200_000 + "\n",
+        "---\nk: [" + " , " * 200_000 + "\n",
+    ],
+    ids=["spaces", "nested-flow", "escapes", "flow-separators"],
+)
+def test_linear_on_long_lines(text):
+    """A long line inside an unclosed block doesn't backtrack or rescan."""
     start = time.perf_counter()
     assert strip_front_matter(text) == text
     assert time.perf_counter() - start < 1.0

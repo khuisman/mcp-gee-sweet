@@ -526,13 +526,17 @@ def _read_md_without_front_matter(path: Path) -> bytes | None:
     return None if stripped == text else stripped.encode("utf-8")
 
 
-async def _md_import_media(path: Path, mime: str) -> MediaFileUpload | MediaInMemoryUpload:
-    """The upload body for a .md file converted by Drive's Markdown import: the file
-    itself, or its bytes without front matter (_read_md_without_front_matter)."""
-    stripped = await asyncio.to_thread(_read_md_without_front_matter, path)
-    if stripped is None:
-        return MediaFileUpload(str(path), mimetype=mime, resumable=True)
-    return MediaInMemoryUpload(stripped, mimetype=mime, resumable=True)
+async def _upload_media(
+    path: Path, mime: str, *, convert_md: bool
+) -> MediaFileUpload | MediaInMemoryUpload:
+    """The upload body for a local file: the file itself, or for a .md converted by
+    Drive's Markdown import (convert_md), its bytes without front matter
+    (_read_md_without_front_matter) when it has any."""
+    if convert_md:
+        stripped = await asyncio.to_thread(_read_md_without_front_matter, path)
+        if stripped is not None:
+            return MediaInMemoryUpload(stripped, mimetype=mime, resumable=True)
+    return MediaFileUpload(str(path), mimetype=mime, resumable=True)
 
 
 async def _restamp_modified_time(
@@ -892,15 +896,14 @@ async def _upload_local_file(
         lmtime = _local_mtime_dt(path)
         lmtime_str = _drive_time_str(lmtime)
         metadata["modifiedTime"] = lmtime_str
-        if convert_mime is not None and Path(file_name).suffix.lower() == ".md":
+        convert_md = convert_mime is not None and Path(file_name).suffix.lower() == ".md"
+        if convert_md:
             # sync_folder's change-detection references for this Doc (#814).
             metadata["properties"] = {
                 **metadata["properties"],
                 **_converted_md_upload_properties(lmtime),
             }
-            media = await _md_import_media(path, mime)
-        else:
-            media = MediaFileUpload(str(path), mimetype=mime, resumable=True)
+        media = await _upload_media(path, mime, convert_md=convert_md)
         result = await execute_in_thread(
             drive_service.files()
             .create(
@@ -2143,11 +2146,6 @@ async def _sync_level(
                     check_read(p)
                     lmtime = _local_mtime_dt(p)
                     lmtime_str = _drive_time_str(lmtime)
-                    media = (
-                        await _md_import_media(p, mime)
-                        if convert_this
-                        else MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                    )
                     if name in drive_map:
                         existing = drive_map[name]
                         fid = existing["id"]
@@ -2201,6 +2199,9 @@ async def _sync_level(
                             update_body["properties"] = _converted_md_upload_properties(
                                 lmtime, reupload=True, baseline_rev=latest
                             )
+                        # Built only now, after every check that can return early:
+                        # a converted .md is read in full here (PR #1303 QA round 1).
+                        media = await _upload_media(p, mime, convert_md=convert_this)
                         await execute_in_thread(
                             drive_service.files()
                             .update(
@@ -2234,6 +2235,7 @@ async def _sync_level(
                                 **_convert_properties(name),
                                 **_converted_md_upload_properties(lmtime),
                             }
+                        media = await _upload_media(p, mime, convert_md=convert_this)
                         created = await execute_in_thread(
                             drive_service.files()
                             .create(
@@ -2256,6 +2258,10 @@ async def _sync_level(
                                 return {"kind": "upload_fail", "name": name, **restamp_failure}
                         synced_id = created["id"]
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
+                    if convert_this:
+                        # The bytes sent, which leave out any front matter (#1173),
+                        # not the file's size on disk.
+                        return {"kind": "upload_ok", "name": name, "bytes": media.size()}
                     try:
                         size = p.stat().st_size
                     except OSError as e:

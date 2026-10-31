@@ -742,9 +742,10 @@ class TestLooseListsAfter1164:
 class TestFrontMatter:
     """Plan rule D3 (#1173): leading YAML front matter isn't shown."""
 
-    def test_ds14_fixture_starts_with_its_heading(self):
+    @pytest.mark.parametrize("fixture", ["ds-14-front-matter.md", "ds-16-front-matter-lists.md"])
+    def test_fixture_starts_with_its_heading(self, fixture):
         md = (
-            Path(__file__).parent / "../docs/qa/fixtures/md/syntax/docstart/ds-14-front-matter.md"
+            Path(__file__).parent / "../docs/qa/fixtures/md/syntax/docstart" / fixture
         ).read_text()
         assert _outline(md) == [("H", 1, "Body heading"), ("P", 0, "Body text.")]
 
