@@ -441,6 +441,10 @@ Friction Kai typically hits during coordination, and where it goes — see `/ret
 
 - **The docs/roadmap.md direct-push allowance doesn't generalize** — "small and reversible" is a description of that one specific case, not a standing test for bypassing PR review elsewhere. Confirmed 2026-08-06: stretched it to a `uv.lock` fix by analogy, which skipped `ci.yml` entirely (it never triggers on a direct push to `develop`). Hard boundary now spelled out in `merge-pr.md` step 8 — read it there rather than re-deriving from "this feels small" in the moment.
 
+### The code-scanning ruleset ended direct pushes to `develop` (2026-10-31)
+
+- Ruleset 26262344 ("Require code scanning results (CodeQL)", `develop` and `main`, no bypass actors) was created 2026-10-31 so an `--admin` merge can't skip a failing CodeQL check: classic branch protection has `enforce_admins: false`, so `--admin` skips required checks too. Its first casualty was the next roadmap check-off: GitHub rejected the push with "Code scanning is waiting for results from CodeQL for the commit", since a pushed commit has no analysis yet. A ruleset bypass can't be limited to direct pushes (its modes cover both or only PR merges), so check-offs moved to roadmap PRs (`merge-pr.md` step 8) and the release merge-back to a PR (`release.md` step 8). This retires the direct-push allowance recorded in the entry above.
+
 ### A role-routed label isn't a version-label exemption
 
 *Dropped from the Retro list: folded into the role-routed-label rule under "Ticket triage and labeling".*
