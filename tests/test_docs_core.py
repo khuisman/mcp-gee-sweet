@@ -2128,17 +2128,98 @@ class TestMixedTypeNestedListKeepsNumbering:
 class TestAdjacentSameTypeListsStaySeparate:
     """#1241: two adjacent source lists of one type at one depth (a marker change,
     `-` then `*` or `1.` then `1)`) rendered as one Docs list, since the AST carried no
-    list boundary. Each BulletItem now carries its source list's id, and the emitter
-    starts a new Docs list where the id changes."""
+    list boundary. Each BulletItem now carries its source lists' ids, and the emitter
+    starts a new Docs list where they change."""
 
     def test_parser_gives_each_list_its_own_id(self):
         nodes = html_to_ast("<ul><li>a</li><li>b</li></ul><ul><li>c</li></ul>")
-        assert nodes[0].list_id == nodes[1].list_id != nodes[2].list_id
+        assert nodes[0].list_path == nodes[1].list_path == (1,)
+        assert nodes[2].list_path == (2,)
 
-    def test_item_after_nested_list_keeps_its_list_id(self):
+    def test_item_after_nested_list_keeps_its_list_path(self):
         nodes = html_to_ast("<ol><li>A<ul><li>x</li></ul></li><li>B</li></ol>")
-        ids = {item.runs[0].text: item.list_id for item in nodes}
-        assert ids["A"] == ids["B"] != ids["x"]
+        paths = {item.runs[0].text: item.list_path for item in nodes}
+        assert paths == {"A": (1,), "x": (1, 2), "B": (1,)}
+
+    def test_unclosed_li_keeps_the_list_it_opened_in(self):
+        # PR #1295 QA round 1: an <li> left open until </ul> is flushed after the
+        # pop, and used to read the next list's ids (or none) and the wrong depth.
+        nodes = html_to_ast("<ul><li>a</li><li>b</ul><ul><li>c</ul>")
+        assert [n.list_path for n in nodes] == [(1,), (1,), (2,)]
+        nodes = html_to_ast("<ol><li>P<ol><li>a</li><li>b</ol></li></ol>")
+        assert [(n.runs[0].text, n.depth, n.list_path) for n in nodes] == [
+            ("P", 0, (1,)),
+            ("a", 1, (1, 2)),
+            ("b", 1, (1, 2)),
+        ]
+
+    def test_unclosed_li_lists_render_separately(self):
+        requests, _ = _to_doc_requests("<ul><li>a</li><li>b</ul><ul><li>c</ul>")
+        lists = {text: list_name for text, _, list_name, _ in _render_lists(requests)}
+        assert lists["a"] == lists["b"] != lists["c"]
+
+    def test_list_after_deeper_fragment_starts_its_own(self):
+        # PR #1295 QA round 1: y's list follows a list whose only item x sits at depth
+        # 1 (its parent item dropped, #714). y isn't from a list enclosing x's, so it
+        # doesn't rejoin x's Docs list.
+        nodes = html_to_ast("<ol><li><ol><li>x</li></ol></li></ol><ol><li>y</li></ol>")
+        requests, _ = ast_to_requests(nodes)
+        creates = [r for r in requests if "createParagraphBullets" in r]
+        assert len(creates) == 2
+        lists = {text: list_name for text, _, list_name, _ in _render_lists(requests)}
+        assert lists["x"] != lists["y"]
+
+    def test_list_after_earlier_list_isnt_nested_in_it(self):
+        # A fragment of a separate list (its parent dropped) after a shallower list's
+        # item isn't nested under that item: its list doesn't enclose the fragment.
+        nodes = html_to_ast("<ol><li>P</li></ol><ol><li><ol><li>z</li></ol></li></ol>")
+        rendered = _render_lists(ast_to_requests(nodes)[0])
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["P"] != lists["z"]
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("P", 0, 1),
+            ("z", 1, 1),
+        ]
+
+    def test_trailing_nested_list_of_other_type(self):
+        # PR #1295 QA round 1 (a #1072 regression): a nested list of the other type
+        # that ends its top-level list left its tabs unconsumed, so a rendered one
+        # level too deep. The top list's range now spans its nested items.
+        html = _md_to_html("- P\n  - x\n- R\n  1. a\n  2. b\n")
+        requests, _ = _to_doc_requests(html)
+        rendered = _render_lists(requests)
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("P", 0, 1),
+            ("x", 1, 1),
+            ("R", 0, 2),
+            ("a", 1, 1),
+            ("b", 1, 2),
+        ]
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["P"] == lists["x"] == lists["R"] != lists["a"] == lists["b"]
+
+    def test_trailing_nested_list_keeps_a_following_table_in_place(self):
+        # "A\n\ta\nP\nB\n\tb\n" is 12 characters, so the placeholder sits at 13, less
+        # the 2 consumed tabs: the trailing list's tab counts too.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0),
+            BulletItem(runs=[Run("a")], depth=1, ordered=True),
+            Paragraph(runs=[Run("P")]),
+            BulletItem(runs=[Run("B")], depth=0),
+            BulletItem(runs=[Run("b")], depth=1, ordered=True),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        # The last entry is the table's placeholder paragraph (insertTable isn't modeled).
+        assert [(text, level) for text, level, _, _ in _render_lists(requests)][:-1] == [
+            ("A", 0),
+            ("a", 1),
+            ("P", None),
+            ("B", 0),
+            ("b", 1),
+        ]
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 11
 
     def test_issue_repro_bullets(self):
         html = _md_to_html("- a\n- b\n\n* c\n* d\n")
@@ -2225,8 +2306,8 @@ class TestAdjacentSameTypeListsStaySeparate:
 
     def test_explicit_ids_split_adjacent_lists(self):
         nodes = [
-            BulletItem(runs=[Run("a")], depth=0, ordered=True, list_id=1),
-            BulletItem(runs=[Run("b")], depth=0, ordered=True, list_id=2),
+            BulletItem(runs=[Run("a")], depth=0, ordered=True, list_path=(1,)),
+            BulletItem(runs=[Run("b")], depth=0, ordered=True, list_path=(2,)),
         ]
         requests, _ = ast_to_requests(nodes)
         assert [ordinal for _, _, _, ordinal in _render_lists(requests)] == [1, 1]

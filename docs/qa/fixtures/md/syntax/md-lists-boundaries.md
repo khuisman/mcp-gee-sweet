@@ -95,3 +95,11 @@ unindented code block
      1. Deep child
    1. Restarted child
 2. Outer two
+
+### LX-13 — a list ends with a sublist of the other type
+
+- First bullet
+  - Bullet child
+- Last bullet
+  1. Numbered child one
+  2. Numbered child two

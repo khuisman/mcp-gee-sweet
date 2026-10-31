@@ -166,19 +166,23 @@ def _after_bullet_pass(position: int, tabs_before: int) -> int:
 @dataclass(eq=False)
 class _BulletList:
     """One Docs list: the BulletItems one createParagraphBullets call bullets, as
-    segment_meta indices. `first`..`last` also spans every item nested inside it, of
-    either type (#1072).
+    segment_meta indices. A top-level list's `first`..`last` also spans every item
+    nested inside it, of either type (#1072), so its one call consumes every item's
+    phase-1 tabs, a trailing nested list's included (PR #1295 QA round 1).
 
     A list at the top of its contiguous block of items holds, in `nested`, every list
     nested anywhere inside it that isn't merged into it, in document order, so a list
     always comes before the lists nested in it. Such a nested list is usually of the
     other type, but not always: a same-type list that follows another sublist under
-    the same item (ordered, bullet, ordered) is one too, so it restarts."""
+    the same item (ordered, bullet, ordered) is one too, so it restarts.
+
+    `source_path` is the BulletItem.list_path of the item that started it."""
 
     ordered: bool
     first: int
     last: int
     min_depth: int
+    source_path: tuple[int, ...]
     top: _BulletList | None  # the top-level list this one is nested in
     nested: list[_BulletList]  # top-level lists only
 
@@ -186,8 +190,9 @@ class _BulletList:
 @dataclass
 class _OpenList:
     """A list level that's still open while _bullet_lists walks the items: its depth,
-    its list, the source list its items come from (BulletItem.list_id), and whether
-    its current item already has a list nested in it."""
+    its list, the id of the source list its items come from (the last entry of their
+    BulletItem.list_path; None when unknown), and whether its current item already
+    has a list nested in it."""
 
     depth: int
     bullet_list: _BulletList
@@ -195,12 +200,24 @@ class _OpenList:
     had_child: bool = False
 
 
-def _continues(open_list: _OpenList, node: BulletItem) -> bool:
-    """Whether `node`, at `open_list`'s depth, is the next item of that open list: the
-    same type, and the same source list when both ids are known (#1241)."""
-    if open_list.bullet_list.ordered != node.ordered:
+def _encloses(open_list: _OpenList, node: BulletItem) -> bool:
+    """Whether `node` sits in `open_list`'s source list or in a list nested in it
+    (#1241). True when either side's ids are unknown, which leaves depth and type to
+    decide, as before."""
+    return open_list.list_id is None or not node.list_path or open_list.list_id in node.list_path
+
+
+def _rejoins_root(root: _BulletList, node: BulletItem) -> bool:
+    """Whether `node`, shallower than every open list, joins the block's first list:
+    a run whose parents were dropped (#714) followed by more of an enclosing list. With
+    ids known, only a list enclosing the root's first item qualifies, so a separate
+    list after a deeper one starts its own (#1241)."""
+    if root.ordered != node.ordered:
         return False
-    return open_list.list_id is None or node.list_id is None or open_list.list_id == node.list_id
+    if not root.source_path or not node.list_path:
+        return True
+    path = node.list_path
+    return len(path) < len(root.source_path) and root.source_path[: len(path)] == path
 
 
 def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
@@ -209,19 +226,19 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
 
     A list of the other type nested in a list stays its own Docs list, at every level
     (#1072). An item continues the open list at its depth when it comes from the same
-    source list (`_continues`). A different list at that depth starts a new list, and
-    so does a shallower item with no open list left. A nested list joins its parent's list when it has the same
-    type and is the first list nested in that parent item, which keeps
-    numbered-in-numbered one Docs list as before; a later one under the same item is
-    a list of its own, so it restarts. A run of contiguous items whose parents were
-    dropped (#714), shallower than the block's first list, joins that list when the
-    types match, as one run did before.
+    source list. An open list that doesn't enclose the item (`_encloses`) is closed
+    first, so a different list at that depth starts a new list, and so does a
+    shallower item with no open list left. A nested list joins its parent's list when
+    it has the same type and is the first list nested in that parent item, which
+    keeps numbered-in-numbered one Docs list as before; a later one under the same
+    item is a list of its own, so it restarts. A run of contiguous items whose
+    parents were dropped (#714), shallower than the block's first list, joins that
+    list when it comes from a list enclosing it (`_rejoins_root`).
 
-    Two adjacent same-type lists at one depth (`1.` then `1)` markers, or `-` then
-    `*`) stay two Docs lists, at the top level or as sublists under one item, since
-    each item carries its source list's id (#1241). The later one is a new top-level
-    list, or a nested list that restarts. Items with no id (an AST not built by
-    html_parser) group by type alone, as before.
+    Two adjacent same-type lists (`1.` then `1)` markers, or `-` then `*`) stay two
+    Docs lists, at any depth, since each item carries its source lists' ids (#1241).
+    The later one is a new top-level list, or a nested list that restarts. Items with
+    no ids (an AST not built by html_parser) group by depth and type alone, as before.
 
     A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
     between two items keeps them in one list, as before."""
@@ -234,17 +251,15 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
             stack, root = [], None
             continue
         depth, ordered = node.depth, node.ordered
-        while stack and stack[-1].depth > depth:
+        while stack and (stack[-1].depth > depth or not _encloses(stack[-1], node)):
             stack.pop()
-        # A same-type source list ended at this depth: the item can't rejoin the
-        # block's first list through `root` either (#1241).
-        new_source_list = False
         if stack and stack[-1].depth == depth:
-            if _continues(stack[-1], node):
-                stack[-1].bullet_list.last = i
+            if stack[-1].bullet_list.ordered == ordered:
+                bullet_list = stack[-1].bullet_list
+                bullet_list.last = i
+                (bullet_list.top or bullet_list).last = i
                 stack[-1].had_child = False
                 continue
-            new_source_list = stack[-1].bullet_list.ordered == ordered
             stack.pop()
         if stack:
             enclosing = stack[-1]
@@ -252,17 +267,21 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
                 bullet_list = enclosing.bullet_list
             else:
                 top = enclosing.bullet_list.top or enclosing.bullet_list
-                bullet_list = _BulletList(ordered, i, i, depth, top=top, nested=[])
+                bullet_list = _BulletList(ordered, i, i, depth, node.list_path, top=top, nested=[])
                 top.nested.append(bullet_list)
             enclosing.had_child = True
-        elif root is not None and root.ordered == ordered and not new_source_list:
+        elif root is not None and _rejoins_root(root, node):
             bullet_list = root
         else:
-            bullet_list = root = _BulletList(ordered, i, i, depth, top=None, nested=[])
+            bullet_list = root = _BulletList(
+                ordered, i, i, depth, node.list_path, top=None, nested=[]
+            )
             tops.append(bullet_list)
         bullet_list.last = i
+        (bullet_list.top or bullet_list).last = i
         bullet_list.min_depth = min(bullet_list.min_depth, depth)
-        stack.append(_OpenList(depth, bullet_list, node.list_id))
+        list_id = node.list_path[-1] if node.list_path else None
+        stack.append(_OpenList(depth, bullet_list, list_id))
     return tops
 
 
