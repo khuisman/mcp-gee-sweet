@@ -1359,7 +1359,7 @@ class TestCellImageFill:
         assert self._cell_texts(doc, 1, 0, 0) == ["ta"]
         assert not any("insertInlineImage" in r for batch in batches for r in batch)
         assert images.embedded == set()
-        assert images.shown_as_text == {id(img)}
+        assert images.fallbacks.shown == {id(img)}
 
     async def test_linked_image_link_follows_its_insert(self):
         img = Image(src="a", link_url="https://x.com")
@@ -1388,7 +1388,7 @@ class TestCellImageFill:
         assert self._cell_texts(doc, 1, 0, 0) == [f"tb{IMG}"]
         assert dropped == [bad]
         assert images.embedded == {id(good)}
-        assert images.shown_as_text == {id(bad)}
+        assert images.fallbacks.shown == {id(bad)}
         assert id(bad) not in images.uris
         retry = batches[-1]
         i = next(i for i, r in enumerate(retry) if r.get("insertText", {}).get("text") == "b")
@@ -1443,7 +1443,7 @@ class TestCellImageFill:
         assert not any("insertInlineImage" in r for r in head)
         assert dropped == [c, b]
         assert images.embedded == {id(a)}
-        assert images.shown_as_text == {id(b), id(c)}
+        assert images.fallbacks.shown == {id(b), id(c)}
         assert self._cell_texts(doc, 1, 0, 0) == [f"one{IMG}"]
         assert self._cell_texts(doc, 1, 0, 1) == ["twob"]
         assert self._cell_texts(doc, 1, 1, 0) == ["threec"]

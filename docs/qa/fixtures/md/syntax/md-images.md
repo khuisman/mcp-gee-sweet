@@ -51,3 +51,9 @@ Text before ![inline icon](https://www.gstatic.com/images/branding/product/2x/do
 ### IM-12 — image Docs can't embed, empty alt
 
 Before ![](https://img.shields.io/badge/coverage-90%25-green) after.
+
+### IM-13 — image Docs can't embed, in a heading
+
+[Go to Badge heading](#badge-heading)
+
+#### Badge heading ![build](https://img.shields.io/badge/build-passing-brightgreen)

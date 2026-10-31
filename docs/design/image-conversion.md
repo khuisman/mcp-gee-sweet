@@ -72,6 +72,22 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   the batch carrying the text has landed: `send_dropping_failed_images`'s `on_applied` for the
   body, and `CellImages.shown_as_text` for cells. A batch that fails for another reason leaves
   it out.
+- **Not in a heading (PR #1310 QA round 1).** The anchor pass reads a heading's text from its
+  runs, so fallback text there joins the heading's own: `# MyProj ![build](svg)` became
+  "MyProj build", and `[Go](#myproj)` lost its link (`no_matching_heading`). GitHub leaves image
+  alt text out of a slug, so a README's TOC is written against the heading without it. An image
+  in any paragraph the anchor pass reads as a heading (any named style but `NORMAL_TEXT`:
+  `Heading`, a `BulletItem` with `heading_level`, a TITLE/SUBTITLE `NamedBlock`;
+  `emitter.heading_image_ids`, recorded on `ConvertedContent.heading_image_ids`) is dropped as
+  before #1099, with its link request, and reported by its `error` alone.
+- **One tracker.** `emitter.ImageFallbacks` builds every fallback (computing each image's text
+  once), records its request ids for the tail scan, and moves an image into `shown` from the
+  `on_applied` of the batch that carried it. The body's retry and `CellImages` share the one
+  instance `_apply_doc_content` makes, so both report `fallback_text` the same way.
+- **Source kinds.** `ast.image_source_kind` is the one classification (URL, `drive:`, `data:`,
+  local path), used by `_resolve_image_source`, the replace's folder check, and the fallback
+  text. A `data:` URI (markdown-it lets `data:image/...` through) is an error, since Docs takes
+  an image only by URL, and its fallback is its alt or "image", never its base64.
 - **What it doesn't cover.** `insert_inline_image` and `insert_local_images` insert one image
   the caller named at an index, and still fail outright: there's no source text to stand in for.
 
@@ -88,10 +104,17 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   else the doc's own folder (`_image_folder`). For the create tools that's the new doc's parent,
   which Drive reports even for My Drive's root. For the replace tools (`write_doc_content`,
   `update_doc_from_file`, which now take `folder_id` too), `_replace_doc_content` looks the doc's
-  parents up only when the content has a local image and no folder was given. A doc shared from
-  a folder the account can't see has no parents: with a local image in the content, the call
-  refuses before the backup copy and the clear, since replacing would drop every such image
-  (the #1139 report: a successful call that left the doc without its images).
+  parents up only when the content has a local image this server would upload and no folder was
+  given (`_uploadable_local_image`: the access policy allows reading it and it's a file). A doc
+  shared from a folder the account can't see has no parents, and a failed lookup (a 403, a 5xx)
+  has none to offer: either way the call refuses with `{"error", "docId"}` before the backup copy
+  and the clear, since replacing would drop every such image (the #1139 report: a successful call
+  that left the doc without its images). A local image that can't be read anyway (missing, or
+  refused by `LOCAL_FILE_ACCESS`) doesn't cause the refusal: a folder wouldn't help it, and it's
+  written as its alt text (PR #1310 QA round 1).
+- **One body for the create tools.** `create_doc_from_file` calls `_create_doc_with_content`
+  with `source_dir`, like `create_doc` and `upload_file`, so the image-folder fallback lives in
+  one place.
 
 ## Three source kinds, one shared resolver
 

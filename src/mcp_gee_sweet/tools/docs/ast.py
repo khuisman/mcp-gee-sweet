@@ -54,6 +54,29 @@ class Image:
     link_url: str | None = None
 
 
+# image_source_kind's values.
+IMAGE_SOURCE_URL = "url"
+IMAGE_SOURCE_DRIVE = "drive"
+IMAGE_SOURCE_DATA = "data"
+IMAGE_SOURCE_LOCAL = "local"
+
+
+def image_source_kind(src: str) -> str:
+    """What an Image.src names: an http(s) URL, a "drive:<file_id>", a "data:" URI
+    (inline bytes, which markdown-it's validateLink lets through for images), or,
+    for anything else, a local path. The one classification every image path uses
+    (#1232 QA round 1): resolving it, deciding whether a doc edit needs an upload
+    folder, and naming it in fallback text. Schemes are case-insensitive (RFC 3986)."""
+    lowered = src[:8].lower()
+    if lowered.startswith(("http://", "https://")):
+        return IMAGE_SOURCE_URL
+    if lowered.startswith("drive:"):
+        return IMAGE_SOURCE_DRIVE
+    if lowered.startswith("data:"):
+        return IMAGE_SOURCE_DATA
+    return IMAGE_SOURCE_LOCAL
+
+
 @dataclass
 class Cell:
     # Ordered text runs, inline images, and nested tables, in source order

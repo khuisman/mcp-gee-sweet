@@ -10,12 +10,77 @@ from pathlib import PurePath
 from urllib.parse import unquote, urlsplit
 
 from ...auth import execute_in_thread
-from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
+from .ast import (
+    IMAGE_SOURCE_LOCAL,
+    IMAGE_SOURCE_URL,
+    BulletItem,
+    Cell,
+    DocNode,
+    Heading,
+    Image,
+    NamedBlock,
+    Paragraph,
+    Row,
+    Run,
+    Table,
+    image_source_kind,
+)
 from .batch_retry import send_dropping_failed_images
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .md_to_html import valid_gfm_domain
 
 logger = logging.getLogger(__name__)
+
+
+class ImageFallbacks:
+    """The fallback text one doc edit writes in place of images (#1099), shared by
+    the body's retry (content._apply_doc_content) and the table fill (CellImages),
+    so both build, track and report it the same way.
+
+    requests() builds an image's fallback requests, computing its text once, and
+    records them. Their ids are in request_ids, for the body retry's tail scan
+    (_positional_insert_tail_start). applied(batch), called with each batch that
+    lands, moves an image into shown once the batch carrying its text has landed,
+    since a later batch failing for another reason can leave it out. It holds every
+    request dict it built until the edit is over, so an id() here never belongs to
+    a later request."""
+
+    def __init__(self) -> None:
+        self._texts: dict[int, str] = {}
+        self._images: dict[int, Image] = {}
+        self._written: dict[int, int] = {}  # id(image) -> UTF-16 length written
+        self._first: dict[int, tuple[dict, int]] = {}  # id(insertText) -> (it, id(image))
+        self.request_ids: set[int] = set()
+        self.shown: set[int] = set()
+
+    def text(self, image: Image) -> str:
+        key = id(image)
+        if key not in self._texts:
+            self._texts[key] = image_fallback_text(image)
+            self._images[key] = image
+        return self._texts[key]
+
+    def requests(self, image: Image, position: int) -> list[dict]:
+        text = self.text(image)
+        requests = image_fallback_requests(image, position, text)
+        self._written[id(image)] = utf16_len(text)
+        self._first[id(requests[0])] = (requests[0], id(image))
+        self.request_ids.update(id(r) for r in requests)
+        return requests
+
+    def written_length(self, image: Image) -> int:
+        """The UTF-16 length of the fallback text built for `image`, 0 if none."""
+        return self._written.get(id(image), 0)
+
+    def applied(self, batch: list[dict]) -> None:
+        for request in batch:
+            entry = self._first.get(id(request))
+            if entry is not None and entry[0] is request:
+                self.shown.add(entry[1])
+
+    def shown_texts(self) -> dict[int, str]:
+        """id(image) -> its fallback text, for each image whose text has landed."""
+        return {key: self._texts[key] for key in self.shown}
 
 
 class CellImages:
@@ -31,9 +96,10 @@ class CellImages:
     run_batch sends one batchUpdate. failed_request_index reads the index of the
     insertInlineImage an error names (None for any other error), and on_dropped is told
     about each image dropped that way. embedded collects id(image) for every image whose
-    insert went out in a batch that succeeded, and shown_as_text every image whose
-    fallback text did, each updated as each batch lands, so the caller can tell what
-    the fill placed, even after a raise.
+    insert went out in a batch that succeeded, updated as each batch lands, so the
+    caller can tell what the fill placed, even after a raise. The fallback text goes
+    through `fallbacks`, the edit's one ImageFallbacks, whose shown set says which
+    fallback texts landed.
     """
 
     def __init__(
@@ -42,21 +108,17 @@ class CellImages:
         run_batch: Callable[[list[dict]], Awaitable[None]],
         failed_request_index: Callable[[Exception], int | None],
         on_dropped: Callable[[Image, Exception], None],
+        fallbacks: ImageFallbacks | None = None,
     ):
         self.uris = uris
         self.embedded: set[int] = set()
-        self.shown_as_text: set[int] = set()
-        # id(image) -> the UTF-16 length of the fallback text written for it.
-        self._fallback_lengths: dict[int, int] = {}
+        self.fallbacks = fallbacks if fallbacks is not None else ImageFallbacks()
         self._run_batch = run_batch
         self._failed_request_index = failed_request_index
         self._on_dropped = on_dropped
-        # id(first request) -> (that request, image, its link request or None) for the
-        # batch being built and sent. The first request is an insertInlineImage, or the
-        # insertText of an image's fallback text, which is never dropped, so its link
-        # is recorded as None. It holds the request dicts themselves and is cleared
-        # once that batch settles, so no id() here can belong to a later batch's
-        # request.
+        # id(insert) -> (insert, image, its link request or None) for the batch being
+        # built and sent. It holds the request dicts themselves and is cleared once that
+        # batch settles, so no id() here can belong to a later batch's request.
         self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
 
     def insert_requests(self, image: Image, position: int) -> list[dict]:
@@ -64,7 +126,7 @@ class CellImages:
         link request) when it resolved, recorded for the retry, else its fallback text."""
         uri = self.uris.get(id(image))
         if uri is None:
-            return self._fallback_requests(image, position)
+            return self.fallbacks.requests(image, position)
         requests = _image_insert_requests(image, uri, position)
         link = requests[1] if len(requests) > 1 else None
         self._pending[id(requests[0])] = (requests[0], image, link)
@@ -75,13 +137,7 @@ class CellImages:
         text's length when it's written as text, 0 when neither was written."""
         if id(image) in self.uris:
             return 1
-        return self._fallback_lengths.get(id(image), 0)
-
-    def _fallback_requests(self, image: Image, position: int) -> list[dict]:
-        requests = image_fallback_requests(image, position)
-        self._fallback_lengths[id(image)] = image_fallback_length(image)
-        self._pending[id(requests[0])] = (requests[0], image, None)
-        return requests
+        return self.fallbacks.written_length(image)
 
     async def execute(self, requests: list[dict]) -> None:
         """Send one cell-fill batch, dropping each image Google can't fetch
@@ -108,12 +164,10 @@ class CellImages:
 
     def _applied(self, batch: list[dict]) -> None:
         sent = {id(r) for r in batch}
-        for first, image, _ in self._pending.values():
-            if id(first) in sent:
-                if "insertText" in first:
-                    self.shown_as_text.add(id(image))
-                else:
-                    self.embedded.add(id(image))
+        self.embedded.update(
+            id(image) for insert, image, _ in self._pending.values() if id(insert) in sent
+        )
+        self.fallbacks.applied(batch)
 
     def _drop(self, requests: list[dict], error: Exception) -> int | None:
         """Replace the image insert `error` names in `requests`, and its link request,
@@ -127,13 +181,13 @@ class CellImages:
             return None
         # _pending holds its requests alive, so an id() match is the request itself.
         entry = self._pending.get(id(requests[index]))
-        if entry is None or "insertInlineImage" not in entry[0]:
+        if entry is None:
             return None
         insert, image, link = entry
         position = insert["insertInlineImage"]["location"]["index"]
         del self._pending[id(insert)]
         self.uris.pop(id(image), None)
-        requests[index : index + 1] = self._fallback_requests(image, position)
+        requests[index : index + 1] = self.fallbacks.requests(image, position)
         if link is not None:
             requests[:] = [r for r in requests if r is not link]
         self._on_dropped(image, error)
@@ -528,6 +582,26 @@ def extract_images(nodes: list[DocNode]) -> list[Image]:
         items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
         images.extend(item for item in items if isinstance(item, Image))
     return images
+
+
+def heading_image_ids(nodes: list[DocNode]) -> set[int]:
+    """id() of every Image in a paragraph the heading-anchor pass reads as a heading:
+    any named style but NORMAL_TEXT (a Heading, a BulletItem with heading_level, a
+    TITLE/SUBTITLE NamedBlock), matching _walk_headings_and_anchor_runs.
+
+    Such an image gets no fallback text when it isn't embedded (#1232 QA round 1):
+    the text would join the heading's own and change its slug, so a "#slug" link
+    written against the heading (GitHub leaves image alt text out of a slug) would
+    be stripped. It's dropped and reported, as before #1099."""
+    ids: set[int] = set()
+    for node in nodes:
+        if (
+            isinstance(node, Heading)
+            or (isinstance(node, BulletItem) and node.heading_level is not None)
+            or (isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT")
+        ):
+            ids.update(id(item) for item in node.runs if isinstance(item, Image))
+    return ids
 
 
 def unstorable_link_urls(nodes: list[DocNode]) -> list[str]:
@@ -1352,36 +1426,36 @@ def image_fallback_text(image: Image) -> str:
     """The text written in place of an image Docs can't embed (#1099): its alt text,
     whitespace collapsed, or the last segment of its source when the alt is empty,
     since an empty line would leave no trace of the image or its link. Only that
-    segment, never a whole local path, so a server path doesn't land in the doc."""
+    segment, never a whole local path, so a server path doesn't land in the doc. A
+    drive: ID or a data: URI's bytes name nothing a reader would recognize, so
+    those fall back to "image" (#1232 QA round 1)."""
     alt = " ".join((image.alt or "").split())
     if alt:
         return alt
     src = image.src.strip()
-    if src.startswith(("http://", "https://")):
+    kind = image_source_kind(src)
+    if kind == IMAGE_SOURCE_URL:
         name = unquote(urlsplit(src).path.rstrip("/").rsplit("/", 1)[-1])
-    elif src.startswith("drive:"):
-        name = ""
-    else:
+    elif kind == IMAGE_SOURCE_LOCAL:
         name = PurePath(src).name
+    else:
+        name = ""
     return " ".join(name.split()) or "image"
 
 
-def image_fallback_length(image: Image) -> int:
-    """image_fallback_text's length in the doc's UTF-16 indices."""
-    return utf16_len(image_fallback_text(image))
-
-
-def image_fallback_requests(image: Image, position: int) -> list[dict]:
-    """Write `image`'s fallback text (image_fallback_text) at `position`, where its
-    insertInlineImage would have gone, for an image that didn't resolve or that Docs
-    couldn't fetch (#1099): an SVG badge, an unreachable URL, a missing local file.
+def image_fallback_requests(image: Image, position: int, text: str | None = None) -> list[dict]:
+    """Write `image`'s fallback text (`text`, else image_fallback_text) at
+    `position`, where its insertInlineImage would have gone, for an image that
+    didn't resolve or that Docs couldn't fetch (#1099): an SVG badge, an unreachable
+    URL, a missing local file.
 
     The image's link goes on the text. For an unlinked image, any link the text
     inherits from the character before it is cleared: inserted text, unlike an
     inserted image, takes its neighbor's style. Its other inherited styles stay, so
     it reads like the text around it. Like the image's own requests, the pair goes
     in the descending-position pass, where it moves nothing still to come."""
-    text = image_fallback_text(image)
+    if text is None:
+        text = image_fallback_text(image)
     link_url = _storable_link_url(image.link_url)
     return [
         {"insertText": {"location": {"index": position}, "text": text}},
