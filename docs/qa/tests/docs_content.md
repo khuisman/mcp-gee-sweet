@@ -5093,6 +5093,8 @@ Run 2 (ash).
 
 **Result (2026-10-29, PR #1295 @ 47607c8f) ❌ FAIL — Case 1 regressed; Cases 2–4 pass.** `create_doc_from_file` on the fixture, graded from `documents().get()`. Case 1: "Ordered child B1" is `nestingLevel` **2** (i.) and B2 is level 1 (a.), in one list; expected both at level 1, a. and b. A nested list of the other type that ends its top-level list renders its first item one level too deep. The same requests built from `develop`'s source, applied live, fail the same way, so this comes from #1072 (PR #1286), not PR #1295; sent back on PR #1295, whose diff changes `_top_list_requests`. Case 2: C1/C2 at level 1 (○). Case 3: 1., a., b., 2. Case 4: D2a/D2b at level 2 (■). No stray empty bullets this run (#1074's symptom didn't show). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)
 
+**Result (2026-10-30, PR #1295 @ 3af9a092, round 2) ✅ PASS — all four cases, Run 2 identical, checked on screen (`pr1295-r2/tc-doc190.png`).** Case 1: Parent A ●, A1/A2 ○, A2a ■; Parent B ●, Ordered child B1 **a.**, B2 **b.**, both at level 1. Case 2: C1/C2 ○ at level 1. Case 3: 1., a., b., 2. Case 4: D2a/D2b ■ at level 2. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"
+
 ---
 
 ### TC-DOC191: A multi-line fenced code block stays one Docs paragraph, and round-trips as one fence (#719) ⚠️ requires-oauth
