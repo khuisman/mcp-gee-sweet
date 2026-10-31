@@ -691,6 +691,9 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 2 (Kit): IM-13 plus the round-1 probes, EP-3 (`create_doc`, `content_format="markdown"`) only**
 `mcp-gee-sweet-kit` at f6307b59. IM-13: the Heading 4 reads "Badge heading" (no "build", no image, no gap), "Go to Badge heading" links to its `#heading=` URL, the call returns no `dropped_links`, and the `images` entry has an `error` and no `fallback_text`. Confirmed in Playwright. The round-1 heading probe (`# MyProj ![build](…svg)` with `[…](#myproj)`) now resolves the link. `![](data:image/png;base64,…)` is written as "image", with error "a data: URI image can't be embedded". An image-only cell's fallback under a preceding H1 stays at body size. A protocol-relative `![logo](//img.shields.io/…)` is still read as a local path ("No file found at '//img.shields.io/…'", written as "logo"); sent back. The other cases and EPs weren't rerun.
 
+**Result (2026-10-31) ✅ PASS (IM-14, IM-15; EP-4 `create_doc_from_file` only) — PR #1310 round 3 (Kit)**
+`mcp-gee-sweet-kit` at eb6ce267, `create_doc_from_file` on the raw `md-images.md`. IM-14: the Docs icon embedded from `//www.gstatic.com/…`, its `images` entry with no `error`. IM-15: the pixel embedded from `../../qa%20fixture%20pixel%20%C3%A9.png` (uploaded, `fileId`, no `error`). Both confirmed in Playwright. IM-11 to IM-13 on this EP matched their expected cells too. IM-04 and IM-06 failed only because the raw fixture still holds their `{QA_IMAGE_LOCAL_PATH}`/`{QA_IMAGE_DRIVE_ID}` placeholders (run-time substitution not done), not a product result. Also: HTML `<img src="  https://…  ">` and a padded `" //www.gstatic.com/… "` in a table cell both embedded with no `error`.
+
 ### TC-MD113: Tables ⚠️ destructive
 **Prompt**
 **Playwright: required**

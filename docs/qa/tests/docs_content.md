@@ -6611,3 +6611,6 @@ print(asyncio.run(c._replace_doc_content(lc, '{SCRATCH}', Path(F).read_text(), '
 
 **Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 2 (Kit), the fix commit's refusal changes only**
 Fresh interpreter against f6307b59. A missing local image (`/tmp/kit-nope.png`) with no folder known no longer refuses: the replace goes ahead and writes "gone" in its place, with `error` and `fallback_text` in `images`. `_doc_parents` now returns `(parents, error)` instead of raising: on a real doc it returned the doc's folder. But a nonexistent `doc_id` with an existing local image returns the "no Drive folder to upload it to … looking up the document's own folder failed (<HttpError 404 … File not found …>). Pass folder_id." refusal, which names the wrong problem (sent back). Parts A–C weren't rerun; the fix doesn't change their paths.
+
+**Result (2026-10-31) ✅ PASS (the round-3 unreachable-doc fix) — PR #1310 round 3 (Kit)**
+Fresh interpreter against eb6ce267, `folder_id=None`, with an existing local image and `doc_id='bogusDocIdDoesNotExist123'`: returns `{'error': "Couldn't read the document (it doesn't exist, or this account can't open it), so it was left unchanged: <HttpError 404 … File not found …>", 'docId': …}` instead of the folder refusal. Parts A–C weren't rerun; the fix doesn't change their paths.
