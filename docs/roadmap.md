@@ -397,7 +397,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
 - [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
 - [x] A numbered list restarts its numbering after a nested bullet list. #1241, the reverse case in the same run grouping, was folded in (maintainer, 2026-10-28) but PR #1286 didn't fix it, so #1241 stays open below — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
-- [ ] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241))
+- [x] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241)) (PR #1295)
 - [x] Images inside table cells are dropped silently ([#1073](https://github.com/khuisman/mcp-gee-sweet/issues/1073)) (PR #1215)
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
 - [ ] A bare '-' (empty list item) isn't recognized in Markdown ([#1075](https://github.com/khuisman/mcp-gee-sweet/issues/1075))
