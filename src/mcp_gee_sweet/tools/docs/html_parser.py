@@ -425,16 +425,18 @@ class _AstParser(HTMLParser):
         items, or loose in that list, isn't taken for content of the outer item. Every
         non-item leaf construction passes these, like _blockquote_fields.
 
-        "Open now" is the lists open when the block's own segment began (_block_lists),
-        not the live stack: a block left open until its list's </ul> is flushed after
-        the pop, the same case _make_bullet_item reads _block_lists for (#1241). A node
-        built with no block open uses the live stack.
+        "Open now" is the ids of the lists open when the block's own segment began
+        (_block_lists), not the live stack: a block left open until its list's </ul>
+        is flushed after the pop, the same case _make_bullet_item reads _block_lists
+        for (#1241). A node built with no block open uses the live stack.
 
-        The walk skips a deeper <li> frame rather than stopping at it: an item left
-        unclosed inside a nested list (`<li>x<p>y</ul>`) leaves its frame on
-        _block_stack after the </ul>, and text after that list still belongs to the
-        outer item (PR #1301 QA round 2)."""
-        open_lists = self._block_lists[0] if self._block_tag is not None else self._list_ordered
+        The walk skips any <li> frame whose lists aren't exactly the open ones rather
+        than stopping at it: an item left unclosed inside a nested list
+        (`<li>x<p>y</ul>`) leaves its frame on _block_stack after the </ul>, and text
+        after that list still belongs to the outer item (PR #1301 QA round 2). Frames
+        match by list ids, not depth, so a stale frame from a list that has closed
+        never matches a later list at the same depth (PR #1301 QA round 3)."""
+        open_ids = self._block_lists[1] if self._block_tag is not None else tuple(self._list_ids)
         if self._block_tag == "li" and self._block_resumed:
             lists = self._block_lists
         else:
@@ -442,7 +444,7 @@ class _AstParser(HTMLParser):
                 (
                     f
                     for f in reversed(self._block_stack)
-                    if f.outer_tag == "li" and len(f.lists[0]) == len(open_lists)
+                    if f.outer_tag == "li" and f.lists[1] == open_ids
                 ),
                 None,
             )
@@ -450,7 +452,7 @@ class _AstParser(HTMLParser):
                 return {}
             lists = frame.lists
         ordered, path = lists
-        if not ordered or len(ordered) != len(open_lists):
+        if not ordered or path != open_ids:
             return {}
         return {"list_depth": len(ordered) - 1, "list_path": path}
 

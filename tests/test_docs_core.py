@@ -626,6 +626,18 @@ class TestBlockInsideListItemAst:
             (0, nodes[0].list_path),
         ]
 
+    def test_stale_frame_from_a_closed_list_is_not_matched(self):
+        # PR #1301 QA round 3: matching frames by list depth let "loose", a block
+        # loose in q's nested list, take item x's stale frame from the first list.
+        nodes = html_to_ast(
+            "<ul><li>a<ul><li>x<p>y</ul></li></ul>"
+            "<ul><li>q<ul><li>r</li><p>loose</p></ul></li></ul>"
+        )
+        loose = nodes[-1]
+        assert loose.runs[0].text == "loose"
+        assert loose.list_depth is None
+        assert loose.list_path == ()
+
     def test_heading_item_interrupted_before_its_close_tag(self):
         # PR #1301 QA round 1: </h1> after the nested list fell through to the inline
         # end-tag path and decremented _tag_depth, so the later bare "z" and <hr>
