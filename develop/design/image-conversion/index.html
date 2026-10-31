@@ -1377,13 +1377,18 @@ tables and images, sorted descending and applied together. Interleaving them in 
 separate blocks, "all tables then all images") matters — a table inserted before a lower-position
 image within the same document would otherwise physically shift that image's precomputed
 position before it gets a chance to run.</p>
-<p><code>ast_to_requests</code> stays fully synchronous (no network I/O) by accepting an already-resolved
-<code>image_uris: dict[id(image), str]</code> map rather than doing any resolution itself.
-<code>extract_images(nodes)</code> is the paired helper the caller (<code>content.py</code>, async) uses to collect
-every <code>Image</code> in a parsed tree <em>before</em> calling <code>ast_to_requests</code>, resolve each one to a URI, and
-pass the map in. An <code>Image</code> with no entry in that map (resolution failed, or the caller never
-passed one at all) is silently omitted — the same graceful-degradation behavior any other
+<p><code>ast_to_requests</code> stays fully synchronous (no network I/O) by taking an
+<code>image_uris: dict[id(image), str]</code> map rather than doing any resolution itself. An <code>Image</code> with
+no entry in that map is silently omitted — the same graceful-degradation behavior any other
 unsupported construct already gets from this parser.</p>
+<p>Since #1240, <code>content._convert_doc_content</code> builds the requests <em>before</em> any image resolves, so
+a conversion that fails or is cancelled never reaches the doc. It collects every <code>Image</code> with
+<code>extract_images(nodes)</code> and passes a unique placeholder URI for each one. <code>_apply_doc_content</code>
+then resolves the images, swaps each resolved image's placeholder for its real URI, and drops an
+unresolved image's <code>insertInlineImage</code> request along with its link request. That gives the same
+requests as never emitting the image: an image takes no room in the text, and its insert sits in
+the descending-position tail, where removing one shifts none of the others
+(<code>test_unresolved_images_requests_match_never_emitting_them</code> pins this).</p>
 <h2 id="three-source-kinds-one-shared-resolver">Three source kinds, one shared resolver<a class="headerlink" href="#three-source-kinds-one-shared-resolver" title="Permanent link">&para;</a></h2>
 <p><code>src</code> may be a local filesystem path (uploaded to Drive, then shared), a <code>drive:&lt;file_id&gt;</code>
 reference to an already-uploaded file (shared, not uploaded), or a public <code>http(s)://</code> URL (used

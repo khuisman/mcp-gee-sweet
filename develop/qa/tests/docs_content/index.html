@@ -7661,6 +7661,89 @@ Run against PR #1164's merge in an isolated service-account sandbox on a Shared 
 **Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), committed fixtures**
 `mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code (markdown-it), in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. `tc-doc242-loose.md`: `a\n`/`b\n` (●), `a\n`/`b\n` (`DECIMAL`), `a\n`/`b\n` with a left border at `indentStart` 72pt, `a`/`a1`/`b` at levels 0/1/0, `☑ done`/`☐ todo`, then `t1`/`t2`. Each group has a `listId` of its own shared by its items, and the only empty paragraphs are the five separators and the body's final paragraph. `tc-doc242-loose.html`: `a\n`/`b\n` in one list with no padding, `styled` a `SUBTITLE` paragraph with no bullet, `plain` a bullet item, then the final empty paragraph. Docs trashed.
 
+---
+
+## Conversion before the replace (#1240)
+
+### TC-DOC243: A replace converts its content before it touches the doc, and an unresolved image's request is dropped with its link ⚠️ destructive
+**Purpose:** `write_doc_content` and `update_doc_from_file` used to copy and clear the doc before they converted the new Markdown, so a conversion that raised or was cancelled left the doc empty. Without a backup (`allow_no_backup=True`, or a `_no_backup_reason` case), nothing could restore it. The whole Markdown → HTML → AST → requests conversion now runs first, in one `asyncio.to_thread` call. Requests are now built before images resolve, with a placeholder for every image; an image that fails to resolve has its request and its link request dropped (part A). No input is known to make the conversion raise, so parts B and C inject the failure from a scratch script against the checkout under test, the way TC-DOC219 part B does.
+
+Run on a server whose account can own a copy of `{DOC_ID}` (see TC-DOC219).
+
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC243 before</p>")`. Note the doc's `name` from `get_file_metadata(file_id={DOC_ID})`.
+
+**Steps (part A, tool calls)**
+1. `write_doc_content(doc_id={DOC_ID}, content_format="markdown", content="# TC-DOC243 A\n\n[![Logo](https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png)](https://example.com/good-link)\n\n[![Missing](/tmp/tc-doc243-missing.png)](https://example.com/bad-link)\n\nAfter the images.\n")`
+2. `get_doc_as_markdown(doc_id={DOC_ID})`
+
+**Steps (part B, a conversion that raises; scratch script, same OAuth token as the server under test)**
+
+3. Run, with `{DOC_ID}` filled in, once with `ALLOW=0` and once with `ALLOW=1`:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>ALLOW=0 uv run python3 -c &quot;
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>import asyncio, os, mcp_gee_sweet
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>from types import SimpleNamespace
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>from unittest.mock import MagicMock, patch
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>from googleapiclient.discovery import build
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>from mcp_gee_sweet import auth
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>from mcp_gee_sweet.tools.docs import content as c
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>creds = auth._oauth_creds()
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>lc = SimpleNamespace(docs_service=build(&#39;docs&#39;, &#39;v1&#39;, credentials=creds),
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>    drive_service=build(&#39;drive&#39;, &#39;v3&#39;, credentials=creds), doc_cache=MagicMock(),
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    drive_folder_cache=MagicMock(), folder_id=None)
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>with patch.object(c, &#39;_convert_doc_content&#39;, side_effect=RuntimeError(&#39;injected parser failure&#39;)):
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    print(asyncio.run(c._replace_doc_content(lc, &#39;{DOC_ID}&#39;, &#39;# never written&#39;, &#39;markdown&#39;,
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>        autolink_urls=True, revoke_sharing=True, auto_downscale=False,
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>        allow_no_backup=os.environ[&#39;ALLOW&#39;] == &#39;1&#39;)))
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>&quot;
+</code></pre></div>
+4. `refresh_cache(doc_id={DOC_ID})`, `get_doc_as_markdown(doc_id={DOC_ID})`, and `search_files(query="<name> (backup before replace)")`
+
+**Steps (part C, a conversion cancelled mid-parse)**
+
+5. Run, with `{DOC_ID}` filled in:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>uv run python3 -c &quot;
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>import asyncio, time, mcp_gee_sweet
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>from types import SimpleNamespace
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>from unittest.mock import MagicMock, patch
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>from googleapiclient.discovery import build
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>from mcp_gee_sweet import auth
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>from mcp_gee_sweet.tools.docs import content as c
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>creds = auth._oauth_creds()
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>lc = SimpleNamespace(docs_service=build(&#39;docs&#39;, &#39;v1&#39;, credentials=creds),
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>    drive_service=build(&#39;drive&#39;, &#39;v3&#39;, credentials=creds), doc_cache=MagicMock(),
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>    drive_folder_cache=MagicMock(), folder_id=None)
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>real = c._convert_doc_content
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>def slow(*args):
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>    time.sleep(3)
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>    return real(*args)
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>async def main():
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>    with patch.object(c, &#39;_convert_doc_content&#39;, slow):
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>        try:
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>            await asyncio.wait_for(c._replace_doc_content(lc, &#39;{DOC_ID}&#39;, &#39;# never written&#39;,
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>                &#39;markdown&#39;, autolink_urls=True, revoke_sharing=True, auto_downscale=False,
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a>                allow_no_backup=True), 1)
+<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a>        except TimeoutError:
+<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a>            print(&#39;cancelled&#39;)
+<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a>asyncio.run(main())
+<a id="__codelineno-19-25" name="__codelineno-19-25" href="#__codelineno-19-25"></a>&quot;
+</code></pre></div>
+6. Repeat step 4.
+
+**Checks**
+- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'"
+- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then "After the images.". `https://example.com/bad-link` appears nowhere, linked to nothing: the dropped image's link didn't land on the text around it
+- Both step 3 runs print `{'error': "Couldn't convert the content, so the document was left unchanged: RuntimeError: injected parser failure", 'docId': '{DOC_ID}'}`
+- Step 4 shows step 2's content unchanged, and `search_files` finds no backup copy: nothing was copied
+- Step 5 prints `cancelled`, and step 6 shows step 2's content unchanged with no backup copy
+
+**Cleanup:** `write_doc_content(doc_id={DOC_ID}, content="<p>TC-DOC243 done</p>")`
+
+**Result (2026-10-29) ✅ PASS — PR #1296 round 1 (Kit)**
+`mcp-gee-sweet-kit` at 38f7131e, reconnected after the reset. Run on a scratch doc that this account owns, in `{FOLDER_ID}` (Shared Drive), instead of `{DOC_ID}`, so this destructive case couldn't collide with another QA shard. Parts B and C ran from scripts in this worktree (the printed module path confirmed the PR's `content.py`). Part A: step 1 returned no `error`; `images` held the logo (no `error`) and the missing path with "No file found at '/tmp/tc-doc243-missing.png'". Step 2 showed the heading, the logo linked to `https://example.com/good-link`, an empty paragraph where the dropped image was, then "After the images."; `bad-link` appeared nowhere. Part B: both `ALLOW=0` and `ALLOW=1` printed the expected `{'error', 'docId'}`; step 4 showed part A's content unchanged and found no backup copy. Part C printed `cancelled`, and the doc was again unchanged, with no backup copy. Extra cases: `_create_doc_with_content` with the same injected failure returned "Couldn't convert the content, so no document was created: RuntimeError: injected parser failure", and `search_files` found no doc. `update_doc_from_file` with a file containing an ordered list with a nested bullet, a table (one cell with a missing local image plus text, one with the logo), a missing linked image before " between [link](#heading)", and a tail paragraph: the list kept 1/2 around the nested bullet, the cell kept "cell text" and embedded the logo, " between" carried no link (the dropped image's `bad-link` didn't land on it), and the anchor resolved to `#heading=`. The scratch doc was trashed, and no backup copy was left behind.
+
+**Result (2026-10-30) ✅ PASS — PR #1296 round 2 (Kit)**
+`mcp-gee-sweet-kit` at daaa92eb, reconnected after the reset, on a scratch doc in `{FOLDER_ID}` as in round 1. Part A: same as round 1, with the logo embedded, the missing image reported in `images` with its error, an empty paragraph where it was, and no link on any text run. A fresh-interpreter rerun of parts B (`ALLOW=1`) and the create-path injection now also logs `ERROR mcp_gee_sweet.tools.docs.content Converting doc content failed (<outcome>)` with the traceback, before the same `{'error', ...}` result. Scratch doc trashed, no backup copy left.
+
 
 
 
