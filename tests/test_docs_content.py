@@ -4866,10 +4866,14 @@ class TestConvertBeforeTouchingDoc:
     async def test_conversion_error_leaves_doc_unchanged(self, tool, allow_no_backup, tmp_path):
         drive_svc, docs_svc = self._make_services()
         ctx = self._ctx(drive_svc, docs_svc)
-        with patch.object(
-            content_module, "_convert_doc_content", side_effect=RuntimeError("parser broke")
+        boom = RuntimeError("parser broke")
+        with (
+            patch.object(content_module, "_convert_doc_content", side_effect=boom),
+            patch.object(content_module, "logger") as mock_logger,
         ):
             result = await self._replace(tool, ctx, tmp_path, allow_no_backup=allow_no_backup)
+        # Returned, not raised, so the traceback is logged instead (PR #1296 QA round 1).
+        assert mock_logger.error.call_args.kwargs["exc_info"] is boom
         assert result == {
             "error": (
                 "Couldn't convert the content, so the document was left unchanged: "
@@ -4903,8 +4907,10 @@ class TestConvertBeforeTouchingDoc:
     async def test_conversion_error_creates_no_doc(self, tool, tmp_path):
         drive_svc, docs_svc = self._make_services()
         ctx = self._ctx(drive_svc, docs_svc)
-        with patch.object(
-            content_module, "_convert_doc_content", side_effect=RuntimeError("parser broke")
+        boom = RuntimeError("parser broke")
+        with (
+            patch.object(content_module, "_convert_doc_content", side_effect=boom),
+            patch.object(content_module, "logger") as mock_logger,
         ):
             if tool == "create_doc":
                 result = await _docs_tools[tool](
@@ -4920,6 +4926,7 @@ class TestConvertBeforeTouchingDoc:
                 "RuntimeError: parser broke"
             )
         }
+        assert mock_logger.error.call_args.kwargs["exc_info"] is boom
         self._assert_untouched(drive_svc, docs_svc)
 
     @pytest.mark.parametrize("content_format", ["markdown", "html"])

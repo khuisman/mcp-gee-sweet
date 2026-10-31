@@ -83,9 +83,8 @@ class ConvertedContent:
     unresolved one's request, plus its link request (`image_links`). Dropping it
     matches ast_to_requests omitting it: an image takes no room in the text, and its
     request sits in the descending-position tail, where removing one shifts none of
-    the others. `nodes` is kept so each id(image) stays valid."""
+    the others. `images` keeps every Image alive, so each id(image) stays valid."""
 
-    nodes: list[Any]
     images: list[Image]
     requests: list[dict]
     tables: list[Table]
@@ -115,7 +114,6 @@ def _convert_doc_content(
         nodes, start_index=1, image_uris=placeholder_uris, image_links=image_links
     )
     return ConvertedContent(
-        nodes=nodes,
         images=images,
         requests=requests,
         tables=tables,
@@ -136,8 +134,10 @@ async def _convert_in_thread(
 def _conversion_error_text(e: Exception, outcome: str) -> str:
     """The error for a content conversion that raised; `outcome` says what that
     left the Doc as ("no document was created", ...). Conversion has no expected
-    failures, so the type is always named: "list index out of range" alone says
-    little."""
+    failures, so any hit is a bug: the traceback is logged here, since the caller
+    returns the error instead of raising it, and the type is always named ("list
+    index out of range" alone says little)."""
+    logger.error("Converting doc content failed (%s)", outcome, exc_info=e)
     detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
     return f"Couldn't convert the content, so {outcome}: {detail}"
 
@@ -1030,8 +1030,9 @@ async def _apply_doc_content(
                 lifecycle.created_file_ids.add(file_id)
             image_outcomes.append(entry)
 
-    # Everything from here to the revoke can raise (the content batchUpdate, a non-image retry failure, fill_tables, anchor resolution) or be
-    # cancelled, and by now every local-path/drive: image above is already shared
+    # Everything from here to the revoke can raise (the content batchUpdate, a
+    # non-image retry failure, fill_tables, anchor resolution) or be cancelled, and
+    # by now every local-path/drive: image above is already shared
     # anyone:reader. So the lifecycle revokes on every exit, not only after success
     # (#789): revoking after a failed edit is harmless, since a doc that did embed
     # an image holds its own copy and one that didn't never needed the share.

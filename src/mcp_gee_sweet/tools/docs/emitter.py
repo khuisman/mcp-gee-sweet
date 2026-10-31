@@ -403,10 +403,11 @@ def _is_code_paragraph(node: DocNode) -> bool:
 def extract_images(nodes: list[DocNode]) -> list[Image]:
     """Collect every Image node in `nodes`, in document order.
 
-    Used by the caller (docs/content.py, an async function) to resolve each
-    image's src to a fetchable URI — a Drive upload, a share-permission
-    grant, or both — *before* calling ast_to_requests, since that stays a
-    synchronous, I/O-free function like the rest of this module (#333).
+    Used by docs/content.py's conversion to give each image a placeholder URI for
+    ast_to_requests, which stays a synchronous, I/O-free function like the rest
+    of this module (#333). The caller resolves each image's src to a fetchable
+    URI (a Drive upload, a share-permission grant, or both) only after the
+    requests are built, so a failed conversion never reaches the doc (#1240).
 
     Walks body-level nodes' own `runs` and every table cell's children, recursing
     into nested tables (#1073).
@@ -477,11 +478,11 @@ def ast_to_requests(
     after running the phase-1 batchUpdate, so that live cell indices are available.
 
     image_uris: maps id(image) (for each Image returned by extract_images(nodes), called
-    on this same `nodes` value beforehand) to its already-resolved fetchable URI. An Image
-    with no entry here (never resolved, or resolution failed) is silently omitted from the
-    requests — same fallback as any other unsupported construct — since the Docs API's
-    insertInlineImage has no notion of "insert later"; the caller is expected to have
-    already recorded why that image failed via extract_images's own resolution pass.
+    on this same `nodes` value beforehand) to the URI its insertInlineImage request gets.
+    An Image with no entry here is silently omitted from the requests — same fallback as
+    any other unsupported construct. docs/content.py passes a placeholder for every image
+    and, once the images resolve, swaps in each real URI and drops an unresolved image's
+    request (#1240).
 
     image_links: if given, filled with id(insertInlineImage request) -> the
     updateTextStyle request that links that image (#977), so a caller that drops a
