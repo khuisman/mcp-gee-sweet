@@ -682,6 +682,9 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-18) ❌ FAIL — 48/70 case×EP cells pass, in both runs; failures: #1121, #1073, #1101, #1102. IM-05 on EP-1/EP-2 is N/A. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 1 (Kit): IM-11 and IM-12 only, EP-3 (`create_doc`, `content_format="markdown"`) only**
+`mcp-gee-sweet-kit` at c136f679. IM-11: "Build status" link-styled, linking to `https://example.com/ci`, with `images` `error` + `fallback_text: "Build status"`. IM-12: one paragraph "Before coverage-90%-green after.", not linked, `fallback_text: "coverage-90%-green"`. An image-only table cell's fallback ("cell-x-blue") rendered at body size, including under a preceding H1. Confirmed in Playwright. The other cases and EPs weren't rerun. Found alongside: a badge inside a heading (`# MyProj ![build](…svg)`) puts its alt text in the heading, so a `[…](#myproj)` link to it is dropped as `no_matching_heading` (sent back on PR #1310).
+
 ### TC-MD113: Tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
