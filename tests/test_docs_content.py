@@ -449,9 +449,11 @@ class TestBlockquote:
         html = "<ul><li>Some intro<blockquote><p>quoted</p></blockquote>trailing</li></ul>"
         nodes = html_to_ast(html)
         assert [n.blockquote_depth for n in nodes] == [0, 1, 0]
-        bullets = [n for n in nodes if isinstance(n, BulletItem)]
-        assert "".join(r.text for r in bullets[0].runs) == "Some intro"
-        assert "".join(r.text for r in bullets[1].runs) == "trailing"
+        assert [type(n).__name__ for n in nodes] == ["BulletItem", "Paragraph", "Paragraph"]
+        assert "".join(r.text for r in nodes[0].runs) == "Some intro"
+        # Both the quote and the text after it are content of the one item (#1094).
+        assert [n.list_depth for n in nodes[1:]] == [0, 0]
+        assert "".join(r.text for r in nodes[2].runs) == "trailing"
 
     async def test_blockquote_wrapping_list_tags_bullet_items(self):
         html = "<blockquote><ul><li>a</li><li>b</li></ul></blockquote>"
@@ -546,13 +548,14 @@ class TestLiInterruptedByOtherBlocks:
 
     async def test_trailing_text_after_nested_list_is_not_dropped(self):
         html = "<ul><li>Parent<ul><li>Child</li></ul>trailing text</li></ul>"
-        bullets = [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
         texts_depths = [("".join(r.text for r in b.runs), b.depth) for b in bullets]
-        assert texts_depths == [
-            ("Parent", 0),
-            ("Child", 1),
-            ("trailing text", 0),
-        ]
+        assert texts_depths == [("Parent", 0), ("Child", 1)]
+        # The trailing text is more of Parent's content, not a new item (#1094).
+        assert isinstance(nodes[2], Paragraph)
+        assert "".join(r.text for r in nodes[2].runs) == "trailing text"
+        assert nodes[2].list_depth == 0
 
     async def test_unclosed_bold_does_not_leak_past_nested_list(self):
         html = "<ul><li>Item <b>bold text<ul><li>sub</li></ul></li></ul><p>After the list</p>"

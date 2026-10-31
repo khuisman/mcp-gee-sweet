@@ -87,6 +87,8 @@ class Table:
     # Indent only (#1097): the emitter indents a quoted table like its quote, but gives
     # it no border or quote spacing, and doesn't count it as quoted for separators.
     blockquote_depth: int = 0
+    list_depth: int | None = None  # #1094, see below
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see below
 
 
 # blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
@@ -96,6 +98,13 @@ class Table:
 # alike. The ids are parser-assigned counters with no meaning beyond identity, so they
 # don't take part in node equality. Empty when unknown (doc_to_ast.py): no separation.
 
+# list_depth (#1094): set on a block inside a list item (a second paragraph, a code
+# block, a quote, a heading, a table, a rule): the depth of that item. The emitter
+# indents the block to the item's text and keeps the list going past it, so the next
+# item continues its numbering. None for a block outside every list item. list_path is
+# the item's BulletItem.list_path (write side only, identity only, like
+# blockquote_path), so the emitter can tell which list the block belongs to.
+
 
 @dataclass
 class Heading:
@@ -104,6 +113,8 @@ class Heading:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
 
 
 @dataclass
@@ -112,6 +123,8 @@ class Paragraph:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
 
 
 @dataclass
@@ -133,6 +146,9 @@ class BulletItem:
     # here. Empty when unknown: the emitter then groups by type alone. Identity
     # only, so it doesn't take part in equality.
     list_path: tuple[int, ...] = field(default=(), compare=False)
+    # #1094: a list item whose own content is a heading ("- # Title"): the item is a
+    # bulleted paragraph in that HEADING_N style. None for an ordinary item.
+    heading_level: int | None = None
 
 
 @dataclass
@@ -142,6 +158,8 @@ class NamedBlock:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
 
 
 DocNode = Heading | Paragraph | BulletItem | Table | NamedBlock

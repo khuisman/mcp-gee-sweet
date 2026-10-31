@@ -70,3 +70,22 @@
    - Second child of one
 
 2. Loose parent two
+
+### LB-10 — text after a rule inside a list item
+
+1. Before the rule
+
+   ***
+
+   After the rule
+2. Next item
+
+### LB-11 — two separate quotes inside one list item
+
+1. Two quotes follow:
+
+   > First quote.
+
+   > Second quote.
+
+2. Next item

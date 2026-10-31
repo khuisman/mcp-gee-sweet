@@ -528,6 +528,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LB-07 | Item 1, the 3×2 table under it (C13 + C14), then item **2.** |
 | LB-08 | A bullet whose text is a Heading 1 "Heading inside an item", then a plain bullet, one list |
 | LB-09 | Item 1 with two nested bullets (level 1), then item **2.** |
+| LB-10 | Item 1, the rule under it, then "After the rule" as a plain paragraph indented under item 1 (C14, no bullet or number of its own), then item **2.** (#1094) |
+| LB-11 | Item 1, then two quotes under it, each with its own left border (two bars, not one), both indented under the item (C7 + C14), then item **2.** (#1094) |
 
 **Result (2026-10-18) ❌ FAIL — 17/72 case×EP cells pass, in both runs; failures: #1115, #1094, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 

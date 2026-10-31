@@ -498,10 +498,12 @@ class TestLooseListItemKeepsItsBullet:
         assert nodes[0].runs[0].text == "Real"
 
     def test_second_paragraph_in_an_item_is_still_a_separate_block(self):
-        # Only the item's first paragraph is transparent. "Content under a list
-        # item" is #1094's open question, so its shape stays as it was.
+        # Only the item's first paragraph is transparent. A later one is a block
+        # inside the item, marked with the item's depth (#1094).
         nodes = html_to_ast("<ul><li><p>a</p><p>b</p></li></ul>")
         assert [type(n) for n in nodes] == [BulletItem, Paragraph]
+        assert nodes[1].list_depth == 0
+        assert nodes[1].list_path == nodes[0].list_path
 
     # Once the `<li>` resumes after a nested block, its first paragraph is
     # already used, so the next `<p>` must not join the item again: that would
@@ -512,6 +514,8 @@ class TestLooseListItemKeepsItsBullet:
         assert [type(n) for n in nodes] == [BulletItem, BulletItem, Paragraph]
         assert [n.depth for n in nodes[:2]] == [0, 1]
         assert nodes[2].runs[0].text == "c"
+        # Under a: column 4 is short of b's content column (6).
+        assert nodes[2].list_depth == 0
 
     def test_third_paragraph_in_an_item_is_not_a_new_item(self):
         nodes = html_to_ast(_md_to_html("- a\n\n    b\n\n    c\n"))
@@ -524,6 +528,7 @@ class TestLooseListItemKeepsItsBullet:
         assert nodes[0].ordered is True
         assert [n.blockquote_depth for n in nodes] == [0, 1, 0]
         assert nodes[2].runs[0].text == "c"
+        assert [n.list_depth for n in nodes[1:]] == [0, 0]
 
     def test_paragraph_after_a_code_block_in_an_ordered_item_is_not_a_new_number(self):
         # An indented code block: python-markdown doesn't parse a fence inside a
@@ -559,6 +564,83 @@ class TestLooseListItemKeepsItsBullet:
         assert len(bullets) == 1
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "a\nb\n"
+
+
+class TestBlockInsideListItemAst:
+    """#1094: a block inside a list item is its own node, marked with the item's
+    list_depth and list_path, and never a new BulletItem."""
+
+    def test_each_block_kind_names_its_item(self):
+        for block in ("> q", "#### H", "***", "```\n   x\n   ```", "![i](http://e.com/i.png)"):
+            nodes = html_to_ast(_md_to_html(f"1. a\n\n   {block}\n\n2. b\n"))
+            inner = [n for n in nodes if not isinstance(n, BulletItem)]
+            assert len(inner) == 1, block
+            assert inner[0].list_depth == 0, block
+            assert inner[0].list_path == nodes[0].list_path, block
+            assert [type(n) for n in (nodes[0], nodes[-1])] == [BulletItem, BulletItem]
+
+    def test_table_names_its_item(self):
+        nodes = html_to_ast(_md_to_html("- a\n\n  | K | V |\n  |---|---|\n  | k | v |\n- b\n"))
+        assert isinstance(nodes[1], Table)
+        assert nodes[1].list_depth == 0
+        assert nodes[1].list_path == nodes[0].list_path
+
+    def test_block_under_a_nested_item_names_the_nested_item(self):
+        nodes = html_to_ast(_md_to_html("1. a\n   - b\n\n     > q\n\n   - c\n"))
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem, Paragraph, BulletItem]
+        assert nodes[2].list_depth == 1
+        assert nodes[2].list_path == nodes[1].list_path
+
+    def test_text_after_a_rule_in_an_item_is_not_a_new_bullet(self):
+        # Raw <li>a<hr>b</li> gave two bullets (PR #1228 QA round 4).
+        nodes = html_to_ast("<ul><li>a<hr>b</li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert [n.list_depth for n in nodes[1:]] == [0, 0]
+
+    def test_text_after_a_nested_list_in_a_transparent_paragraph_is_not_a_bullet(self):
+        # #1266 edge case 2: "tail" came out as a third bullet at depth 0.
+        nodes = html_to_ast("<ul><li><p>a<ul><li>x</li></ul>tail</p></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem, Paragraph]
+        assert nodes[2].runs[0].text == "tail"
+        assert nodes[2].list_depth == 0
+
+    def test_block_loose_in_a_nested_list_belongs_to_no_item(self):
+        # Not inside the outer item's own content: a list opened since.
+        nodes = html_to_ast("<ul><li>a<ul><li>b</li><p>stray</p></ul></li></ul>")
+        assert nodes[2].list_depth is None
+
+    def test_block_outside_every_list_has_no_list_depth(self):
+        nodes = html_to_ast(_md_to_html("- a\n\n> q\n\npara\n"))
+        assert [n.list_depth for n in nodes[1:]] == [None, None]
+
+    def test_heading_that_opens_an_item_is_the_item(self):
+        nodes = html_to_ast(_md_to_html("- # Title\n  more\n- b\n"))
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
+        assert nodes[0].heading_level == 1
+        assert nodes[0].runs[0].text == "Title"
+        assert nodes[1].list_depth == 0
+        assert nodes[2].heading_level is None
+
+    def test_setext_heading_under_an_item_is_the_item(self):
+        nodes = html_to_ast(_md_to_html("- a\n  ---\n- b\n"))
+        assert [(type(n), n.heading_level) for n in nodes] == [(BulletItem, 2), (BulletItem, None)]
+
+    def test_heading_after_item_text_is_a_block_inside_it(self):
+        nodes = html_to_ast(_md_to_html("- a\n  #### H\n- b\n"))
+        assert [type(n) for n in nodes] == [BulletItem, Heading, BulletItem]
+        assert nodes[0].heading_level is None
+        assert nodes[1].list_depth == 0
+
+    def test_second_heading_in_an_item_is_a_block_inside_it(self):
+        nodes = html_to_ast("<ul><li><h2>a</h2><h2>b</h2></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Heading]
+        assert nodes[0].heading_level == 2
+        assert nodes[1].list_depth == 0
+
+    def test_heading_item_keeps_its_inline_formatting(self):
+        nodes = html_to_ast("<ul><li><h3>a <b>bold</b></h3></li></ul>")
+        assert len(nodes) == 1
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("a ", None), ("bold", True)]
 
 
 class TestUnsupportedConstructPreservesParagraphBoundary:
@@ -2311,6 +2393,193 @@ class TestAdjacentSameTypeListsStaySeparate:
         ]
         requests, _ = ast_to_requests(nodes)
         assert [ordinal for _, _, _, ordinal in _render_lists(requests)] == [1, 1]
+
+
+def _md_lists(md: str) -> list[tuple[str, int | None, str | None, int | None]]:
+    requests, _ = _to_doc_requests(_md_to_html(md))
+    return _render_lists(requests)
+
+
+def _final_range(requests: list[dict], text: str) -> dict:
+    """The range of the paragraph whose text is `text` once `requests` have run."""
+    position = 1
+    for paragraph_text, *_ in _render_lists(requests):
+        end = position + len(paragraph_text) + 1
+        if paragraph_text == text:
+            return {"startIndex": position, "endIndex": end}
+        position = end
+    raise AssertionError(f"no paragraph {text!r}")
+
+
+def _final_indent_request(requests: list[dict], text: str) -> dict:
+    """The paragraph style the last indent-setting request gives `text`'s paragraph,
+    which must come after every bullet request (a later one would overwrite it)."""
+    rng = _final_range(requests, text)
+    index, style = max(
+        (i, r["updateParagraphStyle"]["paragraphStyle"])
+        for i, r in enumerate(requests)
+        if "updateParagraphStyle" in r
+        and r["updateParagraphStyle"]["range"] == rng
+        and "indentStart" in r["updateParagraphStyle"]["paragraphStyle"]
+    )
+    last_bullet = max(
+        i
+        for i, r in enumerate(requests)
+        if "createParagraphBullets" in r or "deleteParagraphBullets" in r
+    )
+    assert index > last_bullet
+    return style
+
+
+class TestBlockInsideListItem:
+    """#1094: a block inside a list item (a second paragraph, code, a quote, a heading,
+    a table, a rule) ended the item's list, so the next item restarted at 1. The block
+    now carries the item's list_depth: the list continues past it, and it's indented
+    to the item's text with no bullet. Numbering asserted through _render_lists."""
+
+    def test_fenced_code_in_an_ordered_item(self):
+        # The issue's repro (LB-05).
+        md = "1. Clone the repo:\n\n   ```bash\n   git clone x\n   ```\n\n2. Install.\n"
+        assert _md_lists(md) == [
+            ("Clone the repo:", 0, "N1", 1),
+            ("git clone x", None, None, None),
+            ("Install.", 0, "N1", 2),
+        ]
+
+    def test_tight_fence_lines_are_not_items(self):
+        # The tight variant (r04/r09): no blank lines around the fence.
+        md = "1. a\n2. b\n   ```python\n   x\n   y\n   ```\n3. c\n"
+        assert [(t, o) for t, _, _, o in _md_lists(md)] == [
+            ("a", 1),
+            ("b", 2),
+            ("x\x0by", None),
+            ("c", 3),
+        ]
+
+    def test_second_paragraph_in_an_item(self):
+        md = "1. First.\n\n   Second.\n\n2. Two.\n"
+        assert [(t, o) for t, _, _, o in _md_lists(md)] == [
+            ("First.", 1),
+            ("Second.", None),
+            ("Two.", 2),
+        ]
+
+    def test_every_block_kind_keeps_the_list(self):
+        for block in (
+            "> quoted",
+            "#### Inner heading",
+            "***",
+            "| K | V |\n   |---|---|\n   | k | v |",
+        ):
+            md = f"1. a\n\n   {block}\n\n2. b\n"
+            rendered = _md_lists(md)
+            items = [(t, lst, o) for t, _, lst, o in rendered if o is not None]
+            assert items == [("a", "N1", 1), ("b", "N1", 2)], block
+
+    def test_paragraph_under_a_nested_item_keeps_both_levels(self):
+        md = "1. a\n   - b1\n\n     para\n\n   - b2\n2. c\n"
+        assert _md_lists(md) == [
+            ("a", 0, "N1", 1),
+            ("b1", 1, "B2", 1),
+            ("para", None, None, None),
+            ("b2", 1, "B2", 2),
+            ("c", 0, "N1", 2),
+        ]
+
+    def test_code_under_a_nested_numbered_item(self):
+        md = "- a\n  1. x\n     ```\n     y\n     ```\n  2. z\n- b\n"
+        assert _md_lists(md) == [
+            ("a", 0, "B1", 1),
+            ("x", 1, "N2", 1),
+            ("y", None, None, None),
+            ("z", 1, "N2", 2),
+            ("b", 0, "B1", 2),
+        ]
+
+    def test_block_under_the_outer_item_closes_the_sublist(self):
+        # para is a's content, after a's sublist: c starts a new sublist under a.
+        md = "1. a\n   - b\n\n   para\n\n   - c\n2. d\n"
+        assert _md_lists(md) == [
+            ("a", 0, "N1", 1),
+            ("b", 1, "B2", 1),
+            ("para", None, None, None),
+            ("c", 1, "B3", 1),
+            ("d", 0, "N1", 2),
+        ]
+
+    def test_trailing_block_does_not_join_the_next_list(self):
+        md = "1. a\n\n   more\n\nOutside\n\n1. b\n"
+        rendered = _md_lists(md)
+        assert [(t, o) for t, _, _, o in rendered] == [
+            ("a", 1),
+            ("more", None),
+            ("Outside", None),
+            ("b", 1),
+        ]
+        assert rendered[0][2] != rendered[3][2]
+
+    def test_block_is_indented_to_its_item_text(self):
+        requests, _ = _to_doc_requests(_md_to_html("1. a\n\n   more\n\n2. b\n"))
+        style = _final_indent_request(requests, "more")
+        assert style["indentStart"] == {"magnitude": 36, "unit": "PT"}
+        assert style["indentFirstLine"] == {"magnitude": 36, "unit": "PT"}
+        assert "borderLeft" not in style
+
+    def test_block_under_a_nested_item_is_indented_one_level_further(self):
+        requests, _ = _to_doc_requests(_md_to_html("- a\n  - b\n\n    more\n\n  - c\n"))
+        style = _final_indent_request(requests, "more")
+        assert style["indentStart"] == {"magnitude": 72, "unit": "PT"}
+
+    def test_quote_in_an_item_gets_its_border_past_the_item_text(self):
+        requests, _ = _to_doc_requests(_md_to_html("- a\n\n  > q\n\n- b\n"))
+        style = _final_indent_request(requests, "q")
+        assert style["indentStart"] == {"magnitude": 72, "unit": "PT"}
+        assert style["indentFirstLine"] == {"magnitude": 72, "unit": "PT"}
+        assert "borderLeft" in style
+
+    def test_two_quotes_in_one_item_keep_the_list(self):
+        # The separator between the two quotes belongs to the item too.
+        rendered = _md_lists("1. a\n\n   > q1\n\n   > q2\n\n2. b\n")
+        items = [(t, lst, o) for t, _, lst, o in rendered if o is not None]
+        assert items == [("a", "N1", 1), ("b", "N1", 2)]
+
+    def test_table_in_an_item_is_inserted_at_the_item_text_indent(self):
+        md = "1. a\n\n   | K | V |\n   |---|---|\n   | k | v |\n\n2. b\n"
+        requests, tables = _to_doc_requests(_md_to_html(md))
+        assert len(tables) == 1
+        resets = [
+            r["updateParagraphStyle"]["paragraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r and r["updateParagraphStyle"]["fields"] == "*"
+        ]
+        assert resets[0]["indentStart"] == {"magnitude": 36, "unit": "PT"}
+        assert resets[0]["indentFirstLine"] == {"magnitude": 36, "unit": "PT"}
+
+    def test_heading_as_an_item_is_a_bulleted_heading(self):
+        # LB-08.
+        requests, _ = _to_doc_requests(_md_to_html("- # Heading inside an item\n- Plain\n"))
+        assert _render_lists(requests) == [
+            ("Heading inside an item", 0, "B1", 1),
+            ("Plain", 0, "B1", 2),
+        ]
+        rng = _final_range(requests, "Heading inside an item")
+        assert {
+            "updateParagraphStyle": {
+                "range": rng,
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "fields": "namedStyleType",
+            }
+        } in requests
+
+    def test_item_with_only_a_block_does_not_break_the_next_items(self):
+        # The item has no text of its own, so it has no bullet: its code is still
+        # indented under it, and the next items form one list.
+        md = "- ```\n  x\n  ```\n- b\n- c\n"
+        assert _md_lists(md) == [
+            ("x", None, None, None),
+            ("b", 0, "B1", 1),
+            ("c", 0, "B1", 2),
+        ]
 
 
 class TestBuildBlankParaBeforeTableCollapses:
