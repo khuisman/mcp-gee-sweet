@@ -3,6 +3,7 @@ entry point (#1116), and the html_parser shapes markdown-it's HTML reaches."""
 
 import re
 import time
+from pathlib import Path
 
 import pytest
 
@@ -736,3 +737,21 @@ class TestLooseListsAfter1164:
             ("OL", 0, "three"),
         ]
         assert all(r.font_family == "Courier New" for r in nodes[1].runs if isinstance(r, Run))
+
+
+class TestFrontMatter:
+    """Plan rule D3 (#1173): leading YAML front matter isn't shown."""
+
+    @pytest.mark.parametrize("fixture", ["ds-14-front-matter.md", "ds-16-front-matter-lists.md"])
+    def test_fixture_starts_with_its_heading(self, fixture):
+        md = (
+            Path(__file__).parent / "../docs/qa/fixtures/md/syntax/docstart" / fixture
+        ).read_text()
+        assert _outline(md) == [("H", 1, "Body heading"), ("P", 0, "Body text.")]
+
+    def test_crlf_front_matter(self):
+        md = "---\r\ntitle: x\r\n---\r\n\r\n# Body\r\n"
+        assert _outline(md) == [("H", 1, "Body")]
+
+    def test_rule_and_setext_heading_unchanged(self):
+        assert _md_to_html("---\nSome text\n---\n") == "<hr />\n<h2>Some text</h2>\n"

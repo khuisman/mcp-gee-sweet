@@ -12,6 +12,8 @@ from markdown_it import MarkdownIt
 from markdown_it.common.utils import normalizeReference, unescapeAll
 from markdown_it.token import Token
 
+from ..front_matter import strip_front_matter
+
 # GFM extended autolinks (https://github.github.com/gfm/#autolinks-extension-): a
 # www. or http(s):// link, or an email address, at the start of the text or after
 # whitespace, "*", "_", "~" or "(". A domain is dot-separated segments of
@@ -678,7 +680,8 @@ for _parser in (*_MARKDOWN_PARSERS.values(), _BLOCK_SCANNER):
 def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
     """Convert CommonMark/GFM Markdown to HTML with markdown-it-py: tables,
     strikethrough and GFM extended autolinks (bare http(s)://, www. and email
-    addresses), plus plan rules D1 and D2 (_preprocess).
+    addresses), plus plan rules D1 and D2 (_preprocess) and D3, leading YAML front
+    matter left out (strip_front_matter).
 
     autolink_urls=False skips the extended autolinks for callers who want a URL to
     render as plain text — e.g. a placeholder or example. Per-URL suppression (rather
@@ -687,4 +690,5 @@ def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
     # The pre-pass works line by line, so normalize line endings first, as markdown-it
     # itself does: in a CRLF file a blank line would otherwise read as "\r", not blank.
     md_text = md_text.replace("\r\n", "\n").replace("\r", "\n")
+    md_text = strip_front_matter(md_text)
     return _MARKDOWN_PARSERS[bool(autolink_urls)].render(_preprocess(md_text))
