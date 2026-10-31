@@ -686,6 +686,9 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 1 (Kit): IM-11 and IM-12 only, EP-3 (`create_doc`, `content_format="markdown"`) only**
 `mcp-gee-sweet-kit` at c136f679. IM-11: "Build status" link-styled, linking to `https://example.com/ci`, with `images` `error` + `fallback_text: "Build status"`. IM-12: one paragraph "Before coverage-90%-green after.", not linked, `fallback_text: "coverage-90%-green"`. An image-only table cell's fallback ("cell-x-blue") rendered at body size, including under a preceding H1. Confirmed in Playwright. The other cases and EPs weren't rerun. Found alongside: a badge inside a heading (`# MyProj ![build](…svg)`) puts its alt text in the heading, so a `[…](#myproj)` link to it is dropped as `no_matching_heading` (sent back on PR #1310).
 
+**Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 2 (Kit): IM-13 plus the round-1 probes, EP-3 (`create_doc`, `content_format="markdown"`) only**
+`mcp-gee-sweet-kit` at f6307b59. IM-13: the Heading 4 reads "Badge heading" (no "build", no image, no gap), "Go to Badge heading" links to its `#heading=` URL, the call returns no `dropped_links`, and the `images` entry has an `error` and no `fallback_text`. Confirmed in Playwright. The round-1 heading probe (`# MyProj ![build](…svg)` with `[…](#myproj)`) now resolves the link. `![](data:image/png;base64,…)` is written as "image", with error "a data: URI image can't be embedded". An image-only cell's fallback under a preceding H1 stays at body size. A protocol-relative `![logo](//img.shields.io/…)` is still read as a local path ("No file found at '//img.shields.io/…'", written as "logo"); sent back. The other cases and EPs weren't rerun.
+
 ### TC-MD113: Tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
