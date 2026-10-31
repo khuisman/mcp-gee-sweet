@@ -2232,6 +2232,7 @@
 <li>[x] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1167">#1167</a>) (live PASS 2026-10-27)</li>
 <li>[x] qa: live verification for PR #1149 (scheme-less link targets) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1190">#1190</a>) (live PASS 2026-10-27)</li>
 <li>[x] qa: live verification for PR #1026 (<code>font_family</code> in <code>style_doc_range</code>). Moved from ankylosaurus 2026-10-31 (maintainer) so the #1273 fix shipping here is checked live (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1153">#1153</a>) (live PASS 2026-10-31; heading-bold add-on failed → #1300)</li>
+<li>[x] qa: live verification for PR #1279 (<code>font_family</code> keeps direct bold, table cells, explicit <code>bold</code> in the same call) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1299">#1299</a>) (live PASS 2026-10-31)</li>
 <li>[ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1268">#1268</a>)</li>
 <li>[x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1263">#1263</a>) (PR #1270)</li>
 </ul>
@@ -2336,6 +2337,7 @@
 <p><strong>Triaged in 2026-10-31</strong></p>
 <ul>
 <li>[ ] <code>style_doc_range</code>: a <code>font_family</code>-only change turns off bold inherited from a named style (Docs writes <code>bold: false</code>). <code>wrong/narrow</code>, observed in #1153's live check; the second follow-up in #1273's family, after #1289 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1300">#1300</a>)</li>
+<li>[ ] <code>upload_local_file(convert=True)</code>: a <code>name=</code> without an extension errors instead of falling back to <code>local_path</code>'s extension. <code>loud/narrow</code>; the drop-<code>.md</code>-from-the-Doc-name half split out to #1309 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1307">#1307</a>)</li>
 </ul>
 <h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Queued after <em>ankylosaurus</em> (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.</p>
@@ -2402,7 +2404,10 @@
 <p><strong>Infrastructure</strong>
 - [x] <code>notifications/progress</code> feedback for long-running transfer calls (<code>download_folder</code>, <code>sync_folder</code>) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (PR #351) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/319">#319</a>)</p>
 <h3 id="decisions-needed-blocking-backlog-no-assigned-version">Decisions Needed — blocking backlog <em>(no assigned version)</em><a class="headerlink" href="#decisions-needed-blocking-backlog-no-assigned-version" title="Permanent link">&para;</a></h3>
-<p>All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to <em>ankylosaurus</em> as small fixes. Nothing is open here.</p>
+<p>All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to <em>ankylosaurus</em> as small fixes.</p>
+<ul>
+<li>[ ] Converted Markdown Doc keeps <code>.md</code> in its Drive name: keep it, drop it everywhere (sync and <code>skip_if_exists</code> then need another match), or drop it only for an explicit <code>name=</code>. Split from #1307's fix 2; Joy scopes; version follows the decision (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1309">#1309</a>)</li>
+</ul>
 <hr />
 <h2 id="bugs-found-in-phase-1-qa-run-2026-06-02">Bugs found in Phase 1 QA run (2026-06-02)<a class="headerlink" href="#bugs-found-in-phase-1-qa-run-2026-06-02" title="Permanent link">&para;</a></h2>
 <h3 id="add_chart-multi-column-range-fails-bug-1"><code>add_chart</code> — multi-column range fails (BUG-1)<a class="headerlink" href="#add_chart-multi-column-range-fails-bug-1" title="Permanent link">&para;</a></h3>
@@ -2453,6 +2458,7 @@ The Sheets API requires each series in a COMBO chart to declare its own <code>ty
 <li>[x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes <code>0.7.0.devN</code> on every push to <code>develop</code></li>
 <li>[x] Live QA system — fixture setup, per-release run files (<code>docs/qa/runs/vX.Y.Z.md</code>), Playwright OAuth automation (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/173">#173</a>) <em>(gate for v0.8.0)</em> (done 2026-06-26)</li>
 <li>[ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent <code>&lt;p&gt;</code> (from PR #1164). Bob, no version (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1267">#1267</a>)</li>
+<li>[ ] <code>kai_status.py</code>: report open code-scanning alerts on <code>develop</code>, and say in <code>kai.md</code> what Kai does with them. On deck, no version; the <code>kai.md</code> part needs Bob's prompt-QA (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1304">#1304</a>)</li>
 <li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure">GitHub Issues (label: infrastructure)</a> for open infrastructure work</li>
 </ul>
 <hr />
