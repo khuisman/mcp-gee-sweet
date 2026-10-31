@@ -1934,8 +1934,339 @@ class TestOrderedListNumbering:
 
     def test_interrupted_list_resumes_at_its_ordinal_in_commonmark(self):
         """The ticket's observed case (PR #1201 QA, TC-DOC233 step 5): one Docs
-        list with a table between its two items."""
+        list with a table between its two items.
+
+        Since #1302 a table the same list continues past reads as inside the item
+        before it, so the Markdown list doesn't end at it: both items are one list,
+        numbered 1 and 2."""
         doc = self._doc([self._item("step one"), self._table(), self._item("step two")])
         md = ast_to_markdown(document_to_ast(doc))
         assert "\n2. step two\n" in md
-        assert '<ol start="2">\n<li>step two</li>' in _COMMONMARK.render(md)
+        html = "".join(_COMMONMARK.render(md).split())
+        assert html.startswith("<ol><li><p>stepone</p><table>")
+        assert html.endswith("</table></li><li><p>steptwo</p></li></ol>")
+
+
+def _indents(start, first_line=None, quoted=False):
+    """paragraphStyle with both indents (pt), as emitter.py writes a block inside a
+    list item, plus a quote's left border when `quoted`."""
+    style = {
+        "indentStart": {"magnitude": start},
+        "indentFirstLine": {"magnitude": start if first_line is None else first_line},
+    }
+    if quoted:
+        style["borderLeft"] = {"color": {}}
+    return style
+
+
+def _item(text, list_id="l1", level=0, named_style=None):
+    para = _para(f"{text}\n", bullet={"listId": list_id, "nestingLevel": level})
+    para["paragraph"]["paragraphStyle"] = {
+        "indentStart": {"magnitude": 36 + 36 * level},
+        "indentFirstLine": {"magnitude": 18 + 36 * level},
+    }
+    if named_style:
+        para["paragraph"]["paragraphStyle"]["namedStyleType"] = named_style
+    return para
+
+
+def _one_cell_table(text="c"):
+    cell = {"tableCellStyle": {}, "content": [_para(text)]}
+    return {"table": {"tableRows": [{"tableCells": [cell]}]}}
+
+
+def _flat_html(markdown_text):
+    return "".join(_COMMONMARK.render(markdown_text).split())
+
+
+class TestDocToAstBlocksInsideListItems:
+    """#1302: the read-side inverse of #1094. A block emitter.py wrote inside a list
+    item is unbulleted, with both indents at its item's text indent (plus 36pt per
+    quote level), and the list goes on past it."""
+
+    def _nodes(self, content, lists=None):
+        return document_to_ast({"body": {"content": content}, "lists": lists or {}})
+
+    def test_second_paragraph_is_inside_the_item(self):
+        nodes = self._nodes([_item("one"), _para("more\n", para_style=_indents(36)), _item("two")])
+        assert nodes[1].list_depth == 0
+        assert nodes[1].blockquote_depth == 0
+
+    def test_block_after_the_last_item_is_inside_it(self):
+        nodes = self._nodes([_item("one"), _para("more\n", para_style=_indents(36))])
+        assert nodes[1].list_depth == 0
+
+    def test_quote_depth_counts_from_the_item_text_indent(self):
+        """The issue's `> >` case: a quote in an item sits at 72pt, which from the
+        margin reads as depth 2."""
+        nodes = self._nodes([_item("one"), _para("q\n", para_style=_indents(72, quoted=True))])
+        assert (nodes[1].list_depth, nodes[1].blockquote_depth) == (0, 1)
+
+    def test_nested_quote_inside_an_item(self):
+        nodes = self._nodes([_item("one"), _para("q\n", para_style=_indents(108, quoted=True))])
+        assert (nodes[1].list_depth, nodes[1].blockquote_depth) == (0, 2)
+
+    def test_block_under_a_nested_item(self):
+        nodes = self._nodes(
+            [_item("outer"), _item("inner", level=1), _para("more\n", para_style=_indents(72))]
+        )
+        assert nodes[2].list_depth == 1
+
+    def test_block_under_an_outer_item_after_a_nested_one(self):
+        nodes = self._nodes(
+            [
+                _item("outer"),
+                _item("inner", level=1),
+                _para("outer more\n", para_style=_indents(36)),
+                _para("still outer\n", para_style=_indents(72, quoted=True)),
+            ]
+        )
+        assert nodes[2].list_depth == 0
+        # The nested item ended at the block before, so 72pt is a quote in the
+        # outer item, not a paragraph in the inner one.
+        assert (nodes[3].list_depth, nodes[3].blockquote_depth) == (0, 1)
+
+    def test_text_indent_comes_from_the_documents_list_levels(self):
+        level = {"indentStart": {"magnitude": 50}, "glyphType": "DECIMAL"}
+        lists = {"l1": {"listProperties": {"nestingLevels": [level]}}}
+        nodes = self._nodes([_item("one"), _para("more\n", para_style=_indents(50))], lists)
+        assert nodes[1].list_depth == 0
+
+    def test_heading_and_code_inside_an_item(self):
+        heading = _para("H\n", para_style={**_indents(36), "namedStyleType": "HEADING_2"})
+        code = _para("x = 1\n", style={"weightedFontFamily": {"fontFamily": "Courier New"}})
+        code["paragraph"]["paragraphStyle"] = _indents(36)
+        nodes = self._nodes([_item("one"), heading, code, _item("two")])
+        assert isinstance(nodes[1], Heading)
+        assert nodes[1].list_depth == 0
+        assert nodes[2].list_depth == 0
+
+    @pytest.mark.parametrize(
+        "para_style",
+        [
+            None,  # at the margin
+            _indents(36, first_line=18),  # a hanging indent isn't how a block is written
+            _indents(54),  # between two levels' text indents
+            _indents(36, quoted=True),  # a quote at the margin, after the list
+        ],
+    )
+    def test_other_paragraphs_end_the_list(self, para_style):
+        nodes = self._nodes(
+            [
+                _item("one"),
+                _para("p\n", para_style=para_style),
+                _para("q\n", para_style=_indents(36)),
+            ]
+        )
+        assert nodes[1].list_depth is None
+        assert nodes[2].list_depth is None
+
+    def test_margin_quote_keeps_its_depth(self):
+        nodes = self._nodes([_item("one"), _para("q\n", para_style=_indents(36, quoted=True))])
+        assert (nodes[1].list_depth, nodes[1].blockquote_depth) == (None, 1)
+
+    def test_block_without_a_list_is_not_inside_one(self):
+        nodes = self._nodes([_para("more\n", para_style=_indents(36))])
+        assert nodes[0].list_depth is None
+
+    def test_table_the_list_continues_past_is_inside_the_item(self):
+        """A table has no indent the API reports (checked live), so the list going
+        on after it is the signal. Docs puts an empty, unindented paragraph before a
+        table inserted in an item; it waits along with the table."""
+        nodes = self._nodes([_item("one"), _para("\n"), _one_cell_table(), _item("two")])
+        assert nodes[1].list_depth == 0
+        assert nodes[2].list_depth == 0
+
+    def test_table_before_an_indented_block_is_inside_the_item(self):
+        nodes = self._nodes(
+            [_item("one"), _one_cell_table(), _para("more\n", para_style=_indents(36))]
+        )
+        assert nodes[1].list_depth == 0
+
+    def test_table_after_the_last_item_is_outside(self):
+        nodes = self._nodes([_item("one"), _one_cell_table(), _para("after\n")])
+        assert nodes[1].list_depth is None
+        nodes = self._nodes([_item("one"), _one_cell_table()])
+        assert nodes[1].list_depth is None
+
+    def test_table_between_two_lists_is_outside(self):
+        """What the write side makes of a table at the margin between two items:
+        two Docs lists (measured live)."""
+        nodes = self._nodes([_item("one"), _one_cell_table(), _item("two", list_id="l2")])
+        assert nodes[1].list_depth is None
+
+    def test_table_under_a_nested_item_takes_its_depth(self):
+        nodes = self._nodes(
+            [_item("outer"), _item("inner", level=1), _one_cell_table(), _item("next", level=1)]
+        )
+        assert nodes[2].list_depth == 1
+
+    def test_bulleted_heading_is_a_heading_item(self):
+        """Sky's addition to #1302: "- # Title" writes a bulleted HEADING_1."""
+        nodes = self._nodes([_item("Title", named_style="HEADING_1"), _item("plain")])
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].heading_level == 1
+        assert nodes[1].heading_level is None
+
+
+class TestAstToMarkdownBlocksInsideListItems:
+    """#1302: a block with a list_depth is written indented to its item's content
+    column, so CommonMark keeps it in the item and the list going past it."""
+
+    def test_paragraph_inside_an_ordered_item(self):
+        nodes = [
+            BulletItem(runs=[Run(text="one")], ordered=True, number=1),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+            BulletItem(runs=[Run(text="two")], ordered=True, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. one\n\n   more\n\n2. two\n"
+        assert _flat_html(md) == "<ol><li><p>one</p><p>more</p></li><li><p>two</p></li></ol>"
+
+    def test_content_column_follows_the_marker_width(self):
+        nodes = [
+            BulletItem(runs=[Run(text="ten")], ordered=True, number=10),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert "\n    more\n" in md
+        assert "<li><p>ten</p><p>more</p></li>" in _flat_html(md)
+
+    def test_quote_inside_a_bullet_item(self):
+        nodes = [
+            BulletItem(runs=[Run(text="a")]),
+            Paragraph(runs=[Run(text="quoted")], blockquote_depth=1, list_depth=0),
+            BulletItem(runs=[Run(text="b")]),
+        ]
+        md = ast_to_markdown(nodes)
+        assert "\n  > quoted\n" in md
+        assert _flat_html(md) == (
+            "<ul><li><p>a</p><blockquote><p>quoted</p></blockquote></li><li><p>b</p></li></ul>"
+        )
+
+    def test_code_block_inside_an_item(self):
+        code = Paragraph(runs=[_code("x = 1\n\ny = 2")], list_depth=0)
+        nodes = [BulletItem(runs=[Run(text="a")], ordered=True, number=1), code]
+        tokens = _COMMONMARK.parse(ast_to_markdown(nodes))
+        assert [t.content for t in tokens if t.type == "fence"] == ["x = 1\n\ny = 2\n"]
+        types = [t.type for t in tokens]
+        assert types[:2] == ["ordered_list_open", "list_item_open"]
+        assert types.index("fence") < types.index("list_item_close")
+
+    def test_table_inside_an_item(self):
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="c")])])], list_depth=0)
+        nodes = [
+            BulletItem(runs=[Run(text="one")], ordered=True, number=1),
+            table,
+            BulletItem(runs=[Run(text="two")], ordered=True, number=2),
+        ]
+        html = _flat_html(ast_to_markdown(nodes))
+        assert html.startswith("<ol><li><p>one</p><table>")
+        assert html.endswith("</table></li><li><p>two</p></li></ol>")
+
+    def test_block_under_a_nested_item(self):
+        nodes = [
+            BulletItem(runs=[Run(text="outer")]),
+            BulletItem(runs=[Run(text="inner")], depth=1),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+            BulletItem(runs=[Run(text="outer two")]),
+        ]
+        md = ast_to_markdown(nodes)
+        assert "\n    more\n" in md
+        assert _flat_html(md) == (
+            "<ul><li><p>outer</p><ul><li><p>inner</p><p>more</p></li></ul></li>"
+            "<li><p>outertwo</p></li></ul>"
+        )
+
+    def test_quoted_item_keeps_its_quote_outside_the_indent(self):
+        """A quoted list's item writes "> - a"; a quote inside that item has one
+        quote level from the list's quote and one of its own."""
+        nodes = [
+            BulletItem(runs=[Run(text="a")], blockquote_depth=1),
+            Paragraph(runs=[Run(text="inner")], blockquote_depth=2, list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "> - a\n>\n>   > inner\n"
+        assert _flat_html(md) == (
+            "<blockquote><ul><li><p>a</p><blockquote><p>inner</p></blockquote></li>"
+            "</ul></blockquote>"
+        )
+
+    def test_quoted_list_continues_past_a_block_inside_an_item(self):
+        """The blank lines around a block inside a quoted list's item keep the
+        list's quote going (">"), so the list continues past the block."""
+        nodes = [
+            BulletItem(runs=[Run(text="a")], ordered=True, number=1, blockquote_depth=1),
+            Paragraph(runs=[Run(text="more")], blockquote_depth=1, list_depth=0),
+            BulletItem(runs=[Run(text="b")], ordered=True, number=2, blockquote_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "> 1. a\n>\n>    more\n>\n> 2. b\n"
+        assert _flat_html(md) == (
+            "<blockquote><ol><li><p>a</p><p>more</p></li><li><p>b</p></li></ol></blockquote>"
+        )
+
+    def test_list_depth_with_no_open_item_renders_at_the_margin(self):
+        md = ast_to_markdown([Paragraph(runs=[Run(text="orphan")], list_depth=0)])
+        assert md == "orphan\n"
+
+    def test_margin_block_ends_the_items(self):
+        nodes = [
+            BulletItem(runs=[Run(text="a")]),
+            Paragraph(runs=[Run(text="margin")]),
+            Paragraph(runs=[Run(text="late")], list_depth=0),
+        ]
+        assert ast_to_markdown(nodes) == "- a\n\nmargin\n\nlate\n"
+
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_heading_item(self, ordered):
+        nodes = [
+            BulletItem(runs=[Run(text="Title")], ordered=ordered, number=1, heading_level=2),
+            BulletItem(runs=[Run(text="plain")], ordered=ordered, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md.split("\n")[0].endswith(" ## Title")
+        assert "<li><h2>Title</h2></li><li>plain</li>" in _flat_html(md)
+
+    @pytest.mark.parametrize("text", ["# not a heading", "> not a quote", "1. not a sublist"])
+    def test_item_text_that_looks_like_a_block_stays_text(self, text):
+        md = ast_to_markdown([BulletItem(runs=[Run(text=text)])])
+        expected = escape(text, quote=False).replace(" ", "")
+        assert _flat_html(md) == f"<ul><li>{expected}</li></ul>"
+
+
+class TestBlocksInsideListItemsRoundTrip:
+    """#1302's repro: LB fixture cases, with the indents a live create_doc of
+    md-lists-blocks.md reported, export with the same structure as their source."""
+
+    def _export(self, content):
+        return ast_to_markdown(document_to_ast({"body": {"content": content}, "lists": {}}))
+
+    def test_lb06_quote(self):
+        md = self._export(
+            [
+                _item("A bullet with a quote under it:"),
+                _para("Quoted text inside the item.\n", para_style=_indents(72, quoted=True)),
+                _item("Next bullet."),
+            ]
+        )
+        assert "> >" not in md
+        source = (
+            "- A bullet with a quote under it:\n\n  > Quoted text inside the item.\n\n"
+            "- Next bullet.\n"
+        )
+        assert _flat_html(md) == _flat_html(source)
+
+    def test_lb11_two_quotes_stay_two(self):
+        md = self._export(
+            [
+                _item("Two quotes follow:"),
+                _para("First quote.\n", para_style=_indents(72, quoted=True)),
+                _para("\n", para_style=_indents(36)),
+                _para("Second quote.\n", para_style=_indents(72, quoted=True)),
+                _item("Next item"),
+            ]
+        )
+        html = _flat_html(md)
+        assert html.count("<blockquote>") == 2
+        assert html.endswith("<li><p>Nextitem</p></li></ul>")

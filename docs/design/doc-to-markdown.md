@@ -96,6 +96,25 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   (`borderLeft` alone signals "this was our blockquote styling"; `indentStart` alone is
   ambiguous — plenty of ordinary paragraphs use indentation for unrelated reasons) and infers
   depth from `round(indentStart / 36)`.
+- **Blocks inside a list item** (#1302, the inverse of #1094): the write side puts a block inside
+  an item (a second paragraph, code, a quote, a heading, a rule's empty paragraph) after the
+  item, unbulleted, with `indentStart` and `indentFirstLine` both at the item's text indent (its
+  list level's `indentStart`) plus 36pt per quote level, and Docs keeps the list's numbering
+  going past it. `_ListItemContext` reads that back: a non-bullet paragraph after an item, whose
+  two indents are equal and land on the text indent of that item's level or a shallower one,
+  gets that level as `list_depth`, and its quote depth counts from the text indent, not the
+  margin (from the margin, a quote in an item at 72pt read as `> >`). The deepest matching level
+  wins, and the block closes the levels deeper than it. Anything else, a paragraph at the margin
+  or an item of another list, ends the list. A table has no indent the API reports (checked
+  live: an in-item table's JSON matches a margin table's), so a table, and the empty unindented
+  paragraph Docs puts before a table inserted in an item, waits: it's inside the item when the
+  same list continues after it, else outside. A table after a list's last item therefore reads
+  as outside it. A margin table between two items comes back as outside too, because the write
+  side splits the list there into two Docs lists (measured live).
+- **Bulleted headings** (#1302): a bulleted `HEADING_N` paragraph (what `- # Title` writes,
+  #1094) reads back as a `BulletItem` with `heading_level`. Since it renders as a heading inside
+  its item, `markdown_export._rendered_heading_slugs` counts it, like the write side's anchor
+  resolver does.
 - **Trailing paragraph newline**: every paragraph's content ends with a `"\n"` in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors `html_parser.py`'s own `<pre>`-close trailing-newline handling.
@@ -190,6 +209,15 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   tags), so this is a readability polish on the output, not a correctness fix. Caught during
   live round-trip verification (the initial version produced a blank line between every single
   list item, nested or not).
+- **Blocks inside a list item** (#1302): a node with a `list_depth` is indented to its item's
+  content column, the width of the item's own indent and marker (`_item_prefix`), so CommonMark
+  keeps it in the item and the list going past it. `_OpenItems` records the column of the last
+  item at each depth. A quoted item's quote markers come before its indent (`> - a`), so a block
+  inside it splits its quote levels the same way: as many as the item's go outside the indent,
+  the rest inside, and the blank lines around it carry the shared levels (`>`) so the quote
+  doesn't end. A bulleted heading renders as `- ## Title`. Every item's text now goes through
+  `_escape_leading_block_marker`, since text after the marker starts the item's first block:
+  `- # a` is a heading inside the item, and `- 1. a` a sublist.
 - **Tables**: the first row is always rendered as the header row — GFM pipe-table syntax
   structurally requires exactly one header + separator row, and the Docs API has no per-row
   "is this the header" signal to read back (unlike the AST's own `is_header_row`, which only
@@ -213,10 +241,10 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   `` \ ` * _ [ ] `` — not a line-leading `#`, `>`, `-`/`*`/`+`, or an ordered-list `N.`/`N)`.
   Live-confirmed a plain paragraph reading literally "1. Not actually a list item" or "# Not a
   heading either" round-tripped unescaped and any CommonMark parser reinterprets it as a real
-  ordered-list item or ATX heading. Fixed via `_escape_leading_block_marker`, applied only to
-  plain `Paragraph` rendering (not `Heading`/`NamedBlock`/`BulletItem`, which already have their
-  own legitimate same-line prefix, so content following it is never re-parsed as a new block
-  starting mid-line) and applied *before* any blockquote `"> "` wrapping (a `"> #"` line is parsed
+  ordered-list item or ATX heading. Fixed via `_escape_leading_block_marker`, applied to plain
+  `Paragraph` rendering (not `Heading`/`NamedBlock`, whose text follows their own `#` prefix and
+  is never re-parsed as a new block; a list item's text is escaped too since #1302, see above)
+  and applied *before* any blockquote `"> "` wrapping (a `"> #"` line is parsed
   as a heading nested inside the blockquote by CommonMark, so the escape has to happen first, not
   after). One CommonMark subtlety this surfaced: digits are not in CommonMark's escapable
   ASCII-punctuation set, so `\1` is not a valid escape and renders as a literal backslash — the

@@ -6551,3 +6551,56 @@ asyncio.run(main())
 
 **Result (2026-10-30) ✅ PASS — PR #1296 round 2 (Kit)**
 `mcp-gee-sweet-kit` at daaa92eb, reconnected after the reset, on a scratch doc in `{FOLDER_ID}` as in round 1. Part A: same as round 1, with the logo embedded, the missing image reported in `images` with its error, an empty paragraph where it was, and no link on any text run. A fresh-interpreter rerun of parts B (`ALLOW=1`) and the create-path injection now also logs `ERROR mcp_gee_sweet.tools.docs.content Converting doc content failed (<outcome>)` with the traceback, before the same `{'error', ...}` result. Scratch doc trashed, no backup copy left.
+
+---
+
+### TC-DOC244: `get_doc_as_markdown` keeps a block inside a list item in the item, and a bulleted heading as `- # Title` ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #1302, the read-side inverse of #1094. Since #1094 the write side puts a block inside a list item (a second paragraph, a code block, a quote, a table, a rule) under its item, unbulleted and indented to the item's text, with the list going on past it. The export wrote each such block at the margin, so re-importing ended the list there, and a quote in an item (72pt: the item's text at 36pt plus one quote step) came back as `> >`. A bulleted HEADING_N paragraph (`- # Title`) came back as `- Title`. The export now writes the block indented to its item's content column, counts its quote depth from the item's text, and writes a bulleted heading as `- #… Title`. A table has no indent the Docs API reports, so a table is read as inside an item only when the same list continues after it.
+
+**Prompt**
+1. `create_doc(title="TC-DOC244", content_format="markdown", folder_id="{FOLDER_ID}", content=<docs/qa/fixtures/md/syntax/md-lists-blocks.md, followed by the text below>)`:
+   ```
+   ### LB-12 — block under a nested item
+
+   - Outer
+     - Inner item
+
+       Inner second paragraph
+
+   - Outer two
+
+   ### LB-13 — quoted list with a block inside an item
+
+   > 1. Quoted one
+   >
+   >    More of quoted one
+   >
+   > 2. Quoted two
+
+   ### LB-14 — table at the margin between two items
+
+   1. Step one
+
+   | A | B |
+   |---|---|
+   | 1 | 2 |
+
+   2. Step two
+   ```
+2. `get_doc_as_markdown(doc_id=<step 1's docId>)`
+3. `create_doc(title="TC-DOC244 round trip", content_format="markdown", folder_id="{FOLDER_ID}", content=<step 2's markdown>)`, then `get_doc_as_markdown` on it
+
+**Checks**
+- Step 2, LB-04: `1. First paragraph of item one.`, a blank line, `   Second paragraph of item one.` (3 spaces), a blank line, `2. Item two.`
+- LB-05: the fenced block's fence and code lines indented 3 spaces between `1. Run the installer:` and `2. Then start the service.`
+- LB-06: `  > Quoted text inside the item.` (2 spaces, one `>`), between the two bullets. No `> >` anywhere in the output except where the source has a nested quote
+- LB-07: every table line indented 3 spaces, between `1. Compare the options:` and `2. Pick one.`
+- LB-08: `- # Heading inside an item`, then `- Plain item after it`
+- LB-10: `   After the rule` (3 spaces) before `2. Next item`
+- LB-11: `   > First quote.` and `   > Second quote.`, separated by at least two blank lines, before `2. Next item`
+- LB-12: `    Inner second paragraph` (4 spaces), then `- Outer two`
+- LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
+- LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
+- Step 3's export equals step 2's, except that LB-10 has two fewer blank lines: the rule exports as an empty paragraph, which the re-import drops (#1096)
+
+**Cleanup:** `delete_file` both docs

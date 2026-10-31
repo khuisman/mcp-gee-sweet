@@ -105,6 +105,23 @@ needs Markdown inside it as HTML instead.
 
 ---
 
+### `get_doc_as_markdown` exports a table after a list's last item outside the list
+
+**What:** A table inside a list's last item (`1. a\n\n   | x |\n   |---|\n`) is written to the
+Doc indented under the item, but `get_doc_as_markdown` exports it at the margin, after the list. A
+table inside an item that another item of the same list follows exports inside the item, as do a
+paragraph, code block, quote, or heading inside any item.
+
+**Why:** The export finds a block inside an item from its indent (#1302). A paragraph's indent is
+in the Docs API's `paragraphStyle`, but a table's isn't reported anywhere: the JSON of a table
+inside an item matches one at the margin (checked live). So a table counts as inside an item only
+when the same Docs list continues after it, which a list's last item never has.
+
+**Workaround:** None in the export. Indent the table under its item by hand in the exported
+Markdown. Related: `docs/qa/tests/docs_content.md` TC-DOC244.
+
+---
+
 ### A list inside a blockquote draws its own quote bar, offset from the quote's
 
 **What:** In Markdown or HTML content written to a Doc, a list inside a blockquote shows its gray
