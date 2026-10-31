@@ -41,16 +41,160 @@ def document_to_ast(document: dict) -> list[DocNode]:
     """Walk a `documents().get()` response body into a list of DocNode."""
     nodes: list[DocNode] = []
     list_counter = _ListCounter()
+    items = _ListItemContext(document)
     for elem in document.get("body", {}).get("content", []):
         if "paragraph" in elem:
-            node = _paragraph_to_node(elem["paragraph"], document, list_counter)
-            if node is not None:
-                nodes.append(node)
+            para = elem["paragraph"]
+            node = _paragraph_to_node(para, document, list_counter)
+            if isinstance(node, BulletItem):
+                items.item(para["bullet"])
+            else:
+                items.block(node, para)
+            nodes.append(node)
         elif "table" in elem:
-            nodes.append(_table_elem_to_ast(elem["table"], document))
+            table = _table_elem_to_ast(elem["table"], document)
+            nodes.append(table)
+            items.table(table)
         # sectionBreak, tableOfContents: no Markdown equivalent, silently skipped
         # — same "unsupported construct" convention html_parser.py uses on write.
+    items.close()
     return nodes
+
+
+# How far apart two indents (pt) can be and still match: Docs reports whole points
+# for what emitter.py writes, so this only absorbs float noise.
+_INDENT_TOLERANCE_PT = 0.5
+
+
+class _ListItemContext:
+    """Finds the blocks that sit inside a list item (#1302), the inverse of #1094's
+    write side, and sets their `list_depth`.
+
+    emitter.py writes such a block unbulleted, after its item, with both indents at
+    the item's text indent (its list level's indentStart) plus 36pt per quote level,
+    and Docs keeps the list's numbering going past it. So a non-bullet paragraph that
+    follows an item, with indentFirstLine equal to indentStart and indentStart at the
+    text indent of that item's level or a shallower one, is a block inside the item
+    at that level. Its quote depth counts from that text indent, not the margin. The
+    deepest matching level wins, and the block closes the levels deeper than it, as
+    on the write side.
+
+    Some blocks can't be placed by indent alone, so they wait until the list either
+    goes on or ends. A table has no indent the API reports. A quote in an item can
+    sit exactly where a deeper quote at the margin would (a quote in a level-0 item
+    is at 72pt, like a margin `> >`). An empty, unindented paragraph waits too, since
+    Docs puts one before a table inserted in an item. A waiting block is inside the
+    item when the list goes on: an item of a list open at its depth or a sublist
+    nested under the last item (of either type, which #1072 gives its own listId),
+    or a block that is plainly inside an item, comes before anything that ends the
+    list. Otherwise it's outside: a table at the margin, a quote at its margin depth.
+    So such a block in a list's last item, with nothing in the item after it, reads
+    as outside the list.
+
+    Anything else, a paragraph or heading at the margin or an item of a list that
+    isn't open, ends the list."""
+
+    def __init__(self, document: dict) -> None:
+        self._document = document
+        # The listId of the item open at each depth; None for a depth no item opened
+        # (a list that starts deeper than level 0).
+        self._lists: list[str | None] = []
+        self._depth = 0
+        # Each waiting block, with its (list_depth, blockquote_depth) when inside an
+        # item, or None when it takes the depth of the item that ends the wait.
+        self._pending: list[tuple[Table | Paragraph | Heading | NamedBlock, tuple | None]] = []
+
+    def item(self, bullet: dict) -> None:
+        list_id = bullet.get("listId")
+        depth = bullet.get("nestingLevel", 0)
+        continues = bool(self._lists) and (
+            depth >= len(self._lists) or self._lists[depth] == list_id
+        )
+        if continues:
+            self._settle_pending(min(self._depth, depth))
+        else:
+            self.close()
+        del self._lists[depth:]
+        self._lists.extend([None] * (depth - len(self._lists)))
+        self._lists.append(list_id)
+        self._depth = depth
+
+    def block(self, node: Heading | Paragraph | NamedBlock, para: dict) -> None:
+        if not self._lists:
+            return
+        pstyle = para.get("paragraphStyle", {})
+        match = self._in_item(pstyle)
+        if match is not None and _is_margin_quote(pstyle):
+            self._pending.append((node, match))
+            self._depth = match[0]
+        elif match is not None:
+            self._settle_pending(match[0])
+            node.list_depth, node.blockquote_depth = match
+            self._depth = match[0]
+        elif isinstance(node, Paragraph) and not node.runs and not _has_indent(para):
+            self._pending.append((node, None))
+        else:
+            self.close()
+
+    def table(self, table: Table) -> None:
+        if self._lists:
+            self._pending.append((table, None))
+
+    def close(self) -> None:
+        """End the open list: whatever was waiting stays outside it, as read."""
+        self._lists.clear()
+        self._pending.clear()
+
+    def _settle_pending(self, depth: int) -> None:
+        """The list goes on at `depth`: every waiting block is inside an item."""
+        for node, match in self._pending:
+            if match is None:
+                node.list_depth = depth
+            else:
+                node.list_depth, node.blockquote_depth = match
+        self._pending.clear()
+
+    def _in_item(self, pstyle: dict) -> tuple[int, int] | None:
+        """(list_depth, blockquote_depth) of a block inside an item of the open list,
+        or None when the paragraph's indents don't put it in one."""
+        start = pstyle.get("indentStart", {}).get("magnitude")
+        first_line = pstyle.get("indentFirstLine", {}).get("magnitude")
+        if start is None or first_line is None or abs(start - first_line) > _INDENT_TOLERANCE_PT:
+            return None
+        quoted = bool(pstyle.get("borderLeft"))
+        for depth in range(min(self._depth, len(self._lists) - 1), -1, -1):
+            bullet = {"listId": self._lists[depth], "nestingLevel": depth}
+            text_indent = _list_level_indent_start(bullet, _nesting_level(bullet, self._document))
+            quote_depth = _whole_quote_steps(start - text_indent)
+            if quote_depth is None:
+                continue
+            if (quote_depth > 0) if quoted else (quote_depth == 0):
+                return depth, quote_depth
+        return None
+
+
+def _whole_quote_steps(indent: float) -> int | None:
+    """How many quote steps `indent` (pt) is, or None when it isn't a whole number."""
+    steps = indent / _BLOCKQUOTE_INDENT_PT_PER_LEVEL
+    whole = round(steps)
+    if abs(steps - whole) * _BLOCKQUOTE_INDENT_PT_PER_LEVEL > _INDENT_TOLERANCE_PT:
+        return None
+    return whole
+
+
+def _is_margin_quote(pstyle: dict) -> bool:
+    """Whether the paragraph also reads as a quote at the margin: bordered, with
+    both indents at a whole number of quote steps."""
+    start = pstyle.get("indentStart", {}).get("magnitude", 0)
+    return bool(pstyle.get("borderLeft")) and bool(_whole_quote_steps(start))
+
+
+def _has_indent(para: dict) -> bool:
+    pstyle = para.get("paragraphStyle", {})
+    return any(
+        pstyle.get(field, {}).get("magnitude", 0) > 0
+        for field in ("indentStart", "indentFirstLine")
+    )
 
 
 # Glyph types whose startNumber 0 Docs treats as 1 (the NestingLevel.startNumber
@@ -94,7 +238,7 @@ class _ListCounter:
 
 def _paragraph_to_node(
     para: dict, document: dict, list_counter: _ListCounter | None
-) -> DocNode | None:
+) -> Heading | Paragraph | BulletItem | NamedBlock:
     """`list_counter` numbers a list item: pass one counter for a whole walk of
     the body in document order, or None to leave `BulletItem.number` unset."""
     pstyle = para.get("paragraphStyle", {})
@@ -123,6 +267,11 @@ def _paragraph_to_node(
             checked=checked,
             blockquote_depth=blockquote_depth,
             number=list_counter.number(bullet, level_props, ordered) if list_counter else None,
+            # A bulleted HEADING_N paragraph is an item whose text is a heading
+            # ("- # Title"), as html_parser.py writes it (#1094, #1302). Not a task
+            # item: GFM reads "- [ ] ## Title" as task text, not a heading, so it
+            # would neither render nor take an anchor slug as one.
+            heading_level=_HEADING_LEVELS.get(named_style) if checked is None else None,
         )
 
     if named_style in _HEADING_LEVELS:
