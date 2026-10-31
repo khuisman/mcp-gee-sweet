@@ -43,3 +43,11 @@ Text before ![inline icon](https://www.gstatic.com/images/branding/product/2x/do
 ### IM-10 — local path with a space and a non-ASCII character
 
 ![Spaced accented pixel](../../qa fixture pixel é.png)
+
+### IM-11 — linked image Docs can't embed (SVG)
+
+[![Build status](https://img.shields.io/badge/build-passing-brightgreen)](https://example.com/ci)
+
+### IM-12 — image Docs can't embed, empty alt
+
+Before ![](https://img.shields.io/badge/coverage-90%25-green) after.

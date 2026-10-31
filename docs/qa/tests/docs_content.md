@@ -6538,8 +6538,8 @@ asyncio.run(main())
 6. Repeat step 4.
 
 **Checks**
-- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'"
-- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then "After the images.". `https://example.com/bad-link` appears nowhere, linked to nothing: the dropped image's link didn't land on the text around it
+- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'" and `fallback_text` "Missing" (#1099)
+- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then the text "Missing" linked to `https://example.com/bad-link` where the missing image was (#1099: its alt text stands in for it, with its link), then "After the images.". `bad-link` is on "Missing" only, not on the text around it. Before #1099 this check expected an empty paragraph and no `bad-link` at all; the 2026-10-29 and 2026-10-30 results below ran against that
 - Both step 3 runs print `{'error': "Couldn't convert the content, so the document was left unchanged: RuntimeError: injected parser failure", 'docId': '{DOC_ID}'}`
 - Step 4 shows step 2's content unchanged, and `search_files` finds no backup copy: nothing was copied
 - Step 5 prints `cancelled`, and step 6 shows step 2's content unchanged with no backup copy
@@ -6551,3 +6551,54 @@ asyncio.run(main())
 
 **Result (2026-10-30) ✅ PASS — PR #1296 round 2 (Kit)**
 `mcp-gee-sweet-kit` at daaa92eb, reconnected after the reset, on a scratch doc in `{FOLDER_ID}` as in round 1. Part A: same as round 1, with the logo embedded, the missing image reported in `images` with its error, an empty paragraph where it was, and no link on any text run. A fresh-interpreter rerun of parts B (`ALLOW=1`) and the create-path injection now also logs `ERROR mcp_gee_sweet.tools.docs.content Converting doc content failed (<outcome>)` with the traceback, before the same `{'error', ...}` result. Scratch doc trashed, no backup copy left.
+
+### TC-DOC244: A file's relative image path resolves against the file, and a replace uploads its local images to folder_id, the server default, or the doc's own folder (#1121, #1139) ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** `create_doc_from_file`/`update_doc_from_file` resolved a relative image path against the server's working directory, so a README's images never embedded (#1121). `update_doc_from_file` had no `folder_id`, so on a server with no default folder every local image failed after the doc was cleared, leaving it without its images (#1139). A relative path is now joined to the file's own folder; `write_doc_content`/`update_doc_from_file` take `folder_id`, fall back to the server's default folder and then to the doc's own folder, and refuse before touching the doc when none is known. The doc's-folder fallback only runs on a server with no `DRIVE_FOLDER_ID`, so parts B and C use a scratch script against the checkout under test with `folder_id=None`, the way TC-DOC243 part B does.
+
+**Playwright: required**
+
+**Setup:** `create_doc(title="TC-DOC244 scratch", folder_id={FOLDER_ID}, content="<p>TC-DOC244 before</p>")`; call its `docId` `{SCRATCH}`. `F` = `{REPO}/docs/qa/fixtures/md/tc-doc244/relative-image.md`, which embeds `../../qa-fixture-pixel.png`.
+
+**Steps (part A, tool calls)**
+1. `update_doc_from_file(doc_id={SCRATCH}, local_path=F, folder_id={FOLDER_ID})`
+2. `get_doc_as_markdown(doc_id={SCRATCH})`, and `get_file_metadata(file_id=<step 1's images[0].fileId>)`
+3. `create_doc_from_file(local_path=F, title="TC-DOC244 create", folder_id={FOLDER_ID})`, then `get_doc_as_markdown` on its `docId`
+
+**Steps (part B, the doc's own folder; scratch script, same OAuth token as the server under test)**
+
+4. Run, with `{SCRATCH}` and `{REPO}` filled in:
+```
+uv run python3 -c "
+import asyncio, mcp_gee_sweet
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+F = '{REPO}/docs/qa/fixtures/md/tc-doc244/relative-image.md'
+print(asyncio.run(c._replace_doc_content(lc, '{SCRATCH}', Path(F).read_text(), 'markdown',
+    autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=False,
+    source_dir=Path(F).parent)))
+"
+```
+5. `get_file_metadata(file_id=<step 4's images[0].fileId>)`
+
+**Steps (part C, no folder known)**
+
+6. Run step 4's script with one change: before `print`, add `c._doc_parents = lambda *a: asyncio.sleep(0, result=None)` (a doc shared from a folder this account can't see has no parents).
+7. `refresh_cache(doc_id={SCRATCH})`, `get_doc_as_markdown(doc_id={SCRATCH})`, and `search_files(query="TC-DOC244 scratch (backup before replace)")`
+
+**Checks**
+- Step 1 returns `docId` with no `error`; `images` has one entry, `src` `../../qa-fixture-pixel.png`, with a `fileId` and no `error`
+- Step 2 shows the "TC-DOC244" heading, "Before the image.", the 1×1 pixel image, and "After the image."; the uploaded pixel's `parents` is `[{FOLDER_ID}]`
+- Step 3: the same content in the new doc, the pixel embedded, its `images` entry with no `error`
+- Step 4 prints a result with no `error` and one `images` entry with a `fileId`; step 5 shows that file's `parents` is `{FOLDER_ID}`, the scratch doc's own folder
+- Step 6 prints `{'error': "The content has a local image, but there's no Drive folder to upload it to: ... Pass folder_id. The document was left unchanged.", 'docId': '{SCRATCH}'}`
+- Step 7 shows step 4's content unchanged, and `search_files` finds no backup copy: the call stopped before copying or clearing
+
+**Cleanup:** `delete_file` the scratch doc, step 3's doc, and each uploaded `qa-fixture-pixel.png` copy in `{FOLDER_ID}` (steps 1, 3 and 4)

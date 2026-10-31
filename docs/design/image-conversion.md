@@ -39,11 +39,59 @@ unsupported construct already gets from this parser.
 Since #1240, `content._convert_doc_content` builds the requests *before* any image resolves, so
 a conversion that fails or is cancelled never reaches the doc. It collects every `Image` with
 `extract_images(nodes)` and passes a unique placeholder URI for each one. `_apply_doc_content`
-then resolves the images, swaps each resolved image's placeholder for its real URI, and drops an
-unresolved image's `insertInlineImage` request along with its link request. That gives the same
-requests as never emitting the image: an image takes no room in the text, and its insert sits in
-the descending-position tail, where removing one shifts none of the others
-(`test_unresolved_images_requests_match_never_emitting_them` pins this).
+then resolves the images and swaps each resolved image's placeholder for its real URI. An
+unresolved image's `insertInlineImage` request is replaced by its fallback text (below), and its
+link request goes, since the fallback carries the link. Its insert sits in the descending-position
+tail, so text at that position shifts none of the requests still to come
+(`test_unresolved_images_requests_match_their_fallback_text` pins this).
+
+## Fallback text for an image that isn't embedded (#1099)
+
+An image Docs can't embed used to disappear: an SVG badge (`img.shields.io` serves SVG, which
+Docs doesn't take), an unreachable URL, a missing local file, a failed share. A README's badge
+line became an empty paragraph, its link gone too. Now `emitter.image_fallback_requests` writes
+`image_fallback_text(image)` where the image would have gone: its alt text with whitespace
+collapsed, else the last segment of its source (a URL's path segment, percent-decoded; a local
+path's file name, never the whole path, so a server path doesn't land in the doc; nothing for a
+`drive:` ID), else `image`. Alt text that's empty wouldn't help a reader find what's missing.
+
+- **One request pair, either way.** An `insertText` at the image's position, then an
+  `updateTextStyle` with `fields: "link"`: the image's link (through `_storable_link_url`, the
+  text-link rule), or, for an unlinked image, cleared. Inserted text takes the style of the
+  character before it, a link included, which an inserted image never does (#977). Its other
+  inherited styles stay, so it reads like the text around it.
+- **Where it applies.** An image that didn't resolve (`_apply_doc_content`, before the first
+  batch), and one Docs couldn't fetch at the embed step (`_drop_failed_image` in the body,
+  `CellImages._drop` in cells), which now replace the failed insert in place instead of popping
+  it. Either way the text goes at the image's own position in the descending tail, so no request
+  after it moves, the same argument that made dropping safe.
+- **The K≥2 split.** `_positional_insert_tail_start` takes the fallback requests' ids
+  (`fallback_ids`), so a fallback inside the tail doesn't cut the scan short and fall back to
+  whole-list retries.
+- **Reporting.** The image's `images` entry keeps its `error` and gains `fallback_text` once
+  the batch carrying the text has landed: `send_dropping_failed_images`'s `on_applied` for the
+  body, and `CellImages.shown_as_text` for cells. A batch that fails for another reason leaves
+  it out.
+- **What it doesn't cover.** `insert_inline_image` and `insert_local_images` insert one image
+  the caller named at an index, and still fail outright: there's no source text to stand in for.
+
+## Where a local image comes from and goes (#1121, #1139)
+
+- **Relative paths.** `create_doc_from_file` and `update_doc_from_file` pass the file's folder
+  as `source_dir`, and `_local_image_path` joins a relative `src` to it, as a README's images
+  are relative to the README. It's the caller's spelling of the folder (`Path(local_path).parent`),
+  not the resolved one, so a symlinked file's images are found next to the link. The joined path
+  goes through `check_read` like any other (#796). Content passed as a string (`create_doc`,
+  `write_doc_content`, `upload_file`) has no file, so a relative path there stays relative to the
+  server's working directory.
+- **Upload folder.** A local image goes to `folder_id` (the tool's, else the server's default),
+  else the doc's own folder (`_image_folder`). For the create tools that's the new doc's parent,
+  which Drive reports even for My Drive's root. For the replace tools (`write_doc_content`,
+  `update_doc_from_file`, which now take `folder_id` too), `_replace_doc_content` looks the doc's
+  parents up only when the content has a local image and no folder was given. A doc shared from
+  a folder the account can't see has no parents: with a local image in the content, the call
+  refuses before the backup copy and the clear, since replacing would drop every such image
+  (the #1139 report: a successful call that left the doc without its images).
 
 ## Three source kinds, one shared resolver
 
@@ -78,7 +126,8 @@ failing request's index directly (`"Invalid requests[N].insertInlineImage: ..."`
 `_apply_doc_content` catches the `HttpError`, parses that index out of the structured response
 (`_failed_insert_image_request_index` — status 400 plus `HttpError.reason`, which the client
 library fills from the JSON body's `error.message`, not `HttpError`'s own display string, #510),
-and strips exactly that request. The dropped image's outcome `error` is built from that same
+and strips exactly that request (since #1099, replaces it with the image's fallback text; see
+below). The dropped image's outcome `error` is built from that same
 field, minus its `Invalid requests[N].` lead-in (`N` indexes an internal retry batch). Safe without any
 position recomputation specifically *because* a rejected batch never partially applies — every
 other request's absolute position is exactly as valid on retry as it was on the first attempt.
@@ -171,15 +220,16 @@ positional pass.
   out in source order, and none shifts another. A linked image's `updateTextStyle` follows its
   insert, as in the body.
 - **Nested tables.** A nested table goes in at its paragraph's start plus everything already
-  inserted before it in that paragraph, so `_text_offset_since_last_table` counts each image as
-  one index. It counts only an image still in `CellImages.uris`: one that never resolved, or
-  whose insert failed, isn't in the doc.
+  inserted before it in that paragraph, so `_text_offset_since_last_table` counts what each
+  image took (`CellImages.doc_length`): one index for an embedded image, its fallback text's
+  UTF-16 length for one written as text (#1099).
 - **Unfetchable images.** Every fill `batchUpdate` goes through `CellImages.execute`, which
   `fill_tables` requires, so there's one send path. On
-  an image-fetch error it drops that image and its link, removes it from the URIs, tells
-  `_apply_doc_content` (which records the error on the image's entry), and resends. Dropping one
-  never moves another request: within a cell the images go last, latest first, and cells run
-  latest first. The loop is `batch_retry.send_dropping_failed_images`, which the body's retry
+  an image-fetch error it replaces that image's insert with its fallback text and drops its
+  link, removes it from the URIs, tells `_apply_doc_content` (which records the error on the
+  image's entry), and resends. An image that never resolved gets its fallback text from the
+  start. The replacement never moves another request: within a cell the images go last, latest
+  first, and cells run latest first. The loop is `batch_retry.send_dropping_failed_images`, which the body's retry
   uses too; the two differ only in where they split. As in the body (#510), the first retry
   resends the whole batch; from the second failure on, the batch splits at the failed image, the
   requests ahead of it are sent on their own, and only the rest is retried. A `batchUpdate`

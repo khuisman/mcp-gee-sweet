@@ -6,6 +6,8 @@ import logging
 import re
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
+from pathlib import PurePath
+from urllib.parse import unquote, urlsplit
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
@@ -20,14 +22,18 @@ class CellImages:
     """The images a table fill embeds in cells (#1073), and how it sends its batches.
 
     uris: id(image) -> its resolved URI, for each cell image to embed. An image with no
-    entry is skipped, like an unresolved body image. A dropped image's entry is removed,
-    so a nested table after it in the same cell stops counting it.
+    entry, one that never resolved, is written as its fallback text instead
+    (image_fallback_requests, #1099), like an unresolved body image. So is one whose
+    insert Google couldn't fetch: its entry is removed and its insert replaced in the
+    batch by its fallback text. doc_length() says how many indices an image took, so a
+    nested table after it in the same cell lands past it.
 
     run_batch sends one batchUpdate. failed_request_index reads the index of the
     insertInlineImage an error names (None for any other error), and on_dropped is told
     about each image dropped that way. embedded collects id(image) for every image whose
-    insert went out in a batch that succeeded, updated as each batch lands, so the
-    caller can tell which resolved images the fill never placed, even after a raise.
+    insert went out in a batch that succeeded, and shown_as_text every image whose
+    fallback text did, each updated as each batch lands, so the caller can tell what
+    the fill placed, even after a raise.
     """
 
     def __init__(
@@ -39,19 +45,42 @@ class CellImages:
     ):
         self.uris = uris
         self.embedded: set[int] = set()
+        self.shown_as_text: set[int] = set()
+        # id(image) -> the UTF-16 length of the fallback text written for it.
+        self._fallback_lengths: dict[int, int] = {}
         self._run_batch = run_batch
         self._failed_request_index = failed_request_index
         self._on_dropped = on_dropped
-        # id(insert) -> (insert, image, its link request or None) for the batch being
-        # built and sent. It holds the request dicts themselves and is cleared once that
-        # batch settles, so no id() here can belong to a later batch's request.
+        # id(first request) -> (that request, image, its link request or None) for the
+        # batch being built and sent. The first request is an insertInlineImage, or the
+        # insertText of an image's fallback text, which is never dropped, so its link
+        # is recorded as None. It holds the request dicts themselves and is cleared
+        # once that batch settles, so no id() here can belong to a later batch's
+        # request.
         self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
 
     def insert_requests(self, image: Image, position: int) -> list[dict]:
-        """The insertInlineImage (and link request) for `image`, recorded for the retry."""
-        requests = _image_insert_requests(image, self.uris[id(image)], position)
+        """The requests that place `image` at `position`: its insertInlineImage (and
+        link request) when it resolved, recorded for the retry, else its fallback text."""
+        uri = self.uris.get(id(image))
+        if uri is None:
+            return self._fallback_requests(image, position)
+        requests = _image_insert_requests(image, uri, position)
         link = requests[1] if len(requests) > 1 else None
         self._pending[id(requests[0])] = (requests[0], image, link)
+        return requests
+
+    def doc_length(self, image: Image) -> int:
+        """The indices `image` takes in its cell: 1 for an embedded image, its fallback
+        text's length when it's written as text, 0 when neither was written."""
+        if id(image) in self.uris:
+            return 1
+        return self._fallback_lengths.get(id(image), 0)
+
+    def _fallback_requests(self, image: Image, position: int) -> list[dict]:
+        requests = image_fallback_requests(image, position)
+        self._fallback_lengths[id(image)] = image_fallback_length(image)
+        self._pending[id(requests[0])] = (requests[0], image, None)
         return requests
 
     async def execute(self, requests: list[dict]) -> None:
@@ -79,27 +108,34 @@ class CellImages:
 
     def _applied(self, batch: list[dict]) -> None:
         sent = {id(r) for r in batch}
-        self.embedded.update(
-            id(image) for insert, image, _ in self._pending.values() if id(insert) in sent
-        )
+        for first, image, _ in self._pending.values():
+            if id(first) in sent:
+                if "insertText" in first:
+                    self.shown_as_text.add(id(image))
+                else:
+                    self.embedded.add(id(image))
 
     def _drop(self, requests: list[dict], error: Exception) -> int | None:
-        """Pop the image insert `error` names from `requests`, with its link request,
-        and return the index it was at. None if `error` doesn't name one of this
-        batch's image inserts."""
+        """Replace the image insert `error` names in `requests`, and its link request,
+        with the image's fallback text (#1099), and return the index it was at. None if
+        `error` doesn't name one of this batch's image inserts.
+
+        The text goes where the insert was, at the same position: like the insert, it
+        moves no request after it in the batch, since those all sit at or before it."""
         index = self._failed_request_index(error)
         if index is None or index >= len(requests):
             return None
         # _pending holds its requests alive, so an id() match is the request itself.
         entry = self._pending.get(id(requests[index]))
-        if entry is None:
+        if entry is None or "insertInlineImage" not in entry[0]:
             return None
         insert, image, link = entry
-        requests.pop(index)
-        if link is not None:
-            requests[:] = [r for r in requests if r is not link]
+        position = insert["insertInlineImage"]["location"]["index"]
         del self._pending[id(insert)]
         self.uris.pop(id(image), None)
+        requests[index : index + 1] = self._fallback_requests(image, position)
+        if link is not None:
+            requests[:] = [r for r in requests if r is not link]
         self._on_dropped(image, error)
         return index
 
@@ -556,8 +592,8 @@ def ast_to_requests(
     on this same `nodes` value beforehand) to the URI its insertInlineImage request gets.
     An Image with no entry here is silently omitted from the requests — same fallback as
     any other unsupported construct. docs/content.py passes a placeholder for every image
-    and, once the images resolve, swaps in each real URI and drops an unresolved image's
-    request (#1240).
+    and, once the images resolve, swaps in each real URI and replaces an unresolved
+    image's request with its fallback text (#1240, #1099).
 
     image_links: if given, filled with id(insertInlineImage request) -> the
     updateTextStyle request that links that image (#977), so a caller that drops a
@@ -1226,9 +1262,10 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
     right after this insert: the descending-position pass guarantees nothing before
     `position` has shifted yet at that point. An image never inherits a neighboring
     run's link on insert (confirmed live), so an unlinked image needs no clearing
-    request. content.py's retry drops the pair together when the insert fails
-    (_drop_failed_image, through ast_to_requests's image_links); otherwise the link
-    would land on whatever character sits at `position`."""
+    request. When the insert fails, content.py's retry replaces it with the image's
+    fallback text and drops this link request (_drop_failed_image, through
+    ast_to_requests's image_links); otherwise the link would land on whatever
+    character sits at `position`, one character of the text."""
     request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
     if image.width is not None or image.height is not None:
         object_size: dict = {}
@@ -1309,6 +1346,53 @@ def _image_link_request(link_url: str, position: int) -> dict:
             "fields": "link",
         }
     }
+
+
+def image_fallback_text(image: Image) -> str:
+    """The text written in place of an image Docs can't embed (#1099): its alt text,
+    whitespace collapsed, or the last segment of its source when the alt is empty,
+    since an empty line would leave no trace of the image or its link. Only that
+    segment, never a whole local path, so a server path doesn't land in the doc."""
+    alt = " ".join((image.alt or "").split())
+    if alt:
+        return alt
+    src = image.src.strip()
+    if src.startswith(("http://", "https://")):
+        name = unquote(urlsplit(src).path.rstrip("/").rsplit("/", 1)[-1])
+    elif src.startswith("drive:"):
+        name = ""
+    else:
+        name = PurePath(src).name
+    return " ".join(name.split()) or "image"
+
+
+def image_fallback_length(image: Image) -> int:
+    """image_fallback_text's length in the doc's UTF-16 indices."""
+    return utf16_len(image_fallback_text(image))
+
+
+def image_fallback_requests(image: Image, position: int) -> list[dict]:
+    """Write `image`'s fallback text (image_fallback_text) at `position`, where its
+    insertInlineImage would have gone, for an image that didn't resolve or that Docs
+    couldn't fetch (#1099): an SVG badge, an unreachable URL, a missing local file.
+
+    The image's link goes on the text. For an unlinked image, any link the text
+    inherits from the character before it is cleared: inserted text, unlike an
+    inserted image, takes its neighbor's style. Its other inherited styles stay, so
+    it reads like the text around it. Like the image's own requests, the pair goes
+    in the descending-position pass, where it moves nothing still to come."""
+    text = image_fallback_text(image)
+    link_url = _storable_link_url(image.link_url)
+    return [
+        {"insertText": {"location": {"index": position}, "text": text}},
+        {
+            "updateTextStyle": {
+                "range": {"startIndex": position, "endIndex": position + utf16_len(text)},
+                "textStyle": {"link": {"url": link_url}} if link_url else {},
+                "fields": "link",
+            }
+        },
+    ]
 
 
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
@@ -1559,13 +1643,14 @@ def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> 
 
 
 def _text_offset_since_last_table(
-    children: list[Run | Image | Table], cursor: int, image_uris: dict[int, str] | None = None
+    children: list[Run | Image | Table], cursor: int, images: CellImages | None = None
 ) -> int:
-    """Sum of Run text lengths, plus one per embedded Image, between the nearest
+    """Sum of Run text lengths, plus each Image's length in the doc, between the nearest
     preceding *insertable* Table (exclusive) and cursor — a degenerate table is
     transparent here since it was never actually inserted (see _is_insertable_table).
-    An Image counts only while it has an entry in `image_uris`: one never resolved, or
-    dropped after its insert failed, isn't in the doc (#1073).
+    An Image counts what `images` says it took (CellImages.doc_length): one index when
+    embedded (#1073), its fallback text's length when written as text (#1099). Without
+    `images`, an Image counts nothing.
 
     A Table's insertion point is its paragraph's startIndex *plus* this offset,
     since any leading text already inserted into that same paragraph (in an
@@ -1579,8 +1664,8 @@ def _text_offset_since_last_table(
             break
         if isinstance(child, Run):
             offset += utf16_len(child.text)
-        elif isinstance(child, Image) and image_uris and id(child) in image_uris:
-            offset += 1
+        elif isinstance(child, Image) and images is not None:
+            offset += images.doc_length(child)
     return offset
 
 
@@ -1601,14 +1686,16 @@ def _run_group_fill_requests(
     children: Sequence[Run | Image | Table], para_start: int, images: CellImages
 ) -> list[dict]:
     """Build insertText + updateTextStyle requests for a contiguous run of text, then
-    an insertInlineImage for each of its resolved images (#1073). `children` holds no
-    Table: a caller passes a cell's children only up to its next nested table.
+    an insertInlineImage for each of its resolved images (#1073), or its fallback text
+    for one that didn't resolve (#1099). `children` holds no Table: a caller passes a
+    cell's children only up to its next nested table.
 
     The images go last, latest position first, like ast_to_requests's positional
     pass: the text and its styles are placed as if no image were there, and each
     image lands at the offset of the text before it without shifting any image
     already placed. Two images with no text between them share an offset, so the
-    later one goes in first and the earlier one then lands ahead of it."""
+    later one goes in first and the earlier one then lands ahead of it. Fallback text
+    lands the same way, since it too goes in at its offset, latest first."""
     runs = [child for child in children if isinstance(child, Run)]
     text = "".join(run.text for run in runs)
     requests: list[dict] = []
@@ -1619,7 +1706,7 @@ def _run_group_fill_requests(
     for child in children:
         if isinstance(child, Run):
             offset += utf16_len(child.text)
-        elif id(child) in images.uris:
+        elif isinstance(child, Image):
             placed.append((offset, child))
     for offset, image in reversed(placed):
         requests.extend(images.insert_requests(image, para_start + offset))
@@ -1729,9 +1816,7 @@ async def _fill_children_recursive(
                 occurrence = sum(1 for ch in children[:cursor] if _is_insertable_table(ch))
                 # Any text already inserted earlier this round-chain, in the same
                 # paragraph, shifts the table's landing spot past that text.
-                table_start = para_start + _text_offset_since_last_table(
-                    children, cursor, images.uris
-                )
+                table_start = para_start + _text_offset_since_last_table(children, cursor, images)
                 if num_rows > 0 and num_cols > 0:
                     round_requests.append(
                         (
