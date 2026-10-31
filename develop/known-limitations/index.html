@@ -1429,6 +1429,27 @@ constructs.</p>
 real Docs footnotes is #149), a definition list as <code>**Term**: definition</code> lines, and put HTML that
 needs Markdown inside it as HTML instead.</p>
 <hr />
+<h3 id="a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes">A list inside a blockquote draws its own quote bar, offset from the quote's<a class="headerlink" href="#a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> In Markdown or HTML content written to a Doc, a list inside a blockquote shows its gray
+left bar at the list item's indent, not at the quote's. A quote that mixes paragraphs and list
+items therefore shows two bars, the items' sitting to the right of the paragraphs'. For example,
+<code>create_doc(content="&gt; quote text\n&gt;\n&gt; - item\n", content_format="markdown")</code> gives "quote text"
+a bar at the quote indent and "item" a second bar further right. The same mechanism puts a nested
+item's bar at its own, deeper indent. Reading the Doc back with <code>get_doc_as_markdown</code> is
+unaffected: every item comes back at its correct quote depth.</p>
+<p><strong>Why:</strong> Docs has no blockquote style, so a quoted paragraph gets a left border and an indent.
+Docs draws a paragraph's <code>borderLeft</code> at its <code>indentStart</code>, and there's no separate setting for
+where the border goes. A list item needs its own <code>indentStart</code> too, past the quote's: it's where
+the item's wrapped lines start, under the text rather than under the bullet. Setting a quoted
+item's <code>indentStart</code> to the quote indent does join the two bars, but then every wrapped line lands
+left of the item's bullet and nested items lose their indent after the first line. One paragraph
+can't have both the quote's bar position and a list's hanging indent, so the offset bar is the
+lesser problem.</p>
+<p><strong>Workaround:</strong> None that keeps a real list. To get one continuous bar, keep the list outside the
+quote, or write each item as its own quoted paragraph starting with a bullet character, which isn't
+a Markdown list marker: <code>&gt; • one\n&gt;\n&gt; • two\n</code>. Keep the blank <code>&gt;</code> line between items, or the
+lines join into one paragraph. Decided in #1242.</p>
+<hr />
 <h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
 Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to it.</p>
