@@ -94,7 +94,7 @@ class TestIssueTableCases:
         (para,) = _ast("Visit www.example.com or write to me@example.com.")
         links = [(r.text, r.link_url) for r in para.runs if r.link_url]
         assert links == [
-            ("www.example.com", "http://www.example.com"),
+            ("www.example.com", "https://www.example.com"),
             ("me@example.com", "mailto:me@example.com"),
         ]
 
@@ -121,9 +121,9 @@ class TestGfmAutolinks:
             ("see https://x.com/a.", "https://x.com/a"),
             ("(https://x.com)", "https://x.com"),
             ("https://x.com/a_(b)_c)", "https://x.com/a_(b)_c"),
-            ("www.x.com?q=1&r=2!", "http://www.x.com?q=1&r=2"),
+            ("www.x.com?q=1&r=2!", "https://www.x.com?q=1&r=2"),
             ("http://localhost:8000/x", "http://localhost:8000/x"),
-            ("www.commonmark.org/a.b.", "http://www.commonmark.org/a.b"),
+            ("www.commonmark.org/a.b.", "https://www.commonmark.org/a.b"),
             ("https://x.com/&hl;", "https://x.com/"),
             ("*https://em.example*", "https://em.example"),
             ("foo@bar.baz.com.", "mailto:foo@bar.baz.com"),
@@ -414,7 +414,7 @@ class TestQaRound1:
 
     @pytest.mark.parametrize("md", ["*a*www.x.com", "line\nwww.x.com", "~~s~~www.x.com"])
     def test_text_after_emphasis_or_a_line_break_is_autolinked(self, md):
-        assert 'href="http://www.x.com"' in _md_to_html(md)
+        assert 'href="https://www.x.com"' in _md_to_html(md)
 
     def test_spaced_image_path_is_unescaped(self):
         # Finding 7.
@@ -645,7 +645,7 @@ class TestQaRound4:
 
     def test_scheme_is_a_prefix_check(self):
         (para,) = _ast("www.example.com/path://x")
-        assert para.runs[0].link_url == "http://www.example.com/path://x"
+        assert para.runs[0].link_url == "https://www.example.com/path://x"
 
     def test_setext_underline_under_item_text_is_a_heading(self):
         # Documented behavior change: CommonMark reads "  ---" under "- a" as an H2.

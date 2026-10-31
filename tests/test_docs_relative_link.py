@@ -109,7 +109,15 @@ class TestStorableLinkUrl:
         assert _storable_link_url("www.example.foo_bar") is None
         assert _md_to_html("see www.example.foo_bar") == "<p>see www.example.foo_bar</p>\n"
         assert _storable_link_url("www.foo_bar.example.com") == "https://www.foo_bar.example.com"
-        assert 'href="http://www.foo_bar.example.com"' in _md_to_html("www.foo_bar.example.com")
+        assert 'href="https://www.foo_bar.example.com"' in _md_to_html("www.foo_bar.example.com")
+
+    def test_www_autolink_and_written_www_link_get_the_same_scheme(self):
+        # #1281: a bare www. autolink follows #1180's https rule, so one host
+        # doesn't get http:// and https:// in the same doc.
+        html = _md_to_html("see www.example.com and [y](www.example.com)")
+        assert 'href="https://www.example.com"' in html
+        assert _storable_link_url("www.example.com") == "https://www.example.com"
+        assert "http://" not in html
 
     def test_none_stays_none(self):
         assert _storable_link_url(None) is None
