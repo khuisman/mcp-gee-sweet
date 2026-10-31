@@ -1528,6 +1528,12 @@
 <td>No visible empty paragraph that the source doesn't imply. The known collapsed blank paragraph before each table (<code>docs/known-limitations.md</code>, "Blank paragraph before every table") must stay invisible</td>
 <td>—</td>
 </tr>
+<tr>
+<td>C16</td>
+<td>Image Docs can't embed (an SVG, an unreachable URL, a missing local file)</td>
+<td>Its alt text in its place, link-styled with the image's link if it had one; with an empty alt, the last segment of its source (a URL's file name, percent-decoded; a local file's name, never its path). Never an empty line (#1099). In a heading it's left out instead, so the heading's text and its slug stay as written (IM-13)</td>
+<td>the call's <code>images</code> entry has <code>error</code> and <code>fallback_text</code></td>
+</tr>
 </tbody>
 </table>
 <p>Decisions on the expected rendering. D1–D3, where CommonMark/GFM and what a user means disagree, were approved by the maintainer on 2026-10-17; D4 has its own date. Each is the expected behavior for this plan; changing one changes the expected rendering of the cases that cite it.</p>
@@ -1535,7 +1541,7 @@
 <li><strong>D1 — nesting width.</strong> A list marker indented at least 2 spaces (or one tab) further than the previous item's marker nests under that item, whatever the parent's marker width. CommonMark requires the child to reach the parent's content column, so <code>1. A</code> followed by <code>- a1</code> (2 spaces) doesn't nest under CommonMark, but that is how models and people write sub-bullets, and #1044's own example expects it to nest.</li>
 <li><strong>D2 — a table starts its own block.</strong> A pipe table directly under a paragraph, list item or quote line (no blank line) renders as a separate table after that block, not as text joined to it.</li>
 <li><strong>D3 — YAML front matter is not shown.</strong> A leading <code>---</code>-delimited YAML block is omitted from the Doc (<code>docs/design/markdown-support.md</code> currently calls it "acceptable" that it renders as a rule; that is a FAIL under this plan).</li>
-<li><strong>D4 — EP-5 to EP-7 render the way Drive's Markdown import does</strong> (maintainer, 2026-10-18, #1101). <code>upload_local_file</code>, <code>upload_local_folder</code> and <code>sync_folder</code> stay on Drive's engine. On those columns C1–C15 and D1–D3 still apply, except where the list in <code>docs/known-limitations.md</code>, "Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently", names a difference. A cell passes when every construct either meets C1–C15 and D1–D3 or differs only in a way that list names. So a 2-space sub-list under a numbered item that doesn't nest passes (the list names it, overriding D1), while D2 and D3 apply unchanged, since the list names nothing about them. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C15. EP-8 isn't covered: it uses our converter since #1102, so C1–C15 and D1–D3 apply to it in full.</li>
+<li><strong>D4 — EP-5 to EP-7 render the way Drive's Markdown import does</strong> (maintainer, 2026-10-18, #1101). <code>upload_local_file</code>, <code>upload_local_folder</code> and <code>sync_folder</code> stay on Drive's engine. On those columns C1–C16 and D1–D3 still apply, except where the list in <code>docs/known-limitations.md</code>, "Converting <code>.md</code> on upload uses Drive's Markdown import, which renders differently", names a difference. A cell passes when every construct either meets C1–C16 and D1–D3 or differs only in a way that list names. So a 2-space sub-list under a numbered item that doesn't nest passes (the list names it, overriding D1), while D2 and D3 apply unchanged, since the list names nothing about them. Any other difference is a FAIL, and so is a rendering that changes between runs (Rule 4). Routing these paths through our converter is #1113; when that lands, these columns go back to C1–C16. EP-8 isn't covered: it uses our converter since #1102, so C1–C16 and D1–D3 apply to it in full.</li>
 </ul>
 <p>Anything CommonMark/GFM permits that the converter deliberately won't support goes into <code>docs/known-limitations.md</code>, tied to an open issue, and its cases stay FAIL until a decision changes the expected rendering here.</p>
 <hr />
@@ -1606,7 +1612,7 @@
 <p>Render <code>docs/qa/fixtures/md/realistic/r04-readme.md</code> through EP-1 to EP-8.</p>
 </blockquote>
 <p><strong>Checks</strong>
-- The badge (a linked image) shows as an image and links to the CI URL.
+- The badge (a linked SVG image, which Docs can't embed) shows as its alt text "Build", link-styled, linking to the CI URL (C16, #1099). EP-5 to EP-7 showed nothing in the 2026-10-18 baseline, a FAIL under D4 until #1113.
 - Each fenced block (<code>bash</code>, <code>python</code>) is one monospace block; Python indentation and the blank line between definitions kept.
 - Configuration table: backticked values monospace inside cells.
 - Usage notes: 1–4 numbered, with the fenced code block under item 3 (C14) and item 4 numbered <strong>4</strong>.
@@ -2494,9 +2500,35 @@
 <td>IM-10</td>
 <td>The fixture pixel embedded from <code>qa fixture pixel é.png</code>, resolved relative to the <code>.md</code> file as in IM-05; the call's <code>images</code> result reports success. CommonMark leaves a destination with a space as text, and markdown-it percent-encodes <code>é</code>; the converter accepts both as written (#1116). For EP-1/EP-2 N/A</td>
 </tr>
+<tr>
+<td>IM-11</td>
+<td>C16: the text "Build status", link-styled, linking to <code>https://example.com/ci</code>; no empty line and no broken-image icon in its place. The call's <code>images</code> entry has an <code>error</code> and <code>fallback_text: "Build status"</code> (#1099). EP-5 to EP-7: C16 applies (D4); Drive's import showed nothing for TC-MD004's badge in the 2026-10-18 baseline, which is a FAIL until #1113</td>
+</tr>
+<tr>
+<td>IM-12</td>
+<td>C16: one paragraph "Before coverage-90%-green after." (the image's name, since its alt is empty), not link-styled. <code>images</code> entry: <code>error</code> and <code>fallback_text: "coverage-90%-green"</code>. EP-5 to EP-7: as IM-11</td>
+</tr>
+<tr>
+<td>IM-13</td>
+<td>C16's heading exception: a Heading 4 "Badge heading" with no "build" text, no image and no empty gap after it; "Go to Badge heading" link-styled and opening that heading (a <code>#heading=</code> link, not stripped: the call returns no <code>dropped_links</code>). The <code>images</code> entry has an <code>error</code> and no <code>fallback_text</code> (PR #1310 QA round 1). EP-5 to EP-7: D4</td>
+</tr>
+<tr>
+<td>IM-14</td>
+<td>The Docs icon embedded from <code>//www.gstatic.com/...</code>, fetched over https as a protocol-relative link is (#1180); the call's <code>images</code> entry reports success with no <code>error</code> (PR #1310 QA round 2). EP-5 to EP-7: D4</td>
+</tr>
+<tr>
+<td>IM-15</td>
+<td>The fixture pixel embedded from <code>qa%20fixture%20pixel%20%C3%A9.png</code>, decoded to <code>qa fixture pixel é.png</code> and resolved relative to the <code>.md</code> file as in IM-05; the call's <code>images</code> entry reports success (PR #1310 QA round 2). For EP-1/EP-2 N/A; EP-5 to EP-7: D4</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Result (2026-10-18) ❌ FAIL — 48/70 case×EP cells pass, in both runs; failures: #1121, #1073, #1101, #1102. IM-05 on EP-1/EP-2 is N/A. Grid: <a href="../../results/2026-10-18-markdown-phase2/"><code>results/2026-10-18-markdown-phase2.md</code></a>.</strong></p>
+<p><strong>Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 1 (Kit): IM-11 and IM-12 only, EP-3 (<code>create_doc</code>, <code>content_format="markdown"</code>) only</strong>
+<code>mcp-gee-sweet-kit</code> at c136f679. IM-11: "Build status" link-styled, linking to <code>https://example.com/ci</code>, with <code>images</code> <code>error</code> + <code>fallback_text: "Build status"</code>. IM-12: one paragraph "Before coverage-90%-green after.", not linked, <code>fallback_text: "coverage-90%-green"</code>. An image-only table cell's fallback ("cell-x-blue") rendered at body size, including under a preceding H1. Confirmed in Playwright. The other cases and EPs weren't rerun. Found alongside: a badge inside a heading (<code># MyProj ![build](…svg)</code>) puts its alt text in the heading, so a <code>[…](#myproj)</code> link to it is dropped as <code>no_matching_heading</code> (sent back on PR #1310).</p>
+<p><strong>Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 2 (Kit): IM-13 plus the round-1 probes, EP-3 (<code>create_doc</code>, <code>content_format="markdown"</code>) only</strong>
+<code>mcp-gee-sweet-kit</code> at f6307b59. IM-13: the Heading 4 reads "Badge heading" (no "build", no image, no gap), "Go to Badge heading" links to its <code>#heading=</code> URL, the call returns no <code>dropped_links</code>, and the <code>images</code> entry has an <code>error</code> and no <code>fallback_text</code>. Confirmed in Playwright. The round-1 heading probe (<code># MyProj ![build](…svg)</code> with <code>[…](#myproj)</code>) now resolves the link. <code>![](data:image/png;base64,…)</code> is written as "image", with error "a data: URI image can't be embedded". An image-only cell's fallback under a preceding H1 stays at body size. A protocol-relative <code>![logo](//img.shields.io/…)</code> is still read as a local path ("No file found at '//img.shields.io/…'", written as "logo"); sent back. The other cases and EPs weren't rerun.</p>
+<p><strong>Result (2026-10-31) ✅ PASS (IM-14, IM-15; EP-4 <code>create_doc_from_file</code> only) — PR #1310 round 3 (Kit)</strong>
+<code>mcp-gee-sweet-kit</code> at eb6ce267, <code>create_doc_from_file</code> on the raw <code>md-images.md</code>. IM-14: the Docs icon embedded from <code>//www.gstatic.com/…</code>, its <code>images</code> entry with no <code>error</code>. IM-15: the pixel embedded from <code>../../qa%20fixture%20pixel%20%C3%A9.png</code> (uploaded, <code>fileId</code>, no <code>error</code>). Both confirmed in Playwright. IM-11 to IM-13 on this EP matched their expected cells too. IM-04 and IM-06 failed only because the raw fixture still holds their <code>{QA_IMAGE_LOCAL_PATH}</code>/<code>{QA_IMAGE_DRIVE_ID}</code> placeholders (run-time substitution not done), not a product result. Also: HTML <code>&lt;img src="  https://…  "&gt;</code> and a padded <code>" //www.gstatic.com/… "</code> in a table cell both embedded with no <code>error</code>.</p>
 <h3 id="tc-md113-tables-destructive">TC-MD113: Tables ⚠️ destructive<a class="headerlink" href="#tc-md113-tables-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
