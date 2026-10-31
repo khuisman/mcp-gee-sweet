@@ -26,7 +26,9 @@ def decode_code_run_text(content: str, text_style: dict[str, Any]) -> str:
     return content
 
 
-def isolated_bullet_run_wrap_requests(run_start: int, run_end: int, preset: str) -> list[dict]:
+def isolated_bullet_run_wrap_requests(
+    run_start: int, run_end: int, preset: str, *, barrier: bool = False
+) -> list[dict]:
     """Build the insert/createParagraphBullets/delete triple that lets an
     "isolated" bullet run — every paragraph at nesting depth > 0, with no
     depth-0 member for createParagraphBullets to anchor its relative-depth
@@ -44,16 +46,27 @@ def isolated_bullet_run_wrap_requests(run_start: int, run_end: int, preset: str)
     inserted (or will insert) ahead of this call: emitter.py's run_end
     already includes tabs baked into its freshly-built full_text; style.py's
     caller adds its own total_tabs before calling this.
+
+    `barrier=True` also inserts an unbulleted paragraph ahead of the anchor, and
+    deletes it with the anchor. createParagraphBullets joins its range to the list
+    of the paragraph just before it when that list has the same preset, whatever
+    the levels (confirmed live, #1241); the barrier keeps the run a list of its own
+    when the paragraph before `run_start` is already listed.
     """
+    extra = 1 if barrier else 0
     return [
-        {"insertText": {"location": {"index": run_start}, "text": "\n"}},
+        {"insertText": {"location": {"index": run_start}, "text": "\n" * (1 + extra)}},
         {
             "createParagraphBullets": {
-                "range": {"startIndex": run_start, "endIndex": run_end + 1},
+                "range": {"startIndex": run_start + extra, "endIndex": run_end + 1 + extra},
                 "bulletPreset": preset,
             }
         },
-        {"deleteContentRange": {"range": {"startIndex": run_start, "endIndex": run_start + 1}}},
+        {
+            "deleteContentRange": {
+                "range": {"startIndex": run_start, "endIndex": run_start + 1 + extra}
+            }
+        },
     ]
 
 

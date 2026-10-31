@@ -127,6 +127,12 @@ class BulletItem:
     # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
     # Read-side metadata like blockquote_path, so it doesn't take part in equality.
     number: int | None = field(default=None, compare=False)
+    # Write side only (#1241): ids of the source <ul>/<ol> lists enclosing the item,
+    # outermost first, its own list last; parser-assigned counters like
+    # blockquote_path's. Two adjacent lists of one type at one depth differ only
+    # here. Empty when unknown: the emitter then groups by type alone. Identity
+    # only, so it doesn't take part in equality.
+    list_path: tuple[int, ...] = field(default=(), compare=False)
 
 
 @dataclass

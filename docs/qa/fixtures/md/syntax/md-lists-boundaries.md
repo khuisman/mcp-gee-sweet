@@ -75,3 +75,31 @@ unindented code block
     - Bullet child
     1. New child one
 2. Top two
+
+### LX-11 — a numbered marker change starts a new list
+
+1. Dot one
+2. Dot two
+
+1) Paren one
+
+1. Parent one
+    1. Dot child
+    1) Paren child
+2. Parent two
+
+### LX-12 — numbered sublist after a deeper numbered list
+
+1. Outer one
+   - Bullet child
+     1. Deep child
+   1. Restarted child
+2. Outer two
+
+### LX-13 — a list ends with a sublist of the other type
+
+- First bullet
+  - Bullet child
+- Last bullet
+  1. Numbered child one
+  2. Numbered child two
