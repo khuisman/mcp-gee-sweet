@@ -210,6 +210,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 checks pass on screen (steps 1–5 in one list, code and step 3's paragraph under their steps, step 4's sub-bullets at level 1). The Troubleshooting lead-ins split at their soft break (#1230). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — identical to round 1: #1094 checks pass, soft breaks #1230. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
+
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -553,6 +555,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — 10/11 at EP-3, on screen: LB-04–LB-08 now pass (#1094 and F4 fixed), and so does new LB-11. New LB-10 is correct for #1094 but its rule is an empty line (#1096). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — 10/11, identical to round 1 (LB-07's table on screen at the item's indent); LB-10's rule #1096. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
+
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -589,6 +593,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2) ❌ FAIL — 50/65 EP-1–EP-4 + EP-8 cells pass, identical across all five EPs and in Run 2 at EP-3; LX-11–LX-13 checked on screen. LX-01, 02, 03, 05, 06, 07, 10, 11, 12, 13 pass (LX-13 ●, ○, ●, a., b.). Failures: #1093 (LX-04), #1094 (LX-08), #1118 (LX-09). Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — 11/13 at EP-3: **LX-08** now passes (1., code, 2., 3.), #1094 fixed. LX-04 #1230, LX-09 #1118. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
+
+**Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — 11/13, identical to round 1: LX-04 #1230, LX-09 #1118. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
@@ -884,6 +890,8 @@ Not expressible, so not in the matrix:
 **Result (2026-10-29, PR #1286 @ 0fa54712, round 2, list-in-list cases only, EP-3) PARTIAL — the 18 list-in-list cases pass at EP-3, same as round 1 (CT-33 2., CT-43 b., CT-53 ii.); the other cases weren't re-graded. Requests byte-identical to round 1's. Grid: [`results/2026-10-28-markdown-pr1286.md`](../results/2026-10-28-markdown-pr1286.md) §"Round 2"**
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ⚠️ PARTIAL — 54/60 list-container cases (CT-01–CT-60) pass at EP-3: every block sits at its item's text indent and the sibling after it continues the container's list (#1094 fixed). The six rule cases (CT-10, 20, 30, 40, 50, 60) fail on #1096. CT-61–CT-80 not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
+
+**Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ⚠️ PARTIAL — 54/60, identical to round 1 (paragraph dump unchanged; the six rule cases #1096). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
