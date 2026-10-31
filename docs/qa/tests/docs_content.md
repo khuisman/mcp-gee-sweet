@@ -6552,10 +6552,10 @@ asyncio.run(main())
 **Result (2026-10-30) ✅ PASS — PR #1296 round 2 (Kit)**
 `mcp-gee-sweet-kit` at daaa92eb, reconnected after the reset, on a scratch doc in `{FOLDER_ID}` as in round 1. Part A: same as round 1, with the logo embedded, the missing image reported in `images` with its error, an empty paragraph where it was, and no link on any text run. A fresh-interpreter rerun of parts B (`ALLOW=1`) and the create-path injection now also logs `ERROR mcp_gee_sweet.tools.docs.content Converting doc content failed (<outcome>)` with the traceback, before the same `{'error', ...}` result. Scratch doc trashed, no backup copy left.
 
----
-
 **Result (2026-10-31) ✅ PASS (part A only) — PR #1310 round 1 (Kit)**
 `mcp-gee-sweet-kit` at c136f679, reconnected after the reset, on a scratch doc in `{FOLDER_ID}`. Steps 1–2 under the #1099 checks: the logo embedded with no `error`, `/tmp/tc-doc243-missing.png` reported with `error` "No file found at '/tmp/tc-doc243-missing.png'" and `fallback_text` "Missing", and `get_doc_as_markdown` shows `[Missing](https://example.com/bad-link)` between the logo and "After the images.", with no link on the surrounding text. Parts B and C weren't rerun: this PR doesn't change the conversion-first path they inject into. Scratch doc trashed.
+
+---
 
 ### TC-DOC244: `get_doc_as_markdown` keeps a block inside a list item in the item, and a bulleted heading as `- # Title` ⚠️ requires-oauth ⚠️ destructive
 **Purpose:** Regression test for #1302, the read-side inverse of #1094. Since #1094 the write side puts a block inside a list item (a second paragraph, a code block, a quote, a table, a rule) under its item, unbulleted and indented to the item's text, with the list going on past it. The export wrote each such block at the margin, so re-importing ended the list there, and a quote in an item (72pt: the item's text at 36pt plus one quote step) came back as `> >`. A bulleted HEADING_N paragraph (`- # Title`) came back as `- Title`. The export now writes the block indented to its item's content column, counts its quote depth from the item's text, and writes a bulleted heading as `- #… Title`. A table has no indent the Docs API reports, so a table is read as inside an item only when the same list continues after it.
@@ -6699,7 +6699,7 @@ print(asyncio.run(c._replace_doc_content(lc, '{SCRATCH}', Path(F).read_text(), '
 
 **Steps (part C, no folder known)**
 
-6. Run step 4's script with one change: before `print`, add `c._doc_parents = lambda *a: asyncio.sleep(0, result=None)` (a doc shared from a folder this account can't see has no parents).
+6. Run step 4's script with one change: before `print`, add `c._doc_parents = lambda *a: asyncio.sleep(0, result=(None, None))` (a doc shared from a folder this account can't see has no parents; `_doc_parents` returns `(parents, error)` since PR #1310 round 2).
 7. `refresh_cache(doc_id={SCRATCH})`, `get_doc_as_markdown(doc_id={SCRATCH})`, and `search_files(query="TC-DOC245 scratch (backup before replace)")`
 
 **Checks**
@@ -6720,3 +6720,6 @@ Fresh interpreter against f6307b59. A missing local image (`/tmp/kit-nope.png`) 
 
 **Result (2026-10-31) ✅ PASS (the round-3 unreachable-doc fix) — PR #1310 round 3 (Kit)**
 Fresh interpreter against eb6ce267, `folder_id=None`, with an existing local image and `doc_id='bogusDocIdDoesNotExist123'`: returns `{'error': "Couldn't read the document (it doesn't exist, or this account can't open it), so it was left unchanged: <HttpError 404 … File not found …>", 'docId': …}` instead of the folder refusal. Parts A–C weren't rerun; the fix doesn't change their paths.
+
+**Result (2026-10-31) ✅ PASS (step 6 only) — PR #1310 round 4 (Kit)**
+Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case from TC-DOC244). Step 6 as first written stubbed `_doc_parents` to return `None`, but it returns `(parents, error)` since round 2, so the stub would raise on unpacking; corrected to `result=(None, None)`. With it, step 6 printed the documented refusal ending "Pass folder_id. The document was left unchanged." on a fresh scratch doc, which was then trashed. The other steps' code paths are unchanged since round 3.
