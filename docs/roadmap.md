@@ -402,7 +402,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
 - [ ] A bare '-' (empty list item) isn't recognized in Markdown ([#1075](https://github.com/khuisman/mcp-gee-sweet/issues/1075))
 - [ ] **Bundle:** Markdown/HTML inline styles — one PR closing [#1077](https://github.com/khuisman/mcp-gee-sweet/issues/1077) (strikethrough, `<del>`) and [#1119](https://github.com/khuisman/mcp-gee-sweet/issues/1119) (`<sub>`, `<sup>`, `<mark>`); after PR #1228, check how much of #1077 the GFM strikethrough rule already fixed. Bundled 2026-10-25 (maintainer) ([#1231](https://github.com/khuisman/mcp-gee-sweet/issues/1231))
-- [ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128))
+- [x] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128)) (PR #1234)
 - [x] get_doc_as_markdown renumbers a numbered list from 1 after a table (or any block) interrupts it, so it re-imports as two lists. `wrong/narrow`, observed in PR #1201 QA ([#1208](https://github.com/khuisman/mcp-gee-sweet/issues/1208)) (PR #1234)
 - [x] create_paragraph_bullets adds the requested nesting level to an item's current level instead of setting it. It's the repair path `get_doc_structure` points to for a Markdown conversion that flattened a nested list, so it belongs with Markdown fidelity; moved back from ankylosaurus 2026-10-24 (maintainer) — lane A ([#1069](https://github.com/khuisman/mcp-gee-sweet/issues/1069)) (PR #1216)
 - [ ] **Bundle:** Markdown/HTML image sources — one PR closing [#1121](https://github.com/khuisman/mcp-gee-sweet/issues/1121) (relative path against the `.md` file), [#1139](https://github.com/khuisman/mcp-gee-sweet/issues/1139) (`update_doc_from_file` has no `folder_id`) and [#1099](https://github.com/khuisman/mcp-gee-sweet/issues/1099) (unfetchable image dropped without a trace); after PR #1228. Bundled 2026-10-25 (maintainer) ([#1232](https://github.com/khuisman/mcp-gee-sweet/issues/1232))
@@ -454,10 +454,10 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
-- [ ] qa: live verification for PR #1110 (inline images in get_doc_structure runs) ([#1157](https://github.com/khuisman/mcp-gee-sweet/issues/1157))
-- [ ] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160))
-- [ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167))
-- [ ] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190))
+- [x] qa: live verification for PR #1110 (inline images in get_doc_structure runs) ([#1157](https://github.com/khuisman/mcp-gee-sweet/issues/1157)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190)) (live PASS 2026-10-27)
 - [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
 - [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
@@ -700,7 +700,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 - [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
-- [ ] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_
+- [x] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_ (done 2026-06-26)
 - [ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent `<p>` (from PR #1164). Bob, no version ([#1267](https://github.com/khuisman/mcp-gee-sweet/issues/1267))
 - See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 
