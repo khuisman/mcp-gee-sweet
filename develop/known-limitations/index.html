@@ -1429,6 +1429,23 @@ constructs.</p>
 real Docs footnotes is #149), a definition list as <code>**Term**: definition</code> lines, and put HTML that
 needs Markdown inside it as HTML instead.</p>
 <hr />
+<h3 id="get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list"><code>get_doc_as_markdown</code> exports a table or quote that ends a list's last item outside the list<a class="headerlink" href="#get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A table inside a list's last item (<code>1. a\n\n   | x |\n   |---|\n</code>) is written to the
+Doc indented under the item, but <code>get_doc_as_markdown</code> exports it at the margin, after the list.
+A quote that ends a list's last item (<code>- a\n\n  &gt; q\n</code>) exports as a deeper quote at the margin
+(<code>&gt; &gt; q</code>). Either one exports inside its item when the list goes on after it: a later item of the
+list, a sublist nested under the item (of either type), or a paragraph indented in the item. A
+paragraph, code block, or heading inside any item always exports inside it.</p>
+<p><strong>Why:</strong> The export finds a block inside an item from its indent (#1302). A table's indent isn't
+reported anywhere in the Docs API: the JSON of a table inside an item matches one at the margin
+(checked live). A quote's is, but a quote inside an item sits exactly where a deeper quote at the
+margin would (a quote in a top-level item is at 72pt, like a margin <code>&gt; &gt;</code>), so the indent can't
+tell them apart. Such a block counts as inside an item only when the list goes on after it, which
+it never does after a list's last item. Reading an ambiguous quote as the margin quote keeps every
+quote level; reading it into the item would drop one.</p>
+<p><strong>Workaround:</strong> None in the export. Indent the table or quote under its item by hand in the
+exported Markdown. Related: <code>docs/qa/tests/docs_content.md</code> TC-DOC244.</p>
+<hr />
 <h3 id="a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes">A list inside a blockquote draws its own quote bar, offset from the quote's<a class="headerlink" href="#a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> In Markdown or HTML content written to a Doc, a list inside a blockquote shows its gray
 left bar at the list item's indent, not at the quote's. A quote that mixes paragraphs and list

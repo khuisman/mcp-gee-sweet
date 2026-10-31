@@ -1440,6 +1440,33 @@ best-effort — see below), and an opt-in comments section.</p>
   (<code>borderLeft</code> alone signals "this was our blockquote styling"; <code>indentStart</code> alone is
   ambiguous — plenty of ordinary paragraphs use indentation for unrelated reasons) and infers
   depth from <code>round(indentStart / 36)</code>.</li>
+<li><strong>Blocks inside a list item</strong> (#1302, the inverse of #1094): the write side puts a block inside
+  an item (a second paragraph, code, a quote, a heading, a rule's empty paragraph) after the
+  item, unbulleted, with <code>indentStart</code> and <code>indentFirstLine</code> both at the item's text indent (its
+  list level's <code>indentStart</code>) plus 36pt per quote level, and Docs keeps the list's numbering
+  going past it. <code>_ListItemContext</code> reads that back: a non-bullet paragraph after an item, whose
+  two indents are equal and land on the text indent of that item's level or a shallower one,
+  gets that level as <code>list_depth</code>, and its quote depth counts from the text indent, not the
+  margin (from the margin, a quote in an item at 72pt read as <code>&gt; &gt;</code>). The deepest matching level
+  wins, and the block closes the levels deeper than it. The context keeps the <code>listId</code> open at
+  each depth, since #1072 gives a sublist of the other type its own <code>listId</code>. Anything else, a
+  paragraph at the margin or an item of a list that isn't open, ends the list. Some blocks wait
+  instead of being placed at once: a table, which has no indent the API reports (checked live:
+  an in-item table's JSON matches a margin table's); the empty unindented paragraph Docs puts
+  before a table inserted in an item; and a quote whose indent also reads as a deeper quote at
+  the margin (a quote in a top-level item is at 72pt, like a margin <code>&gt; &gt;</code>; PR #1311 QA round 1).
+  A waiting block is inside an item when the list goes on: an item of a list open at its depth,
+  a sublist nested under the last item, or a plainly in-item block. A table then takes the depth
+  of the item that ends the wait, capped at the last item's (so a table after a sublist, before
+  the parent's next item, is the parent's). Otherwise it stays outside, as read: a table at the
+  margin, a quote at its margin depth. A block that ends a list's last item therefore reads as
+  outside it (<code>known-limitations.md</code>). A margin table between two items comes back as outside
+  too, because the write side splits the list there into two Docs lists (measured live).</li>
+<li><strong>Bulleted headings</strong> (#1302): a bulleted <code>HEADING_N</code> paragraph (what <code>- # Title</code> writes,
+  #1094) reads back as a <code>BulletItem</code> with <code>heading_level</code>. Since it renders as a heading inside
+  its item, <code>markdown_export._rendered_heading_slugs</code> counts it, like the write side's anchor
+  resolver does. A checkbox item doesn't get one: GFM reads <code>- [ ] ## Title</code> as task text, so
+  it would neither render nor take a slug as a heading (PR #1311 QA round 1).</li>
 <li><strong>Trailing paragraph newline</strong>: every paragraph's content ends with a <code>"\n"</code> in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors <code>html_parser.py</code>'s own <code>&lt;pre&gt;</code>-close trailing-newline handling.</li>
@@ -1534,6 +1561,17 @@ best-effort — see below), and an opt-in comments section.</p>
   tags), so this is a readability polish on the output, not a correctness fix. Caught during
   live round-trip verification (the initial version produced a blank line between every single
   list item, nested or not).</li>
+<li><strong>Blocks inside a list item</strong> (#1302): a node with a <code>list_depth</code> is indented to its item's
+  content column, the width of the item's own indent and marker (<code>_item_prefix</code>), so CommonMark
+  keeps it in the item and the list going past it. <code>_OpenItems</code> records the column of the last
+  item at each depth. A quoted item's quote markers come before its indent (<code>&gt; - a</code>). A block
+  inside it is inside that quote too, whatever depth it reads with (a table reads none, and
+  neither does the empty paragraph Docs puts before one), so the item's quote levels go outside
+  the indent and only the block's extra levels inside, and the blank lines around it carry the
+  item's levels (<code>&gt;</code>) so the quote doesn't end (PR #1311 QA round 1). A bulleted heading renders
+  as <code>- ## Title</code>. Every other item's text now goes through <code>_escape_leading_block_marker</code>,
+  since text after the marker starts the item's first block: <code>- # a</code> is a heading inside the
+  item, and <code>- 1. a</code> a sublist.</li>
 <li><strong>Tables</strong>: the first row is always rendered as the header row — GFM pipe-table syntax
   structurally requires exactly one header + separator row, and the Docs API has no per-row
   "is this the header" signal to read back (unlike the AST's own <code>is_header_row</code>, which only
@@ -1557,10 +1595,10 @@ best-effort — see below), and an opt-in comments section.</p>
   <code>\ ` * _ [ ]</code> — not a line-leading <code>#</code>, <code>&gt;</code>, <code>-</code>/<code>*</code>/<code>+</code>, or an ordered-list <code>N.</code>/<code>N)</code>.
   Live-confirmed a plain paragraph reading literally "1. Not actually a list item" or "# Not a
   heading either" round-tripped unescaped and any CommonMark parser reinterprets it as a real
-  ordered-list item or ATX heading. Fixed via <code>_escape_leading_block_marker</code>, applied only to
-  plain <code>Paragraph</code> rendering (not <code>Heading</code>/<code>NamedBlock</code>/<code>BulletItem</code>, which already have their
-  own legitimate same-line prefix, so content following it is never re-parsed as a new block
-  starting mid-line) and applied <em>before</em> any blockquote <code>"&gt; "</code> wrapping (a <code>"&gt; #"</code> line is parsed
+  ordered-list item or ATX heading. Fixed via <code>_escape_leading_block_marker</code>, applied to plain
+  <code>Paragraph</code> rendering (not <code>Heading</code>/<code>NamedBlock</code>, whose text follows their own <code>#</code> prefix and
+  is never re-parsed as a new block; a list item's text is escaped too since #1302, see above)
+  and applied <em>before</em> any blockquote <code>"&gt; "</code> wrapping (a <code>"&gt; #"</code> line is parsed
   as a heading nested inside the blockquote by CommonMark, so the escape has to happen first, not
   after). One CommonMark subtlety this surfaced: digits are not in CommonMark's escapable
   ASCII-punctuation set, so <code>\1</code> is not a valid escape and renders as a literal backslash — the
