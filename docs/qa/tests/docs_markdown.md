@@ -629,7 +629,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LK-03 | Three links, to `/ref-a`, `/collapsed`, `/shortcut`; definition lines not shown | same |
 | LK-04 | "https://example.com/angle" linked; no angle brackets shown | same |
 | LK-05 | Both bare URLs linked; the trailing period after `/end` is not part of the link | both plain text |
-| LK-06 | "www.example.com/www" linked (GFM extended `www.` autolink) | plain text |
+| LK-06 | "www.example.com/www" linked to `https://www.example.com/www` (GFM extended `www.` autolink; https, not GFM's http, #1281). On EP-5 to EP-7, Drive's importer links it to `http://www.example.com/www` (D4) | plain text |
 | LK-07 | Both addresses link to `mailto:team@example.com` | first linked, second plain |
 | LK-08 | Both bold and linked | same |
 | LK-09 | Both spans Courier New, not linked | same |
@@ -1265,7 +1265,7 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 
 ## Conversion reporting
 
-What our converter tells the caller about the conversion. EP-1 to EP-4 only: the Drive-import entry points don't run our converter and report nothing about links.
+What our converter tells the caller about the conversion, and the link targets it writes. Our converter's entry points only (EP-1 to EP-4, plus EP-8 where a case names it): the Drive-import entry points don't run our converter and report nothing about links.
 
 ### TC-MD501: Dropped links are reported in the response, host links get https ⚠️ destructive
 **Prompt**
@@ -1294,6 +1294,8 @@ What our converter tells the caller about the conversion. EP-1 to EP-4 only: the
 - On screen, in WS-01, "www.example.com" (the bare autolink) and "y" (the written link) both link to `https://www.example.com`, and "www.example.com:8443/x" links to `https://www.example.com:8443/x`. No link in the Doc uses `http://` (#1281: the autolink used to get `http://` while the written link got `https://`).
 - `get_doc_as_markdown` on each Doc shows the same three targets.
 - No response has a `dropped_links` key.
+
+**Result (2026-10-30, PR #1298 @ 833b076c, Kit, round 1) ✅ PASS — 5/5 case×EP cells pass.** EP-1 to EP-4 and EP-8 each stored `[www.example.com](https://www.example.com)`, `[y](https://www.example.com)` and `[www.example.com:8443/x](https://www.example.com:8443/x)` (`get_doc_as_markdown`); no response had a `dropped_links` key. Screenshots of EP-1 and EP-8 show all three linked. Out-of-case probe: EP-5 (`upload_local_file(convert=True)`, Drive's importer) stores all three as `http://…`, the written link included, so the engines differ on the scheme; LK-06 now records that.
 
 ---
 
