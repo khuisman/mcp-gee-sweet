@@ -2165,8 +2165,8 @@
 <ul>
 <li>[ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1044">#1044</a>)</li>
 <li>[x] Markdown sub-lists indented 2 or 3 spaces don't nest (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1071">#1071</a>) (PR #1228)</li>
-<li>[x] A numbered list restarts its numbering after a nested bullet list; folds in #1241, the reverse case in the same run grouping (maintainer, 2026-10-28) — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>) (PR #1286)</li>
-<li>[ ] Two adjacent Markdown lists render as one Docs list. <code>wrong/narrow</code>, observed in TC-MD105/108; folded into #1072 (maintainer, 2026-10-28) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1241">#1241</a>)</li>
+<li>[x] A numbered list restarts its numbering after a nested bullet list. #1241, the reverse case in the same run grouping, was folded in (maintainer, 2026-10-28) but PR #1286 didn't fix it, so #1241 stays open below — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1072">#1072</a>) (PR #1286)</li>
+<li>[ ] Two adjacent Markdown lists render as one Docs list. <code>wrong/narrow</code>, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1241">#1241</a>)</li>
 <li>[x] Images inside table cells are dropped silently (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1073">#1073</a>) (PR #1215)</li>
 <li>[ ] HTML input: whitespace between list tags becomes stray bullet paragraphs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1074">#1074</a>)</li>
 <li>[ ] A bare '-' (empty list item) isn't recognized in Markdown (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1075">#1075</a>)</li>
@@ -2293,7 +2293,7 @@
 <p><strong>Triaged in 2026-10-18</strong></p>
 <ul>
 <li>[ ] <code>create_paragraph_bullets</code> drops a blockquoted paragraph's quote indent — <code>wrong/narrow</code>, observed; from PR #1089's review, after v0.9.3's lock (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1090">#1090</a>)</li>
-<li>[ ] A list inside a blockquote draws its border at the list indent, not the quote's — <code>wrong/narrow</code>, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1242">#1242</a>)</li>
+<li>[x] Document as a known limitation: a list inside a blockquote draws its border at the list indent, not the quote's. Maintainer's call 2026-10-29, after community PR #1258 (closed) showed Docs draws the border at <code>indentStart</code>, the same setting as the item's hanging indent. Out of ankylosaurus since then: a docs ticket with no version label, Amy (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1242">#1242</a>) (PR #1294)</li>
 <li>[x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1032">#1032</a>) (PR #1264)</li>
 <li>[x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — <code>wrong/rare</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1030">#1030</a>) (PR #1264)</li>
 <li>[ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. <code>wrong/rare</code>; found in PR #1264, the same gap #1030 closed for Docs and Drive (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1265">#1265</a>)</li>
@@ -2323,6 +2323,11 @@
 <li>[ ] <code>style_doc_range</code> font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. <code>wrong/rare</code>; from the #1279 review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1289">#1289</a>)</li>
 <li>[ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1243">#1243</a>)</li>
 <li>[ ] Markdown task lists as native Docs checkboxes (<code>BULLET_CHECKBOX</code>) instead of a disc bullet plus a glyph. First check live whether the API can set the checked state (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1280">#1280</a>)</li>
+</ul>
+<p><strong>Triaged in 2026-10-29</strong></p>
+<ul>
+<li>[ ] Markdown links to <code>file:</code> and script schemes render as literal <code>[text](target)</code> source, with no <code>dropped_links</code> entry. <code>wrong/narrow</code>, regression since v0.9.5 (PR #1228's markdown-it switch); placed here by the maintainer (2026-10-29), not in ornithomimus's locked fill, though the rubric allows a regression there. #1291 closed as its duplicate (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1290">#1290</a>)</li>
+<li>[ ] <code>create_paragraph_bullets</code> restarts a numbered list's numbering after a nested list of the other type: its same-<code>listId</code> expansion walks only adjacent paragraphs, so it re-bullets the items after the nested list as a new list. <code>wrong/narrow</code>, observed (live on PR #1286), not a regression; from PR #1286's review. Grouped with #1090, the same function (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1288">#1288</a>)</li>
 </ul>
 <h3 id="velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight">velociraptor — Parity 1 <em>(queued, label <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22"><code>planned: velociraptor</code></a>; gets a number when it goes in flight)</em><a class="headerlink" href="#velociraptor-parity-1-queued-label-planned-velociraptor-gets-a-number-when-it-goes-in-flight" title="Permanent link">&para;</a></h3>
 <p>Queued after <em>ankylosaurus</em> (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.</p>
