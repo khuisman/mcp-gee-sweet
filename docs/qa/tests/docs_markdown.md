@@ -1178,6 +1178,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | DS-12 | `ds-12-no-trailing-newline.md` | The paragraph, intact |
 | DS-13 | `ds-13-crlf-line-endings.md` | Same rendering as the LF equivalent: heading, 2-item list, paragraph; no stray characters |
 | DS-14 | `ds-14-front-matter.md` | D3: the front matter isn't shown; the Doc starts with the Heading 1 "Body heading" |
+| DS-15 | `ds-15-rule-then-setext-heading.md` | Not front matter (its line isn't a YAML `key:`), so nothing is dropped: a horizontal line, the Heading 2 "Not front matter", then the paragraph (#1173) |
 
 **Result (2026-10-22) ❌ FAIL — 71/112 case×EP cells pass, 6 pending (EP-1/2/8 of DS-10 and DS-13: the client can't send an empty string or CRLF inline), in both runs except DS-05 EP-3 (Run 2 hang, #1129); failures: #1101, #1102, #1096, #1129, #1173. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 

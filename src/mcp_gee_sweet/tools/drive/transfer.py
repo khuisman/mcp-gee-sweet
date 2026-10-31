@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import codecs
 import hashlib
 import io
 import logging
@@ -25,6 +26,7 @@ from ...local_files import (
     many_checks,
 )
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
+from ..front_matter import strip_front_matter
 from ..http_errors import is_storage_quota_error
 from ..mime_types import guess_mime_type
 from ..pagination import PageLimitExceeded, iter_pages
@@ -503,6 +505,36 @@ def _converted_md_upload_properties(
     return props
 
 
+def _read_md_without_front_matter(path: Path) -> bytes | None:
+    """The .md file's bytes with its YAML front matter removed, or None when there's
+    none to remove (the file is then uploaded as it is).
+
+    Drive's Markdown import shows front matter as a rule and a heading, and plan rule
+    D3 (#1173) leaves it out, so a converted .md upload sends the bytes without it.
+    Only a file starting with "---" (after a UTF-8 byte-order mark) is read in full.
+    A file that isn't UTF-8 is uploaded unchanged."""
+    with open(path, "rb") as f:
+        if not f.read(6).removeprefix(codecs.BOM_UTF8).startswith(b"---"):
+            return None
+        f.seek(0)
+        raw = f.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    stripped = strip_front_matter(text)
+    return None if stripped == text else stripped.encode("utf-8")
+
+
+async def _md_import_media(path: Path, mime: str) -> MediaFileUpload | MediaInMemoryUpload:
+    """The upload body for a .md file converted by Drive's Markdown import: the file
+    itself, or its bytes without front matter (_read_md_without_front_matter)."""
+    stripped = await asyncio.to_thread(_read_md_without_front_matter, path)
+    if stripped is None:
+        return MediaFileUpload(str(path), mimetype=mime, resumable=True)
+    return MediaInMemoryUpload(stripped, mimetype=mime, resumable=True)
+
+
 async def _restamp_modified_time(
     drive_service: Any, file_id: str, lmtime_str: str
 ) -> dict[str, Any] | None:
@@ -866,7 +898,9 @@ async def _upload_local_file(
                 **metadata["properties"],
                 **_converted_md_upload_properties(lmtime),
             }
-        media = MediaFileUpload(str(path), mimetype=mime, resumable=True)
+            media = await _md_import_media(path, mime)
+        else:
+            media = MediaFileUpload(str(path), mimetype=mime, resumable=True)
         result = await execute_in_thread(
             drive_service.files()
             .create(
@@ -2109,7 +2143,11 @@ async def _sync_level(
                     check_read(p)
                     lmtime = _local_mtime_dt(p)
                     lmtime_str = _drive_time_str(lmtime)
-                    media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                    media = (
+                        await _md_import_media(p, mime)
+                        if convert_this
+                        else MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                    )
                     if name in drive_map:
                         existing = drive_map[name]
                         fid = existing["id"]
@@ -3141,7 +3179,8 @@ def register(tool):
                      paragraph per line instead of monospace, quotes without a
                      border, nested numbering '1.' rather than 'a.'. Full list:
                      docs/known-limitations.md. To render a .md the way the Docs
-                     tools do, use create_doc_from_file instead.
+                     tools do, use create_doc_from_file instead. Leading YAML front
+                     matter is left out of the Doc, as in the Docs tools.
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
@@ -3217,7 +3256,8 @@ def register(tool):
                      A .md file is rendered by Drive's Markdown importer, not this
                      server's converter: '-' bullets at every level, code blocks
                      not monospace, quotes without a border, nested numbering '1.'
-                     rather than 'a.'. Full list: docs/known-limitations.md.
+                     rather than 'a.'. Full list: docs/known-limitations.md. Leading
+                     YAML front matter is left out of the Doc.
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', 'skipped_unverified', and
@@ -4020,7 +4060,8 @@ def register(tool):
                            renders the Markdown, not this server's converter: '-'
                            bullets at every level, code blocks not monospace, quotes
                            without a border, nested numbering '1.' rather than 'a.'
-                           (full list: docs/known-limitations.md). The converted Doc
+                           (full list: docs/known-limitations.md). Leading YAML
+                           front matter is left out of the Doc. The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of
                            whether a later sync passes convert_markdown=True again),
