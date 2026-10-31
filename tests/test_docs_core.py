@@ -611,6 +611,21 @@ class TestBlockInsideListItemAst:
         assert [type(n) for n in nodes] == [BulletItem, Paragraph]
         assert nodes[1].list_depth == 0
 
+    def test_text_after_a_list_with_an_unclosed_item_keeps_the_outer_item(self):
+        # PR #1301 QA round 2: x's unclosed <li> left a frame on the stack after
+        # </ul>, which stopped the walk, so z fell to the margin.
+        nodes = html_to_ast("<ul><li>a<ul><li>x<p>y</ul>z</li></ul>")
+        assert [(type(n), n.runs[0].text) for n in nodes] == [
+            (BulletItem, "a"),
+            (BulletItem, "x"),
+            (Paragraph, "y"),
+            (Paragraph, "z"),
+        ]
+        assert [(n.list_depth, n.list_path) for n in nodes[2:]] == [
+            (1, nodes[1].list_path),
+            (0, nodes[0].list_path),
+        ]
+
     def test_heading_item_interrupted_before_its_close_tag(self):
         # PR #1301 QA round 1: </h1> after the nested list fell through to the inline
         # end-tag path and decremented _tag_depth, so the later bare "z" and <hr>
