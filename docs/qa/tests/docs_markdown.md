@@ -1184,6 +1184,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — DS-14 only (re-run scope): 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1173, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-10-30, PR #1303 @ 0c94c64d) ❌ FAIL — DS-14 and DS-15 only, one run (Kit): 11/16 case×EP cells pass. DS-14 passes at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md)**
+
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
 **Playwright: required**
