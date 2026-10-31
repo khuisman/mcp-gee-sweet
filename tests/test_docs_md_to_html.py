@@ -550,11 +550,11 @@ class TestQaRound3:
         ]
 
     def test_text_after_a_rule_in_an_item_has_no_leading_break(self):
-        # Finding 3: "\nmore" before.
+        # Finding 3: "\nmore" before. "more" is item a's content, not a bullet (#1094).
         assert self._nodes("- a\n  ***\n  more\n- c\n") == [
             ("BulletItem", "a"),
             ("Paragraph", ""),
-            ("BulletItem", "more"),
+            ("Paragraph", "more"),
             ("BulletItem", "c"),
         ]
 

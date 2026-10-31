@@ -144,6 +144,9 @@ class _BlockFrame:
     # each of which has exactly one possible closing tag and so can't be
     # mismatched the same way.
     list_depth: int | None
+    # The interrupted block's _block_lists: for an <li>, the lists enclosing that item,
+    # which a block nested in the item reads through _list_item_fields (#1094).
+    lists: tuple[tuple[bool, ...], tuple[int, ...]] = ((), ())
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -213,6 +216,15 @@ class _AstParser(HTMLParser):
         # left unclosed until </ul> is flushed after the pop, so _make_bullet_item
         # reads this instead of the live stack (#1241).
         self._block_lists: tuple[tuple[bool, ...], tuple[int, ...]] = ((), ())
+        # The level of a heading that is a list item's own content ("<li><h1>"), which
+        # makes the item a bulleted heading (#1094). Per-segment, like the fields
+        # _open_block resets.
+        self._li_heading_level: int | None = None
+        # The tags of the open item headings, which outlive their segment: a nested
+        # block can interrupt the item before the heading's </hN>, which must still be
+        # consumed here rather than reach the inline end-tag path and decrement
+        # _tag_depth, which its start tag never incremented (PR #1301 QA round 1).
+        self._li_heading_tags: list[str] = []
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
         # Ids of the open <blockquote> tags, outermost first (#476, #1098); its
@@ -345,6 +357,7 @@ class _AstParser(HTMLParser):
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
         self._li_trailing_padding = False
+        self._li_heading_level = None
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
         self._run_buf = []
         self._pending_runs = []
@@ -385,6 +398,7 @@ class _AstParser(HTMLParser):
             ordered=ordered,
             checked=checked,
             list_path=list_path,
+            heading_level=self._li_heading_level,
             **self._blockquote_fields(),
         )
 
@@ -401,6 +415,46 @@ class _AstParser(HTMLParser):
             "blockquote_depth": len(self._blockquote_ids),
             "blockquote_path": tuple(self._blockquote_ids),
         }
+
+    def _list_item_fields(self) -> dict:
+        """list_depth and list_path for a non-item block built now (#1094): the list
+        item it sits in, if any. That's the item whose later segment is open (text
+        after a nested block, which belongs to the item), else the innermost item a
+        nested block interrupted whose lists are the ones open now. An item counts only
+        while no list has opened inside it since, so a block in a nested list's own
+        items, or loose in that list, isn't taken for content of the outer item. Every
+        non-item leaf construction passes these, like _blockquote_fields.
+
+        "Open now" is the ids of the lists open when the block's own segment began
+        (_block_lists), not the live stack: a block left open until its list's </ul>
+        is flushed after the pop, the same case _make_bullet_item reads _block_lists
+        for (#1241). A node built with no block open uses the live stack.
+
+        The walk skips any <li> frame whose lists aren't exactly the open ones rather
+        than stopping at it: an item left unclosed inside a nested list
+        (`<li>x<p>y</ul>`) leaves its frame on _block_stack after the </ul>, and text
+        after that list still belongs to the outer item (PR #1301 QA round 2). Frames
+        match by list ids, not depth, so a stale frame from a list that has closed
+        never matches a later list at the same depth (PR #1301 QA round 3)."""
+        open_ids = self._block_lists[1] if self._block_tag is not None else tuple(self._list_ids)
+        if self._block_tag == "li" and self._block_resumed:
+            lists = self._block_lists
+        else:
+            frame = next(
+                (
+                    f
+                    for f in reversed(self._block_stack)
+                    if f.outer_tag == "li" and f.lists[1] == open_ids
+                ),
+                None,
+            )
+            if frame is None:
+                return {}
+            lists = frame.lists
+        ordered, path = lists
+        if not ordered or path != open_ids:
+            return {}
+        return {"list_depth": len(ordered) - 1, "list_path": path}
 
     def _close_dangling_inline_formatting(self):
         """A block boundary is starting while inline formatting tags may still
@@ -517,8 +571,15 @@ class _AstParser(HTMLParser):
                 return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
-            self._nodes.append(Heading(level=level, runs=runs, **self._blockquote_fields()))
-        elif tag == "li":
+            self._nodes.append(
+                Heading(
+                    level=level,
+                    runs=runs,
+                    **self._blockquote_fields(),
+                    **self._list_item_fields(),
+                )
+            )
+        elif tag == "li" and not self._block_resumed:
             self._nodes.append(self._make_bullet_item(runs))
         elif tag == "p" and self._block_named_style:
             self._nodes.append(
@@ -526,10 +587,15 @@ class _AstParser(HTMLParser):
                     style_type=self._block_named_style,
                     runs=runs,
                     **self._blockquote_fields(),
+                    **self._list_item_fields(),
                 )
             )
         else:
-            self._nodes.append(Paragraph(runs=runs, **self._blockquote_fields()))
+            # A resumed <li> segment lands here too: text after a block nested in the
+            # item is more of that item's content, not a new item (#1094).
+            self._nodes.append(
+                Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
+            )
 
     def _interrupt_open_block(self, new_construct_tag: str):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
@@ -574,6 +640,7 @@ class _AstParser(HTMLParser):
                 interrupted_by=new_construct_tag,
                 named_style=outer_named_style,
                 list_depth=(len(self._list_ordered) if new_construct_tag in ("ol", "ul") else None),
+                lists=self._block_lists,
             )
         )
         self._block_tag = None
@@ -770,11 +837,10 @@ class _AstParser(HTMLParser):
             # *loose* Markdown list lost its bullets: python-markdown wraps each
             # loose item's text in `<p>`, so any blank line between items hits
             # this. Only the item's first paragraph stays transparent; a second
-            # one still interrupts as before, because "content under a list
-            # item" is #1094's open question rather than this one's. So does any
-            # `<p>` once the `<li>` has resumed after a nested list, quote, code
-            # block or paragraph: joining the resumed item would emit it as a
-            # new bullet, or a new number in an ordered list. A
+            # one interrupts, and becomes a block inside the item (#1094). So does
+            # any `<p>` once the `<li>` has resumed after a nested list, quote,
+            # code block or paragraph: joining the resumed item would emit it as
+            # a new bullet, or a new number in an ordered list. A
             # `data-style` paragraph owns a NamedBlock identity, so it keeps
             # interrupting too.
             li_padding = "".join(self._run_buf)
@@ -789,6 +855,23 @@ class _AstParser(HTMLParser):
                 # Drops the `<li>`-to-`<p>` padding that would otherwise be
                 # buffered as the item's own leading text.
                 self._run_buf = []
+                return
+            # A heading that opens a list item ("- # Title") is the item's own text,
+            # in that heading's style (#1094): the item becomes a bulleted heading
+            # rather than an empty item followed by an unlisted Heading. Same
+            # conditions as the transparent `<p>` above; a heading after the item's
+            # text stays a block inside the item.
+            if (
+                tag in _HEADING_TAGS
+                and self._block_tag == "li"
+                and not self._block_resumed
+                and not self._pending_runs
+                and self._li_heading_level is None
+                and (li_padding == "" or _is_formatting_whitespace(li_padding))
+            ):
+                self._run_buf = []
+                self._li_heading_level = int(tag[1])
+                self._li_heading_tags.append(tag)
                 return
             self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
@@ -815,7 +898,9 @@ class _AstParser(HTMLParser):
             and self._table_depth == 0
             and self._tag_depth == 0
         ):
-            self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            self._nodes.append(
+                Paragraph(runs=[], **self._blockquote_fields(), **self._list_item_fields())
+            )
             return
         # An <hr> after text in an open block (markdown-it's "<li>item\n<hr />\n</li>"
         # for a rule in a list item, #1116) is a block of its own: end the outer
@@ -834,7 +919,9 @@ class _AstParser(HTMLParser):
             and (self._block_resumed or "".join(self._run_buf).strip() or self._pending_runs)
         ):
             self._interrupt_open_block("hr")
-            self._nodes.append(Paragraph(runs=[], **self._blockquote_fields()))
+            self._nodes.append(
+                Paragraph(runs=[], **self._blockquote_fields(), **self._list_item_fields())
+            )
             self._resume_interrupted_block("hr")
             return
 
@@ -854,6 +941,7 @@ class _AstParser(HTMLParser):
                     Paragraph(
                         runs=[_make_image(attr_dict, src, link_url)],
                         **self._blockquote_fields(),
+                        **self._list_item_fields(),
                     )
                 )
                 return
@@ -923,6 +1011,8 @@ class _AstParser(HTMLParser):
                 if node is not None:
                     if self._table_depth == 1:
                         node.blockquote_depth = len(self._blockquote_ids)
+                        for name, value in self._list_item_fields().items():
+                            setattr(node, name, value)
                         self._nodes.append(node)
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
@@ -1050,10 +1140,34 @@ class _AstParser(HTMLParser):
                 or is_resumed_authored_whitespace
                 or self._block_had_unsupported_content
             ):
-                self._nodes.append(Paragraph(runs=runs, **self._blockquote_fields()))
+                self._nodes.append(
+                    Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
+                )
             self._block_tag = None
             self._in_pre = False
             self._resume_interrupted_block("pre")
+            return
+
+        # --- heading that is a list item's own text (#1094) ---
+        # The item ends with its heading: anything after it in the <li> is a block
+        # inside the item, so the item is emitted here and its later segment resumed.
+        # If a nested block interrupted the item first, the item was emitted then, and
+        # this end tag only closes the heading. A heading opened as a block of its own
+        # (self._block_tag == tag) closes through the block-element branch below.
+        if (
+            tag in _HEADING_TAGS
+            and self._table_depth == 0
+            and self._li_heading_tags
+            and self._li_heading_tags[-1] == tag
+            and self._block_tag != tag
+        ):
+            self._li_heading_tags.pop()
+            if self._block_tag == "li" and self._li_heading_level == int(tag[1]):
+                runs = self._flush_pending_runs()
+                self._emit_block_node(
+                    "li", runs, preserve_if_empty=self._block_had_unsupported_content
+                )
+                self._open_block("li", resumed=True, named_style=None)
             return
 
         # --- transparent paragraph inside a list item (#1111) ---
