@@ -463,6 +463,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167)) (live PASS 2026-10-27)
 - [x] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190)) (live PASS 2026-10-27)
 - [x] qa: live verification for PR #1026 (`font_family` in `style_doc_range`). Moved from ankylosaurus 2026-10-31 (maintainer) so the #1273 fix shipping here is checked live ([#1153](https://github.com/khuisman/mcp-gee-sweet/issues/1153)) (live PASS 2026-10-31; heading-bold add-on failed → #1300)
+- [x] qa: live verification for PR #1279 (`font_family` keeps direct bold, table cells, explicit `bold` in the same call) ([#1299](https://github.com/khuisman/mcp-gee-sweet/issues/1299)) (live PASS 2026-10-31)
 - [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
 - [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
@@ -571,6 +572,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-10-31**
 
 - [ ] `style_doc_range`: a `font_family`-only change turns off bold inherited from a named style (Docs writes `bold: false`). `wrong/narrow`, observed in #1153's live check; the second follow-up in #1273's family, after #1289 ([#1300](https://github.com/khuisman/mcp-gee-sweet/issues/1300))
+- [ ] `upload_local_file(convert=True)`: a `name=` without an extension errors instead of falling back to `local_path`'s extension. `loud/narrow`; the drop-`.md`-from-the-Doc-name half split out to #1309 ([#1307](https://github.com/khuisman/mcp-gee-sweet/issues/1307))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
@@ -647,10 +649,13 @@ Net-new capabilities substantial enough (new subsystem, external infra like webh
 
 **Infrastructure**
 - [x] `notifications/progress` feedback for long-running transfer calls (`download_folder`, `sync_folder`) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (PR #351) ([#319](https://github.com/khuisman/mcp-gee-sweet/issues/319))
+- [ ] `kai_status.py`: report open code-scanning alerts on `develop`, and say in `kai.md` what Kai does with them. On deck, no version; the `kai.md` part needs Bob's prompt-QA ([#1304](https://github.com/khuisman/mcp-gee-sweet/issues/1304))
 
 ### Decisions Needed — blocking backlog _(no assigned version)_
 
-All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to _ankylosaurus_ as small fixes. Nothing is open here.
+All eleven Phase 1 QA decisions were settled 2026-10-18: #31, #37 and #40 were already done in code; #33, #34, #35, #36, #38 and #78 keep current behavior; #32 and #39 moved to _ankylosaurus_ as small fixes.
+
+- [ ] Converted Markdown Doc keeps `.md` in its Drive name: keep it, drop it everywhere (sync and `skip_if_exists` then need another match), or drop it only for an explicit `name=`. Split from #1307's fix 2; Joy scopes; version follows the decision ([#1309](https://github.com/khuisman/mcp-gee-sweet/issues/1309))
 
 ---
 
