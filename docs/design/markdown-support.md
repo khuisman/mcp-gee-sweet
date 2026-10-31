@@ -219,4 +219,5 @@ contradicting the "monospace **paragraph**" (singular) mapping above. See `CLAUD
   library's table syntax can't express one; see `docs/known-limitations.md`'s Google Docs
   section for the HTML-input workaround
 - Does not support `.md` files with front matter (YAML front matter would show up as a
-  `<hr>` paragraph — acceptable for now)
+  `<hr>` paragraph — acceptable for now). Superseded: plan rule D3 omits it from the Doc
+  through every entry point (#1173, `tools/front_matter.py`).
