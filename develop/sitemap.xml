@@ -581,6 +581,14 @@
          <lastmod>2026-10-31</lastmod>
     </url>
     <url>
+         <loc>https://khuisman.github.io/mcp-gee-sweet/develop/qa/fixtures/md/syntax/docstart/ds-15-rule-then-setext-heading/</loc>
+         <lastmod>2026-10-31</lastmod>
+    </url>
+    <url>
+         <loc>https://khuisman.github.io/mcp-gee-sweet/develop/qa/fixtures/md/syntax/docstart/ds-16-front-matter-lists/</loc>
+         <lastmod>2026-10-31</lastmod>
+    </url>
+    <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-06-02/</loc>
          <lastmod>2026-10-31</lastmod>
     </url>
@@ -666,6 +674,10 @@
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-10-29-markdown-pr1295/</loc>
+         <lastmod>2026-10-31</lastmod>
+    </url>
+    <url>
+         <loc>https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-10-30-markdown-pr1303/</loc>
          <lastmod>2026-10-31</lastmod>
     </url>
     <url>
