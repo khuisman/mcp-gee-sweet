@@ -31,13 +31,19 @@ separate blocks, "all tables then all images") matters — a table inserted befo
 image within the same document would otherwise physically shift that image's precomputed
 position before it gets a chance to run.
 
-`ast_to_requests` stays fully synchronous (no network I/O) by accepting an already-resolved
-`image_uris: dict[id(image), str]` map rather than doing any resolution itself.
-`extract_images(nodes)` is the paired helper the caller (`content.py`, async) uses to collect
-every `Image` in a parsed tree *before* calling `ast_to_requests`, resolve each one to a URI, and
-pass the map in. An `Image` with no entry in that map (resolution failed, or the caller never
-passed one at all) is silently omitted — the same graceful-degradation behavior any other
+`ast_to_requests` stays fully synchronous (no network I/O) by taking an
+`image_uris: dict[id(image), str]` map rather than doing any resolution itself. An `Image` with
+no entry in that map is silently omitted — the same graceful-degradation behavior any other
 unsupported construct already gets from this parser.
+
+Since #1240, `content._convert_doc_content` builds the requests *before* any image resolves, so
+a conversion that fails or is cancelled never reaches the doc. It collects every `Image` with
+`extract_images(nodes)` and passes a unique placeholder URI for each one. `_apply_doc_content`
+then resolves the images, swaps each resolved image's placeholder for its real URI, and drops an
+unresolved image's `insertInlineImage` request along with its link request. That gives the same
+requests as never emitting the image: an image takes no room in the text, and its insert sits in
+the descending-position tail, where removing one shifts none of the others
+(`test_unresolved_images_requests_match_never_emitting_them` pins this).
 
 ## Three source kinds, one shared resolver
 
