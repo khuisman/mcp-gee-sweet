@@ -850,13 +850,15 @@ class TestFillNestedCellContent:
     async def test_image_child_is_skipped_not_looped_on(self):
         # #509: a cell with a nested table and an Image used to stay pending
         # forever, since the run-group loop stopped at the Image without advancing.
-        # The Image is dropped, as _build_fill_requests drops it in a plain cell.
+        # The Image never resolved here, so it's written as its fallback text (#1099),
+        # as _build_fill_requests writes it in a plain cell: "image", since a drive:
+        # source with no alt has no name to show.
         inner = _table(_row(_cell("inner")))
         img = Image(src="drive:abc")
         doc = await asyncio.wait_for(
             self._run(Cell(children=[img, Run("A"), img, Run("B"), inner, img])), timeout=5
         )
-        assert doc.describe_cell(0, 0, 0) == ["Para:AB", "Table"]
+        assert doc.describe_cell(0, 0, 0) == ["Para:imageAimageB", "Table", "Para:image"]
 
 
 # ---------------------------------------------------------------------------
@@ -1347,14 +1349,17 @@ class TestCellImageFill:
         assert [r["insertInlineImage"]["uri"] for r in inserts] == ["uri-c", "uri-b", "uri-a"]
         assert images.embedded == {id(a), id(b), id(c)}
 
-    async def test_unresolved_image_skipped(self):
+    async def test_unresolved_image_written_as_fallback_text(self):
+        # #1099: an image that never resolved shows its alt text (here, with no alt,
+        # its source's name) instead of leaving no trace.
         img = Image(src="a")
         doc, batches, images, _ = await self._run(
             [_table(_row(Cell(children=[Run("t"), img])))], {}
         )
-        assert self._cell_texts(doc, 1, 0, 0) == ["t"]
+        assert self._cell_texts(doc, 1, 0, 0) == ["ta"]
         assert not any("insertInlineImage" in r for batch in batches for r in batch)
         assert images.embedded == set()
+        assert images.fallbacks.shown == {id(img)}
 
     async def test_linked_image_link_follows_its_insert(self):
         img = Image(src="a", link_url="https://x.com")
@@ -1370,7 +1375,9 @@ class TestCellImageFill:
             "fields": "link",
         }
 
-    async def test_unfetchable_linked_image_dropped_with_its_link(self):
+    async def test_unfetchable_linked_image_replaced_by_linked_fallback_text(self):
+        # #1099: the image's insert and its one-character link go; its fallback text
+        # takes its place, linked over the text's whole range.
         good, bad = Image(src="g"), Image(src="b", link_url="https://x.com")
         cell = Cell(children=[Run("t"), bad, good])
         doc, batches, images, dropped = await self._run(
@@ -1378,14 +1385,22 @@ class TestCellImageFill:
             {id(good): "uri-g", id(bad): "uri-bad"},
             bad=frozenset({"uri-bad"}),
         )
-        assert self._cell_texts(doc, 1, 0, 0) == [f"t{IMG}"]
+        assert self._cell_texts(doc, 1, 0, 0) == [f"tb{IMG}"]
         assert dropped == [bad]
         assert images.embedded == {id(good)}
+        assert images.fallbacks.shown == {id(bad)}
         assert id(bad) not in images.uris
-        assert not any(
-            "updateTextStyle" in r and "link" in r["updateTextStyle"]["textStyle"]
-            for r in batches[-1]
-        )
+        retry = batches[-1]
+        i = next(i for i, r in enumerate(retry) if r.get("insertText", {}).get("text") == "b")
+        position = retry[i]["insertText"]["location"]["index"]
+        assert retry[i + 1]["updateTextStyle"] == {
+            "range": {"startIndex": position, "endIndex": position + 1},
+            "textStyle": {"link": {"url": "https://x.com"}},
+            "fields": "link",
+        }
+        assert not any("insertInlineImage" in r and "uri-bad" in str(r) for r in retry)
+        links = [r for r in retry if "link" in r.get("updateTextStyle", {}).get("textStyle", {})]
+        assert links == [retry[i + 1]]
 
     async def test_second_bad_image_splits_the_batch_at_that_image(self):
         # #510's split, for the cell batch: from the second failure on, the requests
@@ -1403,17 +1418,35 @@ class TestCellImageFill:
             bad=frozenset({"uri-b", "uri-c"}),
         )
         full, retry, head, tail = batches
-        assert retry == [r for r in full if r.get("insertInlineImage", {}).get("uri") != "uri-c"]
-        assert head + tail == [
-            r for r in retry if r.get("insertInlineImage", {}).get("uri") != "uri-b"
-        ]
+
+        def fallback_at(batch: list[dict], text: str) -> int:
+            return next(
+                i for i, r in enumerate(batch) if r.get("insertText", {}).get("text") == text
+            )
+
+        # Each failed image's insert is replaced in place by its fallback text and
+        # that text's link-clearing request (#1099).
+        c_index = next(
+            i for i, r in enumerate(full) if r.get("insertInlineImage", {}).get("uri") == "uri-c"
+        )
+        assert fallback_at(retry, "c") == c_index
+        assert retry[:c_index] + retry[c_index + 2 :] == full[:c_index] + full[c_index + 1 :]
+        b_index = next(
+            i for i, r in enumerate(retry) if r.get("insertInlineImage", {}).get("uri") == "uri-b"
+        )
+        # The split is at b, the second failure: its fallback text heads the tail.
+        assert head == retry[:b_index]
+        assert tail[0] == {
+            "insertText": {"location": retry[b_index]["insertInlineImage"]["location"], "text": "b"}
+        }
+        assert tail[2:] == retry[b_index + 1 :]
         assert not any("insertInlineImage" in r for r in head)
-        assert tail[0]["insertText"]["text"] == "one"
         assert dropped == [c, b]
         assert images.embedded == {id(a)}
+        assert images.fallbacks.shown == {id(b), id(c)}
         assert self._cell_texts(doc, 1, 0, 0) == [f"one{IMG}"]
-        assert self._cell_texts(doc, 1, 0, 1) == ["two"]
-        assert self._cell_texts(doc, 1, 1, 0) == ["three"]
+        assert self._cell_texts(doc, 1, 0, 1) == ["twob"]
+        assert self._cell_texts(doc, 1, 1, 0) == ["threec"]
         assert self._cell_texts(doc, 1, 1, 1) == ["four"]
 
     async def test_error_naming_a_non_image_request_raises(self):
@@ -1461,17 +1494,17 @@ class TestCellImageFill:
         )
         assert self._cell_texts(doc, 1, 0, 0) == [f"Lead {IMG}", "Table", f"tail{IMG}"]
 
-    async def test_dropped_image_not_counted_before_nested_table(self):
-        # A dropped image isn't in the doc, so the nested table after it must not
-        # leave a gap for it.
-        img = Image(src="a")
+    async def test_dropped_image_counted_as_its_fallback_text_before_nested_table(self):
+        # A dropped image isn't in the doc, but its fallback text is (#1099), so the
+        # nested table after it lands past that text, not one index past "Lead".
+        img = Image(src="a", alt="alt text")
         inner = _table(_row(_cell("inner")))
         cell = Cell(children=[Run("Lead"), img, inner])
         doc, _batches, _images, dropped = await self._run(
             [_table(_row(cell))], {id(img): "uri-bad"}, bad=frozenset({"uri-bad"})
         )
         assert dropped == [img]
-        assert self._cell_texts(doc, 1, 0, 0) == ["Lead", "Table", ""]
+        assert self._cell_texts(doc, 1, 0, 0) == ["Leadalt text", "Table", ""]
         nested = doc.content[1].rows[0][0].content[1]
         assert nested.rows[0][0].content[0].text == "inner"
 

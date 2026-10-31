@@ -5,6 +5,7 @@ import io
 import json
 import threading
 from functools import partial
+from pathlib import Path
 from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -26,18 +27,27 @@ from mcp_gee_sweet.tools.docs.ast import (
     Row,
     Run,
     Table,
+    image_source_kind,
 )
 from mcp_gee_sweet.tools.docs.content import (
     _failed_insert_image_message,
     _failed_insert_image_request_index,
     _has_pending_anchor_links,
+    _local_image_path,
     _md_to_html,
     _positional_insert_tail_start,
     _resolve_heading_anchors,
     _resolve_image_source,
     _to_doc_requests,
 )
-from mcp_gee_sweet.tools.docs.emitter import ast_to_requests, extract_images
+from mcp_gee_sweet.tools.docs.emitter import (
+    ImageFallbacks,
+    ast_to_requests,
+    extract_images,
+    heading_image_ids,
+    image_fallback_requests,
+    image_fallback_text,
+)
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 from mcp_gee_sweet.tools.drive import _USER_QUOTA_ERROR
 from tests.conftest import IS_ROOT
@@ -2020,14 +2030,22 @@ class TestCreateDocImages:
             content_format="markdown",
             ctx=ctx,
         )
-        assert result["images"] == [{"src": missing, "error": f"No file found at {missing!r}"}]
+        assert result["images"] == [
+            {"src": missing, "error": f"No file found at {missing!r}", "fallback_text": "Alt"}
+        ]
         # The image itself never made it into the doc — no insertInlineImage request —
-        # but the surrounding text still went through.
+        # but the surrounding text still went through, and its alt text stands in for
+        # it (#1099).
         image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
         assert image_reqs == []
-        insert = next(r for r in self._batchupdate_requests(docs_svc) if "insertText" in r)
-        assert "Before" in insert["insertText"]["text"]
-        assert "After" in insert["insertText"]["text"]
+        texts = [
+            r["insertText"]["text"]
+            for r in self._batchupdate_requests(docs_svc)
+            if "insertText" in r
+        ]
+        assert "Before" in texts[0]
+        assert "After" in texts[0]
+        assert texts[1:] == ["Alt"]
 
     async def test_sharing_failure_image_outcome_still_carries_file_id(self, tmp_path):
         # A local-upload source: the file was freshly created by this call, so
@@ -2065,6 +2083,7 @@ class TestCreateDocImages:
                 "src": str(img),
                 "fileId": "uploaded1",
                 "error": "sharing failed for Drive file 'uploaded1': boom",
+                "fallback_text": "Alt",
             }
         ]
         image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
@@ -2095,6 +2114,7 @@ class TestCreateDocImages:
             {
                 "src": "drive:file1",
                 "error": "sharing failed for Drive file 'file1': boom",
+                "fallback_text": "Alt",
             }
         ]
         image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
@@ -2205,8 +2225,9 @@ class TestCreateDocImages:
             bad_index = next((i for i, u in enumerate(uris) if u in (bad_b, bad_c)), None)
             if bad_index is not None:
                 m.execute.side_effect = self._insert_image_http_error(bad_index)
-            elif uris == [good]:
-                # The tail left after the split: a server error, not an image one.
+            elif [u for u in uris if u] == [good]:
+                # The tail left after the split (bad_b's fallback text, then the good
+                # image): a server error, not an image one.
                 resp = MagicMock()
                 resp.status = 500
                 m.execute.side_effect = HttpError(resp=resp, content=b"{}", uri="x")
@@ -2223,6 +2244,10 @@ class TestCreateDocImages:
         assert outcomes[good]["error"] == ("not embedded: the doc edit failed before it was placed")
         assert outcomes[bad_b]["error"].startswith("doc edit failed:")
         assert outcomes[bad_c]["error"].startswith("doc edit failed:")
+        # #1099: bad_c's fallback text went out in the head, which landed; bad_b's
+        # was in the failed tail, so it isn't reported as shown.
+        assert outcomes[bad_c]["fallback_text"] == "c.png"
+        assert "fallback_text" not in outcomes[bad_b]
 
     async def test_body_batch_failure_reports_cell_images_as_unplaced(self):
         # PR #1215 QA round 3: a failure before the fill (here the phase-1 batch, which
@@ -2396,23 +2421,33 @@ class TestCreateDocImages:
         outcomes = {o["src"]: o for o in result["images"]}
         assert "error" not in outcomes[good_uri]
         assert all("doc edit failed" in outcomes[uri]["error"] for uri in bad_uris)
+        # #1099: each bad image's alt text stands in for it.
+        assert {outcomes[uri]["fallback_text"] for uri in bad_uris} == {"Bad1", "Bad2", "Bad3"}
 
+        # Snapshots: the retry loop edits the list it sent in place.
         calls = [
-            c.kwargs["body"]["requests"]
+            list(c.kwargs["body"]["requests"])
             for c in docs_svc.documents.return_value.batchUpdate.call_args_list
         ]
         # full (fails bad #1), whole-list retry (fails bad #2), prefix commit,
         # tail (fails bad #3), tail (succeeds).
-        full, retry, prefix, *tail_attempts = calls
+        _full, retry, prefix, *tail_attempts = calls
         assert len(tail_attempts) == 2
         assert any("insertText" in r for r in retry)
         assert not any("insertInlineImage" in r or "insertTable" in r for r in prefix)
+        fallback_texts = {"Bad1", "Bad2", "Bad3"}
         for attempt in tail_attempts:
-            # Each insertTable is followed by its placeholder's delete (#1097).
+            # Each insertTable is followed by its placeholder's delete (#1097), and
+            # each fallback text by its link request.
             assert all(
                 "insertInlineImage" in r
                 or "insertTable" in r
                 or ("deleteContentRange" in r and "insertTable" in attempt[i - 1])
+                or r.get("insertText", {}).get("text") in fallback_texts
+                or (
+                    r.get("updateTextStyle", {}).get("fields") == "link"
+                    and attempt[i - 1].get("insertText", {}).get("text") in fallback_texts
+                )
                 for i, r in enumerate(attempt)
             )
         final_tail = tail_attempts[-1]
@@ -2420,9 +2455,11 @@ class TestCreateDocImages:
             good_uri
         ]
         assert any("insertTable" in r for r in final_tail)
-        assert prefix + final_tail == [
-            r for r in full if r.get("insertInlineImage", {}).get("uri") not in bad_uris
-        ]
+        assert sorted(
+            r["insertText"]["text"]
+            for r in final_tail
+            if r.get("insertText", {}).get("text") in fallback_texts
+        ) == ["Bad1", "Bad2", "Bad3"]
 
     @staticmethod
     def _image_link_ranges(requests: list[dict]) -> list[dict]:
@@ -2433,9 +2470,10 @@ class TestCreateDocImages:
             and r["updateTextStyle"]["textStyle"]["link"]["url"].startswith("https://link/")
         ]
 
-    async def test_bad_linked_image_drops_its_link_request_too(self):
+    async def test_bad_linked_image_link_moves_to_its_fallback_text(self):
         # #977: left behind, a dropped image's link request would link whatever
-        # character now sits at the image's position.
+        # character now sits at the image's position. #1099: the image's alt text
+        # takes its place, carrying the link over the text's whole range.
         drive_svc, docs_svc = self._make_services()
         bad_uri = "https://example.com/bad.png"
         content = (
@@ -2457,16 +2495,35 @@ class TestCreateDocImages:
             title="Doc", content=content, content_format="markdown", ctx=ctx
         )
 
-        assert "error" in {o["src"]: o for o in result["images"]}[bad_uri]
+        bad_entry = {o["src"]: o for o in result["images"]}[bad_uri]
+        assert "error" in bad_entry
+        assert bad_entry["fallback_text"] == "Bad"
         full, retry = sent
         assert len(self._image_link_ranges(full)) == 2
         bad_index = next(
             i for i, r in enumerate(full) if r.get("insertInlineImage", {}).get("uri") == bad_uri
         )
-        assert retry == full[:bad_index] + full[bad_index + 2 :]
+        bad_position = full[bad_index]["insertInlineImage"]["location"]["index"]
+        fallback = [
+            {"insertText": {"location": {"index": bad_position}, "text": "Bad"}},
+            {
+                "updateTextStyle": {
+                    "range": {"startIndex": bad_position, "endIndex": bad_position + 3},
+                    "textStyle": {"link": {"url": "https://link/bad"}},
+                    "fields": "link",
+                }
+            },
+        ]
+        assert retry == full[:bad_index] + fallback + full[bad_index + 2 :]
         good = next(r for r in retry if "insertInlineImage" in r)
         index = good["insertInlineImage"]["location"]["index"]
-        assert self._image_link_ranges(retry) == [{"startIndex": index, "endIndex": index + 1}]
+        assert sorted(self._image_link_ranges(retry), key=lambda r: r["startIndex"]) == sorted(
+            [
+                {"startIndex": index, "endIndex": index + 1},
+                {"startIndex": bad_position, "endIndex": bad_position + 3},
+            ],
+            key=lambda r: r["startIndex"],
+        )
 
     async def test_multiple_bad_linked_images_still_retry_only_the_insert_tail(self):
         # #977 + #510: link requests ride inside the positional-insert tail, so
@@ -2497,9 +2554,19 @@ class TestCreateDocImages:
         assert [r["insertInlineImage"]["uri"] for r in tail if "insertInlineImage" in r] == [
             "https://example.com/good.png"
         ]
-        index = tail[0]["insertInlineImage"]["location"]["index"]
-        assert tail == [tail[0], tail[1]]
-        assert self._image_link_ranges(tail) == [{"startIndex": index, "endIndex": index + 1}]
+        # Descending positions: Bad2's fallback text, the good image, Bad1's fallback
+        # text (#1099), each followed by its own link request.
+        assert [
+            r.get("insertText", {}).get("text") or r.get("insertInlineImage", {}).get("uri")
+            for r in tail[::2]
+        ] == ["Bad2", "https://example.com/good.png", "Bad1"]
+        assert [r["updateTextStyle"]["textStyle"]["link"]["url"] for r in tail[1::2]] == [
+            "https://link/2",
+            "https://link/good",
+            "https://link/1",
+        ]
+        index = tail[2]["insertInlineImage"]["location"]["index"]
+        assert tail[3]["updateTextStyle"]["range"] == {"startIndex": index, "endIndex": index + 1}
 
     @staticmethod
     def _server_error() -> HttpError:
@@ -4967,10 +5034,12 @@ class TestConvertBeforeTouchingDoc:
         assert {name for name, _ in threads} == expected
         assert all(ident != loop_thread for _, ident in threads)
 
-    async def test_unresolved_images_requests_match_never_emitting_them(self, tmp_path):
+    async def test_unresolved_images_requests_match_their_fallback_text(self, tmp_path):
         # Requests are built before the images resolve, with a placeholder for every
-        # image; an unresolved one's request and its link request are dropped. The
-        # result must be what ast_to_requests builds without that image at all.
+        # image; an unresolved one's request is replaced by its fallback text, which
+        # carries its link, and its own link request is dropped (#1099). The result
+        # must be what ast_to_requests builds with every image, with exactly that
+        # swap made at each unresolved image's position.
         drive_svc, docs_svc = self._make_services()
         ctx = self._ctx(drive_svc, docs_svc)
         missing = str(tmp_path / "missing.png")
@@ -4983,19 +5052,41 @@ class TestConvertBeforeTouchingDoc:
             title="Doc", content=content, content_format="markdown", ctx=ctx
         )
         assert [("error" in o) for o in result["images"]] == [True, False, True]
+        assert [o.get("fallback_text") for o in result["images"]] == ["Bad", None, "Bad2"]
 
         nodes = html_to_ast(_md_to_html(content))
         images = extract_images(nodes)
-        expected, _ = ast_to_requests(nodes, 1, {id(images[1]): good})
+        uris = {id(img): f"urn:test:{i}" for i, img in enumerate(images)}
+        links: dict[int, dict] = {}
+        built, _ = ast_to_requests(nodes, 1, uris, image_links=links)
+        bad = {uris[id(images[0])]: images[0], uris[id(images[2])]: images[2]}
+        bad_links = {
+            id(links[id(r)])
+            for r in built
+            if r.get("insertInlineImage", {}).get("uri") in bad and id(r) in links
+        }
+        expected = []
+        for r in built:
+            uri = r.get("insertInlineImage", {}).get("uri")
+            if id(r) in bad_links:
+                continue
+            if uri in bad:
+                position = r["insertInlineImage"]["location"]["index"]
+                expected.extend(image_fallback_requests(bad[uri], position))
+            elif uri is not None:
+                expected.append({"insertInlineImage": {**r["insertInlineImage"], "uri": good}})
+            else:
+                expected.append(r)
         sent = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
         assert sent == expected
-        links = [
+        links_sent = [
             r["updateTextStyle"]["textStyle"]["link"]["url"]
             for r in sent
             if "link" in r.get("updateTextStyle", {}).get("textStyle", {})
         ]
-        assert "https://example.com/bad-link" not in links
-        assert "https://example.com/good-link" in links
+        # The bad image's link now sits on its fallback text, once.
+        assert links_sent.count("https://example.com/bad-link") == 1
+        assert "https://example.com/good-link" in links_sent
 
 
 def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:
@@ -5405,3 +5496,675 @@ class TestPositionalInsertTailStart:
 
     def test_empty(self):
         assert _positional_insert_tail_start([]) == 0
+
+    def test_fallback_text_requests_count_as_tail(self):
+        # #1099: an image's fallback text takes its place in the tail, so the K>=2
+        # split still finds the tail's start.
+        fallback = [{"insertText": {}}, {"updateTextStyle": {}}]
+        requests = [{"insertText": {}}, *fallback, {"insertInlineImage": {}}]
+        assert _positional_insert_tail_start(requests) == 3
+        ids = {id(r) for r in fallback}
+        assert _positional_insert_tail_start(requests, fallback_ids=ids) == 1
+
+
+def _uploaded(path: str, folder_id: str, **_kwargs) -> dict:
+    """upload_and_share_local_image's result for a local image that uploaded fine."""
+    return {
+        "uri": f"https://drive.example/{Path(path).name}",
+        "file_id": f"file-{Path(path).name}",
+        "permission_id": "perm1",
+        "created_in": folder_id,
+    }
+
+
+class TestRelativeImagePaths:
+    """#1121: a relative image path in a file is relative to that file's folder."""
+
+    def test_relative_path_joined_to_source_dir(self, tmp_path):
+        assert _local_image_path("../img/a.png", tmp_path / "docs") == str(
+            tmp_path / "docs" / "../img/a.png"
+        )
+
+    def test_absolute_path_unchanged(self, tmp_path):
+        absolute = str(tmp_path / "a.png")
+        assert _local_image_path(absolute, Path("/elsewhere")) == absolute
+
+    def test_no_source_dir_leaves_path_as_written(self):
+        assert _local_image_path("img/a.png", None) == "img/a.png"
+
+    async def test_missing_relative_file_names_where_it_looked(self, tmp_path):
+        result = await _resolve_image_source(
+            MagicMock(), "../a.png", "folder1", source_dir=tmp_path / "docs"
+        )
+        looked = str(tmp_path / "docs" / "../a.png")
+        assert result == {"error": f"No file found at '../a.png' (looked for {looked!r})"}
+
+    async def test_relative_path_goes_through_the_read_check(self, tmp_path):
+        # #796: the joined path is what's checked, so a policy refusal reads the same
+        # whether or not the file exists.
+        refused = content_module.LocalFileAccessError("refused by policy")
+        with patch.object(content_module, "check_read", side_effect=refused) as check:
+            result = await _resolve_image_source(
+                MagicMock(), "a.png", "folder1", source_dir=tmp_path
+            )
+        assert result == {"error": "refused by policy"}
+        check.assert_called_once_with(str(tmp_path / "a.png"))
+
+    @pytest.mark.parametrize("tool", ["create_doc_from_file", "update_doc_from_file"])
+    async def test_file_tools_resolve_against_the_file(self, tmp_path, tool, monkeypatch):
+        (tmp_path / "img").mkdir()
+        (tmp_path / "img" / "pixel.png").write_bytes(b"png")
+        (tmp_path / "docs").mkdir()
+        md = tmp_path / "docs" / "README.md"
+        md.write_text("Text\n\n![Pixel](../img/pixel.png)\n")
+        # The server's working directory is somewhere else entirely.
+        monkeypatch.chdir("/")
+
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "README",
+            "parents": ["folder1"],
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {"parents": ["p1"]}
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": 2}]}
+        }
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id="folder1",
+        )
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            kwargs = {"doc_id": "doc1"} if tool == "update_doc_from_file" else {}
+            result = await _docs_tools[tool](local_path=str(md), ctx=ctx, **kwargs)
+
+        assert "error" not in result
+        [entry] = result["images"]
+        assert entry["src"] == "../img/pixel.png"
+        assert "error" not in entry
+        uploaded_path = upload.call_args.args[1]
+        assert Path(uploaded_path).resolve() == (tmp_path / "img" / "pixel.png").resolve()
+
+
+class TestReplaceImageFolder:
+    """#1139: write_doc_content/update_doc_from_file upload a local image to folder_id,
+    else the server's default folder, else the doc's own folder, and refuse before
+    touching the doc when none is known."""
+
+    def _services(self, parents=None):
+        drive_svc = MagicMock()
+        metadata = {"webViewLink": "https://example.com"}
+        if parents is not None:
+            metadata["parents"] = parents
+        drive_svc.files.return_value.get.return_value.execute.return_value = metadata
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": 50}]}
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc, folder_id=None):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=folder_id,
+        )
+
+    def _parents_lookups(self, drive_svc) -> list:
+        return [
+            c
+            for c in drive_svc.files.return_value.get.call_args_list
+            if c.kwargs.get("fields") == "parents"
+        ]
+
+    async def _replace(self, tool, tmp_path, ctx, **kwargs):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        md = tmp_path / "doc.md"
+        md.write_text("![Pic](pic.png)\n")
+        if tool == "update_doc_from_file":
+            return await _docs_tools[tool](doc_id="doc1", local_path=str(md), ctx=ctx, **kwargs)
+        return await _docs_tools[tool](
+            doc_id="doc1", content=f"![Pic]({img})", content_format="markdown", ctx=ctx, **kwargs
+        )
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    async def test_folder_id_wins(self, tmp_path, tool):
+        drive_svc, docs_svc = self._services(parents=["docfolder"])
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="default")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await self._replace(tool, tmp_path, ctx, folder_id="mine")
+        assert "error" not in result["images"][0]
+        assert upload.call_args.args[2] == "mine"
+        assert self._parents_lookups(drive_svc) == []
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    async def test_server_default_before_doc_folder(self, tmp_path, tool):
+        drive_svc, docs_svc = self._services(parents=["docfolder"])
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="default")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            await self._replace(tool, tmp_path, ctx)
+        assert upload.call_args.args[2] == "default"
+        assert self._parents_lookups(drive_svc) == []
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    async def test_doc_folder_when_nothing_else(self, tmp_path, tool):
+        drive_svc, docs_svc = self._services(parents=["docfolder"])
+        ctx = self._ctx(drive_svc, docs_svc)
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await self._replace(tool, tmp_path, ctx)
+        assert "error" not in result
+        assert "error" not in result["images"][0]
+        assert upload.call_args.args[2] == "docfolder"
+        assert len(self._parents_lookups(drive_svc)) == 1
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    async def test_no_folder_known_refuses_before_touching_the_doc(self, tmp_path, tool):
+        # A doc shared from a folder this account can't see has no parents.
+        drive_svc, docs_svc = self._services(parents=None)
+        ctx = self._ctx(drive_svc, docs_svc)
+        upload = AsyncMock()
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await self._replace(tool, tmp_path, ctx)
+        assert result["docId"] == "doc1"
+        assert "Pass folder_id" in result["error"]
+        assert "left unchanged" in result["error"]
+        upload.assert_not_called()
+        drive_svc.files.return_value.copy.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_no_lookup_without_local_images(self):
+        drive_svc, docs_svc = self._services(parents=None)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="![Pic](https://example.com/a.png)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert "error" not in result
+        assert self._parents_lookups(drive_svc) == []
+
+    async def test_create_doc_without_a_folder_uploads_next_to_the_new_doc(self, tmp_path):
+        # The create tools get the same last fallback: the new doc's own folder,
+        # here My Drive's root, which Drive reports as the created file's parent.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Doc",
+            "parents": ["rootid"],
+        }
+        ctx = self._ctx(drive_svc, MagicMock())
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await _docs_tools["create_doc"](
+                title="Doc", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
+            )
+        assert "error" not in result["images"][0]
+        assert upload.call_args.args[2] == "rootid"
+
+
+class TestImageFallbackText:
+    """#1099: the text written in place of an image Docs can't embed."""
+
+    @pytest.mark.parametrize(
+        ("image", "expected"),
+        [
+            (Image(src="https://x/a.svg", alt="Build"), "Build"),
+            (Image(src="https://x/a.svg", alt="  two\n words "), "two words"),
+            (
+                Image(src="https://img.shields.io/badge/build-passing-brightgreen", alt=""),
+                "build-passing-brightgreen",
+            ),
+            (Image(src="https://x/my%20pic.svg?raw=true#frag"), "my pic.svg"),
+            (Image(src="https://x/"), "image"),
+            (Image(src="/home/someone/secret/dir/pic.png"), "pic.png"),
+            (Image(src="drive:abc123"), "image"),
+        ],
+    )
+    def test_text(self, image, expected):
+        assert image_fallback_text(image) == expected
+
+    def test_linked_fallback_carries_the_link(self):
+        [insert, style] = image_fallback_requests(
+            Image(src="https://x/a.svg", alt="Build", link_url="https://ci"), 5
+        )
+        assert insert == {"insertText": {"location": {"index": 5}, "text": "Build"}}
+        assert style["updateTextStyle"] == {
+            "range": {"startIndex": 5, "endIndex": 10},
+            "textStyle": {"link": {"url": "https://ci"}},
+            "fields": "link",
+        }
+
+    def test_unlinked_fallback_clears_an_inherited_link(self):
+        # Inserted text takes the style of the character before it, a link included.
+        [_insert, style] = image_fallback_requests(Image(src="https://x/a.svg", alt="A"), 5)
+        assert style["updateTextStyle"]["textStyle"] == {}
+        assert style["updateTextStyle"]["fields"] == "link"
+
+    def test_unstorable_link_is_cleared_not_stored(self):
+        # The same rule as a text link (#1120): a relative target goes nowhere.
+        [_insert, style] = image_fallback_requests(
+            Image(src="https://x/a.svg", alt="A", link_url="./guide.md"), 5
+        )
+        assert style["updateTextStyle"]["textStyle"] == {}
+
+    async def test_unfetchable_badge_shows_linked_alt_text(self):
+        # TC-MD004's badge: an SVG Docs can't embed keeps its alt text and link.
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Doc",
+            "parents": ["folder1"],
+        }
+        docs_svc = MagicMock()
+        badge = "https://img.shields.io/badge/build-passing-brightgreen"
+        sent: list[list[dict]] = []
+
+        def side_effect(documentId, body):
+            sent.append(list(body["requests"]))
+            m = MagicMock()
+            bad = [
+                i
+                for i, r in enumerate(body["requests"])
+                if r.get("insertInlineImage", {}).get("uri") == badge
+            ]
+            if bad:
+                message = (
+                    f"Invalid requests[{bad[0]}].insertInlineImage: There was a problem "
+                    "retrieving the image."
+                )
+                m.execute.side_effect = HttpError(
+                    resp=MagicMock(status=400),
+                    content=json.dumps({"error": {"code": 400, "message": message}}).encode(),
+                )
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
+        ctx = _make_ctx(drive_service=drive_svc, docs_service=docs_svc, folder_id="folder1")
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content=f"[![Build]({badge})](https://example.com/ci)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        [entry] = result["images"]
+        assert entry["fallback_text"] == "Build"
+        assert "There was a problem retrieving the image" in entry["error"]
+        final = sent[-1]
+        i = next(i for i, r in enumerate(final) if r.get("insertText", {}).get("text") == "Build")
+        assert final[i + 1]["updateTextStyle"]["textStyle"] == {
+            "link": {"url": "https://example.com/ci"}
+        }
+
+
+class TestImageSourcesQaRound1:
+    """#1232 QA round 1: headings, data: URIs, when a replace refuses, and the shared
+    fallback tracker."""
+
+    _BADGE = "https://img.shields.io/badge/build-passing-brightgreen"
+
+    def _create_ctx(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Doc",
+            "parents": ["folder1"],
+        }
+        docs_svc = MagicMock()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id="folder1",
+            drive_folder_cache=MagicMock(),
+        )
+        return ctx, docs_svc
+
+    @staticmethod
+    def _all_requests(docs_svc) -> list[dict]:
+        return [
+            r
+            for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+            for r in c.kwargs["body"]["requests"]
+        ]
+
+    def _fail_badge(self, sent: list[list[dict]]):
+        def side_effect(documentId, body):
+            sent.append(list(body["requests"]))
+            m = MagicMock()
+            bad = [
+                i
+                for i, r in enumerate(body["requests"])
+                if r.get("insertInlineImage", {}).get("uri") == self._BADGE
+            ]
+            if bad:
+                message = (
+                    f"Invalid requests[{bad[0]}].insertInlineImage: There was a problem "
+                    "retrieving the image."
+                )
+                m.execute.side_effect = HttpError(
+                    resp=MagicMock(status=400),
+                    content=json.dumps({"error": {"code": 400, "message": message}}).encode(),
+                )
+            else:
+                m.execute.return_value = {}
+            return m
+
+        return side_effect
+
+    # -- headings ------------------------------------------------------------
+
+    def test_heading_image_ids_cover_every_heading_kind(self):
+        nodes = html_to_ast(
+            '<h1>A <img src="h"></h1><ul><li><h2>B <img src="li"></h2></li></ul>'
+            '<p>C <img src="p"></p>'
+        )
+        srcs = {img.src for img in extract_images(nodes) if id(img) in heading_image_ids(nodes)}
+        assert srcs == {"h", "li"}
+
+    @pytest.mark.parametrize("line", ["# MyProj {img}", "- # MyProj {img}"])
+    async def test_unresolved_image_in_heading_gets_no_fallback_text(self, tmp_path, line):
+        # Its alt text would join the heading's own and change the slug, so a TOC
+        # link to the heading would be stripped.
+        ctx, docs_svc = self._create_ctx()
+        img = f"![build]({tmp_path / 'missing.png'})"
+        content = line.format(img=img) + "\n\n[Go to MyProj](#myproj)\n"
+        with patch.object(content_module, "_resolve_heading_anchors", AsyncMock()):
+            result = await _docs_tools["create_doc"](
+                title="Doc", content=content, content_format="markdown", ctx=ctx
+            )
+        [entry] = result["images"]
+        assert "No file found" in entry["error"]
+        assert "fallback_text" not in entry
+        texts = [r["insertText"]["text"] for r in self._all_requests(docs_svc) if "insertText" in r]
+        assert not any("build" in t for t in texts)
+
+    async def test_unfetchable_image_in_heading_dropped_not_written_as_text(self):
+        ctx, docs_svc = self._create_ctx()
+        sent: list[list[dict]] = []
+        docs_svc.documents.return_value.batchUpdate.side_effect = self._fail_badge(sent)
+        with patch.object(content_module, "_resolve_heading_anchors", AsyncMock()):
+            result = await _docs_tools["create_doc"](
+                title="Doc",
+                content=f"# MyProj [![build]({self._BADGE})](https://ci)\n\n[Go](#myproj)\n",
+                content_format="markdown",
+                ctx=ctx,
+            )
+        [entry] = result["images"]
+        assert "There was a problem retrieving the image" in entry["error"]
+        assert "fallback_text" not in entry
+        retry = sent[-1]
+        assert not any("insertInlineImage" in r for r in retry)
+        assert not any(r.get("insertText", {}).get("text") == "build" for r in retry)
+        # The image's link request went with it.
+        assert not any(
+            r.get("updateTextStyle", {}).get("textStyle", {}).get("link", {}).get("url")
+            == "https://ci"
+            for r in retry
+        )
+
+    # -- data: URIs ----------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        ("src", "kind"),
+        [
+            ("https://x/a.png", "url"),
+            ("HTTP://x/a.png", "url"),
+            ("drive:abc", "drive"),
+            ("data:image/png;base64,iVBORw0KGgo/AAAANSUhEUg==", "data"),
+            ("DATA:image/png;base64,AAAA", "data"),
+            ("img/a.png", "local"),
+            ("/abs/a.png", "local"),
+        ],
+    )
+    def test_image_source_kind(self, src, kind):
+        assert image_source_kind(src) == kind
+
+    @pytest.mark.parametrize(
+        "src", ["data:image/png;base64,iVBORw0KGgo/AAAANSUhEUg==", "data:image/png;base64,AAAA"]
+    )
+    def test_data_uri_fallback_text_is_not_its_bytes(self, src):
+        assert image_fallback_text(Image(src=src, alt="")) == "image"
+
+    async def test_data_uri_is_an_error_and_never_read_as_a_path(self):
+        with patch.object(content_module, "check_read") as check:
+            result = await _resolve_image_source(
+                MagicMock(), "data:image/png;base64,AAAA", "folder1"
+            )
+        assert result == {
+            "error": "a data: URI image can't be embedded: Docs takes an image only by URL"
+        }
+        check.assert_not_called()
+
+    # -- when a replace refuses ----------------------------------------------
+
+    def _replace_services(self, parents_error: Exception | None = None):
+        drive_svc = MagicMock()
+
+        def get(**kwargs):
+            m = MagicMock()
+            if kwargs.get("fields") == "parents":
+                if parents_error is not None:
+                    m.execute.side_effect = parents_error
+                else:
+                    m.execute.return_value = {}
+            else:
+                m.execute.return_value = {"webViewLink": "https://example.com"}
+            return m
+
+        drive_svc.files.return_value.get.side_effect = get
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": 2}]}
+        }
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+        return ctx, drive_svc, docs_svc
+
+    @staticmethod
+    def _parents_lookups(drive_svc) -> list:
+        return [
+            c
+            for c in drive_svc.files.return_value.get.call_args_list
+            if c.kwargs.get("fields") == "parents"
+        ]
+
+    async def test_data_uri_needs_no_folder(self):
+        ctx, drive_svc, _docs = self._replace_services()
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content='<p><img src="data:image/png;base64,AAAA" alt="Inline"></p>',
+            ctx=ctx,
+        )
+        assert "error" not in result
+        assert result["images"][0]["fallback_text"] == "Inline"
+        assert self._parents_lookups(drive_svc) == []
+
+    async def test_missing_local_image_does_not_refuse(self, tmp_path):
+        # A folder wouldn't help a file that isn't there: the replace goes ahead and
+        # the image is written as its alt text.
+        ctx, drive_svc, _docs = self._replace_services()
+        missing = tmp_path / "missing.png"
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1", content=f"![Gone]({missing})", content_format="markdown", ctx=ctx
+        )
+        assert "error" not in result
+        [entry] = result["images"]
+        assert "No file found" in entry["error"]
+        assert entry["fallback_text"] == "Gone"
+        assert self._parents_lookups(drive_svc) == []
+
+    async def test_policy_refused_local_image_does_not_refuse(self, tmp_path):
+        # As under LOCAL_FILE_ACCESS=off: the image can't be read whatever the folder.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        ctx, drive_svc, _docs = self._replace_services()
+        refused = content_module.LocalFileAccessError("local file access is off")
+        with patch.object(content_module, "check_read", side_effect=refused):
+            result = await _docs_tools["write_doc_content"](
+                doc_id="doc1", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
+            )
+        assert "error" not in result
+        assert result["images"][0] == {
+            "src": str(img),
+            "error": "local file access is off",
+            "fallback_text": "Pic",
+        }
+        assert self._parents_lookups(drive_svc) == []
+
+    @pytest.mark.parametrize(
+        ("status", "content"),
+        [
+            (500, b'{"error": {"message": "x"}}'),
+            (429, b'{"error": {"message": "x"}}'),
+            (403, b'{"error": {"errors": [{"reason": "userRateLimitExceeded"}]}}'),
+        ],
+    )
+    async def test_failed_parents_lookup_refuses_without_raising(self, tmp_path, status, content):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        error = HttpError(resp=MagicMock(status=status), content=content)
+        ctx, drive_svc, docs_svc = self._replace_services(parents_error=error)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
+        )
+        assert result["docId"] == "doc1"
+        assert "looking up the document's own folder failed" in result["error"]
+        assert "Pass folder_id. The document was left unchanged." in result["error"]
+        drive_svc.files.return_value.copy.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_no_folder_error_names_the_real_cause(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        result = await _resolve_image_source(MagicMock(), str(img), None)
+        assert "pass folder_id" in result["error"]
+        assert "doc's own folder isn't known" in result["error"]
+        assert "folder_id is required" not in result["error"]
+
+    # -- the shared tracker --------------------------------------------------
+
+    def test_fallback_tracker_reports_only_what_landed(self):
+        fallbacks = ImageFallbacks()
+        img = Image(src="https://x/a.svg", alt="Alt")
+        requests = fallbacks.requests(img, 5)
+        assert fallbacks.request_ids == {id(r) for r in requests}
+        assert fallbacks.written_length(img) == 3
+        assert fallbacks.written_length(Image(src="b")) == 0
+        fallbacks.applied([{"insertText": {"location": {"index": 5}, "text": "Alt"}}])
+        assert fallbacks.shown == set()  # an equal dict isn't the request it built
+        fallbacks.applied(requests)
+        assert fallbacks.shown_texts() == {id(img): "Alt"}
+
+
+class TestImageSourcesQaRound2:
+    """PR #1310 QA round 2: an unreachable doc, padded and protocol-relative sources,
+    percent-encoded relative paths."""
+
+    @pytest.mark.parametrize(
+        ("status", "content"),
+        [
+            (404, b'{"error": {"message": "File not found: bogus."}}'),
+            (403, b'{"error": {"errors": [{"reason": "insufficientFilePermissions"}]}}'),
+        ],
+    )
+    async def test_unreachable_doc_is_reported_as_the_doc_not_the_folder(
+        self, tmp_path, status, content
+    ):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        error = HttpError(resp=MagicMock(status=status), content=content)
+        ctx, drive_svc, docs_svc = TestImageSourcesQaRound1()._replace_services(parents_error=error)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="bogus", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
+        )
+        assert result["docId"] == "bogus"
+        assert result["error"].startswith(
+            "Couldn't read the document (it doesn't exist, or this account can't open it), "
+            "so it was left unchanged:"
+        )
+        assert "folder_id" not in result["error"]
+        drive_svc.files.return_value.copy.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    def test_padded_src_is_stripped_when_the_node_is_built(self):
+        nodes = html_to_ast('<p><img src="  https://img.shields.io/badge/x.svg \n"></p>')
+        [img] = extract_images(nodes)
+        assert img.src == "https://img.shields.io/badge/x.svg"
+        assert image_source_kind(img.src) == "url"
+
+    def test_whitespace_only_src_makes_no_image(self):
+        assert extract_images(html_to_ast('<p>a <img src="   "> b</p>')) == []
+
+    @pytest.mark.parametrize(
+        ("src", "kind"),
+        [
+            ("//cdn.example.com/logo.png", "url"),
+            ("//img.shields.io/badge/x-y-blue", "url"),
+            ("//", "local"),
+            ("///x.png", "local"),
+            ("//-x/a.png", "local"),
+        ],
+    )
+    def test_protocol_relative_kind(self, src, kind):
+        assert image_source_kind(src) == kind
+
+    async def test_protocol_relative_image_fetched_over_https(self):
+        result = await _resolve_image_source(MagicMock(), "//cdn.example.com/logo.png", None)
+        assert result == {"uri": "https://cdn.example.com/logo.png"}
+        assert image_fallback_text(Image(src="//cdn.example.com/logo.png")) == "logo.png"
+
+    async def test_percent_encoded_relative_path_is_decoded(self, tmp_path):
+        (tmp_path / "images").mkdir()
+        (tmp_path / "images" / "my diagram.png").write_bytes(b"png")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await _resolve_image_source(
+                MagicMock(), "images/my%20diagram.png", "folder1", source_dir=tmp_path
+            )
+        assert "error" not in result
+        assert upload.call_args.args[1] == str(tmp_path / "images" / "my diagram.png")
+
+    async def test_a_file_named_with_a_percent_wins_over_its_decoded_twin(self, tmp_path):
+        (tmp_path / "100%25.png").write_bytes(b"literal")
+        (tmp_path / "100%.png").write_bytes(b"decoded")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            await _resolve_image_source(MagicMock(), "100%25.png", "folder1", source_dir=tmp_path)
+        assert upload.call_args.args[1] == str(tmp_path / "100%25.png")
+
+    async def test_missing_percent_encoded_file_names_the_path_as_written(self, tmp_path):
+        result = await _resolve_image_source(
+            MagicMock(), "my%20pic.png", "folder1", source_dir=tmp_path
+        )
+        looked = str(tmp_path / "my%20pic.png")
+        assert result == {"error": f"No file found at 'my%20pic.png' (looked for {looked!r})"}
+
+    def test_fallback_tracker_keeps_every_request_it_built(self):
+        fallbacks = ImageFallbacks()
+        img = Image(src="https://x/a.svg", alt="Alt")
+        first = fallbacks.requests(img, 5)
+        second = fallbacks.requests(img, 9)
+        # Every dict whose id is in request_ids is still alive, so no id is reused.
+        alive = {id(r) for r in fallbacks._requests}
+        assert fallbacks.request_ids == {id(r) for r in first + second} <= alive
+        assert fallbacks.written_length(img) == 3

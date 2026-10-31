@@ -6538,8 +6538,8 @@ asyncio.run(main())
 6. Repeat step 4.
 
 **Checks**
-- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'"
-- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then "After the images.". `https://example.com/bad-link` appears nowhere, linked to nothing: the dropped image's link didn't land on the text around it
+- Step 1 returns `docId` and `web_link` with no `error`. Its `images` has two entries: the logo with no `error`, and `/tmp/tc-doc243-missing.png` with `error` "No file found at '/tmp/tc-doc243-missing.png'" and `fallback_text` "Missing" (#1099)
+- Step 2 shows the "TC-DOC243 A" heading, the logo image linked to `https://example.com/good-link`, then the text "Missing" linked to `https://example.com/bad-link` where the missing image was (#1099: its alt text stands in for it, with its link), then "After the images.". `bad-link` is on "Missing" only, not on the text around it. Before #1099 this check expected an empty paragraph and no `bad-link` at all; the 2026-10-29 and 2026-10-30 results below ran against that
 - Both step 3 runs print `{'error': "Couldn't convert the content, so the document was left unchanged: RuntimeError: injected parser failure", 'docId': '{DOC_ID}'}`
 - Step 4 shows step 2's content unchanged, and `search_files` finds no backup copy: nothing was copied
 - Step 5 prints `cancelled`, and step 6 shows step 2's content unchanged with no backup copy
@@ -6551,6 +6551,9 @@ asyncio.run(main())
 
 **Result (2026-10-30) ✅ PASS — PR #1296 round 2 (Kit)**
 `mcp-gee-sweet-kit` at daaa92eb, reconnected after the reset, on a scratch doc in `{FOLDER_ID}` as in round 1. Part A: same as round 1, with the logo embedded, the missing image reported in `images` with its error, an empty paragraph where it was, and no link on any text run. A fresh-interpreter rerun of parts B (`ALLOW=1`) and the create-path injection now also logs `ERROR mcp_gee_sweet.tools.docs.content Converting doc content failed (<outcome>)` with the traceback, before the same `{'error', ...}` result. Scratch doc trashed, no backup copy left.
+
+**Result (2026-10-31) ✅ PASS (part A only) — PR #1310 round 1 (Kit)**
+`mcp-gee-sweet-kit` at c136f679, reconnected after the reset, on a scratch doc in `{FOLDER_ID}`. Steps 1–2 under the #1099 checks: the logo embedded with no `error`, `/tmp/tc-doc243-missing.png` reported with `error` "No file found at '/tmp/tc-doc243-missing.png'" and `fallback_text` "Missing", and `get_doc_as_markdown` shows `[Missing](https://example.com/bad-link)` between the logo and "After the images.", with no link on the surrounding text. Parts B and C weren't rerun: this PR doesn't change the conversion-first path they inject into. Scratch doc trashed.
 
 ---
 
@@ -6657,3 +6660,66 @@ asyncio.run(main())
 
 **Result (2026-10-31) ✅ PASS — PR #1311 round 2 (Sky)**
 `mcp-gee-sweet-sky` at b5e90da6, reconnected after the reset, on scratch docs in `{FOLDER_ID}`. Steps 1–3 as in round 1: every LB check holds, and step 3's export equals step 2's except LB-10's two fewer blank lines (#1096). Step 4: W-1 keeps `>` on every line from `> - a` to `> - c`, with the table at `>   | …`; W-2 has the table at 3 spaces between `1. a` and `  - b` (#1128), then `2. c`; W-3 has the table at 2 spaces, then `- c`; W-4 exports `> > b` at the margin, then `After.`. Extra probes, all exported as written: a quote then a paragraph in a last item (`  > q`, `  tail`), a quote under a nested item before a parent item (`    > q`), a quote inside a quoted list's item (`>    > inner`), a table then a quote in one item before the next item. Scratch docs trashed.
+
+### TC-DOC245: A file's relative image path resolves against the file, and a replace uploads its local images to folder_id, the server default, or the doc's own folder (#1121, #1139) ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** `create_doc_from_file`/`update_doc_from_file` resolved a relative image path against the server's working directory, so a README's images never embedded (#1121). `update_doc_from_file` had no `folder_id`, so on a server with no default folder every local image failed after the doc was cleared, leaving it without its images (#1139). A relative path is now joined to the file's own folder; `write_doc_content`/`update_doc_from_file` take `folder_id`, fall back to the server's default folder and then to the doc's own folder, and refuse before touching the doc when none is known. The doc's-folder fallback only runs on a server with no `DRIVE_FOLDER_ID`, so parts B and C use a scratch script against the checkout under test with `folder_id=None`, the way TC-DOC243 part B does.
+
+**Playwright: required**
+
+**Setup:** `create_doc(title="TC-DOC245 scratch", folder_id={FOLDER_ID}, content="<p>TC-DOC245 before</p>")`; call its `docId` `{SCRATCH}`. `F` = `{REPO}/docs/qa/fixtures/md/tc-doc245/relative-image.md`, which embeds `../../qa-fixture-pixel.png`.
+
+**Steps (part A, tool calls)**
+1. `update_doc_from_file(doc_id={SCRATCH}, local_path=F, folder_id={FOLDER_ID})`
+2. `get_doc_as_markdown(doc_id={SCRATCH})`, and `get_file_metadata(file_id=<step 1's images[0].fileId>)`
+3. `create_doc_from_file(local_path=F, title="TC-DOC245 create", folder_id={FOLDER_ID})`, then `get_doc_as_markdown` on its `docId`
+
+**Steps (part B, the doc's own folder; scratch script, same OAuth token as the server under test)**
+
+4. Run, with `{SCRATCH}` and `{REPO}` filled in:
+```
+uv run python3 -c "
+import asyncio, mcp_gee_sweet
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from googleapiclient.discovery import build
+from mcp_gee_sweet import auth
+from mcp_gee_sweet.tools.docs import content as c
+creds = auth._oauth_creds()
+lc = SimpleNamespace(docs_service=build('docs', 'v1', credentials=creds),
+    drive_service=build('drive', 'v3', credentials=creds), doc_cache=MagicMock(),
+    drive_folder_cache=MagicMock(), folder_id=None)
+F = '{REPO}/docs/qa/fixtures/md/tc-doc245/relative-image.md'
+print(asyncio.run(c._replace_doc_content(lc, '{SCRATCH}', Path(F).read_text(), 'markdown',
+    autolink_urls=True, revoke_sharing=True, auto_downscale=False, allow_no_backup=False,
+    source_dir=Path(F).parent)))
+"
+```
+5. `get_file_metadata(file_id=<step 4's images[0].fileId>)`
+
+**Steps (part C, no folder known)**
+
+6. Run step 4's script with one change: before `print`, add `c._doc_parents = lambda *a: asyncio.sleep(0, result=(None, None))` (a doc shared from a folder this account can't see has no parents; `_doc_parents` returns `(parents, error)` since PR #1310 round 2).
+7. `refresh_cache(doc_id={SCRATCH})`, `get_doc_as_markdown(doc_id={SCRATCH})`, and `search_files(query="TC-DOC245 scratch (backup before replace)")`
+
+**Checks**
+- Step 1 returns `docId` with no `error`; `images` has one entry, `src` `../../qa-fixture-pixel.png`, with a `fileId` and no `error`
+- Step 2 shows the "TC-DOC245" heading, "Before the image.", the 1×1 pixel image, and "After the image."; the uploaded pixel's `parents` is `[{FOLDER_ID}]`
+- Step 3: the same content in the new doc, the pixel embedded, its `images` entry with no `error`
+- Step 4 prints a result with no `error` and one `images` entry with a `fileId`; step 5 shows that file's `parents` is `{FOLDER_ID}`, the scratch doc's own folder
+- Step 6 prints `{'error': "The content has a local image, but there's no Drive folder to upload it to: ... Pass folder_id. The document was left unchanged.", 'docId': '{SCRATCH}'}`
+- Step 7 shows step 4's content unchanged, and `search_files` finds no backup copy: the call stopped before copying or clearing
+
+**Cleanup:** `delete_file` the scratch doc, step 3's doc, and each uploaded `qa-fixture-pixel.png` copy in `{FOLDER_ID}` (steps 1, 3 and 4)
+
+**Result (2026-10-31) ✅ PASS — PR #1310 round 1 (Kit)**
+`mcp-gee-sweet-kit` at c136f679, reconnected after the reset, OAuth, with `{FOLDER_ID}` a folder inside the Shared Drive. Part A: step 1 returned one `images` entry (`src` `../../qa-fixture-pixel.png`, a `fileId`, no `error`); step 2 showed the heading, "Before the image.", the pixel and "After the image." in that order, and the uploaded pixel's `parents` was `[{FOLDER_ID}]`; step 3's new doc had the same content with the pixel embedded. Part B (fresh interpreter, `folder_id=None`): no `error`, one `images` entry, and its file's `parents` was the scratch doc's own folder. Part C printed the expected refusal ending "Pass folder_id. The document was left unchanged."; after `refresh_cache`, the doc still showed part B's content and `search_files` found no backup copy. Playwright (account check passed against the fixture doc's title): the scratch doc shows the heading, both paragraphs and the 1×1 pixel between them. All scratch docs and the three uploaded pixels trashed.
+
+**Result (2026-10-31) ⚠️ PARTIAL — PR #1310 round 2 (Kit), the fix commit's refusal changes only**
+Fresh interpreter against f6307b59. A missing local image (`/tmp/kit-nope.png`) with no folder known no longer refuses: the replace goes ahead and writes "gone" in its place, with `error` and `fallback_text` in `images`. `_doc_parents` now returns `(parents, error)` instead of raising: on a real doc it returned the doc's folder. But a nonexistent `doc_id` with an existing local image returns the "no Drive folder to upload it to … looking up the document's own folder failed (<HttpError 404 … File not found …>). Pass folder_id." refusal, which names the wrong problem (sent back). Parts A–C weren't rerun; the fix doesn't change their paths.
+
+**Result (2026-10-31) ✅ PASS (the round-3 unreachable-doc fix) — PR #1310 round 3 (Kit)**
+Fresh interpreter against eb6ce267, `folder_id=None`, with an existing local image and `doc_id='bogusDocIdDoesNotExist123'`: returns `{'error': "Couldn't read the document (it doesn't exist, or this account can't open it), so it was left unchanged: <HttpError 404 … File not found …>", 'docId': …}` instead of the folder refusal. Parts A–C weren't rerun; the fix doesn't change their paths.
+
+**Result (2026-10-31) ✅ PASS (step 6 only) — PR #1310 round 4 (Kit)**
+Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case from TC-DOC244). Step 6 as first written stubbed `_doc_parents` to return `None`, but it returns `(parents, error)` since round 2, so the stub would raise on unpacking; corrected to `result=(None, None)`. With it, step 6 printed the documented refusal ending "Pass folder_id. The document was left unchanged." on a fresh scratch doc, which was then trashed. The other steps' code paths are unchanged since round 3.

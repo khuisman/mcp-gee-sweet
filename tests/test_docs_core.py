@@ -214,8 +214,26 @@ class TestHtmlToDocRequests:
         insert = next(r["insertInlineImage"] for r in requests if "insertInlineImage" in r)
 
         assert insert["location"]["index"] == 12
-        assert _text_offset_since_last_table(children, cursor=3, image_uris=images.uris) == 4
+        assert _text_offset_since_last_table(children, cursor=3, images=images) == 4
         assert _text_offset_since_last_table(children, cursor=3) == 3
+
+    def test_astral_fallback_text_counts_utf16_indices(self):
+        # #1099: an unresolved cell image is written as its fallback text, which a
+        # nested table after it must count in UTF-16 units, not code points.
+        img = Image(src="a", alt="😀😀")
+        children = [Run("X"), img]
+        images = CellImages({}, AsyncMock(), lambda _e: None, lambda *_: None)
+
+        requests = _run_group_fill_requests(children, para_start=10, images=images)
+        fallback = next(r for r in requests if r.get("insertText", {}).get("text") == "😀😀")
+        assert fallback["insertText"]["location"]["index"] == 11
+        link = requests[requests.index(fallback) + 1]["updateTextStyle"]
+        assert link == {
+            "range": {"startIndex": 11, "endIndex": 15},
+            "textStyle": {},
+            "fields": "link",
+        }
+        assert _text_offset_since_last_table(children, cursor=2, images=images) == 5
 
     def test_heading_gets_delete_bullets(self):
         requests, _ = _html_to_doc_requests("<h1>Title</h1>")

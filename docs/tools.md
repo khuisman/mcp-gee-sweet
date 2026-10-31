@@ -132,8 +132,8 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
 | `create_doc_from_file` | Create a Google Doc from a local .md or .html file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title?`, `folder_id?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?` |
 | `get_doc_content` | Get the plain text content of a Google Doc. | `file_id`, `local_path?` |
-| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?`, `allow_no_backup?` |
-| `update_doc_from_file` | Replace an existing Google Doc's content in place from a local .md or .html file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `doc_id`, `local_path`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?`, `allow_no_backup?` |
+| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?`, `allow_no_backup?`, `folder_id?` |
+| `update_doc_from_file` | Replace an existing Google Doc's content in place from a local .md or .html file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `doc_id`, `local_path`, `content_format?`, `autolink_urls?`, `revoke_sharing?`, `auto_downscale?`, `allow_no_backup?`, `folder_id?` |
 | `get_doc_structure` | Return the full structural map of a Google Doc body with element indices. | `doc_id` |
 | `find_in_doc` | Search a Google Doc's text and return match locations as document character offsets. | `doc_id`, `query`, `regex?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
