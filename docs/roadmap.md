@@ -396,17 +396,18 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 - [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
 - [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
-- [ ] A numbered list restarts its numbering after a nested bullet list ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072))
+- [x] A numbered list restarts its numbering after a nested bullet list. #1241, the reverse case in the same run grouping, was folded in (maintainer, 2026-10-28) but PR #1286 didn't fix it, so #1241 stays open below — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
+- [x] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241)) (PR #1295)
 - [x] Images inside table cells are dropped silently ([#1073](https://github.com/khuisman/mcp-gee-sweet/issues/1073)) (PR #1215)
 - [ ] HTML input: whitespace between list tags becomes stray bullet paragraphs ([#1074](https://github.com/khuisman/mcp-gee-sweet/issues/1074))
 - [ ] A bare '-' (empty list item) isn't recognized in Markdown ([#1075](https://github.com/khuisman/mcp-gee-sweet/issues/1075))
 - [ ] **Bundle:** Markdown/HTML inline styles — one PR closing [#1077](https://github.com/khuisman/mcp-gee-sweet/issues/1077) (strikethrough, `<del>`) and [#1119](https://github.com/khuisman/mcp-gee-sweet/issues/1119) (`<sub>`, `<sup>`, `<mark>`); after PR #1228, check how much of #1077 the GFM strikethrough rule already fixed. Bundled 2026-10-25 (maintainer) ([#1231](https://github.com/khuisman/mcp-gee-sweet/issues/1231))
-- [ ] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128))
+- [x] get_doc_as_markdown indents a numbered sub-list under a numbered item by only 2 spaces, so it re-imports flat. Found in the 0.9.3 release-QA pass ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128)) (PR #1234)
 - [x] get_doc_as_markdown renumbers a numbered list from 1 after a table (or any block) interrupts it, so it re-imports as two lists. `wrong/narrow`, observed in PR #1201 QA ([#1208](https://github.com/khuisman/mcp-gee-sweet/issues/1208)) (PR #1234)
 - [x] create_paragraph_bullets adds the requested nesting level to an item's current level instead of setting it. It's the repair path `get_doc_structure` points to for a Markdown conversion that flattened a nested list, so it belongs with Markdown fidelity; moved back from ankylosaurus 2026-10-24 (maintainer) — lane A ([#1069](https://github.com/khuisman/mcp-gee-sweet/issues/1069)) (PR #1216)
 - [ ] **Bundle:** Markdown/HTML image sources — one PR closing [#1121](https://github.com/khuisman/mcp-gee-sweet/issues/1121) (relative path against the `.md` file), [#1139](https://github.com/khuisman/mcp-gee-sweet/issues/1139) (`update_doc_from_file` has no `folder_id`) and [#1099](https://github.com/khuisman/mcp-gee-sweet/issues/1099) (unfetchable image dropped without a trace); after PR #1228. Bundled 2026-10-25 (maintainer) ([#1232](https://github.com/khuisman/mcp-gee-sweet/issues/1232))
 - [ ] YAML front matter is rendered as text instead of omitted (plan rule D3). Triaged 2026-10-24 ([#1173](https://github.com/khuisman/mcp-gee-sweet/issues/1173))
-- [ ] Markdown/HTML conversion: tell the caller when a link is dropped. Added 2026-10-24 (maintainer) ([#1180](https://github.com/khuisman/mcp-gee-sweet/issues/1180))
+- [x] Markdown/HTML conversion: tell the caller when a link is dropped. Added 2026-10-24 (maintainer) ([#1180](https://github.com/khuisman/mcp-gee-sweet/issues/1180)) (PR #1272)
 - [x] search_files/search_spreadsheets/list_spreadsheets miss Shared Drive files under a service account when no folder is given. `wrong/narrow`, observed in the 0.9.3 release-QA pass; v0.9.3's fill is locked ([#1127](https://github.com/khuisman/mcp-gee-sweet/issues/1127)) (PR #1200)
 - [x] Loose list items (<li><p>…</p></li>) lose their bullet — community PR #1164 (pulled from lane A), html_parser cluster ([#1111](https://github.com/khuisman/mcp-gee-sweet/issues/1111)) (PR #1164)
 - [ ] **Bundle:** Markdown/HTML line breaks — one PR closing [#1093](https://github.com/khuisman/mcp-gee-sweet/issues/1093) (soft break), [#1117](https://github.com/khuisman/mcp-gee-sweet/issues/1117) (hard break) and [#1091](https://github.com/khuisman/mcp-gee-sweet/issues/1091) (`<br>` in prose), html_parser cluster; after PR #1228. Bundled 2026-10-25 (maintainer) ([#1230](https://github.com/khuisman/mcp-gee-sweet/issues/1230))
@@ -415,8 +416,8 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] A thematic break (`---`) renders as an empty paragraph ([#1096](https://github.com/khuisman/mcp-gee-sweet/issues/1096))
 - [ ] GFM table column alignment is ignored ([#1095](https://github.com/khuisman/mcp-gee-sweet/issues/1095))
 - [x] A table takes on the style of the paragraph that follows it ([#1097](https://github.com/khuisman/mcp-gee-sweet/issues/1097)) (PR #1201)
-- [ ] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101))
-- [ ] `upload_file(source_format="markdown", convert_to_doc=True)` (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line ([#1102](https://github.com/khuisman/mcp-gee-sweet/issues/1102))
+- [x] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101)) (PR #1270)
+- [x] `upload_file(source_format="markdown", convert_to_doc=True)` (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line ([#1102](https://github.com/khuisman/mcp-gee-sweet/issues/1102)) (PR #1283)
 - [x] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike [#1112](https://github.com/khuisman/mcp-gee-sweet/issues/1112), closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) ([#1116](https://github.com/khuisman/mcp-gee-sweet/issues/1116)) (PR #1228)
 - [x] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone ([#1115](https://github.com/khuisman/mcp-gee-sweet/issues/1115)) (PR #1164)
 - [ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding ([#1118](https://github.com/khuisman/mcp-gee-sweet/issues/1118))
@@ -445,18 +446,20 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] get_doc_structure hides inline images, so an image's index can't be found ([#1070](https://github.com/khuisman/mcp-gee-sweet/issues/1070)) (PR #1110)
 - [x] thread_http's per-thread `httplib2.Http` has no socket timeout, so a silently dropped connection hangs a call until ETIMEDOUT. `severe`, observed: a 30-minute `create_doc_from_file` hang in the #1044 run left an empty Doc. Joined after the lock and ranked first by the maintainer, 2026-10-22 ([#1129](https://github.com/khuisman/mcp-gee-sweet/issues/1129)) (PR #1198)
 - [x] `transfer_ownership(send_notification=False)` can never succeed — `loud/narrow` ([#1055](https://github.com/khuisman/mcp-gee-sweet/issues/1055)) (PR #1142)
-- [ ] Refresh stale TC expectations found in the v0.9.2 pass ([#1060](https://github.com/khuisman/mcp-gee-sweet/issues/1060))
+- [x] Refresh stale TC expectations found in the v0.9.2 pass ([#1060](https://github.com/khuisman/mcp-gee-sweet/issues/1060)) (PR #1271)
 - [x] Test modules fail to collect on Windows (`os.geteuid()` in skipif decorators) — community PR ([#1156](https://github.com/khuisman/mcp-gee-sweet/issues/1156)) (PR #1162)
 - [x] `setup_team.sh` never re-syncs a slot's credentials after they change, so release QA ran on stale identities — release-gate, Aziz ([#1223](https://github.com/khuisman/mcp-gee-sweet/issues/1223)) (PR #1225)
+- [x] `write_doc_content`/`update_doc_from_file` clear the Doc before converting the Markdown, so a failed conversion with no backup leaves it empty. `severe/rare`; joined the locked fill 2026-10-28 (maintainer) — lane B after #1102 ([#1240](https://github.com/khuisman/mcp-gee-sweet/issues/1240)) (PR #1296)
+- [ ] A bare `www.` autolink gets `http://` while an explicit `www.` target gets `https://` (#1180). `wrong/common` now that the maintainer chose https for both, 2026-10-28; joined the locked fill ([#1281](https://github.com/khuisman/mcp-gee-sweet/issues/1281))
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
-- [ ] qa: live verification for PR #1110 (inline images in get_doc_structure runs) ([#1157](https://github.com/khuisman/mcp-gee-sweet/issues/1157))
-- [ ] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160))
-- [ ] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167))
-- [ ] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190))
+- [x] qa: live verification for PR #1110 (inline images in get_doc_structure runs) ([#1157](https://github.com/khuisman/mcp-gee-sweet/issues/1157)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1138 (blank paragraph before a table) ([#1160](https://github.com/khuisman/mcp-gee-sweet/issues/1160)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1140 (escaped folder IDs in transfer.py queries) ([#1167](https://github.com/khuisman/mcp-gee-sweet/issues/1167)) (live PASS 2026-10-27)
+- [x] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190)) (live PASS 2026-10-27)
 - [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
-- [ ] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263))
+- [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
 Moved out 2026-10-18: [#379](https://github.com/khuisman/mcp-gee-sweet/issues/379) (unversioned, Joy decides whether to do it); [#378](https://github.com/khuisman/mcp-gee-sweet/issues/378) closed (ASYNC240 stays off). Everything else formerly here is under _ankylosaurus_ below.
 
@@ -525,7 +528,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-10-18**
 
 - [ ] `create_paragraph_bullets` drops a blockquoted paragraph's quote indent — `wrong/narrow`, observed; from PR #1089's review, after v0.9.3's lock ([#1090](https://github.com/khuisman/mcp-gee-sweet/issues/1090))
-- [ ] A list inside a blockquote draws its border at the list indent, not the quote's — `wrong/narrow`, observed in PR #1228 QA round 3; ornithomimus's fill is locked. Community PR #1258 claims it ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242))
+- [x] Document as a known limitation: a list inside a blockquote draws its border at the list indent, not the quote's. Maintainer's call 2026-10-29, after community PR #1258 (closed) showed Docs draws the border at `indentStart`, the same setting as the item's hanging indent. Out of ankylosaurus since then: a docs ticket with no version label, Amy ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242)) (PR #1294)
 - [x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032)) (PR #1264)
 - [x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030)) (PR #1264)
 - [ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. `wrong/rare`; found in PR #1264, the same gap #1030 closed for Docs and Drive ([#1265](https://github.com/khuisman/mcp-gee-sweet/issues/1265))
@@ -546,6 +549,20 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] HTML input: source line breaks at a block's start or end become empty paragraphs (pretty-printed HTML). `wrong/narrow`, not observed; found in PR #1228, grouped with #1221 ([#1229](https://github.com/khuisman/mcp-gee-sweet/issues/1229))
 - [ ] html_parser: edge cases in a list item's transparent `<p>` (trailing line breaks, etc.). `wrong/narrow`, not observed; found in PR #1164's review ([#1266](https://github.com/khuisman/mcp-gee-sweet/issues/1266))
 - [ ] Reauth offer (#873) on MCP 2026-07-28 connections: capability-only check and a retired `-32042`. `loud/rare`; found in #1081's design pass ([#1236](https://github.com/khuisman/mcp-gee-sweet/issues/1236))
+
+**Triaged in 2026-10-28**
+
+- [ ] `style_doc_range` with only `font_family` clears bold on the range. `wrong/narrow`, observed, not a regression; community PR #1279 open ([#1273](https://github.com/khuisman/mcp-gee-sweet/issues/1273))
+- [ ] Drive transfer tools raise `HttpError` on a 404 instead of returning an error result. `loud/narrow`; community PR #1278 open ([#1275](https://github.com/khuisman/mcp-gee-sweet/issues/1275))
+- [ ] Drive tools: one `HttpError` policy after #1278 (lost logging and access-log status, the `isError` contract across sibling tools, stale text, quota/5xx tests). `loud/narrow`; from the #1278 review, after it merges ([#1287](https://github.com/khuisman/mcp-gee-sweet/issues/1287))
+- [ ] `style_doc_range` font-only bold restore (after #1279): no revision guard between the read and the write, unmasked read, read error indistinguishable from a write error, no table-cell test. `wrong/rare`; from the #1279 review ([#1289](https://github.com/khuisman/mcp-gee-sweet/issues/1289))
+- [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
+- [ ] Markdown task lists as native Docs checkboxes (`BULLET_CHECKBOX`) instead of a disc bullet plus a glyph. First check live whether the API can set the checked state ([#1280](https://github.com/khuisman/mcp-gee-sweet/issues/1280))
+
+**Triaged in 2026-10-29**
+
+- [ ] Markdown links to `file:` and script schemes render as literal `[text](target)` source, with no `dropped_links` entry. `wrong/narrow`, regression since v0.9.5 (PR #1228's markdown-it switch); placed here by the maintainer (2026-10-29), not in ornithomimus's locked fill, though the rubric allows a regression there. #1291 closed as its duplicate ([#1290](https://github.com/khuisman/mcp-gee-sweet/issues/1290))
+- [ ] `create_paragraph_bullets` restarts a numbered list's numbering after a nested list of the other type: its same-`listId` expansion walks only adjacent paragraphs, so it re-bullets the items after the nested list as a new list. `wrong/narrow`, observed (live on PR #1286), not a regression; from PR #1286's review. Grouped with #1090, the same function ([#1288](https://github.com/khuisman/mcp-gee-sweet/issues/1288))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
@@ -683,7 +700,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 - [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
-- [ ] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_
+- [x] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_ (done 2026-06-26)
 - [ ] CLAUDE.md's html_parser invariant doesn't describe a list item's transparent `<p>` (from PR #1164). Bob, no version ([#1267](https://github.com/khuisman/mcp-gee-sweet/issues/1267))
 - See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 

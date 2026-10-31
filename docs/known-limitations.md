@@ -75,6 +75,62 @@ U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. 
 
 ---
 
+### Markdown input doesn't read footnotes, definition lists, or other Python-Markdown `extra` syntax
+
+**What:** Markdown passed to `create_doc`/`write_doc_content` (`content_format='markdown'`),
+`create_doc_from_file`/`update_doc_from_file`, or `upload_file(source_format='markdown')` is read
+as CommonMark plus GitHub-flavored Markdown (tables, strikethrough, task lists, autolinks). These
+constructs from Python-Markdown's `extra` extension aren't part of that:
+
+- Footnotes: `Text[^1]` and `[^1]: …`. A note written as prose (`[^1]: This is the note.`)
+  stays literal text, both the `[^1]` marker and the note line. A note of a single word or URL
+  (`[^1]: note`) is a valid CommonMark link reference definition instead, so the note line
+  disappears and the marker shows as `^1`. It's linked when the note is a URL; otherwise the
+  link is dropped (no scheme, #1120) and reported in `dropped_links`.
+
+These come out as literal text:
+
+- Definition lists: `Term` followed by `: definition`.
+- Abbreviations: `*[HTML]: Hyper Text Markup Language`.
+- Attribute lists: `{#id}` or `{.class}` after a heading or paragraph.
+- Markdown inside an HTML block marked `markdown="1"`; the block's contents stay as written.
+
+**Why:** `upload_file` converted with Python-Markdown `extra` until #1102 moved it onto this
+server's CommonMark/GFM converter, which the Docs tools already used. They never read these
+constructs.
+
+**Workaround:** Write a footnote as an inline parenthetical or a "Notes" list at the end (creating
+real Docs footnotes is #149), a definition list as `**Term**: definition` lines, and put HTML that
+needs Markdown inside it as HTML instead.
+
+---
+
+### A list inside a blockquote draws its own quote bar, offset from the quote's
+
+**What:** In Markdown or HTML content written to a Doc, a list inside a blockquote shows its gray
+left bar at the list item's indent, not at the quote's. A quote that mixes paragraphs and list
+items therefore shows two bars, the items' sitting to the right of the paragraphs'. For example,
+`create_doc(content="> quote text\n>\n> - item\n", content_format="markdown")` gives "quote text"
+a bar at the quote indent and "item" a second bar further right. The same mechanism puts a nested
+item's bar at its own, deeper indent. Reading the Doc back with `get_doc_as_markdown` is
+unaffected: every item comes back at its correct quote depth.
+
+**Why:** Docs has no blockquote style, so a quoted paragraph gets a left border and an indent.
+Docs draws a paragraph's `borderLeft` at its `indentStart`, and there's no separate setting for
+where the border goes. A list item needs its own `indentStart` too, past the quote's: it's where
+the item's wrapped lines start, under the text rather than under the bullet. Setting a quoted
+item's `indentStart` to the quote indent does join the two bars, but then every wrapped line lands
+left of the item's bullet and nested items lose their indent after the first line. One paragraph
+can't have both the quote's bar position and a list's hanging indent, so the offset bar is the
+lesser problem.
+
+**Workaround:** None that keeps a real list. To get one continuous bar, keep the list outside the
+quote, or write each item as its own quoted paragraph starting with a bullet character, which isn't
+a Markdown list marker: `> • one\n>\n> • two\n`. Keep the blank `>` line between items, or the
+lines join into one paragraph. Decided in #1242.
+
+---
+
 ### `create_bookmark` doesn't create a bookmark Docs lists
 
 **What:** `create_bookmark` creates a one-character named range. It doesn't appear under
@@ -196,7 +252,9 @@ use this server's converter instead. The same Markdown comes out differently:
 - **Task lists** become native Docs checklists rather than `☐` / `☑` text. A numbered task list
   loses its numbers.
 - **Sub-lists indented by 2 spaces** under a numbered item don't nest; 3 or more spaces do.
-- **Extra empty paragraphs** appear around paragraphs, rules, and lists.
+- **Extra empty paragraphs** appear around paragraphs, rules, lists, and tables. A table gets a
+  visible empty line above it when it starts the document, and between it and a paragraph
+  directly before it.
 - **`<del>` and `<mark>`** inline HTML isn't rendered as strikethrough or highlight.
 - **Images** with a local path or `drive:` source aren't embedded. Only this server's converter
   uploads and shares those.

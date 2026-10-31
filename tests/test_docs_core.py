@@ -1763,17 +1763,35 @@ class TestBulletDepthEdgeCases:
 
 
 def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
-    """Apply the text and bullet requests in `requests` to an empty doc and return
-    each paragraph's (text, nestingLevel), nestingLevel None for a non-bullet.
+    """Each paragraph's (text, nestingLevel) after `requests`, nestingLevel None for a
+    non-bullet. See _render_lists."""
+    return [(text, level) for text, level, _, _ in _render_lists(requests)]
 
-    Models the two API behaviors the isolated-run anchor wrap depends on (#715),
-    both confirmed live by TC-DOC190: createParagraphBullets sets each paragraph's
-    nestingLevel to its leading-tab count minus the minimum across the call's range,
-    then removes those tabs; and a paragraph's properties live on its trailing
-    newline, so deleting an empty anchor paragraph leaves the next one's level
-    intact. Other request types don't change text or levels and are ignored."""
-    # One entry per character from index 1; a "\n" entry carries its paragraph's level.
+
+def _render_lists(requests: list[dict]) -> list[tuple[str, int | None, str | None, int | None]]:
+    """Apply the text and bullet requests in `requests` to an empty doc and return
+    each paragraph's (text, nestingLevel, list, ordinal), all but text None for a
+    non-bullet. `list` names the paragraph's Docs list by its preset's first letter
+    ("N" numbered, "B" bulleted) and its order of creation ("N1", "B2"); `ordinal` is
+    the number Docs shows it at, counted per list and level, a level restarting after
+    an item at a shallower level of the same list.
+
+    Models the API behaviors the bullet pass depends on, confirmed live (TC-DOC190,
+    #1072): createParagraphBullets sets each paragraph's nestingLevel to its
+    leading-tab count minus the minimum across the call's range, then removes those
+    tabs, and puts every paragraph in its range into one new list, including one
+    already in a list; a paragraph's properties live on its trailing newline, so
+    deleting an empty anchor paragraph leaves the next one's level intact; and
+    deleteParagraphBullets leaves the level's indent, which a later
+    createParagraphBullets reads as extra depth (#1069), so bulleting such a paragraph
+    before an updateParagraphStyle zeroes its indent is unmodeled and fails here.
+    And when the paragraph just before the range is in a list with the same preset,
+    the range joins that list, its levels counted from that paragraph's level instead
+    of 0 (#1241). Other request types don't change text or lists and are ignored."""
+    # One entry per character from index 1; a "\n" entry carries its paragraph's
+    # properties: level, list, and whether it holds a stale list indent.
     chars: list[list] = [["\n", None]]  # an empty doc is one empty paragraph
+    lists: list[str] = []
 
     def paragraphs() -> list[tuple[int, int]]:
         """(start, end) list positions of each paragraph, end inclusive of its newline."""
@@ -1784,6 +1802,10 @@ def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
                 start = i + 1
         return out
 
+    def covered(rng: dict) -> list[tuple[int, int]]:
+        lo, hi = rng["startIndex"] - 1, rng["endIndex"] - 1
+        return [(a, b) for a, b in paragraphs() if a < hi and b >= lo]
+
     for req in requests:
         if "insertText" in req:
             pos = req["insertText"]["location"]["index"] - 1
@@ -1791,23 +1813,53 @@ def _render_bullet_levels(requests: list[dict]) -> list[tuple[str, int | None]]:
         elif "deleteContentRange" in req:
             rng = req["deleteContentRange"]["range"]
             del chars[rng["startIndex"] - 1 : rng["endIndex"] - 1]
+        elif "deleteParagraphBullets" in req:
+            for _, b in covered(req["deleteParagraphBullets"]["range"]):
+                if chars[b][1] is not None:
+                    chars[b][1] = {"stale_indent": True}
+        elif "updateParagraphStyle" in req:
+            update = req["updateParagraphStyle"]
+            if "indentStart" in update["paragraphStyle"]:
+                for _, b in covered(update["range"]):
+                    if chars[b][1] is not None and chars[b][1].get("stale_indent"):
+                        chars[b][1] = None
         elif "createParagraphBullets" in req:
-            rng = req["createParagraphBullets"]["range"]
-            lo, hi = rng["startIndex"] - 1, rng["endIndex"] - 1
-            covered = [(a, b) for a, b in paragraphs() if a < hi and b >= lo]
+            create = req["createParagraphBullets"]
+            paras = covered(create["range"])
             tabs = []
-            for a, b in covered:
+            for a, b in paras:
+                assert not (chars[b][1] or {}).get("stale_indent"), "unmodeled stale indent"
                 n = 0
                 while a + n < b and chars[a + n][0] == "\t":
                     n += 1
                 tabs.append(n)
             base = min(tabs)
+            letter = create.get("bulletPreset", "B")[0]
+            before = chars[paras[0][0] - 1][1] if paras[0][0] > 0 else None
+            if before and "level" in before and before["list"][0] == letter:
+                list_name, offset = before["list"], before["level"]
+            else:
+                lists.append(f"{letter}{len(lists) + 1}")
+                list_name, offset = lists[-1], 0
             # Latest-first, so stripping one paragraph's tabs doesn't shift the next.
-            for (a, b), n in reversed(list(zip(covered, tabs, strict=True))):
-                chars[b][1] = n - base
+            for (a, b), n in reversed(list(zip(paras, tabs, strict=True))):
+                chars[b][1] = {"level": n - base + offset, "list": list_name}
                 del chars[a : a + n]
 
-    return [("".join(ch for ch, _ in chars[a:b]), chars[b][1]) for a, b in paragraphs()[:-1]]
+    rendered = []
+    counters: dict[str, list[int]] = {}
+    for a, b in paragraphs()[:-1]:
+        text, props = "".join(ch for ch, _ in chars[a:b]), chars[b][1]
+        if props is None or "level" not in props:
+            rendered.append((text, None, None, None))
+            continue
+        level, list_name = props["level"], props["list"]
+        counts = counters.setdefault(list_name, [])
+        del counts[level + 1 :]
+        counts.extend([0] * (level + 1 - len(counts)))
+        counts[level] += 1
+        rendered.append((text, level, list_name, counts[level]))
+    return rendered
 
 
 class TestRenderBulletLevelsModel:
@@ -1820,6 +1872,33 @@ class TestRenderBulletLevelsModel:
             {"createParagraphBullets": {"range": {"startIndex": 1, "endIndex": 9}}},
         ]
         assert _render_bullet_levels(requests) == [("C1", 0), ("C2", 0)]
+
+    def test_range_after_same_preset_list_joins_it(self):
+        # #1241, confirmed live: the range joins the list just before it, its levels
+        # counted from that paragraph's level, so this fails without the barrier.
+        preset = "NUMBERED_DECIMAL_ALPHA_ROMAN"
+        requests = [
+            {"insertText": {"location": {"index": 1}, "text": "P\n\ta\n\n\tb\n"}},
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": 1, "endIndex": 6},
+                    "bulletPreset": preset,
+                }
+            },
+            # The first call consumed a's tab: the empty paragraph and \tb are at 5..9.
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": 5, "endIndex": 9},
+                    "bulletPreset": preset,
+                }
+            },
+        ]
+        assert _render_lists(requests) == [
+            ("P", 0, "N1", 1),
+            ("a", 1, "N1", 1),
+            ("", 1, "N1", 2),
+            ("b", 2, "N1", 1),
+        ]
 
 
 class TestIsolatedDepthRunGlyph:
@@ -1887,6 +1966,351 @@ class TestIsolatedDepthRunGlyph:
         html = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
         requests, _ = _to_doc_requests(html)
         assert _render_bullet_levels(requests) == [("C1", 1), ("C2", 1)]
+
+
+class TestMixedTypeNestedListKeepsNumbering:
+    """#1072: a list nested in one of the other type ended the outer list's
+    createParagraphBullets run, so the outer list became separate Docs lists and its
+    numbering restarted after the nested one (1, ○, ○, 1, 2). Now each top-level list
+    is one call and each nested list of the other type is taken back out of it, so
+    every list in the source is one Docs list. Asserted through _render_lists, which
+    models list identity and per-list numbering."""
+
+    def test_issue_repro_numbering_continues_after_nested_bullets(self):
+        html = "<ol><li>A<ul><li>a1</li><li>a2</li></ul></li><li>B</li><li>C</li></ol>"
+        requests, _ = _to_doc_requests(html)
+        assert _render_lists(requests) == [
+            ("A", 0, "N1", 1),
+            ("a1", 1, "B2", 1),
+            ("a2", 1, "B2", 2),
+            ("B", 0, "N1", 2),
+            ("C", 0, "N1", 3),
+        ]
+
+    def test_issue_repro_through_markdown(self):
+        html = _md_to_html("1. A\n    - a1\n    - a2\n2. B\n3. C\n")
+        requests, _ = _to_doc_requests(html)
+        assert [(text, ordinal) for text, _, _, ordinal in _render_lists(requests)] == [
+            ("A", 1),
+            ("a1", 1),
+            ("a2", 2),
+            ("B", 2),
+            ("C", 3),
+        ]
+
+    def test_nested_numbered_level_continues_after_deeper_bullets(self):
+        # Every level keeps counting, not just the top one.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1, ordered=True),
+            BulletItem(runs=[Run("x")], depth=2, ordered=False),
+            BulletItem(runs=[Run("a2")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 0, "N1", 1),
+            ("a1", 1, "N1", 1),
+            ("x", 2, "B2", 1),
+            ("a2", 1, "N1", 2),
+            ("B", 0, "N1", 2),
+        ]
+
+    def test_three_alternating_levels(self):
+        # A nested list's range holds the list nested in it, which is taken out in turn.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0),
+            BulletItem(runs=[Run("n1")], depth=1, ordered=True),
+            BulletItem(runs=[Run("b1")], depth=2),
+            BulletItem(runs=[Run("n2")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 0, "B1", 1),
+            ("n1", 1, "N2", 1),
+            ("b1", 2, "B3", 1),
+            ("n2", 1, "N2", 2),
+            ("B", 0, "B1", 2),
+        ]
+
+    def test_second_nested_list_under_one_item_restarts(self):
+        # `1. a` / `- b` / `1. c` under one item are three Markdown lists, so c
+        # restarts rather than continuing a's numbering.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a")], depth=1, ordered=True),
+            BulletItem(runs=[Run("b")], depth=1),
+            BulletItem(runs=[Run("c")], depth=1, ordered=True),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        rendered = _render_lists(requests)
+        assert [(text, ordinal) for text, _, _, ordinal in rendered] == [
+            ("A", 1),
+            ("a", 1),
+            ("b", 1),
+            ("c", 1),
+            ("B", 2),
+        ]
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["A"] == lists["a"] == lists["B"]
+        assert len({lists["a"], lists["b"], lists["c"]}) == 3
+
+    def test_sibling_lists_of_different_type_stay_separate(self):
+        # A same-depth type change is a new Markdown list, so the next numbered list
+        # restarts.
+        nodes = [
+            BulletItem(runs=[Run("n1")], depth=0, ordered=True),
+            BulletItem(runs=[Run("b")], depth=0),
+            BulletItem(runs=[Run("m1")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("n1", 0, "N3", 1),
+            ("b", 0, "B2", 1),
+            ("m1", 0, "N1", 1),
+        ]
+
+    def test_isolated_fragment_with_nested_other_type(self):
+        # A top-level list with no depth-0 item still takes the anchor wrap, and its
+        # nested list comes out of it at its own depth.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=1, ordered=True),
+            BulletItem(runs=[Run("x")], depth=2),
+            BulletItem(runs=[Run("B")], depth=1, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert _render_lists(requests) == [
+            ("A", 1, "N1", 1),
+            ("x", 2, "B2", 1),
+            ("B", 1, "N1", 2),
+        ]
+
+    def test_following_table_position_unchanged(self):
+        # Taking a nested list out inserts its tabs again and consumes them again, so a
+        # later table sits where a single call would leave it: "A\n\ta1\nB\n" is 8
+        # characters, then the placeholder at 9, less the one consumed tab.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 8
+
+    def test_later_list_unaffected_by_earlier_mixed_list(self):
+        # Lists are applied latest-first, so a mixed list after a paragraph doesn't
+        # disturb an earlier one, and vice versa.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0, ordered=True),
+            BulletItem(runs=[Run("a1")], depth=1),
+            BulletItem(runs=[Run("B")], depth=0, ordered=True),
+            Paragraph(runs=[Run("P")]),
+            BulletItem(runs=[Run("C")], depth=0, ordered=True),
+            BulletItem(runs=[Run("c1")], depth=1),
+            BulletItem(runs=[Run("D")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert [(text, level, ordinal) for text, level, _, ordinal in _render_lists(requests)] == [
+            ("A", 0, 1),
+            ("a1", 1, 1),
+            ("B", 0, 2),
+            ("P", None, None),
+            ("C", 0, 1),
+            ("c1", 1, 1),
+            ("D", 0, 2),
+        ]
+
+
+class TestAdjacentSameTypeListsStaySeparate:
+    """#1241: two adjacent source lists of one type at one depth (a marker change,
+    `-` then `*` or `1.` then `1)`) rendered as one Docs list, since the AST carried no
+    list boundary. Each BulletItem now carries its source lists' ids, and the emitter
+    starts a new Docs list where they change."""
+
+    def test_parser_gives_each_list_its_own_id(self):
+        nodes = html_to_ast("<ul><li>a</li><li>b</li></ul><ul><li>c</li></ul>")
+        assert nodes[0].list_path == nodes[1].list_path == (1,)
+        assert nodes[2].list_path == (2,)
+
+    def test_item_after_nested_list_keeps_its_list_path(self):
+        nodes = html_to_ast("<ol><li>A<ul><li>x</li></ul></li><li>B</li></ol>")
+        paths = {item.runs[0].text: item.list_path for item in nodes}
+        assert paths == {"A": (1,), "x": (1, 2), "B": (1,)}
+
+    def test_unclosed_li_keeps_the_list_it_opened_in(self):
+        # PR #1295 QA round 1: an <li> left open until </ul> is flushed after the
+        # pop, and used to read the next list's ids (or none) and the wrong depth.
+        nodes = html_to_ast("<ul><li>a</li><li>b</ul><ul><li>c</ul>")
+        assert [n.list_path for n in nodes] == [(1,), (1,), (2,)]
+        nodes = html_to_ast("<ol><li>P<ol><li>a</li><li>b</ol></li></ol>")
+        assert [(n.runs[0].text, n.depth, n.list_path) for n in nodes] == [
+            ("P", 0, (1,)),
+            ("a", 1, (1, 2)),
+            ("b", 1, (1, 2)),
+        ]
+
+    def test_unclosed_li_lists_render_separately(self):
+        requests, _ = _to_doc_requests("<ul><li>a</li><li>b</ul><ul><li>c</ul>")
+        lists = {text: list_name for text, _, list_name, _ in _render_lists(requests)}
+        assert lists["a"] == lists["b"] != lists["c"]
+
+    def test_list_after_deeper_fragment_starts_its_own(self):
+        # PR #1295 QA round 1: y's list follows a list whose only item x sits at depth
+        # 1 (its parent item dropped, #714). y isn't from a list enclosing x's, so it
+        # doesn't rejoin x's Docs list.
+        nodes = html_to_ast("<ol><li><ol><li>x</li></ol></li></ol><ol><li>y</li></ol>")
+        requests, _ = ast_to_requests(nodes)
+        creates = [r for r in requests if "createParagraphBullets" in r]
+        assert len(creates) == 2
+        lists = {text: list_name for text, _, list_name, _ in _render_lists(requests)}
+        assert lists["x"] != lists["y"]
+
+    def test_list_after_earlier_list_isnt_nested_in_it(self):
+        # A fragment of a separate list (its parent dropped) after a shallower list's
+        # item isn't nested under that item: its list doesn't enclose the fragment.
+        nodes = html_to_ast("<ol><li>P</li></ol><ol><li><ol><li>z</li></ol></li></ol>")
+        rendered = _render_lists(ast_to_requests(nodes)[0])
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["P"] != lists["z"]
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("P", 0, 1),
+            ("z", 1, 1),
+        ]
+
+    def test_trailing_nested_list_of_other_type(self):
+        # PR #1295 QA round 1 (a #1072 regression): a nested list of the other type
+        # that ends its top-level list left its tabs unconsumed, so a rendered one
+        # level too deep. The top list's range now spans its nested items.
+        html = _md_to_html("- P\n  - x\n- R\n  1. a\n  2. b\n")
+        requests, _ = _to_doc_requests(html)
+        rendered = _render_lists(requests)
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("P", 0, 1),
+            ("x", 1, 1),
+            ("R", 0, 2),
+            ("a", 1, 1),
+            ("b", 1, 2),
+        ]
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["P"] == lists["x"] == lists["R"] != lists["a"] == lists["b"]
+
+    def test_trailing_nested_list_keeps_a_following_table_in_place(self):
+        # "A\n\ta\nP\nB\n\tb\n" is 12 characters, so the placeholder sits at 13, less
+        # the 2 consumed tabs: the trailing list's tab counts too.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=0),
+            BulletItem(runs=[Run("a")], depth=1, ordered=True),
+            Paragraph(runs=[Run("P")]),
+            BulletItem(runs=[Run("B")], depth=0),
+            BulletItem(runs=[Run("b")], depth=1, ordered=True),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        # The last entry is the table's placeholder paragraph (insertTable isn't modeled).
+        assert [(text, level) for text, level, _, _ in _render_lists(requests)][:-1] == [
+            ("A", 0),
+            ("a", 1),
+            ("P", None),
+            ("B", 0),
+            ("b", 1),
+        ]
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 11
+
+    def test_issue_repro_bullets(self):
+        html = _md_to_html("- a\n- b\n\n* c\n* d\n")
+        requests, _ = _to_doc_requests(html)
+        rendered = _render_lists(requests)
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["a"] == lists["b"] != lists["c"] == lists["d"]
+
+    def test_top_level_numbered_restarts(self):
+        html = _md_to_html("1. x\n2. y\n\n1) z\n")
+        requests, _ = _to_doc_requests(html)
+        assert [(text, ordinal) for text, _, _, ordinal in _render_lists(requests)] == [
+            ("x", 1),
+            ("y", 2),
+            ("z", 1),
+        ]
+
+    def test_sublist_marker_change_under_one_item_restarts(self):
+        # PR #1286 QA round 1: two sublists under P, the second a new list.
+        html = _md_to_html("1. P\n    1. a\n    1) b\n2. Q\n")
+        requests, _ = _to_doc_requests(html)
+        rendered = _render_lists(requests)
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("P", 0, 1),
+            ("a", 1, 1),
+            ("b", 1, 1),
+            ("Q", 0, 2),
+        ]
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert lists["P"] == lists["a"] == lists["Q"] != lists["b"]
+
+    def test_nested_list_after_deeper_same_type_list_stays_separate(self):
+        # The restarted sublist D under A follows c, the last item of an ordered list
+        # nested one level deeper; without the barrier, D would join c's list.
+        html = _md_to_html("1. A\n   - b\n     1. c\n   1. d\n2. B\n")
+        nodes = html_to_ast(html)
+        assert [(n.runs[0].text, n.depth) for n in nodes] == [
+            ("A", 0),
+            ("b", 1),
+            ("c", 2),
+            ("d", 1),
+            ("B", 0),
+        ]
+        rendered = _render_lists(_to_doc_requests(html)[0])
+        lists = {text: list_name for text, _, list_name, _ in rendered}
+        assert len({lists["A"], lists["b"], lists["c"], lists["d"]}) == 4
+        assert lists["A"] == lists["B"]
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered] == [
+            ("A", 0, 1),
+            ("b", 1, 1),
+            ("c", 2, 1),
+            ("d", 1, 1),
+            ("B", 0, 2),
+        ]
+
+    def test_first_same_type_sublist_still_joins_parent(self):
+        html = _md_to_html("1. A\n    1. a1\n    2. a2\n2. B\n")
+        requests, _ = _to_doc_requests(html)
+        rendered = _render_lists(requests)
+        assert len({list_name for _, _, list_name, _ in rendered}) == 1
+        assert [(text, ordinal) for text, _, _, ordinal in rendered] == [
+            ("A", 1),
+            ("a1", 1),
+            ("a2", 2),
+            ("B", 2),
+        ]
+
+    def test_dropped_parent_fragment_still_joins_outer_list(self):
+        # #714: the empty outer item is dropped, so the inner list's item comes first
+        # at depth 1. The outer list's next item joins it, as before, despite the ids.
+        nodes = html_to_ast("<ol><li><ol><li>a</li></ol></li><li>B</li><li>C</li></ol>")
+        requests, _ = ast_to_requests(nodes)
+        rendered = _render_lists(requests)
+        assert len({list_name for _, _, list_name, _ in rendered}) == 1
+
+    def test_items_without_ids_group_by_type(self):
+        # An AST not built by html_parser has no ids: adjacent same-type items merge.
+        nodes = [
+            BulletItem(runs=[Run("a")], depth=0, ordered=True),
+            BulletItem(runs=[Run("b")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert [ordinal for _, _, _, ordinal in _render_lists(requests)] == [1, 2]
+
+    def test_explicit_ids_split_adjacent_lists(self):
+        nodes = [
+            BulletItem(runs=[Run("a")], depth=0, ordered=True, list_path=(1,)),
+            BulletItem(runs=[Run("b")], depth=0, ordered=True, list_path=(2,)),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert [ordinal for _, _, _, ordinal in _render_lists(requests)] == [1, 1]
 
 
 class TestBuildBlankParaBeforeTableCollapses:

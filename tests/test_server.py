@@ -1129,6 +1129,8 @@ _OPTIONAL_LOCAL_PATH_TOOLS = {
     # content._resolve_image_source (Markdown/HTML image sources)
     "create_doc",
     "write_doc_content",
+    # upload_file's Markdown Doc goes through create_doc's path (#1102)
+    "upload_file",
 }
 _LOCAL_PATH_PARAMS = {"local_path", "result_local_path", "attachments", "images"}
 
@@ -1245,8 +1247,9 @@ class TestLocalPathToolsAreCovered:
             for name, (func, _) in _captured_registrations().items()
             if _LOCAL_PATH_PARAMS & set(inspect.signature(func).parameters)
         }
-        # create_doc / write_doc_content take local image paths inside their content.
-        assert takes_local_path | {"create_doc", "write_doc_content"} == (
+        # create_doc / write_doc_content / upload_file take local image paths inside
+        # their content.
+        assert takes_local_path | {"create_doc", "write_doc_content", "upload_file"} == (
             _LOCAL_ONLY_TOOLS | _OPTIONAL_LOCAL_PATH_TOOLS
         )
 
