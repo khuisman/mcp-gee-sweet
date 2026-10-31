@@ -61,7 +61,10 @@ a core rule over text tokens instead:
 - Trailing `?!.,:*_~'"`, an unbalanced `)`, and a trailing `&entity;` are left outside the link.
   The domain is checked after that trim, since it can eat the domain (`http://__`, `www.__`
   aren't links), and a link is scheme-ful only if it starts with `http://` or `https://` (so
-  `www.x.com/a://b` still gets `http://`).
+  `www.x.com/a://b` still gets a scheme added).
+- A `www.` link gets `https://`, not GFM's `http://` (#1281): `emitter._storable_link_url` gives
+  a written scheme-less `www.` target `https://` (#1180), and one host shouldn't get both schemes
+  in one doc.
 - Runs after inline parsing, so a code span, an `<autolink>` or raw HTML is never re-matched; text
   inside a Markdown link or a raw-HTML `<a>` is skipped, since links can't nest.
 - Linear in the text: emails are found outwards from each `@` (`_gfm_email_matches`), and

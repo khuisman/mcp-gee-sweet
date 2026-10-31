@@ -106,7 +106,9 @@ def _gfm_url_matches(text: str, start_ok: bool):
         host = re.split(r"[/?#]", label.split("://", 1)[1] if scheme else label, maxsplit=1)[0]
         if not valid_gfm_domain(host):
             continue
-        href = label if scheme else "http://" + label
+        # https://, not GFM's http://, matching emitter._storable_link_url's www.
+        # rewrite of a written link (#1281).
+        href = label if scheme else "https://" + label
         yield m.start(), m.start() + len(label), href
 
 

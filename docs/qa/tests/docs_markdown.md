@@ -1285,6 +1285,16 @@ What our converter tells the caller about the conversion. EP-1 to EP-4 only: the
 
 **Result (2026-10-28, PR #1272 @ f773c1c6, Sky, round 3) ✅ PASS — 4/4 case×EP cells pass.** EP-1 to EP-4 returned the same four `dropped_links` entries in order, and the second call had no key. `get_doc_as_markdown` on EP-1 shows the same stored links as before. Every edge probe from rounds 1 and 2 passes live. `//:80`, `//-`, `www.foo_bar.example_x` and `www.foo_bar.example_x:8443/x` are dropped and reported. `//example.com:8443/y` is stored as `https://example.com:8443/y`. `href="  "` is no longer reported. A table cell's `href=" #missing"` is reported as `no_matching_heading` and stored as plain text, and its `href=" #real-heading"` resolves to the heading. Markdown autolinks are unchanged by the shared `valid_gfm_domain`: bare `www.example.com` still gets `http://` (#1281), and `www.foo_bar.example_x` stays unlinked.
 
+### TC-MD502: A bare `www.` autolink gets https, like a written `www.` link ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/www-scheme.md` through EP-1 to EP-4 and EP-8 (`upload_file` runs our converter too, #1102).
+
+**Checks**
+- On screen, in WS-01, "www.example.com" (the bare autolink) and "y" (the written link) both link to `https://www.example.com`, and "www.example.com:8443/x" links to `https://www.example.com:8443/x`. No link in the Doc uses `http://` (#1281: the autolink used to get `http://` while the written link got `https://`).
+- `get_doc_as_markdown` on each Doc shows the same three targets.
+- No response has a `dropped_links` key.
+
 ---
 
 ## Known gaps and not-applicable
