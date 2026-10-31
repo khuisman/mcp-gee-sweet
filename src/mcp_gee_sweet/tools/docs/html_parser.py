@@ -158,6 +158,14 @@ def _px_to_pt(value: str) -> float | None:
         return None
 
 
+def _image_src(attr_dict: dict) -> str:
+    """An <img>'s src with surrounding whitespace stripped, as a browser strips a
+    URL attribute, or "" when it has none. Stripped here, once, so every consumer
+    (ast.image_source_kind, the resolver, the fallback text) sees the same value:
+    `src=" https://..."` was classified as a local path (PR #1310 QA round 2)."""
+    return (attr_dict.get("src") or "").strip()
+
+
 def _make_image(attr_dict: dict, src: str, link_url: str | None = None) -> Image:
     """Build an Image node from an <img> tag's attributes. width/height are
     only ever present on raw HTML <img> tags (content_format="html") — plain
@@ -934,7 +942,7 @@ class _AstParser(HTMLParser):
         # "<a href><img></a>" (a linked badge, say) is real content, and
         # dropping it loses the image along with its link (PR #992 QA round 1).
         if tag == "img" and self._block_tag is None and self._table_depth == 0:
-            src = attr_dict.get("src")
+            src = _image_src(attr_dict)
             if src:
                 link_url = self._bare_link_url[-1] if self._bare_link_url else None
                 self._nodes.append(
@@ -980,7 +988,7 @@ class _AstParser(HTMLParser):
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an
                 # embedded image makes no sense.
-                src = attr_dict.get("src")
+                src = _image_src(attr_dict)
                 if src:
                     self._pending_runs.append(
                         _make_image(attr_dict, src, self._link_url[-1] if self._link_url else None)

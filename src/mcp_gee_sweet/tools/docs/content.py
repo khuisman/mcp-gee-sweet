@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 import anyio
 from googleapiclient.errors import HttpError
@@ -27,6 +28,7 @@ from .ast import (
     Image,
     Table,
     image_source_kind,
+    image_url,
 )
 from .batch_retry import send_dropping_failed_images
 from .emitter import (
@@ -240,10 +242,34 @@ def _uploadable_local_image(src: str, source_dir: Path | None) -> bool:
     alt text. Reads the filesystem, so callers run it via asyncio.to_thread."""
     if image_source_kind(src) != IMAGE_SOURCE_LOCAL:
         return False
-    try:
-        return check_read(_local_image_path(src, source_dir)).is_file()
-    except (LocalFileAccessError, OSError):
-        return False
+    return _find_local_image(src, source_dir)[0] is not None
+
+
+def _find_local_image(src: str, source_dir: Path | None) -> tuple[str | None, str]:
+    """(the path of the file a local-path src names, "") or (None, the error).
+
+    Tries the path as written first, then percent-decoded (PR #1310 QA round 2):
+    markdown-it keeps "images/my%20diagram.png" as written, and GitHub resolves it
+    to "images/my diagram.png". As written goes first, so a file whose name really
+    holds a "%" still wins. Each candidate goes through check_read before its stat
+    (#796); a policy refusal is the error when no candidate is a readable file."""
+    candidates = [src]
+    decoded = unquote(src)
+    if decoded != src:
+        candidates.append(decoded)
+    refusal: str | None = None
+    for candidate in candidates:
+        path = _local_image_path(candidate, source_dir)
+        try:
+            if check_read(path).is_file():
+                return path, ""
+        except LocalFileAccessError as e:
+            refusal = refusal or str(e)
+    if refusal is not None:
+        return None, refusal
+    path = _local_image_path(src, source_dir)
+    looked_in = f" (looked for {path!r})" if path != src else ""
+    return None, f"No file found at {src!r}{looked_in}"
 
 
 def _local_image_path(src: str, source_dir: Path | None) -> str:
@@ -309,7 +335,7 @@ async def _resolve_image_source(
     """
     kind = image_source_kind(src)
     if kind == IMAGE_SOURCE_URL:
-        return {"uri": src}
+        return {"uri": image_url(src)}
 
     if kind == IMAGE_SOURCE_DATA:
         return {"error": "a data: URI image can't be embedded: Docs takes an image only by URL"}
@@ -350,15 +376,9 @@ async def _resolve_image_source(
             created_here=False,
         )
     else:
-        path = _local_image_path(src, source_dir)
-        try:
-            # Before the stat, so a refused path reads the same whether or not it
-            # exists (#796).
-            if not check_read(path).is_file():
-                looked_in = f" (looked for {path!r})" if path != src else ""
-                return {"error": f"No file found at {src!r}{looked_in}"}
-        except LocalFileAccessError as e:
-            return {"error": str(e)}
+        path, not_found = _find_local_image(src, source_dir)
+        if path is None:
+            return {"error": not_found}
         if not target_folder_id:
             # Reached only when folder_id, the server's default folder and the doc's
             # own folder are all unknown (_image_folder).
@@ -512,12 +532,12 @@ def _image_folder(folder_id: str | None, doc_parents: list[str] | None) -> str |
     return folder_id or (doc_parents[0] if doc_parents else None)
 
 
-async def _doc_parents(drive_service, doc_id: str) -> tuple[list[str] | None, str | None]:
+async def _doc_parents(drive_service, doc_id: str) -> tuple[list[str] | None, Exception | None]:
     """The doc's parent folders as Drive reports them, for _image_folder, and None;
-    or (None, a description of the error) when the lookup fails (a 403 on Drive
-    metadata, a 5xx, a 429), so the caller can refuse with the documented
-    {"error", "docId"} instead of raising (#1232 QA round 1), as _can_edit does for
-    its own Drive read."""
+    or (None, the exception) when the lookup fails, so the caller can refuse with the
+    documented {"error", "docId"} instead of raising (#1232 QA round 1), as _can_edit
+    does for its own Drive read. _doc_unreachable says which failures are about the
+    doc itself rather than its folder."""
     try:
         metadata = await execute_in_thread(
             drive_service.files()
@@ -526,8 +546,25 @@ async def _doc_parents(drive_service, doc_id: str) -> tuple[list[str] | None, st
             drive_service,
         )
     except Exception as e:
-        return None, _describe(e)
+        return None, e
     return metadata.get("parents"), None
+
+
+_RATE_LIMIT_REASONS = ("rateLimitExceeded", "userRateLimitExceeded")
+
+
+def _doc_unreachable(e: Exception) -> bool:
+    """True when a Drive read of the doc failed because the doc isn't there or this
+    account can't read it: a 404, or a 403 that isn't a rate limit. That's the doc's
+    problem, not a missing folder, so the replace reports it as such; it's the first
+    read of the doc when the folder lookup runs (PR #1310 QA round 2)."""
+    if not isinstance(e, HttpError):
+        return False
+    if e.resp.status == 404:
+        return True
+    return e.resp.status == 403 and not any(
+        http_error_has_reason(e, 403, reason) for reason in _RATE_LIMIT_REASONS
+    )
 
 
 async def _create_doc_file(
@@ -713,11 +750,19 @@ async def _replace_doc_content(
         lambda: any(_uploadable_local_image(img.src, source_dir) for img in converted.images)
     ):
         parents, parents_error = await _doc_parents(drive_service, doc_id)
+        if parents_error is not None and _doc_unreachable(parents_error):
+            return {
+                "error": (
+                    f"Couldn't read the document (it doesn't exist, or this account "
+                    f"can't open it), so it was left unchanged: {_describe(parents_error)}"
+                ),
+                "docId": doc_id,
+            }
         image_folder = _image_folder(None, parents)
         if image_folder is None:
             reason = (
-                f"looking up the document's own folder failed ({parents_error})"
-                if parents_error
+                f"looking up the document's own folder failed ({_describe(parents_error)})"
+                if parents_error is not None
                 else "this account can't see the document's own folder"
             )
             return {
@@ -1890,8 +1935,12 @@ def register(tool):
         revoke_sharing tradeoff, the auto_downscale size-limit behavior, and the
         alt-text fallback. A local-path image is uploaded to folder_id, else the
         server's default folder, else the doc's own folder. If the content has a
-        local-path image and none of those is known, the call returns an error and
-        leaves the doc unchanged.
+        local-path image this server can read and none of those is known (or the
+        doc's folder can't be looked up), the call returns an error and leaves the
+        doc unchanged. A local-path image it can't read (a missing file, or one
+        LOCAL_FILE_ACCESS refuses) doesn't stop the call: it's written as its alt
+        text, like any image that can't be embedded. A relative path that doesn't
+        exist as written is also tried percent-decoded ("my%20pic.png").
 
         Args:
             doc_id: The Google Doc file ID.
@@ -1987,8 +2036,12 @@ def register(tool):
         alt-text fallback. A relative local image path is relative to the file's own
         folder, as in a README. A local-path image is uploaded to folder_id, else the
         server's default folder, else the doc's own folder. If the file has a
-        local-path image and none of those is known, the call returns an error and
-        leaves the doc unchanged.
+        local-path image this server can read and none of those is known (or the
+        doc's folder can't be looked up), the call returns an error and leaves the
+        doc unchanged. A local-path image it can't read (a missing file, or one
+        LOCAL_FILE_ACCESS refuses) doesn't stop the call: it's written as its alt
+        text, like any image that can't be embedded. A relative path that doesn't
+        exist as written is also tried percent-decoded ("my%20pic.png").
 
         Args:
             doc_id: The Google Doc file ID to update in place.

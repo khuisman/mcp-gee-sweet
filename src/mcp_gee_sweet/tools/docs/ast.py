@@ -61,20 +61,35 @@ IMAGE_SOURCE_DATA = "data"
 IMAGE_SOURCE_LOCAL = "local"
 
 
+def _is_host_relative(src: str) -> bool:
+    """A protocol-relative "//host/..." whose host starts with a letter or digit,
+    the same test emitter._storable_link_url applies to a link (#1180)."""
+    return src.startswith("//") and len(src) > 2 and src[2].isascii() and src[2].isalnum()
+
+
 def image_source_kind(src: str) -> str:
-    """What an Image.src names: an http(s) URL, a "drive:<file_id>", a "data:" URI
+    """What an Image.src names: an http(s) URL (a protocol-relative "//host/..."
+    included, fetched over https by image_url), a "drive:<file_id>", a "data:" URI
     (inline bytes, which markdown-it's validateLink lets through for images), or,
     for anything else, a local path. The one classification every image path uses
     (#1232 QA round 1): resolving it, deciding whether a doc edit needs an upload
-    folder, and naming it in fallback text. Schemes are case-insensitive (RFC 3986)."""
+    folder, and naming it in fallback text. Schemes are case-insensitive (RFC 3986).
+    html_parser strips the src when it builds the Image, so it's never padded here."""
     lowered = src[:8].lower()
-    if lowered.startswith(("http://", "https://")):
+    if lowered.startswith(("http://", "https://")) or _is_host_relative(src):
         return IMAGE_SOURCE_URL
     if lowered.startswith("drive:"):
         return IMAGE_SOURCE_DRIVE
     if lowered.startswith("data:"):
         return IMAGE_SOURCE_DATA
     return IMAGE_SOURCE_LOCAL
+
+
+def image_url(src: str) -> str:
+    """The URL Docs fetches for a URL-kind src: the src itself, or, for a
+    protocol-relative "//host/...", https: plus it. Always https, never http, as
+    for a link (#1180)."""
+    return "https:" + src if _is_host_relative(src) else src
 
 
 @dataclass

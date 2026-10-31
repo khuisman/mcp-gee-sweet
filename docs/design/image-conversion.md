@@ -87,7 +87,11 @@ path's file name, never the whole path, so a server path doesn't land in the doc
 - **Source kinds.** `ast.image_source_kind` is the one classification (URL, `drive:`, `data:`,
   local path), used by `_resolve_image_source`, the replace's folder check, and the fallback
   text. A `data:` URI (markdown-it lets `data:image/...` through) is an error, since Docs takes
-  an image only by URL, and its fallback is its alt or "image", never its base64.
+  an image only by URL, and its fallback is its alt or "image", never its base64. A
+  protocol-relative `//host/...` (host starting with a letter or digit, the link rule from
+  #1180) is a URL, fetched over https (`ast.image_url`). `html_parser._image_src` strips the
+  `src` once, when the `Image` is built, so `src=" https://..."` isn't read as a local path
+  (PR #1310 QA round 2).
 - **What it doesn't cover.** `insert_inline_image` and `insert_local_images` insert one image
   the caller named at an index, and still fail outright: there's no source text to stand in for.
 
@@ -97,7 +101,10 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   as `source_dir`, and `_local_image_path` joins a relative `src` to it, as a README's images
   are relative to the README. It's the caller's spelling of the folder (`Path(local_path).parent`),
   not the resolved one, so a symlinked file's images are found next to the link. The joined path
-  goes through `check_read` like any other (#796). Content passed as a string (`create_doc`,
+  goes through `check_read` like any other (#796). `_find_local_image` tries the path as
+  written, then percent-decoded: markdown-it keeps `images/my%20diagram.png` as written, and
+  GitHub resolves it to `images/my diagram.png`; as written goes first, so a file whose name
+  really holds a `%` still wins (PR #1310 QA round 2). Content passed as a string (`create_doc`,
   `write_doc_content`, `upload_file`) has no file, so a relative path there stays relative to the
   server's working directory.
 - **Upload folder.** A local image goes to `folder_id` (the tool's, else the server's default),
@@ -108,7 +115,9 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   given (`_uploadable_local_image`: the access policy allows reading it and it's a file). A doc
   shared from a folder the account can't see has no parents, and a failed lookup (a 403, a 5xx)
   has none to offer: either way the call refuses with `{"error", "docId"}` before the backup copy
-  and the clear, since replacing would drop every such image (the #1139 report: a successful call
+  and the clear, since replacing would drop every such image. That lookup is the replace's first
+  read of the doc, so a 404, or a 403 that isn't a rate limit (`_doc_unreachable`), is reported
+  as the doc being unreachable, not as a missing folder (PR #1310 QA round 2) (the #1139 report: a successful call
   that left the doc without its images). A local image that can't be read anyway (missing, or
   refused by `LOCAL_FILE_ACCESS`) doesn't cause the refusal: a folder wouldn't help it, and it's
   written as its alt text (PR #1310 QA round 1).

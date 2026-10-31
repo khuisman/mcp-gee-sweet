@@ -41,42 +41,38 @@ class ImageFallbacks:
     records them. Their ids are in request_ids, for the body retry's tail scan
     (_positional_insert_tail_start). applied(batch), called with each batch that
     lands, moves an image into shown once the batch carrying its text has landed,
-    since a later batch failing for another reason can leave it out. It holds every
-    request dict it built until the edit is over, so an id() here never belongs to
-    a later request."""
+    since a later batch failing for another reason can leave it out. It keeps every
+    request dict it built (`_requests`) until the edit is over, so no id() in
+    request_ids or `_first` can be reused by a later request. The images themselves
+    stay alive in the caller's ConvertedContent.images."""
 
     def __init__(self) -> None:
-        self._texts: dict[int, str] = {}
-        self._images: dict[int, Image] = {}
-        self._written: dict[int, int] = {}  # id(image) -> UTF-16 length written
-        self._first: dict[int, tuple[dict, int]] = {}  # id(insertText) -> (it, id(image))
+        self._texts: dict[int, str] = {}  # id(image) -> its text, once one is built
+        self._first: dict[int, int] = {}  # id(insertText) -> id(image)
+        self._requests: list[dict] = []
         self.request_ids: set[int] = set()
         self.shown: set[int] = set()
 
-    def text(self, image: Image) -> str:
+    def requests(self, image: Image, position: int) -> list[dict]:
         key = id(image)
         if key not in self._texts:
             self._texts[key] = image_fallback_text(image)
-            self._images[key] = image
-        return self._texts[key]
-
-    def requests(self, image: Image, position: int) -> list[dict]:
-        text = self.text(image)
-        requests = image_fallback_requests(image, position, text)
-        self._written[id(image)] = utf16_len(text)
-        self._first[id(requests[0])] = (requests[0], id(image))
+        requests = image_fallback_requests(image, position, self._texts[key])
+        self._requests.extend(requests)
+        self._first[id(requests[0])] = key
         self.request_ids.update(id(r) for r in requests)
         return requests
 
     def written_length(self, image: Image) -> int:
         """The UTF-16 length of the fallback text built for `image`, 0 if none."""
-        return self._written.get(id(image), 0)
+        text = self._texts.get(id(image))
+        return utf16_len(text) if text is not None else 0
 
     def applied(self, batch: list[dict]) -> None:
         for request in batch:
-            entry = self._first.get(id(request))
-            if entry is not None and entry[0] is request:
-                self.shown.add(entry[1])
+            key = self._first.get(id(request))
+            if key is not None:
+                self.shown.add(key)
 
     def shown_texts(self) -> dict[int, str]:
         """id(image) -> its fallback text, for each image whose text has landed."""
@@ -1432,7 +1428,7 @@ def image_fallback_text(image: Image) -> str:
     alt = " ".join((image.alt or "").split())
     if alt:
         return alt
-    src = image.src.strip()
+    src = image.src
     kind = image_source_kind(src)
     if kind == IMAGE_SOURCE_URL:
         name = unquote(urlsplit(src).path.rstrip("/").rsplit("/", 1)[-1])

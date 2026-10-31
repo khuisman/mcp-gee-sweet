@@ -57,3 +57,11 @@ Before ![](https://img.shields.io/badge/coverage-90%25-green) after.
 [Go to Badge heading](#badge-heading)
 
 #### Badge heading ![build](https://img.shields.io/badge/build-passing-brightgreen)
+
+### IM-14 — protocol-relative image URL
+
+![Protocol-relative](//www.gstatic.com/images/branding/product/2x/docs_48dp.png)
+
+### IM-15 — percent-encoded relative path
+
+![Encoded pixel](../../qa%20fixture%20pixel%20%C3%A9.png)

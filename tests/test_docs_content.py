@@ -6031,11 +6031,18 @@ class TestImageSourcesQaRound1:
         }
         assert self._parents_lookups(drive_svc) == []
 
-    @pytest.mark.parametrize("status", [403, 500, 429])
-    async def test_failed_parents_lookup_refuses_without_raising(self, tmp_path, status):
+    @pytest.mark.parametrize(
+        ("status", "content"),
+        [
+            (500, b'{"error": {"message": "x"}}'),
+            (429, b'{"error": {"message": "x"}}'),
+            (403, b'{"error": {"errors": [{"reason": "userRateLimitExceeded"}]}}'),
+        ],
+    )
+    async def test_failed_parents_lookup_refuses_without_raising(self, tmp_path, status, content):
         img = tmp_path / "pic.png"
         img.write_bytes(b"png")
-        error = HttpError(resp=MagicMock(status=status), content=b'{"error": {"message": "x"}}')
+        error = HttpError(resp=MagicMock(status=status), content=content)
         ctx, drive_svc, docs_svc = self._replace_services(parents_error=error)
         result = await _docs_tools["write_doc_content"](
             doc_id="doc1", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
@@ -6067,3 +6074,97 @@ class TestImageSourcesQaRound1:
         assert fallbacks.shown == set()  # an equal dict isn't the request it built
         fallbacks.applied(requests)
         assert fallbacks.shown_texts() == {id(img): "Alt"}
+
+
+class TestImageSourcesQaRound2:
+    """PR #1310 QA round 2: an unreachable doc, padded and protocol-relative sources,
+    percent-encoded relative paths."""
+
+    @pytest.mark.parametrize(
+        ("status", "content"),
+        [
+            (404, b'{"error": {"message": "File not found: bogus."}}'),
+            (403, b'{"error": {"errors": [{"reason": "insufficientFilePermissions"}]}}'),
+        ],
+    )
+    async def test_unreachable_doc_is_reported_as_the_doc_not_the_folder(
+        self, tmp_path, status, content
+    ):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"png")
+        error = HttpError(resp=MagicMock(status=status), content=content)
+        ctx, drive_svc, docs_svc = TestImageSourcesQaRound1()._replace_services(parents_error=error)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="bogus", content=f"![Pic]({img})", content_format="markdown", ctx=ctx
+        )
+        assert result["docId"] == "bogus"
+        assert result["error"].startswith(
+            "Couldn't read the document (it doesn't exist, or this account can't open it), "
+            "so it was left unchanged:"
+        )
+        assert "folder_id" not in result["error"]
+        drive_svc.files.return_value.copy.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    def test_padded_src_is_stripped_when_the_node_is_built(self):
+        nodes = html_to_ast('<p><img src="  https://img.shields.io/badge/x.svg \n"></p>')
+        [img] = extract_images(nodes)
+        assert img.src == "https://img.shields.io/badge/x.svg"
+        assert image_source_kind(img.src) == "url"
+
+    def test_whitespace_only_src_makes_no_image(self):
+        assert extract_images(html_to_ast('<p>a <img src="   "> b</p>')) == []
+
+    @pytest.mark.parametrize(
+        ("src", "kind"),
+        [
+            ("//cdn.example.com/logo.png", "url"),
+            ("//img.shields.io/badge/x-y-blue", "url"),
+            ("//", "local"),
+            ("///x.png", "local"),
+            ("//-x/a.png", "local"),
+        ],
+    )
+    def test_protocol_relative_kind(self, src, kind):
+        assert image_source_kind(src) == kind
+
+    async def test_protocol_relative_image_fetched_over_https(self):
+        result = await _resolve_image_source(MagicMock(), "//cdn.example.com/logo.png", None)
+        assert result == {"uri": "https://cdn.example.com/logo.png"}
+        assert image_fallback_text(Image(src="//cdn.example.com/logo.png")) == "logo.png"
+
+    async def test_percent_encoded_relative_path_is_decoded(self, tmp_path):
+        (tmp_path / "images").mkdir()
+        (tmp_path / "images" / "my diagram.png").write_bytes(b"png")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            result = await _resolve_image_source(
+                MagicMock(), "images/my%20diagram.png", "folder1", source_dir=tmp_path
+            )
+        assert "error" not in result
+        assert upload.call_args.args[1] == str(tmp_path / "images" / "my diagram.png")
+
+    async def test_a_file_named_with_a_percent_wins_over_its_decoded_twin(self, tmp_path):
+        (tmp_path / "100%25.png").write_bytes(b"literal")
+        (tmp_path / "100%.png").write_bytes(b"decoded")
+        upload = AsyncMock(side_effect=lambda _svc, path, folder, **kw: _uploaded(path, folder))
+        with patch.object(content_module, "upload_and_share_local_image", upload):
+            await _resolve_image_source(MagicMock(), "100%25.png", "folder1", source_dir=tmp_path)
+        assert upload.call_args.args[1] == str(tmp_path / "100%25.png")
+
+    async def test_missing_percent_encoded_file_names_the_path_as_written(self, tmp_path):
+        result = await _resolve_image_source(
+            MagicMock(), "my%20pic.png", "folder1", source_dir=tmp_path
+        )
+        looked = str(tmp_path / "my%20pic.png")
+        assert result == {"error": f"No file found at 'my%20pic.png' (looked for {looked!r})"}
+
+    def test_fallback_tracker_keeps_every_request_it_built(self):
+        fallbacks = ImageFallbacks()
+        img = Image(src="https://x/a.svg", alt="Alt")
+        first = fallbacks.requests(img, 5)
+        second = fallbacks.requests(img, 9)
+        # Every dict whose id is in request_ids is still alive, so no id is reused.
+        alive = {id(r) for r in fallbacks._requests}
+        assert fallbacks.request_ids == {id(r) for r in first + second} <= alive
+        assert fallbacks.written_length(img) == 3

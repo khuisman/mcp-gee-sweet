@@ -680,6 +680,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | IM-11 | C16: the text "Build status", link-styled, linking to `https://example.com/ci`; no empty line and no broken-image icon in its place. The call's `images` entry has an `error` and `fallback_text: "Build status"` (#1099). EP-5 to EP-7: C16 applies (D4); Drive's import showed nothing for TC-MD004's badge in the 2026-10-18 baseline, which is a FAIL until #1113 |
 | IM-12 | C16: one paragraph "Before coverage-90%-green after." (the image's name, since its alt is empty), not link-styled. `images` entry: `error` and `fallback_text: "coverage-90%-green"`. EP-5 to EP-7: as IM-11 |
 | IM-13 | C16's heading exception: a Heading 4 "Badge heading" with no "build" text, no image and no empty gap after it; "Go to Badge heading" link-styled and opening that heading (a `#heading=` link, not stripped: the call returns no `dropped_links`). The `images` entry has an `error` and no `fallback_text` (PR #1310 QA round 1). EP-5 to EP-7: D4 |
+| IM-14 | The Docs icon embedded from `//www.gstatic.com/...`, fetched over https as a protocol-relative link is (#1180); the call's `images` entry reports success with no `error` (PR #1310 QA round 2). EP-5 to EP-7: D4 |
+| IM-15 | The fixture pixel embedded from `qa%20fixture%20pixel%20%C3%A9.png`, decoded to `qa fixture pixel é.png` and resolved relative to the `.md` file as in IM-05; the call's `images` entry reports success (PR #1310 QA round 2). For EP-1/EP-2 N/A; EP-5 to EP-7: D4 |
 
 **Result (2026-10-18) ❌ FAIL — 48/70 case×EP cells pass, in both runs; failures: #1121, #1073, #1101, #1102. IM-05 on EP-1/EP-2 is N/A. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
