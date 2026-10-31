@@ -2387,7 +2387,7 @@
 </tr>
 <tr>
 <td>LK-06</td>
-<td>"www.example.com/www" linked (GFM extended <code>www.</code> autolink)</td>
+<td>"www.example.com/www" linked to <code>https://www.example.com/www</code> (GFM extended <code>www.</code> autolink; https, not GFM's http, #1281). On EP-5 to EP-7, Drive's importer links it to <code>http://www.example.com/www</code> (D4)</td>
 <td>plain text</td>
 </tr>
 <tr>
@@ -4865,7 +4865,7 @@
 <p><strong>Result (2026-10-22) ❌ FAIL — TC-MD301–403: every page identical across runs except DS-05 EP-3, whose Run 2 <code>create_doc_from_file</code> hung 30 minutes and left an empty Doc (#1129). Phase 1 and Phase 2's EP-8 nondeterminism (#1102) still stands. Grid: <a href="../../results/2026-10-22-markdown-boundaries-state/"><code>results/2026-10-22-markdown-boundaries-state.md</code></a>.</strong></p>
 <hr />
 <h2 id="conversion-reporting">Conversion reporting<a class="headerlink" href="#conversion-reporting" title="Permanent link">&para;</a></h2>
-<p>What our converter tells the caller about the conversion. EP-1 to EP-4 only: the Drive-import entry points don't run our converter and report nothing about links.</p>
+<p>What our converter tells the caller about the conversion, and the link targets it writes. Our converter's entry points only (EP-1 to EP-4, plus EP-8 where a case names it): the Drive-import entry points don't run our converter and report nothing about links.</p>
 <h3 id="tc-md501-dropped-links-are-reported-in-the-response-host-links-get-https-destructive">TC-MD501: Dropped links are reported in the response, host links get https ⚠️ destructive<a class="headerlink" href="#tc-md501-dropped-links-are-reported-in-the-response-host-links-get-https-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>
@@ -4881,6 +4881,17 @@
 <p><strong>Result (2026-10-27, PR #1272 @ a423b390, Sky) ✅ PASS — 4/4 case×EP cells pass in both runs.</strong> EP-1 to EP-4 each returned exactly the four expected <code>dropped_links</code> entries in order, <code>./guide.md</code> once; the second call had no <code>dropped_links</code> key. <code>get_doc_as_markdown</code> on every Run 1 doc and on EP-1/EP-4 in Run 2: DL-01/DL-04/DL-05 and "jump nowhere" plain text, "the host" → <code>https://example.com/host</code>, "the www site" → <code>https://www.example.com/www</code>, "jump to the heading" → the doc's own <code>#heading=</code> URL. Screenshot (EP-1, Run 1) matches. Edge targets this case doesn't cover failed in a separate probe (round 1 comment on PR #1272): <code>www.example.com:8443/x</code> was stored as <code>http://…</code>, and <code>//</code>, <code>// x</code>, <code>www.foo bar</code>, <code>WWW.md</code> were stored as dead <code>https://</code> links that weren't reported. <code>href=" ./guide.md"</code> was reported separately from <code>./guide.md</code>, with its leading whitespace.</p>
 <p><strong>Result (2026-10-28, PR #1272 @ f10ed9f7, Sky, round 2, after the <code>develop</code> merge brought in markdown-it) ✅ PASS — 4/4 case×EP cells pass.</strong> EP-1 to EP-4 returned the same four <code>dropped_links</code> entries in order; the second call had no key; <code>get_doc_as_markdown</code> on EP-1 and EP-3 shows the same stored links as round 1. All of round 1's edge probes are fixed live: the port target is stored as <code>https://www.example.com:8443/x</code>, and <code>//</code>, <code>// x</code>, <code>www.foo bar</code>, <code>WWW.md</code> are dropped and reported, with the padded <code>./guide.md</code> reported once. New edge probes failed (round 2 comment): <code>//:80</code> and <code>//-</code> were stored as dead <code>https://</code> links; <code>href="  "</code> was reported as <code>{"url": ""}</code>; and a table cell's <code>href=" #missing"</code> was stored as a dead <code>#missing</code> link that wasn't reported.</p>
 <p><strong>Result (2026-10-28, PR #1272 @ f773c1c6, Sky, round 3) ✅ PASS — 4/4 case×EP cells pass.</strong> EP-1 to EP-4 returned the same four <code>dropped_links</code> entries in order, and the second call had no key. <code>get_doc_as_markdown</code> on EP-1 shows the same stored links as before. Every edge probe from rounds 1 and 2 passes live. <code>//:80</code>, <code>//-</code>, <code>www.foo_bar.example_x</code> and <code>www.foo_bar.example_x:8443/x</code> are dropped and reported. <code>//example.com:8443/y</code> is stored as <code>https://example.com:8443/y</code>. <code>href="  "</code> is no longer reported. A table cell's <code>href=" #missing"</code> is reported as <code>no_matching_heading</code> and stored as plain text, and its <code>href=" #real-heading"</code> resolves to the heading. Markdown autolinks are unchanged by the shared <code>valid_gfm_domain</code>: bare <code>www.example.com</code> still gets <code>http://</code> (#1281), and <code>www.foo_bar.example_x</code> stays unlinked.</p>
+<h3 id="tc-md502-a-bare-www-autolink-gets-https-like-a-written-www-link-destructive">TC-MD502: A bare <code>www.</code> autolink gets https, like a written <code>www.</code> link ⚠️ destructive<a class="headerlink" href="#tc-md502-a-bare-www-autolink-gets-https-like-a-written-www-link-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/state/www-scheme.md</code> through EP-1 to EP-4 and EP-8 (<code>upload_file</code> runs our converter too, #1102).</p>
+</blockquote>
+<p><strong>Checks</strong>
+- On screen, in WS-01, "www.example.com" (the bare autolink) and "y" (the written link) both link to <code>https://www.example.com</code>, and "www.example.com:8443/x" links to <code>https://www.example.com:8443/x</code>. No link in the Doc uses <code>http://</code> (#1281: the autolink used to get <code>http://</code> while the written link got <code>https://</code>).
+- <code>get_doc_as_markdown</code> on each Doc shows the same three targets.
+- No response has a <code>dropped_links</code> key.</p>
+<p><strong>Result (2026-10-30, PR #1298 @ 833b076c, Kit, round 1) ✅ PASS — 5/5 case×EP cells pass.</strong> EP-1 to EP-4 and EP-8 each stored <code>[www.example.com](https://www.example.com)</code>, <code>[y](https://www.example.com)</code> and <code>[www.example.com:8443/x](https://www.example.com:8443/x)</code> (<code>get_doc_as_markdown</code>); no response had a <code>dropped_links</code> key. Screenshots of EP-1 and EP-8 show all three linked. Out-of-case probe: EP-5 (<code>upload_local_file(convert=True)</code>, Drive's importer) stores all three as <code>http://…</code>, the written link included, so the engines differ on the scheme; LK-06 now records that.</p>
 <hr />
 <h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
 <ul>

@@ -1558,12 +1558,15 @@ use this server's converter instead. The same Markdown comes out differently:</p
 <li><strong><code>&lt;del&gt;</code> and <code>&lt;mark&gt;</code></strong> inline HTML isn't rendered as strikethrough or highlight.</li>
 <li><strong>Images</strong> with a local path or <code>drive:</code> source aren't embedded. Only this server's converter
   uploads and shares those.</li>
+<li><strong><code>www.</code> links</strong>, bare (<code>www.example.com</code>) or written (<code>[x](www.example.com)</code>), point to
+  <code>http://</code>. This server's converter gives both <code>https://</code> (#1180, #1281).</li>
 </ul>
 <p><strong>Why:</strong> The rendering is Drive's, not this server's. These tools upload the file and set a Google
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (<code>docs/qa/results/2026-10-18-markdown.md</code>,
-<code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>). Routing these tools
-through this server's converter is a design question (#1113).</p>
+<code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>); the <code>www.</code> scheme in
+PR #1298's QA round 1. Routing these tools through this server's converter is a design question
+(#1113).</p>
 <p><strong>Workaround:</strong> For a single file, use <code>create_doc_from_file</code>, and <code>update_doc_from_file</code> to
 refresh it. They render <code>.md</code> the same way as the other Docs tools. There's no equivalent for a
 whole folder or for <code>sync_folder</code>'s change tracking yet. Related: <code>get_doc_as_markdown</code> exports a
