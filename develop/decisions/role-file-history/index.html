@@ -1721,6 +1721,10 @@ Addendum, PR #414 (issue #211) round 3: the fix targeted exactly two named findi
 <ul>
 <li><strong>The docs/roadmap.md direct-push allowance doesn't generalize</strong> — "small and reversible" is a description of that one specific case, not a standing test for bypassing PR review elsewhere. Confirmed 2026-08-06: stretched it to a <code>uv.lock</code> fix by analogy, which skipped <code>ci.yml</code> entirely (it never triggers on a direct push to <code>develop</code>). Hard boundary now spelled out in <code>merge-pr.md</code> step 8 — read it there rather than re-deriving from "this feels small" in the moment.</li>
 </ul>
+<h3 id="the-code-scanning-ruleset-ended-direct-pushes-to-develop-2026-10-31">The code-scanning ruleset ended direct pushes to <code>develop</code> (2026-10-31)<a class="headerlink" href="#the-code-scanning-ruleset-ended-direct-pushes-to-develop-2026-10-31" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Ruleset 26262344 ("Require code scanning results (CodeQL)", <code>develop</code> and <code>main</code>, no bypass actors) was created 2026-10-31 so an <code>--admin</code> merge can't skip a failing CodeQL check: classic branch protection has <code>enforce_admins: false</code>, so <code>--admin</code> skips required checks too. Its first casualty was the next roadmap check-off: GitHub rejected the push with "Code scanning is waiting for results from CodeQL for the commit", since a pushed commit has no analysis yet. A ruleset bypass can't be limited to direct pushes (its modes cover both or only PR merges), so check-offs moved to roadmap PRs (<code>merge-pr.md</code> step 8) and the release merge-back to a PR (<code>release.md</code> step 8). This retires the direct-push allowance recorded in the entry above.</li>
+</ul>
 <h3 id="a-role-routed-label-isnt-a-version-label-exemption">A role-routed label isn't a version-label exemption<a class="headerlink" href="#a-role-routed-label-isnt-a-version-label-exemption" title="Permanent link">&para;</a></h3>
 <p><em>Dropped from the Retro list: folded into the role-routed-label rule under "Ticket triage and labeling".</em></p>
 <ul>
