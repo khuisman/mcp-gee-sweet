@@ -105,6 +105,32 @@ needs Markdown inside it as HTML instead.
 
 ---
 
+### A list inside a blockquote draws its own quote bar, offset from the quote's
+
+**What:** In Markdown or HTML content written to a Doc, a list inside a blockquote shows its gray
+left bar at the list item's indent, not at the quote's. A quote that mixes paragraphs and list
+items therefore shows two bars, the items' sitting to the right of the paragraphs'. For example,
+`create_doc(content="> quote text\n>\n> - item\n", content_format="markdown")` gives "quote text"
+a bar at the quote indent and "item" a second bar further right. The same mechanism puts a nested
+item's bar at its own, deeper indent. Reading the Doc back with `get_doc_as_markdown` is
+unaffected: every item comes back at its correct quote depth.
+
+**Why:** Docs has no blockquote style, so a quoted paragraph gets a left border and an indent.
+Docs draws a paragraph's `borderLeft` at its `indentStart`, and there's no separate setting for
+where the border goes. A list item needs its own `indentStart` too, past the quote's: it's where
+the item's wrapped lines start, under the text rather than under the bullet. Setting a quoted
+item's `indentStart` to the quote indent does join the two bars, but then every wrapped line lands
+left of the item's bullet and nested items lose their indent after the first line. One paragraph
+can't have both the quote's bar position and a list's hanging indent, so the offset bar is the
+lesser problem.
+
+**Workaround:** None that keeps a real list. To get one continuous bar, keep the list outside the
+quote, or write each item as its own quoted paragraph starting with a bullet character, which isn't
+a Markdown list marker: `> • one\n>\n> • two\n`. Keep the blank `>` line between items, or the
+lines join into one paragraph. Decided in #1242.
+
+---
+
 ### `create_bookmark` doesn't create a bookmark Docs lists
 
 **What:** `create_bookmark` creates a one-character named range. It doesn't appear under
