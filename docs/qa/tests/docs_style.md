@@ -352,13 +352,15 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Prompt**
 **Playwright: required**
-> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color red, width 1.5"
 
-Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])`
+Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 1, "green": 0, "blue": 0}, "width": 1.5}}])`
+
+Use a non-default color and width. A black 1pt border equals the table's default border, so the API omits it from the cell's `tableCellStyle` and the check below can't see it.
 
 **Checks**
 - Response succeeds, no `error` key, `requests: 1`
-- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested color/width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
+- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested red color and 1.5pt width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
 
 **Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no `tableCellStyle` border keys at all; after `style_doc_table_cells` with only `border_bottom` set, the cell showed a `borderBottom` entry with the requested color/width and no `borderTop`/`borderLeft`/`borderRight` keys. Confirmed with two distinct rows/widths for reproducibility.
 
@@ -549,6 +551,26 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: Step 1 returned `requests: 3`, no error. Step 2 returned line_ranges [18,26] and [27,35], no error. Playwright, reading the toolbar after clicking into each word: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial. `get_doc_as_markdown` gives "Alpha \`Beta\` *Gamma*\n\nLine one<br>Line two", so only Beta is inline code. Structure shows "Line one\vLine two" as one paragraph [18,36]. Screenshot `2026-10-19-tc-doc230.png`. Doc trashed. Side note: `insert_softbreak_paragraph`'s docstring still doesn't list `font_family` (tracked, #1037).
 
+### TC-DOC238: `font_family` keeps the range's other text styles, and a call without it keeps the font (#720) ⚠️ destructive
+**Purpose:** TC-DOC230 checks that the font lands. This case checks what a `font_family` call leaves alone: bold already on the range, the other fields in the same call, and an existing font when a later call omits `font_family`. `get_doc_structure` doesn't report a run's font, so the checks read the raw `documents().get()` `textStyle`.
+
+**Setup:** `create_doc(title="QA-TC-DOC238", folder_id={FOLDER_ID})`, then `insert_doc_text(doc_id=<it>, insertions=[{"index": 1, "text": "Alpha Beta Gamma Delta\n"}])`. "Alpha" is [1, 6), "Beta" [7, 11), "Gamma" [12, 17), "Delta" [18, 23).
+
+1. `style_doc_range(doc_id=<it>, ranges=[{"start_index": 7, "end_index": 11, "bold": true}, {"start_index": 18, "end_index": 23, "font_family": "Courier New"}])`
+2. `style_doc_range(doc_id=<it>, ranges=[{"start_index": 1, "end_index": 6, "font_family": "Roboto Mono"}, {"start_index": 7, "end_index": 11, "font_family": "Georgia"}, {"start_index": 12, "end_index": 17, "font_family": "Georgia", "bold": true, "font_size": 18}, {"start_index": 18, "end_index": 23, "italic": true}])`
+
+**Checks**
+- Steps 1 and 2 return no `error`, with `requests: 2` and `requests: 4`.
+- Raw read after step 2: "Alpha" has `weightedFontFamily.fontFamily` "Roboto Mono", and the spaces on either side have no `weightedFontFamily`.
+- "Beta" is Georgia and still `bold: true`. The `font_family`-only call must not clear the bold step 1 set.
+- "Gamma" has `bold: true`, `fontSize` 18pt and Georgia.
+- "Delta" is `italic: true` and still Courier New.
+
+**Cleanup:** `delete_file` the doc.
+
+**Result (2026-10-27) ❌ FAIL — Beta loses its bold (#1273)**
+Run against PR #1026's merge in an isolated service-account sandbox on a Shared Drive. Steps 1 and 2 returned `requests: 2` and `requests: 4`, no error. Raw read: Alpha `{"weightedFontFamily": {"fontFamily": "Roboto Mono", "weight": 400}}`, with plain spaces around it. Gamma `bold: true`, `fontSize` 18pt, Georgia. Delta `italic: true`, Courier New. **Beta** is `{"weightedFontFamily": {"fontFamily": "Georgia", "weight": 400}}` with no `bold`. Re-bolding Beta and then sending `font_family: "Courier New"` alone cleared it again. The request's field mask is only `weightedFontFamily`, so the Docs API clears `bold` on its own. Docs UI rendering wasn't checked here (TC-DOC230 covers the font on screen). Doc trashed.
+
 ---
 
 ## `style_doc_range`: `link_url: null` now actually clears a link (issue #408)
@@ -567,11 +589,11 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 - Tool completes without error (no `HttpError 400` / "Links must include at least one type")
 - Response `requests: 1`
 - `get_doc_structure` shows the run over that range now has `link_url: null` (not still `"https://example.com"`)
-- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added `underline: true` from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since `link_url` and `underline` are unrelated fields in the request)
+- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling). The request names only the `link` field, but Docs removes the underline it auto-added with the link (TC-DOC30) when the link is cleared, so `get_doc_structure` shows the run without `underline: true` as well (observed in the v0.9.2 pass)
 
 **Cleanup:** delete the test paragraph
 
-**Result:** ⚠️ PARTIAL (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
+**Result:** ⚠️ PARTIAL (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `{DOC_ID}`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
 **Corrected (2026-10-17, #1044 audit):** the visual check wasn't run.
 
 **Result (2026-09-04) ⚠️ PARTIAL**
@@ -636,26 +658,26 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 ---
 
-### TC-DOC156: `create_paragraph_bullets` fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive
+### TC-DOC156: `create_paragraph_bullets` repairs a flat list by promoting specific paragraphs to a deeper nesting level (#334) ⚠️ destructive
 
-**Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
+**Background:** issue #334: `create_doc`'s Markdown conversion used to flatten an indented sub-list under a numbered item into the same single-level list, and there was no way to fix that after the fact short of delete-and-retype. Since #1228 (markdown-it, plan rule D1) that sub-list nests correctly, so #334's own repro no longer produces a flat list. This case builds the flat list directly instead, writing the three settings as top-level numbered items, and exercises the repair: `get_doc_structure`'s `bullet` field to see the flat list, then `create_paragraph_bullets` to nest the settings.
 
 **Prompt**
 **Playwright: required**
-> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
+> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n3. Instance identifier\n4. Instance class\n5. Storage encryption\n6. Click Restore\n', then show me its structure."
 
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n3. Instance identifier\n4. Instance class\n5. Storage encryption\n6. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
 
 Then: "Now nest the three settings paragraphs (Instance identifier through Storage encryption) one level deeper under item 2, and show me the structure again."
 
 Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Instance identifier para start_index>, "end_index": <Storage encryption para end_index>, "nesting_level": 1}])` (one range spanning all three contiguous settings paragraphs), then `get_doc_structure(doc_id={DOC_ID})` again.
 
 **Checks**
-- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
+- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0`: the flat list #334 describes, with the three settings numbered 3–5 like their siblings
 - `create_paragraph_bullets` call succeeds with no API error
 - Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
-- The three promoted paragraphs' own text is unchanged — no visible tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
-- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance", and "Click Restore" still numbers as item 3 (not item 6)
+- The three promoted paragraphs' own text is unchanged (`"Instance identifier\n"` and so on) — no tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
+- 🔍 Visual check: the three settings render as a visually indented `a.`/`b.`/`c.` sub-list under "Configure the instance", and "Click Restore" now numbers as item 3 (not item 6)
 
 **Cleanup:** write fixture content back
 

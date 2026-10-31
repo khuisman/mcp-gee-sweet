@@ -2963,7 +2963,7 @@ class TestUpdateDocFromFile:
             ),
             (
                 content_module._apply_doc_content,
-                ("autolink_urls", "target_folder_id", "revoke_sharing", "auto_downscale"),
+                ("target_folder_id", "revoke_sharing", "auto_downscale"),
             ),
         ):
             params = inspect.signature(fn).parameters
@@ -2979,20 +2979,33 @@ class TestUpdateDocFromFile:
     )
     async def test_flags_reach_apply_doc_content_unswapped(self, tmp_path, flags):
         # #567: _replace_doc_content's three bools are keyword-only, so each tool
-        # flag must land in its own _apply_doc_content slot.
+        # flag must land in its own slot: autolink_urls in the conversion (#1240),
+        # the other two in _apply_doc_content.
         md_file = tmp_path / "notes.md"
         md_file.write_text("text\n")
         drive_svc, docs_svc = self._make_services(end_index=2)
         ctx = self._ctx(drive_svc, docs_svc)
         real_apply = content_module._apply_doc_content
-        with patch.object(content_module, "_apply_doc_content", return_value=None) as apply:
+        real_convert = content_module._convert_doc_content
+        with (
+            patch.object(
+                content_module, "_apply_doc_content", return_value=content_module.AppliedContent()
+            ) as apply,
+            patch.object(content_module, "_convert_doc_content", wraps=real_convert) as convert,
+        ):
             await _docs_tools["update_doc_from_file"](
                 doc_id="doc1", local_path=str(md_file), ctx=ctx, **flags
             )
-        # Bind against the real signature so the assertion holds however the call
+        # Bind against the real signatures so the assertion holds however the call
         # site passes them, and fails if the call wouldn't bind at all.
         bound = inspect.signature(real_apply).bind(*apply.call_args.args, **apply.call_args.kwargs)
-        assert {k: bound.arguments[k] for k in flags} == flags
+        bound_convert = inspect.signature(real_convert).bind(
+            *convert.call_args.args, **convert.call_args.kwargs
+        )
+        assert bound_convert.arguments["autolink_urls"] == flags["autolink_urls"]
+        assert {k: bound.arguments[k] for k in ("revoke_sharing", "auto_downscale")} == {
+            k: flags[k] for k in ("revoke_sharing", "auto_downscale")
+        }
 
     async def test_clears_trailing_mark_style_before_deleting_in_its_own_batch(self, tmp_path):
         # Same clear-then-insert mechanism as write_doc_content (#255) — verified here
@@ -4792,6 +4805,194 @@ class TestReplaceDocBackup:
         drive_svc.files.return_value.get.return_value.execute.side_effect = get_execute
         result = await self._write(self._ctx(drive_svc, docs_svc))
         assert result == {"docId": "doc1", "web_link": "https://example.com"}
+
+
+class TestConvertBeforeTouchingDoc:
+    """#1240: the content is converted (Markdown → HTML → AST → requests) off the
+    event loop before a doc is created, read, copied, or cleared, so a conversion
+    that raises or is cancelled leaves the doc as it was."""
+
+    def _make_services(self, end_index=50):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "doc123",
+            "name": "Doc",
+            "parents": ["folder1"],
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webViewLink": "https://example.com"
+        }
+        drive_svc.files.return_value.copy.return_value.execute.return_value = {
+            "id": "backup1",
+            "name": "My Doc (backup before replace)",
+            "capabilities": {"canDelete": True},
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "title": "My Doc",
+            "body": {"content": [{"endIndex": end_index}]},
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+
+    @staticmethod
+    def _assert_untouched(drive_svc, docs_svc):
+        docs_svc.documents.return_value.get.return_value.execute.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.assert_not_called()
+        drive_svc.files.return_value.copy.return_value.execute.assert_not_called()
+        drive_svc.files.return_value.create.return_value.execute.assert_not_called()
+
+    @staticmethod
+    async def _replace(tool, ctx, tmp_path, content="# New\n\ntext\n", **kwargs):
+        if tool == "write_doc_content":
+            return await _docs_tools[tool](
+                doc_id="doc1", content=content, content_format="markdown", ctx=ctx, **kwargs
+            )
+        src = tmp_path / "notes.md"
+        src.write_text(content)
+        return await _docs_tools[tool](doc_id="doc1", local_path=str(src), ctx=ctx, **kwargs)
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    @pytest.mark.parametrize("allow_no_backup", [False, True])
+    async def test_conversion_error_leaves_doc_unchanged(self, tool, allow_no_backup, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        boom = RuntimeError("parser broke")
+        with (
+            patch.object(content_module, "_convert_doc_content", side_effect=boom),
+            patch.object(content_module, "logger") as mock_logger,
+        ):
+            result = await self._replace(tool, ctx, tmp_path, allow_no_backup=allow_no_backup)
+        # Returned, not raised, so the traceback is logged instead (PR #1296 QA round 1).
+        assert mock_logger.error.call_args.kwargs["exc_info"] is boom
+        assert result == {
+            "error": (
+                "Couldn't convert the content, so the document was left unchanged: "
+                "RuntimeError: parser broke"
+            ),
+            "docId": "doc1",
+        }
+        self._assert_untouched(drive_svc, docs_svc)
+
+    @pytest.mark.parametrize("tool", ["write_doc_content", "update_doc_from_file"])
+    async def test_cancelled_conversion_leaves_doc_unchanged(self, tool, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        started, release = threading.Event(), threading.Event()
+        real_convert = content_module._convert_doc_content
+
+        def blocking_convert(*args):
+            started.set()
+            release.wait(5)
+            return real_convert(*args)
+
+        with patch.object(content_module, "_convert_doc_content", side_effect=blocking_convert):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(partial(self._replace, tool, ctx, tmp_path))
+                await anyio.to_thread.run_sync(started.wait, 5)
+                tg.cancel_scope.cancel()
+                release.set()
+        self._assert_untouched(drive_svc, docs_svc)
+
+    @pytest.mark.parametrize("tool", ["create_doc", "create_doc_from_file"])
+    async def test_conversion_error_creates_no_doc(self, tool, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        boom = RuntimeError("parser broke")
+        with (
+            patch.object(content_module, "_convert_doc_content", side_effect=boom),
+            patch.object(content_module, "logger") as mock_logger,
+        ):
+            if tool == "create_doc":
+                result = await _docs_tools[tool](
+                    title="Doc", content="# Hi\n", content_format="markdown", ctx=ctx
+                )
+            else:
+                src = tmp_path / "notes.md"
+                src.write_text("# Hi\n")
+                result = await _docs_tools[tool](local_path=str(src), ctx=ctx)
+        assert result == {
+            "error": (
+                "Couldn't convert the content, so no document was created: "
+                "RuntimeError: parser broke"
+            )
+        }
+        assert mock_logger.error.call_args.kwargs["exc_info"] is boom
+        self._assert_untouched(drive_svc, docs_svc)
+
+    @pytest.mark.parametrize("content_format", ["markdown", "html"])
+    async def test_whole_conversion_runs_off_the_event_loop(self, content_format, tmp_path):
+        # Kit's #1240 comment: html_to_ast and the request walk ran on the loop too.
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        loop_thread = threading.get_ident()
+        threads = []
+        real = {
+            name: getattr(content_module, name)
+            for name in ("_md_to_html", "html_to_ast", "ast_to_requests")
+        }
+
+        def recording(name):
+            def call(*args, **kwargs):
+                threads.append((name, threading.get_ident()))
+                return real[name](*args, **kwargs)
+
+            return call
+
+        content = "# Hi\n\ntext\n" if content_format == "markdown" else "<h1>Hi</h1><p>text</p>"
+        with (
+            patch.object(content_module, "_md_to_html", recording("_md_to_html")),
+            patch.object(content_module, "html_to_ast", recording("html_to_ast")),
+            patch.object(content_module, "ast_to_requests", recording("ast_to_requests")),
+        ):
+            result = await _docs_tools["write_doc_content"](
+                doc_id="doc1", content=content, content_format=content_format, ctx=ctx
+            )
+        assert "error" not in result
+        expected = {"html_to_ast", "ast_to_requests"}
+        if content_format == "markdown":
+            expected.add("_md_to_html")
+        assert {name for name, _ in threads} == expected
+        assert all(ident != loop_thread for _, ident in threads)
+
+    async def test_unresolved_images_requests_match_never_emitting_them(self, tmp_path):
+        # Requests are built before the images resolve, with a placeholder for every
+        # image; an unresolved one's request and its link request are dropped. The
+        # result must be what ast_to_requests builds without that image at all.
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        missing = str(tmp_path / "missing.png")
+        good = "https://example.com/good.png"
+        content = (
+            f"Before\n\n[![Bad]({missing})](https://example.com/bad-link)\n\n"
+            f"[![Good]({good})](https://example.com/good-link)\n\n![Bad2]({missing})\n\nAfter"
+        )
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+        assert [("error" in o) for o in result["images"]] == [True, False, True]
+
+        nodes = html_to_ast(_md_to_html(content))
+        images = extract_images(nodes)
+        expected, _ = ast_to_requests(nodes, 1, {id(images[1]): good})
+        sent = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+        assert sent == expected
+        links = [
+            r["updateTextStyle"]["textStyle"]["link"]["url"]
+            for r in sent
+            if "link" in r.get("updateTextStyle", {}).get("textStyle", {})
+        ]
+        assert "https://example.com/bad-link" not in links
+        assert "https://example.com/good-link" in links
 
 
 def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:

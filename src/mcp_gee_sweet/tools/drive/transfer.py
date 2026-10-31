@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
-import markdown as _md
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.mcpserver import Context
@@ -2955,6 +2954,7 @@ def register(tool):
         source_format: str = "text",
         folder_id: str | None = None,
         convert_to_doc: bool = False,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -2964,20 +2964,32 @@ def register(tool):
             name: File name (include extension, e.g. 'notes.md', 'report.html').
             content: Text content to upload.
             source_format: How to interpret the content. One of:
-                           'markdown' — Markdown text; converted to HTML before upload.
+                           'markdown' — Markdown text. Uploaded as an HTML file, or with
+                                        convert_to_doc=True written into a new Doc
+                                        (see convert_to_doc).
                            'html'     — Raw HTML.
                            'text'     — Plain text (default).
             folder_id: Destination folder ID. Defaults to the configured folder or Drive root.
             convert_to_doc: If True, create a Google Doc instead of a raw file.
-                            'markdown' and 'html' sources retain heading, list, and link
-                            formatting via Drive's HTML import. 'text' uploads as plain text
-                            and Drive converts it (no formatting preserved). Uses the same
-                            Drive native-import-conversion trick as upload_local_file's
-                            convert param, simplified to always target a Doc since this
-                            tool has no file extension to dispatch Sheets/Slides on.
+                            A 'markdown' source is written with the same converter as
+                            create_doc(content_format='markdown'), so it renders the same
+                            way, images included (a local path, drive:<file_id> or public
+                            http(s) URL, embedded as create_doc does; bare URLs are
+                            linked). An 'html' source keeps its heading, list, and link
+                            formatting via Drive's HTML import. 'text' uploads as plain
+                            text and Drive converts it (no formatting preserved).
+            auto_downscale: For a 'markdown' source with convert_to_doc=True, resize a
+                local-path/drive: image over Google Docs' inline-image limit instead of
+                failing it (default False), as create_doc's auto_downscale does: a
+                drive: source gets a new " (resized)" copy beside the original, a
+                local-path source uploads the resized bytes. No effect otherwise.
 
         Returns:
-            fileId, name, parent folder ID, and webViewLink of the created file.
+            fileId, name, parent folder ID, and webViewLink of the created file. A
+            Markdown Doc also gets create_doc's "images" (per-image outcomes) and
+            "dropped_links" (links written as plain text) when there are any. If writing
+            a Markdown Doc's content fails after the Doc was created, returns
+            {"error", "fileId"} plus those fields instead.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -2988,8 +3000,47 @@ def register(tool):
         drive_service = lc.drive_service
         target_folder_id = folder_id or lc.folder_id
 
+        if source_format == "markdown" and convert_to_doc:
+            # create_doc's own Markdown path, not Drive's HTML import, which flattened
+            # nested lists and picked the code font nondeterministically (#1102).
+            # Imported here because docs.content imports this module.
+            from ..docs.content import _create_doc_with_content
+
+            doc = await _create_doc_with_content(
+                lc,
+                name,
+                content,
+                "markdown",
+                target_folder_id,
+                autolink_urls=True,
+                revoke_sharing=True,
+                auto_downscale=auto_downscale,
+            )
+            if "docId" not in doc:
+                return doc
+            result: dict[str, Any] = {"fileId": doc["docId"]}
+            if "error" in doc:
+                result = {"error": doc["error"], **result}
+            else:
+                result.update(name=doc["title"], parent=doc["folder"], web_link=doc["web_link"])
+            # images, dropped_links, and whatever else create_doc reports.
+            result.update(
+                {
+                    k: v
+                    for k, v in doc.items()
+                    if k not in ("docId", "title", "folder", "web_link", "error")
+                }
+            )
+            if "error" in doc:
+                logger.debug("Writing Markdown Doc %s (%s) failed", doc["docId"], name)
+            else:
+                logger.debug("Uploaded %s as Doc %s via the Markdown converter", name, doc["docId"])
+            return result
+
         if source_format == "markdown":
-            html_body = _md.markdown(content, extensions=["extra"])
+            from ..docs.md_to_html import _md_to_html
+
+            html_body = await asyncio.to_thread(_md_to_html, content, True)
             upload_content = (
                 f"<!DOCTYPE html><html><head><meta charset='utf-8'></head>"
                 f"<body>{html_body}</body></html>"
@@ -3109,24 +3160,31 @@ def register(tool):
             Drive (no storage quota). Works on Shared Drives regardless of auth method.
             Check server://auth-status for your current auth method.
         """
-        lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
+        try:
+            lc = ctx.request_context.lifespan_context
+            drive_service = lc.drive_service
 
-        invalidate = _FolderInvalidation(lc, parent_folder_id)
+            invalidate = _FolderInvalidation(lc, parent_folder_id)
 
-        with invalidating(invalidate, on_success=False):
-            result = await _upload_local_file(
-                drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
-            )
-        # Anything but a skip may have changed the folder. An error too: a
-        # create() can fail after Drive applied it (a timeout), and "fileId"
-        # alongside "error" means it genuinely succeeded and only the follow-up
-        # restamp failed (#420, #1030). A plain skip also carries the
-        # pre-existing file's fileId and must NOT mark the cache dirty, since
-        # nothing changed (QA round 1, PR #645).
-        if not result.get("skipped"):
-            invalidate()
-        return result
+            with invalidating(invalidate, on_success=False):
+                result = await _upload_local_file(
+                    drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
+                )
+            # Anything but a skip may have changed the folder. An error too: a
+            # create() can fail after Drive applied it (a timeout), and "fileId"
+            # alongside "error" means it genuinely succeeded and only the follow-up
+            # restamp failed (#420, #1030). A plain skip also carries the
+            # pre-existing file's fileId and must NOT mark the cache dirty, since
+            # nothing changed (QA round 1, PR #645).
+            if not result.get("skipped"):
+                invalidate()
+            return result
+        except HttpError as e:
+            # #1275: a Drive API failure anywhere in this tool — a 404 for a
+            # missing or inaccessible folder ID is the reported case — reads
+            # like every other Drive failure, as an error result, not a protocol
+            # error. Quota errors keep their friendly text (#670).
+            return {"error": _quota_error_detail(e, drive_service)}
 
     @tool(
         annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True),
@@ -3183,174 +3241,183 @@ def register(tool):
             Drive (no storage quota). Works on Shared Drives regardless of auth method.
             Check server://auth-status for your current auth method.
         """
-        lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
+        try:
+            lc = ctx.request_context.lifespan_context
+            drive_service = lc.drive_service
 
-        folder = check_read(local_path)
-        if not folder.is_dir():
-            raise ValueError(f"No directory found at {local_path!r}")
+            folder = check_read(local_path)
+            if not folder.is_dir():
+                raise ValueError(f"No directory found at {local_path!r}")
 
-        # Each file gets its own check in _upload_local_file: a symlink inside the
-        # folder can point anywhere (#796).
-        files = [p for p in folder.iterdir() if p.is_file()]
-        # A download's temp file is never uploaded, but it's listed under
-        # 'skipped' so it doesn't go unnoticed (#887).
-        partials = sorted(p.name for p in files if _is_partial_download(p.name))
-        candidates = [p for p in files if not _is_partial_download(p.name)]
-        if skip_system_files:
-            candidates = [p for p in candidates if p.name not in _SYSTEM_FILES]
+            # Each file gets its own check in _upload_local_file: a symlink inside the
+            # folder can point anywhere (#796).
+            files = [p for p in folder.iterdir() if p.is_file()]
+            # A download's temp file is never uploaded, but it's listed under
+            # 'skipped' so it doesn't go unnoticed (#887).
+            partials = sorted(p.name for p in files if _is_partial_download(p.name))
+            candidates = [p for p in files if not _is_partial_download(p.name)]
+            if skip_system_files:
+                candidates = [p for p in candidates if p.name not in _SYSTEM_FILES]
 
-        uploaded: list[str] = []
-        skipped: list[str] = list(partials)
-        skipped_unverified: list[dict[str, str]] = []
-        failed: list[dict[str, str]] = []
-        may_have_changed = False
+            uploaded: list[str] = []
+            skipped: list[str] = list(partials)
+            skipped_unverified: list[dict[str, str]] = []
+            failed: list[dict[str, str]] = []
+            may_have_changed = False
 
-        invalidate = _FolderInvalidation(lc, parent_folder_id)
+            invalidate = _FolderInvalidation(lc, parent_folder_id)
 
-        # dict[str, list[dict]], not a single entry per name — Drive allows more
-        # than one file to share a name, and collapsing to one (the previous
-        # shape) meant an already-converted duplicate could be masked by an
-        # unrelated same-named raw file's mimeType winning the dict slot
-        # depending on response ordering, silently reconverting or skipping the
-        # wrong thing (#514, surfaced during PR #505's review of #411). Full
-        # entries rather than just mimeTypes so the stem match below can read
-        # each one's conversion marker (#769).
-        existing_by_name: dict[str, list[dict]] = {}
-        if skip_if_exists and candidates:
-            # fields includes mimeType (not just name) so the convert=True case below
-            # can tell an already-converted duplicate apart from a same-named file
-            # still in its original format — mirrors _upload_local_file's own
-            # convert-aware skip_if_exists check (issue #411).
-            existing_files = await _list_all_files(
-                drive_service,
-                q=f"'{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                # properties only under convert — nothing else reads the
-                # conversion marker (PR #800 QA round 1).
-                file_fields=("id, name, mimeType, properties" if convert else "id, name, mimeType"),
-                pageSize=1000,
-            )
-            for f in existing_files:
-                existing_by_name.setdefault(f["name"], []).append(f)
+            # dict[str, list[dict]], not a single entry per name — Drive allows more
+            # than one file to share a name, and collapsing to one (the previous
+            # shape) meant an already-converted duplicate could be masked by an
+            # unrelated same-named raw file's mimeType winning the dict slot
+            # depending on response ordering, silently reconverting or skipping the
+            # wrong thing (#514, surfaced during PR #505's review of #411). Full
+            # entries rather than just mimeTypes so the stem match below can read
+            # each one's conversion marker (#769).
+            existing_by_name: dict[str, list[dict]] = {}
+            if skip_if_exists and candidates:
+                # fields includes mimeType (not just name) so the convert=True case below
+                # can tell an already-converted duplicate apart from a same-named file
+                # still in its original format — mirrors _upload_local_file's own
+                # convert-aware skip_if_exists check (issue #411).
+                existing_files = await _list_all_files(
+                    drive_service,
+                    q=f"'{_escape_drive_query_value(parent_folder_id)}' in parents and trashed=false",
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    # properties only under convert — nothing else reads the
+                    # conversion marker (PR #800 QA round 1).
+                    file_fields=(
+                        "id, name, mimeType, properties" if convert else "id, name, mimeType"
+                    ),
+                    pageSize=1000,
+                )
+                for f in existing_files:
+                    existing_by_name.setdefault(f["name"], []).append(f)
 
-        # One deny-list snapshot for every entry this walk checks (#796). A
-        # cancelled upload can still land after the call unwinds (#1030).
-        with many_checks(), invalidating(invalidate, on_success=False):
-            for p in sorted(candidates):
-                # Gated explicitly on skip_if_exists here, rather than relying on
-                # existing_by_name being empty when it's False — a future change
-                # that populates existing_by_name for an unrelated reason (e.g.
-                # always fetching it for logging) would otherwise silently
-                # re-enable skip behavior even when a caller explicitly passed
-                # skip_if_exists=False (#514).
-                if skip_if_exists:
-                    target_mime = _CONVERT_MIME.get(p.suffix.lower()) if convert else None
-                    if convert and target_mime is None:
-                        # Unsupported extension under convert=True — this bulk
-                        # shortcut must never skip here regardless of any
-                        # same-named existing entry; fall through so
-                        # _upload_local_file's own unsupported-extension check
-                        # (which runs before its own existence check) reports the
-                        # correct error into `failed` instead of this silently
-                        # skipping it (the branch below funnels through
-                        # _find_existing_upload, per #514 QA round 1, PR #767 —
-                        # collapsing this case into that same call would have
-                        # reintroduced the bug: convert_mime=None there means
-                        # "not converting", not "converting but unsupported").
-                        pass
-                    else:
-                        # Drive's native import-conversion strips the source extension
-                        # from some converted types' display name (confirmed live for
-                        # CSV, TC-D215/TC-D243) but keeps it for others (.md,
-                        # TC-D240) — check both the original name and the
-                        # extension-stripped stem independently so either naming
-                        # behavior, or both existing at once (a raw duplicate
-                        # alongside an already-converted one), is recognized
-                        # correctly (PR #505 review, issue #411). Only relevant
-                        # under convert — the stem is the same as the name
-                        # otherwise, so this is a no-op when not converting.
-                        #
-                        # The two lookups aren't equally trustworthy, though: a
-                        # full-name match stays unconditional, but a stem match
-                        # alone can't tell this tool's own extension-stripped
-                        # conversion apart from an unrelated file that happens to
-                        # share the stem and target mimeType (#769). So a stem
-                        # match counts as ours only via the conversion marker; an
-                        # unmarked one (e.g. converted before the marker existed)
-                        # is still skipped — no duplicate re-uploads — but
-                        # reported separately in skipped_unverified so the
-                        # ambiguity is visible. Decided by _find_existing_upload,
-                        # shared with _upload_local_file's own per-file check.
-                        found = _find_existing_upload(
-                            target_mime,
-                            p.name,
-                            existing_by_name.get(p.name, []),
-                            existing_by_name.get(p.stem, []) if convert else [],
+            # One deny-list snapshot for every entry this walk checks (#796). A
+            # cancelled upload can still land after the call unwinds (#1030).
+            with many_checks(), invalidating(invalidate, on_success=False):
+                for p in sorted(candidates):
+                    # Gated explicitly on skip_if_exists here, rather than relying on
+                    # existing_by_name being empty when it's False — a future change
+                    # that populates existing_by_name for an unrelated reason (e.g.
+                    # always fetching it for logging) would otherwise silently
+                    # re-enable skip behavior even when a caller explicitly passed
+                    # skip_if_exists=False (#514).
+                    if skip_if_exists:
+                        target_mime = _CONVERT_MIME.get(p.suffix.lower()) if convert else None
+                        if convert and target_mime is None:
+                            # Unsupported extension under convert=True — this bulk
+                            # shortcut must never skip here regardless of any
+                            # same-named existing entry; fall through so
+                            # _upload_local_file's own unsupported-extension check
+                            # (which runs before its own existence check) reports the
+                            # correct error into `failed` instead of this silently
+                            # skipping it (the branch below funnels through
+                            # _find_existing_upload, per #514 QA round 1, PR #767 —
+                            # collapsing this case into that same call would have
+                            # reintroduced the bug: convert_mime=None there means
+                            # "not converting", not "converting but unsupported").
+                            pass
+                        else:
+                            # Drive's native import-conversion strips the source extension
+                            # from some converted types' display name (confirmed live for
+                            # CSV, TC-D215/TC-D243) but keeps it for others (.md,
+                            # TC-D240) — check both the original name and the
+                            # extension-stripped stem independently so either naming
+                            # behavior, or both existing at once (a raw duplicate
+                            # alongside an already-converted one), is recognized
+                            # correctly (PR #505 review, issue #411). Only relevant
+                            # under convert — the stem is the same as the name
+                            # otherwise, so this is a no-op when not converting.
+                            #
+                            # The two lookups aren't equally trustworthy, though: a
+                            # full-name match stays unconditional, but a stem match
+                            # alone can't tell this tool's own extension-stripped
+                            # conversion apart from an unrelated file that happens to
+                            # share the stem and target mimeType (#769). So a stem
+                            # match counts as ours only via the conversion marker; an
+                            # unmarked one (e.g. converted before the marker existed)
+                            # is still skipped — no duplicate re-uploads — but
+                            # reported separately in skipped_unverified so the
+                            # ambiguity is visible. Decided by _find_existing_upload,
+                            # shared with _upload_local_file's own per-file check.
+                            found = _find_existing_upload(
+                                target_mime,
+                                p.name,
+                                existing_by_name.get(p.name, []),
+                                existing_by_name.get(p.stem, []) if convert else [],
+                            )
+                            if found is not None:
+                                match, verified = found
+                                if verified:
+                                    skipped.append(p.name)
+                                else:
+                                    skipped_unverified.append(
+                                        {
+                                            "name": p.name,
+                                            "matched_name": match["name"],
+                                            "reason": _unverified_skip_reason(match["name"]),
+                                        }
+                                    )
+                                continue
+
+                    # skip_if_exists=False here — existence was already decided above from the
+                    # single bulk list() call, so _upload_local_file doesn't need its own
+                    # per-file check (preserves the one-list-call-per-run contract, TC-D100).
+                    try:
+                        result = await _upload_local_file(
+                            drive_service,
+                            str(p),
+                            parent_folder_id,
+                            skip_if_exists=False,
+                            convert=convert,
                         )
-                        if found is not None:
-                            match, verified = found
-                            if verified:
-                                skipped.append(p.name)
-                            else:
-                                skipped_unverified.append(
-                                    {
-                                        "name": p.name,
-                                        "matched_name": match["name"],
-                                        "reason": _unverified_skip_reason(match["name"]),
-                                    }
-                                )
-                            continue
+                    except Exception as e:
+                        # _upload_local_file raises ValueError uncaught if the file no
+                        # longer exists at call time (e.g. deleted between the directory
+                        # scan above and this file's turn in the loop) — without this,
+                        # one missing file crashed the whole call, discarding every
+                        # already-accumulated uploaded/skipped/failed result instead of
+                        # recording a single failed entry (PR #505 review, issue #411).
+                        failed.append({"name": p.name, "error": str(e)})
+                        continue
 
-                # skip_if_exists=False here — existence was already decided above from the
-                # single bulk list() call, so _upload_local_file doesn't need its own
-                # per-file check (preserves the one-list-call-per-run contract, TC-D100).
-                try:
-                    result = await _upload_local_file(
-                        drive_service,
-                        str(p),
-                        parent_folder_id,
-                        skip_if_exists=False,
-                        convert=convert,
-                    )
-                except Exception as e:
-                    # _upload_local_file raises ValueError uncaught if the file no
-                    # longer exists at call time (e.g. deleted between the directory
-                    # scan above and this file's turn in the loop) — without this,
-                    # one missing file crashed the whole call, discarding every
-                    # already-accumulated uploaded/skipped/failed result instead of
-                    # recording a single failed entry (PR #505 review, issue #411).
-                    failed.append({"name": p.name, "error": str(e)})
-                    continue
+                    # An error result counts for cache invalidation below even though
+                    # it never reaches `uploaded`: a create() can fail after Drive
+                    # applied it (a timeout), and one carrying "fileId" genuinely
+                    # succeeded (QA round 1, PR #645; #1030).
+                    may_have_changed = True
+                    if "error" in result:
+                        entry = {"name": p.name, "error": result["error"]}
+                        if "fileId" in result:
+                            # Set only for the create()-succeeded-but-restamp-failed case
+                            # (#420) — a genuine orphan now exists in Drive, so its ID
+                            # rides along in the failed entry rather than being lost.
+                            entry["fileId"] = result["fileId"]
+                        failed.append(entry)
+                    else:
+                        uploaded.append(p.name)
+                        logger.debug("Uploaded %s", p.name)
 
-                # An error result counts for cache invalidation below even though
-                # it never reaches `uploaded`: a create() can fail after Drive
-                # applied it (a timeout), and one carrying "fileId" genuinely
-                # succeeded (QA round 1, PR #645; #1030).
-                may_have_changed = True
-                if "error" in result:
-                    entry = {"name": p.name, "error": result["error"]}
-                    if "fileId" in result:
-                        # Set only for the create()-succeeded-but-restamp-failed case
-                        # (#420) — a genuine orphan now exists in Drive, so its ID
-                        # rides along in the failed entry rather than being lost.
-                        entry["fileId"] = result["fileId"]
-                    failed.append(entry)
-                else:
-                    uploaded.append(p.name)
-                    logger.debug("Uploaded %s", p.name)
+            if may_have_changed:
+                invalidate()
 
-        if may_have_changed:
-            invalidate()
-
-        return {
-            "uploaded": uploaded,
-            "skipped": skipped,
-            "skipped_unverified": skipped_unverified,
-            "failed": failed,
-        }
+            return {
+                "uploaded": uploaded,
+                "skipped": skipped,
+                "skipped_unverified": skipped_unverified,
+                "failed": failed,
+            }
+        except HttpError as e:
+            # #1275: a Drive API failure anywhere in this tool — a 404 for a
+            # missing or inaccessible folder ID is the reported case — reads
+            # like every other Drive failure, as an error result, not a protocol
+            # error. Quota errors keep their friendly text (#670).
+            return {"error": _quota_error_detail(e, drive_service)}
 
     @tool(
         annotations=ToolAnnotations(title="Download File", readOnlyHint=True),
@@ -3537,245 +3604,257 @@ def register(tool):
             Summary with lists of 'downloaded', 'skipped', and 'failed' filenames,
             plus total 'size_bytes' downloaded.
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
-        check_write(local_path)
-        dest_dir, _ = validate_local_destination(local_path, is_dir=True)
-        resolved_dest_dir = dest_dir.resolve()
+        try:
+            drive_service = ctx.request_context.lifespan_context.drive_service
+            check_write(local_path)
+            dest_dir, _ = validate_local_destination(local_path, is_dir=True)
+            resolved_dest_dir = dest_dir.resolve()
 
-        query = f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false"
-        if mime_type_filter:
-            safe = _escape_drive_query_mime_type(mime_type_filter)
-            query += f" and mimeType='{safe}'"
+            query = f"'{_escape_drive_query_value(folder_id)}' in parents and trashed=false"
+            if mime_type_filter:
+                safe = _escape_drive_query_mime_type(mime_type_filter)
+                query += f" and mimeType='{safe}'"
 
-        listed = await _list_all_files(
-            drive_service,
-            q=query,
-            spaces="drive",
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-            file_fields="id, name, mimeType, size",
-            pageSize=1000,
-            orderBy="name",
-        )
+            listed = await _list_all_files(
+                drive_service,
+                q=query,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                file_fields="id, name, mimeType, size",
+                pageSize=1000,
+                orderBy="name",
+            )
 
-        downloaded: list[str] = []
-        skipped: list[str] = []
-        failed: list[dict[str, str]] = []
-        total_bytes = 0
+            downloaded: list[str] = []
+            skipped: list[str] = []
+            failed: list[dict[str, str]] = []
+            total_bytes = 0
 
-        candidates: list[_DownloadCandidate] = []
-        claimed_dest: set[str] = set()
-        # One deny-list snapshot for every entry this walk checks (#796).
-        with many_checks():
-            for f in listed:
-                fid = f["id"]
-                fname = f["name"]
-                fmime = f.get("mimeType", "")
-                fsize = int(f["size"]) if f.get("size") is not None else None
+            candidates: list[_DownloadCandidate] = []
+            claimed_dest: set[str] = set()
+            # One deny-list snapshot for every entry this walk checks (#796).
+            with many_checks():
+                for f in listed:
+                    fid = f["id"]
+                    fname = f["name"]
+                    fmime = f.get("mimeType", "")
+                    fsize = int(f["size"]) if f.get("size") is not None else None
 
-                if fmime == "application/vnd.google-apps.folder":
-                    # Non-recursive: subfolders are never descended into or exported.
-                    skipped.append(fname)
-                    continue
+                    if fmime == "application/vnd.google-apps.folder":
+                        # Non-recursive: subfolders are never descended into or exported.
+                        skipped.append(fname)
+                        continue
 
-                is_workspace = _is_workspace_entry(f)
+                    is_workspace = _is_workspace_entry(f)
 
-                if is_workspace and not export_format:
-                    skipped.append(fname)
-                    continue
+                    if is_workspace and not export_format:
+                        skipped.append(fname)
+                        continue
 
-                if is_workspace:
-                    if export_format not in _EXPORT_MIME:
+                    if is_workspace:
+                        if export_format not in _EXPORT_MIME:
+                            failed.append(
+                                {"name": fname, "error": f"Unknown export_format '{export_format}'"}
+                            )
+                            continue
+                        local_name = fname + _EXPORT_MIME[export_format][1]
+                    else:
+                        local_name = fname
+                    try:
+                        dest_file = _safe_local_dest(dest_dir, local_name, resolved_dest_dir)
+                    except ValueError as e:
+                        # One failed entry, like the duplicate-name case below; the
+                        # rest of the folder still downloads.
                         failed.append(
-                            {"name": fname, "error": f"Unknown export_format '{export_format}'"}
+                            {
+                                "name": fname,
+                                "error": f"{fname!r} can't be used as a local filename: {e}",
+                            }
                         )
                         continue
-                    local_name = fname + _EXPORT_MIME[export_format][1]
-                else:
-                    local_name = fname
+                    try:
+                        # A symlink already in the destination can point anywhere (#796).
+                        check_write(dest_file)
+                    except LocalFileAccessError as e:
+                        failed.append({"name": fname, "error": str(e)})
+                        continue
+
+                    if skip_if_exists and dest_file.exists():
+                        skipped.append(dest_file.name)
+                        continue
+
+                    # Drive allows two files with the same name (distinct IDs) in one
+                    # folder; the local filesystem doesn't. Concurrent transfers below
+                    # would otherwise race to write the identical path — keep the first
+                    # candidate and record the rest as failed instead of silently
+                    # clobbering content or double-counting size_bytes (PR #351 review,
+                    # live-reproduced against a fixture folder with duplicate names).
+                    dest_key = str(dest_file)
+                    if dest_key in claimed_dest:
+                        failed.append(
+                            {
+                                "name": fname,
+                                "error": (
+                                    f"duplicate filename: another file named '{dest_file.name}' "
+                                    "already claims this destination path — only the first is "
+                                    "downloaded"
+                                ),
+                            }
+                        )
+                        continue
+                    claimed_dest.add(dest_key)
+
+                    # size=None for a Workspace candidate — see _DownloadCandidate's docstring.
+                    candidates.append(
+                        _DownloadCandidate(
+                            file_id=fid,
+                            name=fname,
+                            is_workspace=is_workspace,
+                            dest_file=dest_file,
+                            size=None if is_workspace else fsize,
+                        )
+                    )
+
+            if candidates:
+                # Only once there's something to write, so a bad folder_id or a
+                # folder whose every entry is skipped or refused leaves nothing on
+                # disk (#1012). A download that fails keeps it, as download_file's does.
+                _make_local_dir(dest_dir, local_path)
+
+            total = len(candidates)
+            # List-box, not a bare int + nonlocal: matches _sync_level's
+            # progress_count/progress_bytes idiom (#354) for one shared
+            # convention in this file, though nonlocal was already safe here
+            # (no await between read and write) — this is purely a style match.
+            completed = [0]
+            bytes_completed = [0]
+            # Separate from bytes_completed (real bytes transferred, message-text-only,
+            # success-only — see below): this one backs the structured progress field
+            # when report_bytes is true, and must reach total_bytes_expected exactly
+            # once every candidate has been attempted, success or fail, the same way
+            # completed[0] reaches `total` unconditionally in file-count mode. Advancing
+            # it by the candidate's own *declared* size on every outcome (not just on
+            # success, unlike bytes_completed) is what guarantees that — a failed
+            # candidate's size would otherwise stay baked into the denominator
+            # (total_bytes_expected sums every candidate) while never being added to
+            # the numerator, so the final call would report less than 100% even though
+            # the operation is fully done (#741 QA review, finding #1).
+            bytes_accounted = [0]
+            # A reliable upfront total requires every candidate's size to be known
+            # (see _DownloadCandidate's docstring for why one can be None) — with one
+            # unknown, the message falls back to a running count with no denominator
+            # rather than implying a precision it doesn't have.
+            total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
+            bytes_total_known = all(c.size is not None for c in candidates)
+            # #741: byte-based structured progress is only meaningful when there's a
+            # reliable total to report against — silently fall back to file-count
+            # rather than reporting a byte "total" that's actually just a running
+            # count with no denominator.
+            report_bytes = progress_unit == "bytes" and bytes_total_known
+
+            async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
                 try:
-                    dest_file = _safe_local_dest(dest_dir, local_name, resolved_dest_dir)
-                except ValueError as e:
-                    # One failed entry, like the duplicate-name case below; the
-                    # rest of the folder still downloads.
-                    failed.append(
-                        {
-                            "name": fname,
-                            "error": f"{fname!r} can't be used as a local filename: {e}",
-                        }
+                    # Fail a bad destination before the export or download round trip.
+                    _check_destination(candidate.dest_file)
+                    if candidate.is_workspace:
+                        target_mime = _EXPORT_MIME[export_format][0]
+                        content = await execute_in_thread(
+                            drive_service.files()
+                            .export(fileId=candidate.file_id, mimeType=target_mime)
+                            .execute,
+                            drive_service,
+                        )
+                        if not isinstance(content, bytes):
+                            content = content.encode("utf-8")
+                        await asyncio.to_thread(
+                            _write_atomically, candidate.dest_file, lambda fh: fh.write(content)
+                        )
+                    else:
+                        await asyncio.to_thread(
+                            _download_media, drive_service, candidate.file_id, candidate.dest_file
+                        )
+
+                    size = candidate.dest_file.stat().st_size
+                    logger.debug(
+                        "Downloaded %s → %s (%d bytes)",
+                        candidate.file_id,
+                        candidate.dest_file,
+                        size,
                     )
-                    continue
+                    result: dict[str, Any] = {
+                        "kind": "ok",
+                        "name": candidate.dest_file.name,
+                        "bytes": size,
+                    }
+                except Exception as e:
+                    result = {"kind": "fail", "name": candidate.name, "error": str(e)}
+
+                # Reported here, inside the per-item coroutine, so updates stream in as
+                # each concurrent download finishes rather than arriving in one burst
+                # after asyncio.gather resolves — see #316.
+                completed[0] += 1
+                if result["kind"] == "ok":
+                    bytes_completed[0] += result["bytes"]
+                # bytes_accounted advances on every outcome (see its own comment above)
+                # so byte-mode progress still reaches full completion when a candidate
+                # fails; candidate.size is never None here when report_bytes is true
+                # (bytes_total_known already guarantees it).
+                bytes_accounted[0] += candidate.size or 0
+                # progress/total stay file-count-based by default (see the docstring's
+                # #352 note) — bytes transferred so far are supplementary context in the
+                # message only. With progress_unit='bytes' (#741) the structured fields
+                # below use byte totals instead; the message text is unaffected either way.
+                bytes_note = _format_bytes_note(
+                    bytes_completed[0], total_bytes_expected if bytes_total_known else None
+                )
                 try:
-                    # A symlink already in the destination can point anywhere (#796).
-                    check_write(dest_file)
-                except LocalFileAccessError as e:
-                    failed.append({"name": fname, "error": str(e)})
-                    continue
-
-                if skip_if_exists and dest_file.exists():
-                    skipped.append(dest_file.name)
-                    continue
-
-                # Drive allows two files with the same name (distinct IDs) in one
-                # folder; the local filesystem doesn't. Concurrent transfers below
-                # would otherwise race to write the identical path — keep the first
-                # candidate and record the rest as failed instead of silently
-                # clobbering content or double-counting size_bytes (PR #351 review,
-                # live-reproduced against a fixture folder with duplicate names).
-                dest_key = str(dest_file)
-                if dest_key in claimed_dest:
-                    failed.append(
-                        {
-                            "name": fname,
-                            "error": (
-                                f"duplicate filename: another file named '{dest_file.name}' "
-                                "already claims this destination path — only the first is "
-                                "downloaded"
-                            ),
-                        }
+                    progress = bytes_accounted[0] if report_bytes else completed[0]
+                    progress_total = total_bytes_expected if report_bytes else total
+                    await ctx.report_progress(
+                        progress,
+                        progress_total,
+                        f"{completed[0]}/{total}{bytes_note}: {result['name']}: {result['kind']}",
                     )
-                    continue
-                claimed_dest.add(dest_key)
+                except Exception:
+                    # The download already succeeded or failed on its own terms — a
+                    # broken notification channel must not overwrite that outcome.
+                    # PR #351 review: this was previously unguarded and a
+                    # report_progress exception here would propagate out, turning an
+                    # already-successful download into a "failed" item at the
+                    # gather below.
+                    logger.debug("report_progress failed for %s", result["name"], exc_info=True)
+                return result
 
-                # size=None for a Workspace candidate — see _DownloadCandidate's docstring.
-                candidates.append(
-                    _DownloadCandidate(
-                        file_id=fid,
-                        name=fname,
-                        is_workspace=is_workspace,
-                        dest_file=dest_file,
-                        size=None if is_workspace else fsize,
-                    )
-                )
-
-        if candidates:
-            # Only once there's something to write, so a bad folder_id or a
-            # folder whose every entry is skipped or refused leaves nothing on
-            # disk (#1012). A download that fails keeps it, as download_file's does.
-            _make_local_dir(dest_dir, local_path)
-
-        total = len(candidates)
-        # List-box, not a bare int + nonlocal: matches _sync_level's
-        # progress_count/progress_bytes idiom (#354) for one shared
-        # convention in this file, though nonlocal was already safe here
-        # (no await between read and write) — this is purely a style match.
-        completed = [0]
-        bytes_completed = [0]
-        # Separate from bytes_completed (real bytes transferred, message-text-only,
-        # success-only — see below): this one backs the structured progress field
-        # when report_bytes is true, and must reach total_bytes_expected exactly
-        # once every candidate has been attempted, success or fail, the same way
-        # completed[0] reaches `total` unconditionally in file-count mode. Advancing
-        # it by the candidate's own *declared* size on every outcome (not just on
-        # success, unlike bytes_completed) is what guarantees that — a failed
-        # candidate's size would otherwise stay baked into the denominator
-        # (total_bytes_expected sums every candidate) while never being added to
-        # the numerator, so the final call would report less than 100% even though
-        # the operation is fully done (#741 QA review, finding #1).
-        bytes_accounted = [0]
-        # A reliable upfront total requires every candidate's size to be known
-        # (see _DownloadCandidate's docstring for why one can be None) — with one
-        # unknown, the message falls back to a running count with no denominator
-        # rather than implying a precision it doesn't have.
-        total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
-        bytes_total_known = all(c.size is not None for c in candidates)
-        # #741: byte-based structured progress is only meaningful when there's a
-        # reliable total to report against — silently fall back to file-count
-        # rather than reporting a byte "total" that's actually just a running
-        # count with no denominator.
-        report_bytes = progress_unit == "bytes" and bytes_total_known
-
-        async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
-            try:
-                # Fail a bad destination before the export or download round trip.
-                _check_destination(candidate.dest_file)
-                if candidate.is_workspace:
-                    target_mime = _EXPORT_MIME[export_format][0]
-                    content = await execute_in_thread(
-                        drive_service.files()
-                        .export(fileId=candidate.file_id, mimeType=target_mime)
-                        .execute,
-                        drive_service,
-                    )
-                    if not isinstance(content, bytes):
-                        content = content.encode("utf-8")
-                    await asyncio.to_thread(
-                        _write_atomically, candidate.dest_file, lambda fh: fh.write(content)
-                    )
-                else:
-                    await asyncio.to_thread(
-                        _download_media, drive_service, candidate.file_id, candidate.dest_file
-                    )
-
-                size = candidate.dest_file.stat().st_size
-                logger.debug(
-                    "Downloaded %s → %s (%d bytes)", candidate.file_id, candidate.dest_file, size
-                )
-                result: dict[str, Any] = {
-                    "kind": "ok",
-                    "name": candidate.dest_file.name,
-                    "bytes": size,
-                }
-            except Exception as e:
-                result = {"kind": "fail", "name": candidate.name, "error": str(e)}
-
-            # Reported here, inside the per-item coroutine, so updates stream in as
-            # each concurrent download finishes rather than arriving in one burst
-            # after asyncio.gather resolves — see #316.
-            completed[0] += 1
-            if result["kind"] == "ok":
-                bytes_completed[0] += result["bytes"]
-            # bytes_accounted advances on every outcome (see its own comment above)
-            # so byte-mode progress still reaches full completion when a candidate
-            # fails; candidate.size is never None here when report_bytes is true
-            # (bytes_total_known already guarantees it).
-            bytes_accounted[0] += candidate.size or 0
-            # progress/total stay file-count-based by default (see the docstring's
-            # #352 note) — bytes transferred so far are supplementary context in the
-            # message only. With progress_unit='bytes' (#741) the structured fields
-            # below use byte totals instead; the message text is unaffected either way.
-            bytes_note = _format_bytes_note(
-                bytes_completed[0], total_bytes_expected if bytes_total_known else None
+            # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
+            # was a sequential `for` loop awaiting one transfer at a time (#316), which
+            # measured 1.04s/file and scaled linearly with folder size.
+            raw = await asyncio.gather(
+                *(_download_one(c) for c in candidates), return_exceptions=True
             )
-            try:
-                progress = bytes_accounted[0] if report_bytes else completed[0]
-                progress_total = total_bytes_expected if report_bytes else total
-                await ctx.report_progress(
-                    progress,
-                    progress_total,
-                    f"{completed[0]}/{total}{bytes_note}: {result['name']}: {result['kind']}",
-                )
-            except Exception:
-                # The download already succeeded or failed on its own terms — a
-                # broken notification channel must not overwrite that outcome.
-                # PR #351 review: this was previously unguarded and a
-                # report_progress exception here would propagate out, turning an
-                # already-successful download into a "failed" item at the
-                # gather below.
-                logger.debug("report_progress failed for %s", result["name"], exc_info=True)
-            return result
 
-        # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
-        # was a sequential `for` loop awaiting one transfer at a time (#316), which
-        # measured 1.04s/file and scaled linearly with folder size.
-        raw = await asyncio.gather(*(_download_one(c) for c in candidates), return_exceptions=True)
+            for c, o in zip(candidates, raw, strict=True):
+                if isinstance(o, BaseException):
+                    failed.append({"name": c.name, "error": str(o)})
+                    continue
+                if o["kind"] == "ok":
+                    downloaded.append(o["name"])
+                    total_bytes += o["bytes"]
+                else:
+                    failed.append({"name": o["name"], "error": o["error"]})
 
-        for c, o in zip(candidates, raw, strict=True):
-            if isinstance(o, BaseException):
-                failed.append({"name": c.name, "error": str(o)})
-                continue
-            if o["kind"] == "ok":
-                downloaded.append(o["name"])
-                total_bytes += o["bytes"]
-            else:
-                failed.append({"name": o["name"], "error": o["error"]})
-
-        return {
-            "downloaded": downloaded,
-            "skipped": skipped,
-            "failed": failed,
-            "size_bytes": total_bytes,
-        }
+            return {
+                "downloaded": downloaded,
+                "skipped": skipped,
+                "failed": failed,
+                "size_bytes": total_bytes,
+            }
+        except HttpError as e:
+            # #1275: a Drive API failure anywhere in this tool — a 404 for a
+            # missing or inaccessible folder ID is the reported case — reads
+            # like every other Drive failure, as an error result, not a protocol
+            # error. Quota errors keep their friendly text (#670).
+            return {"error": _quota_error_detail(e, drive_service)}
 
     @tool(
         annotations=ToolAnnotations(title="Sync Folder", destructiveHint=True),
@@ -4074,147 +4153,154 @@ def register(tool):
                     )
                 }
 
-        lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
-        # The root here; each entry again in _sync_level, since a symlink inside it
-        # can point anywhere (#796).
-        # The root is an entry on both sides: its check follows the direction.
-        _sync_local_check(True, True, direction)(local_path)
-        dest_dir, _ = validate_local_destination(local_path, is_dir=True)
+        try:
+            lc = ctx.request_context.lifespan_context
+            drive_service = lc.drive_service
+            # The root here; each entry again in _sync_level, since a symlink inside it
+            # can point anywhere (#796).
+            # The root is an entry on both sides: its check follows the direction.
+            _sync_local_check(True, True, direction)(local_path)
+            dest_dir, _ = validate_local_destination(local_path, is_dir=True)
 
-        if result_local_path:
-            check_write(result_local_path)
-            # Before any transfer: a bad destination would otherwise fail only at the
-            # final manifest write, after every upload/download had already run, and
-            # the caller would get no record of them (PR #1000 QA round 1). Before
-            # any local write too, so a refused call leaves nothing on disk
-            # (PR #1000 QA round 2).
-            validate_local_destination(result_local_path, local_path_param="result_local_path")
-            # local_path is also a live input directory this same call scans — unlike
-            # every other capped tool's local_path (a pure output destination), writing
-            # the result manifest inside it would make the manifest file itself show up
-            # as a new local-only entry on the very next sync, and get uploaded to Drive
-            # on a real (non-dry_run) run (QA finding, PR #518 review, live-reproduced).
-            result_path_resolved = Path(result_local_path).resolve()
-            dest_dir_resolved = dest_dir.resolve()
-            if (
-                result_path_resolved == dest_dir_resolved
-                or dest_dir_resolved in result_path_resolved.parents
-            ):
-                raise ValueError(
-                    f"result_local_path ('{result_local_path}') must not be local_path "
-                    f"('{local_path}') or a path inside it — local_path is scanned as "
-                    "sync input, so writing the result manifest there would make it show "
-                    "up as a new local-only file on the next sync. Use a separate directory."
-                )
-
-        async def _run(run_dry: bool, resolve_req: _ResolveRequest | None) -> dict[str, Any]:
-            uploaded: list[str] = []
-            downloaded: list[str] = []
-            skipped: list[str] = []
-            conflicts: list[str] = []
-            failed: list[dict[str, str]] = []
-            actions: list[dict[str, str]] = []
-            folders_skipped: list[str] = []
-            resolved: list[str] = []
-
-            # One deny-list snapshot for every entry this walk checks (#796).
-            with many_checks(), _sync_level_invalidation(lc, folder_id, run_dry):
-                total_bytes = await _sync_level(
-                    lc,
-                    drive_service,
-                    folder_id,
-                    dest_dir,
-                    "",
-                    direction,
-                    export_format,
-                    convert_markdown,
-                    use_checksum,
-                    skip_system_files,
-                    run_dry,
-                    recursive,
-                    uploaded,
-                    downloaded,
-                    skipped,
-                    conflicts,
-                    failed,
-                    actions,
-                    folders_skipped,
-                    ctx,
-                    [0],
-                    [0],
-                    resolved,
-                    resolve_req,
-                )
-
-            run_result: dict[str, Any] = {
-                "uploaded": uploaded,
-                "downloaded": downloaded,
-                "skipped": skipped,
-                "conflicts": conflicts,
-                "failed": failed,
-                "folders_skipped": folders_skipped,
-                "resolved": resolved,
-                "size_bytes": total_bytes,
-                "dry_run": run_dry,
-            }
-            if run_dry:
-                run_result["actions"] = actions
-            return run_result
-
-        if resolve:
-            # Every key is checked against a read-only plan of the whole tree
-            # before anything is written: a real run executes each level before
-            # planning the next, so checking there would let the levels above a
-            # bad subfolder key sync first. The dry_run pass records nothing
-            # (not even an import revision), so a refused call changed nothing.
-            # A dry_run call is that pass, so it costs no extra reads.
-            checked = _ResolveRequest(modes=dict(resolve))
-            preview = await _run(True, checked)
-            problems = checked.problems()
-            if problems:
-                return {
-                    "error": (
-                        "Each resolve name must be a convert_markdown .md listed under "
-                        "'conflicts' (names as the result reports them). Nothing was changed. "
-                        + "; ".join(problems)
+            if result_local_path:
+                check_write(result_local_path)
+                # Before any transfer: a bad destination would otherwise fail only at the
+                # final manifest write, after every upload/download had already run, and
+                # the caller would get no record of them (PR #1000 QA round 1). Before
+                # any local write too, so a refused call leaves nothing on disk
+                # (PR #1000 QA round 2).
+                validate_local_destination(result_local_path, local_path_param="result_local_path")
+                # local_path is also a live input directory this same call scans — unlike
+                # every other capped tool's local_path (a pure output destination), writing
+                # the result manifest inside it would make the manifest file itself show up
+                # as a new local-only entry on the very next sync, and get uploaded to Drive
+                # on a real (non-dry_run) run (QA finding, PR #518 review, live-reproduced).
+                result_path_resolved = Path(result_local_path).resolve()
+                dest_dir_resolved = dest_dir.resolve()
+                if (
+                    result_path_resolved == dest_dir_resolved
+                    or dest_dir_resolved in result_path_resolved.parents
+                ):
+                    raise ValueError(
+                        f"result_local_path ('{result_local_path}') must not be local_path "
+                        f"('{local_path}') or a path inside it — local_path is scanned as "
+                        "sync input, so writing the result manifest there would make it show "
+                        "up as a new local-only file on the next sync. Use a separate directory."
                     )
+
+            async def _run(run_dry: bool, resolve_req: _ResolveRequest | None) -> dict[str, Any]:
+                uploaded: list[str] = []
+                downloaded: list[str] = []
+                skipped: list[str] = []
+                conflicts: list[str] = []
+                failed: list[dict[str, str]] = []
+                actions: list[dict[str, str]] = []
+                folders_skipped: list[str] = []
+                resolved: list[str] = []
+
+                # One deny-list snapshot for every entry this walk checks (#796).
+                with many_checks(), _sync_level_invalidation(lc, folder_id, run_dry):
+                    total_bytes = await _sync_level(
+                        lc,
+                        drive_service,
+                        folder_id,
+                        dest_dir,
+                        "",
+                        direction,
+                        export_format,
+                        convert_markdown,
+                        use_checksum,
+                        skip_system_files,
+                        run_dry,
+                        recursive,
+                        uploaded,
+                        downloaded,
+                        skipped,
+                        conflicts,
+                        failed,
+                        actions,
+                        folders_skipped,
+                        ctx,
+                        [0],
+                        [0],
+                        resolved,
+                        resolve_req,
+                    )
+
+                run_result: dict[str, Any] = {
+                    "uploaded": uploaded,
+                    "downloaded": downloaded,
+                    "skipped": skipped,
+                    "conflicts": conflicts,
+                    "failed": failed,
+                    "folders_skipped": folders_skipped,
+                    "resolved": resolved,
+                    "size_bytes": total_bytes,
+                    "dry_run": run_dry,
                 }
-            if dry_run:
-                result = preview
-            else:
-                applied = _ResolveRequest(modes=dict(resolve))
-                result = await _run(False, applied)
-                # A name the check pass found but the real pass didn't (it was
-                # removed in between) still gets a line saying nothing happened.
-                for name in sorted(applied.modes.keys() - applied.status.keys()):
-                    result["failed"].append(
-                        {
-                            "name": name,
-                            "error": "resolve not applied, nothing changed: no longer found",
-                        }
-                    )
-        else:
-            result = await _run(dry_run, None)
+                if run_dry:
+                    run_result["actions"] = actions
+                return run_result
 
-        if result_local_path:
-            return await write_capped_result_to_disk(
+            if resolve:
+                # Every key is checked against a read-only plan of the whole tree
+                # before anything is written: a real run executes each level before
+                # planning the next, so checking there would let the levels above a
+                # bad subfolder key sync first. The dry_run pass records nothing
+                # (not even an import revision), so a refused call changed nothing.
+                # A dry_run call is that pass, so it costs no extra reads.
+                checked = _ResolveRequest(modes=dict(resolve))
+                preview = await _run(True, checked)
+                problems = checked.problems()
+                if problems:
+                    return {
+                        "error": (
+                            "Each resolve name must be a convert_markdown .md listed under "
+                            "'conflicts' (names as the result reports them). Nothing was changed. "
+                            + "; ".join(problems)
+                        )
+                    }
+                if dry_run:
+                    result = preview
+                else:
+                    applied = _ResolveRequest(modes=dict(resolve))
+                    result = await _run(False, applied)
+                    # A name the check pass found but the real pass didn't (it was
+                    # removed in between) still gets a line saying nothing happened.
+                    for name in sorted(applied.modes.keys() - applied.status.keys()):
+                        result["failed"].append(
+                            {
+                                "name": name,
+                                "error": "resolve not applied, nothing changed: no longer found",
+                            }
+                        )
+            else:
+                result = await _run(dry_run, None)
+
+            if result_local_path:
+                return await write_capped_result_to_disk(
+                    result,
+                    result_local_path,
+                    default_filename=f"{folder_id}_sync_result.json",
+                    manifest_extra={"folder_id": folder_id, "dry_run": dry_run},
+                    local_path_param="result_local_path",
+                )
+
+            # recursive=True removes the previous implicit bound (one folder's direct
+            # children) on every list here, especially 'actions' during a dry run — the
+            # decision doc's own reproduction case (22 subfolders / ~225 files) is a
+            # realistic scale to hit the cap.
+            enforce_response_size_cap(
                 result,
-                result_local_path,
-                default_filename=f"{folder_id}_sync_result.json",
-                manifest_extra={"folder_id": folder_id, "dry_run": dry_run},
+                tool_name="sync_folder",
+                hint="Recursive syncs can produce very large result lists. Narrow "
+                "folder_id, direction, or recursive scope, or ",
                 local_path_param="result_local_path",
             )
-
-        # recursive=True removes the previous implicit bound (one folder's direct
-        # children) on every list here, especially 'actions' during a dry run — the
-        # decision doc's own reproduction case (22 subfolders / ~225 files) is a
-        # realistic scale to hit the cap.
-        enforce_response_size_cap(
-            result,
-            tool_name="sync_folder",
-            hint="Recursive syncs can produce very large result lists. Narrow "
-            "folder_id, direction, or recursive scope, or ",
-            local_path_param="result_local_path",
-        )
-        return result
+            return result
+        except HttpError as e:
+            # #1275: a Drive API failure anywhere in this tool — a 404 for a
+            # missing or inaccessible folder ID is the reported case — reads
+            # like every other Drive failure, as an error result, not a protocol
+            # error. Quota errors keep their friendly text (#670).
+            return {"error": _quota_error_detail(e, drive_service)}

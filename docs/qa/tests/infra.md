@@ -148,7 +148,7 @@ Needs a CACHE_TTL/CACHE_DB_PATH change or a restart.
 Ran all 5 steps live against `TEST_SPREADSHEET_ID`. Step 0: `get_cache_ttl` → `{"ttl_seconds": 1800}`. Step 1: `list_sheets` cache miss, warmed. Step 2: `set_cache_ttl(3)` → `{"ttl_seconds": 3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3: `get_cache_ttl` → `{"ttl_seconds": 3}`, immediate readback confirmed. Step 4: after a 5s wait, `list_sheets` again — log showed `Cache TTL expired for <id>, marking dirty` followed by a fresh `Cached 4 sheets`, confirming the lowered TTL applied retroactively to the already-cached entry. Restored TTL to 1800 (`get_cache_ttl` confirmed).
 
 **Result (2026-09-04) ✅ PASS**
-Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` → `{"ttl_seconds":3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3 `get_cache_ttl` → `{"ttl_seconds":3}` (immediate readback). Step 4 (after ~5s wait): log showed `DEBUG mcp_gee_sweet.cache Cache TTL expired for 1dBzY4Wuufx8OtHbQsYO8PQNGV-z5g0Vr_TnKzNCXZYs, marking dirty` then a fresh `list_sheets` 200 — lowered TTL applied retroactively to the already-cached entry, no restart. Restored: `set_cache_ttl(1800)` → `WARNING ... 3s -> 1800s`; `get_cache_ttl` → `{"ttl_seconds":1800}`. (Step-1 cold-miss check not isolatable — entry was already warm from TC-I21 on the shared process; step-4 retroactive-expiry is the load-bearing #99 behavior and is confirmed.)
+Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` → `{"ttl_seconds":3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3 `get_cache_ttl` → `{"ttl_seconds":3}` (immediate readback). Step 4 (after ~5s wait): log showed `DEBUG mcp_gee_sweet.cache Cache TTL expired for {SPREADSHEET_ID}, marking dirty` then a fresh `list_sheets` 200 — lowered TTL applied retroactively to the already-cached entry, no restart. Restored: `set_cache_ttl(1800)` → `WARNING ... 3s -> 1800s`; `get_cache_ttl` → `{"ttl_seconds":1800}`. (Step-1 cold-miss check not isolatable — entry was already warm from TC-I21 on the shared process; step-4 retroactive-expiry is the load-bearing #99 behavior and is confirmed.)
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
@@ -221,7 +221,7 @@ Two-subagent barrier, 20/20 iterations on kai-sa: no cross-contamination, no SSL
 Server running with any auth method.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this server.
+Read the resource `server://auth-status` from this server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
@@ -251,7 +251,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+Read the resource `server://auth-status` from that server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `limited_tools` includes `"transfer_ownership"` alongside the existing quota-limited tools
@@ -279,7 +279,7 @@ SA checks pass; the OAuth sub-check needs a different auth method.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+Read the resource `server://auth-status` from that server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `"sync_folder" in limited_tools` is `True` (exact string match — not a substring like `"sync_folder (upload and bidirectional directions)"`)
@@ -304,7 +304,7 @@ Run 2 (sa); resource reads via an mcp SDK stdio client with the slot's config.
 Server running with any auth method.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` against this server.
+Read the resource `spreadsheet://{SPREADSHEET_ID}/info` from this server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
@@ -314,7 +314,7 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 
 **Note (#175):** the mcp v1→v2 SDK migration changed how this resource reaches the lifespan context. `spreadsheet://{id}/info` is a template resource, and mcp v2 *does* support Context injection there (unlike the static `server://auth-status` resource in TC-I25) — `get_spreadsheet_info` now takes `ctx: Context` as an ordinary injected parameter instead of calling the now-removed `mcp.get_context()`. The 2026-07-19 Result above proved the old path worked; it does not prove this new injected-parameter path works against the real SDK.
 
-**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration, against `mcp-gee-sweet-qa-fixtures` (`15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA`). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError/ValueError. Confirms v2's native `ctx: Context` injection resolves the real lifespan context through the actual resource-read protocol against the real SDK.
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration, against `mcp-gee-sweet-qa-fixtures` (`{SPREADSHEET_ID}`). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError/ValueError. Confirms v2's native `ctx: Context` injection resolves the real lifespan context through the actual resource-read protocol against the real SDK.
 
 **Result (2026-09-04) ⏭️ SKIP**
 `spreadsheet://{id}/info` is a template resource; in-process `MCPServer.read_resource(...)` raises `ValueError: Context is not available outside of a request` by design (needs a live MCP request context), and this session has no `ReadMcpResourceTool` to do a real protocol read. Underlying path IS live-healthy: `mcp-gee-sweet-sa`'s `context.sheets_service` + `execute_in_thread` served every Sheets call this shard made. Unit test `tests/test_server.py::TestResourcesReadLifespanContext::test_get_spreadsheet_info_reads_sheets_service_via_injected_context` PASSES on release commit 756eb89; live-passed 2026-08-21 post-#175. Needs a resource-capable conductor session to close live.
@@ -362,7 +362,7 @@ Needs the mcp-publisher CLI and a registry publish.
 - **Service-account-backed ADC:** `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), `AUTH_METHOD=adc`.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against each server.
+Read the resource `server://auth-status` from each server with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - User-backed ADC: `auth_method: "adc"`, `is_service_account_identity: false`, `can_create_in_personal_drive: true`, `limited_tools: []`, `limitations: []`.
@@ -758,7 +758,7 @@ Needs an SSE/streamable-http server or SIGTERM.
 Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`), plus any OAuth server for the last check.
 
 **Action**
-Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against the service-account server, then against the OAuth server.
+Read the resource `server://auth-status` from the service-account server, then from the OAuth server, with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - `limitations` contains an entry with `category: "no_user_mailbox"`
@@ -793,7 +793,7 @@ Then call, in order:
 1. `list_spreadsheets` with `max_results: 1`
 2. `list_labels` (no arguments)
 3. `send_message` with `to: "nobody@example.com"`, `subject: "TC-I32"`, `body: "should not send"`
-4. `ReadMcpResourceTool` with `uri: "server://auth-status"`
+4. Read the resource `server://auth-status` with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config)
 
 **Checks**
 - The server connects (no `Connection closed`), with no browser window and no `Please visit this URL to authorize` prompt
@@ -830,7 +830,7 @@ AUTH_METHOD=oauth
 ENABLED_TOOLS=list_spreadsheets,get_cache_ttl
 ```
 
-Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with `uri: "server://auth-status"`.
+Call `list_spreadsheets` with `max_results: 1`, then read the resource `server://auth-status` with any MCP client that can read resources (e.g. Claude Code's `ReadMcpResourceTool`, or an `mcp` SDK stdio client that spawns the server with the slot's config).
 
 **Checks**
 - The server starts with no browser consent and no `MissingOAuthScopesError`

@@ -4,7 +4,7 @@ The incidents behind the rules in the `.claude/team-roles/` files `dev.md`, `qa.
 
 Each entry below is the full original text of one paragraph or bullet the move rewrote or removed, in the file's original order, under a heading taken from its opening words. Where an entry was dropped from the role file instead of compressed, the note under its heading says where its rule lives now. Read the entry for a rule before loosening or reversing it.
 
-Issue and PR numbers, step numbers, and cross-references inside the quoted text are as they were at the move (2026-10-08), so a "step 2" or "above" refers to the old file. Later history belongs in a decision doc of its own, not appended here.
+Issue and PR numbers, step numbers, and cross-references inside the quoted text are as they were at the move (2026-10-08), so a "step 2" or "above" refers to the old file. Entries after the move record later incidents behind a role-file rule. A decision whose reasoning outgrows a few paragraphs gets its own doc in `docs/decisions/`, with a pointer here.
 
 ## `dev.md`
 
@@ -297,6 +297,16 @@ Round 1 of PR #1079 (`ac33f711`) was sent back with ten findings, while all four
 ### Re-read this file when a `develop` merge changes it mid-pass
 
 PR #1006 (#989, lane B) took seven rounds, and `qa.md` changed under it twice. Kit read `qa.md` once, at session start, from a checkout whose step 8 had no CI wait. In round 3, Jay merged `develop` into the branch, bringing in #1008's new bar-2 boundary. Kit noticed the bar change in that merge's diff and re-triaged round 2's ticket lines: #1009 turned into a send-back. The CI wait already on `develop` went unnoticed, so rounds 5 and 7 applied `qa-approved` without waiting for CI. After round 5's label, Kai found the PR `CONFLICTING` with `develop` (PR #1011 had merged, touching the same quota sites), with only CodeQL run on the head and no `Lint and test`. Step 1 now diffs the process files after a `develop` merge and re-reads what changed, and step 6 does the same when its mid-pass rebase brings in a `develop` merge (Bob's prompt-QA round 1: step 1 alone didn't cover a merge pushed during a pass). Step 8 checks `mergeable` (re-reading once on `UNKNOWN`) before retriggering an absent `Lint and test`, since a conflicting PR never runs it.
+
+### One PR per session: QA-docs PRs exception
+
+On 2026-10-28, four docs-only QA PRs (#1270, #1271, #1274, #1276, none of them a lane Dev's) were waiting at once. Kit reviewed #1270 and sent it back. That bound the session to #1270, so #1274, a results-only PR in the same `docs/qa/` tree, needed a fresh Kit session, and Kit would have to `/clear` again for Jay's next PR. The rule's reason (#843) is the cost of carrying a finished review's context into every later turn. A `docs/qa/` PR changes no code the slot's server runs, so a reset to its branch can't leave the server running stale code. The maintainer asked for the exception. It's scoped by path, never by diff size (#1271 is `docs/qa/`-only at an 87 KB patch): every changed path under `docs/qa/`, never the partner Dev's PR, judged on each head before resetting to it, so a QA-docs PR that later adds code is re-classified. A session that has reset to any PR's branch still needs `/clear` before a partner or code PR (Bob's prompt-QA round 1).
+
+## `rio.md`
+
+### Why a non-lane QA role exists
+
+Until 2026-10-28, `kai.md` sent each non-lane PR (Aziz's, Amy's, Joy's, Kai's) to whichever of Sky or Kit had no partner PR in review. That day four non-lane `docs/qa/` PRs (#1270, #1271, #1274, #1276) queued behind Sky's lane-A PR (#1272) and Kit's lane-B PR (#1283). Kit reviewed #1270 and sent it back, which bound its session to #1270 under the one-PR rule. When Jay opened #1283, Kit had to `/clear`, so #1270's re-verification had to move to another session. Every hand-off also needed the user to type a go-ahead in a QA window, since `qa.md` accepts no peer's go-ahead for a non-partner PR. The team opened PRs faster than it merged them. The maintainer asked for a QA persona that owns every non-lane PR, so Sky and Kit stay on their partners. Rio takes Kai's hand-off as the go-ahead when it names the PR and says the user directed it, the same rule as `amy.md`'s.
 
 ## `aziz.md`
 

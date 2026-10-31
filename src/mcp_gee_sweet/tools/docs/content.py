@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,14 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Image, Table
 from .batch_retry import send_dropping_failed_images
-from .emitter import CellImages, ast_to_requests, extract_images, fill_tables, iter_cell_leaves
+from .emitter import (
+    CellImages,
+    ast_to_requests,
+    extract_images,
+    fill_tables,
+    iter_cell_leaves,
+    unstorable_link_urls,
+)
 from .html_parser import html_to_ast
 from .images import (
     ImageShareLifecycle,
@@ -61,6 +69,77 @@ def _html_to_doc_requests(
     html_content: str, start_index: int = 1
 ) -> tuple[list[dict], list[Table]]:
     return _to_doc_requests(html_content, "html", start_index)
+
+
+@dataclass
+class ConvertedContent:
+    """The content of a doc edit, converted to phase-1 requests before anything
+    touches the Doc (#1240): _convert_doc_content's result, which _apply_doc_content
+    consumes.
+
+    Every image gets a placeholder URI in `requests`, keyed by id(image), since
+    which ones resolve isn't known until _apply_doc_content's upload and share step.
+    That step swaps a resolved image's placeholder for its real URI and drops an
+    unresolved one's request, plus its link request (`image_links`). Dropping it
+    matches ast_to_requests omitting it: an image takes no room in the text, and its
+    request sits in the descending-position tail, where removing one shifts none of
+    the others. `images` keeps every Image alive, so each id(image) stays valid."""
+
+    images: list[Image]
+    requests: list[dict]
+    tables: list[Table]
+    image_links: dict[int, dict]
+    placeholder_uris: dict[int, str]
+    unstorable_urls: list[str]
+
+
+def _convert_doc_content(
+    content: str, content_format: str, autolink_urls: bool
+) -> ConvertedContent:
+    """Markdown → HTML → AST → phase-1 requests, as one pure step. Pure CPU that
+    grows with the content (about 0.2s for a 50 KB document just for the Markdown
+    parse), so callers run it through asyncio.to_thread, and before they create,
+    copy, or clear a Doc, so a conversion that raises or is cancelled leaves the
+    Doc as it was (#1240)."""
+    html_content = (
+        _md_to_html(content, autolink_urls=autolink_urls)
+        if content_format == "markdown"
+        else content
+    )
+    nodes = html_to_ast(html_content)
+    images = extract_images(nodes)
+    placeholder_uris = {id(img): f"urn:mcp-gee-sweet:pending-image:{id(img)}" for img in images}
+    image_links: dict[int, dict] = {}
+    requests, tables = ast_to_requests(
+        nodes, start_index=1, image_uris=placeholder_uris, image_links=image_links
+    )
+    return ConvertedContent(
+        images=images,
+        requests=requests,
+        tables=tables,
+        image_links=image_links,
+        placeholder_uris=placeholder_uris,
+        unstorable_urls=unstorable_link_urls(nodes),
+    )
+
+
+async def _convert_in_thread(
+    content: str, content_format: str, autolink_urls: bool
+) -> ConvertedContent:
+    """_convert_doc_content off the event loop, so a large document doesn't stall
+    every other connection's tool calls while it converts."""
+    return await asyncio.to_thread(_convert_doc_content, content, content_format, autolink_urls)
+
+
+def _conversion_error_text(e: Exception, outcome: str) -> str:
+    """The error for a content conversion that raised; `outcome` says what that
+    left the Doc as ("no document was created", ...). Conversion has no expected
+    failures, so any hit is a bug: the traceback is logged here, since the caller
+    returns the error instead of raising it, and the type is always named ("list
+    index out of range" alone says little)."""
+    logger.error("Converting doc content failed (%s)", outcome, exc_info=e)
+    detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+    return f"Couldn't convert the content, so {outcome}: {detail}"
 
 
 _FAILED_INSERT_IMAGE_INDEX_RE = re.compile(r"requests\[(\d+)\]\.insertInlineImage")
@@ -385,6 +464,80 @@ async def _create_doc_file(
     return doc
 
 
+async def _create_doc_with_content(
+    lc: SpreadsheetContext,
+    title: str,
+    content: str | None,
+    content_format: str,
+    target_folder_id: str | None,
+    *,
+    autolink_urls: bool,
+    revoke_sharing: bool,
+    auto_downscale: bool,
+) -> dict[str, Any]:
+    """create_doc's body: creates the Doc, then writes `content` through
+    _apply_doc_content. Shared with upload_file's Markdown-to-Doc path (#1102), so
+    that tool renders Markdown with our converter rather than Drive's HTML import.
+
+    Returns create_doc's response: docId, title, folder, web_link, and
+    AppliedContent's response_fields (images, dropped_links); {"error"} when the
+    create hits the storage quota or the content can't be converted (nothing is
+    created then); and {"error", "docId"} plus those fields when the content step
+    fails after the create."""
+    converted = None
+    if content:
+        try:
+            converted = await _convert_in_thread(content, content_format, autolink_urls)
+        except Exception as e:
+            return {"error": _conversion_error_text(e, "no document was created")}
+
+    drive_service = lc.drive_service
+    file_body: dict[str, Any] = {
+        "name": title,
+        "mimeType": _GOOGLE_DOC_MIME,
+    }
+    if target_folder_id:
+        file_body["parents"] = [target_folder_id]
+
+    try:
+        doc = await _create_doc_file(lc, file_body, target_folder_id)
+    except HttpError as e:
+        if is_storage_quota_error(e):
+            return {"error": _quota_error_text(drive_service)}
+        raise
+
+    doc_id = doc.get("id")
+    parents = doc.get("parents")
+    logger.debug(
+        "Doc created with ID: %s%s",
+        doc_id,
+        f" in folder {target_folder_id}" if target_folder_id else " in root",
+    )
+
+    applied = AppliedContent()
+    if converted is not None:
+        try:
+            applied = await _apply_doc_content(
+                lc,
+                doc_id,
+                converted,
+                target_folder_id=target_folder_id,
+                revoke_sharing=revoke_sharing,
+                auto_downscale=auto_downscale,
+            )
+        except DocEditError as e:
+            return _doc_edit_failure_result(e, doc_id)
+
+    result: dict[str, Any] = {
+        "docId": doc_id,
+        "title": doc.get("name", title),
+        "folder": parents[0] if parents else "root",
+        "web_link": doc.get("webViewLink"),
+    }
+    result.update(applied.response_fields())
+    return result
+
+
 async def _doc_end_index(docs_service, doc_id: str) -> tuple[dict[str, Any], int]:
     """The doc and its body's endIndex (2 for an empty doc)."""
     doc = await execute_in_thread(
@@ -435,7 +588,18 @@ async def _replace_doc_content(
     fails or the clear gets a 4xx. A clear that fails any other way (a 5xx, a
     timeout, a transport error) may have landed, so the copy is kept and the error
     says the content may have been cleared (PR #1017 QA round 1).
+
+    The content is converted first, before the doc is read, copied, or cleared, so
+    a conversion that raises or is cancelled leaves the doc as it was (#1240).
     """
+    try:
+        converted = await _convert_in_thread(content, content_format, autolink_urls)
+    except Exception as e:
+        return {
+            "error": _conversion_error_text(e, "the document was left unchanged"),
+            "docId": doc_id,
+        }
+
     docs_service = lc.docs_service
     drive_service = lc.drive_service
     doc_cache = lc.doc_cache
@@ -596,12 +760,10 @@ async def _replace_doc_content(
 
     lifecycle = ImageShareLifecycle(lc, doc_id, revoke_sharing=revoke_sharing)
     try:
-        image_outcomes = await _apply_doc_content(
+        applied = await _apply_doc_content(
             lc,
             doc_id,
-            content,
-            content_format,
-            autolink_urls=autolink_urls,
+            converted,
             target_folder_id=lc.folder_id,
             revoke_sharing=revoke_sharing,
             auto_downscale=auto_downscale,
@@ -663,8 +825,7 @@ async def _replace_doc_content(
 
     logger.debug("Replaced content in doc %s", doc_id)
     result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
-    if image_outcomes is not None:
-        result["images"] = image_outcomes
+    result.update(applied.response_fields())
     if warning:
         result["warning"] = warning
     elif no_backup_warning:
@@ -712,41 +873,71 @@ async def _discard_backup(lc: SpreadsheetContext, backup: dict[str, Any]) -> str
     )
 
 
+# dropped_links "reason" values (#1180).
+_DROPPED_NO_SCHEME = "no_scheme"
+_DROPPED_NO_MATCHING_HEADING = "no_matching_heading"
+
+
+@dataclass
+class AppliedContent:
+    """What _apply_doc_content reports back for the calling tool's response.
+
+    images is the per-image outcome list (None if the content had no images).
+    dropped_links lists each link written as plain text instead (#1180), as
+    {"url", "reason"}: "no_scheme" for a target the Docs API can't store
+    (emitter._storable_link_url), "no_matching_heading" for a "#slug" anchor
+    _resolve_heading_anchors found no heading for."""
+
+    images: list[dict[str, Any]] | None = None
+    dropped_links: list[dict[str, str]] = field(default_factory=list)
+
+    def response_fields(self) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+        if self.images is not None:
+            fields["images"] = self.images
+        if self.dropped_links:
+            fields["dropped_links"] = self.dropped_links
+        return fields
+
+
 class DocEditError(Exception):
     """_apply_doc_content's doc edit raised after its images were resolved (#789).
-    Carries the per-image outcome list, which would otherwise be lost with the
-    exception, so the calling tool can return it alongside the error the way
-    insert_local_images does. The original exception is chained as __cause__."""
+    Carries what the edit had to report so far as an AppliedContent: the per-image
+    outcome list, which would otherwise be lost with the exception, so the calling
+    tool can return it alongside the error the way insert_local_images does, and
+    the dropped links (#1180), since text can land before the failure (a split
+    image retry commits its prefix, and the anchor pass runs after the body and
+    tables are written). The original exception is chained as __cause__."""
 
-    def __init__(self, cause: Exception, image_outcomes: list[dict[str, Any]]):
+    def __init__(self, cause: Exception, applied: AppliedContent):
         super().__init__(f"doc edit failed: {cause}")
-        self.image_outcomes = image_outcomes
+        self.applied = applied
 
 
 def _doc_edit_failure_result(e: DocEditError, doc_id: str) -> dict[str, Any]:
     """The tool response for a DocEditError: the error, the doc's ID (the doc
-    exists, possibly partly written), and the per-image outcomes when there are
-    any, so every file ID an image step created or shared reaches the caller."""
+    exists, possibly partly written), and the same fields a success reports
+    (AppliedContent.response_fields), so every file ID an image step created or
+    shared, and every dropped link, reaches the caller."""
     result: dict[str, Any] = {"error": str(e), "docId": doc_id}
-    if e.image_outcomes:
-        result["images"] = e.image_outcomes
+    result.update(e.applied.response_fields())
     return result
 
 
 async def _apply_doc_content(
     lc: SpreadsheetContext,
     doc_id: str,
-    content: str,
-    content_format: str,
+    converted: ConvertedContent,
     *,
-    autolink_urls: bool,
     target_folder_id: str | None,
     revoke_sharing: bool,
     auto_downscale: bool = False,
     lifecycle: ImageShareLifecycle | None = None,
-) -> list[dict[str, Any]] | None:
+) -> AppliedContent:
     """Shared content-insertion body for create_doc / create_doc_from_file /
-    write_doc_content (#333): converts content to AST, resolves any markdown/HTML
+    write_doc_content (#333): takes the content already converted by
+    _convert_doc_content (the caller converts before it creates or clears the doc,
+    #1240), resolves any markdown/HTML
     images to fetchable URIs (uploading + temporarily sharing local paths and
     drive: references, matching insert_local_images's own lifecycle), runs the
     phase-1 batchUpdate, fills tables, resolves heading anchors, and finally
@@ -768,8 +959,9 @@ async def _apply_doc_content(
     each image — see that function's own docstring for the per-source-kind behavior
     and the http(s) scope boundary.
 
-    Returns the per-image outcome list (None if the content had no images at all)
-    for the caller to fold into its own response — each entry has src, plus either
+    Returns an AppliedContent for the caller to fold into its own response
+    (response_fields()): the links written as plain text (#1180), and the per-image
+    outcome list (None if the content had no images at all) — each entry has src, plus either
     fileId + shared (+ revoke_error if a revoke attempt failed, + downscaled if
     auto_downscale resized it, + already_shared if the file was link-shared before
     this call, so its link was left in place) on success, or error
@@ -777,17 +969,14 @@ async def _apply_doc_content(
     created/found before a subsequent sharing failure — #649). Mirrors
     insert_local_images's own outcome shape for consistency.
     """
-    # The Markdown parse is pure CPU and grows with the content (about 0.2s for a
-    # 50 KB document), so it runs off the event loop rather than stalling every other
-    # connection's tool calls while it does.
-    html_content = (
-        await asyncio.to_thread(_md_to_html, content, autolink_urls)
-        if content_format == "markdown"
-        else content
-    )
-    nodes = html_to_ast(html_content)
+    dropped_links = [
+        {"url": url, "reason": _DROPPED_NO_SCHEME} for url in converted.unstorable_urls
+    ]
+    # Filled by the anchor pass before it sends its write, so a write that raises
+    # after it may have landed still reports the anchors it strips.
+    stripped_anchors: list[str] = []
 
-    images = extract_images(nodes)
+    images = converted.images
     docs_service = lc.docs_service
     drive_service = lc.drive_service
     # The lifecycle records, for the shielded revoke and the warning log: in
@@ -809,11 +998,6 @@ async def _apply_doc_content(
     # same-key lookup below silently pick the wrong image's outcome entry.
     entry_by_id: dict[int, dict[str, Any]] = {}
     real_uri_by_id: dict[int, str] = {}
-    # ast_to_requests needs *some* URI per resolved image up front to build its
-    # insertInlineImage requests — placeholders here (guaranteed unique, unlike
-    # the real URIs) are swapped for the real ones below, in the same pass that
-    # records which request dict came from which image.
-    placeholder_uris: dict[int, str] = {}
 
     if images:
         results = await lifecycle.resolve(
@@ -830,7 +1014,6 @@ async def _apply_doc_content(
                 img_id = id(img)
                 entry_by_id[img_id] = entry
                 real_uri_by_id[img_id] = result["uri"]
-                placeholder_uris[img_id] = f"urn:mcp-gee-sweet:pending-image:{img_id}"
                 file_id = result.get("file_id")
                 permission_id = result.get("permission_id")
                 if file_id and permission_id:
@@ -847,9 +1030,9 @@ async def _apply_doc_content(
                 lifecycle.created_file_ids.add(file_id)
             image_outcomes.append(entry)
 
-    # Everything from here to the revoke can raise (ast_to_requests, the content
-    # batchUpdate, a non-image retry failure, fill_tables, anchor resolution) or be
-    # cancelled, and by now every local-path/drive: image above is already shared
+    # Everything from here to the revoke can raise (the content batchUpdate, a
+    # non-image retry failure, fill_tables, anchor resolution) or be cancelled, and
+    # by now every local-path/drive: image above is already shared
     # anyone:reader. So the lifecycle revokes on every exit, not only after success
     # (#789): revoking after a failed edit is harmless, since a doc that did embed
     # an image holds its own copy and one that didn't never needed the share.
@@ -864,31 +1047,51 @@ async def _apply_doc_content(
         for img_id in cell_uris.keys() - embedded:
             entry_by_id[img_id].setdefault("error", f"not embedded: {reason}")
 
+    def _applied() -> AppliedContent:
+        anchor_drops = [
+            {"url": anchor, "reason": _DROPPED_NO_MATCHING_HEADING}
+            for anchor in dict.fromkeys(stripped_anchors)
+        ]
+        return AppliedContent(
+            images=image_outcomes or None, dropped_links=dropped_links + anchor_drops
+        )
+
     try:
         async with lifecycle.edit():
-            image_links: dict[int, dict] = {}
-            content_requests, tables = ast_to_requests(
-                nodes, start_index=1, image_uris=placeholder_uris, image_links=image_links
-            )
+            image_links = converted.image_links
+            tables = converted.tables
 
-            # Swap each request's placeholder URI for the real one, recording which
-            # image produced that exact request *object* (by its own id()) so the retry
-            # below can trace a failure back to the right image without relying on URI
-            # or position, both of which two images can share (see the comment above).
-            # The retry's list copies and slices copy references, not the dicts, so id()
-            # still matches — deep-copying any of them would silently break this lookup.
+            # Swap each resolved image's placeholder URI for the real one, recording
+            # which image produced that exact request *object* (by its own id()) so the
+            # retry below can trace a failure back to the right image without relying
+            # on URI or position, both of which two images can share (see the comment
+            # above). An unresolved image's request goes, with its link request: see
+            # ConvertedContent. The retry's list copies and slices copy references, not
+            # the dicts, so id() still matches — deep-copying any of them would
+            # silently break this lookup.
             placeholder_to_img_id = {
-                placeholder: img_id for img_id, placeholder in placeholder_uris.items()
+                placeholder: img_id for img_id, placeholder in converted.placeholder_uris.items()
             }
             request_id_to_img_id: dict[int, int] = {}
-            for req in content_requests:
+            unresolved_request_ids: set[int] = set()
+            for req in converted.requests:
                 inline = req.get("insertInlineImage")
                 if inline is None:
                     continue
                 img_id = placeholder_to_img_id.get(inline["uri"])
-                if img_id is not None:
+                if img_id is None:
+                    continue
+                if img_id in real_uri_by_id:
                     request_id_to_img_id[id(req)] = img_id
                     inline["uri"] = real_uri_by_id[img_id]
+                else:
+                    unresolved_request_ids.add(id(req))
+                    link = image_links.get(id(req))
+                    if link is not None:
+                        unresolved_request_ids.add(id(link))
+            content_requests = [
+                req for req in converted.requests if id(req) not in unresolved_request_ids
+            ]
 
             async def _batch_update(requests: list[dict]) -> None:
                 await execute_in_thread(
@@ -1007,7 +1210,7 @@ async def _apply_doc_content(
             await fill_tables(docs_service, doc_id, tables, cell_images)
             _mark_unplaced_cell_images("its table cell wasn't found in the document")
             if _has_pending_anchor_links(content_requests, tables):
-                await _resolve_heading_anchors(docs_service, doc_id)
+                await _resolve_heading_anchors(docs_service, doc_id, stripped_out=stripped_anchors)
     except Exception as e:
         # The body batch or the fill can fail with some cell images placed (a split
         # batch lands its head first) or none. A cancellation isn't caught: its last
@@ -1016,15 +1219,16 @@ async def _apply_doc_content(
         # The outcome list rides on the error so the calling tool can return it; a
         # raise alone would lose every file ID (#789). The lifecycle has already
         # revoked the shares and logged the touched files.
-        raise DocEditError(e, image_outcomes) from e
-    return image_outcomes or None
+        raise DocEditError(e, _applied()) from e
+    return _applied()
 
 
 def _table_has_pending_anchor_link(table: Table) -> bool:
     """True if any cell in `table` (recursing into nested tables) carries a
-    Run or Image with a same-document '#slug' link_url."""
+    Run or Image with a same-document '#slug' link_url. Tested on the stripped
+    target, which is what the emitter stores, so " #slug" counts (PR #1272)."""
     return any(
-        leaf.link_url is not None and leaf.link_url.startswith("#")
+        leaf.link_url is not None and leaf.link_url.strip().startswith("#")
         for leaf in iter_cell_leaves(table)
     )
 
@@ -1120,7 +1324,9 @@ def _walk_headings_and_anchor_runs(
     return headings, anchor_runs
 
 
-async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
+async def _resolve_heading_anchors(
+    docs_service, doc_id: str, *, stripped_out: list[str] | None = None
+) -> dict[str, Any]:
     """Rewrite same-document '#slug' hyperlinks left over from markdown/HTML
     conversion (GitHub/GitLab-style heading anchors, issue #409) into working
     Docs heading-jump links, or strip them to plain text when no heading
@@ -1129,9 +1335,11 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
 
     Runs as a second pass after the doc's content already exists: the target
     heading's headingId is generated server-side and isn't knowable until
-    the heading paragraph has actually been created. Returns a summary dict;
-    callers only need this for QA/debugging, not error handling — matched
-    and unmatched links are both handled here, nothing propagates as an error.
+    the heading paragraph has actually been created. Returns a summary dict,
+    whose "stripped" anchors _apply_doc_content reports as dropped links (#1180);
+    matched and unmatched links are both handled here, nothing propagates as an error.
+    The stripped anchors also go into `stripped_out` before the write is sent, so a
+    caller still has them if that write raises after it landed (a timeout).
     """
     doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
@@ -1182,6 +1390,8 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
             }
         )
 
+    if stripped_out is not None:
+        stripped_out.extend(stripped)
     await execute_in_thread(
         docs_service.documents()
         .batchUpdate(documentId=doc_id, body={"requests": requests})
@@ -1256,8 +1466,16 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when content contained any images.
+            Includes "dropped_links" when a link was written as plain text instead:
+            a list of {"url", "reason"}, where reason is "no_scheme" for a target
+            Docs can't store as a link (a relative path such as ./guide.md or
+            /guide.md), or "no_matching_heading" for a "#slug" anchor that no
+            heading matches. A scheme-less target that names a host is linked
+            over https instead: //host/x as https://host/x, www.host as
+            https://www.host.
+            If the content can't be converted, returns {"error"} and creates no doc.
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1268,56 +1486,16 @@ def register(tool):
             auth method.
         """
         lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
-        target_folder_id = folder_id or lc.folder_id
-
-        file_body: dict[str, Any] = {
-            "name": title,
-            "mimeType": _GOOGLE_DOC_MIME,
-        }
-        if target_folder_id:
-            file_body["parents"] = [target_folder_id]
-
-        try:
-            doc = await _create_doc_file(lc, file_body, target_folder_id)
-        except HttpError as e:
-            if is_storage_quota_error(e):
-                return {"error": _quota_error_text(drive_service)}
-            raise
-
-        doc_id = doc.get("id")
-        parents = doc.get("parents")
-        logger.debug(
-            "Doc created with ID: %s%s",
-            doc_id,
-            f" in folder {target_folder_id}" if target_folder_id else " in root",
+        return await _create_doc_with_content(
+            lc,
+            title,
+            content,
+            content_format,
+            folder_id or lc.folder_id,
+            autolink_urls=autolink_urls,
+            revoke_sharing=revoke_sharing,
+            auto_downscale=auto_downscale,
         )
-
-        image_outcomes = None
-        if content:
-            try:
-                image_outcomes = await _apply_doc_content(
-                    lc,
-                    doc_id,
-                    content,
-                    content_format,
-                    autolink_urls=autolink_urls,
-                    target_folder_id=target_folder_id,
-                    revoke_sharing=revoke_sharing,
-                    auto_downscale=auto_downscale,
-                )
-            except DocEditError as e:
-                return _doc_edit_failure_result(e, doc_id)
-
-        result: dict[str, Any] = {
-            "docId": doc_id,
-            "title": doc.get("name", title),
-            "folder": parents[0] if parents else "root",
-            "web_link": doc.get("webViewLink"),
-        }
-        if image_outcomes is not None:
-            result["images"] = image_outcomes
-        return result
 
     @tool(
         annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True),
@@ -1370,8 +1548,11 @@ def register(tool):
         Returns:
             Information about the newly created document including its ID and web link.
             Includes "images" (per-image outcomes) when the file contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
+            If the content can't be converted, returns {"error"} and creates no doc.
             If writing the content fails after the doc was created, returns
-            {"error", "docId", "images"} instead, with any temporary image share
+            {"error", "docId", "images", "dropped_links"} instead, with any temporary image share
             already revoked.
 
         Note:
@@ -1385,6 +1566,15 @@ def register(tool):
             return source
         content, content_format = source
         doc_title = title or Path(local_path).stem
+
+        # Converted before the create, so a conversion that raises leaves no empty
+        # doc behind (#1240).
+        converted = None
+        if content:
+            try:
+                converted = await _convert_in_thread(content, content_format, autolink_urls)
+            except Exception as e:
+                return {"error": _conversion_error_text(e, "no document was created")}
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -1408,15 +1598,13 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
-        image_outcomes = None
-        if content:
+        applied = AppliedContent()
+        if converted is not None:
             try:
-                image_outcomes = await _apply_doc_content(
+                applied = await _apply_doc_content(
                     lc,
                     doc_id,
-                    content,
-                    content_format,
-                    autolink_urls=autolink_urls,
+                    converted,
                     target_folder_id=target_folder_id,
                     revoke_sharing=revoke_sharing,
                     auto_downscale=auto_downscale,
@@ -1430,8 +1618,7 @@ def register(tool):
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
-        if image_outcomes is not None:
-            result["images"] = image_outcomes
+        result.update(applied.response_fields())
         return result
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
@@ -1579,6 +1766,8 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when content contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
             Includes "warning" if the backup copy (below) couldn't be removed, or
             if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
@@ -1589,12 +1778,14 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no
             backupId, and the error says the previous content couldn't be backed
-            up: it can't be recovered.
+            up: it can't be recovered. The content is converted before any of
+            this, so if it can't be converted, the doc is left unchanged and
+            {"error", "docId"} is returned.
         """
         lc = ctx.request_context.lifespan_context
         return await _replace_doc_content(
@@ -1664,6 +1855,8 @@ def register(tool):
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
             outcomes) when the file contained any images.
+            Includes "dropped_links" when a link was written as plain text instead
+            (see create_doc).
             Includes "warning" if the backup copy (below) couldn't be removed, or
             if the content was replaced without one.
             Before clearing a doc that has content, a full copy of it is made in Drive,
@@ -1674,12 +1867,14 @@ def register(tool):
             the replace then goes ahead without a backup. When sharing settings
             don't allow copying or the account is at its item-creation limit, it
             goes ahead without a backup only with allow_no_backup=True. If writing the
-            new content fails, returns {"error", "docId", "backupId", "images"}
+            new content fails, returns {"error", "docId", "backupId", "images", "dropped_links"}
             instead, with any temporary image share already revoked: the doc may be
             empty or partly written, and backupId is the kept copy of its previous
             content. When the replace went ahead without a backup there's no
             backupId, and the error says the previous content couldn't be backed
-            up: it can't be recovered.
+            up: it can't be recovered. The content is converted before any of
+            this, so if it can't be converted, the doc is left unchanged and
+            {"error", "docId"} is returned.
         """
         source = await asyncio.to_thread(
             _read_doc_source_file, local_path, content_format, format_overridable=True

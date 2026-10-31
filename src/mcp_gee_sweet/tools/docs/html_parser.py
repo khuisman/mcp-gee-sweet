@@ -205,6 +205,14 @@ class _AstParser(HTMLParser):
         # and must NOT be preserved as a spurious empty bullet.
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
+        # gets a fresh one, so two adjacent lists stay distinguishable (#1241).
+        self._list_ids: list[int] = []
+        self._list_count = 0
+        # The open lists as the current block segment began (_open_block): an <li>
+        # left unclosed until </ul> is flushed after the pop, so _make_bullet_item
+        # reads this instead of the live stack (#1241).
+        self._block_lists: tuple[tuple[bool, ...], tuple[int, ...]] = ((), ())
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
         # Ids of the open <blockquote> tags, outermost first (#476, #1098); its
@@ -337,11 +345,14 @@ class _AstParser(HTMLParser):
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
         self._li_trailing_padding = False
+        self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
         self._run_buf = []
         self._pending_runs = []
 
     def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
-        ordered = self._list_ordered[-1] if self._list_ordered else False
+        # The lists open when this segment began, not now: see _block_lists.
+        list_ordered, list_path = self._block_lists
+        ordered = list_ordered[-1] if list_ordered else False
         # max(..., 0): an orphan <li> outside any <ul>/<ol> (reachable — "li" is an
         # ordinary _BLOCK_TAGS entry, not gated on an enclosing list) would otherwise
         # compute depth -1 here. Clamped at the source rather than left for every
@@ -350,7 +361,7 @@ class _AstParser(HTMLParser):
         # un-clamped value already needed patching at 3 separate emitter.py call
         # sites, which is exactly the kind of duplication-invites-a-missed-site
         # pattern #417 was filed to close for block-open state.
-        depth = max(len(self._list_ordered) - 1, 0)
+        depth = max(len(list_ordered) - 1, 0)
         # Detect task list markers written as literal [x] / [ ] by the markdown library.
         # An image can never be the first child here in practice (markdown always wraps
         # a bare "![]()" in its own <p>, never mixes it as literal leading text before a
@@ -369,8 +380,18 @@ class _AstParser(HTMLParser):
                 if not runs[0].text:
                     runs.pop(0)
         return BulletItem(
-            runs=runs, depth=depth, ordered=ordered, checked=checked, **self._blockquote_fields()
+            runs=runs,
+            depth=depth,
+            ordered=ordered,
+            checked=checked,
+            list_path=list_path,
+            **self._blockquote_fields(),
         )
+
+    def _push_list(self, ordered: bool) -> None:
+        self._list_count += 1
+        self._list_ordered.append(ordered)
+        self._list_ids.append(self._list_count)
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -709,11 +730,11 @@ class _AstParser(HTMLParser):
         # --- list context ---
         if tag == "ol":
             self._interrupt_open_block("ol")
-            self._list_ordered.append(True)
+            self._push_list(True)
             return
         if tag == "ul":
             self._interrupt_open_block("ul")
-            self._list_ordered.append(False)
+            self._push_list(False)
             return
 
         # --- blockquote (#476) ---
@@ -947,6 +968,7 @@ class _AstParser(HTMLParser):
         if tag in ("ol", "ul"):
             if self._list_ordered:
                 self._list_ordered.pop()
+                self._list_ids.pop()
             self._resume_interrupted_block(tag)
             return
 

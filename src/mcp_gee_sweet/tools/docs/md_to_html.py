@@ -83,6 +83,15 @@ def _at_boundary(text: str, pos: int, start_ok: bool) -> bool:
     return before.isspace() or before in _AUTOLINK_LEFT_BOUNDARY
 
 
+def valid_gfm_domain(host: str) -> bool:
+    """GFM's "valid domain" segment test: non-empty dot-separated segments, with no
+    "_" in the last two. Which characters a host may hold is the caller's. Shared with
+    emitter._storable_link_url's www. rewrite (#1180), so an autolink and a written
+    www. link agree on what a host is."""
+    segments = host.split(".")
+    return all(segments) and "_" not in "".join(segments[-2:])
+
+
 def _gfm_url_matches(text: str, start_ok: bool):
     for m in _GFM_URL_RE.finditer(text):
         if m.start() == 0 and not start_ok:
@@ -95,8 +104,7 @@ def _gfm_url_matches(text: str, start_ok: bool):
         if not scheme and not label.startswith("www."):
             continue
         host = re.split(r"[/?#]", label.split("://", 1)[1] if scheme else label, maxsplit=1)[0]
-        segments = host.split(".")
-        if not all(segments) or "_" in "".join(segments[-2:]):
+        if not valid_gfm_domain(host):
             continue
         href = label if scheme else "http://" + label
         yield m.start(), m.start() + len(label), href
@@ -652,7 +660,7 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
 
 _MARKDOWN_PARSERS = {flag: _build_markdown_parser(flag) for flag in (True, False)}
 
-# The parsers are shared by every asyncio.to_thread worker (_apply_doc_content), and
+# The parsers are shared by every asyncio.to_thread worker (content._convert_doc_content), and
 # markdown-it builds each ruler's rule cache lazily on first use. Build every one
 # here, at import, so concurrent first conversions never see a half-built cache.
 for _parser in (*_MARKDOWN_PARSERS.values(), _BLOCK_SCANNER):

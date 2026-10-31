@@ -47,7 +47,7 @@ def _write_transcript(path: Path, entries) -> Path:
 
 
 class TestLaneName:
-    @pytest.mark.parametrize("lane", ["ash", "jay", "sky", "kit"])
+    @pytest.mark.parametrize("lane", ["ash", "jay", "sky", "kit", "rio"])
     def test_lane_worktree_root(self, lane):
         assert hook.lane_name(f"/x/repo/.claude/worktrees/{lane}") == lane
 

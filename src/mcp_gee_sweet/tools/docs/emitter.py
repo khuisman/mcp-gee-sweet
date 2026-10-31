@@ -11,6 +11,7 @@ from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
 from .batch_retry import send_dropping_failed_images
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
+from .md_to_html import valid_gfm_domain
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,237 @@ def _after_bullet_pass(position: int, tabs_before: int) -> int:
     return position - tabs_before
 
 
+@dataclass(eq=False)
+class _BulletList:
+    """One Docs list: the BulletItems one createParagraphBullets call bullets, as
+    segment_meta indices. A top-level list's `first`..`last` also spans every item
+    nested inside it, of either type (#1072), so its one call consumes every item's
+    phase-1 tabs, a trailing nested list's included (PR #1295 QA round 1).
+
+    A list at the top of its contiguous block of items holds, in `nested`, every list
+    nested anywhere inside it that isn't merged into it, in document order, so a list
+    always comes before the lists nested in it. Such a nested list is usually of the
+    other type, but not always: a same-type list that follows another sublist under
+    the same item (ordered, bullet, ordered) is one too, so it restarts.
+
+    `source_path` is the BulletItem.list_path of the item that started it."""
+
+    ordered: bool
+    first: int
+    last: int
+    min_depth: int
+    source_path: tuple[int, ...]
+    top: _BulletList | None  # the top-level list this one is nested in
+    nested: list[_BulletList]  # top-level lists only
+
+
+@dataclass
+class _OpenList:
+    """A list level that's still open while _bullet_lists walks the items: its depth,
+    its list, the id of the source list its items come from (the last entry of their
+    BulletItem.list_path; None when unknown), and whether its current item already
+    has a list nested in it."""
+
+    depth: int
+    bullet_list: _BulletList
+    list_id: int | None
+    had_child: bool = False
+
+
+def _encloses(open_list: _OpenList, node: BulletItem) -> bool:
+    """Whether `node` sits in `open_list`'s source list or in a list nested in it
+    (#1241). True when either side's ids are unknown, which leaves depth and type to
+    decide, as before."""
+    return open_list.list_id is None or not node.list_path or open_list.list_id in node.list_path
+
+
+def _rejoins_root(root: _BulletList, node: BulletItem) -> bool:
+    """Whether `node`, shallower than every open list, joins the block's first list:
+    a run whose parents were dropped (#714) followed by more of an enclosing list. With
+    ids known, only a list enclosing the root's first item qualifies, so a separate
+    list after a deeper one starts its own (#1241)."""
+    if root.ordered != node.ordered:
+        return False
+    if not root.source_path or not node.list_path:
+        return True
+    path = node.list_path
+    return len(path) < len(root.source_path) and root.source_path[: len(path)] == path
+
+
+def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
+    """Group the BulletItems in `segment_meta` into Docs lists and return the
+    top-level ones, in document order, each holding the lists nested in it.
+
+    A list of the other type nested in a list stays its own Docs list, at every level
+    (#1072). An item continues the open list at its depth when it comes from the same
+    source list. An open list that doesn't enclose the item (`_encloses`) is closed
+    first, so a different list at that depth starts a new list, and so does a
+    shallower item with no open list left. A nested list joins its parent's list when
+    it has the same type and is the first list nested in that parent item, which
+    keeps numbered-in-numbered one Docs list as before; a later one under the same
+    item is a list of its own, so it restarts. A run of contiguous items whose
+    parents were dropped (#714), shallower than the block's first list, joins that
+    list when it comes from a list enclosing it (`_rejoins_root`).
+
+    Two adjacent same-type lists (`1.` then `1)` markers, or `-` then `*`) stay two
+    Docs lists, at any depth, since each item carries its source lists' ids (#1241).
+    The later one is a new top-level list, or a nested list that restarts. Items with
+    no ids (an AST not built by html_parser) group by depth and type alone, as before.
+
+    A non-BulletItem segment ends the block. A Table isn't in segment_meta, so a table
+    between two items keeps them in one list, as before."""
+    tops: list[_BulletList] = []
+    stack: list[_OpenList] = []
+    root: _BulletList | None = None
+    for i, seg in enumerate(segment_meta):
+        node = seg.node
+        if not isinstance(node, BulletItem):
+            stack, root = [], None
+            continue
+        depth, ordered = node.depth, node.ordered
+        while stack and (stack[-1].depth > depth or not _encloses(stack[-1], node)):
+            stack.pop()
+        if stack and stack[-1].depth == depth:
+            if stack[-1].bullet_list.ordered == ordered:
+                bullet_list = stack[-1].bullet_list
+                bullet_list.last = i
+                (bullet_list.top or bullet_list).last = i
+                stack[-1].had_child = False
+                continue
+            stack.pop()
+        if stack:
+            enclosing = stack[-1]
+            if enclosing.bullet_list.ordered == ordered and not enclosing.had_child:
+                bullet_list = enclosing.bullet_list
+            else:
+                top = enclosing.bullet_list.top or enclosing.bullet_list
+                bullet_list = _BulletList(ordered, i, i, depth, node.list_path, top=top, nested=[])
+                top.nested.append(bullet_list)
+            enclosing.had_child = True
+        elif root is not None and _rejoins_root(root, node):
+            bullet_list = root
+        else:
+            bullet_list = root = _BulletList(
+                ordered, i, i, depth, node.list_path, top=None, nested=[]
+            )
+            tops.append(bullet_list)
+        bullet_list.last = i
+        (bullet_list.top or bullet_list).last = i
+        bullet_list.min_depth = min(bullet_list.min_depth, depth)
+        list_id = node.list_path[-1] if node.list_path else None
+        stack.append(_OpenList(depth, bullet_list, list_id))
+    return tops
+
+
+def _bullet_preset(ordered: bool) -> str:
+    return "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+
+
+def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> list[dict]:
+    """The bullet requests for one top-level list and every list nested in it (#1072).
+
+    One createParagraphBullets call over `top`'s whole range puts every item in it,
+    nested lists included, into one list at its tab-encoded level. A Docs list has a
+    single preset and numbers each level by listId, so the items of `top` (and of a
+    same-type list merged into it) keep counting past a nested list, even though that
+    list sits inside the range. Then each list in `top.nested`, parent before child,
+    is taken back out (confirmed live, #1072), whatever its type: its bullets are deleted,
+    its indent zeroed (deleteParagraphBullets leaves the level's indent, which the next
+    createParagraphBullets would read as extra depth, #1069), its items' depth-tabs
+    inserted again (the first call consumed them), and the range bulleted with its
+    own preset through the anchor wrap, since its items all sit at depth > 0. The
+    paragraph just before a nested list is always listed by then, and Docs would join
+    the range to that paragraph's list when the presets match (a restarted same-type
+    sublist, #1241), so the wrap puts a barrier paragraph between them. A
+    nested list's range contains the lists nested in it, which the later ones take
+    back out in turn. The listId left behind on a paragraph is the list it belongs to.
+
+    Every nested list's tabs are inserted and consumed again, so the whole sequence
+    removes each item's tabs once, as a single call would: _after_bullet_pass holds.
+    Positions after the first call are in `top`'s own coordinates, with its tabs gone;
+    nothing before `top` has shifted yet (the lists are applied latest-first)."""
+    start = segment_meta[top.first].doc_start
+    end = segment_meta[top.last].doc_end
+    preset = _bullet_preset(top.ordered)
+    if top.min_depth == 0:
+        requests: list[dict] = [
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "bulletPreset": preset,
+                }
+            }
+        ]
+    else:
+        # Isolated list: every item sits at depth > 0 with no depth-0 sibling in this
+        # same call to anchor nesting level 0. createParagraphBullets assigns each
+        # paragraph nestingLevel = (its leading-tab count) - (the minimum leading-tab
+        # count across the whole range), so a list with no 0-tab paragraph collapses
+        # entirely to nestingLevel 0 — rendering the depth-0 glyph (● disc) even though
+        # the per-level indent is bumped so the item still *looks* nested (confirmed
+        # live, #439). isolated_bullet_run_wrap_requests (indices.py, shared with
+        # style.py per #727) prepends a throwaway 0-tab anchor paragraph, bullets the
+        # extended range (anchor -> level 0, real items -> their true level and its
+        # correct glyph), then deletes the anchor. The insert (+1) and delete (-1)
+        # cancel, so every position outside [start, end] — later lists, table/image
+        # inserts — is left exactly where an ordinary single call would leave it.
+        #
+        # Because the anchor always contributes 0 tabs, the minimum across the
+        # extended range is always 0 regardless of min_depth — so every item lands at
+        # nestingLevel == its own depth exactly (min_depth == 1 -> level 1,
+        # min_depth == 2 -> level 2, etc.), never clamped to level 1. This is a
+        # deliberate decision (#714, following the #439 fix in PR #711): the converter
+        # renders the source's true nesting depth faithfully rather than clamping a
+        # deeply-nested fragment (whose ancestors were dropped for having no text of
+        # their own) to look one level deep.
+        requests = isolated_bullet_run_wrap_requests(start, end, preset)
+
+    tabs_ahead = segment_meta[top.first].tabs_through - segment_meta[top.first].own_tabs
+
+    def after_top(index: int) -> tuple[int, int]:
+        """Segment `index`'s (start, end) once `top`'s first call consumed its tabs."""
+        seg = segment_meta[index]
+        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead
+        return seg.doc_start - own_start, seg.doc_end - (seg.tabs_through - tabs_ahead)
+
+    for bullet_list in top.nested:
+        list_start = after_top(bullet_list.first)[0]
+        list_end = after_top(bullet_list.last)[1]
+        rng = {"startIndex": list_start, "endIndex": list_end}
+        requests.append({"deleteParagraphBullets": {"range": rng}})
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": {
+                        "indentStart": {"magnitude": 0, "unit": "PT"},
+                        "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                    },
+                    "fields": "indentStart,indentFirstLine",
+                }
+            }
+        )
+        tabs = 0
+        for index in range(bullet_list.last, bullet_list.first - 1, -1):
+            # Every item here sits deeper than the list it's nested in, so it has tabs.
+            own_tabs = segment_meta[index].own_tabs
+            requests.append(
+                {
+                    "insertText": {
+                        "location": {"index": after_top(index)[0]},
+                        "text": "\t" * own_tabs,
+                    }
+                }
+            )
+            tabs += own_tabs
+        requests.extend(
+            isolated_bullet_run_wrap_requests(
+                list_start, list_end + tabs, _bullet_preset(bullet_list.ordered), barrier=True
+            )
+        )
+    return requests
+
+
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
     """Return `runs` with literal leading tab character(s) removed from the
     start of its own text, without mutating the caller's Run/Image objects —
@@ -209,10 +441,11 @@ def _is_code_paragraph(node: DocNode) -> bool:
 def extract_images(nodes: list[DocNode]) -> list[Image]:
     """Collect every Image node in `nodes`, in document order.
 
-    Used by the caller (docs/content.py, an async function) to resolve each
-    image's src to a fetchable URI — a Drive upload, a share-permission
-    grant, or both — *before* calling ast_to_requests, since that stays a
-    synchronous, I/O-free function like the rest of this module (#333).
+    Used by docs/content.py's conversion to give each image a placeholder URI for
+    ast_to_requests, which stays a synchronous, I/O-free function like the rest
+    of this module (#333). The caller resolves each image's src to a fetchable
+    URI (a Drive upload, a share-permission grant, or both) only after the
+    requests are built, so a failed conversion never reaches the doc (#1240).
 
     Walks body-level nodes' own `runs` and every table cell's children, recursing
     into nested tables (#1073).
@@ -222,6 +455,23 @@ def extract_images(nodes: list[DocNode]) -> list[Image]:
         items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
         images.extend(item for item in items if isinstance(item, Image))
     return images
+
+
+def unstorable_link_urls(nodes: list[DocNode]) -> list[str]:
+    """Every distinct link target in `nodes` that _storable_link_url refuses, in
+    document order: the links ast_to_requests and fill_tables will write as plain
+    text (#1180). Walks the same leaves as extract_images, so a linked image and a
+    table cell's runs count too. Each target is the stripped value _storable_link_url
+    judged, so " ./guide.md" and "./guide.md" are one target. An empty or
+    whitespace-only target names nothing to report and is skipped."""
+    dropped: dict[str, None] = {}
+    for node in nodes:
+        items = iter_cell_leaves(node) if isinstance(node, Table) else node.runs
+        for item in items:
+            target = (item.link_url or "").strip()
+            if target and _storable_link_url(target) is None:
+                dropped[target] = None
+    return list(dropped)
 
 
 def iter_cell_leaves(table: Table) -> Iterator[Run | Image]:
@@ -250,9 +500,10 @@ def ast_to_requests(
          inline run styles) — these assume no position has shifted yet, since every
          index they reference was computed against the freshly-built full_text before
          any other request has run.
-      2. createParagraphBullets calls for BulletItem nesting (#336) — grouped into
-         one call per contiguous same-preset run and applied in descending document
-         order (see the grouping loop below). Each call consumes/removes its own
+      2. createParagraphBullets calls for BulletItem nesting (#336) — one call per
+         top-level list, followed by the requests that take each nested list not
+         merged into it back out (#1072), applied in descending document order
+         (see the grouping loop below). Each call consumes/removes its own
          leading tab characters, shifting every later position backward, so this
          stage must run after stage 1 (which assumes nothing has shifted) but before
          stage 3 (whose own positions are pre-adjusted for exactly this shift).
@@ -265,11 +516,11 @@ def ast_to_requests(
     after running the phase-1 batchUpdate, so that live cell indices are available.
 
     image_uris: maps id(image) (for each Image returned by extract_images(nodes), called
-    on this same `nodes` value beforehand) to its already-resolved fetchable URI. An Image
-    with no entry here (never resolved, or resolution failed) is silently omitted from the
-    requests — same fallback as any other unsupported construct — since the Docs API's
-    insertInlineImage has no notion of "insert later"; the caller is expected to have
-    already recorded why that image failed via extract_images's own resolution pass.
+    on this same `nodes` value beforehand) to the URI its insertInlineImage request gets.
+    An Image with no entry here is silently omitted from the requests — same fallback as
+    any other unsupported construct. docs/content.py passes a placeholder for every image
+    and, once the images resolve, swaps in each real URI and drops an unresolved image's
+    request (#1240).
 
     image_links: if given, filled with id(insertInlineImage request) -> the
     updateTextStyle request that links that image (#977), so a caller that drops a
@@ -430,8 +681,9 @@ def ast_to_requests(
     # below (which all assume no positions have shifted yet) but before the combined
     # table/image insertion pass further down — see the loop after segment_meta for why
     # they're applied in descending document order. Each entry's value is a list because
-    # an isolated depth>0 run (no depth-0 anchor item) expands to three requests — a
-    # throwaway anchor insert, the bullets call, and the anchor delete — see below.
+    # an isolated depth>0 list (no depth-0 anchor item) expands to three requests — a
+    # throwaway anchor insert, the bullets call, and the anchor delete — and a nested
+    # list taken back out adds its own (#1072); see _top_list_requests.
     bullet_run_requests: list[tuple[int, list[dict]]] = []
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
@@ -524,75 +776,23 @@ def ast_to_requests(
                     requests.extend(style_reqs)
                 offset += run_len
 
-        # Group maximal contiguous runs of same-preset BulletItems into ONE
-        # createParagraphBullets call per run, rather than one call per paragraph.
-        # createParagraphBullets infers nesting level from each paragraph's own leading
-        # tab count, but only reliably does so *relative to the other paragraphs covered
-        # by the same call* — issuing one call per paragraph let call order/adjacency to
-        # an already-bulleted neighbor override the tab-encoded depth, producing visibly
-        # inconsistent nesting live even though each call's own leading-tab count and
-        # range boundaries were individually correct (confirmed live, PR #432 QA round 1:
-        # same-depth siblings landed at different indentation levels, and ordered lists
-        # lost continuous numbering). One atomic call spanning the whole contiguous block
-        # is the pattern Google's own Docs API samples use for building nested lists.
-        i = 0
-        while i < len(segment_meta):
-            node = segment_meta[i].node
-            run_start, run_end = segment_meta[i].doc_start, segment_meta[i].doc_end
-            if not isinstance(node, BulletItem):
-                i += 1
-                continue
-            ordered = node.ordered
-            j = i
-            # node.depth is never negative — see the matching comment where `tabs`
-            # is built above (#434 finding 3/4): html_parser.py clamps an orphan
-            # <li>'s depth to 0 at the source now, so this always routes through
-            # the same min_depth==0 path a normal depth-0 item does.
-            min_depth = node.depth
-            while (
-                j < len(segment_meta)
-                and isinstance(segment_meta[j].node, BulletItem)
-                and segment_meta[j].node.ordered == ordered
-            ):
-                run_end = segment_meta[j].doc_end
-                min_depth = min(min_depth, segment_meta[j].node.depth)
-                j += 1
-            preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
-            if min_depth == 0:
-                run_requests: list[dict] = [
-                    {
-                        "createParagraphBullets": {
-                            "range": {"startIndex": run_start, "endIndex": run_end},
-                            "bulletPreset": preset,
-                        }
-                    }
-                ]
-            else:
-                # Isolated run: every item sits at depth > 0 with no depth-0 sibling in
-                # this same call to anchor nesting level 0. createParagraphBullets assigns
-                # each paragraph nestingLevel = (its leading-tab count) - (the minimum
-                # leading-tab count across the whole range), so a run with no 0-tab
-                # paragraph collapses entirely to nestingLevel 0 — rendering the depth-0
-                # glyph (● disc) even though the per-level indent is bumped so the item
-                # still *looks* nested (confirmed live, #439). isolated_bullet_run_wrap_requests
-                # (indices.py, shared with style.py per #727) prepends a throwaway 0-tab
-                # anchor paragraph, bullets the extended range (anchor -> level 0, real
-                # items -> their true level and its correct glyph), then deletes the
-                # anchor. The insert (+1) and delete (-1) cancel, so every position
-                # outside [run_start, run_end] — later bullet runs, table/image inserts —
-                # is left exactly where an ordinary single call would leave it.
-                #
-                # Because the anchor always contributes 0 tabs, the minimum across the
-                # extended range is always 0 regardless of min_depth — so every item lands
-                # at nestingLevel == its own depth exactly (min_depth == 1 -> level 1,
-                # min_depth == 2 -> level 2, etc.), never clamped to level 1. This is a
-                # deliberate decision (#714, following the #439 fix in PR #711): the
-                # converter renders the source's true nesting depth faithfully rather than
-                # clamping a deeply-nested fragment (whose ancestors were dropped for
-                # having no text of their own) to look one level deep.
-                run_requests = isolated_bullet_run_wrap_requests(run_start, run_end, preset)
-            bullet_run_requests.append((run_start, run_requests))
-            i = j
+        # One createParagraphBullets call per top-level list, rather than one call per
+        # paragraph. createParagraphBullets infers nesting level from each paragraph's
+        # own leading tab count, but only reliably does so *relative to the other
+        # paragraphs covered by the same call* — issuing one call per paragraph let call
+        # order/adjacency to an already-bulleted neighbor override the tab-encoded depth,
+        # producing visibly inconsistent nesting live even though each call's own
+        # leading-tab count and range boundaries were individually correct (confirmed
+        # live, PR #432 QA round 1: same-depth siblings landed at different indentation
+        # levels, and ordered lists lost continuous numbering). One atomic call spanning
+        # the whole list is the pattern Google's own Docs API samples use for building
+        # nested lists. Each list nested in it that isn't merged into it is taken back
+        # out afterward, so the outer list keeps counting past it (#1072,
+        # _top_list_requests).
+        for top in _bullet_lists(segment_meta):
+            bullet_run_requests.append(
+                (segment_meta[top.first].doc_start, _top_list_requests(top, segment_meta))
+            )
 
         # Applied latest-in-document-first: each call's own range is still valid at the
         # point it runs (nothing before it in the doc has shifted yet), and processing
@@ -931,17 +1131,28 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
 # structural rather than a list that drops working targets every time a new
 # scheme shows up in a document.
 _STORABLE_LINK_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+# A scheme-less target that still names a host gets https:// (#1180). Matched
+# against the whole target, which may hold no whitespace (a dead link either way).
+# Protocol-relative "//host/x": the host starts with a letter or digit, so "//",
+# "///x", "//?q", "//#x", "//:80" and "//-" name none. A bare "www." host follows
+# GFM's extended www autolink: "www." then a valid domain with at least one more
+# ".", checked by the autolinker's own md_to_html.valid_gfm_domain, so the
+# relative file "WWW.md" isn't taken for a host.
+_HOST_RELATIVE_LINK = re.compile(r"//[A-Za-z0-9][A-Za-z0-9.-]*(?:[:/?#]\S*)?")
+_BARE_WWW_LINK = re.compile(
+    r"(www\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)(?:[/:?#]\S*)?", re.IGNORECASE
+)
 
 
 def _storable_link_url(link_url: str | None) -> str | None:
     """Return the link to hand the Docs API, or None to degrade the run to plain text.
 
     Docs normalises a URL that carries no scheme against its own origin, so a
-    relative href ("./guide.md", "/guide.md", "//example.com/x") that this server
-    passes through unchanged lands as "http://./guide.md" or
-    "http://docs.google.com/guide.md" - a link that goes nowhere, reported as
-    LK-12/EP-8 in the Markdown-fidelity baseline (#1120). A scheme-less target is
-    therefore not storable: the text stays, the broken link is dropped.
+    relative href ("./guide.md", "/guide.md") that this server passes through
+    unchanged lands as "http://./guide.md" or "http://docs.google.com/guide.md" -
+    a link that goes nowhere, reported as LK-12/EP-8 in the Markdown-fidelity
+    baseline (#1120). A scheme-less target is therefore not storable: the text
+    stays, the broken link is dropped.
 
     Any scheme counts, not a fixed list: "HTTPS://...", "tel:", "ftps://",
     "file://" and app links such as "vscode://" are working links today, so a
@@ -951,12 +1162,25 @@ def _storable_link_url(link_url: str | None) -> str | None:
     resolved into full URLs by the _resolve_heading_anchors pass, which runs
     after the write (#409), and a "#slug" is a working in-doc link, not a
     relative file path.
+
+    A scheme-less target that names a host is rewritten rather than dropped
+    (#1180): "//example.com/x" becomes "https://example.com/x" and
+    "www.example.com" becomes "https://www.example.com". Always https, never
+    http: a host that only serves plain http loses the link, by design. The www
+    rule runs before the scheme match, which would read "www.example.com:8443/x"
+    as a "www.example.com:" scheme and pass it through for Docs to prefix with
+    http://.
     """
     if link_url is None:
         return None
     url = link_url.strip()
+    www = _BARE_WWW_LINK.fullmatch(url)
+    if www and valid_gfm_domain(www.group(1)):
+        return "https://" + url
     if url.startswith("#") or _STORABLE_LINK_SCHEME.match(url):
         return url
+    if _HOST_RELATIVE_LINK.fullmatch(url):
+        return "https:" + url
     return None
 
 
