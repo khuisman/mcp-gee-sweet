@@ -1389,20 +1389,6 @@ cell.</p>
 <p><strong>Workaround:</strong> Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
 (see #109). Related: <code>docs/qa/tests/docs_content.md</code> TC-DOC51.</p>
 <hr />
-<h3 id="an-empty-list-item-a-bare-line-is-dropped">An empty list item (a bare <code>-</code> line) is dropped<a class="headerlink" href="#an-empty-list-item-a-bare-line-is-dropped" title="Permanent link">&para;</a></h3>
-<p><strong>What:</strong> In Markdown input, a list item with no text, a line of only <code>-</code>, leaves no bullet in the
-Doc. The items around it keep theirs, and a list nested under it keeps its level:
-<code>"- item one\n-\n- item three\n"</code> renders two bullets, not three.</p>
-<p><strong>Why:</strong> The Markdown parser reads it as an empty item (<code>&lt;li&gt;&lt;/li&gt;</code>), as CommonMark says. The
-HTML→AST step then drops a list item with no content, the rule that keeps a stray
-<code>&lt;li&gt;&amp;nbsp;&lt;/li&gt;</code> or an <code>&lt;li&gt;</code> wrapping only a nested list from becoming an empty bullet. Before
-the switch to a CommonMark parser (#1116), Python-Markdown didn't recognize a bare <code>-</code> at all:
-it turned the list into a paragraph of literal text, or read the <code>-</code> as a setext heading
-underline (#692).</p>
-<p><strong>Workaround:</strong> None in Markdown: an item holding only a non-breaking space (<code>-</code> followed by
-U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. Related:
-<code>docs/qa/tests/docs_markdown.md</code> TC-MD301.</p>
-<hr />
 <h3 id="markdown-input-doesnt-read-footnotes-definition-lists-or-other-python-markdown-extra-syntax">Markdown input doesn't read footnotes, definition lists, or other Python-Markdown <code>extra</code> syntax<a class="headerlink" href="#markdown-input-doesnt-read-footnotes-definition-lists-or-other-python-markdown-extra-syntax" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> Markdown passed to <code>create_doc</code>/<code>write_doc_content</code> (<code>content_format='markdown'</code>),
 <code>create_doc_from_file</code>/<code>update_doc_from_file</code>, or <code>upload_file(source_format='markdown')</code> is read

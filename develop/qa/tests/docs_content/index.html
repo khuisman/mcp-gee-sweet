@@ -3585,7 +3585,7 @@ Run 2 (ash).
 2. **Emitter ignores depth (`emitter.py`):** even where the parser *does* correctly track nesting (`BulletItem.depth`, verified correct in all cases below, including the ones unaffected by bug 1), `ast_to_requests` never reads `.depth` or `.paragraph_style` — `createParagraphBullets` is emitted with only `range` and `bulletPreset`, no indentation. Google Docs infers a bullet's nesting level from paragraph indentation, not an explicit field on the create request, so **every bullet renders at nesting level 0 in the live document regardless of source depth.** This is a real gap even for a list with zero parent-text collisions.
 3. **Markdown-specific, on top of 1+2:** python-markdown's `sane_lists` extension (used by `_md_to_html`) only recognizes a sub-list as nested when indented by exactly 4 spaces or a tab. The CommonMark/GFM-standard indentation that most people and tools (including Claude) write by default — 2 spaces under a `-`/`*` marker, 3 spaces under a `1.` marker — is silently flattened to the parent list **before it even reaches the HTML parser**, with no warning. Verified empirically this session (`uv run python3 -c "import markdown; ..."`) across four indentation widths.
 
-**Fixtures:** `docs/qa/fixtures/tc-doc104-nested-lists.html` (direct HTML, isolates bugs 1+2 with no markdown-library involvement), `docs/qa/fixtures/tc-doc105-nested-lists-gfm.md` (GFM-standard 2/3-space indentation, adds bug 3 on top), `docs/qa/fixtures/tc-doc106-nested-lists-4space.md` (4-space indentation — the documented python-markdown workaround — reproduces bugs 1+2 only, proving they're independent of bug 3). Each fixture has 3 cases: parent item with its own text + a nested sub-list (bug 1 trigger), a bare parent item with no text of its own (isolates bug 2 alone, since there's no parent text to lose), and ordered-in-ordered nesting. `tc-doc104-nested-lists.html` alone has a 4th case (added for #714, TC-DOC190) with two levels of bare parent `<li>`s, isolating a `min_depth == 2` run rather than Case 2's `min_depth == 1`.
+**Fixtures:** `docs/qa/fixtures/tc-doc104-nested-lists.html` (direct HTML, isolates bugs 1+2 with no markdown-library involvement), `docs/qa/fixtures/tc-doc105-nested-lists-gfm.md` (GFM-standard 2/3-space indentation, adds bug 3 on top), `docs/qa/fixtures/tc-doc106-nested-lists-4space.md` (4-space indentation — the documented python-markdown workaround — reproduces bugs 1+2 only, proving they're independent of bug 3). Each fixture has 3 shared cases: parent item with its own text + a nested sub-list (bug 1 trigger), a bare parent item with no text of its own (an empty bullet since #1075, with its sub-list one level under it), and ordered-in-ordered nesting. `tc-doc104-nested-lists.html` also has Case 4, two levels of bare parent `<li>`s (two empty bullets since #1075), and Cases 5 and 6 (#1075), a nested list with no parent `<li>` at all, which isolate a `min_depth == 1` and a `min_depth == 2` run for TC-DOC190 (#714). `tc-doc106-nested-lists-4space.md` also has Case 4 (#1075), an empty item between items in a bulleted and a numbered list, then an item whose only content is a rule.
 
 ### TC-DOC104: Direct HTML nested lists — parent item text must survive when a sub-list follows it ⚠️ requires-oauth ⚠️ destructive
 
@@ -3595,7 +3595,9 @@ Run 2 (ash).
 
 **Checks**
 - `get_doc_structure` shows "Parent A has text" and "Parent B has text" as their own bullet items, each followed by their nested children
-- Case 2's bare-nested children ("Bare-nested child C1"/"C2") appear at a visibly deeper indentation than Case 2's (absent) parent
+- Case 2's parent `<li>` has no text, so it's an empty bullet at level 0 (#1075); its children ("Bare-nested child C1"/"C2") appear one level deeper, under it
+- Case 4: two empty bullets, at levels 0 and 1, then "Doubly-bare child D2a"/"D2b" at level 2 (#1075)
+- Cases 5 and 6 (a nested list with no parent `<li>`): "Parentless child E1"/"E2" at level 1 and "Parentless child F2a"/"F2b" at level 2, with no bullet above either run
 - Case 3's "Top ordered 1" survives as its own item, with "Nested ordered 1.1"/"1.2" indented under it
 - 🔍 Visual check in Google Docs: 3 distinct indentation levels are visible in Case 1 (Parent A / Child A2 / Grandchild A2a), and Case 2/3's nesting is visually indented, not flush-left
 
@@ -3634,6 +3636,8 @@ Run 2 (ash).
 
 **Result (2026-10-31, PR #1315 @ 893dc36f) ✅ PASS — #1074 confirmed fixed live (by #1116).** `create_doc_from_file` on the fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`. `get_doc_structure`: 21 paragraphs, no whitespace-only ones; every paragraph is a heading or a bullet with text, plus the doc's own trailing `\n`. "Parent A has text"/"Parent B has text"/"Top ordered 1" are their own items; levels 0/1/2 in Case 1, Case 2's C1/C2 at level 1, Case 3's 1.1/1.2 at level 1. Playwright: three indent tiers in Case 1 (●/○/■), and Case 3 numbers 1., a., b., **2.** with no empty bullets. `get_doc_as_markdown` agrees (`2. Top ordered 2`).
 
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's new checks.** `create_doc_from_file` on the updated fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`. `get_doc_structure`: Case 1 unchanged (levels 0/1/2, Parent A/B text kept). Case 2: one empty bullet at level 0, then C1/C2 at level 1, same `listId`. Case 3: 1/1.1/1.2/2 at levels 0/1/1/0. Case 4: two empty bullets at levels 0 and 1, then D2a/D2b at level 2, one list. Cases 5 and 6: E1/E2 at level 1 and F2a/F2b at level 2, with no bullet above either run. No whitespace-only paragraphs. Visual check not run this round.
+
 ---
 
 ### TC-DOC105: Markdown nested lists at GFM-standard (2/3-space) indentation ⚠️ requires-oauth ⚠️ destructive
@@ -3644,6 +3648,7 @@ Run 2 (ash).
 
 **Checks**
 - Same nesting expectations as TC-DOC104 (this is the indentation width most humans/AI tools write by default — it should behave the same as explicit HTML nesting)
+- Case 2's bare `-` is an empty bullet at level 0, with "Bare-nested child C1"/"C2" one level under it; no literal `-` text (#1075)
 - No literal `1.`/`2.` digit-dot text visible anywhere in bullet content
 
 **Cleanup:** write fixture content back
@@ -3664,6 +3669,8 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: With 2/3-space GFM indentation, Child A1/A2 flatten to level 0. The B children read "  1. Ordered child B1" as literal text. Case 2 is literal "-" text, and Case 3's nested items flatten to level 0. Tracked in #1071 (open), plus #1075 for Case 2.
 
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's Case 2 check.** `create_doc_from_file` on the fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`, graded from `get_doc_as_markdown`. Case 2's bare `-` is an empty bullet (`- `) with C1/C2 nested one level under it; no literal `-` text. Case 1 nests A1/A2/A2a and B1/B2 (ordered). Case 3's 1.1/1.2 are nested under "Top ordered 1".
+
 ---
 
 ### TC-DOC106: Markdown nested lists at 4-space indentation — isolates bugs 1+2 from bug 3 ⚠️ requires-oauth ⚠️ destructive
@@ -3674,6 +3681,8 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 
 **Checks**
 - Same nesting expectations as TC-DOC104 — 4-space indentation is the one width where `_md_to_html` produces genuinely nested `<ul>`/`<ol>` HTML, so this TC should behave identically to TC-DOC104 once bugs 1+2 are fixed
+- Case 2's bare `-` is an empty bullet at level 0, with "Bare-nested child C1"/"C2" one level under it; no literal `-` text (#1075)
+- Case 4: an empty bullet between "Bullet before" and "Bullet after" (three bullets, one list), and an empty numbered item between "Number one" and "Number three", which show 1., 2. (empty) and 3.; no literal `-` or `2.` text (#1075). Then "Rule item before", an empty bullet with the rule's paragraph under it, unbulleted (the item's only content is the rule; a rule renders as an empty paragraph, not a drawn line, until #1096), and "Rule item after", three bullets in one list (PR #1322 QA round 1)
 - Confirms whether a "use 4 spaces" workaround note in tool docstrings would be sufficient today (it would not — bugs 1+2 still apply at this indentation)
 
 **Cleanup:** write fixture content back
@@ -3697,6 +3706,10 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: Case 1 and Case 3 nest and number correctly (tc-doc106.png). Case 2's bare "-" renders as literal "-" / "- Bare-nested child C1" text. Tracked in #1075 (open).
+
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's checks.** `create_doc_from_file` on the updated fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`, graded from `get_doc_as_markdown`. Case 2's bare `-` is an empty bullet with C1/C2 one level under it. Case 4: "Bullet before", an empty bullet, "Bullet after" in one list; "Number one", an empty item, "Number three" exported as 1./2./3. No literal `-` or `2.` text. Cases 1 and 3 unchanged.
+
+**Result (2026-10-31, PR #1322 @ fca630bb, round 2) ✅ PASS — rule-only item added.** `create_doc_from_file` on the updated fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`, graded from `get_doc_structure` and Playwright on screen. Cases 1–4 as in round 1 (Case 2: empty bullet at level 0, C1/C2 at level 1; Case 4: empty bullet and empty "2." in place). New list: "Rule item before", an empty bullet, the rule's unbulleted empty paragraph, then "Rule item after", the three bullets sharing one `listId`. On screen the rule is a blank gap with no line; a control doc's top-level `---` renders the same way, so that's #1096, not this PR. Check wording updated to match.
 
 ---
 
@@ -4476,9 +4489,11 @@ Order correct; the first element is now an image paragraph, not an empty one (st
 
 ---
 
-**Background:** TC-DOC135's own review round found a same-bug-class gap: `_interrupt_open_block` (`html_parser.py`) flushed the currently-open block *before* descending into a nested construct with `preserve_if_empty=False` unconditionally, so a block whose only content was an unsupported construct (e.g. an `<img>`) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old `not self._block_resumed` proxy (used at every `_emit_block_node` call site) with a new `self._block_had_unsupported_content` flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in `handle_starttag`'s generic inline-element fallthrough, reset on both fresh block open and on `_resume_interrupted_block`. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an `<li>` that wraps *only* a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive `not self._block_resumed` fix would have introduced, caught by the existing unit test `TestNestedLists::test_parent_with_no_own_text_unaffected`.
+**Background:** TC-DOC135's own review round found a same-bug-class gap: `_interrupt_open_block` (`html_parser.py`) flushed the currently-open block *before* descending into a nested construct with `preserve_if_empty=False` unconditionally, so a block whose only content was an unsupported construct (e.g. an `<img>`) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old `not self._block_resumed` proxy (used at every `_emit_block_node` call site) with a new `self._block_had_unsupported_content` flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in `handle_starttag`'s generic inline-element fallthrough, reset on both fresh block open and on `_resume_interrupted_block`. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an `<li>` that wraps *only* a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive `not self._block_resumed` fix would have introduced, caught by the then unit test `TestNestedLists::test_parent_with_no_own_text_unaffected`.
 
-### TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive
+Since #1075 that last rule is reversed: a fresh `<li>` always emits its bullet, empty or not, so an `<li>` wrapping only a nested list is an empty bullet (`TestNestedLists::test_parent_with_no_own_text_is_an_empty_bullet`), and `preserve_if_empty` no longer decides anything for a fresh `<li>`. This case's checks are unchanged: the "Bug case" bullet is an empty bullet under both rules, and the "Control case" bullet has text of its own.
+
+### TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list ⚠️ requires-oauth ⚠️ destructive
 
 **Setup:** use `docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md` — an H1 "Bug case" followed by a bullet whose only content is an unsupported `<img>`, immediately interrupted by its own nested one-item list (no direct-close ever happens for the outer bullet); then an H1 "Control case" followed by a bullet with real text of its own before an interrupting nested two-item list.
 
@@ -6260,17 +6275,19 @@ Run 2 (ash).
 
 Because the anchor always contributes 0 tabs, this fix renders every isolated item at `nestingLevel == its own depth` exactly, with no clamp — a `min_depth == 2` run (Case 4 below: two levels of bare parent `<li>`s dropped, leaving only `depth=2` children) renders two indent tiers deep with no visible parent above it, not clamped to depth 1. This PR #711 QA round's own ad-hoc probe found that result but flagged it non-blocking/unverified-as-intended (see this test's original result below). Issue #714 settled the question: render at true depth is the intended, decided behavior — see the issue's decision comment. Case 4 below promotes that probe into a real, repeatable check.
 
+Since #1075, a bare `<li>` is an empty bullet rather than dropped, so Cases 2 and 4 are no longer isolated runs: each has an empty depth-0 parent. The fixture's Cases 5 and 6 (a nested list with no parent `<li>` at all, `<ul><ul>`) keep the isolated `min_depth == 1` and `min_depth == 2` runs, and the checks below read the isolated-run glyphs from them.
+
 **Prompt**
 **Playwright: required**
 > "Write this HTML to doc {DOC_ID}: contents of docs/qa/fixtures/tc-doc104-nested-lists.html"
 
 **Checks**
-- Case 2's "Bare-nested child C1"/"C2" render with the **circle** (○) glyph — the same glyph as Case 1's "Child A1"/"Child A2" (also `depth=1`) elsewhere in the same doc — not the disc (●) glyph used at depth 0
-- Case 2's children stay visibly indented one level deeper than the (absent) parent (the TC-DOC104 checklist requirement — must not regress)
+- Case 5's "Parentless child E1"/"E2" render with the **circle** (○) glyph — the same glyph as Case 1's "Child A1"/"Child A2" (also `depth=1`) elsewhere in the same doc — not the disc (●) glyph used at depth 0
+- Case 2's "Bare-nested child C1"/"C2" render with the circle glyph one level under Case 2's empty bullet (TC-DOC104's check, #1075)
 - Case 1 / Case 3 nesting is unchanged from TC-DOC104's passing result: 3 distinct indentation levels in Case 1 (disc / circle / square), continuous numbering for "Ordered child B1"/"B2" and Case 3's "Top ordered 1"/"2"
-- Precise structural confirmation (complements the Playwright glyph check, since `get_doc_structure` still doesn't expose `nestingLevel` — see the tooling-gap note under TC-DOC106): a script-driven `documents().get()` shows "Bare-nested child C1"/"C2" with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle — not `nestingLevel 0`
+- Precise structural confirmation (complements the Playwright glyph check, since `get_doc_structure` still doesn't expose `nestingLevel` — see the tooling-gap note under TC-DOC106): a script-driven `documents().get()` shows "Parentless child E1"/"E2" with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle — not `nestingLevel 0`
 - The isolated ordered sub-run is fixed the same way: Case 1's "Ordered child B1"/"B2" report `bullet.nestingLevel == 1` (glyph "a."/"b.", `NUMBERED_DECIMAL_ALPHA_ROMAN` level 1), not `nestingLevel 0` ("1."/"2." decimal)
-- Case 4 (`min_depth == 2`, #714): "Doubly-bare child D2a"/"D2b" report `bullet.nestingLevel == 2` — **not** `nestingLevel 0` or `1` — and that list's `listProperties.nestingLevels[2].glyphSymbol` is the square (■), the depth-2 glyph, matching Case 1's own Grandchild-A2a square at the same level. 🔍 Visual check: both items visibly render two indent tiers deep with no parent bullet above them.
+- Case 6 (`min_depth == 2`, #714): "Parentless child F2a"/"F2b" report `bullet.nestingLevel == 2` — **not** `nestingLevel 0` or `1` — and that list's `listProperties.nestingLevels[2].glyphSymbol` is the square (■), the depth-2 glyph, matching Case 1's own Grandchild-A2a square at the same level. 🔍 Visual check: both items visibly render two indent tiers deep with no parent bullet above them. (Case 4's "Doubly-bare child D2a"/"D2b" are also at `nestingLevel == 2`, under two empty bullets, #1075.)
 
 **Cleanup:** write fixture content back
 
@@ -6305,6 +6322,8 @@ Run 2 (ash).
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2) ✅ PASS — all four cases, Run 2 identical, checked on screen (`pr1295-r2/tc-doc190.png`).** Case 1: Parent A ●, A1/A2 ○, A2a ■; Parent B ●, Ordered child B1 **a.**, B2 **b.**, both at level 1. Case 2: C1/C2 ○ at level 1. Case 3: 1., a., b., 2. Case 4: D2a/D2b ■ at level 2. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"
 
 **Result (2026-10-31, PR #1315 @ 893dc36f) ✅ PASS — all four cases, same scratch doc as TC-DOC104's run.** From `get_doc_structure`, plus Playwright on screen. Case 1: Parent A/B ● at level 0, A1/A2 ○ at level 1, A2a ■ at level 2, B1/B2 a./b. at level 1 (own list). Case 2: C1/C2 ○ at level 1. Case 3: 1., a., b., 2. Case 4: D2a/D2b ■ at level 2, two tiers deep. No stray empty bullets (#1074). I didn't read raw `glyphSymbol` (no scratch script), so glyphs were graded from the screenshot.
+
+**Result (2026-10-31, PR #1322 @ cbe18a72) ⚠️ PARTIAL — levels pass; glyphs not checked.** Same scratch doc as TC-DOC104's PR #1322 run, `get_doc_structure`. Case 5 E1/E2 at `nestingLevel` 1 and Case 6 F2a/F2b at level 2, with no parent bullet; Case 4 D2a/D2b at level 2 under empty bullets at levels 0 and 1; B1/B2 at level 1. The Playwright glyph check and raw `glyphSymbol` read weren't run this round.
 
 ---
 
@@ -6412,7 +6431,7 @@ Run 2 (ash).
 
 ### TC-DOC195: A resumed block's genuine trailing `&nbsp;` survives instead of vanishing (issue #444) ⚠️ destructive
 
-**Background:** #402 (TC-DOC138) already keeps a *fresh* `<p>&nbsp;</p>`'s whitespace-only content instead of dropping it, but a block *resumed* after a nested list/table interrupts it (e.g. `<li>Item<ul>...</ul>&nbsp;</li>`) still fell back to the pre-#402 always-drop behavior — a resumed block's whitespace-only flush is normally markup-formatting noise (e.g. the indentation newline between a nested list's `</ul>` and the outer `<li>`'s own `</li>`), not authored content, and the two need to stay distinguishable (see `test_nested_list_via_markdown_preserves_parent_text`). Fixed via a new `_is_formatting_whitespace` check in `html_parser.py`: a resumed segment's whitespace-only text that contains a character outside plain ASCII formatting whitespace (the decoded `\xa0` a `&nbsp;`/`&#160;` becomes — `HTMLParser`'s default `convert_charrefs=True` resolves these before `handle_data` ever sees them, so `handle_entityref`/`handle_charref` can't be used as the signal instead) is recognized as genuinely-authored content and preserved, since no pretty-printer/renderer has a reason to emit a non-breaking space as structural indentation. Deliberately does **not** extend to a *fresh* `<li>`/heading whose only content is `&nbsp;` (e.g. `<li>&nbsp;</li>` between two real siblings) — that's the PR #441 regression #402 itself already excludes, and it's unrelated to whether the character is "authored": lists/headings simply have no blank-line-spacer convention for a standalone empty item (`test_nbsp_only_list_item_still_dropped`/`test_nbsp_only_heading_still_dropped` cover that this stays unchanged). The identical fix also applies to the `<pre>` close-tag handler's own independent fresh/resumed whitespace check (#443) — covered by a unit test only (`test_resumed_pre_trailing_nbsp_preserved`), not a separate live case here, since a nested table inside `<pre>` has no live-observable signal beyond what TC-DOC154's own established pattern and that unit test already confirm deterministically.
+**Background:** #402 (TC-DOC138) already keeps a *fresh* `<p>&nbsp;</p>`'s whitespace-only content instead of dropping it, but a block *resumed* after a nested list/table interrupts it (e.g. `<li>Item<ul>...</ul>&nbsp;</li>`) still fell back to the pre-#402 always-drop behavior — a resumed block's whitespace-only flush is normally markup-formatting noise (e.g. the indentation newline between a nested list's `</ul>` and the outer `<li>`'s own `</li>`), not authored content, and the two need to stay distinguishable (see `test_nested_list_via_markdown_preserves_parent_text`). Fixed via a new `_is_formatting_whitespace` check in `html_parser.py`: a resumed segment's whitespace-only text that contains a character outside plain ASCII formatting whitespace (the decoded `\xa0` a `&nbsp;`/`&#160;` becomes — `HTMLParser`'s default `convert_charrefs=True` resolves these before `handle_data` ever sees them, so `handle_entityref`/`handle_charref` can't be used as the signal instead) is recognized as genuinely-authored content and preserved, since no pretty-printer/renderer has a reason to emit a non-breaking space as structural indentation. Deliberately does **not** extend to a *fresh* heading whose only content is `&nbsp;` (e.g. `<h1>&nbsp;</h1>` between two real siblings) — that's the PR #441 regression #402 itself already excludes, and it's unrelated to whether the character is "authored": headings simply have no blank-line-spacer convention (`test_nbsp_only_heading_still_dropped`). A fresh `<li>&nbsp;</li>` was dropped the same way until #1075, which made every fresh `<li>` a bullet: it's now an empty bullet, without the nbsp (`test_nbsp_only_list_item_is_an_empty_bullet`). The identical fix also applies to the `<pre>` close-tag handler's own independent fresh/resumed whitespace check (#443) — covered by a unit test only (`test_resumed_pre_trailing_nbsp_preserved`), not a separate live case here, since a nested table inside `<pre>` has no live-observable signal beyond what TC-DOC154's own established pattern and that unit test already confirm deterministically.
 
 **Prompt**
 > "Write this HTML to doc {DOC_ID}: `<ul><li>Item<ul><li>Child</li></ul>&nbsp;</li></ul><p>Before<table><tr><td>cell</td></tr></table>&nbsp;</p>`"

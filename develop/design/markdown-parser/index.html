@@ -1528,7 +1528,7 @@ by design: example 297 (<code>10) foo</code> / <code>- bar</code>: the bullet ne
 <td>Rule inside an item</td>
 <td>(never produced)</td>
 <td><code>&lt;li&gt;item\n&lt;hr /&gt;\n&lt;/li&gt;</code></td>
-<td><strong>Changed:</strong> an <code>&lt;hr&gt;</code> after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. <code>&lt;li&gt;&lt;hr&gt;</code> with no text keeps #401's dropped-construct boundary.</td>
+<td><strong>Changed:</strong> an <code>&lt;hr&gt;</code> after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. <code>&lt;li&gt;&lt;hr&gt;</code> with no text is an empty bullet with the rule inside the item (#1075).</td>
 </tr>
 <tr>
 <td>Text after a block in an item</td>
@@ -1576,7 +1576,7 @@ by design: example 297 (<code>10) foo</code> / <code>- bar</code>: the bullet ne
 <td>Empty item</td>
 <td>(not produced)</td>
 <td><code>&lt;li&gt;&lt;/li&gt;</code></td>
-<td>Dropped by <code>_emit_block_node</code>'s no-content rule; #1075.</td>
+<td>An empty bullet (#1075).</td>
 </tr>
 <tr>
 <td>Output</td>
