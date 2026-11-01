@@ -175,7 +175,10 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `# Heading 1` | `<h1>` | `Heading(level=1)` | HEADING_1 paragraph style |
 | `**bold**` | `<strong>` | `Run(bold=True)` | bold text run |
 | `*italic*` | `<em>` | `Run(italic=True)` | italic text run |
-| `~~strikethrough~~` | none: stays literal text (`_md_to_html` loads no strikethrough extension, and `html_parser.py` maps `<s>`/`<strike>` but not `<del>`) | `Run` with the tildes in its text | literal `~~strikethrough~~` — not implemented, #1077 |
+| `~~strikethrough~~` | `<s>` (GFM strikethrough) | `Run(strikethrough=True)` | struck-through text run (#1077) |
+| `<s>`, `<strike>`, `<del>` (inline HTML) | passed through | `Run(strikethrough=True)` | struck-through text run (#1077) |
+| `<sub>`, `<sup>` (inline HTML) | passed through | `Run(baseline_offset="SUBSCRIPT"/"SUPERSCRIPT")`; the innermost open tag wins | subscript / superscript text run (#1119) |
+| `<mark>` (inline HTML) | passed through | `Run(background_color=` yellow `)` | yellow-highlighted text run (#1119) |
 | `[text](url)` | `<a href=...>` | `Run(link_url=...)` | hyperlink |
 | bare `https://url` | `<a href=...>` (autolink extension) | `Run(link_url=...)` | hyperlink — disable via `autolink_urls=False` |
 | `[![alt](src)](url)` | `<a href=...><img ...></a>` | `Image(link_url=...)` | linked inline image (#977) |

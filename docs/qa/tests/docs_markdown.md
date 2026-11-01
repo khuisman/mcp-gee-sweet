@@ -1342,6 +1342,29 @@ What our converter tells the caller about the conversion, and the link targets i
 
 ---
 
+## Inline styles
+
+How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
+
+### TC-MD503: Inline strike, sub/sup and highlight ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/inline-scope.md` through EP-1 to EP-4 and EP-8 (#1231). Also run TC-MD116's HT-01, HT-02 and HT-07 through EP-1 to EP-4 and EP-8: #1077's and #1119's done-when. Two runs, with an on-screen check.
+
+**Checks**
+- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not.
+- IS-02: the "2" in "H2O" subscript, the "2" in "mc2" superscript, the rest of that text normal; in "abcd", "a" and "c" superscript, "b" subscript, "d" normal.
+- IS-03: "hi" highlighted yellow and bold, the text around it plain.
+- IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; the second cell's "w" highlighted; the last row's cells plain.
+- `get_doc_as_markdown` on each Doc keeps the strikes as `~~…~~` (it has no syntax for sub/sup or highlight, so those read back as plain text).
+- Malformed input (unclosed or misnested tags) isn't in this case: the new tags behave as `<s>` does there, which the unit tests pin, and browser-matching recovery is #1329.
+
+**Result (2026-11-01, PR #1332 @ eb304470, Kit) ✅ PASS — 10/10 case×EP cells pass (`inline-scope.md` and TC-MD116's HT-01/02/07, each through EP-1 to EP-4 and EP-8), in both runs. Every check was read from the stored text styles (`strikethrough`, `baselineOffset`, `backgroundColor` 1/1/0) and the two runs' read-backs are identical. Seen on screen (Playwright): IS on EP-1 (Run 1) and EP-3 (Run 2), HT on EP-8 (Run 1). `get_doc_as_markdown` gives `~~x~~ and ~~y~~; ~~hij~~k.` and plain sub/sup/highlight text, as expected.**
+
+**Result (2026-11-01, PR #1332 round 2 @ 8fd9f042, after the `develop` merge bringing #1326, Kit) ✅ PASS — 10/10 cells, one run through EP-1 to EP-4 and EP-8. The stored-style read-back is identical to round 1's, so the round-1 on-screen checks still apply; no new screenshots.**
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

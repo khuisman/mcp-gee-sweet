@@ -6,7 +6,19 @@ import html as html_module
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
-from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
+from .ast import (
+    BulletItem,
+    Cell,
+    DocNode,
+    Heading,
+    Image,
+    NamedBlock,
+    Paragraph,
+    RGBColor,
+    Row,
+    Run,
+    Table,
+)
 
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
 _NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
@@ -14,7 +26,12 @@ _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
-_INLINE_STRIKE = {"s", "strike"}
+_INLINE_STRIKE = {"s", "strike", "del"}  # <del> strikes too (#1077)
+# <sub>/<sup> set the run's baselineOffset; the innermost open one wins (#1119).
+_INLINE_BASELINE = {"sub": "SUBSCRIPT", "sup": "SUPERSCRIPT"}
+# <mark> highlights its text in yellow, a browser's default <mark> color (#1119).
+_INLINE_MARK = "mark"
+_MARK_RGB = (1.0, 1.0, 0.0)
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
 # since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
@@ -262,6 +279,9 @@ class _AstParser(HTMLParser):
         self._italic_depth = 0
         self._underline_depth = 0
         self._strike_depth = 0
+        self._mark_depth = 0
+        # One entry per open <sub>/<sup>, innermost last (#1119).
+        self._baseline_stack: list[str] = []
         self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
         # href values of <a> tags opened with no block or table cell around them.
@@ -321,6 +341,8 @@ class _AstParser(HTMLParser):
             italic=True if self._italic_depth > 0 else None,
             underline=True if self._underline_depth > 0 else None,
             strikethrough=True if self._strike_depth > 0 else None,
+            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
+            baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
             link_url=self._link_url[-1] if self._link_url else None,
             font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
         )
@@ -482,12 +504,25 @@ class _AstParser(HTMLParser):
         self._italic_depth = 0
         self._underline_depth = 0
         self._strike_depth = 0
+        self._mark_depth = 0
+        self._baseline_stack = []
         self._code_depth = 0
         self._link_url = []
         # The cleared hrefs' anchors no longer own an entry to pop.
         self._anchor_pushes = [
             None if pushed == "block" else pushed for pushed in self._anchor_pushes
         ]
+
+    def _close_baseline(self, offset: str):
+        """Pop the innermost open <sub>/<sup> of this kind (#1119).
+
+        A close with no open tag of its kind pops nothing, as `<s>`'s depth never
+        goes below 0, so `<sup>a</sub>b` keeps "b" superscript.
+        """
+        for i in range(len(self._baseline_stack) - 1, -1, -1):
+            if self._baseline_stack[i] == offset:
+                del self._baseline_stack[i]
+                return
 
     def _emit_block_node(
         self, tag: str, runs: list[Run | Image], *, preserve_if_empty: bool = False
@@ -988,6 +1023,10 @@ class _AstParser(HTMLParser):
                 self._underline_depth += 1
             elif tag in _INLINE_STRIKE:
                 self._strike_depth += 1
+            elif tag in _INLINE_BASELINE:
+                self._baseline_stack.append(_INLINE_BASELINE[tag])
+            elif tag == _INLINE_MARK:
+                self._mark_depth += 1
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
@@ -1229,6 +1268,10 @@ class _AstParser(HTMLParser):
                 self._underline_depth = max(0, self._underline_depth - 1)
             elif tag in _INLINE_STRIKE:
                 self._strike_depth = max(0, self._strike_depth - 1)
+            elif tag in _INLINE_BASELINE:
+                self._close_baseline(_INLINE_BASELINE[tag])
+            elif tag == _INLINE_MARK:
+                self._mark_depth = max(0, self._mark_depth - 1)
             elif tag == "a":
                 self._close_anchor()
             elif tag == "code" and not self._in_pre:
