@@ -1373,6 +1373,8 @@ How our converter (EP-1 to EP-4 and EP-8) scopes inline styling tags.
 
 **Result (2026-10-31, PR #1316 @ ae479805, round 4, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles. IS-01 to IS-06 match. MD-IS-html3 matches: "x" plain, "tail", the `<hr>`'s empty paragraph, "y" linked to `/1`, "z" linked to `/2`, " w" unlinked. So does MD-IS-md3: "text", "after", the break, "end". Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for findings outside this case, including a stray `</table>` that drops the rest of the document (`<p>a</p></table><p>b</p>c` keeps only "a", seen live; `develop` does the same) and a quadratic slowdown on many open or stray inline tags (PR comment).**
 
+**Result (2026-10-31, PR #1316 @ 0cf22c31, round 5, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles: IS-01 to IS-06 match. So do MD-IS-html2, MD-IS-html3, MD-IS-html4 ("a", "b", "c" paragraphs; "d" and "e" bold; "f" and "h" linked to `/u`; "g" linked to `/v`) and MD-IS-md3. Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for quadratic slowdowns on unbalanced inline tags that this case doesn't measure (PR comment).**
+
 ---
 
 ## Known gaps and not-applicable
