@@ -1552,7 +1552,7 @@ by design: example 297 (<code>10) foo</code> / <code>- bar</code>: the bullet ne
 <td>Table alignment</td>
 <td><code>align="left"</code></td>
 <td><code>style="text-align:left"</code></td>
-<td>Neither is read; no AST field for column alignment. No regression.</td>
+<td>Neither was read at this PR; no AST field for column alignment. No regression. Since #1095 both are read into <code>Cell.alignment</code> (<code>text-align</code> first).</td>
 </tr>
 <tr>
 <td>Code block language</td>
