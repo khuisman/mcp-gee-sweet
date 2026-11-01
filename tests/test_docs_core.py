@@ -430,6 +430,154 @@ class TestHtmlToAst:
         assert nodes[0].style_type == "TITLE"
 
 
+def _styled(runs: list, text: str) -> Run:
+    """The one run whose text is `text`."""
+    (run,) = [r for r in runs if isinstance(r, Run) and r.text == text]
+    return run
+
+
+class TestInlineStrikeBaselineHighlight:
+    """#1231: `<del>`/`~~x~~` strike, `<sub>`/`<sup>` baseline, `<mark>` highlight."""
+
+    @pytest.mark.parametrize("tag", ["s", "strike", "del"])
+    def test_strike_tags(self, tag):
+        nodes = html_to_ast(f"<p>a <{tag}>x</{tag}> b</p>")
+        assert _styled(nodes[0].runs, "x").strikethrough is True
+        assert _styled(nodes[0].runs, " b").strikethrough is None
+
+    def test_markdown_tildes_strike(self):
+        nodes = html_to_ast(_md_to_html("a ~~x~~ b\n"))
+        assert _styled(nodes[0].runs, "x").strikethrough is True
+
+    def test_strike_combines_with_other_styles(self):
+        nodes = html_to_ast(_md_to_html("***~~x~~***\n"))
+        run = _styled(nodes[0].runs, "x")
+        assert (run.bold, run.italic, run.strikethrough) == (True, True, True)
+
+    def test_sub_and_sup(self):
+        nodes = html_to_ast("<p>H<sub>2</sub>O mc<sup>2</sup>.</p>")
+        runs = nodes[0].runs
+        assert [(r.text, r.baseline_offset) for r in runs] == [
+            ("H", None),
+            ("2", "SUBSCRIPT"),
+            ("O mc", None),
+            ("2", "SUPERSCRIPT"),
+            (".", None),
+        ]
+
+    def test_innermost_baseline_wins(self):
+        nodes = html_to_ast("<p><sup>a<sub>b</sub>c</sup>d</p>")
+        assert [(r.text, r.baseline_offset) for r in nodes[0].runs] == [
+            ("a", "SUPERSCRIPT"),
+            ("b", "SUBSCRIPT"),
+            ("c", "SUPERSCRIPT"),
+            ("d", None),
+        ]
+
+    def test_stray_close_of_other_kind_keeps_baseline(self):
+        nodes = html_to_ast("<p><sup>a</sub>b</sup>c</p>")
+        assert [(r.text, r.baseline_offset) for r in nodes[0].runs] == [
+            ("a", "SUPERSCRIPT"),
+            ("b", "SUPERSCRIPT"),
+            ("c", None),
+        ]
+
+    def test_mark_highlights(self):
+        nodes = html_to_ast("<p>a <mark><b>hi</b></mark> b</p>")
+        run = _styled(nodes[0].runs, "hi")
+        assert run.bold is True
+        bg = run.background_color
+        assert (bg.red, bg.green, bg.blue) == (1.0, 1.0, 0.0)
+        assert _styled(nodes[0].runs, " b").background_color is None
+
+    def test_mark_runs_do_not_share_a_color_object(self):
+        nodes = html_to_ast("<p><mark>a<b>b</b></mark></p>")
+        a, b = nodes[0].runs
+        assert a.background_color == b.background_color
+        assert a.background_color is not b.background_color
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<p><sup><mark><del>a</p><p>b</p>",
+            "<h2><sup><mark><del>a</h2><p>b</p>",
+            "<ul><li><sup><mark><del>a</li><li>b</li></ul>",
+            "<ul><li><p><sup><mark><del>a</p></li><li>b</li></ul>",
+            "<pre><mark>a</pre><p>b</p>",
+        ],
+    )
+    def test_unclosed_tags_end_with_their_block(self, html):
+        # Not HTML formatting elements: a browser ends them with the block.
+        run = html_to_ast(html)[-1].runs[-1]
+        assert run.text == "b"
+        assert (run.baseline_offset, run.background_color, run.strikethrough) == (None, None, None)
+
+    def test_unclosed_tags_end_with_their_cell(self):
+        nodes = html_to_ast("<table><tr><td><sup><mark><del>a</td><td>b</td></tr></table>")
+        run = nodes[0].rows[0].cells[1].children[0]
+        assert (run.baseline_offset, run.background_color, run.strikethrough) == (None, None, None)
+
+    def test_unclosed_s_still_carries_into_next_block(self):
+        # <s> is a formatting element, which a browser reopens in the next block.
+        nodes = html_to_ast("<p><s>a</p><p>b</p>")
+        assert nodes[1].runs[0].strikethrough is True
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<p><mark>a</p>bare",
+            "<p><b>a</p>bare",
+            "<h1><sup>a</h1>bare",
+            "<table><tr><td><b>x</td></tr></table>bare",
+            "<ul><li><b>a<ul><li>b</li></ul>c</li></ul>bare",
+            "<span><p>a</span></p>bare",
+        ],
+    )
+    def test_bare_text_after_tag_left_open_in_a_block_is_kept(self, html):
+        # The unclosed tag ended with its block, so the text after it is bare
+        # top-level text again, not text wrapped in an inline tag.
+        assert html_to_ast(html)[-1].runs[-1].text == "bare"
+
+    @pytest.mark.parametrize(
+        ("html", "texts"),
+        [
+            ("<span>no blocks</span>", []),
+            ("<div><p>a</p>tail</div>after", ["a", "after"]),
+            ("<span>x<p>a</p>tail</span>after", ["a", "after"]),
+        ],
+    )
+    def test_text_inside_an_outer_inline_tag_still_dropped(self, html, texts):
+        assert [n.runs[0].text for n in html_to_ast(html)] == texts
+
+    def test_del_inside_s_keeps_strike_after_del_closes(self):
+        nodes = html_to_ast("<p><s>a<del>b</del>c</s>d</p>")
+        assert [(r.text, r.strikethrough) for r in nodes[0].runs] == [
+            ("a", True),
+            ("b", True),
+            ("c", True),
+            ("d", None),
+        ]
+
+    def test_in_table_cell(self):
+        nodes = html_to_ast(_md_to_html("| h |\n|---|\n| <sup>x</sup> ~~y~~ <mark>z</mark> |\n"))
+        children = nodes[0].rows[1].cells[0].children
+        assert _styled(children, "x").baseline_offset == "SUPERSCRIPT"
+        assert _styled(children, "y").strikethrough is True
+        assert _styled(children, "z").background_color is not None
+
+    def test_requests_carry_the_styles(self):
+        requests, _ = _to_doc_requests(
+            "~~s~~ H<sub>2</sub>O x<sup>2</sup> <mark>m</mark>", "markdown"
+        )
+        styles = [r["updateTextStyle"]["textStyle"] for r in requests if "updateTextStyle" in r]
+        assert {"strikethrough": True} in styles
+        assert {"baselineOffset": "SUBSCRIPT"} in styles
+        assert {"baselineOffset": "SUPERSCRIPT"} in styles
+        assert {
+            "backgroundColor": {"color": {"rgbColor": {"red": 1.0, "green": 1.0, "blue": 0.0}}}
+        } in styles
+
+
 class TestLooseListItemKeepsItsBullet:
     """#1111: python-markdown wraps a *loose* list item's text in its own `<p>`
     (so any list with a blank line between items), and the parser treated that

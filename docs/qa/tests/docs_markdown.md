@@ -1342,6 +1342,26 @@ What our converter tells the caller about the conversion, and the link targets i
 
 ---
 
+## Inline styles
+
+How our converter (EP-1 to EP-4 and EP-8) scopes inline styling tags.
+
+### TC-MD503: Inline strike, sub/sup and highlight: nesting and unclosed tags ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/inline-scope.md` through EP-1 to EP-4 and EP-8 (#1231; TC-MD116 HT-01, HT-02 and HT-07 cover the plain tags).
+
+**Checks**
+- IS-01: "a" and "c" superscript, "b" subscript, "d and " normal; "e" and "f" superscript (the stray `</sub>` doesn't end the `<sup>`), "g." normal.
+- IS-02: "h", "i" and "j" struck, "k." not.
+- IS-03: "unclosed" struck, superscript and highlighted yellow; "The paragraph after them is plain." has none of the three (#1231: `<del>`, `<sub>`, `<sup>` and `<mark>` end with their block, as in a browser).
+- IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; "open" highlighted; the last row's cells and the IS-05 heading plain.
+- IS-05: "struck" and the paragraph after it both struck (an unclosed `<s>` carries into the next block, as a browser's formatting-element reopening does).
+- HTML input, once (not per EP): `create_doc(title="MD-IS-html", content="<p><mark>a</p>bare text", content_format="html", folder_id="{FOLDER_ID}")`. The Doc shows "a" highlighted, then "bare text" as its own plain paragraph (#1231: text after a tag left open in a block used to be dropped).
+- `get_doc_as_markdown` on each Doc keeps the strikes as `~~…~~` (it has no syntax for sub/sup or highlight, so those read back as plain text).
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

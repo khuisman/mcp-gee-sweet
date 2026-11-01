@@ -6,7 +6,19 @@ import html as html_module
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
-from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
+from .ast import (
+    BulletItem,
+    Cell,
+    DocNode,
+    Heading,
+    Image,
+    NamedBlock,
+    Paragraph,
+    RGBColor,
+    Row,
+    Run,
+    Table,
+)
 
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
 _NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
@@ -15,6 +27,16 @@ _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
 _INLINE_STRIKE = {"s", "strike"}
+# <del> strikes too (#1077), but has its own depth: unlike <s>/<strike> it isn't an
+# HTML "formatting element", so a browser closes an unclosed one at the end of its
+# block instead of carrying it into the next (see _close_block_scoped_inline).
+_INLINE_DEL = "del"
+# <sub>/<sup> set the run's baselineOffset; the innermost open one wins (#1119).
+_INLINE_BASELINE = {"sub": "SUBSCRIPT", "sup": "SUPERSCRIPT"}
+# <mark> highlights its text in yellow, the color a browser gives it by default
+# and Docs' own default highlight (#1119).
+_INLINE_MARK = "mark"
+_MARK_RGB = (1.0, 1.0, 0.0)
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
 # since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
@@ -257,12 +279,21 @@ class _AstParser(HTMLParser):
         # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS
         # are excluded since they never get a matching close tag.
         self._tag_depth = 0
+        # The part of _tag_depth opened with no block or table cell around it. A
+        # tag left unclosed inside a block ends with it, so once no block or table
+        # is open, _tag_depth is capped at this (_drop_tags_closed_with_blocks);
+        # otherwise an unclosed "<p><b>a</p>" dropped every later bare text (#1231).
+        self._outer_tag_depth = 0
 
         # --- inline formatting stacks ---
         self._bold_depth = 0
         self._italic_depth = 0
         self._underline_depth = 0
         self._strike_depth = 0
+        self._del_depth = 0
+        self._mark_depth = 0
+        # One entry per open <sub>/<sup>, innermost last (#1119).
+        self._baseline_stack: list[str] = []
         self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
         # href values of <a> tags opened with no block or table cell around them.
@@ -321,7 +352,9 @@ class _AstParser(HTMLParser):
             bold=True if self._bold_depth > 0 else None,
             italic=True if self._italic_depth > 0 else None,
             underline=True if self._underline_depth > 0 else None,
-            strikethrough=True if self._strike_depth > 0 else None,
+            strikethrough=True if self._strike_depth > 0 or self._del_depth > 0 else None,
+            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
+            baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
             link_url=self._link_url[-1] if self._link_url else None,
             font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
         )
@@ -477,6 +510,7 @@ class _AstParser(HTMLParser):
         self._italic_depth = 0
         self._underline_depth = 0
         self._strike_depth = 0
+        self._close_block_scoped_inline()
         self._code_depth = 0
         self._link_url = []
         # The cleared hrefs' anchors no longer own an entry to pop.
@@ -752,7 +786,15 @@ class _AstParser(HTMLParser):
     # HTMLParser callbacks
     # ------------------------------------------------------------------
 
+    def _drop_tags_closed_with_blocks(self):
+        """Stop counting the inline tags left open in a block or table that has
+        ended (see _outer_tag_depth)."""
+        if self._block_tag is None and self._table_depth == 0:
+            depth = min(self._tag_depth, self._outer_tag_depth)
+            self._tag_depth = self._outer_tag_depth = depth
+
     def handle_starttag(self, tag, attrs):
+        self._drop_tags_closed_with_blocks()
         attr_dict = dict(attrs)
 
         # --- table structure ---
@@ -959,6 +1001,8 @@ class _AstParser(HTMLParser):
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS:
             self._tag_depth += 1
+            if self._block_tag is None and self._table_depth == 0:
+                self._outer_tag_depth += 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -972,6 +1016,12 @@ class _AstParser(HTMLParser):
                 self._underline_depth += 1
             elif tag in _INLINE_STRIKE:
                 self._strike_depth += 1
+            elif tag == _INLINE_DEL:
+                self._del_depth += 1
+            elif tag in _INLINE_BASELINE:
+                self._baseline_stack.append(_INLINE_BASELINE[tag])
+            elif tag == _INLINE_MARK:
+                self._mark_depth += 1
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
@@ -1041,6 +1091,7 @@ class _AstParser(HTMLParser):
                 self._cell_pre_depth = 0
                 if is_header:
                     self._bold_depth -= 1
+                self._close_block_scoped_inline()
                 tb.end_cell(runs)
                 return
 
@@ -1153,6 +1204,7 @@ class _AstParser(HTMLParser):
                 )
             self._block_tag = None
             self._in_pre = False
+            self._close_block_scoped_inline()
             self._resume_interrupted_block("pre")
             return
 
@@ -1170,6 +1222,8 @@ class _AstParser(HTMLParser):
             and self._block_tag != tag
         ):
             self._li_heading_tags.pop()
+            self._flush_run()
+            self._close_block_scoped_inline()
             if self._block_tag == "li" and self._li_heading_level == int(tag[1]):
                 runs = self._flush_pending_runs()
                 self._emit_block_node(
@@ -1186,12 +1240,14 @@ class _AstParser(HTMLParser):
         # handle_data buffers next land outside the item's runs.
         if tag == "p" and self._block_tag == "li" and self._table_depth == 0:
             self._flush_run()
+            self._close_block_scoped_inline()
             self._li_trailing_padding = True
             return
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
+            self._close_block_scoped_inline()
             self._emit_block_node(tag, runs, preserve_if_empty=self._block_had_unsupported_content)
             self._block_named_style = None
             self._block_tag = None
@@ -1199,8 +1255,11 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
+        self._drop_tags_closed_with_blocks()
         if tag not in _VOID_TAGS and self._tag_depth > 0:
             self._tag_depth -= 1
+            if self._block_tag is None and self._table_depth == 0:
+                self._outer_tag_depth = min(self._outer_tag_depth, self._tag_depth)
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -1213,6 +1272,12 @@ class _AstParser(HTMLParser):
                 self._underline_depth = max(0, self._underline_depth - 1)
             elif tag in _INLINE_STRIKE:
                 self._strike_depth = max(0, self._strike_depth - 1)
+            elif tag == _INLINE_DEL:
+                self._del_depth = max(0, self._del_depth - 1)
+            elif tag in _INLINE_BASELINE:
+                self._close_baseline(_INLINE_BASELINE[tag])
+            elif tag == _INLINE_MARK:
+                self._mark_depth = max(0, self._mark_depth - 1)
             elif tag == "a":
                 self._close_anchor()
             elif tag == "code" and not self._in_pre:
@@ -1221,6 +1286,29 @@ class _AstParser(HTMLParser):
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
         elif tag == "a":
             self._close_anchor()
+
+    def _close_block_scoped_inline(self):
+        """End every open <del>, <sub>, <sup> and <mark> (#1231).
+
+        Called where a block or table cell ends. These aren't HTML "formatting
+        elements", so a browser ends an unclosed one with its block; <b>, <i>, <u>,
+        <s> and <strike> are, and a browser reopens them in the next block, which
+        is why their depths carry on.
+        """
+        self._del_depth = 0
+        self._mark_depth = 0
+        self._baseline_stack = []
+
+    def _close_baseline(self, offset: str):
+        """Pop the innermost open <sub>/<sup> of this kind (#1119).
+
+        A stray close with no matching open tag pops nothing, so `<sup>a</sub>b`
+        can't drop the superscript of an outer tag of the other kind.
+        """
+        for i in range(len(self._baseline_stack) - 1, -1, -1):
+            if self._baseline_stack[i] == offset:
+                del self._baseline_stack[i]
+                return
 
     def _release_cell_whitespace(self):
         """Write held cell whitespace (see handle_data) ahead of the content about to
@@ -1251,6 +1339,7 @@ class _AstParser(HTMLParser):
             self._bare_link_url.pop()
 
     def handle_data(self, data):
+        self._drop_tags_closed_with_blocks()
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
