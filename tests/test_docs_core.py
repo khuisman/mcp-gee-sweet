@@ -898,13 +898,15 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         # construct; #333 makes <img> itself supported (see
         # test_image_survives_interruption_by_nested_list below for that same
         # shape with a real Image node preserved instead of an empty runs
-        # list) — a bare <hr> stands in here to keep covering a construct
-        # that's still genuinely dropped.
+        # list). A bare <hr> stood in here until #1075, which made a fresh <li>
+        # always emit its bullet and the rule a block inside the item (PR #1322
+        # QA round 1): the bullet survives the interruption, now with its rule.
         html = "<ul><li><hr><ul><li>nested</li></ul></li></ul>"
         nodes = html_to_ast(html)
-        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
         assert nodes[0].runs == []
-        assert nodes[1].runs[0].text == "nested"
+        assert nodes[1].list_depth == 0
+        assert (nodes[2].runs[0].text, nodes[2].depth) == ("nested", 1)
 
     def test_image_survives_interruption_by_nested_list(self):
         # #333 companion to the dropped-construct test above: a bullet whose
@@ -3380,6 +3382,32 @@ class TestEmptyListItemIsABullet:
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "a\n\nc\n"
 
+    def test_item_whose_only_content_is_a_rule(self):
+        # PR #1322 QA round 1: like a code block or quote there, the rule is a block
+        # inside the empty item, and the list continues past it.
+        assert _md_lists("- a\n-\n  ---\n- c\n") == [
+            ("a", 0, "B1", 1),
+            ("", 0, "B1", 2),
+            ("", None, None, None),
+            ("c", 0, "B1", 3),
+        ]
+        nodes = html_to_ast("<ol><li><hr></li><li>b</li></ol>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
+        assert nodes[0].runs == [] and nodes[1].runs == []
+        assert nodes[1].list_depth == 0
+        assert nodes[1].list_path == nodes[0].list_path
+
+    def test_text_after_a_rule_in_an_empty_item_stays_in_the_item(self):
+        nodes = html_to_ast("<ul><li><hr>after</li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert nodes[2].runs[0].text == "after"
+        assert [n.list_depth for n in nodes[1:]] == [0, 0]
+
+    def test_rule_in_an_empty_paragraph_keeps_its_boundary(self):
+        # Only a fresh <li> changed: a fresh <p> with no text before its rule keeps
+        # #401's dropped-construct boundary.
+        assert html_to_ast("<p><hr></p>") == [Paragraph(runs=[])]
+
     def test_dash_under_text_is_still_a_heading_underline(self):
         # CommonMark (and GitHub): a "-" line right under paragraph text underlines
         # it as a setext heading. That's the spec, not this issue's defect.
@@ -3409,4 +3437,9 @@ class TestEmptyListItemIsABullet:
             ("Number one", 0, 1),
             ("", 0, 2),
             ("Number three", 0, 3),
+            # An item whose only content is a rule (PR #1322 QA round 1).
+            ("Rule item before", 0, 1),
+            ("", 0, 2),
+            ("", None, None),
+            ("Rule item after", 0, 3),
         ]

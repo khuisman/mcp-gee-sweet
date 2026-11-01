@@ -501,11 +501,13 @@ class _AstParser(HTMLParser):
         content — e.g. a resumed segment's formatting newline — leaves this
         False and emits nothing, since there's no boundary to lose.
 
-        A fresh `<li>` is the exception to all of the empty-result rules here:
-        it always emits its BulletItem, with runs=[] when it has no text (#1075),
-        since an item shows a marker however little it holds (`<li></li>`, a
-        Markdown bare `-`; `<li>&nbsp;</li>`; an `<li>` whose content starts with
-        a nested list or block).
+        A fresh `<li>` takes none of the rules below: it always emits its
+        BulletItem, first and on its own, with runs=[] when it has no text
+        (#1075), since an item shows a marker however little it holds
+        (`<li></li>`, a Markdown bare `-`; `<li>&nbsp;</li>`; an `<li>` whose
+        content starts with a nested list or block). preserve_if_empty and the
+        whitespace rules apply only to every other block, and to a resumed
+        `<li>` segment, which is a Paragraph inside the item (#1094).
 
         Whitespace-only text (runs non-empty but strips to nothing, e.g. a
         lone space or `&nbsp;`) is a separate case from the runs=[] one
@@ -566,13 +568,16 @@ class _AstParser(HTMLParser):
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
         text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
-        if not text and not has_image and tag == "li" and not self._block_resumed:
+        if tag == "li" and not self._block_resumed:
             # A list item is a bullet whatever it holds (#1075): `<li></li>` (a
             # Markdown bare `-`), an item holding only whitespace or `&nbsp;`, and an
             # item whose content starts with a nested list or block, all of which
             # show a marker in a browser. Its whitespace is padding, not text.
-            runs = []
-        elif not text and not has_image:
+            if not text and not has_image:
+                runs = []
+            self._nodes.append(self._make_bullet_item(runs))
+            return
+        if not text and not has_image:
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
             is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
                 self._block_resumed, runs, raw_text
@@ -595,8 +600,6 @@ class _AstParser(HTMLParser):
                     **self._list_item_fields(),
                 )
             )
-        elif tag == "li" and not self._block_resumed:
-            self._nodes.append(self._make_bullet_item(runs))
         elif tag == "p" and self._block_named_style:
             self._nodes.append(
                 NamedBlock(
@@ -924,15 +927,23 @@ class _AstParser(HTMLParser):
         # block. Without this the rule vanished and the newlines around it became
         # empty paragraphs. The same holds for a resumed segment, after a nested list,
         # quote or paragraph in the item ("- a\n  - b\n  ---"), even with no text of
-        # its own. Only a fresh block with no text before the rule ("<li><hr>") keeps
-        # the dropped-construct handling below, which keeps its own boundary (#401).
+        # its own, and for a fresh <li> with no text ("<li><hr>", Markdown "-" then
+        # "  ---"): the item is an empty bullet either way (#1075), so the rule is a
+        # block inside it, like a <pre> or <blockquote> there. Only another fresh
+        # block with no text before the rule ("<p><hr>") keeps the dropped-construct
+        # handling below, which keeps its own boundary (#401).
         if (
             tag == "hr"
             and self._block_tag is not None
             and self._table_depth == 0
             and self._tag_depth == 0
             and not self._in_pre
-            and (self._block_resumed or "".join(self._run_buf).strip() or self._pending_runs)
+            and (
+                self._block_resumed
+                or self._block_tag == "li"
+                or "".join(self._run_buf).strip()
+                or self._pending_runs
+            )
         ):
             self._interrupt_open_block("hr")
             self._nodes.append(

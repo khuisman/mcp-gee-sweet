@@ -32,3 +32,8 @@
 1. Number one
 2.
 3. Number three
+
+- Rule item before
+-
+    ---
+- Rule item after
