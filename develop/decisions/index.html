@@ -1552,6 +1552,12 @@
 <td>decided</td>
 <td><code>thread_http</code>'s per-thread transport gets the two settings googleapiclient's <code>build_http()</code> gives every <code>build()</code>-built client and a bare <code>httplib2.Http()</code> lacked (#1129): a per-socket-operation timeout (<code>HTTP_TIMEOUT_SECONDS</code>, default googleapiclient's 60 s) so a silently dead connection can't hang a call, with a timeout error that says whether a write may have landed; and 308 removed from redirect codes, which had failed every resumable upload over 100 MB. Connect-only timeout and TCP keepalive considered and rejected</td>
 </tr>
+<tr>
+<td><a href="decision-html-error-recovery/">HTML Error Recovery</a></td>
+<td>2026-11-01</td>
+<td>proposed</td>
+<td><code>html_to_ast</code> hand-builds the HTML Standard's tree-construction recovery on a tokenizer; PR #1316 spent six QA rounds rebuilding it piece by piece. Options: an HTML5 parser library (lean: selectolax), a planned hand-written model, or content-loss fixes only. #1231 ships as the tag mapping alone, bar "behaves like <code>&lt;s&gt;</code> on <code>develop</code>"</td>
+</tr>
 </tbody>
 </table>
 
