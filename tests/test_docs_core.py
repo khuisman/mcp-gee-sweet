@@ -1,5 +1,6 @@
 """Tests for docs core — HTML/AST pipeline and emitter internals."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -869,23 +870,24 @@ class TestLooseListItemKeepsItsBullet:
         nodes = html_to_ast("<ul>\n<li>\n<p>a</p>\n</li>\n</ul>")
         assert "".join(r.text for r in nodes[0].runs) == "a"
 
-    def test_whitespace_only_loose_item_is_dropped_like_the_tight_one(self):
-        # #402 keeps a whitespace-only *paragraph* as a deliberate spacer but
-        # drops a whitespace-only list item. A loose item's `<p>` is now the
-        # item itself, so the item rule is the one that applies — and the trim
-        # must not be what causes it: the authored "&nbsp;" reaches the flush
-        # intact, and _emit_block_node's own li rule drops the node.
-        assert html_to_ast("<ul><li><p>&nbsp;</p></li></ul>") == []
-        assert html_to_ast("<ul><li>&nbsp;</li></ul>") == []
+    def test_whitespace_only_loose_item_is_an_empty_bullet_like_the_tight_one(self):
+        # A loose item's `<p>` is the item itself, so the item rule applies: an
+        # item holding only whitespace is an empty bullet (#1075), loose or tight.
+        for html in ("<ul><li><p>&nbsp;</p></li></ul>", "<ul><li>&nbsp;</li></ul>"):
+            nodes = html_to_ast(html)
+            assert [type(n) for n in nodes] == [BulletItem]
+            assert nodes[0].runs == []
 
     def test_whitespace_only_loose_item_does_not_swallow_its_neighbours(self):
         nodes = html_to_ast("<ul><li><p>Real</p></li><li><p>&nbsp;</p></li></ul>")
-        assert [n.runs[0].text for n in nodes] == ["Real"]
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem]
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["Real", ""]
 
-    def test_empty_paragraph_item_makes_no_spurious_bullet(self):
+    def test_empty_paragraph_item_is_an_empty_bullet(self):
         nodes = html_to_ast("<ul><li><p></p></li><li>Real</li></ul>")
-        assert len(nodes) == 1
-        assert nodes[0].runs[0].text == "Real"
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem]
+        assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "Real"
 
     def test_second_paragraph_in_an_item_is_still_a_separate_block(self):
         # Only the item's first paragraph is transparent. A later one is a block
@@ -942,9 +944,13 @@ class TestLooseListItemKeepsItsBullet:
         assert [n.runs[0].text for n in nodes] == ["a", "b", "c", "d", "e"]
 
     def test_named_style_paragraph_inside_an_item_keeps_its_style(self):
+        # A styled paragraph isn't the item's transparent `<p>`: it's a block inside
+        # the item, which has no text of its own and so is an empty bullet (#1075).
         nodes = html_to_ast('<ul><li><p data-style="title">T</p></li></ul>')
-        assert [type(n) for n in nodes] == [NamedBlock]
-        assert nodes[0].style_type == "TITLE"
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
+        assert nodes[0].runs == []
+        assert nodes[1].style_type == "TITLE"
+        assert nodes[1].list_depth == 0
 
     def test_emitter_bullets_the_loose_list(self):
         # End to end: the requests actually sent to Docs must carry the bullets,
@@ -1144,16 +1150,13 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert len(nodes) == 3
         assert nodes[1].runs[0].text == "\xa0"
 
-    def test_nbsp_only_list_item_still_dropped(self):
-        # PR #441's QA round (live-caught): #402's whitespace-preserve fix
-        # is a <p>-specific blank-line-spacer convention (a literal blank
-        # line only collapses between paragraphs) — it must not fire for
-        # <li>, or a real bullet glyph with only invisible content renders
-        # between two genuine list items.
+    def test_nbsp_only_list_item_is_an_empty_bullet(self):
+        # PR #441 dropped this item, since #402's whitespace-preserve fix is a
+        # <p>-specific blank-line-spacer convention. #1075 made every item a
+        # bullet, so it's an empty one: the item keeps its marker, not the nbsp.
         nodes = html_to_ast("<ul><li>Real</li><li>&nbsp;</li><li>More</li></ul>")
-        assert len(nodes) == 2
-        assert nodes[0].runs[0].text == "Real"
-        assert nodes[1].runs[0].text == "More"
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["Real", "", "More"]
+        assert all(isinstance(n, BulletItem) for n in nodes)
 
     def test_nbsp_only_heading_still_dropped(self):
         nodes = html_to_ast("<h1>Title</h1><h1>&nbsp;</h1><h1>Next</h1>")
@@ -1269,13 +1272,15 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         # construct; #333 makes <img> itself supported (see
         # test_image_survives_interruption_by_nested_list below for that same
         # shape with a real Image node preserved instead of an empty runs
-        # list) — a bare <hr> stands in here to keep covering a construct
-        # that's still genuinely dropped.
+        # list). A bare <hr> stood in here until #1075, which made a fresh <li>
+        # always emit its bullet and the rule a block inside the item (PR #1322
+        # QA round 1): the bullet survives the interruption, now with its rule.
         html = "<ul><li><hr><ul><li>nested</li></ul></li></ul>"
         nodes = html_to_ast(html)
-        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
         assert nodes[0].runs == []
-        assert nodes[1].runs[0].text == "nested"
+        assert nodes[1].list_depth == 0
+        assert (nodes[2].runs[0].text, nodes[2].depth) == ("nested", 1)
 
     def test_image_survives_interruption_by_nested_list(self):
         # #333 companion to the dropped-construct test above: a bullet whose
@@ -1289,17 +1294,15 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert nodes[0].runs[0].src == "x.png"
         assert nodes[1].runs[0].text == "nested"
 
-    def test_parent_with_no_own_text_still_unaffected_by_the_fix(self):
-        # Companion control case for the fix above: an <li> that wraps only
-        # a nested list, with no text and no dropped construct of its own,
-        # must still emit nothing for itself — the naive fix of always
-        # preserving an interrupt-time empty flush regresses exactly this
-        # (see TestNestedLists.test_parent_with_no_own_text_unaffected for
-        # the end-to-end version of this same guard).
+    def test_parent_with_no_own_text_is_an_empty_bullet(self):
+        # An <li> that wraps only a nested list, with no text and no dropped
+        # construct of its own, is an empty bullet (#1075), with the child one
+        # level under it.
         html = "<ul><li><ul><li>child</li></ul></li></ul>"
         nodes = html_to_ast(html)
-        assert [isinstance(n, BulletItem) for n in nodes] == [True]
-        assert nodes[0].runs[0].text == "child"
+        assert [(type(n), n.depth) for n in nodes] == [(BulletItem, 0), (BulletItem, 1)]
+        assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "child"
 
 
 class TestNamedBlockEmitter:
@@ -2484,12 +2487,16 @@ class TestIsolatedDepthRunGlyph:
         requests, _ = ast_to_requests(nodes)
         assert _render_bullet_levels(requests) == [("A", 1), ("Interrupter", None), ("B", 1)]
 
-    def test_end_to_end_bare_parent_nested_list_renders_at_level_1(self):
-        # #439's own repro shape: a bare <li> with no text, only a nested <ul>. The
-        # parent <li> is dropped (empty), leaving an isolated depth-1 run.
-        html = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
+    def test_end_to_end_list_nested_with_no_parent_item_renders_at_level_1(self):
+        # A nested list with no parent item (a <ul> directly in a <ul>) is an
+        # isolated depth-1 run. #439's original shape, a bare <li> wrapping the
+        # nested list, is now an empty bullet at level 0 (#1075).
+        html = "<ul><ul><li>C1</li><li>C2</li></ul></ul>"
         requests, _ = _to_doc_requests(html)
         assert _render_bullet_levels(requests) == [("C1", 1), ("C2", 1)]
+        bare = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
+        requests, _ = _to_doc_requests(bare)
+        assert _render_bullet_levels(requests) == [("", 0), ("C1", 1), ("C2", 1)]
 
 
 class TestMixedTypeNestedListKeepsNumbering:
@@ -2694,9 +2701,9 @@ class TestAdjacentSameTypeListsStaySeparate:
         assert lists["x"] != lists["y"]
 
     def test_list_after_earlier_list_isnt_nested_in_it(self):
-        # A fragment of a separate list (its parent dropped) after a shallower list's
+        # A fragment of a separate list (no parent item) after a shallower list's
         # item isn't nested under that item: its list doesn't enclose the fragment.
-        nodes = html_to_ast("<ol><li>P</li></ol><ol><li><ol><li>z</li></ol></li></ol>")
+        nodes = html_to_ast("<ol><li>P</li></ol><ol><ol><li>z</li></ol></ol>")
         rendered = _render_lists(ast_to_requests(nodes)[0])
         lists = {text: list_name for text, _, list_name, _ in rendered}
         assert lists["P"] != lists["z"]
@@ -2873,6 +2880,111 @@ def _final_indent_request(requests: list[dict], text: str) -> dict:
     return style
 
 
+_TC_DOC104_FIXTURE = Path(__file__).parent / "../docs/qa/fixtures/tc-doc104-nested-lists.html"
+
+
+class TestPrettyPrintedListWhitespace:
+    """#1074: formatting whitespace between list tags (indented, pretty-printed HTML)
+    became whitespace-only bullet paragraphs, so a numbered list skipped a number
+    ("Top ordered 2" shown as "3."). #1116's line-break trims in html_parser
+    (`_interrupt_open_block`, and a resumed segment's leading break in `handle_data`)
+    fixed it. These pin the result: whitespace between list tags produces no
+    paragraph, and the list renders as it does when written without the whitespace."""
+
+    def test_tc_doc104_fixture_has_no_stray_bullets(self):
+        requests, _ = _to_doc_requests(_TC_DOC104_FIXTURE.read_text())
+        # Every paragraph, headings included, so a stray non-bullet paragraph fails
+        # too. List names count creation order; the bullet pass runs latest list first.
+        assert _render_lists(requests) == [
+            ("Nested List Structure Test (direct HTML)", None, None, None),
+            ("Case 1: parent item has its own text AND a nested sub-list", None, None, None),
+            ("Parent A has text", 0, "B6", 1),
+            ("Child A1", 1, "B6", 1),
+            ("Child A2", 1, "B6", 2),
+            ("Grandchild A2a", 2, "B6", 1),
+            ("Parent B has text", 0, "B6", 2),
+            ("Ordered child B1", 1, "N7", 1),
+            ("Ordered child B2", 1, "N7", 2),
+            ("Case 2: parent item has NO text of its own, just a nested list", None, None, None),
+            # An empty item is an empty bullet (#1075).
+            ("", 0, "B5", 1),
+            ("Bare-nested child C1", 1, "B5", 1),
+            ("Bare-nested child C2", 1, "B5", 2),
+            ("Case 3: ordered list nested inside ordered list", None, None, None),
+            ("Top ordered 1", 0, "N4", 1),
+            ("Nested ordered 1.1", 1, "N4", 1),
+            ("Nested ordered 1.2", 1, "N4", 2),
+            ("Top ordered 2", 0, "N4", 2),
+            ("Case 4: two levels of empty parent li", None, None, None),
+            ("", 0, "B3", 1),
+            ("", 1, "B3", 1),
+            ("Doubly-bare child D2a", 2, "B3", 1),
+            ("Doubly-bare child D2b", 2, "B3", 2),
+            ("Case 5: nested list with no parent item, isolated min_depth=1 run", None, None, None),
+            ("Parentless child E1", 1, "B2", 1),
+            ("Parentless child E2", 1, "B2", 2),
+            (
+                "Case 6: two levels of nested list with no parent item, isolated min_depth=2 run",
+                None,
+                None,
+                None,
+            ),
+            ("Parentless child F2a", 2, "B1", 1),
+            ("Parentless child F2b", 2, "B1", 2),
+        ]
+
+    @pytest.mark.parametrize(
+        "pretty, compact",
+        [
+            pytest.param(
+                "<ol>\n  <li>One\n    <ol>\n      <li>1.1</li>\n      <li>1.2</li>\n"
+                "    </ol>\n  </li>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li>One<ol><li>1.1</li><li>1.2</li></ol></li><li>Two</li></ol>",
+                id="nested-ol-in-li",
+            ),
+            pytest.param(
+                # The issue's literal shape: a nested list after "</li>", a sibling
+                # of the items rather than inside one.
+                "<ol>\n  <li>One</li>\n  <ol>\n    <li>1.1</li>\n  </ol>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li>One</li><ol><li>1.1</li></ol><li>Two</li></ol>",
+                id="nested-ol-after-li-close",
+            ),
+            pytest.param(
+                "<ul>\r\n\t<li>A\r\n\t\t<ol>\r\n\t\t\t<li>a1</li>\r\n\t\t</ol>\r\n"
+                "\t</li>\r\n\t<li>B</li>\r\n</ul>\r\n",
+                "<ul><li>A<ol><li>a1</li></ol></li><li>B</li></ul>",
+                id="tabs-and-crlf",
+            ),
+            pytest.param(
+                "<ul>\n  <li>\n    <ul>\n      <li>C1</li>\n    </ul>\n  </li>\n"
+                "  <li>D</li>\n</ul>\n",
+                "<ul><li><ul><li>C1</li></ul></li><li>D</li></ul>",
+                id="bare-parent-li",
+            ),
+            pytest.param(
+                "<ul>\n  <li><b>A</b>\n    <ul>\n      <li>a1</li>\n    </ul>\n  </li>\n"
+                "  <li>B</li>\n</ul>\n",
+                "<ul><li><b>A</b><ul><li>a1</li></ul></li><li>B</li></ul>",
+                id="inline-wrapped-parent-text",
+            ),
+            pytest.param(
+                "<ol>\n  <li>\n    <p>One</p>\n    <ol>\n      <li>1.1</li>\n    </ol>\n"
+                "  </li>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li><p>One</p><ol><li>1.1</li></ol></li><li>Two</li></ol>",
+                id="p-wrapped-parent-text",
+            ),
+        ],
+    )
+    def test_pretty_printed_renders_like_compact(self, pretty, compact):
+        pretty_requests, _ = _to_doc_requests(pretty)
+        compact_requests, _ = _to_doc_requests(compact)
+        rendered = _render_lists(pretty_requests)
+        assert rendered == _render_lists(compact_requests)
+        # No whitespace-only paragraph. An empty bullet (a bare parent <li>, #1075)
+        # is in the compact form too.
+        assert all(text.strip() or not text for text, *_ in rendered)
+
+
 class TestBlockInsideListItem:
     """#1094: a block inside a list item (a second paragraph, code, a quote, a heading,
     a table, a rule) ended the item's list, so the next item restarted at 1. The block
@@ -3014,13 +3126,14 @@ class TestBlockInsideListItem:
         } in requests
 
     def test_item_with_only_a_block_does_not_break_the_next_items(self):
-        # The item has no text of its own, so it has no bullet: its code is still
-        # indented under it, and the next items form one list.
+        # The item has no text of its own, so it's an empty bullet (#1075) with its
+        # code indented under it, and the next items continue its list.
         md = "- ```\n  x\n  ```\n- b\n- c\n"
         assert _md_lists(md) == [
+            ("", 0, "B1", 1),
             ("x", None, None, None),
-            ("b", 0, "B1", 1),
-            ("c", 0, "B1", 2),
+            ("b", 0, "B1", 2),
+            ("c", 0, "B1", 3),
         ]
 
 
@@ -3584,4 +3697,123 @@ class TestQuotedTable:
             {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
             {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
             {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+        ]
+
+
+class TestEmptyListItemIsABullet:
+    """#1075: a list item with no text (a Markdown bare `-`, an HTML `<li></li>`) was
+    dropped, so the list lost an item and an ordered list a number. Every item is now a
+    bullet, an empty one when it has no text, with a list nested under it one level
+    deeper."""
+
+    def test_bare_dash_between_items(self):
+        assert _md_lists("- a\n-\n- c\n") == [
+            ("a", 0, "B1", 1),
+            ("", 0, "B1", 2),
+            ("c", 0, "B1", 3),
+        ]
+
+    def test_bare_dash_as_the_first_item(self):
+        assert _md_lists("-\n- b\n") == [("", 0, "B1", 1), ("b", 0, "B1", 2)]
+
+    def test_empty_ordered_item_keeps_its_number(self):
+        assert _md_lists("1. a\n2.\n3. c\n") == [
+            ("a", 0, "N1", 1),
+            ("", 0, "N1", 2),
+            ("c", 0, "N1", 3),
+        ]
+
+    def test_nested_list_under_an_empty_item_is_one_level_deeper(self):
+        # TC-DOC105/106 Case 2.
+        assert _md_lists("-\n  - C1\n  - C2\n- d\n") == [
+            ("", 0, "B1", 1),
+            ("C1", 1, "B1", 1),
+            ("C2", 1, "B1", 2),
+            ("d", 0, "B1", 2),
+        ]
+
+    def test_item_whose_only_content_is_a_nested_list(self):
+        assert _md_lists("- - x\n") == [("", 0, "B1", 1), ("x", 1, "B1", 1)]
+
+    def test_empty_item_in_a_loose_list(self):
+        assert _md_lists("- a\n\n-\n\n- c\n") == [
+            ("a", 0, "B1", 1),
+            ("", 0, "B1", 2),
+            ("c", 0, "B1", 3),
+        ]
+
+    def test_empty_item_in_a_quote_keeps_the_quote(self):
+        nodes = html_to_ast(_md_to_html("> - a\n> -\n"))
+        assert [(type(n), n.runs, n.blockquote_depth) for n in nodes][1] == (BulletItem, [], 1)
+
+    def test_empty_html_item(self):
+        nodes = html_to_ast("<ol><li>a</li><li></li><li> </li><li>d</li></ol>")
+        assert all(isinstance(n, BulletItem) and n.ordered for n in nodes)
+        assert [n.runs for n in nodes][1:3] == [[], []]
+
+    def test_empty_item_inserts_an_empty_paragraph(self):
+        requests, _ = _to_doc_requests(_md_to_html("- a\n-\n- c\n"))
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\n\nc\n"
+
+    def test_item_whose_only_content_is_a_rule(self):
+        # PR #1322 QA round 1: like a code block or quote there, the rule is a block
+        # inside the empty item, and the list continues past it.
+        assert _md_lists("- a\n-\n  ---\n- c\n") == [
+            ("a", 0, "B1", 1),
+            ("", 0, "B1", 2),
+            ("", None, None, None),
+            ("c", 0, "B1", 3),
+        ]
+        nodes = html_to_ast("<ol><li><hr></li><li>b</li></ol>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
+        assert nodes[0].runs == [] and nodes[1].runs == []
+        assert nodes[1].list_depth == 0
+        assert nodes[1].list_path == nodes[0].list_path
+
+    def test_text_after_a_rule_in_an_empty_item_stays_in_the_item(self):
+        nodes = html_to_ast("<ul><li><hr>after</li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert nodes[2].runs[0].text == "after"
+        assert [n.list_depth for n in nodes[1:]] == [0, 0]
+
+    def test_rule_in_an_empty_paragraph_keeps_its_boundary(self):
+        # Only a fresh <li> changed: a fresh <p> with no text before its rule keeps
+        # #401's dropped-construct boundary.
+        assert html_to_ast("<p><hr></p>") == [Paragraph(runs=[])]
+
+    def test_dash_under_text_is_still_a_heading_underline(self):
+        # CommonMark (and GitHub): a "-" line right under paragraph text underlines
+        # it as a setext heading. That's the spec, not this issue's defect.
+        nodes = html_to_ast(_md_to_html("text\n-\n"))
+        assert [type(n) for n in nodes] == [Heading]
+
+    def test_tc_doc106_fixture(self):
+        # TC-DOC106's live fixture: Case 2 is the issue's repro, Case 4 an empty item
+        # between items in a bulleted and a numbered list.
+        md = (
+            Path(__file__).parent / "../docs/qa/fixtures/tc-doc106-nested-lists-4space.md"
+        ).read_text()
+        rendered = _md_lists(md)
+        case2 = rendered.index(
+            ("Case 2: parent item has NO text of its own, just a nested list", None, None, None)
+        )
+        assert [row[:2] for row in rendered[case2 + 1 : case2 + 4]] == [
+            ("", 0),
+            ("Bare-nested child C1", 1),
+            ("Bare-nested child C2", 1),
+        ]
+        case4 = rendered.index(("Case 4: empty items between items", None, None, None))
+        assert [(text, level, ordinal) for text, level, _, ordinal in rendered[case4 + 1 :]] == [
+            ("Bullet before", 0, 1),
+            ("", 0, 2),
+            ("Bullet after", 0, 3),
+            ("Number one", 0, 1),
+            ("", 0, 2),
+            ("Number three", 0, 3),
+            # An item whose only content is a rule (PR #1322 QA round 1).
+            ("Rule item before", 0, 1),
+            ("", 0, 2),
+            ("", None, None),
+            ("Rule item after", 0, 3),
         ]

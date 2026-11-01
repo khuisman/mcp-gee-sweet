@@ -408,12 +408,12 @@ class TestNestedLists:
         bullets = self._bullets(html)
         assert [b.ordered for b in bullets] == [False, True, True]
 
-    async def test_parent_with_no_own_text_unaffected(self):
-        # Control case: an <li> that is just a wrapper around a nested list,
-        # with no text of its own — nothing should be emitted for it, and
-        # both children must still come through.
+    async def test_parent_with_no_own_text_is_an_empty_bullet(self):
+        # An <li> that is just a wrapper around a nested list, with no text of
+        # its own, is an empty bullet with its children one level under it, as a
+        # browser shows its marker (#1075).
         html = "<ul><li><ul><li>Child A1</li><li>Child A2</li></ul></li></ul>"
-        assert self._texts_depths(html) == [("Child A1", 1), ("Child A2", 1)]
+        assert self._texts_depths(html) == [("", 0), ("Child A1", 1), ("Child A2", 1)]
 
     async def test_bold_run_in_parent_text_survives(self):
         html = "<ul><li>Item <b>text</b><ul><li>sub</li></ul></li></ul>"
