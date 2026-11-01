@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html as html_module
+import re
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
@@ -165,22 +166,45 @@ _CELL_ALIGNMENTS = {
     "right": "END",
     "end": "END",
     "justify": "JUSTIFIED",
+    # Vendor values that HTML copied from Chrome, Safari or Firefox (or an email) carries.
+    "-webkit-left": "START",
+    "-webkit-center": "CENTER",
+    "-webkit-right": "END",
+    "-moz-left": "START",
+    "-moz-center": "CENTER",
+    "-moz-right": "END",
 }
 
+_IMPORTANT = re.compile(r"!\s*important\s*$")
+_TABLE_SECTIONS = ("thead", "tbody", "tfoot")
 
-def _cell_alignment(attr_dict: dict) -> str | None:
-    """A <td>/<th>'s horizontal alignment as a Docs paragraph alignment (#1095), or None.
 
-    Read from its style's text-align (what markdown-it writes for a GFM :--/:-:/--:
-    column), else from the legacy align attribute, since CSS overrides a presentational
-    attribute. The last text-align declaration wins, as in CSS. An unrecognized value
-    sets nothing."""
+def _text_align(attr_dict: dict) -> str | None:
+    """An element's own style text-align as a Docs paragraph alignment, or None. The
+    last declaration with a value we can map wins: CSS drops an invalid declaration,
+    so `text-align:right; text-align:bogus` is right."""
     for declaration in reversed((attr_dict.get("style") or "").split(";")):
         name, sep, value = declaration.partition(":")
         if sep and name.strip().lower() == "text-align":
-            value = value.lower().replace("!important", "").strip()
-            return _CELL_ALIGNMENTS.get(value)
-    return _CELL_ALIGNMENTS.get((attr_dict.get("align") or "").strip().lower())
+            alignment = _CELL_ALIGNMENTS.get(_IMPORTANT.sub("", value.strip().lower()).strip())
+            if alignment is not None:
+                return alignment
+    return None
+
+
+def _cell_alignment(attr_dict: dict, *, align_attribute: bool = True) -> str | None:
+    """The horizontal alignment an element gives its cells, as a Docs paragraph
+    alignment (#1095), or None. Used for a <td>/<th> and for what a cell inherits
+    from its <tr>, <thead>/<tbody>/<tfoot> or <table> (_TableBuilder.inherited_alignment).
+
+    Read from its style's text-align (what markdown-it writes for a GFM :--/:-:/--:
+    column), else from the legacy align attribute, since CSS overrides a presentational
+    attribute. A value we can't map sets nothing and falls through. align_attribute is
+    False for <table>, whose align positions the table rather than its text."""
+    alignment = _text_align(attr_dict)
+    if alignment is None and align_attribute:
+        alignment = _CELL_ALIGNMENTS.get((attr_dict.get("align") or "").strip().lower())
+    return alignment
 
 
 def _image_src(attr_dict: dict) -> str:
@@ -809,7 +833,9 @@ class _AstParser(HTMLParser):
                 self._table_stack[-1].append_runs(self._flush_pending_runs())
                 self._cell_held_runs = []
             self._table_depth += 1
-            self._table_stack.append(_TableBuilder())
+            self._table_stack.append(
+                _TableBuilder(alignment=_cell_alignment(attr_dict, align_attribute=False))
+            )
             return
 
         if self._table_depth >= 1:
@@ -822,8 +848,12 @@ class _AstParser(HTMLParser):
                     tb.col_widths_from_col.append(None)
                 return
             if tag == "tr":
-                tb.start_row()
+                tb.start_row(alignment=_cell_alignment(attr_dict))
                 return
+            if tag in _TABLE_SECTIONS:
+                # Recorded for its cells only; the tag still takes the generic
+                # unrecognized-tag path below, as it did before #1095.
+                tb.section_alignment = _cell_alignment(attr_dict)
             if tag in ("td", "th"):
                 # `or 1` only covers a missing attribute — an explicit colspan="0"/
                 # rowspan="0" is falsy-looking HTML but a truthy non-empty string,
@@ -839,7 +869,7 @@ class _AstParser(HTMLParser):
                     rowspan=rowspan,
                     is_header=is_header,
                     width_pt=width_pt,
-                    alignment=_cell_alignment(attr_dict),
+                    alignment=_cell_alignment(attr_dict) or tb.inherited_alignment(),
                 )
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
@@ -1079,6 +1109,8 @@ class _AstParser(HTMLParser):
             if tag == "tr":
                 tb.end_row()
                 return
+            if tag in _TABLE_SECTIONS:
+                tb.section_alignment = None  # then the generic path, as at the start tag
             if tag in ("td", "th"):
                 is_header = tag == "th"
                 runs = self._flush_pending_runs()
@@ -1366,8 +1398,13 @@ class _AstParser(HTMLParser):
 class _TableBuilder:
     """Accumulates rows/cells while parsing a <table>."""
 
-    def __init__(self):
+    def __init__(self, alignment: str | None = None):
         self.rows: list[Row] = []
+        # What a cell with no alignment of its own inherits (#1095), nearest first:
+        # its <tr>, its <thead>/<tbody>/<tfoot>, then the <table>'s style.
+        self.table_alignment = alignment
+        self.section_alignment: str | None = None
+        self.row_alignment: str | None = None
         self.col_widths_from_col: list[float | None] = []
         self._current_row_cells: list[Cell] = []
         self._current_cell: dict | None = None  # metadata for current open cell
@@ -1376,13 +1413,18 @@ class _TableBuilder:
         # ordered content of the open cell
         self._current_children: list[Run | Image | Table] = []
 
-    def start_row(self):
+    def start_row(self, alignment: str | None = None):
         self._current_row_cells = []
+        self.row_alignment = alignment
 
     def end_row(self):
         if self._current_row_cells:
             self.rows.append(Row(cells=self._current_row_cells))
         self._current_row_cells = []
+        self.row_alignment = None
+
+    def inherited_alignment(self) -> str | None:
+        return self.row_alignment or self.section_alignment or self.table_alignment
 
     def start_cell(
         self,
