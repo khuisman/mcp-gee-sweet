@@ -211,9 +211,8 @@ class _AstParser(HTMLParser):
         # _emit_block_node's preserve_if_empty is keyed on: an empty flush is
         # worth preserving (#401) exactly when something was actually dropped
         # to produce it, not merely because the segment never had any content
-        # to begin with — e.g. an <li> that wraps only a nested <ul> with no
-        # text of its own is empty for a completely unrelated, common reason
-        # and must NOT be preserved as a spurious empty bullet.
+        # to begin with. A fresh <li> doesn't consult it: an item is a bullet
+        # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
@@ -499,10 +498,14 @@ class _AstParser(HTMLParser):
         void element like <img>, or a bare <hr>), emitting it as an empty
         node (runs=[]) so its paragraph boundary survives (#401), instead of
         vanishing outright. An empty result that *isn't* due to dropped
-        content — e.g. an <li> that wraps only a nested <ul> with no text of
-        its own — leaves this False and emits nothing, since there's no
-        boundary to lose: that segment was never going to have its own node
-        either way.
+        content — e.g. a resumed segment's formatting newline — leaves this
+        False and emits nothing, since there's no boundary to lose.
+
+        A fresh `<li>` is the exception to all of the empty-result rules here:
+        it always emits its BulletItem, with runs=[] when it has no text (#1075),
+        since an item shows a marker however little it holds (`<li></li>`, a
+        Markdown bare `-`; `<li>&nbsp;</li>`; an `<li>` whose content starts with
+        a nested list or block).
 
         Whitespace-only text (runs non-empty but strips to nothing, e.g. a
         lone space or `&nbsp;`) is a separate case from the runs=[] one
@@ -514,14 +517,14 @@ class _AstParser(HTMLParser):
         (self._block_resumed False — opened and closed with nothing in
         between, e.g. `<p>&nbsp;</p>`) always keeps that whitespace text,
         unconditional on preserve_if_empty, since there's real (if
-        invisible) content here to lose, not just a boundary. Every other
-        tag (`<li>`, `<h1>`-`<h6>`) keeps the pre-#402 behavior of always
-        dropping whitespace-only text — PR #441's own QA round live-caught a
-        first version of this fix that wasn't scoped to `<p>` at all,
-        producing a stray bullet glyph / stray heading with only invisible
-        content for `<li>&nbsp;</li>` or `<h1>&nbsp;</h1>` between two real
-        siblings, which isn't the blank-line-spacer convention this fix is
-        for. A *resumed* `<p>`'s whitespace-only trailing flush is a
+        invisible) content here to lose, not just a boundary. A heading
+        keeps the pre-#402 behavior of always dropping whitespace-only text —
+        PR #441's own QA round live-caught a first version of this fix that
+        wasn't scoped to `<p>` at all, producing a stray heading with only
+        invisible content for `<h1>&nbsp;</h1>` between two real siblings,
+        which isn't the blank-line-spacer convention this fix is for. (It
+        dropped `<li>&nbsp;</li>` the same way until #1075 made every fresh
+        `<li>` a bullet; the item keeps its marker but not the `&nbsp;`.) A *resumed* `<p>`'s whitespace-only trailing flush is a
         different animal too, and must NOT get the fresh-`<p>` treatment
         either: it's markup-formatting noise (e.g. the indentation newline
         between a nested list's `</ul>` and the outer `<li>`'s own `</li>`),
@@ -547,12 +550,11 @@ class _AstParser(HTMLParser):
         inside the same tag) can only be something a human actually typed —
         real, if invisible, content to lose, the same rationale the
         fresh-`<p>` case above already rests on. This deliberately does NOT
-        extend to a *fresh* `<li>`/heading whose only content is such a
-        character (e.g. `<li>&nbsp;</li>` between two real siblings): that's
-        the PR #441 regression above, and the signal doesn't rescue it,
-        since the problem there isn't ambiguity about who produced the
-        character — it's that lists/headings have no blank-line-spacer
-        convention for a standalone empty item to begin with. Emitter.py's
+        extend to a *fresh* heading whose only content is such a character
+        (e.g. `<h1>&nbsp;</h1>` between two real siblings): that's the PR #441
+        regression above, and the signal doesn't rescue it, since the problem
+        there isn't ambiguity about who produced the character — it's that
+        headings have no blank-line-spacer convention to begin with. Emitter.py's
         ast_to_requests() no longer special-cases this text at all — it
         emits whatever text a kept node carries, whitespace or not.
 
@@ -564,7 +566,13 @@ class _AstParser(HTMLParser):
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
         text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
-        if not text and not has_image:
+        if not text and not has_image and tag == "li" and not self._block_resumed:
+            # A list item is a bullet whatever it holds (#1075): `<li></li>` (a
+            # Markdown bare `-`), an item holding only whitespace or `&nbsp;`, and an
+            # item whose content starts with a nested list or block, all of which
+            # show a marker in a browser. Its whitespace is padding, not text.
+            runs = []
+        elif not text and not has_image:
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
             is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
                 self._block_resumed, runs, raw_text

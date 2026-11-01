@@ -2379,7 +2379,9 @@ Run 2 (ash).
 
 **Checks**
 - `get_doc_structure` shows "Parent A has text" and "Parent B has text" as their own bullet items, each followed by their nested children
-- Case 2's bare-nested children ("Bare-nested child C1"/"C2") appear at a visibly deeper indentation than Case 2's (absent) parent
+- Case 2's parent `<li>` has no text, so it's an empty bullet at level 0 (#1075); its children ("Bare-nested child C1"/"C2") appear one level deeper, under it
+- Case 4: two empty bullets, at levels 0 and 1, then "Doubly-bare child D2a"/"D2b" at level 2 (#1075)
+- Cases 5 and 6 (a nested list with no parent `<li>`): "Parentless child E1"/"E2" at level 1 and "Parentless child F2a"/"F2b" at level 2, with no bullet above either run
 - Case 3's "Top ordered 1" survives as its own item, with "Nested ordered 1.1"/"1.2" indented under it
 - 🔍 Visual check in Google Docs: 3 distinct indentation levels are visible in Case 1 (Parent A / Child A2 / Grandchild A2a), and Case 2/3's nesting is visually indented, not flush-left
 
@@ -2428,6 +2430,7 @@ Run 2 (ash).
 
 **Checks**
 - Same nesting expectations as TC-DOC104 (this is the indentation width most humans/AI tools write by default — it should behave the same as explicit HTML nesting)
+- Case 2's bare `-` is an empty bullet at level 0, with "Bare-nested child C1"/"C2" one level under it; no literal `-` text (#1075)
 - No literal `1.`/`2.` digit-dot text visible anywhere in bullet content
 
 **Cleanup:** write fixture content back
@@ -2458,6 +2461,8 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 
 **Checks**
 - Same nesting expectations as TC-DOC104 — 4-space indentation is the one width where `_md_to_html` produces genuinely nested `<ul>`/`<ol>` HTML, so this TC should behave identically to TC-DOC104 once bugs 1+2 are fixed
+- Case 2's bare `-` is an empty bullet at level 0, with "Bare-nested child C1"/"C2" one level under it; no literal `-` text (#1075)
+- Case 4: an empty bullet between "Bullet before" and "Bullet after" (three bullets, one list), and an empty numbered item between "Number one" and "Number three", which show 1., 2. (empty) and 3.; no literal `-` or `2.` text (#1075)
 - Confirms whether a "use 4 spaces" workaround note in tool docstrings would be sufficient today (it would not — bugs 1+2 still apply at this indentation)
 
 **Cleanup:** write fixture content back
@@ -5053,17 +5058,19 @@ Run 2 (ash).
 
 Because the anchor always contributes 0 tabs, this fix renders every isolated item at `nestingLevel == its own depth` exactly, with no clamp — a `min_depth == 2` run (Case 4 below: two levels of bare parent `<li>`s dropped, leaving only `depth=2` children) renders two indent tiers deep with no visible parent above it, not clamped to depth 1. This PR #711 QA round's own ad-hoc probe found that result but flagged it non-blocking/unverified-as-intended (see this test's original result below). Issue #714 settled the question: render at true depth is the intended, decided behavior — see the issue's decision comment. Case 4 below promotes that probe into a real, repeatable check.
 
+Since #1075, a bare `<li>` is an empty bullet rather than dropped, so Cases 2 and 4 are no longer isolated runs: each has an empty depth-0 parent. The fixture's Cases 5 and 6 (a nested list with no parent `<li>` at all, `<ul><ul>`) keep the isolated `min_depth == 1` and `min_depth == 2` runs, and the checks below read the isolated-run glyphs from them.
+
 **Prompt**
 **Playwright: required**
 > "Write this HTML to doc {DOC_ID}: contents of docs/qa/fixtures/tc-doc104-nested-lists.html"
 
 **Checks**
-- Case 2's "Bare-nested child C1"/"C2" render with the **circle** (○) glyph — the same glyph as Case 1's "Child A1"/"Child A2" (also `depth=1`) elsewhere in the same doc — not the disc (●) glyph used at depth 0
-- Case 2's children stay visibly indented one level deeper than the (absent) parent (the TC-DOC104 checklist requirement — must not regress)
+- Case 5's "Parentless child E1"/"E2" render with the **circle** (○) glyph — the same glyph as Case 1's "Child A1"/"Child A2" (also `depth=1`) elsewhere in the same doc — not the disc (●) glyph used at depth 0
+- Case 2's "Bare-nested child C1"/"C2" render with the circle glyph one level under Case 2's empty bullet (TC-DOC104's check, #1075)
 - Case 1 / Case 3 nesting is unchanged from TC-DOC104's passing result: 3 distinct indentation levels in Case 1 (disc / circle / square), continuous numbering for "Ordered child B1"/"B2" and Case 3's "Top ordered 1"/"2"
-- Precise structural confirmation (complements the Playwright glyph check, since `get_doc_structure` still doesn't expose `nestingLevel` — see the tooling-gap note under TC-DOC106): a script-driven `documents().get()` shows "Bare-nested child C1"/"C2" with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle — not `nestingLevel 0`
+- Precise structural confirmation (complements the Playwright glyph check, since `get_doc_structure` still doesn't expose `nestingLevel` — see the tooling-gap note under TC-DOC106): a script-driven `documents().get()` shows "Parentless child E1"/"E2" with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle — not `nestingLevel 0`
 - The isolated ordered sub-run is fixed the same way: Case 1's "Ordered child B1"/"B2" report `bullet.nestingLevel == 1` (glyph "a."/"b.", `NUMBERED_DECIMAL_ALPHA_ROMAN` level 1), not `nestingLevel 0` ("1."/"2." decimal)
-- Case 4 (`min_depth == 2`, #714): "Doubly-bare child D2a"/"D2b" report `bullet.nestingLevel == 2` — **not** `nestingLevel 0` or `1` — and that list's `listProperties.nestingLevels[2].glyphSymbol` is the square (■), the depth-2 glyph, matching Case 1's own Grandchild-A2a square at the same level. 🔍 Visual check: both items visibly render two indent tiers deep with no parent bullet above them.
+- Case 6 (`min_depth == 2`, #714): "Parentless child F2a"/"F2b" report `bullet.nestingLevel == 2` — **not** `nestingLevel 0` or `1` — and that list's `listProperties.nestingLevels[2].glyphSymbol` is the square (■), the depth-2 glyph, matching Case 1's own Grandchild-A2a square at the same level. 🔍 Visual check: both items visibly render two indent tiers deep with no parent bullet above them. (Case 4's "Doubly-bare child D2a"/"D2b" are also at `nestingLevel == 2`, under two empty bullets, #1075.)
 
 **Cleanup:** write fixture content back
 

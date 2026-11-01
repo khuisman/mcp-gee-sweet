@@ -155,7 +155,7 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Code block language | `class="language-x"` | same | Unchanged. |
 | Hard break | `<br />\n` | same | Unchanged; the double break it produces is #1117. Now reachable from a trailing `\` too. |
 | Two quotes | one `<blockquote>`, two `<p>` | two `<blockquote>` | Renders as two quotes (#1098's emitter work). |
-| Empty item | (not produced) | `<li></li>` | Dropped by `_emit_block_node`'s no-content rule; #1075. |
+| Empty item | (not produced) | `<li></li>` | Dropped by `_emit_block_node`'s no-content rule; #1075. Since #1075's fix, an empty bullet. |
 | Output | no trailing newline | ends in `\n` | Harmless; one exact-match test updated. |
 
 ## Behavior changes for existing callers
