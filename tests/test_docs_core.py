@@ -1,5 +1,6 @@
 """Tests for docs core — HTML/AST pipeline and emitter internals."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -2497,6 +2498,94 @@ def _final_indent_request(requests: list[dict], text: str) -> dict:
     )
     assert index > last_bullet
     return style
+
+
+_TC_DOC104_FIXTURE = Path(__file__).parent / "../docs/qa/fixtures/tc-doc104-nested-lists.html"
+
+
+class TestPrettyPrintedListWhitespace:
+    """#1074: formatting whitespace between list tags (indented, pretty-printed HTML)
+    became whitespace-only bullet paragraphs, so a numbered list skipped a number
+    ("Top ordered 2" shown as "3."). #1116's line-break trims in html_parser
+    (`_interrupt_open_block`, and a resumed segment's leading break in `handle_data`)
+    fixed it. These pin the result: whitespace between list tags produces no
+    paragraph, and the list renders as it does when written without the whitespace."""
+
+    def test_tc_doc104_fixture_has_no_stray_bullets(self):
+        requests, _ = _to_doc_requests(_TC_DOC104_FIXTURE.read_text())
+        # Every paragraph, headings included, so a stray non-bullet paragraph fails
+        # too. List names count creation order; the bullet pass runs latest list first.
+        assert _render_lists(requests) == [
+            ("Nested List Structure Test (direct HTML)", None, None, None),
+            ("Case 1: parent item has its own text AND a nested sub-list", None, None, None),
+            ("Parent A has text", 0, "B4", 1),
+            ("Child A1", 1, "B4", 1),
+            ("Child A2", 1, "B4", 2),
+            ("Grandchild A2a", 2, "B4", 1),
+            ("Parent B has text", 0, "B4", 2),
+            ("Ordered child B1", 1, "N5", 1),
+            ("Ordered child B2", 1, "N5", 2),
+            ("Case 2: parent item has NO text of its own, just a nested list", None, None, None),
+            ("Bare-nested child C1", 1, "B3", 1),
+            ("Bare-nested child C2", 1, "B3", 2),
+            ("Case 3: ordered list nested inside ordered list", None, None, None),
+            ("Top ordered 1", 0, "N2", 1),
+            ("Nested ordered 1.1", 1, "N2", 1),
+            ("Nested ordered 1.2", 1, "N2", 2),
+            ("Top ordered 2", 0, "N2", 2),
+            ("Case 4: two levels of empty parent li, isolated min_depth=2 run", None, None, None),
+            ("Doubly-bare child D2a", 2, "B1", 1),
+            ("Doubly-bare child D2b", 2, "B1", 2),
+        ]
+
+    @pytest.mark.parametrize(
+        "pretty, compact",
+        [
+            pytest.param(
+                "<ol>\n  <li>One\n    <ol>\n      <li>1.1</li>\n      <li>1.2</li>\n"
+                "    </ol>\n  </li>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li>One<ol><li>1.1</li><li>1.2</li></ol></li><li>Two</li></ol>",
+                id="nested-ol-in-li",
+            ),
+            pytest.param(
+                # The issue's literal shape: a nested list after "</li>", a sibling
+                # of the items rather than inside one.
+                "<ol>\n  <li>One</li>\n  <ol>\n    <li>1.1</li>\n  </ol>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li>One</li><ol><li>1.1</li></ol><li>Two</li></ol>",
+                id="nested-ol-after-li-close",
+            ),
+            pytest.param(
+                "<ul>\r\n\t<li>A\r\n\t\t<ol>\r\n\t\t\t<li>a1</li>\r\n\t\t</ol>\r\n"
+                "\t</li>\r\n\t<li>B</li>\r\n</ul>\r\n",
+                "<ul><li>A<ol><li>a1</li></ol></li><li>B</li></ul>",
+                id="tabs-and-crlf",
+            ),
+            pytest.param(
+                "<ul>\n  <li>\n    <ul>\n      <li>C1</li>\n    </ul>\n  </li>\n"
+                "  <li>D</li>\n</ul>\n",
+                "<ul><li><ul><li>C1</li></ul></li><li>D</li></ul>",
+                id="bare-parent-li",
+            ),
+            pytest.param(
+                "<ul>\n  <li><b>A</b>\n    <ul>\n      <li>a1</li>\n    </ul>\n  </li>\n"
+                "  <li>B</li>\n</ul>\n",
+                "<ul><li><b>A</b><ul><li>a1</li></ul></li><li>B</li></ul>",
+                id="inline-wrapped-parent-text",
+            ),
+            pytest.param(
+                "<ol>\n  <li>\n    <p>One</p>\n    <ol>\n      <li>1.1</li>\n    </ol>\n"
+                "  </li>\n  <li>Two</li>\n</ol>\n",
+                "<ol><li><p>One</p><ol><li>1.1</li></ol></li><li>Two</li></ol>",
+                id="p-wrapped-parent-text",
+            ),
+        ],
+    )
+    def test_pretty_printed_renders_like_compact(self, pretty, compact):
+        pretty_requests, _ = _to_doc_requests(pretty)
+        compact_requests, _ = _to_doc_requests(compact)
+        rendered = _render_lists(pretty_requests)
+        assert rendered == _render_lists(compact_requests)
+        assert all(text.strip() for text, *_ in rendered)
 
 
 class TestBlockInsideListItem:
