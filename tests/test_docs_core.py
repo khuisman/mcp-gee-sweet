@@ -531,6 +531,11 @@ class TestInlineStrikeBaselineHighlight:
             "<table><tr><td><b>x</td></tr></table>bare",
             "<ul><li><b>a<ul><li>b</li></ul>c</li></ul>bare",
             "<table><tr><td><mark>a</table>bare",
+            # PR #1316 QA round 3, finding 1: an end tag inside a block closes a
+            # tag opened outside any block, as develop's _tag_depth did.
+            "<span><p>a</span></p>bare",
+            "<b><p>x</b></p>bare",
+            "<span><table><tr><td>x</span></td></tr></table>bare",
         ],
     )
     def test_bare_text_after_tag_left_open_in_a_block_is_kept(self, html):
@@ -547,9 +552,6 @@ class TestInlineStrikeBaselineHighlight:
             # PR #1316 QA round 1, finding 2: the stray </b> closes the reopened
             # <b>, never the outer <span>.
             ("<span><p><b>a</p></b>inner</span>after", ["a", "after"]),
-            # A </span> inside the <p> is ignored, as in a browser: "bare" is
-            # still inside the span.
-            ("<span><p>a</span></p>bare", ["a"]),
         ],
     )
     def test_text_inside_an_outer_inline_tag_still_dropped(self, html, texts):
@@ -723,6 +725,43 @@ class TestInlineStrikeBaselineHighlight:
         parser.feed("<p><b>x</p>" * 5 + "<p><a href=u>x</p><p>y</a></p>" * 3)
         assert parser._inline_stack == []
         assert [e.tag for e in parser._reopen] == ["b", "b", "b"]
+
+    def test_outer_tag_closed_inside_a_block_keeps_later_hr(self):
+        # PR #1316 QA round 3, finding 1, from Markdown: the thematic break stays.
+        md = "<span>\n\ntext</span>\n\nafter\n\n---\n\nend\n"
+        nodes = html_to_ast(_md_to_html(md))
+        assert [n.runs[0].text if n.runs else "<hr>" for n in nodes] == [
+            "text",
+            "after",
+            "<hr>",
+            "end",
+        ]
+
+    def test_outer_link_closed_inside_a_block_doesnt_link_later_image(self):
+        # PR #1316 QA round 3, finding 2.
+        md = '<a href="https://x">\n\ntext</a>\n\n<img src="y.png">\n'
+        image = html_to_ast(_md_to_html(md))[-1].runs[0]
+        assert isinstance(image, Image)
+        assert image.link_url is None
+
+    def test_linked_anchor_closes_reopened_anchor(self):
+        # PR #1316 QA round 3, finding 4.
+        nodes = html_to_ast('<p><a href="1">x</p><p><a href="2">y</a> z</p>')
+        assert [(r.text, r.link_url) for r in nodes[1].runs] == [("y", "2"), (" z", None)]
+
+    def test_unclosed_links_stay_bounded(self):
+        # PR #1316 QA round 3, finding 3: each new link closes the reopened one.
+        parser = _AstParser()
+        parser.feed("".join(f'<p><a href="u{i}">x</p>' for i in range(200)))
+        assert [(e.tag, e.href) for e in parser._reopen] == [("a", "u199")]
+
+    def test_stray_end_tag_in_cell_keeps_tag_queued_before_table(self):
+        # PR #1316 QA round 3, finding 5: the cell hides the queued <b>, which
+        # reopens after the table.
+        nodes = html_to_ast("<p><b>a</p><table><tr><td>c</b>d</td></tr></table><p>e</p>")
+        cell = nodes[1].rows[0].cells[0].children
+        assert all(r.bold is None for r in cell)
+        assert nodes[2].runs[0].bold is True
 
     def test_nested_unlinked_anchor_keeps_outer_link(self):
         # #994, now read from the stack.
@@ -991,8 +1030,9 @@ class TestBlockInsideListItemAst:
 
     def test_heading_item_interrupted_before_its_close_tag(self):
         # PR #1301 QA round 1: </h1> after the nested list fell through to the inline
-        # end-tag path and decremented _tag_depth, so the later bare "z" and <hr>
-        # became paragraphs inside the <span>.
+        # end-tag path, where it closed the outer <span> (then a _tag_depth count, now
+        # an _inline_stack entry), so the later bare "z" and <hr> became paragraphs
+        # inside the <span>.
         interrupted = html_to_ast(
             "<span><ul><li><h1>T<ul><li>x</li></ul></h1>a</li></ul>z<hr></span>"
         )
@@ -1079,8 +1119,9 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert nodes[1].runs == []
 
     def test_hr_wrapped_in_inline_tag_with_no_block_ancestor_still_dropped(self):
-        # PR #406 QA pass 2: the bare-<hr> check omitted the _tag_depth == 0
-        # condition that handle_data's sibling bare-text check uses (#343),
+        # PR #406 QA pass 2: the bare-<hr> check omitted the "no open inline tag"
+        # condition (now _wrapped_in_inline_tag) that handle_data's sibling
+        # bare-text check uses (#343),
         # so an <hr> wrapped only in an inline tag with no block ancestor
         # (e.g. "<span><hr></span>") spuriously injected a paragraph
         # boundary — contradicting the existing, tested policy that

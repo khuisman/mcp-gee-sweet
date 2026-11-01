@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html as html_module
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 
 from .ast import (
@@ -55,6 +55,7 @@ _BLOCK_SCOPE = "#block"  # an open block segment (_open_block)
 _CELL_SCOPE = "#cell"  # a <td>
 _HEADER_CELL_SCOPE = "#th"  # a <th>: its text is bold
 _TABLE_SCOPE = "#table"
+_TABLE_MARKERS = (_CELL_SCOPE, _HEADER_CELL_SCOPE, _TABLE_SCOPE)
 # How many identical reopened formatting elements a browser keeps (the "Noah's
 # Ark" clause of the HTML spec's active formatting list).
 _MAX_REOPENED = 3
@@ -190,6 +191,16 @@ class _InlineTag:
     @property
     def is_scope(self) -> bool:
         return self.tag in _SCOPE_RANK
+
+
+@dataclass
+class _TextStyle:
+    """What _AstParser._text_style reads off _inline_stack for a run."""
+
+    tags: set[str] = field(default_factory=set)
+    baseline: str | None = None
+    link: str | None = None
+    header_cell: bool = False
 
 
 @dataclass
@@ -370,42 +381,48 @@ class _AstParser(HTMLParser):
         if not text:
             return
         self._run_buf = []
-        # The tags styling this text: those opened in a block or cell, above the
-        # innermost cell's marker, since a cell starts fresh (#1231).
-        tags: set[str] = set()
-        baseline = None
-        header_cell = False
-        for entry in reversed(self._inline_stack):
-            if entry.tag in (_CELL_SCOPE, _HEADER_CELL_SCOPE, _TABLE_SCOPE):
-                header_cell = entry.tag == _HEADER_CELL_SCOPE
-                break
-            if entry.styles:
-                tags.add(entry.tag)
-                if baseline is None:
-                    baseline = _INLINE_BASELINE.get(entry.tag)
+        style = self._text_style()
+        tags = style.tags
         run = Run(
             text=text,
-            bold=True if header_cell or tags & _INLINE_BOLD else None,
+            bold=True if style.header_cell or tags & _INLINE_BOLD else None,
             italic=True if tags & _INLINE_ITALIC else None,
             underline=True if tags & _INLINE_UNDERLINE else None,
             strikethrough=True if tags & _INLINE_STRIKE else None,
             background_color=RGBColor(*_MARK_RGB) if _INLINE_MARK in tags else None,
-            baseline_offset=baseline,
-            link_url=self._current_link(),
+            baseline_offset=style.baseline,
+            link_url=style.link,
             font_family="Courier New" if (self._in_pre or "code" in tags) else None,
         )
         self._pending_runs.append(run)
 
-    def _current_link(self) -> str | None:
-        """The href of the innermost linked <a> styling the text, above the
-        innermost cell or table marker: a cell starts with no link (#1231). An
-        href-less <a> inside a linked one leaves the outer link in force (#994)."""
+    def _text_style(self) -> _TextStyle:
+        """The style and link of text typed now, in one walk of _inline_stack: the
+        tags opened in a block or cell, above the innermost cell or table marker,
+        since a cell starts fresh (#1231). The link is the innermost linked <a>'s,
+        so an href-less <a> inside a linked one leaves the outer link (#994)."""
+        style = _TextStyle()
         for entry in reversed(self._inline_stack):
-            if entry.tag in (_CELL_SCOPE, _HEADER_CELL_SCOPE, _TABLE_SCOPE):
-                return None
-            if entry.tag == "a" and entry.styles and entry.href:
-                return entry.href
-        return None
+            if entry.tag in _TABLE_MARKERS:
+                style.header_cell = entry.tag == _HEADER_CELL_SCOPE
+                break
+            if entry.tag == _BLOCK_SCOPE:
+                break  # below it is only what opened outside any block: no styles
+            if entry.styles:
+                style.tags.add(entry.tag)
+                if style.baseline is None:
+                    style.baseline = _INLINE_BASELINE.get(entry.tag)
+                if style.link is None and entry.tag == "a" and entry.href:
+                    style.link = entry.href
+        return style
+
+    def _in_cell(self) -> bool:
+        return bool(self._table_stack) and self._table_stack[-1].in_cell
+
+    def _in_text(self) -> bool:
+        """Whether content goes into an open block or table cell, where an inline
+        tag styles it (_InlineTag.styles)."""
+        return self._block_tag is not None or self._in_cell()
 
     def _bare_link(self) -> str | None:
         """The href of the innermost linked <a> opened with no block or cell around
@@ -499,7 +516,14 @@ class _AstParser(HTMLParser):
         `</sub>` inside `<sup>` doesn't end the superscript. A formatting end tag
         also reaches past a list item's own `<p>` (`<li><b><p>a</b>b` leaves "b"
         plain, as a browser's adoption agency does), and one with no open match
-        drops a queued _reopen entry instead (`<p><s>a</p></s>`).
+        drops a queued _reopen entry instead (`<p><s>a</p></s>`), unless a table
+        lies between them: inside a cell the queued tag is hidden, as a browser's
+        marker hides it, and reopens after the table.
+
+        Failing all that, it closes the innermost matching tag opened with no
+        block or cell around it (`<b><p>x</b></p>tail`). Such a tag never styles
+        text; it only makes later top-level text read as wrapped, so leaving it
+        open dropped every bare text and `<hr>` after it (PR #1316 QA round 3).
         """
         formatting = tag in _FORMATTING_TAGS
         for i in range(len(self._inline_stack) - 1, -1, -1):
@@ -517,11 +541,33 @@ class _AstParser(HTMLParser):
                     [e for e in inner[:scope_at] if e.tag in _FORMATTING_TAGS] + inner[scope_at:]
                 )
                 return
-        if formatting:
+        in_table = any(e.tag in _TABLE_MARKERS for e in self._inline_stack)
+        if formatting and not in_table:
             for i in range(len(self._reopen) - 1, -1, -1):
                 if self._reopen[i].tag == tag:
                     del self._reopen[i]
                     return
+        for i in range(len(self._inline_stack) - 1, -1, -1):
+            entry = self._inline_stack[i]
+            if entry.tag == tag and not entry.styles:
+                del self._inline_stack[i]
+                return
+
+    def _close_open_anchor(self):
+        """A linked <a> start tag first closes any <a> still open or queued to
+        reopen, as a browser does, so a stale outer link can't come back after the
+        new one's </a>, and unclosed links can't pile up on _reopen (PR #1316 QA
+        round 3). In a cell, only an <a> opened in that cell. Unlike a browser, an
+        href-less <a> (an `<a name>` anchor) closes nothing, so the link around it
+        stays in force (#994)."""
+        self._reopen = [e for e in self._reopen if e.tag != "a"]
+        for i in range(len(self._inline_stack) - 1, -1, -1):
+            entry = self._inline_stack[i]
+            if entry.tag in _TABLE_MARKERS:
+                return
+            if entry.tag == "a" and entry.styles:
+                del self._inline_stack[i]
+                return
 
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
@@ -1155,14 +1201,14 @@ class _AstParser(HTMLParser):
             # unrecognized-tag handling below (a no-op at depth 0).
 
         # --- inline elements / unrecognized tags ---
-        in_text = bool(self._block_tag) or (
-            self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
-        )
+        in_text = self._in_text()
         if in_text:
             self._release_cell_whitespace()
             self._flush_run()
+        if tag == "a" and attr_dict.get("href"):
+            self._close_open_anchor()
         if tag not in _VOID_TAGS:
-            # A link is read from its <a> entry: _current_link in text, _bare_link
+            # A link is read from its <a> entry: _text_style in text, _bare_link
             # for a top-level image, which only takes one opened outside a table.
             href = (attr_dict.get("href") or None) if tag == "a" else None
             if not in_text and self._table_depth:
@@ -1180,7 +1226,7 @@ class _AstParser(HTMLParser):
                 # embedded image makes no sense.
                 src = _image_src(attr_dict)
                 if src:
-                    self._pending_runs.append(_make_image(attr_dict, src, self._current_link()))
+                    self._pending_runs.append(_make_image(attr_dict, src, self._text_style().link))
                 elif self._block_tag:
                     self._block_had_unsupported_content = True
             elif self._block_tag and (
@@ -1388,9 +1434,7 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
-        if self._block_tag or (
-            self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
-        ):
+        if self._in_text():
             self._flush_run()
             if tag == "pre":
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)

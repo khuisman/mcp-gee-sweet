@@ -801,8 +801,8 @@ class TestBareTopLevelText:
         # Regression guard (found in PR #385's own review round): a void
         # element written without a self-closing slash (e.g. "<meta ...>",
         # not "<meta ... />") never gets a matching close tag from
-        # HTMLParser. An implementation that excludes only "br" from
-        # _tag_depth would leave the counter stuck above 0 here, silently
+        # HTMLParser. An implementation that keeps only "br" off
+        # _inline_stack would leave a <meta> open on it here, silently
         # re-dropping the trailing bare text — the exact #343 failure mode.
         # <img> itself no longer exercises this specific path since #333 gave
         # it its own dedicated bare-top-level handling (see the sibling test
