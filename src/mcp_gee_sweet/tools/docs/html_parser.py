@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html as html_module
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
 from .ast import (
@@ -193,14 +193,92 @@ class _InlineTag:
         return self.tag in _SCOPE_RANK
 
 
-@dataclass
+@dataclass(frozen=True)
 class _TextStyle:
-    """What _AstParser._text_style reads off _inline_stack for a run."""
+    """The style and link of text typed at a point of _inline_stack: the styling
+    tags opened in a block or cell, above the innermost block, cell or table
+    marker (a cell starts fresh, and nothing below a block's marker styles text).
+    The innermost <sub>/<sup> and linked <a> win, so an href-less <a> inside a
+    linked one leaves the outer link (#994)."""
 
-    tags: set[str] = field(default_factory=set)
+    tags: frozenset[str] = frozenset()
     baseline: str | None = None
     link: str | None = None
     header_cell: bool = False
+
+    def under(self, entry: _InlineTag) -> _TextStyle:
+        """The style of text inside `entry`, when this is the style around it."""
+        if entry.tag in _TABLE_MARKERS or entry.tag == _BLOCK_SCOPE:
+            return _TextStyle(header_cell=entry.tag == _HEADER_CELL_SCOPE)
+        if entry.is_scope or not entry.styles:
+            return self
+        return _TextStyle(
+            tags=self.tags | {entry.tag} if entry.tag in _STYLE_TAGS else self.tags,
+            baseline=_INLINE_BASELINE.get(entry.tag, self.baseline),
+            link=entry.href if entry.tag == "a" and entry.href else self.link,
+            header_cell=self.header_cell,
+        )
+
+
+_NO_STYLE = _TextStyle()
+
+
+class _InlineStack:
+    """_AstParser's _inline_stack (#1231): its entries, plus a count per (tag,
+    styles) and each entry's _TextStyle, kept in step on every change so the
+    parser's per-run and per-end-tag questions don't walk the stack. Walking it
+    made the parser quadratic in unbalanced inline tags (PR #1316 QA round 4)."""
+
+    def __init__(self):
+        self._entries: list[_InlineTag] = []
+        self._styles: list[_TextStyle] = []
+        self._counts: dict[tuple[str, bool], int] = {}
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __getitem__(self, i: int) -> _InlineTag:
+        return self._entries[i]
+
+    def __iter__(self):
+        return iter(self._entries)
+
+    def push(self, entry: _InlineTag):
+        below = self._styles[-1] if self._styles else _NO_STYLE
+        self._entries.append(entry)
+        self._styles.append(below.under(entry))
+        key = (entry.tag, entry.styles)
+        self._counts[key] = self._counts.get(key, 0) + 1
+
+    def truncate(self, i: int) -> list[_InlineTag]:
+        """Remove entries i and up; return them."""
+        removed = self._entries[i:]
+        del self._entries[i:]
+        del self._styles[i:]
+        for entry in removed:
+            self._counts[(entry.tag, entry.styles)] -= 1
+        return removed
+
+    def remove_at(self, i: int):
+        """Remove entry i; the entries above it keep their order."""
+        above = self.truncate(i)[1:]
+        for entry in above:
+            self.push(entry)
+
+    def count(self, tag: str, styles: bool | None = None) -> int:
+        if styles is None:
+            return self._counts.get((tag, True), 0) + self._counts.get((tag, False), 0)
+        return self._counts.get((tag, styles), 0)
+
+    def style(self) -> _TextStyle:
+        return self._styles[-1] if self._styles else _NO_STYLE
+
+    def in_table(self) -> bool:
+        return any(self.count(m) for m in _TABLE_MARKERS)
+
+    def wrapped(self) -> bool:
+        """Whether an inline tag (not a scope marker) is open."""
+        return len(self._entries) > sum(self.count(m) for m in _SCOPE_RANK)
 
 
 @dataclass
@@ -332,7 +410,7 @@ class _AstParser(HTMLParser):
         # ancestor (e.g. "<span>no blocks</span>"), which is intentionally
         # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS are
         # never pushed since they never get a matching close tag.
-        self._inline_stack: list[_InlineTag] = []
+        self._inline_stack = _InlineStack()
         # Formatting elements (and <a>, with its href) left open when their block
         # ended, to reopen inside the next block (_open_block), as a browser's
         # list of active formatting elements does (#1231). Kept off _inline_stack
@@ -396,24 +474,9 @@ class _AstParser(HTMLParser):
         self._pending_runs.append(run)
 
     def _text_style(self) -> _TextStyle:
-        """The style and link of text typed now, in one walk of _inline_stack: the
-        tags opened in a block or cell, above the innermost cell or table marker,
-        since a cell starts fresh (#1231). The link is the innermost linked <a>'s,
-        so an href-less <a> inside a linked one leaves the outer link (#994)."""
-        style = _TextStyle()
-        for entry in reversed(self._inline_stack):
-            if entry.tag in _TABLE_MARKERS:
-                style.header_cell = entry.tag == _HEADER_CELL_SCOPE
-                break
-            if entry.tag == _BLOCK_SCOPE:
-                break  # below it is only what opened outside any block: no styles
-            if entry.styles:
-                style.tags.add(entry.tag)
-                if style.baseline is None:
-                    style.baseline = _INLINE_BASELINE.get(entry.tag)
-                if style.link is None and entry.tag == "a" and entry.href:
-                    style.link = entry.href
-        return style
+        """The style and link of text typed now (_TextStyle), kept by _InlineStack
+        as each tag opens, so reading it doesn't walk the stack."""
+        return self._inline_stack.style()
 
     def _in_cell(self) -> bool:
         return bool(self._table_stack) and self._table_stack[-1].in_cell
@@ -425,20 +488,28 @@ class _AstParser(HTMLParser):
 
     def _bare_link(self) -> str | None:
         """The href of the innermost linked <a> opened with no block or cell around
-        it. Read only by the bare top-level <img> branch (#977), so a top-level
-        "<a href><img></a>" keeps its link."""
-        for entry in reversed(self._inline_stack):
-            if entry.tag == "a" and not entry.styles and entry.href:
+        it, else of a link queued to reopen. Read only by the bare top-level <img>
+        branch (#977), so a top-level "<a href><img></a>" keeps its link, and so
+        does an image right after a block that left a link open (PR #1316 QA
+        round 4), as the next block's text does."""
+        stack = self._inline_stack
+        if stack.count("a", styles=False):
+            for i in range(len(stack) - 1, -1, -1):
+                entry = stack[i]
+                if entry.tag == "a" and not entry.styles and entry.href:
+                    return entry.href
+        for entry in reversed(self._reopen):
+            if entry.tag == "a" and entry.href:
                 return entry.href
         return None
 
     def _wrapped_in_inline_tag(self) -> bool:
         """Whether an inline tag is open (_reopen's entries aren't, until the next
         block reopens them)."""
-        return any(not e.is_scope for e in self._inline_stack)
+        return self._inline_stack.wrapped()
 
     def _push_scope(self, marker: str):
-        self._inline_stack.append(_InlineTag(marker))
+        self._inline_stack.push(_InlineTag(marker))
 
     def _end_scope(self, markers: tuple[str, ...], *, carry: bool) -> bool:
         """Close the innermost open scope marked by one of `markers`, with every
@@ -451,12 +522,14 @@ class _AstParser(HTMLParser):
         queues them on _reopen for the next block. A cell or table closes them
         for good.
         """
+        stack = self._inline_stack
+        if not any(stack.count(m) for m in markers):
+            return False
         rank = _SCOPE_RANK[markers[0]]
-        for i in range(len(self._inline_stack) - 1, -1, -1):
-            entry = self._inline_stack[i]
+        for i in range(len(stack) - 1, -1, -1):
+            entry = stack[i]
             if entry.tag in markers:
-                closed = self._inline_stack[i + 1 :]
-                del self._inline_stack[i:]
+                closed = stack.truncate(i)[1:]
                 if carry:
                     kept = [
                         e
@@ -466,7 +539,8 @@ class _AstParser(HTMLParser):
                     if entry.tag == _BLOCK_SCOPE:
                         self._queue_reopen(kept)
                     else:
-                        self._inline_stack.extend(kept)
+                        for e in kept:
+                            stack.push(e)
                 return True
             if entry.is_scope and _SCOPE_RANK[entry.tag] > rank:
                 return False
@@ -487,8 +561,18 @@ class _AstParser(HTMLParser):
 
     def _close_block(self, *, carry: bool = True):
         """End the open block segment: the mirror of _open_block, and the one way
-        a block segment ends, so its scope marker can't be left behind (#1231)."""
+        a block segment ends, so its scope marker can't be left behind (#1231).
+
+        With `carry` (a block's own end, or a block inside a list item starting),
+        the formatting elements left open are queued to reopen in the next block.
+        Without it (an interrupting list, table, quote, code block or rule), every
+        inline style ends, queued ones included: a browser would close them at
+        such a boundary, and otherwise the tag that would close them never
+        arrives and the formatting leaks into the rest of the document.
+        """
         self._end_scope((_BLOCK_SCOPE,), carry=carry)
+        if not carry:
+            self._reopen = []
         self._block_tag = None
         self._block_named_style = None
 
@@ -523,49 +607,61 @@ class _AstParser(HTMLParser):
         block or cell around it (`<b><p>x</b></p>tail`). Such a tag never styles
         text; it only makes later top-level text read as wrapped, so leaving it
         open dropped every bare text and `<hr>` after it (PR #1316 QA round 3).
+
+        A tag with no open entry at all skips every walk (_InlineStack.count), so
+        stray end tags cost nothing however many tags are open (PR #1316 QA
+        round 4).
         """
+        stack = self._inline_stack
         formatting = tag in _FORMATTING_TAGS
-        for i in range(len(self._inline_stack) - 1, -1, -1):
-            entry = self._inline_stack[i]
-            if entry.is_scope:
-                if formatting and entry.tag == _ITEM_TEXT_SCOPE:
-                    continue
-                break
-            if entry.tag == tag:
-                inner = self._inline_stack[i + 1 :]
-                del self._inline_stack[i:]
-                # What's inside a scope crossed on the way stays open in it.
-                scope_at = next((j for j, e in enumerate(inner) if e.is_scope), len(inner))
-                self._inline_stack.extend(
-                    [e for e in inner[:scope_at] if e.tag in _FORMATTING_TAGS] + inner[scope_at:]
-                )
-                return
-        in_table = any(e.tag in _TABLE_MARKERS for e in self._inline_stack)
-        if formatting and not in_table:
+        if stack.count(tag):
+            for i in range(len(stack) - 1, -1, -1):
+                entry = stack[i]
+                if entry.is_scope:
+                    if formatting and entry.tag == _ITEM_TEXT_SCOPE:
+                        continue
+                    break
+                if entry.tag == tag:
+                    inner = stack.truncate(i)[1:]
+                    # What's inside a scope crossed on the way stays open in it.
+                    scope_at = next((j for j, e in enumerate(inner) if e.is_scope), len(inner))
+                    for e in [e for e in inner[:scope_at] if e.tag in _FORMATTING_TAGS]:
+                        stack.push(e)
+                    for e in inner[scope_at:]:
+                        stack.push(e)
+                    return
+        if formatting and self._reopen and not stack.in_table():
             for i in range(len(self._reopen) - 1, -1, -1):
                 if self._reopen[i].tag == tag:
                     del self._reopen[i]
                     return
-        for i in range(len(self._inline_stack) - 1, -1, -1):
-            entry = self._inline_stack[i]
-            if entry.tag == tag and not entry.styles:
-                del self._inline_stack[i]
-                return
+        if stack.count(tag, styles=False):
+            for i in range(len(stack) - 1, -1, -1):
+                entry = stack[i]
+                if entry.tag == tag and not entry.styles:
+                    stack.remove_at(i)
+                    return
 
     def _close_open_anchor(self):
         """A linked <a> start tag first closes any <a> still open or queued to
         reopen, as a browser does, so a stale outer link can't come back after the
         new one's </a>, and unclosed links can't pile up on _reopen (PR #1316 QA
-        round 3). In a cell, only an <a> opened in that cell. Unlike a browser, an
-        href-less <a> (an `<a name>` anchor) closes nothing, so the link around it
-        stays in force (#994)."""
-        self._reopen = [e for e in self._reopen if e.tag != "a"]
-        for i in range(len(self._inline_stack) - 1, -1, -1):
-            entry = self._inline_stack[i]
+        round 3). That includes a top-level <a> opened outside any block (PR #1316
+        QA round 4). In a cell, only an <a> opened in that cell: a queued or outer
+        link stays hidden there and reopens after the table, as a browser's marker
+        keeps it. Unlike a browser, an href-less <a> (an `<a name>` anchor) closes
+        nothing, so the link around it stays in force (#994)."""
+        stack = self._inline_stack
+        if not stack.in_table():
+            self._reopen = [e for e in self._reopen if e.tag != "a"]
+        if not stack.count("a"):
+            return
+        for i in range(len(stack) - 1, -1, -1):
+            entry = stack[i]
             if entry.tag in _TABLE_MARKERS:
                 return
-            if entry.tag == "a" and entry.styles:
-                del self._inline_stack[i]
+            if entry.tag == "a":
+                stack.remove_at(i)
                 return
 
     def _flush_pending_runs(self) -> list[Run | Image]:
@@ -605,7 +701,8 @@ class _AstParser(HTMLParser):
             self._close_block()
         self._push_scope(_BLOCK_SCOPE)
         # Reopen the formatting elements the last block left open (#1231).
-        self._inline_stack.extend(self._reopen)
+        for entry in self._reopen:
+            self._inline_stack.push(entry)
         self._reopen = []
         self._block_tag = tag
         self._block_resumed = resumed
@@ -710,19 +807,6 @@ class _AstParser(HTMLParser):
         if not ordered or path != open_ids:
             return {}
         return {"list_depth": len(ordered) - 1, "list_path": path}
-
-    def _close_dangling_inline_formatting(self):
-        """A block boundary is starting while inline formatting tags may still
-        be open (e.g. an unclosed <b> before a nested list/table/pre/etc). Real
-        HTML doesn't allow block content inside a true inline element — a
-        browser would auto-close it here — so treat the boundary as an implicit
-        close for all inline state. Otherwise formatting silently leaks into
-        every node for the rest of the document, since the tag that would have
-        closed it never arrives. Ends the block with nothing to reopen
-        (_close_block(carry=False)) and drops what an earlier block queued.
-        """
-        self._close_block(carry=False)
-        self._reopen = []
 
     def _emit_block_node(
         self, tag: str, runs: list[Run | Image], *, preserve_if_empty: bool = False
@@ -903,7 +987,10 @@ class _AstParser(HTMLParser):
                 lists=self._block_lists,
             )
         )
-        self._close_dangling_inline_formatting()
+        # A paragraph or heading starting is just the next block (a list item's
+        # second <p>, say), so formatting left open carries into it, as after a
+        # block's own end (PR #1316 QA round 4). Any other construct ends it.
+        self._close_block(carry=new_construct_tag in _BLOCK_TAGS)
 
     def _resume_interrupted_block(self, closing_tag: str):
         """The matching close for a construct that may have interrupted an
@@ -1232,7 +1319,7 @@ class _AstParser(HTMLParser):
             href = (attr_dict.get("href") or None) if tag == "a" else None
             if not in_text and self._table_depth:
                 href = None
-            self._inline_stack.append(_InlineTag(tag, styles=in_text, href=href))
+            self._inline_stack.push(_InlineTag(tag, styles=in_text, href=href))
         if in_text:
             if tag == "pre":
                 # Only reachable in a table cell: a body <pre> is handled above.
@@ -1263,23 +1350,26 @@ class _AstParser(HTMLParser):
     def handle_endtag(self, tag):
         # --- table structure ---
         if tag == "table":
-            if self._table_stack:
-                # </td> and </tr> are optional in HTML (#1231).
-                self._close_open_cell()
-                self._table_stack[-1].end_row()
+            if not self._table_stack:
+                # A stray </table> with no table open: ignored, as a browser does.
+                # Counting it took _table_depth to -1, and every later block was
+                # dropped (PR #1316 QA round 4).
+                return
+            # </td> and </tr> are optional in HTML (#1231).
+            self._close_open_cell()
+            self._table_stack[-1].end_row()
             # Ends whatever is still open in the table (#1231).
             self._end_scope((_TABLE_SCOPE,), carry=False)
-            if self._table_stack:
-                tb = self._table_stack.pop()
-                node = tb.build()
-                if node is not None:
-                    if self._table_depth == 1:
-                        node.blockquote_depth = len(self._blockquote_ids)
-                        for name, value in self._list_item_fields().items():
-                            setattr(node, name, value)
-                        self._nodes.append(node)
-                    elif self._table_stack:
-                        self._table_stack[-1].append_nested_table(node)
+            tb = self._table_stack.pop()
+            node = tb.build()
+            if node is not None:
+                if self._table_depth == 1:
+                    node.blockquote_depth = len(self._blockquote_ids)
+                    for name, value in self._list_item_fields().items():
+                        setattr(node, name, value)
+                    self._nodes.append(node)
+                elif self._table_stack:
+                    self._table_stack[-1].append_nested_table(node)
             self._table_depth -= 1
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")

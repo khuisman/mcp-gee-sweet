@@ -1,5 +1,6 @@
 """Tests for docs core — HTML/AST pipeline and emitter internals."""
 
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -724,7 +725,7 @@ class TestInlineStrikeBaselineHighlight:
         # closed link's entries go with it.
         parser = _AstParser()
         parser.feed("<p><b>x</p>" * 5 + "<p><a href=u>x</p><p>y</a></p>" * 3)
-        assert parser._inline_stack == []
+        assert len(parser._inline_stack) == 0
         assert [e.tag for e in parser._reopen] == ["b", "b", "b"]
 
     def test_outer_tag_closed_inside_a_block_keeps_later_hr(self):
@@ -763,6 +764,59 @@ class TestInlineStrikeBaselineHighlight:
         cell = nodes[1].rows[0].cells[0].children
         assert all(r.bold is None for r in cell)
         assert nodes[2].runs[0].bold is True
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<p>" + "<span>" * 20000 + "x</q>" * 20000 + "</p>",
+            "<p>" + "<span>a" * 20000 + "</p>",
+        ],
+    )
+    def test_unbalanced_inline_tags_parse_in_linear_time(self, html):
+        # PR #1316 QA round 4, finding 2: at 4000 tags this took 7 s. 20000 takes
+        # well under a second now; a quadratic walk would take minutes.
+        start = time.perf_counter()
+        html_to_ast(html)
+        assert time.perf_counter() - start < 5
+
+    def test_link_in_cell_keeps_link_queued_before_table(self):
+        # PR #1316 QA round 4, finding 3: the cell hides the queued link, which
+        # reopens after the table, as a queued <b> does.
+        nodes = html_to_ast(
+            '<p><a href="u">x</p><table><tr><td><a href="v">c</a></td></tr></table><p>y</p>'
+        )
+        assert nodes[1].rows[0].cells[0].children[0].link_url == "v"
+        assert nodes[2].runs[0].link_url == "u"
+
+    def test_linked_anchor_closes_top_level_anchor(self):
+        # PR #1316 QA round 4, finding 4.
+        html = '<a href="1"><img src="a.png"><a href="2"><img src="b.png"></a><img src="c.png">'
+        links = [n.runs[0].link_url for n in html_to_ast(html)]
+        assert links == ["1", "2", None]
+
+    def test_stray_table_end_tag_is_ignored(self):
+        # PR #1316 QA round 4, finding 5: _table_depth went to -1 and every later
+        # block was dropped.
+        nodes = html_to_ast("<p>a</p></table><p>b</p>c")
+        assert [n.runs[0].text for n in nodes] == ["a", "b", "c"]
+
+    def test_tag_carries_into_list_item_second_paragraph(self):
+        # PR #1316 QA round 4, finding 6: as into a top-level <p>.
+        for html in ["<ul><li><p><b>a</p><p>b</p></li></ul>", "<p><b>a</p><p>b</p>"]:
+            runs = [r for n in html_to_ast(html) for r in n.runs]
+            assert [(r.text, r.bold) for r in runs] == [("a", True), ("b", True)]
+
+    def test_interrupting_list_still_ends_inline_styles(self):
+        # Unchanged from develop: a nested list, table, quote or code block ends them.
+        runs = [
+            r for n in html_to_ast("<ul><li><b>a<ul><li>x</li></ul>y</li></ul>") for r in n.runs
+        ]
+        assert [(r.text, r.bold) for r in runs] == [("a", True), ("x", None), ("y", None)]
+
+    def test_top_level_image_takes_link_queued_from_block(self):
+        # PR #1316 QA round 4, finding 7: as the next block's text does.
+        nodes = html_to_ast('<p><a href="u">x</p><img src="i.png"><p>y</p>')
+        assert [n.runs[0].link_url for n in nodes] == ["u", "u", "u"]
 
     def test_nested_unlinked_anchor_keeps_outer_link(self):
         # #994, now read from the stack.
