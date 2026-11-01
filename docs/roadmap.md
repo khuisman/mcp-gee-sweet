@@ -413,7 +413,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] **Bundle:** Markdown/HTML line breaks — one PR closing [#1093](https://github.com/khuisman/mcp-gee-sweet/issues/1093) (soft break), [#1117](https://github.com/khuisman/mcp-gee-sweet/issues/1117) (hard break) and [#1091](https://github.com/khuisman/mcp-gee-sweet/issues/1091) (`<br>` in prose), html_parser cluster; after PR #1228. Bundled 2026-10-25 (maintainer) ([#1230](https://github.com/khuisman/mcp-gee-sweet/issues/1230))
 - [x] A fenced code block or second paragraph inside a list item breaks the list — html_parser cluster; fence half may fold into #1116 ([#1094](https://github.com/khuisman/mcp-gee-sweet/issues/1094)) (PR #1301)
 - [x] Adjacent blocks run together: separate quotes merge, consecutive code blocks merge, quotes have no spacing — lane B, after #1056 ([#1098](https://github.com/khuisman/mcp-gee-sweet/issues/1098)) (PR #1199)
-- [ ] A thematic break (`---`) renders as an empty paragraph — lane A ([#1096](https://github.com/khuisman/mcp-gee-sweet/issues/1096))
+- [x] A thematic break (`---`) renders as an empty paragraph — lane A ([#1096](https://github.com/khuisman/mcp-gee-sweet/issues/1096)) (PR #1326)
 - [ ] GFM table column alignment is ignored ([#1095](https://github.com/khuisman/mcp-gee-sweet/issues/1095))
 - [x] A table takes on the style of the paragraph that follows it ([#1097](https://github.com/khuisman/mcp-gee-sweet/issues/1097)) (PR #1201)
 - [x] Drive's native Markdown import (EP-5 to EP-7) renders differently from our converter — ornithomimus scope: document EP-5 to EP-7 as Drive's engine; routing is #1113 ([#1101](https://github.com/khuisman/mcp-gee-sweet/issues/1101)) (PR #1270)
@@ -574,6 +574,11 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `style_doc_range`: a `font_family`-only change turns off bold inherited from a named style (Docs writes `bold: false`). `wrong/narrow`, observed in #1153's live check; the second follow-up in #1273's family, after #1289 ([#1300](https://github.com/khuisman/mcp-gee-sweet/issues/1300))
 - [ ] `upload_local_file(convert=True)`: a `name=` without an extension errors instead of falling back to `local_path`'s extension. `loud/narrow`; the drop-`.md`-from-the-Doc-name half split out to #1309 ([#1307](https://github.com/khuisman/mcp-gee-sweet/issues/1307))
 - [ ] **Bundle:** `get_doc_as_markdown` list-item export — one PR closing [#1314](https://github.com/khuisman/mcp-gee-sweet/issues/1314) (item under a numbered item indented 2 spaces, short of the parent's content column; found in #1144's live check), [#1323](https://github.com/khuisman/mcp-gee-sweet/issues/1323) (empty first sub-item reads back as a setext underline) and [#1324](https://github.com/khuisman/mcp-gee-sweet/issues/1324) (empty item holding only a block exports with a blank line, splitting the list); the last two from PR #1322's review. All `wrong/narrow`, observed. Bundled 2026-10-31 (maintainer) ([#1325](https://github.com/khuisman/mcp-gee-sweet/issues/1325))
+
+**Triaged in 2026-11-01**
+
+- [ ] An `<hr>` inside a table cell is dropped (raw HTML only; a cell has no paragraph to carry the rule). `wrong/rare`; from PR #1326 ([#1327](https://github.com/khuisman/mcp-gee-sweet/issues/1327))
+- [ ] `html_to_ast` loses content and mis-styles malformed HTML. Pre-existing; the recovery approach (A: HTML5 parser library, B: hand-written model, C: content-loss fixes only) is `decision-needed`, decided when this fill is set. See `docs/decisions/decision-html-error-recovery.md` (PR #1330); #1328 closed into it. From PR #1316 ([#1329](https://github.com/khuisman/mcp-gee-sweet/issues/1329))
 
 ### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
 
