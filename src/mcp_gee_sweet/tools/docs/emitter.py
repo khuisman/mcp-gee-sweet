@@ -844,6 +844,10 @@ def ast_to_requests(
             node = seg.node
             doc_start, doc_end = seg.doc_start, seg.doc_end
             rng = {"startIndex": doc_start, "endIndex": doc_end}
+            # A block inside a list item gets its indent, quote styling, rule line and
+            # spacing after the bullet pass (#1094), since that pass may bullet it before
+            # taking it back out, and createParagraphBullets overwrites both indents.
+            deferred = isinstance(node, BulletItem) or _list_content_depth(node) is not None
 
             if isinstance(node, Heading):
                 requests.append(
@@ -858,8 +862,8 @@ def ast_to_requests(
                 requests.append({"deleteParagraphBullets": {"range": rng}})
             elif isinstance(node, Paragraph):
                 requests.append({"deleteParagraphBullets": {"range": rng}})
-                if node.rule and _list_content_depth(node) is None:
-                    requests.extend(_rule_requests(rng))
+                if node.rule and not deferred:
+                    requests.extend(_rule_requests(rng, quoted=node.blockquote_depth > 0))
             elif isinstance(node, NamedBlock):
                 requests.append(
                     {
@@ -885,11 +889,6 @@ def ast_to_requests(
                 )
             # BulletItem's own createParagraphBullets request is handled by the grouping
             # pass below, not here.
-
-            # A block inside a list item gets its indent, quote styling and spacing
-            # after the bullet pass (#1094), since that pass may bullet it before
-            # taking it back out, and createParagraphBullets overwrites both indents.
-            deferred = isinstance(node, BulletItem) or _list_content_depth(node) is not None
 
             # Blockquote styling (#476): a left border + scaled indent, applied uniformly
             # regardless of node type (Heading/Paragraph/NamedBlock/BulletItem can all be
@@ -990,7 +989,7 @@ def ast_to_requests(
                     _list_content_style_request(rng, content_depth, node.blockquote_depth)
                 )
                 if isinstance(node, Paragraph) and node.rule:
-                    requests.extend(_rule_requests(rng))
+                    requests.extend(_rule_requests(rng, quoted=node.blockquote_depth > 0))
             if seg.order in spacing and id(node) not in separators:
                 requests.extend(_spacing_requests(rng, *spacing[seg.order]))
 
@@ -1068,8 +1067,10 @@ def ast_to_requests(
 # CLAUDE.md's "Verify a ticket's API premise live" note; #404's tabStops was the
 # cautionary case this now double-checks against).
 _BLOCKQUOTE_INDENT_PT_PER_LEVEL = 36
+# The quote bar's gray, shared by a rule's line so a quoted rule matches its bar.
+_BORDER_GRAY = {"color": {"rgbColor": {"red": 0.6, "green": 0.6, "blue": 0.6}}}
 _BLOCKQUOTE_BORDER = {
-    "color": {"color": {"rgbColor": {"red": 0.6, "green": 0.6, "blue": 0.6}}},
+    "color": _BORDER_GRAY,
     "width": {"magnitude": 3, "unit": "PT"},
     "padding": {"magnitude": 8, "unit": "PT"},
     "dashStyle": "SOLID",
@@ -1303,32 +1304,54 @@ def _collapse_paragraph_requests(rng: dict) -> list[dict]:
 # only under the last, so two rules in a row drew one line; borderBetween draws the
 # line between them (confirmed live). A 6pt line, single-spaced, with 6pt below,
 # puts the line midway between the paragraphs around it and keeps two rules in a row
-# apart; spacing above as well split a quoted rule's bar from the quote's.
+# apart. In a quote, though, a paragraph's spacing isn't covered by the quote bar when
+# its neighbours' borders differ, so any space above or below the rule broke the bar
+# into two quotes (PR #1326 QA round 1). A quoted rule gets none, and a 4pt line
+# instead, which spaces it about evenly from the quoted text around it (checked live
+# at 2, 3, 4 and 6pt).
 _RULE_BORDER = {
-    "color": {"color": {"rgbColor": {"red": 0.6, "green": 0.6, "blue": 0.6}}},
+    "color": _BORDER_GRAY,
     "width": {"magnitude": 1, "unit": "PT"},
     "padding": {"magnitude": 0, "unit": "PT"},
     "dashStyle": "SOLID",
 }
 _RULE_FONT_SIZE_PT = 6
 _RULE_SPACE_BELOW_PT = 6
+_QUOTED_RULE_FONT_SIZE_PT = 4
 
 
-def has_rule_border(paragraph_style: dict) -> bool:
-    """Whether a live paragraph's style draws a bottom border, as a rule's does."""
-    border = paragraph_style.get("borderBottom") or {}
-    return border.get("width", {}).get("magnitude", 0) > 0
+def _border_width(paragraph_style: dict, side: str) -> float:
+    return (paragraph_style.get(side) or {}).get("width", {}).get("magnitude", 0)
 
 
-def _rule_requests(rng: dict) -> list[dict]:
+def is_rule_style(paragraph_style: dict) -> bool:
+    """Whether a live paragraph's style is a rule's, as _rule_requests writes it: a
+    bottom border, the same between-border, and no top or right border. A quoted rule
+    also has the quote's left border. Requiring the whole signature keeps an empty line
+    inside a bordered box, which has every side, from reading as a rule (PR #1326 QA
+    round 1)."""
+    bottom = paragraph_style.get("borderBottom") or {}
+    between = paragraph_style.get("borderBetween") or {}
+    return (
+        _border_width(paragraph_style, "borderBottom") > 0
+        and _border_width(paragraph_style, "borderTop") == 0
+        and _border_width(paragraph_style, "borderRight") == 0
+        and between.get("width") == bottom.get("width")
+        and between.get("color") == bottom.get("color")
+    )
+
+
+def _rule_requests(rng: dict, *, quoted: bool) -> list[dict]:
     """Draw a rule paragraph's line. Must come before any quote-edge spacing request
     for the same range, which replaces its spacing."""
+    space_below = 0 if quoted else _RULE_SPACE_BELOW_PT
+    font_size = _QUOTED_RULE_FONT_SIZE_PT if quoted else _RULE_FONT_SIZE_PT
     paragraph_style = {
         "borderBottom": _RULE_BORDER,
         "borderBetween": _RULE_BORDER,
         "lineSpacing": 100,
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
-        "spaceBelow": {"magnitude": _RULE_SPACE_BELOW_PT, "unit": "PT"},
+        "spaceBelow": {"magnitude": space_below, "unit": "PT"},
     }
     return [
         {
@@ -1341,7 +1364,7 @@ def _rule_requests(rng: dict) -> list[dict]:
         {
             "updateTextStyle": {
                 "range": rng,
-                "textStyle": {"fontSize": {"magnitude": _RULE_FONT_SIZE_PT, "unit": "PT"}},
+                "textStyle": {"fontSize": {"magnitude": font_size, "unit": "PT"}},
                 "fields": "fontSize",
             }
         },
@@ -2386,7 +2409,7 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
         )
         if para_text != "\n":
             continue
-        if has_rule_border(prev["paragraph"].get("paragraphStyle", {})):
+        if is_rule_style(prev["paragraph"].get("paragraphStyle", {})):
             # A rule right before the table (#1096): its own empty paragraph.
             continue
         start = prev.get("startIndex")

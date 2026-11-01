@@ -88,18 +88,7 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
         if prev_node is None and rendered == _RULE:
             rendered = _FIRST_LINE_RULE
         if prev_node is not None:
-            # Consecutive list items get a single newline, not a blank line, so
-            # they render as one "tight" list (CommonMark still parses a blank-
-            # line-separated run as the same list, just needlessly "loose" —
-            # no correctness difference, only readability of the output).
-            same_list_run = isinstance(node, BulletItem) and isinstance(prev_node, BulletItem)
-            shared_quote = open_items.shared_quote or _margin_quote_shared(prev_node, node)
-            if same_list_run:
-                parts.append("\n")
-            elif shared_quote:
-                parts.append(f"\n{'>' * shared_quote}\n")
-            else:
-                parts.append("\n\n")
+            parts.append(open_items.separator)
         parts.append(rendered)
         prev_node = node
 
@@ -116,7 +105,7 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
 
 class _OpenItems:
     """Renders each node, writing a block inside a list item (its `list_depth`,
-    #1302) under that item instead of at the margin.
+    #1302) under that item instead of at the margin, and picks the separator before it.
 
     CommonMark keeps a block in an item when it's indented to the item's content
     column, the width of the item's own indent and marker. So every list item
@@ -127,32 +116,57 @@ class _OpenItems:
     A quoted item's quote markers come before its indent ("> - a"). A block inside
     it is inside that quote too, whatever depth it reads with (a table reads none),
     so the item's quote levels go outside the block's indent and only its own extra
-    levels inside ("> - a" then ">   > b"). The blank line
-    before such a block, and before the item after it, keeps those shared quote
-    levels (">"), or it would end the quote the list is in.
+    levels inside ("> - a" then ">   > b").
 
-    After `render`, `shared_quote` is how many quote levels the node shares with
-    the one before it, which the blank line between them must carry."""
+    After `render`, `separator` is what goes between the node and the one before it:
+    a newline between two items at the same quote depth, so a list stays tight (items at
+    different depths are different lists, "- b" then "> - qa"); a newline between an
+    empty item and its first block, since CommonMark ends an item that starts with a
+    blank line there (PR #1326 QA round 1); otherwise a blank line carrying the quote
+    levels both nodes write at the margin, so it doesn't end a quote they share. Two
+    adjacent quoted blocks in Docs are one quote: Docs draws their left borders as one
+    bar, and emitter.py puts an unquoted separator paragraph between two separate
+    quotes (#1098), which reads back as a node of its own with no quote."""
 
     def __init__(self) -> None:
         # Per open item depth: (content column, blockquote_depth).
         self._items: list[tuple[int, int]] = []
-        self.shared_quote = 0
+        # Quote levels the last node wrote at the margin, before any indent.
+        self._margin_quote = 0
+        self.separator = "\n\n"
 
     def render(self, node: DocNode, prev_node: DocNode | None) -> str:
-        self.shared_quote = 0
+        prev_quote = self._margin_quote
+        rendered = self._render(node, prev_node)
+        same_list = (
+            isinstance(node, BulletItem)
+            and isinstance(prev_node, BulletItem)
+            and node.blockquote_depth == prev_node.blockquote_depth
+        )
+        if same_list or _starts_empty_item(prev_node, node):
+            self.separator = "\n"
+        else:
+            shared = min(prev_quote, self._margin_quote)
+            self.separator = f"\n{'>' * shared}\n" if shared else "\n\n"
+        return rendered
+
+    def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
-            if self._items:
-                self.shared_quote = min(node.blockquote_depth, self._items[0][1])
             del self._items[node.depth :]
             self._items.extend([(0, 0)] * (node.depth - len(self._items)))
             self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
+            self._margin_quote = node.blockquote_depth
             return _render_block(node, opens_sublist=opens_sublist)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
-            return _render_table(node) if isinstance(node, Table) else _render_block(node)
+            if isinstance(node, Table):
+                # A table renders unquoted (_render_table writes no quote markers).
+                self._margin_quote = 0
+                return _render_table(node)
+            self._margin_quote = node.blockquote_depth
+            return _render_block(node)
         del self._items[list_depth + 1 :]
         column, item_quote = self._items[list_depth]
         # A block inside a quoted list's item is inside that list's quote too. Its
@@ -161,7 +175,7 @@ class _OpenItems:
         quote = 0 if isinstance(node, Table) else node.blockquote_depth
         quote = max(quote, item_quote)
         outer = item_quote
-        self.shared_quote = outer
+        self._margin_quote = outer
         if isinstance(node, Table):
             body = _render_table(node)
         else:
@@ -170,22 +184,18 @@ class _OpenItems:
         return _blockquote(body, outer) if outer else body
 
 
-def _margin_quote_shared(prev_node: DocNode, node: DocNode) -> int:
-    """How many quote levels two consecutive blocks outside list items share, which
-    the blank line between them must carry ("> a", ">", "> b").
-
-    Adjacent quoted paragraphs in Docs are one quote: Docs draws their left borders as
-    one bar, and emitter.py puts an unquoted separator paragraph between two separate
-    quotes (#1098), which reads back as a block of its own and ends the quote here.
-    A plain blank line between them made the export two quotes (#1096 review). A
-    table renders unquoted, and a block inside a list item is _OpenItems' to place."""
-
-    def margin_depth(n: DocNode) -> int:
-        if isinstance(n, Table) or getattr(n, "list_depth", None) is not None:
-            return 0
-        return n.blockquote_depth
-
-    return min(margin_depth(prev_node), margin_depth(node))
+def _starts_empty_item(prev_node: DocNode | None, node: DocNode) -> bool:
+    """Whether `node` is the first block inside `prev_node`, a list item with no text.
+    CommonMark lets an item start with at most one blank line, its marker's own, so
+    "-", a blank line, then "  ---" is an empty item ended by a rule at the margin."""
+    return (
+        isinstance(prev_node, BulletItem)
+        and not isinstance(node, BulletItem)
+        and not prev_node.runs
+        and prev_node.checked is None
+        and prev_node.heading_level is None
+        and node.list_depth == prev_node.depth
+    )
 
 
 def _indent_lines(body: str, column: int) -> str:

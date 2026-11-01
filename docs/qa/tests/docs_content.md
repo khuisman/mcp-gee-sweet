@@ -6752,7 +6752,7 @@ Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case fro
 
 **Playwright: required**
 
-**Setup:** `F` = `{REPO}/docs/qa/fixtures/md/tc-doc246/rules.md`.
+**Setup:** `F` = `{REPO}/docs/qa/fixtures/md/tc-doc246/rules.md`, `H` = `{REPO}/docs/qa/fixtures/md/tc-doc246/native-lines.html`.
 
 **Steps**
 1. `create_doc(title="TC-DOC246 md", folder_id={FOLDER_ID}, content_format="markdown", content="***\n\nPara before\n\n---\n\nPara between\n\n***\n___\n\nTwo rules above\n\n---\n\n## Heading after a rule\n\n> Quoted one\n>\n> ---\n>\n> Quoted two\n\n1. Item one\n\n   ---\n\n2. Item two\n\n- - -\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nTail\n\n---\n")`; call its `docId` `{MD}`
@@ -6760,15 +6760,19 @@ Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case fro
 3. `create_doc(title="TC-DOC246 html", folder_id={FOLDER_ID}, content="<p>A</p><hr><p>B</p><p><hr></p><p>C</p><p><hr>D</p>")`, then `get_doc_as_markdown` on its `docId`
 4. `write_doc_content(doc_id={MD}, content_format="markdown", content="Plain one\n\nPlain two\n")`, then `get_doc_as_markdown(doc_id={MD})`
 5. `upload_local_file(local_path=F, parent_folder_id={FOLDER_ID}, name="TC-DOC246 native.md", convert=True)`, then `get_doc_as_markdown` on its `fileId` (the `.md` in `name` is required: `convert` reads the extension from `name`, and without it the call returns "Conversion not supported for extension ''")
+6. `upload_local_file(local_path=H, parent_folder_id={FOLDER_ID}, name="TC-DOC246 native.html", convert=True)`, then `get_doc_as_markdown` on its `fileId`
+7. `create_doc(title="TC-DOC246 lists", folder_id={FOLDER_ID}, content_format="markdown", content="- a\n-\n  ---\n- b\n\n> - qa\n>\n>   qb\n>\n> - qc\n>\n> after\n")`, then `get_doc_as_markdown` on its `docId`
 
 **Checks**
-- Step 1 returns `docId` with no `error`. On screen, every rule is a thin gray line across the text column with space above and below it: the first line of the doc; between "Para before" and "Para between"; two separate lines (not one, not touching) above "Two rules above"; above the heading; between the quoted paragraphs, starting at the quote bar; in the list, indented to "Item one"'s text, with the next item numbered **2.**; above the table; and after "Tail". No blank gap stands in for any rule
+- Step 1 returns `docId` with no `error`. On screen, every rule is a thin gray line across the text column with space above and below it: the first line of the doc; between "Para before" and "Para between"; two separate lines (not one, not touching) above "Two rules above"; above the heading; between the quoted paragraphs, starting at the quote bar, with the bar running unbroken from "Quoted one" through the rule to "Quoted two" (one quote, not two; the line sits closer to "Quoted two" than to "Quoted one"); in the list, indented to "Item one"'s text, with the next item numbered **2.**; above the table; and after "Tail". No blank gap stands in for any rule
 - Step 2 is `***`, then each rule as `---` in the same places: one quote, `> Quoted one`, `>`, `> ---`, `>`, `> Quoted two` (a `>` on the blank lines, so it isn't three quotes), `   ---` (3 spaces) between `1. Item one` and `2. Item two`, and two `---` blocks in a row above "Two rules above"
 - Step 3, on screen: A, a line, B, a line, C, a line, D. The export is `A`, `---`, `B`, `---`, `C`, `---`, `D`, a blank line between each: `<p><hr></p>` gives one rule and no extra empty paragraph, and "D" is kept
 - Step 4's export is `Plain one` and `Plain two` with no `---`, and on screen neither paragraph has a line under it: the replaced rules' borders didn't carry over
 - Step 5's Doc draws Drive's own horizontal lines; its export has a `---` between "Para before" and "Para after" and another between "Quoted before" and "Quoted after". Extra blank lines and the quote's missing `>` are Drive's import, not this case (`docs/known-limitations.md`)
+- Step 6: Drive's import puts each line in the same paragraph as the text next to it. The export keeps every line and every piece of text, in order: `text before`, `---`, `text after`; the "item one" item, then `---` indented under it (inside the item), then the "item two" item, one list; `## heading`, then `---`; `end`. How the list itself exports (Drive imports it indented, which reads as a quoted numbered list) is Drive's import, not this case
+- Step 7, on screen: three bullets in one list with the line under the empty middle one, at the item's text indent. The quoted list's bars are offset from the quote's own, as `docs/known-limitations.md` describes. The export has `- a`, `- `, `  ---` on the line right after the empty item's marker (no blank line between, which would end the item), then a blank line and `- b`; then a blank line, and `> - qa`, `>`, `>   qb`, `>`, `> - qc`, `>`, `> after`, a `>` on every blank line (one quote)
 
-**Cleanup:** `delete_file` the three docs
+**Cleanup:** `delete_file` the five docs
 
 **Result (2026-11-01) ⚠️ PARTIAL — PR #1326 round 1 (Sky)**
 Live on `mcp-gee-sweet-sky` at 42e755df (OAuth, Shared Drive folder). Steps 2–5 pass. Step 2's export matches every listed line, including `***` first and `> ---` with `>` on the blank lines. Step 3 draws A, line, B, line, C, line, D and exports the same, with "D" kept. Step 4 exports `Plain one`/`Plain two` with no lines left on screen. Step 5's Drive import draws native lines and exports both `---`. Step 5 as first written passed `name="TC-DOC246 native"`, and `convert` reads the extension from `name`, so the call errored ("Conversion not supported for extension ''"); the step now uses `TC-DOC246 native.md`. Step 1: every rule draws (first line, between paragraphs, two separate lines in a row, above the heading, in the list at "Item one"'s text indent with **2.** after it, above the table, after "Tail"). One defect: the quoted rule's line starts at the bar, but the bar breaks below it. "Quoted one" plus the rule carry one bar, then the rule's 6pt space below opens a gap, and "Quoted two" gets a bar of its own, so on screen it reads as two quotes while the export says one. Sent back. Cleanup: the three docs plus a probe doc trashed.
