@@ -1419,14 +1419,18 @@ needs Markdown inside it as HTML instead.</p>
 <p><strong>What:</strong> A table inside a list's last item (<code>1. a\n\n   | x |\n   |---|\n</code>) is written to the
 Doc indented under the item, but <code>get_doc_as_markdown</code> exports it at the margin, after the list.
 A quote that ends a list's last item (<code>- a\n\n  &gt; q\n</code>) exports as a deeper quote at the margin
-(<code>&gt; &gt; q</code>). Either one exports inside its item when the list goes on after it: a later item of the
-list, a sublist nested under the item (of either type), or a paragraph indented in the item. A
-paragraph, code block, or heading inside any item always exports inside it.</p>
+(<code>&gt; &gt; q</code>). So does a paragraph, code block, heading, or rule inside the last item of a <em>quoted</em>
+list (<code>&gt; - a\n&gt;\n&gt;   b\n</code> exports <code>b</code> as <code>&gt; &gt; b</code>). Any of these exports inside its item when the
+list goes on after it: a later item of the list, a sublist nested under the item (of either
+type), or a paragraph indented in the item. A paragraph, code block, or heading inside an item of
+an unquoted list always exports inside it.</p>
 <p><strong>Why:</strong> The export finds a block inside an item from its indent (#1302). A table's indent isn't
 reported anywhere in the Docs API: the JSON of a table inside an item matches one at the margin
 (checked live). A quote's is, but a quote inside an item sits exactly where a deeper quote at the
 margin would (a quote in a top-level item is at 72pt, like a margin <code>&gt; &gt;</code>), so the indent can't
-tell them apart. Such a block counts as inside an item only when the list goes on after it, which
+tell them apart. A block inside a quoted list's item is written the same way, at the item's text
+indent plus the quote's and with the quote's border, which is exactly where a deeper quote at the
+margin goes. Such a block counts as inside an item only when the list goes on after it, which
 it never does after a list's last item. Reading an ambiguous quote as the margin quote keeps every
 quote level; reading it into the item would drop one.</p>
 <p><strong>Workaround:</strong> None in the export. Indent the table or quote under its item by hand in the
@@ -1452,6 +1456,22 @@ lesser problem.</p>
 quote, or write each item as its own quoted paragraph starting with a bullet character, which isn't
 a Markdown list marker: <code>&gt; • one\n&gt;\n&gt; • two\n</code>. Keep the blank <code>&gt;</code> line between items, or the
 lines join into one paragraph. Decided in #1242.</p>
+<hr />
+<h3 id="a-horizontal-rule-is-a-bordered-paragraph-not-a-docs-horizontal-line">A horizontal rule is a bordered paragraph, not a Docs horizontal line<a class="headerlink" href="#a-horizontal-rule-is-a-bordered-paragraph-not-a-docs-horizontal-line" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A Markdown thematic break (<code>---</code>, <code>***</code>, <code>___</code>) or an HTML <code>&lt;hr&gt;</code> written by <code>create_doc</code>,
+<code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>, or <code>upload_file</code> (Markdown
+source) appears as a thin gray line, but in Docs it's an empty paragraph with a bottom border
+(6pt, or 4pt inside a quote), not the element Insert &gt; Horizontal line adds, so editing it in Docs
+behaves like editing a paragraph. Inside a quote the line sits closer to the text below it than
+to the text above: space below it would break the quote bar. <code>get_doc_as_markdown</code> reads both
+kinds of line back as <code>---</code> (<code>***</code> when it's the document's first line, where <code>---</code> would open
+front matter). A native line that shares a list item's paragraph but comes before its text
+exports at the margin, ending the list there. An <code>&lt;hr&gt;</code> inside a table cell is dropped: a cell
+holds no paragraph styling the converter writes (#1327).</p>
+<p><strong>Why:</strong> The Docs API has no request that inserts a horizontal line (#1096).</p>
+<p><strong>Workaround:</strong> For a native line, use Insert &gt; Horizontal line in the Docs UI, or convert the
+file with <code>upload_local_file(convert=True)</code>, whose Drive import draws native lines (with the other
+differences listed under Google Drive below).</p>
 <hr />
 <h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
