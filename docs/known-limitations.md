@@ -134,6 +134,23 @@ lines join into one paragraph. Decided in #1242.
 
 ---
 
+### A horizontal rule is a bordered paragraph, not a Docs horizontal line
+
+**What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,
+`write_doc_content`, `create_doc_from_file`, `update_doc_from_file`, or `upload_file` (Markdown
+source) appears as a thin gray line, but in Docs it's an empty 6pt paragraph with a bottom
+border, not the element Insert > Horizontal line adds, so editing it in Docs behaves like editing
+a paragraph. `get_doc_as_markdown` reads both kinds back as `---`. An `<hr>` inside a table cell is dropped: a cell holds no
+paragraph styling the converter writes.
+
+**Why:** The Docs API has no request that inserts a horizontal line (#1096).
+
+**Workaround:** For a native line, use Insert > Horizontal line in the Docs UI, or convert the
+file with `upload_local_file(convert=True)`, whose Drive import draws native lines (with the other
+differences listed under Google Drive below).
+
+---
+
 ### `create_bookmark` doesn't create a bookmark Docs lists
 
 **What:** `create_bookmark` creates a one-character named range. It doesn't appear under

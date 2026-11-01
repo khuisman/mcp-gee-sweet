@@ -2466,7 +2466,7 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 **Checks**
 - Same nesting expectations as TC-DOC104 — 4-space indentation is the one width where `_md_to_html` produces genuinely nested `<ul>`/`<ol>` HTML, so this TC should behave identically to TC-DOC104 once bugs 1+2 are fixed
 - Case 2's bare `-` is an empty bullet at level 0, with "Bare-nested child C1"/"C2" one level under it; no literal `-` text (#1075)
-- Case 4: an empty bullet between "Bullet before" and "Bullet after" (three bullets, one list), and an empty numbered item between "Number one" and "Number three", which show 1., 2. (empty) and 3.; no literal `-` or `2.` text (#1075). Then "Rule item before", an empty bullet with the rule's paragraph under it, unbulleted (the item's only content is the rule; a rule renders as an empty paragraph, not a drawn line, until #1096), and "Rule item after", three bullets in one list (PR #1322 QA round 1)
+- Case 4: an empty bullet between "Bullet before" and "Bullet after" (three bullets, one list), and an empty numbered item between "Number one" and "Number three", which show 1., 2. (empty) and 3.; no literal `-` or `2.` text (#1075). Then "Rule item before", an empty bullet with the rule under it, unbulleted and drawn as a thin gray line at the item's text indent (the item's only content is the rule; #1096), and "Rule item after", three bullets in one list (PR #1322 QA round 1)
 - Confirms whether a "use 4 spaces" workaround note in tool docstrings would be sufficient today (it would not — bugs 1+2 still apply at this indentation)
 
 **Cleanup:** write fixture content back
@@ -6664,12 +6664,12 @@ asyncio.run(main())
 - LB-06: `  > Quoted text inside the item.` (2 spaces, one `>`), between the two bullets. No `> >` anywhere in the output except where the source has a nested quote
 - LB-07: every table line indented 3 spaces, between `1. Compare the options:` and `2. Pick one.`
 - LB-08: `- # Heading inside an item`, then `- Plain item after it`
-- LB-10: `   After the rule` (3 spaces) before `2. Next item`
+- LB-10: `   ---` (3 spaces), a blank line, then `   After the rule` (3 spaces) before `2. Next item` (the rule exported since #1096)
 - LB-11: `   > First quote.` and `   > Second quote.`, separated by at least two blank lines, before `2. Next item`
 - LB-12: `    Inner second paragraph` (4 spaces), then `- Outer two`
 - LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
 - LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
-- Step 3's export equals step 2's, except that LB-10 has two fewer blank lines: the rule exports as an empty paragraph, which the re-import drops (#1096)
+- Step 3's export equals step 2's. (Until #1096, LB-10's rule exported as an empty paragraph, which the re-import dropped, so step 3 had two fewer blank lines there.)
 - Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
 - W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
 - W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
@@ -6746,3 +6746,26 @@ Fresh interpreter against eb6ce267, `folder_id=None`, with an existing local ima
 
 **Result (2026-10-31) ✅ PASS (step 6 only) — PR #1310 round 4 (Kit)**
 Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case from TC-DOC244). Step 6 as first written stubbed `_doc_parents` to return `None`, but it returns `(parents, error)` since round 2, so the stub would raise on unpacking; corrected to `result=(None, None)`. With it, step 6 printed the documented refusal ending "Pass folder_id. The document was left unchanged." on a fresh scratch doc, which was then trashed. The other steps' code paths are unchanged since round 3.
+
+### TC-DOC246: A thematic break is drawn as a line, survives a replace without leaking, and exports as a rule, native lines included (#1096) ⚠️ requires-oauth
+**Purpose:** A Markdown `---`/`***`/`___` or an HTML `<hr>` rendered as an empty paragraph, a blank gap with no line (#1096). The Docs API can't insert a horizontal line, so a rule is now an empty 6pt paragraph with a gray bottom border (plus a between-border, so two rules in a row draw two lines). `<p><hr></p>` is the rule alone, and text after `<p><hr>` is no longer lost. `get_doc_as_markdown` reads both that stand-in and a native horizontal line (Drive's Markdown import, Insert > Horizontal line) back as `---`, or `***` when the rule is the doc's first line, where `---` would open front matter. TC-MD003 (C8), TC-MD114 and the TC-MD2xx rule cases grade the rendering across every entry point; this case covers the export, the HTML spellings and the replace path.
+
+**Playwright: required**
+
+**Setup:** `F` = `{REPO}/docs/qa/fixtures/md/tc-doc246/rules.md`.
+
+**Steps**
+1. `create_doc(title="TC-DOC246 md", folder_id={FOLDER_ID}, content_format="markdown", content="***\n\nPara before\n\n---\n\nPara between\n\n***\n___\n\nTwo rules above\n\n---\n\n## Heading after a rule\n\n> Quoted one\n>\n> ---\n>\n> Quoted two\n\n1. Item one\n\n   ---\n\n2. Item two\n\n- - -\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nTail\n\n---\n")`; call its `docId` `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC246 html", folder_id={FOLDER_ID}, content="<p>A</p><hr><p>B</p><p><hr></p><p>C</p><p><hr>D</p>")`, then `get_doc_as_markdown` on its `docId`
+4. `write_doc_content(doc_id={MD}, content_format="markdown", content="Plain one\n\nPlain two\n")`, then `get_doc_as_markdown(doc_id={MD})`
+5. `upload_local_file(local_path=F, parent_folder_id={FOLDER_ID}, name="TC-DOC246 native", convert=True)`, then `get_doc_as_markdown` on its `fileId`
+
+**Checks**
+- Step 1 returns `docId` with no `error`. On screen, every rule is a thin gray line across the text column with space above and below it: the first line of the doc; between "Para before" and "Para between"; two separate lines (not one, not touching) above "Two rules above"; above the heading; between the quoted paragraphs, starting at the quote bar; in the list, indented to "Item one"'s text, with the next item numbered **2.**; above the table; and after "Tail". No blank gap stands in for any rule
+- Step 2 is `***`, then each rule as `---` in the same places: one quote, `> Quoted one`, `>`, `> ---`, `>`, `> Quoted two` (a `>` on the blank lines, so it isn't three quotes), `   ---` (3 spaces) between `1. Item one` and `2. Item two`, and two `---` blocks in a row above "Two rules above"
+- Step 3, on screen: A, a line, B, a line, C, a line, D. The export is `A`, `---`, `B`, `---`, `C`, `---`, `D`, a blank line between each: `<p><hr></p>` gives one rule and no extra empty paragraph, and "D" is kept
+- Step 4's export is `Plain one` and `Plain two` with no `---`, and on screen neither paragraph has a line under it: the replaced rules' borders didn't carry over
+- Step 5's Doc draws Drive's own horizontal lines; its export has a `---` between "Para before" and "Para after" and another between "Quoted before" and "Quoted after". Extra blank lines and the quote's missing `>` are Drive's import, not this case (`docs/known-limitations.md`)
+
+**Cleanup:** `delete_file` the three docs

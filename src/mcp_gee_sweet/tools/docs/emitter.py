@@ -858,6 +858,8 @@ def ast_to_requests(
                 requests.append({"deleteParagraphBullets": {"range": rng}})
             elif isinstance(node, Paragraph):
                 requests.append({"deleteParagraphBullets": {"range": rng}})
+                if node.rule and _list_content_depth(node) is None:
+                    requests.extend(_rule_requests(rng))
             elif isinstance(node, NamedBlock):
                 requests.append(
                     {
@@ -987,6 +989,8 @@ def ast_to_requests(
                 requests.append(
                     _list_content_style_request(rng, content_depth, node.blockquote_depth)
                 )
+                if isinstance(node, Paragraph) and node.rule:
+                    requests.extend(_rule_requests(rng))
             if seg.order in spacing and id(node) not in separators:
                 requests.extend(_spacing_requests(rng, *spacing[seg.order]))
 
@@ -1287,6 +1291,57 @@ def _collapse_paragraph_requests(rng: dict) -> list[dict]:
             "updateTextStyle": {
                 "range": rng,
                 "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                "fields": "fontSize",
+            }
+        },
+    ]
+
+
+# A thematic break (#1096). The Docs API can't insert a horizontalRule element, so a
+# rule is an empty paragraph with a bottom border, the quote bar's gray at 1pt. Docs
+# joins adjacent paragraphs with the same borders into one box, drawing borderBottom
+# only under the last, so two rules in a row drew one line; borderBetween draws the
+# line between them (confirmed live). A 6pt line, single-spaced, with 6pt below,
+# puts the line midway between the paragraphs around it and keeps two rules in a row
+# apart; spacing above as well split a quoted rule's bar from the quote's.
+_RULE_BORDER = {
+    "color": {"color": {"rgbColor": {"red": 0.6, "green": 0.6, "blue": 0.6}}},
+    "width": {"magnitude": 1, "unit": "PT"},
+    "padding": {"magnitude": 0, "unit": "PT"},
+    "dashStyle": "SOLID",
+}
+_RULE_FONT_SIZE_PT = 6
+_RULE_SPACE_BELOW_PT = 6
+
+
+def has_rule_border(paragraph_style: dict) -> bool:
+    """Whether a live paragraph's style draws a bottom border, as a rule's does."""
+    border = paragraph_style.get("borderBottom") or {}
+    return border.get("width", {}).get("magnitude", 0) > 0
+
+
+def _rule_requests(rng: dict) -> list[dict]:
+    """Draw a rule paragraph's line. Must come before any quote-edge spacing request
+    for the same range, which replaces its spacing."""
+    paragraph_style = {
+        "borderBottom": _RULE_BORDER,
+        "borderBetween": _RULE_BORDER,
+        "lineSpacing": 100,
+        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+        "spaceBelow": {"magnitude": _RULE_SPACE_BELOW_PT, "unit": "PT"},
+    }
+    return [
+        {
+            "updateParagraphStyle": {
+                "range": rng,
+                "paragraphStyle": paragraph_style,
+                "fields": ",".join(paragraph_style),
+            }
+        },
+        {
+            "updateTextStyle": {
+                "range": rng,
+                "textStyle": {"fontSize": {"magnitude": _RULE_FONT_SIZE_PT, "unit": "PT"}},
                 "fields": "fontSize",
             }
         },
@@ -2330,6 +2385,9 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
             el.get("textRun", {}).get("content", "") for el in prev["paragraph"].get("elements", [])
         )
         if para_text != "\n":
+            continue
+        if has_rule_border(prev["paragraph"].get("paragraphStyle", {})):
+            # A rule right before the table (#1096): its own empty paragraph.
             continue
         start = prev.get("startIndex")
         end = prev.get("endIndex")

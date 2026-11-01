@@ -25,7 +25,7 @@ from .ast import (
     Run,
     Table,
 )
-from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, list_level_indents
+from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, has_rule_border, list_level_indents
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -280,7 +280,20 @@ def _paragraph_to_node(
         )
     if named_style in ("TITLE", "SUBTITLE"):
         return NamedBlock(style_type=named_style, runs=runs, blockquote_depth=blockquote_depth)
-    return Paragraph(runs=runs, blockquote_depth=blockquote_depth)
+    return Paragraph(
+        runs=runs, blockquote_depth=blockquote_depth, rule=_is_rule_paragraph(para, runs)
+    )
+
+
+def _is_rule_paragraph(para: dict, runs: list[Run | Image]) -> bool:
+    """Whether a paragraph with no text is a thematic break (#1096): a native
+    horizontal line (Drive's Markdown import, the Docs UI's Insert > Horizontal
+    line), or emitter.py's stand-in, an empty paragraph with a bottom border."""
+    if runs:
+        return False
+    if any("horizontalRule" in pe for pe in para.get("elements", [])):
+        return True
+    return has_rule_border(para.get("paragraphStyle", {}))
 
 
 def _nesting_level(bullet: dict, document: dict) -> dict | None:
@@ -350,8 +363,9 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
             image = _resolve_inline_image(ioe.get("inlineObjectId"), document, link_url)
             if image is not None:
                 items.append(image)
-        # footnoteReference, horizontalRule, pageBreak, columnBreak, autoText,
-        # richLink, person, equation: no Markdown equivalent, silently skipped.
+        # footnoteReference, pageBreak, columnBreak, autoText, richLink, person,
+        # equation: no Markdown equivalent, silently skipped. A horizontalRule
+        # makes its paragraph a rule (_is_rule_paragraph, #1096).
 
     # Every paragraph's content ends with a trailing "\n" (Docs API convention)
     # — strip exactly one from the end of the last Run, dropping it entirely if

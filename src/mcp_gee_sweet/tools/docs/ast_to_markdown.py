@@ -65,6 +65,13 @@ _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # rules can't occur: _escape has already escaped both (#993).
 _LEADING_RULE_LINE = re.compile(r"^(?:=+[ \t]*|-[- \t]*)$")
 
+# A thematic break (#1096). Every block is separated by a blank line, so "---"
+# never sits under a paragraph line, where it would be a setext underline. As the
+# document's first line it would open YAML front matter, which the Markdown import
+# drops (D3, #1173) when what follows reads as a mapping, so there it's "***".
+_RULE = "---"
+_FIRST_LINE_RULE = "***"
+
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
     "use get_doc_structure for full fidelity)*"
@@ -78,16 +85,19 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
     open_items = _OpenItems()
     for node in nodes:
         rendered = open_items.render(node, prev_node)
+        if prev_node is None and rendered == _RULE:
+            rendered = _FIRST_LINE_RULE
         if prev_node is not None:
             # Consecutive list items get a single newline, not a blank line, so
             # they render as one "tight" list (CommonMark still parses a blank-
             # line-separated run as the same list, just needlessly "loose" —
             # no correctness difference, only readability of the output).
             same_list_run = isinstance(node, BulletItem) and isinstance(prev_node, BulletItem)
+            shared_quote = open_items.shared_quote or _margin_quote_shared(prev_node, node)
             if same_list_run:
                 parts.append("\n")
-            elif open_items.shared_quote:
-                parts.append(f"\n{'>' * open_items.shared_quote}\n")
+            elif shared_quote:
+                parts.append(f"\n{'>' * shared_quote}\n")
             else:
                 parts.append("\n\n")
         parts.append(rendered)
@@ -158,6 +168,24 @@ class _OpenItems:
             body = _render_block(node, blockquote_depth=quote - outer)
         body = _indent_lines(body, column)
         return _blockquote(body, outer) if outer else body
+
+
+def _margin_quote_shared(prev_node: DocNode, node: DocNode) -> int:
+    """How many quote levels two consecutive blocks outside list items share, which
+    the blank line between them must carry ("> a", ">", "> b").
+
+    Adjacent quoted paragraphs in Docs are one quote: Docs draws their left borders as
+    one bar, and emitter.py puts an unquoted separator paragraph between two separate
+    quotes (#1098), which reads back as a block of its own and ends the quote here.
+    A plain blank line between them made the export two quotes (#1096 review). A
+    table renders unquoted, and a block inside a list item is _OpenItems' to place."""
+
+    def margin_depth(n: DocNode) -> int:
+        if isinstance(n, Table) or getattr(n, "list_depth", None) is not None:
+            return 0
+        return n.blockquote_depth
+
+    return min(margin_depth(prev_node), margin_depth(node))
 
 
 def _indent_lines(body: str, column: int) -> str:
@@ -255,7 +283,9 @@ def _render_block(
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
     levels its caller writes (see `_OpenItems`)."""
-    if isinstance(node, Paragraph) and _is_code_block(node):
+    if isinstance(node, Paragraph) and node.rule:
+        body = _RULE
+    elif isinstance(node, Paragraph) and _is_code_block(node):
         body = _render_code_block(node)
     elif isinstance(node, Heading):
         body = f"{'#' * node.level} {_render_inline(node.runs)}".rstrip()
