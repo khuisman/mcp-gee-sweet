@@ -6759,7 +6759,7 @@ Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case fro
 2. `get_doc_as_markdown(doc_id={MD})`
 3. `create_doc(title="TC-DOC246 html", folder_id={FOLDER_ID}, content="<p>A</p><hr><p>B</p><p><hr></p><p>C</p><p><hr>D</p>")`, then `get_doc_as_markdown` on its `docId`
 4. `write_doc_content(doc_id={MD}, content_format="markdown", content="Plain one\n\nPlain two\n")`, then `get_doc_as_markdown(doc_id={MD})`
-5. `upload_local_file(local_path=F, parent_folder_id={FOLDER_ID}, name="TC-DOC246 native", convert=True)`, then `get_doc_as_markdown` on its `fileId`
+5. `upload_local_file(local_path=F, parent_folder_id={FOLDER_ID}, name="TC-DOC246 native.md", convert=True)`, then `get_doc_as_markdown` on its `fileId` (the `.md` in `name` is required: `convert` reads the extension from `name`, and without it the call returns "Conversion not supported for extension ''")
 
 **Checks**
 - Step 1 returns `docId` with no `error`. On screen, every rule is a thin gray line across the text column with space above and below it: the first line of the doc; between "Para before" and "Para between"; two separate lines (not one, not touching) above "Two rules above"; above the heading; between the quoted paragraphs, starting at the quote bar; in the list, indented to "Item one"'s text, with the next item numbered **2.**; above the table; and after "Tail". No blank gap stands in for any rule
@@ -6769,3 +6769,6 @@ Fresh interpreter at 78f5536a (the `develop` merge that renumbered this case fro
 - Step 5's Doc draws Drive's own horizontal lines; its export has a `---` between "Para before" and "Para after" and another between "Quoted before" and "Quoted after". Extra blank lines and the quote's missing `>` are Drive's import, not this case (`docs/known-limitations.md`)
 
 **Cleanup:** `delete_file` the three docs
+
+**Result (2026-11-01) ⚠️ PARTIAL — PR #1326 round 1 (Sky)**
+Live on `mcp-gee-sweet-sky` at 42e755df (OAuth, Shared Drive folder). Steps 2–5 pass. Step 2's export matches every listed line, including `***` first and `> ---` with `>` on the blank lines. Step 3 draws A, line, B, line, C, line, D and exports the same, with "D" kept. Step 4 exports `Plain one`/`Plain two` with no lines left on screen. Step 5's Drive import draws native lines and exports both `---`. Step 5 as first written passed `name="TC-DOC246 native"`, and `convert` reads the extension from `name`, so the call errored ("Conversion not supported for extension ''"); the step now uses `TC-DOC246 native.md`. Step 1: every rule draws (first line, between paragraphs, two separate lines in a row, above the heading, in the list at "Item one"'s text indent with **2.** after it, above the table, after "Tail"). One defect: the quoted rule's line starts at the bar, but the bar breaks below it. "Quoted one" plus the rule carry one bar, then the rule's 6pt space below opens a gap, and "Quoted two" gets a bar of its own, so on screen it reads as two quotes while the export says one. Sent back. Cleanup: the three docs plus a probe doc trashed.
