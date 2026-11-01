@@ -1375,6 +1375,8 @@ How our converter (EP-1 to EP-4 and EP-8) scopes inline styling tags.
 
 **Result (2026-10-31, PR #1316 @ 0cf22c31, round 5, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles: IS-01 to IS-06 match. So do MD-IS-html2, MD-IS-html3, MD-IS-html4 ("a", "b", "c" paragraphs; "d" and "e" bold; "f" and "h" linked to `/u`; "g" linked to `/v`) and MD-IS-md3. Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for quadratic slowdowns on unbalanced inline tags that this case doesn't measure (PR comment).**
 
+**Result (2026-11-01, PR #1316 @ 589d3991, round 6, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles: IS-01 to IS-06 match, as do MD-IS-html2, MD-IS-html3 and MD-IS-html4. Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for regressions this case doesn't cover, including a stray end tag outside any block that drops later text (`<span><p>x</p></div>text<hr><p>after</p>` loses "text" and the `<hr>`, seen live; `develop` keeps both) (PR comment).**
+
 ---
 
 ## Known gaps and not-applicable
