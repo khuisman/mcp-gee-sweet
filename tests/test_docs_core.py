@@ -12,6 +12,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     Image,
     NamedBlock,
     Paragraph,
+    RGBColor,
     Row,
     Run,
     Table,
@@ -429,6 +430,144 @@ class TestHtmlToAst:
         nodes = html_to_ast('<p data-style="TITLE">T</p>')
         assert isinstance(nodes[0], NamedBlock)
         assert nodes[0].style_type == "TITLE"
+
+
+def _styled(runs: list, text: str) -> Run:
+    """The one run whose text is `text`."""
+    (run,) = [r for r in runs if isinstance(r, Run) and r.text == text]
+    return run
+
+
+class TestInlineStrikeBaselineHighlight:
+    """#1231: `<del>`/`~~x~~` strike, `<sub>`/`<sup>` baseline, `<mark>` highlight."""
+
+    @pytest.mark.parametrize("tag", ["s", "strike", "del"])
+    def test_strike_tags(self, tag):
+        nodes = html_to_ast(f"<p>a <{tag}>x</{tag}> b</p>")
+        assert _styled(nodes[0].runs, "x").strikethrough is True
+        assert _styled(nodes[0].runs, " b").strikethrough is None
+
+    def test_markdown_tildes_strike(self):
+        nodes = html_to_ast(_md_to_html("a ~~x~~ b\n"))
+        assert _styled(nodes[0].runs, "x").strikethrough is True
+
+    def test_strike_combines_with_other_styles(self):
+        nodes = html_to_ast(_md_to_html("***~~x~~***\n"))
+        run = _styled(nodes[0].runs, "x")
+        assert (run.bold, run.italic, run.strikethrough) == (True, True, True)
+
+    def test_sub_and_sup(self):
+        nodes = html_to_ast("<p>H<sub>2</sub>O mc<sup>2</sup>.</p>")
+        assert [(r.text, r.baseline_offset) for r in nodes[0].runs] == [
+            ("H", None),
+            ("2", "SUBSCRIPT"),
+            ("O mc", None),
+            ("2", "SUPERSCRIPT"),
+            (".", None),
+        ]
+
+    def test_innermost_baseline_wins(self):
+        nodes = html_to_ast("<p><sup>a<sub>b</sub>c</sup>d</p>")
+        assert [(r.text, r.baseline_offset) for r in nodes[0].runs] == [
+            ("a", "SUPERSCRIPT"),
+            ("b", "SUBSCRIPT"),
+            ("c", "SUPERSCRIPT"),
+            ("d", None),
+        ]
+
+    def test_mark_highlights(self):
+        nodes = html_to_ast("<p>a <mark><b>hi</b></mark> b</p>")
+        run = _styled(nodes[0].runs, "hi")
+        assert run.bold is True
+        bg = run.background_color
+        assert (bg.red, bg.green, bg.blue) == (1.0, 1.0, 0.0)
+        assert _styled(nodes[0].runs, " b").background_color is None
+
+    def test_mark_runs_do_not_share_a_color_object(self):
+        nodes = html_to_ast("<p><mark>a<b>b</b></mark></p>")
+        a, b = nodes[0].runs
+        assert a.background_color == b.background_color
+        assert a.background_color is not b.background_color
+
+    def test_del_inside_s_keeps_strike_after_del_closes(self):
+        nodes = html_to_ast("<p><s>a<del>b</del>c</s>d</p>")
+        assert [(r.text, r.strikethrough) for r in nodes[0].runs] == [
+            ("a", True),
+            ("b", True),
+            ("c", True),
+            ("d", None),
+        ]
+
+    def test_in_table_cell(self):
+        nodes = html_to_ast(_md_to_html("| h |\n|---|\n| <sup>x</sup> ~~y~~ <mark>z</mark> |\n"))
+        children = nodes[0].rows[1].cells[0].children
+        assert _styled(children, "x").baseline_offset == "SUPERSCRIPT"
+        assert _styled(children, "y").strikethrough is True
+        assert _styled(children, "z").background_color is not None
+
+    def test_requests_carry_the_styles(self):
+        requests, _ = _to_doc_requests(
+            "~~s~~ H<sub>2</sub>O x<sup>2</sup> <mark>m</mark>", "markdown"
+        )
+        styles = [r["updateTextStyle"]["textStyle"] for r in requests if "updateTextStyle" in r]
+        assert {"strikethrough": True} in styles
+        assert {"baselineOffset": "SUBSCRIPT"} in styles
+        assert {"baselineOffset": "SUPERSCRIPT"} in styles
+        assert {
+            "backgroundColor": {"color": {"rgbColor": {"red": 1.0, "green": 1.0, "blue": 0.0}}}
+        } in styles
+
+
+# The Run field and value each inline tag sets (#1231).
+_INLINE_TAG_FIELDS = {
+    "s": ("strikethrough", True),
+    "del": ("strikethrough", True),
+    "mark": ("background_color", RGBColor(1.0, 1.0, 0.0)),
+    "sub": ("baseline_offset", "SUBSCRIPT"),
+    "sup": ("baseline_offset", "SUPERSCRIPT"),
+}
+
+
+class TestNewInlineTagsMatchStrikeOnMalformedInput:
+    """#1231's review bar: on malformed input each new tag carries its style exactly
+    where `<s>` carries strikethrough. Making either match a browser is #1329."""
+
+    _INPUTS = (
+        "<p><T>a</p><p>b</p>",
+        "<h2><T>a</h2><p>b</p>",
+        "<ul><li><T>a</li><li>b</li></ul>",
+        "<ul><li><T><p>a</p>b</T></li></ul><p>c</p>",
+        "<table><tr><td><T>a</td><td>b</td></tr></table><p>c</p>",
+        "<table><tr><td><T>a<table><tr><td>x</td></tr></table>b</T></td></tr></table>",
+        "<p><T>a</p></T><p>b</p>",
+        "<p><T>a</b>b</T>c</p>",
+        "<pre><T>a</pre><p>b</p>",
+    )
+
+    @classmethod
+    def _texts(cls, nodes) -> list[Run]:
+        """Every Run in document order, table cells included."""
+        out = []
+        for node in nodes:
+            if isinstance(node, Run):
+                out.append(node)
+            elif isinstance(node, Table):
+                for row in node.rows:
+                    for cell in row.cells:
+                        out.extend(cls._texts(cell.children))
+            elif hasattr(node, "runs"):
+                out.extend(cls._texts(node.runs))
+        return out
+
+    def _styled_texts(self, html: str, tag: str) -> list[tuple[str, bool]]:
+        field, value = _INLINE_TAG_FIELDS[tag]
+        runs = self._texts(html_to_ast(html.replace("T>", f"{tag}>")))
+        return [(r.text, getattr(r, field) == value) for r in runs]
+
+    @pytest.mark.parametrize("tag", ["del", "mark", "sub", "sup"])
+    @pytest.mark.parametrize("html", _INPUTS)
+    def test_same_carry_as_s(self, html, tag):
+        assert self._styled_texts(html, tag) == self._styled_texts(html, "s")
 
 
 class TestLooseListItemKeepsItsBullet:

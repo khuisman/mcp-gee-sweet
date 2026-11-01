@@ -1342,6 +1342,25 @@ What our converter tells the caller about the conversion, and the link targets i
 
 ---
 
+## Inline styles
+
+How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
+
+### TC-MD503: Inline strike, sub/sup and highlight ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/inline-scope.md` through EP-1 to EP-4 and EP-8 (#1231). Also run TC-MD116's HT-01, HT-02 and HT-07 through EP-1 to EP-4: #1077's and #1119's done-when.
+
+**Checks**
+- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not.
+- IS-02: the "2" in "H2O" subscript, the "2" in "mc2" superscript, the rest of that text normal; in "abcd", "a" and "c" superscript, "b" subscript, "d" normal.
+- IS-03: "hi" highlighted yellow and bold, the text around it plain.
+- IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; the second cell's "w" highlighted; the last row's cells plain.
+- `get_doc_as_markdown` on each Doc keeps the strikes as `~~…~~` (it has no syntax for sub/sup or highlight, so those read back as plain text).
+- Malformed input (unclosed or misnested tags) isn't in this case: the new tags behave as `<s>` does there, which the unit tests pin, and browser-matching recovery is #1329.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").
