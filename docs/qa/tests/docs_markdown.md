@@ -1370,6 +1370,8 @@ How our converter (EP-1 to EP-4 and EP-8) scopes inline styling tags.
 
 **Result (2026-10-31, PR #1316 @ 377fbf22, round 3, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles. IS-01 to IS-06 match. IS-06 has "one" and "two" bold and " three" and "four" plain, so the round-2 regression is fixed. MD-IS-html2 matches every expected style. Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for regressions this case doesn't cover, both seen live through `create_doc`: `<b><p>x</b></p>tail<hr><p>after</p>` loses "tail" and the `<hr>`, and Markdown `<span>\n\ntext</span>\n\nafter\n\n---\n\nend` loses its thematic break (PR comment).**
 
+**Result (2026-10-31, PR #1316 @ ae479805, round 4, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles. IS-01 to IS-06 match. MD-IS-html3 matches: "x" plain, "tail", the `<hr>`'s empty paragraph, "y" linked to `/1`, "z" linked to `/2`, " w" unlinked. So does MD-IS-md3: "text", "after", the break, "end". Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for findings outside this case, including a stray `</table>` that drops the rest of the document (`<p>a</p></table><p>b</p>c` keeps only "a", seen live; `develop` does the same) and a quadratic slowdown on many open or stray inline tags (PR comment).**
+
 ---
 
 ## Known gaps and not-applicable
