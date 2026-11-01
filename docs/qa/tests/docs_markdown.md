@@ -1366,6 +1366,8 @@ How our converter (EP-1 to EP-4 and EP-8) scopes inline styling tags.
 
 **Result (2026-10-31, PR #1316 @ e0b1bf9a, round 2, Run 1 only) ⚠️ PARTIAL — 5/5 case×EP cells pass (EP-1 to EP-4, EP-8), plus both HTML checks, read from `documents().get()` run styles and identical across all five EPs. IS-01's new `<sup>h<sub>i</sup>j</sub>k` gives "j" and "k." plain. In MD-IS-html2, "a", "b" and "d" are highlighted, "c" is struck in its own cell, "e" is plain, "f" is bold, "inner" is absent, and "gh" is one highlighted bullet. `get_doc_as_markdown` (EP-1) keeps every strike. Skipped: the second run and the on-screen checks. Not a PASS until Run 2 is done. This case doesn't cover the regression the round was sent back for: an unclosed `<b>` carried into the next block can't be closed there, so in `<b>one\n\ntwo</b> three\n\nfour\n\n# Head` the text " three", "four" and "Head" render bold, confirmed live and on screen (PR comment).**
 
+**Result (2026-10-31, PR #1316 @ 377fbf22, round 3, EP-3 and EP-4 only, Run 1) ⚠️ PARTIAL — 2/2 cells run pass, read from `documents().get()` run styles. IS-01 to IS-06 match. IS-06 has "one" and "two" bold and " three" and "four" plain, so the round-2 regression is fixed. MD-IS-html2 matches every expected style. Skipped: EP-1, EP-2, EP-8, the second run, the on-screen check and `get_doc_as_markdown`. The round was sent back for regressions this case doesn't cover, both seen live through `create_doc`: `<b><p>x</b></p>tail<hr><p>after</p>` loses "tail" and the `<hr>`, and Markdown `<span>\n\ntext</span>\n\nafter\n\n---\n\nend` loses its thematic break (PR comment).**
+
 ---
 
 ## Known gaps and not-applicable
