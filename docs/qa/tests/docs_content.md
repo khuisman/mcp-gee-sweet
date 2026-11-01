@@ -2420,6 +2420,8 @@ Run 2 (ash).
 
 **Result (2026-10-31, PR #1315 @ 893dc36f) ✅ PASS — #1074 confirmed fixed live (by #1116).** `create_doc_from_file` on the fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`. `get_doc_structure`: 21 paragraphs, no whitespace-only ones; every paragraph is a heading or a bullet with text, plus the doc's own trailing `\n`. "Parent A has text"/"Parent B has text"/"Top ordered 1" are their own items; levels 0/1/2 in Case 1, Case 2's C1/C2 at level 1, Case 3's 1.1/1.2 at level 1. Playwright: three indent tiers in Case 1 (●/○/■), and Case 3 numbers 1., a., b., **2.** with no empty bullets. `get_doc_as_markdown` agrees (`2. Top ordered 2`).
 
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's new checks.** `create_doc_from_file` on the updated fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`. `get_doc_structure`: Case 1 unchanged (levels 0/1/2, Parent A/B text kept). Case 2: one empty bullet at level 0, then C1/C2 at level 1, same `listId`. Case 3: 1/1.1/1.2/2 at levels 0/1/1/0. Case 4: two empty bullets at levels 0 and 1, then D2a/D2b at level 2, one list. Cases 5 and 6: E1/E2 at level 1 and F2a/F2b at level 2, with no bullet above either run. No whitespace-only paragraphs. Visual check not run this round.
+
 ---
 
 ### TC-DOC105: Markdown nested lists at GFM-standard (2/3-space) indentation ⚠️ requires-oauth ⚠️ destructive
@@ -2450,6 +2452,8 @@ Known gap: 2/3-space indented ordered children flatten (documented bug-3 behavio
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: With 2/3-space GFM indentation, Child A1/A2 flatten to level 0. The B children read "  1. Ordered child B1" as literal text. Case 2 is literal "-" text, and Case 3's nested items flatten to level 0. Tracked in #1071 (open), plus #1075 for Case 2.
+
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's Case 2 check.** `create_doc_from_file` on the fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`, graded from `get_doc_as_markdown`. Case 2's bare `-` is an empty bullet (`- `) with C1/C2 nested one level under it; no literal `-` text. Case 1 nests A1/A2/A2a and B1/B2 (ordered). Case 3's 1.1/1.2 are nested under "Top ordered 1".
 
 ---
 
@@ -2486,6 +2490,8 @@ Run 2 (ash).
 
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `oauth`: Case 1 and Case 3 nest and number correctly (tc-doc106.png). Case 2's bare "-" renders as literal "-" / "- Bare-nested child C1" text. Tracked in #1075 (open).
+
+**Result (2026-10-31, PR #1322 @ cbe18a72) ✅ PASS — #1075's checks.** `create_doc_from_file` on the updated fixture into a scratch doc (trashed after), `mcp-gee-sweet-sky`, graded from `get_doc_as_markdown`. Case 2's bare `-` is an empty bullet with C1/C2 one level under it. Case 4: "Bullet before", an empty bullet, "Bullet after" in one list; "Number one", an empty item, "Number three" exported as 1./2./3. No literal `-` or `2.` text. Cases 1 and 3 unchanged.
 
 ---
 
@@ -5105,6 +5111,8 @@ Run 2 (ash).
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2) ✅ PASS — all four cases, Run 2 identical, checked on screen (`pr1295-r2/tc-doc190.png`).** Case 1: Parent A ●, A1/A2 ○, A2a ■; Parent B ●, Ordered child B1 **a.**, B2 **b.**, both at level 1. Case 2: C1/C2 ○ at level 1. Case 3: 1., a., b., 2. Case 4: D2a/D2b ■ at level 2. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"
 
 **Result (2026-10-31, PR #1315 @ 893dc36f) ✅ PASS — all four cases, same scratch doc as TC-DOC104's run.** From `get_doc_structure`, plus Playwright on screen. Case 1: Parent A/B ● at level 0, A1/A2 ○ at level 1, A2a ■ at level 2, B1/B2 a./b. at level 1 (own list). Case 2: C1/C2 ○ at level 1. Case 3: 1., a., b., 2. Case 4: D2a/D2b ■ at level 2, two tiers deep. No stray empty bullets (#1074). I didn't read raw `glyphSymbol` (no scratch script), so glyphs were graded from the screenshot.
+
+**Result (2026-10-31, PR #1322 @ cbe18a72) ⚠️ PARTIAL — levels pass; glyphs not checked.** Same scratch doc as TC-DOC104's PR #1322 run, `get_doc_structure`. Case 5 E1/E2 at `nestingLevel` 1 and Case 6 F2a/F2b at level 2, with no parent bullet; Case 4 D2a/D2b at level 2 under empty bullets at levels 0 and 1; B1/B2 at level 1. The Playwright glyph check and raw `glyphSymbol` read weren't run this round.
 
 ---
 
