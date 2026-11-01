@@ -147,7 +147,7 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Shape | Python-Markdown | markdown-it | Handling |
 |---|---|---|---|
 | Tight item with a nested block | `<li>a<ul>` | `<li>a\n<ul>` (also before `<pre>`, `<table>`, `<blockquote>`) | **Changed:** `_interrupt_open_block` drops trailing whitespace holding a line break from the raw text before the block. It was reaching the Docs API as an empty paragraph under every parent item. A `<br>`'s own break is kept. |
-| Rule inside an item | (never produced) | `<li>item\n<hr />\n</li>` | **Changed:** an `<hr>` after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. `<li><hr>` with no text keeps #401's dropped-construct boundary. |
+| Rule inside an item | (never produced) | `<li>item\n<hr />\n</li>` | **Changed:** an `<hr>` after text in an open block, or in a resumed segment (after a nested list or quote in the item), ends that segment, emits the rule's empty paragraph, and resumes the block. `<li><hr>` with no text is an empty bullet with the rule inside the item (#1075). |
 | Text after a block in an item | (never produced) | `<hr />\nmore</li>` | **Changed:** a resumed segment drops the line break at its start, as the break before a block is dropped. An authored `&nbsp;` there isn't ASCII whitespace and stays (#444). |
 | Loose item | `<li>\n<p>a</p>\n</li>` | same | Unchanged here: handled by community PR #1164 (#1111), merged into `develop` before this PR. markdown-it produces it more often, since it attaches an indented paragraph or code block to the item instead of dropping it out of the list. |
 | Strikethrough | (none) | `<s>` | Already handled (`_INLINE_STRIKE`). |
@@ -155,7 +155,7 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Code block language | `class="language-x"` | same | Unchanged. |
 | Hard break | `<br />\n` | same | Unchanged; the double break it produces is #1117. Now reachable from a trailing `\` too. |
 | Two quotes | one `<blockquote>`, two `<p>` | two `<blockquote>` | Renders as two quotes (#1098's emitter work). |
-| Empty item | (not produced) | `<li></li>` | Dropped by `_emit_block_node`'s no-content rule; #1075. |
+| Empty item | (not produced) | `<li></li>` | An empty bullet (#1075). |
 | Output | no trailing newline | ends in `\n` | Harmless; one exact-match test updated. |
 
 ## Behavior changes for existing callers

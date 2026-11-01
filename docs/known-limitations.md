@@ -56,25 +56,6 @@ cell.
 
 ---
 
-### An empty list item (a bare `-` line) is dropped
-
-**What:** In Markdown input, a list item with no text, a line of only `-`, leaves no bullet in the
-Doc. The items around it keep theirs, and a list nested under it keeps its level:
-`"- item one\n-\n- item three\n"` renders two bullets, not three.
-
-**Why:** The Markdown parser reads it as an empty item (`<li></li>`), as CommonMark says. The
-HTML→AST step then drops a list item with no content, the rule that keeps a stray
-`<li>&nbsp;</li>` or an `<li>` wrapping only a nested list from becoming an empty bullet. Before
-the switch to a CommonMark parser (#1116), Python-Markdown didn't recognize a bare `-` at all:
-it turned the list into a paragraph of literal text, or read the `-` as a setext heading
-underline (#692).
-
-**Workaround:** None in Markdown: an item holding only a non-breaking space (`- ` followed by
-U+00A0) is dropped by the same rule. Give the item some text. Tracked in #1075. Related:
-`docs/qa/tests/docs_markdown.md` TC-MD301.
-
----
-
 ### Markdown input doesn't read footnotes, definition lists, or other Python-Markdown `extra` syntax
 
 **What:** Markdown passed to `create_doc`/`write_doc_content` (`content_format='markdown'`),
