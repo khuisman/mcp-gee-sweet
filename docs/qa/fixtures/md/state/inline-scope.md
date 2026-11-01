@@ -19,6 +19,14 @@ The paragraph after them is plain.
 | <sup>x</sup> ~~y~~ <mark>z</mark> | <mark>open |
 | plain | plain |
 
+### IS-06 — a carried tag closes in the next paragraph
+
+<b>one
+
+two</b> three
+
+four
+
 ### IS-05 — unclosed s carries on (keep this case last)
 
 <s>struck

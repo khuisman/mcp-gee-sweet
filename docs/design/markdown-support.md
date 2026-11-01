@@ -51,7 +51,7 @@ edge cases, two things to maintain.
 **Resolved by #104**: task-list markers are stripped from the item's text and captured on
 `BulletItem.checked`, and the emitter prepends a `☑`/`☐` glyph — not a `BULLET_CHECKBOX` preset
 list. **Resolved by #103**: `<pre>`/`<code>` now set `font_family="Courier New"` on their runs
-(tracked via `html_parser.py`'s `_in_pre`/`_code_depth`), emitted through `weightedFontFamily` in
+(tracked via `html_parser.py`'s `_in_pre` and its `_inline_stack` of open inline tags, #1231), emitted through `weightedFontFamily` in
 `emitter.py` — no separate `CodeBlock` AST node was needed. The HTML intermediary handled both
 constructs without needing to become a direct MD → AST parser.
 

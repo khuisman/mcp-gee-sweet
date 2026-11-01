@@ -33,7 +33,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     ast_to_requests,
     extract_images,
 )
-from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.docs.html_parser import _AstParser, html_to_ast
 
 # ---------------------------------------------------------------------------
 # AST construction helpers
@@ -660,8 +660,79 @@ class TestInlineStrikeBaselineHighlight:
     def test_style_tags_are_not_unsupported_content(self):
         # Each styling tag is handled, so an otherwise empty block isn't kept
         # as a dropped-construct boundary.
-        for tag in ["b", "i", "u", "s", "del", "sub", "sup", "mark", "code"]:
+        for tag in ["a", "b", "i", "u", "s", "del", "sub", "sup", "mark", "code"]:
             assert html_to_ast(f"<p><{tag}></{tag}></p>") == html_to_ast("<p></p>")
+
+    def test_empty_code_block_still_kept(self):
+        # A <code> inside <pre> still marks the block, as on develop.
+        assert html_to_ast("<pre><code></code></pre>") == [Paragraph(runs=[])]
+
+    @pytest.mark.parametrize(
+        ("markdown", "styled"),
+        [
+            ("<b>one\n\ntwo</b> three\n\nfour\n\n# Head\n", {"one", "two"}),
+            ("- <b>a\n- b</b> c\n- d\n", {"a", "b"}),
+        ],
+    )
+    def test_reopened_tag_closes_in_the_next_block(self, markdown, styled):
+        # PR #1316 QA round 2, finding 1: the reopened <b> sits inside the next
+        # block, where its </b> reaches it.
+        runs = [r for n in html_to_ast(_md_to_html(markdown)) for r in n.runs]
+        assert {r.text.strip() for r in runs if r.bold} == styled
+        assert all(r.bold is None for r in runs if r.text.strip() not in styled)
+
+    def test_reopened_code_closes_in_the_next_block(self):
+        nodes = html_to_ast("<p><code>x</p><p>y</code>z</p>")
+        assert [(r.text, r.font_family) for r in nodes[1].runs] == [
+            ("y", "Courier New"),
+            ("z", None),
+        ]
+
+    def test_formatting_end_tag_crosses_item_paragraph(self):
+        # PR #1316 QA round 2, finding 2.
+        nodes = html_to_ast("<ul><li><b><p>a</b>b</p>c</li><li>d</li></ul>")
+        runs = [r for n in nodes for r in n.runs]
+        assert [(r.text, r.bold) for r in runs] == [
+            ("a", True),
+            ("b", None),
+            ("c", None),
+            ("d", None),
+        ]
+
+    def test_link_left_open_in_a_cell_ends_with_it(self):
+        # PR #1316 QA round 2, finding 3.
+        nodes = html_to_ast(
+            _md_to_html('| <a href="http://x">a | b |\n|---|---|\n| c | d |\n\nafter\n')
+        )
+        table, after = nodes
+        links = [c.children[0].link_url for row in table.rows for c in row.cells]
+        assert links == ["http://x", None, None, None]
+        assert after.runs[0].link_url is None
+
+    def test_link_left_open_before_a_table_skips_its_cells(self):
+        # PR #1316 QA round 2, finding 4: a cell starts with no link.
+        nodes = html_to_ast('<p><a href="u">t</p><table><tr><td>cell</td></tr></table><p>y</p>')
+        assert nodes[1].rows[0].cells[0].children[0].link_url is None
+        # It's reopened in the next block after the table, as a browser does.
+        assert nodes[2].runs[0].link_url == "u"
+
+    def test_reopened_tags_are_capped(self):
+        # PR #1316 QA round 2, finding 5: at most 3 identical entries, and a
+        # closed link's entries go with it.
+        parser = _AstParser()
+        parser.feed("<p><b>x</p>" * 5 + "<p><a href=u>x</p><p>y</a></p>" * 3)
+        assert parser._inline_stack == []
+        assert [e.tag for e in parser._reopen] == ["b", "b", "b"]
+
+    def test_nested_unlinked_anchor_keeps_outer_link(self):
+        # #994, now read from the stack.
+        runs = html_to_ast('<p><a href="u">a<a name="n">b</a>c</a>d</p>')[0].runs
+        assert [(r.text, r.link_url) for r in runs] == [
+            ("a", "u"),
+            ("b", "u"),
+            ("c", "u"),
+            ("d", None),
+        ]
 
     def test_del_inside_s_keeps_strike_after_del_closes(self):
         nodes = html_to_ast("<p><s>a<del>b</del>c</s>d</p>")
