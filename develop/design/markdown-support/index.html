@@ -1514,9 +1514,27 @@ another registered tool), passing <code>content_format</code> through to <code>_
 </tr>
 <tr>
 <td><code>~~strikethrough~~</code></td>
-<td>none: stays literal text (<code>_md_to_html</code> loads no strikethrough extension, and <code>html_parser.py</code> maps <code>&lt;s&gt;</code>/<code>&lt;strike&gt;</code> but not <code>&lt;del&gt;</code>)</td>
-<td><code>Run</code> with the tildes in its text</td>
-<td>literal <code>~~strikethrough~~</code> — not implemented, #1077</td>
+<td><code>&lt;s&gt;</code> (GFM strikethrough)</td>
+<td><code>Run(strikethrough=True)</code></td>
+<td>struck-through text run (#1077)</td>
+</tr>
+<tr>
+<td><code>&lt;s&gt;</code>, <code>&lt;strike&gt;</code>, <code>&lt;del&gt;</code> (inline HTML)</td>
+<td>passed through</td>
+<td><code>Run(strikethrough=True)</code></td>
+<td>struck-through text run (#1077)</td>
+</tr>
+<tr>
+<td><code>&lt;sub&gt;</code>, <code>&lt;sup&gt;</code> (inline HTML)</td>
+<td>passed through</td>
+<td><code>Run(baseline_offset="SUBSCRIPT"/"SUPERSCRIPT")</code>; the innermost open tag wins</td>
+<td>subscript / superscript text run (#1119)</td>
+</tr>
+<tr>
+<td><code>&lt;mark&gt;</code> (inline HTML)</td>
+<td>passed through</td>
+<td><code>Run(background_color=</code> yellow <code>)</code></td>
+<td>yellow-highlighted text run (#1119)</td>
 </tr>
 <tr>
 <td><code>[text](url)</code></td>

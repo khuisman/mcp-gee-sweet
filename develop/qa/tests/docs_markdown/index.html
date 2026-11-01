@@ -4955,6 +4955,24 @@
 - No response has a <code>dropped_links</code> key.</p>
 <p><strong>Result (2026-10-30, PR #1298 @ 833b076c, Kit, round 1) ✅ PASS — 5/5 case×EP cells pass.</strong> EP-1 to EP-4 and EP-8 each stored <code>[www.example.com](https://www.example.com)</code>, <code>[y](https://www.example.com)</code> and <code>[www.example.com:8443/x](https://www.example.com:8443/x)</code> (<code>get_doc_as_markdown</code>); no response had a <code>dropped_links</code> key. Screenshots of EP-1 and EP-8 show all three linked. Out-of-case probe: EP-5 (<code>upload_local_file(convert=True)</code>, Drive's importer) stores all three as <code>http://…</code>, the written link included, so the engines differ on the scheme; LK-06 now records that.</p>
 <hr />
+<h2 id="inline-styles">Inline styles<a class="headerlink" href="#inline-styles" title="Permanent link">&para;</a></h2>
+<p>How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.</p>
+<h3 id="tc-md503-inline-strike-subsup-and-highlight-destructive">TC-MD503: Inline strike, sub/sup and highlight ⚠️ destructive<a class="headerlink" href="#tc-md503-inline-strike-subsup-and-highlight-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render <code>docs/qa/fixtures/md/state/inline-scope.md</code> through EP-1 to EP-4 and EP-8 (#1231). Also run TC-MD116's HT-01, HT-02 and HT-07 through EP-1 to EP-4 and EP-8: #1077's and #1119's done-when. Two runs, with an on-screen check.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- IS-01: "x" (<code>~~</code>) and "y" (<code>&lt;del&gt;</code>) struck, " and " plain; "h", "i" and "j" struck (<code>&lt;del&gt;</code> inside <code>&lt;s&gt;</code>), "k." not.
+- IS-02: the "2" in "H2O" subscript, the "2" in "mc2" superscript, the rest of that text normal; in "abcd", "a" and "c" superscript, "b" subscript, "d" normal.
+- IS-03: "hi" highlighted yellow and bold, the text around it plain.
+- IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; the second cell's "w" highlighted; the last row's cells plain.
+- <code>get_doc_as_markdown</code> on each Doc keeps the strikes as <code>~~…~~</code> (it has no syntax for sub/sup or highlight, so those read back as plain text).
+- Malformed input (unclosed or misnested tags) isn't in this case: the new tags behave as <code>&lt;s&gt;</code> does there, which the unit tests pin, and browser-matching recovery is #1329.</p>
+<p><strong>Result (2026-11-01, PR #1332 @ eb304470, Kit) ✅ PASS — 10/10 case×EP cells pass (<code>inline-scope.md</code> and TC-MD116's HT-01/02/07, each through EP-1 to EP-4 and EP-8), in both runs. Every check was read from the stored text styles (<code>strikethrough</code>, <code>baselineOffset</code>, <code>backgroundColor</code> 1/1/0) and the two runs' read-backs are identical. Seen on screen (Playwright): IS on EP-1 (Run 1) and EP-3 (Run 2), HT on EP-8 (Run 1). <code>get_doc_as_markdown</code> gives <code>~~x~~ and ~~y~~; ~~hij~~k.</code> and plain sub/sup/highlight text, as expected.</strong></p>
+<p><strong>Result (2026-11-01, PR #1332 round 2 @ 8fd9f042, after the <code>develop</code> merge bringing #1326, Kit) ✅ PASS — 10/10 cells, one run through EP-1 to EP-4 and EP-8. The stored-style read-back is identical to round 1's, so the round-1 on-screen checks still apply; no new screenshots.</strong></p>
+<hr />
 <h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Insert Markdown at an index:</strong> no tool does this (see "Entry points").</li>
