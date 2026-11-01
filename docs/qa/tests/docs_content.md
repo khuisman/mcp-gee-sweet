@@ -6803,3 +6803,6 @@ Live on `mcp-gee-sweet-sky` at 28c464a4, after `/mcp reconnect` (OAuth, Shared D
 - Step 4: "typed" appears centered: the empty cell got its alignment too
 
 **Cleanup:** `delete_file` the two docs
+
+**Result (2026-11-01) ✅ PASS — PR #1336 round 1 (Sky)**
+Live on `mcp-gee-sweet-sky` at 82373e9f, after `/mcp reconnect` (OAuth, Shared Drive default folder; `folder_id` omitted), all four steps. Step 1: no `error`. Left, Center and Right columns align as written in every row, header included; Plain, Item and Hotel are left; "Est. (€)" and "540" are right; "Intro" and "Between" are left. Step 2: "outer before" and "outer after" are right-aligned; "inner centered" is centered and "inner plain" left, so the outer alignment doesn't reach the nested table; "merged centered" is centered across the merge; "css wins" is left; the long cell is justified across its three lines; "Before" and "After" are left. Step 3: only the new table is left, with "A" and "1" right and "B" and "2" centered. Step 4: "typed" is centered in the empty cell. Cleanup: both docs trashed.
