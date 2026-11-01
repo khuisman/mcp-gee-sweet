@@ -221,7 +221,7 @@ class _AstParser(HTMLParser):
         # True once some construct inside the current block's current segment
         # (since it was last freshly opened or resumed) was silently dropped
         # instead of contributing a run — an unsupported void element like
-        # <img>, a bare <hr>, or any other unrecognized tag with no text of
+        # <img>, an <hr> inside <pre>, or any other unrecognized tag with no text of
         # its own (see the generic inline-element fallthrough below). Reset
         # every time a new segment begins (fresh open or resume) so it always
         # reflects only the segment about to be flushed. This is the signal
@@ -445,6 +445,12 @@ class _AstParser(HTMLParser):
             "blockquote_path": tuple(self._blockquote_ids),
         }
 
+    def _rule_paragraph(self) -> Paragraph:
+        """A thematic break built now (#1096), in whatever quote and list item is open."""
+        return Paragraph(
+            runs=[], rule=True, **self._blockquote_fields(), **self._list_item_fields()
+        )
+
     def _list_item_fields(self) -> dict:
         """list_depth and list_path for a non-item block built now (#1094): the list
         item it sits in, if any. That's the item whose later segment is open (text
@@ -530,7 +536,7 @@ class _AstParser(HTMLParser):
         self._block_had_unsupported_content) additionally keeps a node whose
         runs came back completely empty because something inside this
         segment was silently dropped (e.g. its only child was an unsupported
-        void element like <img>, or a bare <hr>), emitting it as an empty
+        void element like <img>, or an <hr> inside <pre>), emitting it as an empty
         node (runs=[]) so its paragraph boundary survives (#401), instead of
         vanishing outright. An empty result that *isn't* due to dropped
         content — e.g. a resumed segment's formatting newline — leaves this
@@ -937,7 +943,8 @@ class _AstParser(HTMLParser):
         # the Markdown parser emits "---"/"___" thematic breaks as a bare <hr />
         # sibling with no wrapping tag at all — it never opens a block, so it
         # would otherwise vanish with zero trace, collapsing the paragraph
-        # boundary between the surrounding content (#401). Scoped to <hr>
+        # boundary between the surrounding content (#401). It's a rule paragraph,
+        # which the emitter draws as a horizontal line (#1096). Scoped to <hr>
         # specifically rather than every void tag: it's the only one that's a
         # genuine block-level CommonMark construct in its own right. Also
         # requires _tag_depth == 0, matching handle_data's sibling bare-text
@@ -952,38 +959,28 @@ class _AstParser(HTMLParser):
             and self._table_depth == 0
             and self._tag_depth == 0
         ):
-            self._nodes.append(
-                Paragraph(runs=[], **self._blockquote_fields(), **self._list_item_fields())
-            )
+            self._nodes.append(self._rule_paragraph())
             return
-        # An <hr> after text in an open block (markdown-it's "<li>item\n<hr />\n</li>"
-        # for a rule in a list item, #1116) is a block of its own: end the outer
-        # block's segment, emit the rule's boundary paragraph, then resume the outer
-        # block. Without this the rule vanished and the newlines around it became
-        # empty paragraphs. The same holds for a resumed segment, after a nested list,
-        # quote or paragraph in the item ("- a\n  - b\n  ---"), even with no text of
-        # its own, and for a fresh <li> with no text ("<li><hr>", Markdown "-" then
-        # "  ---"): the item is an empty bullet either way (#1075), so the rule is a
-        # block inside it, like a <pre> or <blockquote> there. Only another fresh
-        # block with no text before the rule ("<p><hr>") keeps the dropped-construct
-        # handling below, which keeps its own boundary (#401).
+        # An <hr> in an open block is a block of its own, as a browser shows it: end
+        # the outer block's segment, emit the rule, then resume the outer block. That
+        # covers a rule after text (markdown-it's "<li>item\n<hr />\n</li>" for a rule
+        # in a list item, #1116; without this the rule vanished and the newlines around
+        # it became empty paragraphs), in a resumed segment after a nested list, quote
+        # or paragraph in the item ("- a\n  - b\n  ---"), and in a fresh <li> with no
+        # text ("<li><hr>", Markdown "-" then "  ---"): the item is an empty bullet
+        # either way (#1075), so the rule is a block inside it, like a <pre> or
+        # <blockquote> there. A fresh block with no text before the rule ("<p><hr>")
+        # emits nothing for its empty first segment, so it's the rule alone (#1096);
+        # before rules were drawn, it was a dropped construct keeping a boundary (#401).
         if (
             tag == "hr"
             and self._block_tag is not None
             and self._table_depth == 0
             and self._tag_depth == 0
             and not self._in_pre
-            and (
-                self._block_resumed
-                or self._block_tag == "li"
-                or "".join(self._run_buf).strip()
-                or self._pending_runs
-            )
         ):
             self._interrupt_open_block("hr")
-            self._nodes.append(
-                Paragraph(runs=[], **self._blockquote_fields(), **self._list_item_fields())
-            )
+            self._nodes.append(self._rule_paragraph())
             self._resume_interrupted_block("hr")
             return
 
@@ -1054,8 +1051,8 @@ class _AstParser(HTMLParser):
                 elif self._block_tag:
                     self._block_had_unsupported_content = True
             elif self._block_tag:
-                # Anything else reaching this fallthrough (a bare <hr> inside
-                # a block, an <img> inside <pre>, or any
+                # Anything else reaching this fallthrough (an <hr> inside <pre>
+                # or an inline tag, an <img> inside <pre>, or any
                 # other tag this parser doesn't specially recognize) is
                 # silently dropped rather than contributing a run — see
                 # self._block_had_unsupported_content.

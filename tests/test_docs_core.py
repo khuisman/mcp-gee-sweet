@@ -881,6 +881,8 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
         assert nodes[0].runs[0].text == "A"
         assert nodes[1].runs == []
+        assert nodes[1].rule  # drawn as a line (#1096)
+        assert not nodes[0].rule and not nodes[2].rule
         assert nodes[2].runs[0].text == "B"
 
     def test_underscore_hr_between_paragraphs_leaves_empty_paragraph(self):
@@ -889,6 +891,7 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         nodes = html_to_ast("<p>A</p><hr /><p>B</p>")
         assert len(nodes) == 3
         assert nodes[1].runs == []
+        assert nodes[1].rule
 
     def test_hr_wrapped_in_inline_tag_with_no_block_ancestor_still_dropped(self):
         # PR #406 QA pass 2: the bare-<hr> check omitted the _tag_depth == 0
@@ -3533,6 +3536,7 @@ class TestEmptyListItemIsABullet:
         nodes = html_to_ast("<ol><li><hr></li><li>b</li></ol>")
         assert [type(n) for n in nodes] == [BulletItem, Paragraph, BulletItem]
         assert nodes[0].runs == [] and nodes[1].runs == []
+        assert nodes[1].rule
         assert nodes[1].list_depth == 0
         assert nodes[1].list_path == nodes[0].list_path
 
@@ -3542,10 +3546,18 @@ class TestEmptyListItemIsABullet:
         assert nodes[2].runs[0].text == "after"
         assert [n.list_depth for n in nodes[1:]] == [0, 0]
 
-    def test_rule_in_an_empty_paragraph_keeps_its_boundary(self):
-        # Only a fresh <li> changed: a fresh <p> with no text before its rule keeps
-        # #401's dropped-construct boundary.
-        assert html_to_ast("<p><hr></p>") == [Paragraph(runs=[])]
+    def test_rule_in_an_empty_paragraph_is_the_rule_alone(self):
+        # A fresh <p> with no text before its rule was #401's dropped-construct
+        # boundary; it's the rule itself now, as a browser shows it (#1096).
+        assert html_to_ast("<p><hr></p>") == [Paragraph(runs=[], rule=True)]
+
+    def test_text_after_a_rule_in_an_empty_paragraph_is_kept(self):
+        # The dropped-construct path lost the rule: only "after" was left (#1096).
+        nodes = html_to_ast("<p><hr>after</p>")
+        assert [(n.rule, [r.text for r in n.runs]) for n in nodes] == [
+            (True, []),
+            (False, ["after"]),
+        ]
 
     def test_dash_under_text_is_still_a_heading_underline(self):
         # CommonMark (and GitHub): a "-" line right under paragraph text underlines

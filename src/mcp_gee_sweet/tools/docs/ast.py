@@ -163,6 +163,11 @@ class Paragraph:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     list_depth: int | None = None  # #1094, see above Heading
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
+    # draws as a horizontal line, since the Docs API can't insert a horizontalRule
+    # element. doc_to_ast.py reads both that stand-in and a native horizontal line back
+    # as one, and ast_to_markdown.py writes it as a rule.
+    rule: bool = False
 
 
 @dataclass

@@ -91,15 +91,19 @@ needs Markdown inside it as HTML instead.
 **What:** A table inside a list's last item (`1. a\n\n   | x |\n   |---|\n`) is written to the
 Doc indented under the item, but `get_doc_as_markdown` exports it at the margin, after the list.
 A quote that ends a list's last item (`- a\n\n  > q\n`) exports as a deeper quote at the margin
-(`> > q`). Either one exports inside its item when the list goes on after it: a later item of the
-list, a sublist nested under the item (of either type), or a paragraph indented in the item. A
-paragraph, code block, or heading inside any item always exports inside it.
+(`> > q`). So does a paragraph, code block, heading, or rule inside the last item of a *quoted*
+list (`> - a\n>\n>   b\n` exports `b` as `> > b`). Any of these exports inside its item when the
+list goes on after it: a later item of the list, a sublist nested under the item (of either
+type), or a paragraph indented in the item. A paragraph, code block, or heading inside an item of
+an unquoted list always exports inside it.
 
 **Why:** The export finds a block inside an item from its indent (#1302). A table's indent isn't
 reported anywhere in the Docs API: the JSON of a table inside an item matches one at the margin
 (checked live). A quote's is, but a quote inside an item sits exactly where a deeper quote at the
 margin would (a quote in a top-level item is at 72pt, like a margin `> >`), so the indent can't
-tell them apart. Such a block counts as inside an item only when the list goes on after it, which
+tell them apart. A block inside a quoted list's item is written the same way, at the item's text
+indent plus the quote's and with the quote's border, which is exactly where a deeper quote at the
+margin goes. Such a block counts as inside an item only when the list goes on after it, which
 it never does after a list's last item. Reading an ambiguous quote as the margin quote keeps every
 quote level; reading it into the item would drop one.
 
@@ -131,6 +135,27 @@ lesser problem.
 quote, or write each item as its own quoted paragraph starting with a bullet character, which isn't
 a Markdown list marker: `> • one\n>\n> • two\n`. Keep the blank `>` line between items, or the
 lines join into one paragraph. Decided in #1242.
+
+---
+
+### A horizontal rule is a bordered paragraph, not a Docs horizontal line
+
+**What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,
+`write_doc_content`, `create_doc_from_file`, `update_doc_from_file`, or `upload_file` (Markdown
+source) appears as a thin gray line, but in Docs it's an empty paragraph with a bottom border
+(6pt, or 4pt inside a quote), not the element Insert > Horizontal line adds, so editing it in Docs
+behaves like editing a paragraph. Inside a quote the line sits closer to the text below it than
+to the text above: space below it would break the quote bar. `get_doc_as_markdown` reads both
+kinds of line back as `---` (`***` when it's the document's first line, where `---` would open
+front matter). A native line that shares a list item's paragraph but comes before its text
+exports at the margin, ending the list there. An `<hr>` inside a table cell is dropped: a cell
+holds no paragraph styling the converter writes (#1327).
+
+**Why:** The Docs API has no request that inserts a horizontal line (#1096).
+
+**Workaround:** For a native line, use Insert > Horizontal line in the Docs UI, or convert the
+file with `upload_local_file(convert=True)`, whose Drive import draws native lines (with the other
+differences listed under Google Drive below).
 
 ---
 

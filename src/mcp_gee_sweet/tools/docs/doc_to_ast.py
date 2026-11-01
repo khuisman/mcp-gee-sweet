@@ -25,7 +25,7 @@ from .ast import (
     Run,
     Table,
 )
-from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, list_level_indents
+from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, is_rule_style, list_level_indents
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -45,6 +45,10 @@ def document_to_ast(document: dict) -> list[DocNode]:
     for elem in document.get("body", {}).get("content", []):
         if "paragraph" in elem:
             para = elem["paragraph"]
+            pieces = _split_at_horizontal_rules(para)
+            if len(pieces) > 1:
+                nodes.extend(_paragraph_with_rules(para, pieces, document, list_counter, items))
+                continue
             node = _paragraph_to_node(para, document, list_counter)
             if isinstance(node, BulletItem):
                 items.item(para["bullet"])
@@ -280,7 +284,90 @@ def _paragraph_to_node(
         )
     if named_style in ("TITLE", "SUBTITLE"):
         return NamedBlock(style_type=named_style, runs=runs, blockquote_depth=blockquote_depth)
-    return Paragraph(runs=runs, blockquote_depth=blockquote_depth)
+    return Paragraph(
+        runs=runs, blockquote_depth=blockquote_depth, rule=_is_rule_paragraph(para, runs)
+    )
+
+
+def _is_rule_paragraph(para: dict, runs: list[Run | Image]) -> bool:
+    """Whether a paragraph with no text is emitter.py's rule stand-in (#1096): an
+    empty paragraph with the rule's borders. A native horizontal line is split out
+    before this (_split_at_horizontal_rules)."""
+    return not runs and is_rule_style(para.get("paragraphStyle", {}))
+
+
+def _split_at_horizontal_rules(para: dict) -> list[list[dict] | None]:
+    """The paragraph's elements split at each native horizontalRule (#1096), with
+    None standing for each rule; a single piece when it has none."""
+    pieces: list[list[dict] | None] = []
+    current: list[dict] = []
+    for pe in para.get("elements", []):
+        if "horizontalRule" in pe:
+            pieces.extend([current, None])
+            current = []
+        else:
+            current.append(pe)
+    pieces.append(current)
+    return pieces
+
+
+def _paragraph_with_rules(
+    para: dict,
+    pieces: list[list[dict] | None],
+    document: dict,
+    list_counter: _ListCounter,
+    items: _ListItemContext,
+) -> list[DocNode]:
+    """A paragraph holding native horizontal lines (#1096), as a rule node for each
+    line and a node for the text between them, in order. Drive's import puts a line in
+    the same paragraph as text before or after it, a list item's included (checked
+    live: `[hr, "text after"]`, `["item one", hr]`).
+
+    The text keeps the paragraph's own type: a heading's is a heading, and a list
+    item's first text is the item, with a rule or text after it a block inside the
+    item (#1302). A list item with only a line is an empty item with the rule in it."""
+    bullet = para.get("bullet")
+    texts = [
+        i
+        for i, piece in enumerate(pieces)
+        if piece is not None and _paragraph_runs({**para, "elements": piece}, document)
+    ]
+    item: BulletItem | None = None
+    item_at = -1
+    if bullet:
+        item_at = texts[0] if texts else 0
+        node = _paragraph_to_node(
+            {**para, "elements": pieces[item_at] or []}, document, list_counter
+        )
+        assert isinstance(node, BulletItem)
+        item = node
+    out: list[DocNode] = []
+    for i, piece in enumerate(pieces):
+        if item is not None and i == item_at:
+            items.item(para["bullet"])
+            out.append(item)
+            continue
+        node: Heading | Paragraph | BulletItem | NamedBlock
+        if piece is None:
+            node = Paragraph(runs=[], rule=True)
+        elif i not in texts:
+            continue
+        elif item is not None:
+            node = Paragraph(runs=_paragraph_runs({**para, "elements": piece}, document))
+        else:
+            node = _paragraph_to_node({**para, "elements": piece}, document, list_counter)
+        assert not isinstance(node, BulletItem)
+        if item is not None and i > item_at:
+            # Inside the item: its depth and quote, not read from the paragraph's
+            # indents, which are the item's own.
+            node.list_depth = item.depth
+            node.blockquote_depth = item.blockquote_depth
+        else:
+            if isinstance(node, Paragraph) and node.rule:
+                node.blockquote_depth = _infer_blockquote_depth(para.get("paragraphStyle", {}))
+            items.block(node, para)
+        out.append(node)
+    return out
 
 
 def _nesting_level(bullet: dict, document: dict) -> dict | None:
@@ -350,8 +437,10 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
             image = _resolve_inline_image(ioe.get("inlineObjectId"), document, link_url)
             if image is not None:
                 items.append(image)
-        # footnoteReference, horizontalRule, pageBreak, columnBreak, autoText,
-        # richLink, person, equation: no Markdown equivalent, silently skipped.
+        # footnoteReference, pageBreak, columnBreak, autoText, richLink, person,
+        # equation: no Markdown equivalent, silently skipped. A horizontalRule
+        # never gets here: document_to_ast splits it out as a rule node first
+        # (_split_at_horizontal_rules, #1096).
 
     # Every paragraph's content ends with a trailing "\n" (Docs API convention)
     # — strip exactly one from the end of the last Run, dropping it entirely if

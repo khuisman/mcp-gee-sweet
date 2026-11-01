@@ -2387,3 +2387,60 @@ class TestBlocksInsideListItemsRoundTrip:
         html = _flat_html(md)
         assert html.count("<blockquote>") == 2
         assert html.endswith("<li><p>Nextitem</p></li></ul>")
+
+
+class TestAdjacentQuotedBlocksStayOneQuote:
+    """Adjacent quoted paragraphs in Docs are one quote (one bar); a plain blank line
+    between them exported two (#1096 review)."""
+
+    @staticmethod
+    def _quotes(markdown_text):
+        return [t.type for t in _COMMONMARK.parse(markdown_text)].count("blockquote_open")
+
+    def test_two_quoted_paragraphs_are_one_quote(self):
+        markdown_text = ast_to_markdown(
+            [
+                Paragraph(runs=[Run("a")], blockquote_depth=1),
+                Paragraph(runs=[Run("b")], blockquote_depth=1),
+            ]
+        )
+        assert markdown_text == "> a\n>\n> b\n"
+        assert self._quotes(markdown_text) == 1
+
+    def test_separator_paragraph_keeps_two_quotes(self):
+        # emitter.py writes an unquoted empty paragraph between two separate quotes.
+        markdown_text = ast_to_markdown(
+            [
+                Paragraph(runs=[Run("a")], blockquote_depth=1),
+                Paragraph(runs=[]),
+                Paragraph(runs=[Run("b")], blockquote_depth=1),
+            ]
+        )
+        assert self._quotes(markdown_text) == 2
+
+    def test_nested_quote_shares_the_outer_level(self):
+        markdown_text = ast_to_markdown(
+            [
+                Paragraph(runs=[Run("a")], blockquote_depth=1),
+                Paragraph(runs=[Run("b")], blockquote_depth=2),
+                Paragraph(runs=[Run("c")], blockquote_depth=1),
+            ]
+        )
+        assert markdown_text == "> a\n>\n> > b\n>\n> c\n"
+        assert self._quotes(markdown_text) == 2  # the outer quote and the nested one
+
+    def test_quoted_list_then_quoted_paragraph(self):
+        markdown_text = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("x")], blockquote_depth=1),
+                Paragraph(runs=[Run("after")], blockquote_depth=1),
+            ]
+        )
+        assert markdown_text == "> - x\n>\n> after\n"
+        assert self._quotes(markdown_text) == 1
+
+    def test_unquoted_neighbour_still_gets_a_blank_line(self):
+        markdown_text = ast_to_markdown(
+            [Paragraph(runs=[Run("a")], blockquote_depth=1), Paragraph(runs=[Run("b")])]
+        )
+        assert markdown_text == "> a\n\nb\n"
