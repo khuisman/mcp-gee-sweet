@@ -2513,9 +2513,11 @@ class TestPrettyPrintedListWhitespace:
 
     def test_tc_doc104_fixture_has_no_stray_bullets(self):
         requests, _ = _to_doc_requests(_TC_DOC104_FIXTURE.read_text())
-        # List names count creation order, and the bullet pass runs latest list first.
-        bullets = [p for p in _render_lists(requests) if p[1] is not None]
-        assert bullets == [
+        # Every paragraph, headings included, so a stray non-bullet paragraph fails
+        # too. List names count creation order; the bullet pass runs latest list first.
+        assert _render_lists(requests) == [
+            ("Nested List Structure Test (direct HTML)", None, None, None),
+            ("Case 1: parent item has its own text AND a nested sub-list", None, None, None),
             ("Parent A has text", 0, "B4", 1),
             ("Child A1", 1, "B4", 1),
             ("Child A2", 1, "B4", 2),
@@ -2523,12 +2525,15 @@ class TestPrettyPrintedListWhitespace:
             ("Parent B has text", 0, "B4", 2),
             ("Ordered child B1", 1, "N5", 1),
             ("Ordered child B2", 1, "N5", 2),
+            ("Case 2: parent item has NO text of its own, just a nested list", None, None, None),
             ("Bare-nested child C1", 1, "B3", 1),
             ("Bare-nested child C2", 1, "B3", 2),
+            ("Case 3: ordered list nested inside ordered list", None, None, None),
             ("Top ordered 1", 0, "N2", 1),
             ("Nested ordered 1.1", 1, "N2", 1),
             ("Nested ordered 1.2", 1, "N2", 2),
             ("Top ordered 2", 0, "N2", 2),
+            ("Case 4: two levels of empty parent li, isolated min_depth=2 run", None, None, None),
             ("Doubly-bare child D2a", 2, "B1", 1),
             ("Doubly-bare child D2b", 2, "B1", 2),
         ]
@@ -2580,7 +2585,7 @@ class TestPrettyPrintedListWhitespace:
         compact_requests, _ = _to_doc_requests(compact)
         rendered = _render_lists(pretty_requests)
         assert rendered == _render_lists(compact_requests)
-        assert all(text.strip() for text, *_ in rendered[:-1])  # last: the doc's own
+        assert all(text.strip() for text, *_ in rendered)
 
 
 class TestBlockInsideListItem:
