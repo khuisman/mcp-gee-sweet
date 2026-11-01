@@ -80,11 +80,16 @@ browser column, with no project code for recovery.
 
 Candidate libraries, checked 2026-11-01:
 
-| Library | Kind | Latest release | Round-6 input (8,000 tags) | 427 KB document |
+| Library | Kind | Latest release | Adversarial input, n = 8,000 (24,000 tags) | 427 KB document |
 |---|---|---|---|---|
 | selectolax (lexbor backend) | C extension, binary wheels | 1.0.2, 2026-10-22 | 0.005 s | 0.016 s |
 | justhtml | pure Python, no runtime deps | 3.16.0, 2026-10-26 | 0.19 s | 0.20 s |
 | html5lib | pure Python, `six` + `webencodings` | 1.1, 2020-06-22 | 2.1 s (superlinear) | 0.66 s |
+
+The adversarial input is QA round 6's `'<p>' + '<b>'*n + '<i>'*n + '</b>'*n + 'x</p>'`
+(3n tags). The 427 KB document is 5,000 repetitions of
+`<p>para <b>bold</b> <a href='uN'>link</a> <sup>2</sup></p><ul><li>item N</li></ul>`,
+well-formed. Each time is one parse in a scratch environment.
 
 html5lib is the reference implementation but unmaintained and superlinear on adversarial
 input. selectolax is the fast, maintained choice; it adds a compiled dependency (precedent:
