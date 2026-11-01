@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import emitter as emitter_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
     Image,
@@ -19,15 +20,18 @@ from mcp_gee_sweet.tools.docs.emitter import (
     CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
+    _build_cell_alignment_requests,
     _build_fill_requests,
     _cell_para_start_for_cursor,
     _fill_nested_cell_content,
     _find_nth_table_in_cell,
+    _has_cell_alignment,
     _text_offset_since_last_table,
     ast_to_requests,
     fill_tables,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 
 
 def _make_tool_registry():
@@ -581,6 +585,7 @@ IMG = "▣"  # how FakeDoc shows an inline image in a paragraph's text
 class Para:
     def __init__(self, text: str = ""):
         self.text = text
+        self.alignment: str | None = None  # set by updateParagraphStyle (#1095)
 
     def size(self) -> int:
         return len(self.text) + 1  # implicit trailing newline
@@ -705,6 +710,37 @@ class FakeDoc:
             elif "updateTableCellStyle" in req:
                 loc = req["updateTableCellStyle"]["tableRange"]["tableCellLocation"]
                 self._check_table_start(loc["tableStartLocation"])
+            elif "updateParagraphStyle" in req:
+                self.update_paragraph_style(req["updateParagraphStyle"])
+
+    def _walk_elements(self):
+        """Yield (object, startIndex, endIndex) for every Para and TableNode, at any
+        depth, from a fresh get()."""
+
+        def walk(objs, dict_elems):
+            for obj, elem in zip(objs, dict_elems, strict=True):
+                yield obj, elem["startIndex"], elem["endIndex"]
+                if isinstance(obj, TableNode):
+                    for row_obj, row_elem in zip(obj.rows, elem["table"]["tableRows"], strict=True):
+                        for cell_obj, cell_elem in zip(
+                            row_obj, row_elem["tableCells"], strict=True
+                        ):
+                            yield from walk(cell_obj.content, cell_elem["content"])
+
+        yield from walk(self.content, self.get()["body"]["content"])
+
+    def update_paragraph_style(self, ups: dict):
+        # Only the alignment field is modelled. A range taking in a whole table would
+        # restyle that table's own cells too, so it's rejected here (#1095).
+        start, end = ups["range"]["startIndex"], ups["range"]["endIndex"]
+        assert ups["fields"] == "alignment"
+        elements = list(self._walk_elements())
+        for obj, s, e in elements:
+            if isinstance(obj, TableNode) and start <= s and e <= end:
+                raise ValueError(f"paragraph style range {start}-{end} spans a table")
+        for obj, s, e in elements:
+            if isinstance(obj, Para) and s < end and e > start:
+                obj.alignment = ups["paragraphStyle"]["alignment"]
 
     def _check_table_start(self, location: dict) -> "TableNode":
         # Mirrors the real API's 400 "The provided table start location is
@@ -1529,3 +1565,333 @@ class TestCellImageFill:
         _doc, batches, images, _ = await self._run([table], {id(img): "uri-a"}, doc=doc)
         assert batches == []
         assert images.embedded == set()
+
+
+# ---------------------------------------------------------------------------
+# #1095 — horizontal cell alignment (GFM :--/:-:/--: columns)
+# ---------------------------------------------------------------------------
+
+
+def _alignments(table: Table) -> list[list[str | None]]:
+    return [[cell.alignment for cell in row.cells] for row in table.rows]
+
+
+class TestCellAlignmentParser:
+    def _only_table(self, html: str) -> Table:
+        tables = [n for n in html_to_ast(html) if isinstance(n, Table)]
+        assert len(tables) == 1
+        return tables[0]
+
+    def test_gfm_delimiter_row_sets_each_column(self):
+        md = "| a | b | c | d |\n|:--|:-:|--:|---|\n| 1 | 2 | 3 | 4 |\n"
+        table = self._only_table(_md_to_html(md))
+        expected = ["START", "CENTER", "END", None]
+        assert _alignments(table) == [expected, expected]
+
+    def test_style_text_align_values(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align: left">a</td>'
+            '<td style="color: red; TEXT-ALIGN : Center !important">b</td>'
+            '<td style="text-align:right;">c</td>'
+            '<td style="text-align:justify">d</td>'
+            '<td style="text-align:start">e</td>'
+            '<td style="text-align:end">f</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["START", "CENTER", "END", "JUSTIFIED", "START", "END"]]
+
+    def test_align_attribute_and_css_precedence(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<th align="right">a</th>'
+            '<td align="center" style="text-align:left">b</td>'
+            '<td style="text-align:left; text-align:right">c</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["END", "START", "END"]]
+
+    def test_unrecognized_or_absent_value_sets_nothing(self):
+        table = self._only_table(
+            "<table><tr>"
+            "<td>a</td>"
+            '<td style="text-align: inherit">b</td>'
+            '<td align="middle">c</td>'
+            '<td style="text-align:">d</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [[None, None, None, None]]
+
+    def test_nested_table_cells_keep_their_own_alignment(self):
+        table = self._only_table(
+            '<table><tr><td style="text-align:right">outer'
+            '<table><tr><td style="text-align:center">inner</td><td>plain</td></tr></table>'
+            "</td></tr></table>"
+        )
+        outer = table.rows[0].cells[0]
+        assert outer.alignment == "END"
+        assert _alignments(_tables_in(outer)[0]) == [["CENTER", None]]
+
+
+class TestCellAlignmentFill:
+    """fill_tables against FakeDoc, which applies each updateParagraphStyle's alignment
+    to every paragraph its range touches and rejects a range taking in a whole table."""
+
+    async def _run(
+        self, ast_tables: list[Table], cols: list[int] | None = None
+    ) -> tuple[FakeDoc, list[list[dict]], int]:
+        doc = FakeDoc()
+        content: list = [Para("")]
+        for i, t in enumerate(ast_tables):
+            ncols = cols[i] if cols else max(sum(c.colspan for c in r.cells) for r in t.rows)
+            content += [TableNode(len(t.rows), ncols), Para("sep")]
+        doc.content = content
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", ast_tables, _plain_images(svc))
+        fetches = svc.documents.return_value.get.return_value.execute.call_count
+        return doc, batches, fetches
+
+    @staticmethod
+    def _aligned(cell: Cell, alignment: str | None) -> Cell:
+        cell.alignment = alignment
+        return cell
+
+    @staticmethod
+    def _grid(doc: FakeDoc, table_index: int) -> list[list[list[str | None]]]:
+        return [
+            [[p.alignment for p in cell.content if isinstance(p, Para)] for cell in row]
+            for row in doc.content[table_index].rows
+        ]
+
+    async def test_every_row_of_each_column_gets_its_alignment(self):
+        a = self._aligned
+        table = _table(
+            _row(a(_cell("L"), "START"), a(_cell("C"), "CENTER"), a(_cell("R"), "END")),
+            _row(a(_cell("1"), "START"), a(_cell("2"), "CENTER"), a(_cell("3"), "END")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        assert self._grid(doc, 1) == [
+            [["START"], ["CENTER"], ["END"]],
+            [["START"], ["CENTER"], ["END"]],
+        ]
+        assert doc.content[1].rows[1][2].content[0].text == "3"
+
+    async def test_empty_cell_is_aligned_and_unaligned_cell_untouched(self):
+        table = _table(
+            _row(self._aligned(Cell(children=[]), "END"), _cell("plain")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        assert self._grid(doc, 1) == [[["END"], [None]]]
+
+    async def test_second_table_uses_post_fill_indices(self):
+        # Filling the first table shifts the second; a stale index would align the
+        # wrong paragraphs.
+        first = _table(_row(_cell("a much longer first-table cell text")))
+        second = _table(_row(_cell("x"), self._aligned(_cell("y"), "CENTER")))
+        doc, _batches, _fetches = await self._run([first, second])
+        assert self._grid(doc, 1) == [[[None]]]
+        assert self._grid(doc, 3) == [[[None], ["CENTER"]]]
+
+    async def test_merged_cell_aligns_its_head_cell_only(self):
+        a = self._aligned
+        table = _table(
+            _row(a(_cell("wide", colspan=2), "CENTER"), a(_cell("r"), "END")),
+            _row(_cell("1"), _cell("2"), a(_cell("3"), "END")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        # FakeDoc leaves the covered cell physical, as the real API does.
+        assert self._grid(doc, 1) == [
+            [["CENTER"], [None], ["END"]],
+            [[None], [None], ["END"]],
+        ]
+
+    async def test_nested_tables_aligned_by_their_own_cells(self):
+        inner = _table(_row(self._aligned(_cell("in"), "CENTER"), _cell("plain")))
+        outer_cell = self._aligned(Cell(children=[Run("Before"), inner, Run("After")]), "END")
+        doc, _batches, _fetches = await self._run([_table(_row(outer_cell))])
+
+        outer = doc.content[1].rows[0][0]
+        assert [p.alignment for p in outer.content if isinstance(p, Para)] == ["END", "END"]
+        nested = next(c for c in outer.content if isinstance(c, TableNode))
+        assert [[p.alignment for p in c.content] for c in nested.rows[0]] == [
+            ["CENTER"],
+            [None],
+        ]
+
+    async def test_only_nested_cell_aligned(self):
+        inner = _table(_row(self._aligned(_cell("in"), "END")))
+        doc, _batches, _fetches = await self._run([_table(_row(Cell(children=[inner])))])
+        outer = doc.content[1].rows[0][0]
+        assert [p.alignment for p in outer.content if isinstance(p, Para)] == [None, None]
+        nested = next(c for c in outer.content if isinstance(c, TableNode))
+        assert nested.rows[0][0].content[0].alignment == "END"
+
+    async def test_no_alignment_sends_no_request_and_no_extra_fetch(self, monkeypatch):
+        # Baseline: the same unaligned input with the step forced on, so an always-true
+        # gate (an extra fetch on every write) fails this test.
+        monkeypatch.setattr(emitter_module, "_has_cell_alignment", lambda _tables: True)
+        _doc, _batches, forced = await self._run([_table(_row(_cell("A")))])
+        monkeypatch.undo()
+
+        _doc, batches, fetches = await self._run([_table(_row(_cell("A")))])
+        assert fetches == forced - 1
+        assert not any("updateParagraphStyle" in r for b in batches for r in b)
+
+    def test_gate_ignores_a_degenerate_nested_table(self):
+        # A nested table spanning no columns (a hand-built colspan=0 cell; the parser
+        # clamps to 1) is never inserted, so its alignment can't be applied and mustn't
+        # cost a fetch.
+        degenerate = _table(_row(self._aligned(Cell(children=[Run("in")], colspan=0), "END")))
+        aligned = _table(_row(self._aligned(_cell("in"), "END")))
+        assert not _has_cell_alignment([_table(_row(Cell(children=[Run("A"), degenerate])))])
+        assert _has_cell_alignment([_table(_row(Cell(children=[Run("A"), aligned])))])
+
+    async def test_alignment_adds_one_fetch_shared_with_widths_and_styles(self):
+        _doc, _batches, baseline = await self._run([_table(_row(_cell("A")))])
+
+        aligned = _table(_row(self._aligned(_cell("A"), "CENTER")))
+        _doc, _batches, fetches = await self._run([aligned])
+        assert fetches == baseline + 1
+
+        everything = _table(_row(self._aligned(_cell("A"), "CENTER")))
+        everything.col_widths = [72.0]
+        everything.rows[0].cells[0].background_color = RGBColor(1.0, 0.0, 0.0)
+        _doc, _batches, fetches = await self._run([everything])
+        assert fetches == baseline + 1
+
+    async def test_alignment_rides_in_the_cell_style_batch(self):
+        cell = self._aligned(_cell("A"), "CENTER")
+        cell.background_color = RGBColor(1.0, 0.0, 0.0)
+        doc, batches, _fetches = await self._run([_table(_row(cell))])
+        [batch] = [b for b in batches if any("updateParagraphStyle" in r for r in b)]
+        assert any("updateTableCellStyle" in r for r in batch)
+        assert self._grid(doc, 1) == [[["CENTER"]]]
+
+    async def test_alignment_alone_adds_one_batch(self):
+        _doc, base_batches, _ = await self._run([_table(_row(_cell("A")))])
+        _doc, batches, _ = await self._run([_table(_row(self._aligned(_cell("A"), "END")))])
+        assert len(batches) == len(base_batches) + 1
+
+    async def test_markdown_end_to_end(self):
+        md = "| Item | Est. (€) |\n|------|---------:|\n| Hotel | 540 |\n"
+        tables = [n for n in html_to_ast(_md_to_html(md)) if isinstance(n, Table)]
+        doc, _batches, _fetches = await self._run(tables)
+        assert self._grid(doc, 1) == [[[None], ["END"]], [[None], ["END"]]]
+
+
+class TestCellAlignmentNestedMismatch:
+    def test_a_skipped_nested_table_is_left_unaligned_not_raised(self):
+        # The fill can skip a nested table it can't place, leaving the live cell with
+        # no table for an insertable AST one (PR #1336 QA round 1).
+        inner = _table(_row(_cell("in")))
+        inner.rows[0].cells[0].alignment = "CENTER"
+        outer = Cell(children=[Run("A"), inner], alignment="END")
+        doc_table = {
+            "tableRows": [
+                {"tableCells": [{"startIndex": 4, "content": [_para_elem(5, 7)]}]},
+            ]
+        }
+        requests = _build_cell_alignment_requests([doc_table], [_table(_row(outer))])
+        assert requests == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 5, "endIndex": 7},
+                    "paragraphStyle": {"alignment": "END"},
+                    "fields": "alignment",
+                }
+            }
+        ]
+
+
+class TestCellAlignmentParserRound2:
+    """PR #1336 QA round 1: invalid declarations, vendor values, and inheritance."""
+
+    def _only_table(self, html: str) -> Table:
+        tables = [n for n in html_to_ast(html) if isinstance(n, Table)]
+        assert len(tables) == 1
+        return tables[0]
+
+    def test_invalid_last_declaration_falls_back(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align:right; text-align:bogus">a</td>'
+            '<td align="center" style="text-align:-webkit-match-parent">b</td>'
+            '<td style="text-align:">c</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["END", "CENTER", None]]
+
+    def test_vendor_values_and_spaced_important(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align:-webkit-center">a</td>'
+            '<td style="text-align: -webkit-right">b</td>'
+            '<td style="text-align:-moz-left">c</td>'
+            '<td style="text-align: center ! important">d</td>'
+            '<td style="text-align: right !IMPORTANT">e</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["CENTER", "END", "START", "CENTER", "END"]]
+
+    def test_row_alignment_is_inherited_and_cell_wins(self):
+        table = self._only_table(
+            '<table><tr align="right"><td>a</td><td align="center">b</td></tr>'
+            '<tr style="text-align:center"><td>c</td><td style="text-align:left">d</td></tr>'
+            "<tr><td>e</td><td>f</td></tr></table>"
+        )
+        assert _alignments(table) == [["END", "CENTER"], ["CENTER", "START"], [None, None]]
+
+    def test_section_and_table_alignment_are_inherited_nearest_first(self):
+        table = self._only_table(
+            '<table style="text-align:right">'
+            '<thead align="center"><tr><th>h</th><th align="left">h2</th></tr></thead>'
+            "<tbody><tr><td>a</td><td>b</td></tr>"
+            '<tr align="center"><td>c</td><td>d</td></tr></tbody>'
+            "</table>"
+        )
+        assert _alignments(table) == [
+            ["CENTER", "START"],
+            ["END", "END"],
+            ["CENTER", "CENTER"],
+        ]
+
+    def test_section_alignment_ends_with_its_section(self):
+        table = self._only_table(
+            '<table><thead style="text-align:center"><tr><th>h</th></tr></thead>'
+            "<tbody><tr><td>a</td></tr></tbody></table>"
+        )
+        assert _alignments(table) == [["CENTER"], [None]]
+
+    def test_table_align_attribute_positions_the_table_not_its_text(self):
+        table = self._only_table('<table align="center"><tr><td>a</td></tr></table>')
+        assert _alignments(table) == [[None]]
+
+    def test_nested_table_does_not_inherit_its_outer_row(self):
+        table = self._only_table(
+            '<table><tr align="right"><td>outer<table><tr><td>inner</td></tr></table>'
+            "</td></tr></table>"
+        )
+        outer = table.rows[0].cells[0]
+        assert outer.alignment == "END"
+        assert _alignments(_tables_in(outer)[0]) == [[None]]
+
+    def test_section_tags_still_parse_as_before(self):
+        plain = self._only_table("<table><tr><td>a</td></tr></table>")
+        wrapped = self._only_table(
+            '<table><tbody align="center"><tr><td>a</td></tr></tbody></table>'
+        )
+        assert wrapped.rows[0].cells[0].children == plain.rows[0].cells[0].children

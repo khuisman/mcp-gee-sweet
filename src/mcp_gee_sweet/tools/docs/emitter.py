@@ -1622,10 +1622,12 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
       5. If any table has a non-None col_width: re-fetch, then emit
          updateTableColumnProperties (skipping columns past the table's width)
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
+      7. If any cell, at any depth, has an alignment: emit updateParagraphStyle over
+         its paragraphs (#1095), in the same batch as step 6
 
-    Phases 5 and 6 must use a doc fetched after phases 3 and 4: the fill shifts the
+    Phases 5 to 7 must use a doc fetched after phases 3 and 4: the fill shifts the
     startIndex of every table after the first, and a stale one is a 400 (#1053).
-    They share one post-fill fetch, since column-width changes move no indices.
+    They share one post-fill fetch, since none of them moves an index.
 
     images: the resolved images to embed in cells, at any nesting depth, and how each
     fill batch is sent (#1073).
@@ -1716,18 +1718,25 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         for row in table.rows
         for cell in row.cells
     )
-    if has_cell_styles:
+    # Step 7: horizontal cell alignment (#1095). It goes in step 6's batch, built from the
+    # same post-fill snapshot: neither step moves an index.
+    has_alignment = _has_cell_alignment(tables)
+    if has_cell_styles or has_alignment:
         if post_fill_doc is None:
             post_fill_doc = await execute_in_thread(
                 docs_service.documents().get(documentId=doc_id).execute,
                 docs_service,
             )
         doc_tables = _top_level_tables(post_fill_doc)
-        cell_style_requests = _build_cell_style_requests(doc_tables, tables)
-        if cell_style_requests:
+        style_requests: list[dict] = []
+        if has_cell_styles:
+            style_requests.extend(_build_cell_style_requests(doc_tables, tables))
+        if has_alignment:
+            style_requests.extend(_build_cell_alignment_requests(doc_tables, tables))
+        if style_requests:
             await execute_in_thread(
                 docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": cell_style_requests})
+                .batchUpdate(documentId=doc_id, body={"requests": style_requests})
                 .execute,
                 docs_service,
             )
@@ -2227,36 +2236,19 @@ def _build_fill_requests(
     all_requests: list[tuple[int, list[dict]]] = []
 
     for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
-        doc_rows = doc_table.get("tableRows", [])
-        phantom = _build_phantom_set(ast_table)
-        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
-        if total_cols == 0:
-            continue
+        for _r, _col, doc_cell, ast_cell in _doc_and_ast_cells(doc_table, ast_table):
+            if any(isinstance(child, Table) for child in ast_cell.children):
+                continue  # handled by _fill_nested_cell_content instead
+            cell_content = doc_cell.get("content", [])
+            if not cell_content:
+                continue
+            para_start = cell_content[0].get("startIndex")
+            if para_start is None:
+                continue
 
-        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows, strict=True)):
-            # Sort by startIndex: after mergeTableCells, the API may return covered
-            # (phantom) cells last rather than in column order.
-            doc_cells = sorted(
-                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
-            )
-            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
-
-            for doc_cell, ast_cell_idx in zip(doc_cells, mapping, strict=True):
-                if ast_cell_idx is None:
-                    continue  # rowspan phantom — skip
-                ast_cell = ast_row.cells[ast_cell_idx]
-                if any(isinstance(child, Table) for child in ast_cell.children):
-                    continue  # handled by _fill_nested_cell_content instead
-                cell_content = doc_cell.get("content", [])
-                if not cell_content:
-                    continue
-                para_start = cell_content[0].get("startIndex")
-                if para_start is None:
-                    continue
-
-                cell_requests = _run_group_fill_requests(ast_cell.children, para_start, images)
-                if cell_requests:
-                    all_requests.append((para_start, cell_requests))
+            cell_requests = _run_group_fill_requests(ast_cell.children, para_start, images)
+            if cell_requests:
+                all_requests.append((para_start, cell_requests))
 
     all_requests.sort(key=lambda x: x[0], reverse=True)
     return [req for _, reqs in all_requests for req in reqs]
@@ -2276,72 +2268,156 @@ def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) 
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
-        phantom = _build_phantom_set(ast_table)
-        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
-        if total_cols == 0:
-            continue
+        for r, col, _doc_cell, ast_cell in _doc_and_ast_cells(doc_table, ast_table):
+            cell_style: dict = {}
+            style_fields: list[str] = []
 
-        for r, ast_row in enumerate(ast_table.rows):
-            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
-            for col, ast_cell_idx in enumerate(mapping):
-                if ast_cell_idx is None:
-                    continue
-                ast_cell = ast_row.cells[ast_cell_idx]
+            if ast_cell.background_color is not None:
+                cell_style["backgroundColor"] = _rgb(ast_cell.background_color)
+                style_fields.append("backgroundColor")
 
-                cell_style: dict = {}
-                style_fields: list[str] = []
+            if ast_cell.padding_top is not None:
+                cell_style["paddingTop"] = _pt(ast_cell.padding_top)
+                style_fields.append("paddingTop")
+            if ast_cell.padding_right is not None:
+                cell_style["paddingRight"] = _pt(ast_cell.padding_right)
+                style_fields.append("paddingRight")
+            if ast_cell.padding_bottom is not None:
+                cell_style["paddingBottom"] = _pt(ast_cell.padding_bottom)
+                style_fields.append("paddingBottom")
+            if ast_cell.padding_left is not None:
+                cell_style["paddingLeft"] = _pt(ast_cell.padding_left)
+                style_fields.append("paddingLeft")
 
-                if ast_cell.background_color is not None:
-                    cell_style["backgroundColor"] = _rgb(ast_cell.background_color)
-                    style_fields.append("backgroundColor")
+            if any([ast_cell.border_color, ast_cell.border_width, ast_cell.border_dash_style]):
+                border: dict = {}
+                if ast_cell.border_color is not None:
+                    border["color"] = _rgb(ast_cell.border_color)
+                if ast_cell.border_width is not None:
+                    border["width"] = _pt(ast_cell.border_width)
+                if ast_cell.border_dash_style is not None:
+                    border["dashStyle"] = ast_cell.border_dash_style
+                for side in ("borderTop", "borderBottom", "borderLeft", "borderRight"):
+                    cell_style[side] = border
+                    style_fields.append(side)
 
-                if ast_cell.padding_top is not None:
-                    cell_style["paddingTop"] = _pt(ast_cell.padding_top)
-                    style_fields.append("paddingTop")
-                if ast_cell.padding_right is not None:
-                    cell_style["paddingRight"] = _pt(ast_cell.padding_right)
-                    style_fields.append("paddingRight")
-                if ast_cell.padding_bottom is not None:
-                    cell_style["paddingBottom"] = _pt(ast_cell.padding_bottom)
-                    style_fields.append("paddingBottom")
-                if ast_cell.padding_left is not None:
-                    cell_style["paddingLeft"] = _pt(ast_cell.padding_left)
-                    style_fields.append("paddingLeft")
+            if not style_fields:
+                continue
 
-                if any([ast_cell.border_color, ast_cell.border_width, ast_cell.border_dash_style]):
-                    border: dict = {}
-                    if ast_cell.border_color is not None:
-                        border["color"] = _rgb(ast_cell.border_color)
-                    if ast_cell.border_width is not None:
-                        border["width"] = _pt(ast_cell.border_width)
-                    if ast_cell.border_dash_style is not None:
-                        border["dashStyle"] = ast_cell.border_dash_style
-                    for side in ("borderTop", "borderBottom", "borderLeft", "borderRight"):
-                        cell_style[side] = border
-                        style_fields.append(side)
-
-                if not style_fields:
-                    continue
-
-                requests.append(
-                    {
-                        "updateTableCellStyle": {
-                            "tableCellStyle": cell_style,
-                            "fields": ",".join(style_fields),
-                            "tableRange": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start},
-                                    "rowIndex": r,
-                                    "columnIndex": col,
-                                },
-                                "rowSpan": 1,
-                                "columnSpan": 1,
+            requests.append(
+                {
+                    "updateTableCellStyle": {
+                        "tableCellStyle": cell_style,
+                        "fields": ",".join(style_fields),
+                        "tableRange": {
+                            "tableCellLocation": {
+                                "tableStartLocation": {"index": table_start},
+                                "rowIndex": r,
+                                "columnIndex": col,
                             },
-                        }
+                            "rowSpan": 1,
+                            "columnSpan": 1,
+                        },
                     }
-                )
+                }
+            )
 
     return requests
+
+
+def _doc_and_ast_cells(doc_table: dict, ast_table: Table):
+    """Yield (row, physical column, doc cell, AST cell) for every cell of a table in the
+    live doc that has an AST cell, skipping a merge's covered cells. The one doc-to-AST
+    cell mapping for the fill and the post-fill steps.
+
+    Doc cells are sorted by startIndex: after mergeTableCells, the API may return covered
+    (phantom) cells last rather than in column order."""
+    phantom = _build_phantom_set(ast_table)
+    total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+    if total_cols == 0:
+        return
+    for r, (doc_row, ast_row) in enumerate(
+        zip(doc_table.get("tableRows", []), ast_table.rows, strict=True)
+    ):
+        doc_cells = sorted(doc_row.get("tableCells", []), key=lambda c: c.get("startIndex", 0))
+        mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+        for col, (doc_cell, ast_cell_idx) in enumerate(zip(doc_cells, mapping, strict=True)):
+            if ast_cell_idx is not None:
+                yield r, col, doc_cell, ast_row.cells[ast_cell_idx]
+
+
+def _build_cell_alignment_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Build updateParagraphStyle requests giving each aligned cell's paragraphs its
+    `Cell.alignment` (#1095), recursing into nested tables, which match a cell's
+    insertable Table children in order.
+
+    Built from a doc fetched after the fill: a cell's paragraphs only exist then, and
+    aligning before a nested table's insert would hand that alignment to its cells.
+    A cell's own paragraphs are styled, never a range spanning a nested table, whose
+    cells carry their own alignment. updateParagraphStyle moves no indices."""
+    requests: list[dict] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        for _r, _col, doc_cell, ast_cell in _doc_and_ast_cells(doc_table, ast_table):
+            content = doc_cell.get("content", [])
+            if ast_cell.alignment is not None:
+                # One request per run of paragraphs between nested tables.
+                run: list[dict] = []
+                for elem in [*content, {}]:
+                    if "paragraph" in elem and "startIndex" in elem and "endIndex" in elem:
+                        run.append(elem)
+                        continue
+                    if run:
+                        requests.append(
+                            {
+                                "updateParagraphStyle": {
+                                    "range": {
+                                        "startIndex": run[0]["startIndex"],
+                                        "endIndex": run[-1]["endIndex"],
+                                    },
+                                    "paragraphStyle": {"alignment": ast_cell.alignment},
+                                    "fields": "alignment",
+                                }
+                            }
+                        )
+                        run = []
+            nested_ast = [
+                child
+                for child in ast_cell.children
+                if isinstance(child, Table) and _is_insertable_table(child)
+            ]
+            nested_doc = [elem["table"] for elem in content if "table" in elem]
+            if len(nested_doc) != len(nested_ast):
+                # The fill skips a nested table it can't place (_fill_children_recursive),
+                # leaving the cell with fewer live tables than AST ones. Pairing them
+                # would be a guess, and raising here would report a finished edit as
+                # failed, so that cell's nested tables go unaligned.
+                logger.debug(
+                    "_build_cell_alignment_requests: %d live nested tables for %d in the "
+                    "AST; skipping their alignment",
+                    len(nested_doc),
+                    len(nested_ast),
+                )
+            elif nested_ast:
+                requests.extend(_build_cell_alignment_requests(nested_doc, nested_ast))
+    return requests
+
+
+def _has_cell_alignment(tables: list[Table]) -> bool:
+    """Whether any cell _build_cell_alignment_requests can reach has an alignment: it
+    recurses only into insertable nested tables, so this does too."""
+    return any(
+        cell.alignment is not None
+        or _has_cell_alignment(
+            [
+                child
+                for child in cell.children
+                if isinstance(child, Table) and _is_insertable_table(child)
+            ]
+        )
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
+    )
 
 
 def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]:
