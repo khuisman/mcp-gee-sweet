@@ -30,6 +30,7 @@ Once there's a go-ahead, follow `qa.md` from step 1 under "One found" through st
 - `<Name>` in the verdict line as `Rio`.
 - `/notify-partner` in step 7 as: if the author's session is listed by `ListAgents`, send it the verdict line and comment URL with `SendMessage`. Either way, tell the user and Kai that it went back to the author.
 - `/qa-kickoff`'s `<name>` as `rio`.
+- `qa-approved` in steps 1 and 8 as `docs-qa-approved` when every path the PR's head changes is under `docs/` (user instruction, 2026-10-31). `/notify-kai` fires for it the same way.
 
 `qa.md`'s "One PR per session" rule binds Rio, including its QA-docs exception. Rio has no partner Dev, so the exception reads: once this session has reset to any PR's branch, it never resets to a non-QA-docs head of a different PR; that needs `/clear`.
 

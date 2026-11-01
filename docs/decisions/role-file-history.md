@@ -308,6 +308,10 @@ On 2026-10-28, four docs-only QA PRs (#1270, #1271, #1274, #1276, none of them a
 
 Until 2026-10-28, `kai.md` sent each non-lane PR (Aziz's, Amy's, Joy's, Kai's) to whichever of Sky or Kit had no partner PR in review. That day four non-lane `docs/qa/` PRs (#1270, #1271, #1274, #1276) queued behind Sky's lane-A PR (#1272) and Kit's lane-B PR (#1283). Kit reviewed #1270 and sent it back, which bound its session to #1270 under the one-PR rule. When Jay opened #1283, Kit had to `/clear`, so #1270's re-verification had to move to another session. Every hand-off also needed the user to type a go-ahead in a QA window, since `qa.md` accepts no peer's go-ahead for a non-partner PR. The team opened PRs faster than it merged them. The maintainer asked for a QA persona that owns every non-lane PR, so Sky and Kit stay on their partners. Rio takes Kai's hand-off as the go-ahead when it names the PR and says the user directed it, the same rule as `amy.md`'s.
 
+### Docs-only PRs: `docs-qa-approved`, no `/code-review` (2026-10-31)
+
+Rio's first pass on PR #1318, a roadmap-only edit of Kai's, ran `/qa-kickoff` as written: it asked the user to run `/code-review`, and the user asked why a docs change needed one. Rio instead checked each roadmap line against the issues' and PRs' live GitHub state, approved, and applied the usual `qa-approved`. The user corrected that to `docs-qa-approved`. Two rules came out of it: `qa-kickoff.md` skips `/code-review` when every changed path is under `docs/` and has QA check the diff's claims against their sources instead, and `rio.md` applies `docs-qa-approved` to such a PR, with `merge-pr.md`, `notify-kai.md`, and `amy.md` updated to match.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
