@@ -491,7 +491,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] **Docstrings, one item:** Tool docstrings: strip internal issue refs again, and add a guard test ([#1045](https://github.com/khuisman/mcp-gee-sweet/issues/1045)), Docstrings: 'Requires OAuth or ADC auth' is wrong for a service account on a Shared Drive ([#1046](https://github.com/khuisman/mcp-gee-sweet/issues/1046)), list_spreadsheets docstring sends callers to list_files for a result cap it now has ([#1047](https://github.com/khuisman/mcp-gee-sweet/issues/1047)), Docstring fixes: named-style resets, and set_cache_ttl's transport claim ([#1058](https://github.com/khuisman/mcp-gee-sweet/issues/1058)), Docstrings: create_paragraph_bullets carries internal API-quirk mechanics plus residual bare issue refs in style.py tool docstrings ([#683](https://github.com/khuisman/mcp-gee-sweet/issues/683)), Docstring ref guard: cover every tool regardless of env, tighten the pattern, finish the prose cleanup ([#1197](https://github.com/khuisman/mcp-gee-sweet/issues/1197))
 - [ ] **Bundle:** CI tidy (on deck, no lane), one PR closing [#536](https://github.com/khuisman/mcp-gee-sweet/issues/536), [#619](https://github.com/khuisman/mcp-gee-sweet/issues/619), [#308](https://github.com/khuisman/mcp-gee-sweet/issues/308), [#708](https://github.com/khuisman/mcp-gee-sweet/issues/708) ([#897](https://github.com/khuisman/mcp-gee-sweet/issues/897))
-- [ ] Unscoped Drive listings don't surface `incompleteSearch` under `corpora=allDrives`, so a partial result reads as complete. Review follow-up from PR #1200; changes five tools' output schema, `decision-needed` ([#1202](https://github.com/khuisman/mcp-gee-sweet/issues/1202))
+- [ ] Unscoped Drive listings don't surface `incompleteSearch` under `corpora=allDrives`, so a partial result reads as complete. Review follow-up from PR #1200; changes five tools' output schema. Decided 2026-11-01: option A, return `{"files": [...], "exhaustive": bool}` like `list_files`; a breaking output change the CHANGELOG must call out (feature set) ([#1202](https://github.com/khuisman/mcp-gee-sweet/issues/1202))
 
 **Decided behavior changes**
 
@@ -503,7 +503,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] **Bundle:** Docs read side (start after #1095; #1078, #1103 and #1104 folded in 2026-11-01) (`doc_to_ast`/`ast_to_markdown`), one PR closing [#596](https://github.com/khuisman/mcp-gee-sweet/issues/596), [#600](https://github.com/khuisman/mcp-gee-sweet/issues/600), [#732](https://github.com/khuisman/mcp-gee-sweet/issues/732) — lane B ([#893](https://github.com/khuisman/mcp-gee-sweet/issues/893))
 - [ ] **Bundle:** server/infra hygiene (#1010 folded in 2026-11-01), one PR closing [#517](https://github.com/khuisman/mcp-gee-sweet/issues/517), [#607](https://github.com/khuisman/mcp-gee-sweet/issues/607), [#614](https://github.com/khuisman/mcp-gee-sweet/issues/614), [#579](https://github.com/khuisman/mcp-gee-sweet/issues/579), [#637](https://github.com/khuisman/mcp-gee-sweet/issues/637) — lane B ([#892](https://github.com/khuisman/mcp-gee-sweet/issues/892))
-- [ ] `sync_folder(export_format=...)`: converted Sheets/Slides probably have #814's `modifiedTime` lag and restamp race too. Suspected, not yet observed ([#818](https://github.com/khuisman/mcp-gee-sweet/issues/818))
+- [ ] `sync_folder(export_format=...)`: converted Slides may have #814's `modifiedTime` lag after an edit. Narrowed 2026-11-01: live probes ruled out Sheets (edit lag and restamp race) and the Slides restamp race; Slides edit lag is unmeasured (the Slides API is disabled in the OAuth project) ([#818](https://github.com/khuisman/mcp-gee-sweet/issues/818))
 - [ ] **Bundle:** Docs link storability (#1290 folded in 2026-11-01) — one PR closing [#1189](https://github.com/khuisman/mcp-gee-sweet/issues/1189) (refuse `javascript:`/`vbscript:`/`data:`; decided 2026-10-25: converter falls back to plain text, `style_doc_range` errors), [#1179](https://github.com/khuisman/mcp-gee-sweet/issues/1179) (scheme-less `link_url` in `style_doc_range`), [#1191](https://github.com/khuisman/mcp-gee-sweet/issues/1191) (drive-letter and host:port targets, padded cell anchors) and [#1237](https://github.com/khuisman/mcp-gee-sweet/issues/1237) (`get_doc_as_markdown` re-emits script links), through one shared helper. Bundled 2026-10-25 (maintainer) ([#1238](https://github.com/khuisman/mcp-gee-sweet/issues/1238))
 - [ ] `create_spreadsheet`/`import_csv_to_sheet` response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass ([#693](https://github.com/khuisman/mcp-gee-sweet/issues/693))
 - [ ] Define the correctness rubric and own execution for the composite-vs-primitive efficiency benchmark — Aziz ([#584](https://github.com/khuisman/mcp-gee-sweet/issues/584))
@@ -535,7 +535,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-10-28**
 
-- [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement, needs the maintainer's parse-rule call ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
+- [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement. Decided 2026-11-01: option A, content at the marker's original indent moves with it; add a test-plan entry ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
 
 **Triaged in 2026-10-31**
 
@@ -545,12 +545,14 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-11-01**
 
 - [ ] An `<hr>` inside a table cell is dropped (raw HTML only; a cell has no paragraph to carry the rule). `wrong/rare`; from PR #1326 ([#1327](https://github.com/khuisman/mcp-gee-sweet/issues/1327))
-- [ ] `html_to_ast` loses content and mis-styles malformed HTML. Pre-existing; the recovery approach (A: HTML5 parser library, B: hand-written model, C: content-loss fixes only) is `decision-needed`, decided when this fill is set. See `docs/decisions/decision-html-error-recovery.md` (PR #1330); #1328 closed into it. From PR #1316 ([#1329](https://github.com/khuisman/mcp-gee-sweet/issues/1329))
+- [ ] `html_to_ast` loses content and mis-styles malformed HTML. Pre-existing; approach decided 2026-11-01: option A, an HTML5 parser library walked to the AST (B, a hand-written model, and C, content-loss fixes only, not taken); the library choice is still pending (lexbor's CVE history, maintainer bus factor, installed size). See `docs/decisions/decision-html-error-recovery.md` (PR #1330); #1328 closed into it. From PR #1316 ([#1329](https://github.com/khuisman/mcp-gee-sweet/issues/1329))
+- [ ] An inline image (and its alt-text fallback) inherits the preceding run's style. Enhancement; from PR #1332 ([#1334](https://github.com/khuisman/mcp-gee-sweet/issues/1334))
+- [ ] Markdown single-tilde `~x~` isn't strikethrough (GFM accepts one or two). Enhancement; from PR #1332 ([#1335](https://github.com/khuisman/mcp-gee-sweet/issues/1335))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
 - [ ] **Bundle:** `font_family` / `style_doc_range` text-style builder: one PR closing #1038, #1300, #1289 and #1037. #1300 and #1289 are #1273's two follow-ups, so the chain stop rule applies ([#1338](https://github.com/khuisman/mcp-gee-sweet/issues/1338))
-- [ ] **Bundle:** `create_paragraph_bullets` fixes: one PR closing #1090, #1288 and #1297; settle #1297's decision first ([#1339](https://github.com/khuisman/mcp-gee-sweet/issues/1339))
+- [ ] **Bundle:** `create_paragraph_bullets` fixes: one PR closing #1090, #1288 and #1297; #1297 decided 2026-11-01 (option B: a barrier on the level-0 path and the anchor wrap) ([#1339](https://github.com/khuisman/mcp-gee-sweet/issues/1339))
 - [ ] **Bundle:** Drive query escaping and HttpError policy: one PR closing #1166 and #1287 ([#1340](https://github.com/khuisman/mcp-gee-sweet/issues/1340))
 - [ ] **Bundle:** docs and docstring cleanup: one PR closing #1197, #1187, #1188, #1076 (keep the name, docstring fix) and #987 (keep rejecting, docstring note); the community-claimed docstring tickets join only if their PRs stall ([#1341](https://github.com/khuisman/mcp-gee-sweet/issues/1341))
 
@@ -571,6 +573,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] Markdown task lists as native Docs checkboxes (`BULLET_CHECKBOX`) instead of a disc bullet plus a glyph. First check live whether the API can set the checked state ([#1280](https://github.com/khuisman/mcp-gee-sweet/issues/1280))
 - [ ] `update_doc_from_file`: opt-in incremental (`mode="patch"`) update that diffs block by block and rewrites only changed blocks, so comment anchors and revision history survive — lane A, after #878 (same write-path files) ([#957](https://github.com/khuisman/mcp-gee-sweet/issues/957))
 - [ ] **Bundle:** Calendar follow-ups from PR #912, one PR closing [#915](https://github.com/khuisman/mcp-gee-sweet/issues/915), [#918](https://github.com/khuisman/mcp-gee-sweet/issues/918) — lane B, after #892 ([#985](https://github.com/khuisman/mcp-gee-sweet/issues/985))
+- [ ] `get_doc_structure`: inline-image `link_url`, a run-type key, and images inside table cells. From PR review ([#1154](https://github.com/khuisman/mcp-gee-sweet/issues/1154))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
