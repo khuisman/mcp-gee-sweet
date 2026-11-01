@@ -1,6 +1,6 @@
 ### IS-01 — nested and stray sub/sup
 
-<sup>a<sub>b</sub>c</sup>d and <sup>e</sub>f</sup>g.
+<sup>a<sub>b</sub>c</sup>d and <sup>e</sub>f</sup>g; <sup>h<sub>i</sup>j</sub>k.
 
 ### IS-02 — strike inside strike
 

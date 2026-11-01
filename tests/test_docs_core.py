@@ -530,7 +530,7 @@ class TestInlineStrikeBaselineHighlight:
             "<h1><sup>a</h1>bare",
             "<table><tr><td><b>x</td></tr></table>bare",
             "<ul><li><b>a<ul><li>b</li></ul>c</li></ul>bare",
-            "<span><p>a</span></p>bare",
+            "<table><tr><td><mark>a</table>bare",
         ],
     )
     def test_bare_text_after_tag_left_open_in_a_block_is_kept(self, html):
@@ -544,10 +544,124 @@ class TestInlineStrikeBaselineHighlight:
             ("<span>no blocks</span>", []),
             ("<div><p>a</p>tail</div>after", ["a", "after"]),
             ("<span>x<p>a</p>tail</span>after", ["a", "after"]),
+            # PR #1316 QA round 1, finding 2: the stray </b> closes the reopened
+            # <b>, never the outer <span>.
+            ("<span><p><b>a</p></b>inner</span>after", ["a", "after"]),
+            # A </span> inside the <p> is ignored, as in a browser: "bare" is
+            # still inside the span.
+            ("<span><p>a</span></p>bare", ["a"]),
         ],
     )
     def test_text_inside_an_outer_inline_tag_still_dropped(self, html, texts):
         assert [n.runs[0].text for n in html_to_ast(html)] == texts
+
+    def test_nested_table_cell_keeps_outer_cell_styles(self):
+        # PR #1316 QA round 1, finding 1.
+        nodes = html_to_ast(
+            "<table><tr><td><mark><sup>a<table><tr><td>x</td></tr></table>b</sup></mark>"
+            "</td></tr></table>"
+        )
+        children = nodes[0].rows[0].cells[0].children
+        b = _styled(children, "b")
+        assert (b.background_color is not None, b.baseline_offset) == (True, "SUPERSCRIPT")
+        x = children[1].rows[0].cells[0].children[0]
+        assert (x.background_color, x.baseline_offset) == (None, None)
+
+    def test_tags_left_open_in_an_unclosed_cell_end_with_the_table(self):
+        # PR #1316 QA round 1, finding 3.
+        nodes = html_to_ast("<table><tr><td><mark><b>a</table><p>b</p>")
+        run = nodes[-1].runs[0]
+        assert (run.text, run.background_color, run.bold) == ("b", None, None)
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<ul><li><mark><p>a</p>b</mark></li></ul>",
+            "<ul><li><mark>a</p>b</mark></li></ul>",
+        ],
+    )
+    def test_item_p_end_keeps_tags_opened_before_it(self, html):
+        # PR #1316 QA round 1, finding 4: the <p> sits inside the <mark>.
+        runs = html_to_ast(html)[0].runs
+        assert all(r.background_color is not None for r in runs)
+        assert "".join(r.text for r in runs) == "ab"
+
+    def test_item_p_end_ends_tags_opened_in_it(self):
+        nodes = html_to_ast("<ul><li><p><mark>a</p>b</li></ul>")
+        assert [(r.text, r.background_color is not None) for r in nodes[0].runs] == [
+            ("a", True),
+            ("b", False),
+        ]
+
+    def test_misnested_baseline_close_ends_inner_tag(self):
+        # PR #1316 QA round 1, finding 5: </sup> also closes the <sub> in it.
+        nodes = html_to_ast("<p><sup>a<sub>b</sup>c</sub>d</p>")
+        assert [(r.text, r.baseline_offset) for r in nodes[0].runs] == [
+            ("a", "SUPERSCRIPT"),
+            ("b", "SUBSCRIPT"),
+            ("c", None),
+            ("d", None),
+        ]
+
+    def test_close_reopens_formatting_tags_inside_it(self):
+        # A browser reopens the <b> the </sup> closed.
+        nodes = html_to_ast("<p><sup>a<b>b</sup>c</b>d</p>")
+        assert [(r.text, r.baseline_offset, r.bold) for r in nodes[0].runs] == [
+            ("a", "SUPERSCRIPT", None),
+            ("b", "SUPERSCRIPT", True),
+            ("c", None, True),
+            ("d", None, None),
+        ]
+
+    @pytest.mark.parametrize("tag", ["s", "b", "i", "u"])
+    def test_stray_end_tag_after_block_ends_carried_style(self, tag):
+        # PR #1316 QA round 1, finding 6.
+        run = html_to_ast(f"<p><{tag}>a</p></{tag}><p>b</p>")[-1].runs[0]
+        assert (run.strikethrough, run.bold, run.italic, run.underline) == (None,) * 4
+
+    @pytest.mark.parametrize(
+        ("html", "cell"),
+        [
+            ("<table><tr><td><s>a</td><td>b</td></tr></table>", (0, 1)),
+            ("<p><b>a</p><table><tr><td>b</td></tr></table>", (0, 0)),
+        ],
+    )
+    def test_formatting_does_not_cross_a_cell_boundary(self, html, cell):
+        # PR #1316 QA round 1, finding 7: a cell starts fresh, as in a browser.
+        table = next(n for n in html_to_ast(html) if isinstance(n, Table))
+        run = table.rows[cell[0]].cells[cell[1]].children[0]
+        assert (run.text, run.strikethrough, run.bold) == ("b", None, None)
+
+    @pytest.mark.parametrize(
+        ("html", "texts"),
+        [
+            ("<table><tr><td><mark>d</table>", [["d"]]),
+            ("<table><tr><td>a<td>b<tr><td>c</table>", [["a", "b"], ["c"]]),
+            ("<table><tr><td>a</td><tr><td>c</td></tr></table>", [["a"], ["c"]]),
+            ("<table><tr><th>h<td>d</tr></table>", [["h", "d"]]),
+        ],
+    )
+    def test_optional_cell_and_row_end_tags(self, html, texts):
+        # </td> and </tr> are optional in HTML; the cell or row used to be lost.
+        table = html_to_ast(html)[0]
+        assert [[c.children[0].text for c in row.cells] for row in table.rows] == texts
+
+    def test_implicitly_closed_cell_ends_its_styles(self):
+        table = html_to_ast("<table><tr><th>h<td><mark>d<td>e</table>")[0]
+        h, d, e = (c.children[0] for c in table.rows[0].cells)
+        assert (h.bold, d.bold, d.background_color is not None) == (True, None, True)
+        assert (e.bold, e.background_color) == (None, None)
+
+    def test_header_cell_bold_ends_with_the_cell(self):
+        nodes = html_to_ast("<table><tr><th>h</th><td>d</td></tr></table>")
+        h, d = nodes[0].rows[0].cells
+        assert (h.children[0].bold, d.children[0].bold) == (True, None)
+
+    def test_style_tags_are_not_unsupported_content(self):
+        # Each styling tag is handled, so an otherwise empty block isn't kept
+        # as a dropped-construct boundary.
+        for tag in ["b", "i", "u", "s", "del", "sub", "sup", "mark", "code"]:
+            assert html_to_ast(f"<p><{tag}></{tag}></p>") == html_to_ast("<p></p>")
 
     def test_del_inside_s_keeps_strike_after_del_closes(self):
         nodes = html_to_ast("<p><s>a<del>b</del>c</s>d</p>")

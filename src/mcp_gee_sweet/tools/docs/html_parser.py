@@ -26,25 +26,49 @@ _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
-_INLINE_STRIKE = {"s", "strike"}
-# <del> strikes too (#1077), but has its own depth: unlike <s>/<strike> it isn't an
-# HTML "formatting element", so a browser closes an unclosed one at the end of its
-# block instead of carrying it into the next (see _close_block_scoped_inline).
-_INLINE_DEL = "del"
+# <del> strikes like <s>/<strike> (#1077).
+_INLINE_STRIKE = {"s", "strike", "del"}
 # <sub>/<sup> set the run's baselineOffset; the innermost open one wins (#1119).
 _INLINE_BASELINE = {"sub": "SUBSCRIPT", "sup": "SUPERSCRIPT"}
 # <mark> highlights its text in yellow, the color a browser gives it by default
 # and Docs' own default highlight (#1119).
 _INLINE_MARK = "mark"
 _MARK_RGB = (1.0, 1.0, 0.0)
+_STYLE_TAGS = (
+    _INLINE_BOLD
+    | _INLINE_ITALIC
+    | _INLINE_UNDERLINE
+    | _INLINE_STRIKE
+    | set(_INLINE_BASELINE)
+    | {_INLINE_MARK, "code"}
+)
+# The styling tags that are HTML "formatting elements". An unclosed one left open
+# when its block ends is reopened in the next block, as a browser's parser does;
+# every other inline tag (<del>, <sub>, <sup>, <mark>, <span>, ...) ends with its
+# block (#1231). <a> is one too: its link carries the same way (_link_url).
+_FORMATTING_TAGS = {"a", "b", "strong", "i", "em", "u", "s", "strike", "code"}
+# Scope markers on _inline_stack, weakest first (_SCOPE_RANK). An end tag never
+# closes a tag below the nearest marker, and a scope's end closes everything above
+# its marker, as a browser's "special" elements (p, li, hN, td, table) do.
+_ITEM_TEXT_SCOPE = "#item-text"  # a list item's own <p> or heading (#1111, #1094)
+_BLOCK_SCOPE = "#block"  # an open block segment (_open_block)
+_CELL_SCOPE = "#cell"  # a <td>
+_HEADER_CELL_SCOPE = "#th"  # a <th>: its text is bold
+_TABLE_SCOPE = "#table"
+_SCOPE_RANK = {
+    _ITEM_TEXT_SCOPE: 0,
+    _BLOCK_SCOPE: 1,
+    _CELL_SCOPE: 2,
+    _HEADER_CELL_SCOPE: 2,
+    _TABLE_SCOPE: 3,
+}
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
-# since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
-# _tag_depth tracking below — otherwise one of these written without a
-# trailing slash (e.g. "<img src=\"x\">", plain "<hr>") would increment the
-# depth counter with nothing to ever decrement it, permanently breaking the
-# depth-0 "genuinely bare text" check in handle_data for the rest of the
-# document (#343 follow-up).
+# since HTMLParser has no built-in HTML5 void-element awareness. Never pushed
+# on _inline_stack — otherwise one of these written without a trailing slash
+# (e.g. "<img src=\"x\">", plain "<hr>") would stay open with nothing to ever
+# close it, permanently breaking the "genuinely bare text" check in handle_data
+# for the rest of the document (#343 follow-up).
 _VOID_TAGS = {
     "area",
     "base",
@@ -147,6 +171,24 @@ def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
 class _LineBreak(str):
     """The "\\n" a <br> puts in the run buffer, told apart from source text so trimming
     source whitespace before a block (_interrupt_open_block) never removes it."""
+
+
+@dataclass
+class _InlineTag:
+    """One entry of _inline_stack: an open inline tag, or a scope marker."""
+
+    tag: str
+    # Opened inside a block or table cell, so it styles the text. A tag opened
+    # with no block around it ("<b><p>x</p></b>") never styled text here.
+    styles: bool = False
+    # A formatting element reopened after its block ended (_end_scope). Styles
+    # the next block's text but isn't a wrapper: bare text after it still gets
+    # its implicit paragraph.
+    carried: bool = False
+
+    @property
+    def is_scope(self) -> bool:
+        return self.tag in _SCOPE_RANK
 
 
 @dataclass
@@ -253,7 +295,7 @@ class _AstParser(HTMLParser):
         # The tags of the open item headings, which outlive their segment: a nested
         # block can interrupt the item before the heading's </hN>, which must still be
         # consumed here rather than reach the inline end-tag path and decrement
-        # _tag_depth, which its start tag never incremented (PR #1301 QA round 1).
+        # _inline_stack, which its start tag never pushed onto (PR #1301 QA round 1).
         self._li_heading_tags: list[str] = []
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
@@ -270,31 +312,17 @@ class _AstParser(HTMLParser):
         self._blockquote_ids: list[int] = []
         self._blockquote_count = 0
 
-        # Depth of open non-block tags (span, b, a, unrecognized tags, ...)
-        # that reach the generic inline-element fallthrough below. Lets
-        # handle_data tell genuinely bare top-level text (depth 0, e.g. plain
-        # "hello world" with no wrapping tag at all — #343) apart from text
-        # that's merely wrapped in an inline tag with no block ancestor (e.g.
-        # "<span>no blocks</span>", depth 1) — the latter is intentionally
-        # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS
-        # are excluded since they never get a matching close tag.
-        self._tag_depth = 0
-        # The part of _tag_depth opened with no block or table cell around it. A
-        # tag left unclosed inside a block ends with it, so once no block or table
-        # is open, _tag_depth is capped at this (_drop_tags_closed_with_blocks);
-        # otherwise an unclosed "<p><b>a</p>" dropped every later bare text (#1231).
-        self._outer_tag_depth = 0
+        # Open non-block tags (span, b, a, unrecognized tags, ...) that reach the
+        # generic inline-element fallthrough, innermost last, with a scope marker
+        # for each open block, list-item text, table and cell (#1231). A run's
+        # style is read from it (_flush_run). It also lets handle_data tell
+        # genuinely bare top-level text (no open tag, e.g. plain "hello world" —
+        # #343) apart from text merely wrapped in an inline tag with no block
+        # ancestor (e.g. "<span>no blocks</span>"), which is intentionally
+        # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS are
+        # never pushed since they never get a matching close tag.
+        self._inline_stack: list[_InlineTag] = []
 
-        # --- inline formatting stacks ---
-        self._bold_depth = 0
-        self._italic_depth = 0
-        self._underline_depth = 0
-        self._strike_depth = 0
-        self._del_depth = 0
-        self._mark_depth = 0
-        # One entry per open <sub>/<sup>, innermost last (#1119).
-        self._baseline_stack: list[str] = []
-        self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
         # href values of <a> tags opened with no block or table cell around them.
         # Read only by the bare top-level <img> branch (#977), so a top-level
@@ -347,18 +375,100 @@ class _AstParser(HTMLParser):
         if not text:
             return
         self._run_buf = []
+        # The tags styling this text: those opened in a block or cell, above the
+        # innermost cell's marker, since a cell starts fresh (#1231).
+        tags: set[str] = set()
+        baseline = None
+        header_cell = False
+        for entry in reversed(self._inline_stack):
+            if entry.tag in (_CELL_SCOPE, _HEADER_CELL_SCOPE, _TABLE_SCOPE):
+                header_cell = entry.tag == _HEADER_CELL_SCOPE
+                break
+            if entry.styles:
+                tags.add(entry.tag)
+                if baseline is None:
+                    baseline = _INLINE_BASELINE.get(entry.tag)
         run = Run(
             text=text,
-            bold=True if self._bold_depth > 0 else None,
-            italic=True if self._italic_depth > 0 else None,
-            underline=True if self._underline_depth > 0 else None,
-            strikethrough=True if self._strike_depth > 0 or self._del_depth > 0 else None,
-            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
-            baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
+            bold=True if header_cell or tags & _INLINE_BOLD else None,
+            italic=True if tags & _INLINE_ITALIC else None,
+            underline=True if tags & _INLINE_UNDERLINE else None,
+            strikethrough=True if tags & _INLINE_STRIKE else None,
+            background_color=RGBColor(*_MARK_RGB) if _INLINE_MARK in tags else None,
+            baseline_offset=baseline,
             link_url=self._link_url[-1] if self._link_url else None,
-            font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
+            font_family="Courier New" if (self._in_pre or "code" in tags) else None,
         )
         self._pending_runs.append(run)
+
+    def _wrapped_in_inline_tag(self) -> bool:
+        """Whether an inline tag that isn't a reopened formatting element is open."""
+        return any(not (e.is_scope or e.carried) for e in self._inline_stack)
+
+    def _push_scope(self, marker: str):
+        self._inline_stack.append(_InlineTag(marker))
+
+    def _end_scope(self, markers: tuple[str, ...], *, carry: bool) -> bool:
+        """Close the innermost open scope marked by one of `markers`, with every
+        tag still open inside it (#1231). Returns whether one was open.
+
+        The search stops at a stronger scope, so a list item's `</p>` never ends
+        the item, and nothing ends a cell from outside it. With `carry`, the
+        formatting elements closed this way are reopened, as a browser reopens them
+        in the next block; a cell or table closes them for good.
+        """
+        rank = _SCOPE_RANK[markers[0]]
+        for i in range(len(self._inline_stack) - 1, -1, -1):
+            entry = self._inline_stack[i]
+            if entry.tag in markers:
+                closed = self._inline_stack[i + 1 :]
+                del self._inline_stack[i:]
+                if carry:
+                    self._inline_stack.extend(
+                        replace(e, carried=True)
+                        for e in closed
+                        if not e.is_scope and e.styles and e.tag in _FORMATTING_TAGS
+                    )
+                return True
+            if entry.is_scope and _SCOPE_RANK[entry.tag] > rank:
+                return False
+        return False
+
+    def _end_block_scope(self, *, carry: bool = True):
+        self._end_scope((_BLOCK_SCOPE,), carry=carry)
+
+    def _close_open_cell(self):
+        """End the innermost table's open cell, if any, with what it holds: at its
+        </td>/</th>, or implicitly at the next <td>, <tr>, </tr> or </table>, since
+        HTML lets a cell's end tag be left out (#1231). Every tag still open in the
+        cell ends with it."""
+        tb = self._table_stack[-1] if self._table_stack else None
+        if tb is None or not tb.in_cell:
+            return
+        runs = self._flush_pending_runs()
+        self._cell_held_runs = []
+        self._cell_pre_depth = 0
+        self._end_scope((_CELL_SCOPE, _HEADER_CELL_SCOPE), carry=False)
+        tb.end_cell(runs)
+
+    def _close_inline_tag(self, tag: str):
+        """Close the innermost open `tag`, as a browser's end tag does (#1231).
+
+        A tag opened inside it closes too, so `<sup>a<sub>b</sup>c` leaves "c"
+        plain; a formatting element among those is reopened. An end tag with no
+        matching open tag before the nearest scope marker is ignored, so a stray
+        `</sub>` inside `<sup>` doesn't end the superscript, and a `</b>` after
+        its block ended closes only the reopened `<b>`.
+        """
+        for i in range(len(self._inline_stack) - 1, -1, -1):
+            entry = self._inline_stack[i]
+            if entry.is_scope:
+                return
+            if entry.tag == tag:
+                inner = self._inline_stack[i + 1 :]
+                del self._inline_stack[i:]
+                self._inline_stack.extend(e for e in inner if e.tag in _FORMATTING_TAGS)
+                return
 
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
@@ -393,6 +503,8 @@ class _AstParser(HTMLParser):
         here structurally impossible instead of relying on each call site's
         own manual list matching the others going forward.
         """
+        self._end_block_scope()
+        self._push_scope(_BLOCK_SCOPE)
         self._block_tag = tag
         self._block_resumed = resumed
         self._block_had_unsupported_content = False
@@ -506,12 +618,8 @@ class _AstParser(HTMLParser):
         every node for the rest of the document, since the tag that would have
         decremented these depths never arrives.
         """
-        self._bold_depth = 0
-        self._italic_depth = 0
-        self._underline_depth = 0
-        self._strike_depth = 0
-        self._close_block_scoped_inline()
-        self._code_depth = 0
+        self._end_block_scope(carry=False)
+        self._inline_stack = [e for e in self._inline_stack if not e.carried]
         self._link_url = []
         # The cleared hrefs' anchors no longer own an entry to pop.
         self._anchor_pushes = [
@@ -763,6 +871,7 @@ class _AstParser(HTMLParser):
             self._emit_block_node(
                 self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
             )
+            self._end_block_scope()
             self._block_tag = None
             self._block_named_style = None
 
@@ -786,15 +895,7 @@ class _AstParser(HTMLParser):
     # HTMLParser callbacks
     # ------------------------------------------------------------------
 
-    def _drop_tags_closed_with_blocks(self):
-        """Stop counting the inline tags left open in a block or table that has
-        ended (see _outer_tag_depth)."""
-        if self._block_tag is None and self._table_depth == 0:
-            depth = min(self._tag_depth, self._outer_tag_depth)
-            self._tag_depth = self._outer_tag_depth = depth
-
     def handle_starttag(self, tag, attrs):
-        self._drop_tags_closed_with_blocks()
         attr_dict = dict(attrs)
 
         # --- table structure ---
@@ -810,6 +911,7 @@ class _AstParser(HTMLParser):
                 self._cell_held_runs = []
             self._table_depth += 1
             self._table_stack.append(_TableBuilder())
+            self._push_scope(_TABLE_SCOPE)
             return
 
         if self._table_depth >= 1:
@@ -822,9 +924,13 @@ class _AstParser(HTMLParser):
                     tb.col_widths_from_col.append(None)
                 return
             if tag == "tr":
+                # The previous row's </td> and </tr> are optional in HTML (#1231).
+                self._close_open_cell()
+                tb.end_row()
                 tb.start_row()
                 return
             if tag in ("td", "th"):
+                self._close_open_cell()  # the previous cell's </td> is optional
                 # `or 1` only covers a missing attribute — an explicit colspan="0"/
                 # rowspan="0" is falsy-looking HTML but a truthy non-empty string,
                 # so it survives the `or` and must be clamped separately. A cell
@@ -839,9 +945,8 @@ class _AstParser(HTMLParser):
                 )
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
-                # If it's a header cell, pre-activate bold
-                if is_header:
-                    self._bold_depth += 1
+                # A header cell's text is bold (_flush_run).
+                self._push_scope(_HEADER_CELL_SCOPE if is_header else _CELL_SCOPE)
                 return
 
         # --- list context ---
@@ -905,6 +1010,7 @@ class _AstParser(HTMLParser):
                 # Drops the `<li>`-to-`<p>` padding that would otherwise be
                 # buffered as the item's own leading text.
                 self._run_buf = []
+                self._push_scope(_ITEM_TEXT_SCOPE)
                 return
             # A heading that opens a list item ("- # Title") is the item's own text,
             # in that heading's style (#1094): the item becomes a bulleted heading
@@ -922,6 +1028,7 @@ class _AstParser(HTMLParser):
                 self._run_buf = []
                 self._li_heading_level = int(tag[1])
                 self._li_heading_tags.append(tag)
+                self._push_scope(_ITEM_TEXT_SCOPE)
                 return
             self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
@@ -936,7 +1043,7 @@ class _AstParser(HTMLParser):
         # boundary between the surrounding content (#401). Scoped to <hr>
         # specifically rather than every void tag: it's the only one that's a
         # genuine block-level CommonMark construct in its own right. Also
-        # requires _tag_depth == 0, matching handle_data's sibling bare-text
+        # requires no open inline tag, matching handle_data's sibling bare-text
         # check below (#343): an <hr> wrapped only in an inline tag with no
         # block ancestor (e.g. "<span><hr></span>") is inline-only content
         # with no block ancestor, same as bare text in that position, and
@@ -946,7 +1053,7 @@ class _AstParser(HTMLParser):
             tag == "hr"
             and self._block_tag is None
             and self._table_depth == 0
-            and self._tag_depth == 0
+            and not self._wrapped_in_inline_tag()
         ):
             self._nodes.append(
                 Paragraph(runs=[], **self._blockquote_fields(), **self._list_item_fields())
@@ -964,7 +1071,7 @@ class _AstParser(HTMLParser):
             tag == "hr"
             and self._block_tag is not None
             and self._table_depth == 0
-            and self._tag_depth == 0
+            and not self._wrapped_in_inline_tag()
             and not self._in_pre
             and (self._block_resumed or "".join(self._run_buf).strip() or self._pending_runs)
         ):
@@ -999,36 +1106,22 @@ class _AstParser(HTMLParser):
             # unrecognized-tag handling below (a no-op at depth 0).
 
         # --- inline elements / unrecognized tags ---
-        if tag not in _VOID_TAGS:
-            self._tag_depth += 1
-            if self._block_tag is None and self._table_depth == 0:
-                self._outer_tag_depth += 1
-        if self._block_tag or (
-            self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
-        ):
+        in_text = bool(self._block_tag) or (
+            self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
+        )
+        if in_text:
             self._release_cell_whitespace()
             self._flush_run()
-            if tag in _INLINE_BOLD:
-                self._bold_depth += 1
-            elif tag in _INLINE_ITALIC:
-                self._italic_depth += 1
-            elif tag in _INLINE_UNDERLINE:
-                self._underline_depth += 1
-            elif tag in _INLINE_STRIKE:
-                self._strike_depth += 1
-            elif tag == _INLINE_DEL:
-                self._del_depth += 1
-            elif tag in _INLINE_BASELINE:
-                self._baseline_stack.append(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
-                self._mark_depth += 1
+        if tag not in _VOID_TAGS:
+            self._inline_stack.append(_InlineTag(tag, styles=in_text))
+        if in_text:
+            if tag in _STYLE_TAGS:
+                pass  # styles the text through _inline_stack (_flush_run)
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
                     self._link_url.append(href)
                 self._anchor_pushes.append("block" if href else None)
-            elif tag == "code" and not self._in_pre:
-                self._code_depth += 1
             elif tag == "pre":
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
@@ -1061,8 +1154,14 @@ class _AstParser(HTMLParser):
     def handle_endtag(self, tag):
         # --- table structure ---
         if tag == "table":
+            if self._table_stack:
+                # </td> and </tr> are optional in HTML (#1231).
+                self._close_open_cell()
+                self._table_stack[-1].end_row()
             # A cell left open has no </td> to drop what it held.
             self._cell_held_runs = []
+            # Ends whatever is still open in the table (#1231).
+            self._end_scope((_TABLE_SCOPE,), carry=False)
             if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
@@ -1082,17 +1181,11 @@ class _AstParser(HTMLParser):
         if self._table_depth >= 1 and self._table_stack:
             tb = self._table_stack[-1]
             if tag == "tr":
+                self._close_open_cell()
                 tb.end_row()
                 return
             if tag in ("td", "th"):
-                is_header = tag == "th"
-                runs = self._flush_pending_runs()
-                self._cell_held_runs = []
-                self._cell_pre_depth = 0
-                if is_header:
-                    self._bold_depth -= 1
-                self._close_block_scoped_inline()
-                tb.end_cell(runs)
+                self._close_open_cell()
                 return
 
         # --- list context ---
@@ -1202,9 +1295,9 @@ class _AstParser(HTMLParser):
                 self._nodes.append(
                     Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
                 )
+            self._end_block_scope()
             self._block_tag = None
             self._in_pre = False
-            self._close_block_scoped_inline()
             self._resume_interrupted_block("pre")
             return
 
@@ -1223,7 +1316,7 @@ class _AstParser(HTMLParser):
         ):
             self._li_heading_tags.pop()
             self._flush_run()
-            self._close_block_scoped_inline()
+            self._end_scope((_ITEM_TEXT_SCOPE,), carry=True)
             if self._block_tag == "li" and self._li_heading_level == int(tag[1]):
                 runs = self._flush_pending_runs()
                 self._emit_block_node(
@@ -1240,14 +1333,15 @@ class _AstParser(HTMLParser):
         # handle_data buffers next land outside the item's runs.
         if tag == "p" and self._block_tag == "li" and self._table_depth == 0:
             self._flush_run()
-            self._close_block_scoped_inline()
+            # Ends only what opened inside the <p>; a stray </p> ends nothing.
+            self._end_scope((_ITEM_TEXT_SCOPE,), carry=True)
             self._li_trailing_padding = True
             return
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
-            self._close_block_scoped_inline()
+            self._end_block_scope()
             self._emit_block_node(tag, runs, preserve_if_empty=self._block_had_unsupported_content)
             self._block_named_style = None
             self._block_tag = None
@@ -1255,60 +1349,16 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
-        self._drop_tags_closed_with_blocks()
-        if tag not in _VOID_TAGS and self._tag_depth > 0:
-            self._tag_depth -= 1
-            if self._block_tag is None and self._table_depth == 0:
-                self._outer_tag_depth = min(self._outer_tag_depth, self._tag_depth)
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
             self._flush_run()
-            if tag in _INLINE_BOLD:
-                self._bold_depth = max(0, self._bold_depth - 1)
-            elif tag in _INLINE_ITALIC:
-                self._italic_depth = max(0, self._italic_depth - 1)
-            elif tag in _INLINE_UNDERLINE:
-                self._underline_depth = max(0, self._underline_depth - 1)
-            elif tag in _INLINE_STRIKE:
-                self._strike_depth = max(0, self._strike_depth - 1)
-            elif tag == _INLINE_DEL:
-                self._del_depth = max(0, self._del_depth - 1)
-            elif tag in _INLINE_BASELINE:
-                self._close_baseline(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
-                self._mark_depth = max(0, self._mark_depth - 1)
-            elif tag == "a":
-                self._close_anchor()
-            elif tag == "code" and not self._in_pre:
-                self._code_depth = max(0, self._code_depth - 1)
-            elif tag == "pre":
+            if tag == "pre":
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
-        elif tag == "a":
+        if tag not in _VOID_TAGS:
+            self._close_inline_tag(tag)
+        if tag == "a":
             self._close_anchor()
-
-    def _close_block_scoped_inline(self):
-        """End every open <del>, <sub>, <sup> and <mark> (#1231).
-
-        Called where a block or table cell ends. These aren't HTML "formatting
-        elements", so a browser ends an unclosed one with its block; <b>, <i>, <u>,
-        <s> and <strike> are, and a browser reopens them in the next block, which
-        is why their depths carry on.
-        """
-        self._del_depth = 0
-        self._mark_depth = 0
-        self._baseline_stack = []
-
-    def _close_baseline(self, offset: str):
-        """Pop the innermost open <sub>/<sup> of this kind (#1119).
-
-        A stray close with no matching open tag pops nothing, so `<sup>a</sub>b`
-        can't drop the superscript of an outer tag of the other kind.
-        """
-        for i in range(len(self._baseline_stack) - 1, -1, -1):
-            if self._baseline_stack[i] == offset:
-                del self._baseline_stack[i]
-                return
 
     def _release_cell_whitespace(self):
         """Write held cell whitespace (see handle_data) ahead of the content about to
@@ -1339,7 +1389,6 @@ class _AstParser(HTMLParser):
             self._bare_link_url.pop()
 
     def handle_data(self, data):
-        self._drop_tags_closed_with_blocks()
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
@@ -1377,7 +1426,7 @@ class _AstParser(HTMLParser):
                 if not data:
                     return
             self._run_buf.append(data)
-        elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
+        elif self._table_depth == 0 and not self._wrapped_in_inline_tag() and data.strip():
             # Genuinely bare text — no wrapping block tag, no enclosing tag of
             # any kind (#343). Implicitly open a paragraph so it isn't
             # silently dropped the way inline-only content
@@ -1403,6 +1452,7 @@ class _AstParser(HTMLParser):
             self._emit_block_node(
                 self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
             )
+            self._end_block_scope()
             self._block_tag = None
             self._block_named_style = None
 
