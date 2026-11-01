@@ -1622,10 +1622,12 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
       5. If any table has a non-None col_width: re-fetch, then emit
          updateTableColumnProperties (skipping columns past the table's width)
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
+      7. If any cell, at any depth, has an alignment: emit updateParagraphStyle over
+         its paragraphs (#1095)
 
-    Phases 5 and 6 must use a doc fetched after phases 3 and 4: the fill shifts the
+    Phases 5 to 7 must use a doc fetched after phases 3 and 4: the fill shifts the
     startIndex of every table after the first, and a stale one is a 400 (#1053).
-    They share one post-fill fetch, since column-width changes move no indices.
+    They share one post-fill fetch, since none of them moves an index.
 
     images: the resolved images to embed in cells, at any nesting depth, and how each
     fill batch is sent (#1073).
@@ -1728,6 +1730,25 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
             await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": cell_style_requests})
+                .execute,
+                docs_service,
+            )
+
+    # Step 7: horizontal cell alignment (#1095), on the same post-fill snapshot: neither
+    # step 5 nor step 6 moves an index.
+    if _has_cell_alignment(tables):
+        if post_fill_doc is None:
+            post_fill_doc = await execute_in_thread(
+                docs_service.documents().get(documentId=doc_id).execute,
+                docs_service,
+            )
+        alignment_requests = _build_cell_alignment_requests(
+            _top_level_tables(post_fill_doc), tables
+        )
+        if alignment_requests:
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": alignment_requests})
                 .execute,
                 docs_service,
             )
@@ -2342,6 +2363,78 @@ def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) 
                 )
 
     return requests
+
+
+def _doc_and_ast_cells(doc_table: dict, ast_table: Table):
+    """Yield (doc cell, AST cell) for every cell of a filled table that has an AST cell,
+    skipping a merge's covered cells, by the same mapping the fill uses."""
+    phantom = _build_phantom_set(ast_table)
+    total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+    if total_cols == 0:
+        return
+    for r, (doc_row, ast_row) in enumerate(
+        zip(doc_table.get("tableRows", []), ast_table.rows, strict=True)
+    ):
+        doc_cells = sorted(doc_row.get("tableCells", []), key=lambda c: c.get("startIndex", 0))
+        mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+        for doc_cell, ast_cell_idx in zip(doc_cells, mapping, strict=True):
+            if ast_cell_idx is not None:
+                yield doc_cell, ast_row.cells[ast_cell_idx]
+
+
+def _build_cell_alignment_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Build updateParagraphStyle requests giving each aligned cell's paragraphs its
+    `Cell.alignment` (#1095), recursing into nested tables, which match a cell's
+    insertable Table children in order.
+
+    Built from a doc fetched after the fill: a cell's paragraphs only exist then, and
+    aligning before a nested table's insert would hand that alignment to its cells.
+    A cell's own paragraphs are styled, never a range spanning a nested table, whose
+    cells carry their own alignment. updateParagraphStyle moves no indices."""
+    requests: list[dict] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        for doc_cell, ast_cell in _doc_and_ast_cells(doc_table, ast_table):
+            content = doc_cell.get("content", [])
+            if ast_cell.alignment is not None:
+                # One request per run of paragraphs between nested tables.
+                run: list[dict] = []
+                for elem in [*content, {}]:
+                    if "paragraph" in elem and "startIndex" in elem and "endIndex" in elem:
+                        run.append(elem)
+                        continue
+                    if run:
+                        requests.append(
+                            {
+                                "updateParagraphStyle": {
+                                    "range": {
+                                        "startIndex": run[0]["startIndex"],
+                                        "endIndex": run[-1]["endIndex"],
+                                    },
+                                    "paragraphStyle": {"alignment": ast_cell.alignment},
+                                    "fields": "alignment",
+                                }
+                            }
+                        )
+                        run = []
+            nested_ast = [
+                child
+                for child in ast_cell.children
+                if isinstance(child, Table) and _is_insertable_table(child)
+            ]
+            nested_doc = [elem["table"] for elem in content if "table" in elem]
+            if nested_ast:
+                requests.extend(_build_cell_alignment_requests(nested_doc, nested_ast))
+    return requests
+
+
+def _has_cell_alignment(tables: list[Table]) -> bool:
+    return any(
+        cell.alignment is not None
+        or _has_cell_alignment([child for child in cell.children if isinstance(child, Table)])
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
+    )
 
 
 def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]:

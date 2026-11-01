@@ -100,6 +100,9 @@ class Cell:
     rowspan: int = 1
     is_header: bool = False
     content_alignment: str | None = None  # TOP, MIDDLE, BOTTOM
+    # Horizontal alignment of the cell's own paragraphs (#1095): START, CENTER, END,
+    # JUSTIFIED, from text-align (a GFM :--/:-:/--: column) or align. None: no alignment set.
+    alignment: str | None = None
     background_color: RGBColor | None = None  # Phase 3
     padding_top: float | None = None  # Phase 3
     padding_right: float | None = None  # Phase 3

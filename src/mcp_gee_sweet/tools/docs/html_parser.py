@@ -158,6 +158,31 @@ def _px_to_pt(value: str) -> float | None:
         return None
 
 
+_CELL_ALIGNMENTS = {
+    "left": "START",
+    "start": "START",
+    "center": "CENTER",
+    "right": "END",
+    "end": "END",
+    "justify": "JUSTIFIED",
+}
+
+
+def _cell_alignment(attr_dict: dict) -> str | None:
+    """A <td>/<th>'s horizontal alignment as a Docs paragraph alignment (#1095), or None.
+
+    Read from its style's text-align (what markdown-it writes for a GFM :--/:-:/--:
+    column), else from the legacy align attribute, since CSS overrides a presentational
+    attribute. The last text-align declaration wins, as in CSS. An unrecognized value
+    sets nothing."""
+    for declaration in reversed((attr_dict.get("style") or "").split(";")):
+        name, sep, value = declaration.partition(":")
+        if sep and name.strip().lower() == "text-align":
+            value = value.lower().replace("!important", "").strip()
+            return _CELL_ALIGNMENTS.get(value)
+    return _CELL_ALIGNMENTS.get((attr_dict.get("align") or "").strip().lower())
+
+
 def _image_src(attr_dict: dict) -> str:
     """An <img>'s src with surrounding whitespace stripped, as a browser strips a
     URL attribute, or "" when it has none. Stripped here, once, so every consumer
@@ -810,7 +835,11 @@ class _AstParser(HTMLParser):
                 width_str = attr_dict.get("width", "")
                 width_pt = _px_to_pt(width_str) if width_str else None
                 tb.start_cell(
-                    colspan=colspan, rowspan=rowspan, is_header=is_header, width_pt=width_pt
+                    colspan=colspan,
+                    rowspan=rowspan,
+                    is_header=is_header,
+                    width_pt=width_pt,
+                    alignment=_cell_alignment(attr_dict),
                 )
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
@@ -1355,12 +1384,20 @@ class _TableBuilder:
             self.rows.append(Row(cells=self._current_row_cells))
         self._current_row_cells = []
 
-    def start_cell(self, colspan: int, rowspan: int, is_header: bool, width_pt: float | None):
+    def start_cell(
+        self,
+        colspan: int,
+        rowspan: int,
+        is_header: bool,
+        width_pt: float | None,
+        alignment: str | None = None,
+    ):
         self._current_cell = {
             "colspan": colspan,
             "rowspan": rowspan,
             "is_header": is_header,
             "width_pt": width_pt,
+            "alignment": alignment,
         }
         self.in_cell = True
         self._current_children = []
@@ -1385,6 +1422,7 @@ class _TableBuilder:
             colspan=meta["colspan"],
             rowspan=meta["rowspan"],
             is_header=meta["is_header"],
+            alignment=meta["alignment"],
         )
         self._current_row_cells.append(cell)
         self._current_cell = None

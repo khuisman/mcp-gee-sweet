@@ -6784,3 +6784,22 @@ Live on `mcp-gee-sweet-sky` at 42e755df (OAuth, Shared Drive folder). Steps 2–
 
 **Result (2026-11-01) ✅ PASS — PR #1326 round 2 (Sky)**
 Live on `mcp-gee-sweet-sky` at 28c464a4, after `/mcp reconnect` (OAuth, Shared Drive folder), all seven steps. Step 1: every rule draws as listed. The quote bar now runs unbroken from "Quoted one" through the rule to "Quoted two", with the line closer to "Quoted two". Step 2's export is unchanged from round 1 and matches every check. Steps 3 and 4 pass as in round 1, re-run on this head. Step 5 exports both `---`. Step 6 exports `text before`, `---`, `text after`; then `> 1. item one`, `>`, `>    ---`, `>`, `> 2. item two` (the line inside "item one", one list; Drive imports the list indented, which reads as a quote); then `## heading`, `---`, `end`. Step 7 draws three bullets in one list with the line under the empty middle one at the item's text indent. The quoted list is a separate Docs list (its own `listId`), with offset bars. Its export is `- a`, `- `, `  ---` (no blank line after the empty marker), a blank line, `- b`, a blank line, then `> - qa`, `>`, `>   qb`, `>`, `> - qc`, `>`, `> after`. Cleanup: the five docs trashed.
+
+### TC-DOC247: A table cell's horizontal alignment is applied, from Markdown columns and HTML cells, nested and merged cells included (#1095) ⚠️ requires-oauth
+**Purpose:** a GFM `:--`/`:-:`/`--:` delimiter row had no effect: every cell was left-aligned (#1095). markdown-it writes `style="text-align:…"` on each `<th>`/`<td>`, which the HTML parser didn't read. A cell's alignment, from `text-align` or else the `align` attribute, now becomes the paragraph alignment of every paragraph in that cell, applied after the fill. TC-MD113 (TB-02, TB-10) and the C13 checks grade the Markdown rendering across every entry point; this case covers the HTML spellings, nested and merged cells, an empty cell, and the replace path.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC247 md", folder_id={FOLDER_ID}, content_format="markdown", content="Intro\n\n| Left | Center | Right | Plain |\n|:-----|:------:|------:|-------|\n| a | b | c | d |\n| left text | centered text | right text | plain text |\n\nBetween\n\n| Item | Est. (€) |\n|------|---------:|\n| Hotel | 540 |\n")`; call its `docId` `{MD}`
+2. `create_doc(title="TC-DOC247 html", folder_id={FOLDER_ID}, content="<p>Before</p><table><tr><td style=\"text-align:right\">outer before<table><tr><td style=\"text-align:center\">inner centered</td><td>inner plain</td></tr></table>outer after</td><td align=\"center\"></td></tr><tr><td colspan=\"2\" style=\"text-align:center\">merged centered</td></tr><tr><td align=\"center\" style=\"text-align:left\">css wins</td><td style=\"text-align:justify\">justified text that is long enough to wrap across more than one line inside its narrow table cell</td></tr></table><p>After</p>")`
+3. `write_doc_content(doc_id={MD}, content_format="markdown", content="| A | B |\n|--:|:-:|\n| 1 | 2 |\n")`
+4. In Playwright, click into step 2's empty top-right cell and type `typed`
+
+**Checks**
+- Step 1 returns `docId` with no `error`. On screen, in the first table the Left column is left-aligned, Center centered and Right right-aligned in every row, header included; Plain is left-aligned. In the second table "Est. (€)", "540" are right-aligned and "Item", "Hotel" left. "Intro" and "Between" stay left-aligned
+- Step 2, on screen: "outer before" and "outer after" are right-aligned; in the nested table "inner centered" is centered and "inner plain" left-aligned (the outer cell's alignment doesn't reach it); "merged centered" is centered across the merged cell; "css wins" is left-aligned (`text-align` beats `align`); the long text is justified (both edges flush on every line but the last). "Before" and "After" stay left-aligned
+- Step 3: the doc holds only the new table, "A" and "1" right-aligned, "B" and "2" centered
+- Step 4: "typed" appears centered: the empty cell got its alignment too
+
+**Cleanup:** `delete_file` the two docs
