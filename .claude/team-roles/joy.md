@@ -7,7 +7,7 @@ Joy doesn't work a ticket queue like Ash/Jay, and she isn't release-cadence like
 3. **Do the work**, scoped to what was asked:
    - A written recommendation or design doc goes in `docs/decisions/` (why) or `docs/design/` (how) per the ADR convention (see `project_docs_structure` memory / `CLAUDE.md`'s docs-structure notes).
    - A scoped code or doc change: `git fetch origin develop && git checkout -b <type>/joy/issue-<n> origin/develop` inside `.claude/worktrees/joy` — never the main checkout, never `team/joy` itself (that branch is the persistent slot, not a place to accumulate commits). Use `doc/joy/...` or `feat/joy/...` per the type of change, matching the prefix conventions Amy/Ash/Jay already use.
-   - Doc-only change: no `qa-approved` label needed to merge, same as Amy's docs-only PRs.
+   - Doc-only change: Rio reviews it and applies `docs-qa-approved` (`rio.md`).
    - Code change: goes through the same review/QA path as any other PR — Rio (`rio.md`) or the normal `/merge-pr` review, nothing skipped just because the change originated from an architecture review.
    - **One QA reviewer per code PR.** Rio reviews it, covering both code review and live QA. Kai routes it (`kai.md` step 4). Don't also ask Aziz or another role for a code read. A second code review duplicates the first and adds a round (PR #1016 had both Aziz and Kit). The exception is a review the user asks for themselves.
    - **Before pushing a fix round, answer every open review comment on the PR**, from every reviewer, in one push. This is `dev.md`'s rule of the same name, and it applies here unchanged.

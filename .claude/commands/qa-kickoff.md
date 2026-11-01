@@ -1,4 +1,4 @@
-Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to the partner Dev's PR branch. Determine which case applies, then send the user **exactly** the block below as your next message — verbatim, no rewording, no splitting across turns — except substitute `<name>` with this role's own lowercase name (e.g. `sky`, `kit`) so the block is directly copy-pasteable, and drop the `/mcp reconnect` line when the "No server-code change" rule below applies:
+Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to the partner Dev's PR branch. Determine which case applies, then send the user **exactly** the block below as your next message — verbatim, no rewording, no splitting across turns — except substitute `<name>` with this role's own lowercase name (e.g. `sky`, `kit`) so the block is directly copy-pasteable, and drop the `/mcp reconnect` line when the "No server-code change" rule below applies, or send nothing when the "Docs-only PR" rule applies:
 
 **First QA pass on this PR** (no `/code-review` has run against it yet this cycle):
 
@@ -14,6 +14,8 @@ Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to
 ```
 
 **No server-code change, no reconnect:** if `git diff --name-only origin/develop...HEAD` lists nothing under `src/` and neither `pyproject.toml` nor `uv.lock` (a dependency change alters what the `uv run`-launched server imports), leave the `/mcp reconnect` line out of either block, because the live server never runs the changed code. A re-verification round in that case sends the user nothing and goes straight to the fix commit. PR #866 (a Claude Code hook script) asked for two reconnects that verified nothing.
+
+**Docs-only PR, no `/code-review`:** if `git diff --name-only origin/develop...HEAD` lists only paths under `docs/`, send the user nothing on a first pass either. `/code-review` looks for code defects, and a docs-only diff has none to find. This replaces only `/code-review`; `qa.md` step 4's live run of any touched `docs/qa/tests/` case still applies. In its place, read the diff yourself and check every claim it makes against its source: the code at this head for a description of code, and GitHub's live state (`gh issue view`, `gh pr view`) for a roadmap or status line. PR #1318 (a roadmap edit) asked for a `/code-review` that had nothing to review.
 
 On a re-verification round, do not ask for `/code-review` again. After the reconnect lands, run `git show <fix-sha>` on the Dev's new commit yourself and live-verify against its own new QA test case (see `.claude/team-roles/qa.md` Retro). Fall back to a full `/code-review` only if the fix's diff is structurally larger than the named finding, or unrelated commits landed in between.
 

@@ -30,6 +30,7 @@ Once there's a go-ahead, follow `qa.md` from step 1 under "One found" through st
 - `<Name>` in the verdict line as `Rio`.
 - `/notify-partner` in step 7 as: if the author's session is listed by `ListAgents`, send it the verdict line and comment URL with `SendMessage`. Either way, tell the user and Kai that it went back to the author.
 - `/qa-kickoff`'s `<name>` as `rio`.
+- `qa-approved` in step 8 as `docs-qa-approved` when every path in `gh pr view <number> --json files` is under `docs/` and none is under `docs/qa/` (user instruction, 2026-10-31); this is what "docs-only" means for the label. `docs-qa-approved` means each claim in the diff was checked against its source, the code at this head or GitHub's live state, with no live run. `qa-approved` on a `docs/qa/` PR means every touched test case was run live and its Result recorded (`qa.md` steps 4–5), the same as on a code PR. `/notify-kai` fires for either. In step 1, remove whichever of the two labels the PR carries, whatever its head changes now.
 
 `qa.md`'s "One PR per session" rule binds Rio, including its QA-docs exception. Rio has no partner Dev, so the exception reads: once this session has reset to any PR's branch, it never resets to a non-QA-docs head of a different PR; that needs `/clear`.
 
