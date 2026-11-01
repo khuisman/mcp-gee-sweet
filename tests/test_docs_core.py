@@ -779,6 +779,53 @@ class TestInlineStrikeBaselineHighlight:
         html_to_ast(html)
         assert time.perf_counter() - start < 5
 
+    @pytest.mark.parametrize(
+        "make",
+        [
+            lambda n: "<b>" * n + "<p>" + "<span>" * n + "</b>" * n + "</p>",
+            lambda n: "<table><tr><td><b>x<table><tr><td>" + "<span>" * n + "</b>" * n,
+            lambda n: (
+                "<table><tr><td><a href=x>x<table><tr><td>" + "<span>" * n + "<a href=y>l</a>" * n
+            ),
+            lambda n: "<a href=x>" + "<span>" * n + "<img src=i.png>" * n,
+        ],
+    )
+    def test_unreachable_tags_parse_in_linear_time(self, make):
+        # PR #1316 QA round 5, findings 1 to 3: at n = 2000 these took up to 7.7 s.
+        start = time.perf_counter()
+        html_to_ast(make(20000))
+        assert time.perf_counter() - start < 5
+
+    def test_rule_splits_block_with_open_tag(self):
+        # PR #1316 QA round 5, finding 6: the bold carries across the rule.
+        nodes = html_to_ast("<p><b>a<hr>b</b></p>")
+        assert [[(r.text, r.bold) for r in n.runs] for n in nodes] == [
+            [("a", True)],
+            [],
+            [("b", True)],
+        ]
+
+    @pytest.mark.parametrize(
+        ("html", "bold"),
+        [
+            ("<p><b>x</p><ul><li>item</li></ul>", True),
+            ("<p><b>x<ul><li>item</li></ul></p>", None),
+        ],
+    )
+    def test_formatting_past_a_list_depends_on_block_end(self, html, bold):
+        # PR #1316 QA round 5, finding 4: as on develop. An interrupting list ends
+        # the formatting (a browser would rebuild it); a closed block queues it.
+        assert html_to_ast(html)[-1].runs[0].bold is bold
+
+    def test_stray_anchor_end_in_cell_ends_outer_link(self):
+        # PR #1316 QA round 5, finding 5, kept as on develop: hiding the link in
+        # the cell would leave it open after the table, dropping later top-level
+        # text as wrapped.
+        html = "<a href='u'><table><tr><td>c</a></td></tr></table>after<img src='i.png'>"
+        nodes = html_to_ast(html)
+        assert nodes[1].runs[0].text == "after"
+        assert nodes[-1].runs[-1].link_url is None
+
     def test_link_in_cell_keeps_link_queued_before_table(self):
         # PR #1316 QA round 4, finding 3: the cell hides the queued link, which
         # reopens after the table, as a queued <b> does.
