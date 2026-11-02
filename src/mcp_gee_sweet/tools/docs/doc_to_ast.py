@@ -531,6 +531,23 @@ def _resolve_inline_image(
     )
 
 
+def _cell_alignment(content: list[dict]) -> str | None:
+    """A table cell's horizontal alignment (#1337) — the read-side mirror of
+    the write side, which styles every paragraph of an aligned cell at once:
+    START, CENTER, END or JUSTIFIED when every paragraph in the cell carries
+    one and the same explicit alignment, else None. A cell whose paragraphs
+    disagree, or that leaves the alignment unset, exports as None so its
+    column renders an unaligned `---` delimiter instead of a false one."""
+    alignments = {
+        elem["paragraph"].get("paragraphStyle", {}).get("alignment")
+        for elem in content
+        if "paragraph" in elem
+    }
+    if len(alignments) == 1 and None not in alignments:
+        return next(iter(alignments))
+    return None
+
+
 def _table_elem_to_ast(table: dict, document: dict) -> Table:
     """A merged cell (colspan/rowspan > 1) does NOT remove the physical
     tableCells[] entries it covers — Google's Docs API leaves an empty,
@@ -570,6 +587,7 @@ def _table_elem_to_ast(table: dict, document: dict) -> Table:
                     children=_cell_content_to_children(doc_cell.get("content", []), document),
                     colspan=colspan,
                     rowspan=rowspan,
+                    alignment=_cell_alignment(doc_cell.get("content", [])),
                 )
             )
             for dr in range(rowspan):
