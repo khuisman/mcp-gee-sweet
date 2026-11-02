@@ -1385,6 +1385,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-01, PR #1356 QA round 2 @ 7bc387f3, Kit) PARTIAL — Run 1, EP-1 only; the round was sent back before the full matrix.** EP-1 (`create_doc`, Markdown): LB-01 to LB-04 match on screen, as EP-3 did in round 1. Round 1's three probes now render as a browser shows them: `<p>text<br></p>` has no blank line, `<p><br></p>` is one empty line, and a `<br>` after a nested list adds no gap. Two new defects on screen: `<p><br><br></p>` is one empty line where a browser shows two, and bare text `Line one<br>\nLine two` shows a blank line between the two lines. Not run yet: EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2.
 
+**Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
+
 ---
 
 ## Known gaps and not-applicable
