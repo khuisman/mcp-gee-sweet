@@ -945,5 +945,30 @@ class TestLineBreakQaRound1:
         html = "Intro\n<ul><li>x</li></ul>\nLine two\nLine three"
         assert _html_inserted_text(html).endswith("Line two\nLine three\n")
 
+    @pytest.mark.parametrize(("brs", "text"), [(2, "\v"), (3, "\v\v")])
+    def test_several_brs_keep_all_but_the_last(self, brs, text):
+        # PR #1356 QA round 2, finding 1: "\v" passed str.strip() as empty.
+        html = "<p>" + "<br>" * brs + "</p>"
+        assert _text(html_to_ast(html)[0]) == text
+        assert _html_inserted_text(html) == text + "\n"
+
+    @pytest.mark.parametrize(
+        ("html", "inserted"),
+        [
+            ("Line one<br>\nLine two", "Line one\nLine two\n"),
+            # Bare text keeps its own spaces, as before this PR.
+            ("Line one<br>  \n  Line two", "Line one  \n  Line two\n"),
+            ("Line <b>one<br></b>\nLine two", "Line one\nLine two\n"),
+            ("Line one<br><br>\nLine two", "Line one\v\nLine two\n"),
+            ("Line one<br>Line two\nLine three", "Line one\vLine two\nLine three\n"),
+        ],
+    )
+    def test_bare_text_br_before_a_line_break_draws_no_line(self, html, inserted):
+        # Finding 2: the "\v" ending a bare-text line was an extra empty line.
+        assert _html_inserted_text(html) == inserted
+
+    def test_bare_text_authored_vertical_tab_before_a_line_break_stays(self):
+        assert _html_inserted_text("a\x0b\nb") == "a\x0b\nb\n"
+
     def test_text_in_tags_still_collapses(self):
         assert _html_inserted_text("<p>Line one\nLine two</p>") == "Line one Line two\n"

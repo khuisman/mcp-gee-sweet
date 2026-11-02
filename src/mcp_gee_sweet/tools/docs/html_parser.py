@@ -787,7 +787,16 @@ class _AstParser(HTMLParser):
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
         text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
-        if dropped_break and not text and not has_image and tag == "p" and not self._block_resumed:
+        # Not `not text`: str.strip() strips "\v" too, so `<p><br><br></p>` (one "\v"
+        # left, two lines on screen) would count as empty (PR #1356 QA round 2).
+        only_break_dropped = all(c in _ASCII_FORMATTING_WHITESPACE for c in raw_text)
+        if (
+            dropped_break
+            and only_break_dropped
+            and not has_image
+            and tag == "p"
+            and not self._block_resumed
+        ):
             # `<p><br></p>`, an editor's empty line: one empty paragraph, as a browser
             # shows it. Any whitespace around the break goes with it.
             runs = []
@@ -1547,6 +1556,15 @@ class _AstParser(HTMLParser):
                 data = _without_line_break_edge(data, leading=True)
                 if not data:
                     return
+            if self._block_implicit and self._ends_with_line_break:
+                head, newline, _ = data.partition("\n")
+                if newline and all(c in _ASCII_FORMATTING_WHITESPACE for c in head):
+                    # Bare text keeps its source line breaks as paragraph breaks, so a
+                    # <br> right before one ends a paragraph, where it draws no line
+                    # (_drop_final_line_break; PR #1356 QA round 2).
+                    self._flush_run()
+                    self._pending_runs, _ = _drop_final_line_break(self._pending_runs)
+                    self._ends_with_line_break = False
             if not all(c in _ASCII_FORMATTING_WHITESPACE for c in data):
                 self._ends_with_line_break = False
             self._run_buf.append(data)
