@@ -153,7 +153,8 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Strikethrough | (none) | `<s>` | Already handled (`_INLINE_STRIKE`). |
 | Table alignment | `align="left"` | `style="text-align:left"` | Neither was read at this PR; no AST field for column alignment. No regression. Since #1095 both are read into `Cell.alignment` (`text-align` first). |
 | Code block language | `class="language-x"` | same | Unchanged. |
-| Hard break | `<br />\n` | same | Unchanged; the double break it produces is #1117. Now reachable from a trailing `\` too. |
+| Hard break | `<br />\n` | same | Unchanged at this PR; the double break it produced was #1117. Now reachable from a trailing `\` too. Since #1230 a `<br>` is a `"\v"` line break inside the paragraph, and the source line break after it is dropped. |
+| Soft break | `a\nb` | same | Unchanged at this PR; it split the paragraph (#1093). Since #1230 it's a space. |
 | Two quotes | one `<blockquote>`, two `<p>` | two `<blockquote>` | Renders as two quotes (#1098's emitter work). |
 | Empty item | (not produced) | `<li></li>` | An empty bullet (#1075). |
 | Output | no trailing newline | ends in `\n` | Harmless; one exact-match test updated. |

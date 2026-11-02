@@ -141,8 +141,68 @@ def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
 
 
 class _LineBreak(str):
-    """The "\\n" a <br> puts in the run buffer, told apart from source text so trimming
-    source whitespace before a block (_interrupt_open_block) never removes it."""
+    """The break a <br> puts in the run buffer, told apart from source text so trimming
+    source whitespace before a block (_interrupt_open_block) never removes it. It's
+    "\\v" (#1117, #1091), the line break the Docs API keeps inside one paragraph, like
+    Shift+Enter; a "\\n" would start a new paragraph. Inside <pre> it's "\\n", the
+    code's own line break, which the emitter turns into "\\v" for the whole block."""
+
+
+# Whitespace holding a source line break: a Markdown soft break, or a line break in
+# HTML source text (#1093).
+_SOFT_BREAK = re.compile(r"[ \t\r\n]*\n[ \t\r\n]*")
+# What an Image stands for in _collapse_soft_breaks' joined text: content, never
+# whitespace and never a line break.
+_IMAGE_PLACEHOLDER = "￼"
+
+
+def _collapse_soft_breaks(runs: list[Run | Image]) -> list[Run | Image]:
+    """`runs` with each source line break inside the text written as a browser shows it
+    (#1093): the whitespace around it becomes one space, or nothing next to a <br>'s
+    "\\v", which already breaks the line. Only ASCII formatting whitespace collapses, so
+    an authored "&nbsp;" stays. The stretch's space goes in the run where it starts.
+
+    A stretch at either end of the text is left as it is: whitespace at a block's edges
+    is #1229's question, and the trimming rules for a segment's edges (#402, #444,
+    #1116) already decide what reaches here. So is <pre> text, whose line breaks are
+    the code's, and a table cell's, which is #1221's. Returns new Run objects; the
+    caller's are never changed."""
+    texts = [r.text if isinstance(r, Run) else _IMAGE_PLACEHOLDER for r in runs]
+    joined = "".join(texts)
+    if "\n" not in joined:
+        return runs
+    edits: list[tuple[int, int, str]] = []
+    for match in _SOFT_BREAK.finditer(joined):
+        start, end = match.span()
+        if start == 0 or end == len(joined):
+            continue
+        at_line_break = joined[start - 1] == "\v" or joined[end] == "\v"
+        edits.append((start, end, "" if at_line_break else " "))
+    if not edits:
+        return runs
+    result: list[Run | Image] = []
+    run_start = 0
+    for run, text in zip(runs, texts, strict=True):
+        run_end = run_start + len(text)
+        if isinstance(run, Image):
+            result.append(run)
+            run_start = run_end
+            continue
+        pieces = []
+        pos = run_start
+        for start, end, replacement in edits:
+            if end <= run_start or start >= run_end:
+                continue
+            pieces.append(joined[pos : max(start, run_start)])
+            if start >= run_start:
+                pieces.append(replacement)
+            pos = min(end, run_end)
+        pieces.append(joined[pos:run_end])
+        new_text = "".join(pieces)
+        if new_text:
+            result.append(replace(run, text=new_text))
+        run_start = run_end
+    return result
 
 
 @dataclass
@@ -655,6 +715,9 @@ class _AstParser(HTMLParser):
         Run at all, must never hit the empty-drop path below just because
         joining its (nonexistent) Run text yields "".
         """
+        if tag != "pre":
+            # A <pre> interrupted by a nested block lands here too; its text is literal.
+            runs = _collapse_soft_breaks(runs)
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
         text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
@@ -1097,7 +1160,8 @@ class _AstParser(HTMLParser):
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
             elif tag == "br":
-                self._run_buf.append(_LineBreak("\n"))
+                in_pre = self._in_pre or self._cell_pre_depth > 0
+                self._run_buf.append(_LineBreak("\n" if in_pre else "\v"))
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an

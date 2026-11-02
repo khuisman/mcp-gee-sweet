@@ -1365,6 +1365,24 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 
 ---
 
+## Line breaks
+
+How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a hard break or `<br>` (a line break inside the paragraph, `\v`) in the blocks that keep a paragraph style (#1230). TC-MD114's BR-01 to BR-03 and TC-MD116's HT-03 cover them in a plain paragraph.
+
+### TC-MD504: Line breaks inside headings, list items and quotes ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/line-breaks.md` through EP-1 to EP-4 and EP-8. Also run TC-MD114's BR-01 to BR-03, TC-MD116's HT-03, TC-MD108's LX-04 and TC-MD110's BQ-07 through EP-1 to EP-4: #1093's and #1117's done-when. Two runs, with an on-screen check.
+
+**Checks** (read the stored text with `get_doc_structure`, whose paragraph text shows a `\v`)
+- LB-01: one `HEADING_2` paragraph, "Heading one`\v`heading two"; on screen, two lines in heading style with no paragraph gap between them.
+- LB-02: three top-level numbered items, 1–3, in one list. Item 1 is one paragraph, "The first week matters most. New hires who had a buddy were 2.3x more likely to rate onboarding as good.", with only "The first week matters most." bold. Item 2 is "Second item`\v`after a hard break", with one marker. The nested item is one level-1 bullet, "nested`\v`item". Item 3 is numbered 3.
+- LB-03: one quoted paragraph (left bar, 36pt indent), "Quoted text written across two lines`\v`then a break.", one bar on screen.
+- LB-04: the image and "continues the same paragraph." in one paragraph, with a space before "continues".
+- Round trip: `get_doc_as_markdown` on the EP-1 Doc, then `create_doc(content_format="markdown")` with that output. Each `\v` above comes back as a `\v` in the same paragraph, not as a second paragraph.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").
