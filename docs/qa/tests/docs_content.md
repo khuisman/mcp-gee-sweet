@@ -6836,3 +6836,6 @@ Live on `mcp-gee-sweet-sky` at 10923b31, after `/mcp reconnect` (OAuth, Shared D
 - Step 5: no `error`. The Markdown's V/W table now has an empty third row and is still inside the quote
 
 **Cleanup:** `delete_file` both docs
+
+**Result (2026-11-01) ✅ PASS — PR #1359 round 1 (Sky)**
+Live on `mcp-gee-sweet-sky` at aa397141, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all five steps, checked on screen with Playwright. Step 1: "One quote" has one unbroken bar from the first line, beside the V/W table, to the last line, with V/3 left-aligned and W/4 right-aligned; "First quote.", the T/U table and "Third quote." are three bars with gaps; "Inner line" and the N/M table share the second-level bar; "Quote in item" and the A/B table share one bar at the item's text indent, and "Item two" continues the list; the C/D table has a bar at "Quoted item"'s text indent, and "Quoted item two" is the next bullet; Plain/Table sits at the margin with no bar. Step 2: the bar runs from "Sized quote" down beside a narrow table, with "merged" spanning both columns. Step 3: the Markdown matches every check. Step 5: `insert_table_row` at `{P}`+1 (29) added an empty third row, and the V/W table is still inside the quote. Cleanup: both docs trashed.
