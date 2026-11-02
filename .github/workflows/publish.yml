@@ -85,7 +85,7 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           # At distance 0 from a tag the dev track builds the bare stable
           # version (e.g. develop fast-forwarded onto a release tag that
