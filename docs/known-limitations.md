@@ -29,6 +29,27 @@ Related: #190.
 
 ---
 
+### A quoted table is a table inside a 1x1 wrapper table
+
+**What:** A table inside a blockquote (Markdown `> | a | b |`, or HTML `<blockquote><table>`)
+is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
+gray bar (#1122). `get_doc_structure` reports the wrapper as the top-level table, with the
+quoted table nested in its cell, so table tools that take a table's position
+(`insert_table_row`, `merge_table_cells`, and so on) reach the wrapper, not the table you
+see. Removing the wrapper in the Docs editor removes the bar but leaves the table.
+
+**Why:** The Docs API can't give a table a paragraph border, so a bar beside a table has to
+come from a table cell's border. Without the wrapper, a quoted table sat at the quote's
+indent with a gap in the bar beside it.
+
+**Workaround:** To edit a quoted table's rows or columns with the table tools, pass the
+quoted table's own `table_start_index`: one more than the wrapper cell's
+`paragraphStartIndex` in `get_doc_structure`, since the cell's first paragraph is an empty
+line before the table. Or rewrite the content with `write_doc_content`. `get_doc_as_markdown` reads the wrapper back
+as the quoted table (`> | a | b |`).
+
+---
+
 ### `get_doc_structure` — top-level body elements only
 
 **What:** `get_doc_structure` reports elements in the document body at the top level only.

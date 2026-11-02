@@ -56,9 +56,27 @@ def document_to_ast(document: dict) -> list[DocNode]:
                 items.block(node, para)
             nodes.append(node)
         elif "table" in elem:
-            table = _table_elem_to_ast(elem["table"], document)
+            wrapped = _quote_bar_wrapped(elem["table"])
+            if wrapped is None:
+                table = _table_elem_to_ast(elem["table"], document)
+                items.table(table)
+            else:
+                # A quoted table in its quote-bar wrapper (#1122): placed by the quote
+                # indent the wrapper records, like a quoted paragraph.
+                inner, indent = wrapped
+                table = _table_elem_to_ast(inner, document)
+                table.blockquote_depth = max(1, round(indent / _BLOCKQUOTE_INDENT_PT_PER_LEVEL))
+                pstyle = {
+                    "indentStart": {"magnitude": indent},
+                    "indentFirstLine": {"magnitude": indent},
+                    "borderLeft": {"width": {"magnitude": 1}},
+                }
+                items.block(table, {"paragraphStyle": pstyle})
+                if nodes and _is_bare_empty_paragraph(nodes[-1]):
+                    # The newline insertTable puts before every table. Kept, it read
+                    # as a blank line that ended the quote before its table.
+                    nodes.pop()
             nodes.append(table)
-            items.table(table)
         # sectionBreak, tableOfContents: no Markdown equivalent, silently skipped
         # — same "unsupported construct" convention html_parser.py uses on write.
     items.close()
@@ -123,7 +141,7 @@ class _ListItemContext:
         self._lists.append(list_id)
         self._depth = depth
 
-    def block(self, node: Heading | Paragraph | NamedBlock, para: dict) -> None:
+    def block(self, node: Heading | Paragraph | NamedBlock | Table, para: dict) -> None:
         if not self._lists:
             return
         pstyle = para.get("paragraphStyle", {})
@@ -529,6 +547,57 @@ def _resolve_inline_image(
         height=size.get("height", {}).get("magnitude"),
         link_url=link_url,
     )
+
+
+def _is_bare_empty_paragraph(node: DocNode) -> bool:
+    return (
+        isinstance(node, Paragraph)
+        and not node.runs
+        and not node.rule
+        and node.blockquote_depth == 0
+        and node.list_depth is None
+    )
+
+
+def _quote_bar_wrapped(table: dict) -> tuple[dict, float] | None:
+    """The table inside emitter.py's quote-bar wrapper (#1122) and the quote indent the
+    wrapper records, or None when `table` isn't one. A wrapper is a 1x1 table whose cell
+    has a left border and no other, and holds one table among empty paragraphs, the
+    first of them indented to the quote (`_build_quote_bar_requests`). A user's own 1x1
+    table around another one has every border, so it reads as a nested table, as before.
+    """
+    rows = table.get("tableRows", [])
+    if len(rows) != 1:
+        return None
+    cells = rows[0].get("tableCells", [])
+    if len(cells) != 1:
+        return None
+    style = cells[0].get("tableCellStyle", {})
+
+    def width(side: str) -> float:
+        return style.get(side, {}).get("width", {}).get("magnitude", 0)
+
+    if width("borderLeft") <= 0 or any(
+        width(side) > 0 for side in ("borderTop", "borderRight", "borderBottom")
+    ):
+        return None
+    content = cells[0].get("content", [])
+    nested = [elem["table"] for elem in content if "table" in elem]
+    paragraphs = [elem["paragraph"] for elem in content if "paragraph" in elem]
+    if len(nested) != 1 or len(nested) + len(paragraphs) != len(content):
+        return None
+    if "paragraph" not in content[0]:
+        # The recorded indent is on the paragraph before the table.
+        return None
+    if any(
+        "".join(el.get("textRun", {}).get("content", "") for el in p.get("elements", [])) != "\n"
+        for p in paragraphs
+    ):
+        return None
+    indent = paragraphs[0].get("paragraphStyle", {}).get("indentStart", {}).get("magnitude", 0)
+    if indent <= 0:
+        return None
+    return nested[0], indent
 
 
 def _table_elem_to_ast(table: dict, document: dict) -> Table:

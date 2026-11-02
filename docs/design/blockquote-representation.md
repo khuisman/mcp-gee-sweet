@@ -184,9 +184,43 @@ its indent. Since #1097 each table is inserted at a plain placeholder paragraph 
 instead (see `docs-ast-pipeline.md`), so none of it reaches the table, and the reset above
 stays as a backstop. A table inside a quote used to get the quote's indent only by that
 accident, from the quote paragraph after it. Now the parser records its quote depth on
-the `Table` (`blockquote_depth`, no path), and its placeholder gets the quote's indent
-(36pt per level) and no border. A table can't take a left border, so a quoted table sits
-indented between the quote's bordered paragraphs, with a gap in the bar beside it.
+the `Table`, and its placeholder gets the quote's indent (36pt per level).
+
+### A quoted table's bar (#1122)
+
+A table can't take a paragraph border, so after #1097 a quoted table sat at the quote's
+indent with a gap in the bar beside it. Now the emitter puts a quoted table in the one
+cell of a 1x1 wrapper table (`_wrap_quoted_tables`, `Table.quote_bar`), and the wrapper's
+left cell border is the bar.
+
+- **Placement.** Docs draws a paragraph's bar its padding (8pt) plus its width (3pt) left
+  of the indent, and a table's border centered on the table's edge. So the wrapper's
+  placeholder sits `_QUOTE_BAR_OFFSET_PT` (9.5pt) left of the quote's indent, and its bar
+  lines up with the quote paragraphs' bar. A nested table starts at its cell's left
+  padding, not past the border, so a 9.5pt left padding puts the quoted table back at the
+  quote's indent, where #1097 had it. Both confirmed live.
+- **The wrapper's cell.** The API rejects a transparent cell border, so the wrapper's top,
+  right and bottom borders are 0pt wide, with no padding but the left. Docs keeps an
+  empty paragraph before and after a table in a cell; `_build_quote_bar_requests` collapses
+  both after the fill, so the bar hugs the table.
+- **Quote membership.** A quoted table carries `blockquote_path` (the parser sets it at
+  `</table>`, like every leaf node), and it counts as quoted for separators and
+  quote-edge spacing (`_in_quote`): a quote's paragraphs and its table get no space
+  between them, so their bars meet, and two separate quotes that meet at a table get a
+  separator. A table can't take space below it, so after a table the quote following the
+  separator takes the gap instead. `_quoted` still excludes tables, because a table never
+  takes a paragraph border or spacing of its own.
+- **Read side.** `doc_to_ast` recognizes the wrapper by its whole signature
+  (`_quote_bar_wrapped`: 1x1, a left border and no other, one table among empty
+  paragraphs) and reads the quoted table it holds. A table has no indent in the API, so
+  the wrapper's first empty paragraph records the quote's indent (the list item's text
+  indent included) for the read side to place it, as it places a quoted paragraph. The
+  newline `insertTable` puts before the wrapper is dropped on read, since it would end
+  the quote in the Markdown. `ast_to_markdown` writes a quoted table's `>` markers, and the
+  blank line between two blocks in one item that share a quote carries that quote.
+- **Cost.** The wrapper is a real table: `get_doc_structure` and the table tools see a
+  1x1 table holding the quoted one (`known-limitations.md`). Widths, merges, cell styles,
+  alignment and cell images all go on the table inside, through the nested-table fill.
 
 **Markdown input was affected by the parser until #1116.** Python-Markdown parsed `> a`, a
 blank line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes,

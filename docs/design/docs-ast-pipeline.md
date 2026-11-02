@@ -225,9 +225,10 @@ every other field at its default), then `updateTextStyle` with `fields: "*"`. It
 after the bullet pass because a table between two same-preset list items sits inside
 their one `createParagraphBullets` range: the run skips Table nodes, so both items stay
 one list, and the placeholder loses its bullet afterward (PR #1201 QA round 1). A table
-inside a quote (`Table.blockquote_depth`, set by the parser) gets the quote's indent on
-its placeholder, 36pt per level, and no border. It still doesn't count as quoted for
-separators or quote-edge spacing. The table is inserted at the placeholder, which `insertTable` pushes to just
+inside a quote (`Table.blockquote_depth`, set by the parser) is put in a 1x1 wrapper
+table whose left cell border is the quote bar (#1122, `blockquote-representation.md`).
+The wrapper's placeholder sits 9.5pt left of the quote's indent, so its bar lines up with
+the quote's, and the table inside it lands at the quote's indent. The table is inserted at the placeholder, which `insertTable` pushes to just
 after the table, and a `deleteContentRange` right after the `insertTable` removes it, at
 `position + _inserted_table_length(rows, columns)`. Deleting the paragraph *after* a
 table is allowed; only the one before it is structurally required (see

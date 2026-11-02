@@ -2444,3 +2444,158 @@ class TestAdjacentQuotedBlocksStayOneQuote:
             [Paragraph(runs=[Run("a")], blockquote_depth=1), Paragraph(runs=[Run("b")])]
         )
         assert markdown_text == "> a\n\nb\n"
+
+
+def _quote_bar_wrapper(indent, inner=None, *, borders=None):
+    """A quoted table as emitter.py writes it (#1122): a 1x1 wrapper whose cell has only
+    a left border and holds the table between two empty paragraphs, the first recording
+    the quote's indent."""
+    zero = {"width": {}}
+    style = borders or {
+        "borderLeft": {"width": {"magnitude": 3}},
+        "borderTop": zero,
+        "borderRight": zero,
+        "borderBottom": zero,
+    }
+    content = [
+        _para("\n", para_style=_indents(indent)),
+        inner or _one_cell_table("k"),
+        _para("\n"),
+    ]
+    cell = {"tableCellStyle": style, "content": content}
+    return {"table": {"tableRows": [{"tableCells": [cell]}]}}
+
+
+class TestQuotedTableReadBack:
+    """#1122: a quoted table is written inside a 1x1 wrapper table whose left border is
+    the quote bar. Reading it back unwraps it into the quoted table it holds."""
+
+    def _nodes(self, content):
+        return document_to_ast({"body": {"content": content}, "lists": {}})
+
+    def test_wrapper_reads_as_a_quoted_table(self):
+        (table,) = self._nodes([_quote_bar_wrapper(36)])
+        assert isinstance(table, Table)
+        assert (table.blockquote_depth, table.list_depth) == (1, None)
+        assert [[c.children for c in r.cells] for r in table.rows] == [[[Run("k")]]]
+
+    def test_wrapper_depth_comes_from_the_recorded_indent(self):
+        (table,) = self._nodes([_quote_bar_wrapper(72)])
+        assert table.blockquote_depth == 2
+
+    def test_newline_before_the_wrapper_is_dropped(self):
+        nodes = self._nodes(
+            [
+                _para("Quote line\n", para_style=_indents(36, quoted=True)),
+                _para("\n"),
+                _quote_bar_wrapper(36),
+            ]
+        )
+        assert [type(n) for n in nodes] == [Paragraph, Table]
+
+    def test_newline_before_an_ordinary_table_is_kept(self):
+        nodes = self._nodes([_para("a\n"), _para("\n"), _one_cell_table()])
+        assert [type(n) for n in nodes] == [Paragraph, Paragraph, Table]
+
+    def test_one_cell_table_with_every_border_stays_a_nested_table(self):
+        width = {"width": {"magnitude": 1}}
+        sides = ("borderLeft", "borderTop", "borderRight", "borderBottom")
+        (table,) = self._nodes([_quote_bar_wrapper(36, borders=dict.fromkeys(sides, width))])
+        assert table.blockquote_depth == 0
+        assert any(isinstance(child, Table) for child in table.rows[0].cells[0].children)
+
+    def test_wrapper_without_a_recorded_indent_stays_a_nested_table(self):
+        (table,) = self._nodes([_quote_bar_wrapper(0)])
+        assert table.blockquote_depth == 0
+
+    def test_wrapper_with_text_in_its_cell_stays_a_nested_table(self):
+        wrapper = _quote_bar_wrapper(36)
+        wrapper["table"]["tableRows"][0]["tableCells"][0]["content"][2] = _para("text\n")
+        (table,) = self._nodes([wrapper])
+        assert table.blockquote_depth == 0
+
+    def test_wrapper_in_a_list_item_reads_inside_the_item(self):
+        # A quote inside an item, holding a table: the item's text at 36pt, plus a quote.
+        nodes = self._nodes(
+            [
+                _item("a"),
+                _para("Quote in item\n", para_style=_indents(72, quoted=True)),
+                _para("\n"),
+                _quote_bar_wrapper(72),
+                _item("b"),
+            ]
+        )
+        table = next(n for n in nodes if isinstance(n, Table))
+        assert (table.list_depth, table.blockquote_depth) == (0, 1)
+
+    def test_round_trip_keeps_one_quote(self):
+        md = ast_to_markdown(
+            self._nodes(
+                [
+                    _para("Quote line\n", para_style=_indents(36, quoted=True)),
+                    _para("\n"),
+                    _quote_bar_wrapper(36),
+                ]
+            )
+        )
+        assert md == "> Quote line\n>\n> | k |\n> | --- |\n"
+        html = _flat_html(md)
+        assert html.startswith("<blockquote><p>Quoteline</p><table>")
+        assert html.endswith("</table></blockquote>")
+
+
+class TestQuotedTableMarkdown:
+    """#1122: a quoted table writes its quote markers, at the margin and in an item, and
+    two quoted blocks in one item share one quote."""
+
+    def _table(self, **kwargs):
+        return Table(rows=[Row(cells=[Cell(children=[Run("k")])])], **kwargs)
+
+    def test_quoted_table_at_the_margin(self):
+        md = ast_to_markdown([self._table(blockquote_depth=2)])
+        assert md == "> > | k |\n> > | --- |\n"
+
+    def test_quoted_table_inside_an_item(self):
+        md = ast_to_markdown(
+            [BulletItem(runs=[Run("a")]), self._table(blockquote_depth=1, list_depth=0)]
+        )
+        assert md == "- a\n\n  > | k |\n  > | --- |\n"
+        html = _flat_html(md)
+        assert html.startswith("<ul><li><p>a</p><blockquote><table>")
+        assert html.endswith("</table></blockquote></li></ul>")
+
+    def test_quoted_paragraph_and_table_in_an_item_stay_one_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("item")]),
+                Paragraph(runs=[Run("a")], blockquote_depth=1, list_depth=0),
+                self._table(blockquote_depth=1, list_depth=0),
+            ]
+        )
+        assert md == "- item\n\n  > a\n  >\n  > | k |\n  > | --- |\n"
+        assert _flat_html(md).count("<blockquote>") == 1
+
+    def test_two_quoted_paragraphs_in_a_quoted_item_stay_one_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("item")], blockquote_depth=1),
+                Paragraph(runs=[Run("a")], blockquote_depth=2, list_depth=0),
+                Paragraph(runs=[Run("b")], blockquote_depth=2, list_depth=0),
+            ]
+        )
+        assert md == "> - item\n>\n>   > a\n>   >\n>   > b\n"
+        assert _flat_html(md) == (
+            "<blockquote><ul><li><p>item</p><blockquote><p>a</p><p>b</p>"
+            "</blockquote></li></ul></blockquote>"
+        )
+
+    def test_blocks_in_different_items_dont_share_a_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("x")]),
+                Paragraph(runs=[Run("a")], blockquote_depth=1, list_depth=0),
+                BulletItem(runs=[Run("y")]),
+                Paragraph(runs=[Run("b")], blockquote_depth=1, list_depth=0),
+            ]
+        )
+        assert _flat_html(md).count("<blockquote>") == 2

@@ -25,9 +25,12 @@ from mcp_gee_sweet.tools.docs.content import (
 from mcp_gee_sweet.tools.docs.emitter import (
     CellImages,
     _build_blank_para_before_table_collapses,
+    _build_cell_style_requests,
     _build_fill_requests,
     _build_merge_requests,
     _build_phantom_set,
+    _build_quote_bar_requests,
+    _build_width_requests,
     _inserted_table_length,
     _physical_to_ast_indices,
     _run_group_fill_requests,
@@ -3415,7 +3418,8 @@ class TestTablePlaceholder:
 class TestQuotedTable:
     """A table inside a blockquote is indented like the quote (#1097, PR #1201 QA round
     1): inserted at the following quote paragraph it took that indent by accident, and at
-    a plain placeholder it lost it. No border: the table doesn't take one."""
+    a plain placeholder it lost it. A table takes no paragraph border, so its quote bar
+    is a 1x1 wrapper table's left cell border (#1122), the table inside its cell."""
 
     def test_parser_records_quote_depth_on_a_top_level_table(self):
         nodes = html_to_ast(
@@ -3431,7 +3435,36 @@ class TestQuotedTable:
         (table,) = [n for n in nodes if isinstance(n, Table)]
         assert table.blockquote_depth == 1
 
-    def test_quoted_table_placeholder_indented_without_border(self):
+    def test_quoted_table_is_wrapped(self):
+        table = Table(
+            rows=[Row(cells=[Cell(children=[Run("x")])])],
+            col_widths=[50.0],
+            blockquote_depth=2,
+            list_depth=1,
+            list_path=(7,),
+        )
+        _, tables = ast_to_requests([Paragraph(runs=[Run("a")]), table])
+        (wrapper,) = tables
+        assert wrapper.quote_bar
+        assert (wrapper.blockquote_depth, wrapper.list_depth, wrapper.list_path) == (2, 1, (7,))
+        assert wrapper.col_widths == []
+        ((cell,),) = [row.cells for row in wrapper.rows]
+        (inner,) = cell.children
+        assert isinstance(inner, Table) and not inner.quote_bar
+        assert (inner.blockquote_depth, inner.list_depth, inner.list_path) == (0, None, ())
+        assert inner.rows is table.rows and inner.col_widths == [50.0]
+        # The caller's node is untouched.
+        assert (table.blockquote_depth, table.list_depth, table.quote_bar) == (2, 1, False)
+
+    def test_unquoted_and_degenerate_tables_are_not_wrapped(self):
+        plain = Table(rows=[Row(cells=[Cell(children=[Run("x")])])])
+        empty = Table(rows=[], blockquote_depth=1)
+        _, tables = ast_to_requests([plain, empty])
+        assert len(tables) == 1 and tables[0] is plain
+
+    def test_wrapper_placeholder_sits_left_of_the_quote_indent(self):
+        # The quote's paragraphs draw their bar 8pt padding + 3pt width left of the
+        # indent; the wrapper's border is centered on its edge, 9.5pt left of it.
         table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])], blockquote_depth=2)
         requests, _ = ast_to_requests([Paragraph(runs=[Run("a")]), table])
         rng = {"startIndex": 3, "endIndex": 4}
@@ -3442,14 +3475,34 @@ class TestQuotedTable:
         )
         assert style["paragraphStyle"] == {
             "namedStyleType": "NORMAL_TEXT",
-            "indentStart": {"magnitude": 72, "unit": "PT"},
-            "indentFirstLine": {"magnitude": 72, "unit": "PT"},
+            "indentStart": {"magnitude": 62.5, "unit": "PT"},
+            "indentFirstLine": {"magnitude": 62.5, "unit": "PT"},
         }
         assert style["fields"] == "*"
+        (insert,) = [r["insertTable"] for r in requests if "insertTable" in r]
+        assert (insert["rows"], insert["columns"]) == (1, 1)
 
-    def test_quoted_table_is_not_quoted_for_separators_or_spacing(self):
-        # Table.blockquote_depth is indent only: two quotes around a table still get
-        # quote-edge spacing against it, and no separator is added next to it.
+    def test_wrapper_placeholder_in_a_list_item_offsets_the_item_text_indent(self):
+        table = Table(
+            rows=[Row(cells=[Cell(children=[Run("x"), Run("y")]), Cell(children=[])])],
+            blockquote_depth=1,
+            list_depth=0,
+        )
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("a")]), table])
+        styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]
+            for r in requests
+            if r.get("updateParagraphStyle", {}).get("fields") == "*"
+        ]
+        # The item's text at 36pt, one quote level on top, less the bar offset.
+        assert styles[-1]["indentStart"] == {"magnitude": 62.5, "unit": "PT"}
+        # The wrapper is always 1x1, whatever the table inside it.
+        (insert,) = [r["insertTable"] for r in requests if "insertTable" in r]
+        assert (insert["rows"], insert["columns"]) == (1, 1)
+
+    def test_quoted_table_is_inside_the_quote_for_spacing(self):
+        # No quote-edge space between a quote's paragraphs and its table, so its bar
+        # meets theirs; the quote's own edges keep theirs. No separator next to it.
         nodes = html_to_ast(
             "<blockquote><p>a</p><table><tr><td>x</td></tr></table><p>b</p></blockquote>"
         )
@@ -3463,9 +3516,195 @@ class TestQuotedTable:
         assert spacing == [
             {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
             {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+        ]
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\n\nb\n"
+
+    def test_parser_records_quote_path_on_a_table(self):
+        nodes = html_to_ast(
+            "<blockquote><p>a</p></blockquote>"
+            "<blockquote><table><tr><td>x</td></tr></table></blockquote>"
+        )
+        para, table = nodes
+        assert isinstance(table, Table)
+        assert len(table.blockquote_path) == 1
+        assert table.blockquote_path != para.blockquote_path
+
+    def test_separate_quotes_meeting_at_a_table_get_a_separator(self):
+        # "> a", a blank line, then a quote holding only a table: two quotes, so the
+        # wrapper's bar mustn't join a's. The quote after a table takes the gap, since
+        # the table can't take space below it.
+        nodes = html_to_ast(
+            "<blockquote><p>a</p></blockquote>"
+            "<blockquote><table><tr><td>x</td></tr></table></blockquote>"
+            "<blockquote><p>b</p></blockquote>"
+        )
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        # a, separator, table placeholder, separator, b.
+        assert insert["insertText"]["text"] == "a\n\n\n\nb\n"
+        spacing = {
+            r["updateParagraphStyle"]["range"]["startIndex"]: r["updateParagraphStyle"][
+                "paragraphStyle"
+            ]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and set(r["updateParagraphStyle"]["paragraphStyle"]) & {"spaceAbove", "spaceBelow"}
+            and r["updateParagraphStyle"]["paragraphStyle"].get("lineSpacing") is None
+        }
+        assert spacing == {
+            1: {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
+            2: {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+            6: {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
+            7: {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+        }
+
+    def test_one_quote_around_a_table_gets_no_separator(self):
+        nodes = html_to_ast(
+            "<blockquote><p>a</p><table><tr><td>x</td></tr></table><p>b</p></blockquote>"
+        )
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "a\n\nb\n"
+
+    def test_unquoted_table_still_meets_a_quote_with_spacing(self):
+        nodes = html_to_ast("<blockquote><p>a</p></blockquote><table><tr><td>x</td></tr></table>")
+        requests, _ = ast_to_requests(nodes)
+        spacing = [
+            r["updateParagraphStyle"]["paragraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and set(r["updateParagraphStyle"]["paragraphStyle"]) & {"spaceAbove", "spaceBelow"}
+        ]
+        assert spacing == [
             {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
             {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
         ]
+
+
+def _live_wrapper(start: int, *, inner_start: int, inner_columns: int = 1) -> dict:
+    """A quote-bar wrapper (#1122) as the post-fill fetch returns it: its cell holds an
+    empty paragraph, the quoted table, and another empty paragraph."""
+    inner_cells = [
+        {"startIndex": inner_start + 2 + 2 * c, "content": []} for c in range(inner_columns)
+    ]
+    inner = {
+        "startIndex": inner_start,
+        "table": {"columns": inner_columns, "tableRows": [{"tableCells": inner_cells}]},
+    }
+    content = [
+        {"startIndex": start + 3, "endIndex": start + 4, "paragraph": {"elements": []}},
+        inner,
+        {"startIndex": 90, "endIndex": 91, "paragraph": {"elements": []}},
+    ]
+    return {
+        "startIndex": start,
+        "table": {
+            "columns": 1,
+            "tableRows": [{"tableCells": [{"startIndex": start + 2, "content": content}]}],
+        },
+    }
+
+
+class TestQuoteBarFill:
+    """#1122: after the fill, a quoted table's wrapper gets its bar, and its cell's
+    empty paragraphs are collapsed, the first recording the quote's indent. A quoted
+    table's widths and cell styles go on the table inside the wrapper."""
+
+    @staticmethod
+    def _wrapped(inner: Table, depth: int = 1, list_depth: int | None = None) -> Table:
+        quoted = Table(
+            rows=inner.rows,
+            col_widths=inner.col_widths,
+            blockquote_depth=depth,
+            list_depth=list_depth,
+        )
+        _, (wrapper,) = ast_to_requests([quoted])
+        return wrapper
+
+    def test_wrapper_gets_its_bar_and_padding(self):
+        wrapper = self._wrapped(Table(rows=[Row(cells=[Cell(children=[Run("x")])])]))
+        live = _live_wrapper(10, inner_start=14)
+        requests = _build_quote_bar_requests([live["table"]], [wrapper])
+        cell_style = requests[0]["updateTableCellStyle"]
+        assert cell_style["tableStartLocation"] == {"index": 10}
+        style = cell_style["tableCellStyle"]
+        assert style["borderLeft"]["width"] == {"magnitude": 3, "unit": "PT"}
+        for side in ("borderTop", "borderRight", "borderBottom"):
+            assert style[side]["width"] == {"magnitude": 0, "unit": "PT"}
+        assert style["paddingLeft"] == {"magnitude": 9.5, "unit": "PT"}
+        for side in ("paddingTop", "paddingRight", "paddingBottom"):
+            assert style[side] == {"magnitude": 0, "unit": "PT"}
+
+    def test_cell_paragraphs_collapse_and_the_first_records_the_indent(self):
+        wrapper = self._wrapped(
+            Table(rows=[Row(cells=[Cell(children=[Run("x")])])]), depth=1, list_depth=0
+        )
+        live = _live_wrapper(10, inner_start=14)
+        requests = _build_quote_bar_requests([live["table"]], [wrapper])
+        indent = [
+            r["updateParagraphStyle"]
+            for r in requests
+            if "indentStart" in r.get("updateParagraphStyle", {}).get("paragraphStyle", {})
+        ]
+        # The item's text at 36pt, plus one quote level; no border.
+        assert indent == [
+            {
+                "range": {"startIndex": 13, "endIndex": 14},
+                "paragraphStyle": {
+                    "indentStart": {"magnitude": 72, "unit": "PT"},
+                    "indentFirstLine": {"magnitude": 72, "unit": "PT"},
+                },
+                "fields": "indentStart,indentFirstLine",
+            }
+        ]
+        collapsed = [
+            r["updateParagraphStyle"]["range"]
+            for r in requests
+            if r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).get("lineSpacing") == 1
+        ]
+        assert collapsed == [
+            {"startIndex": 13, "endIndex": 14},
+            {"startIndex": 90, "endIndex": 91},
+        ]
+
+    def test_ordinary_tables_get_no_wrapper_requests(self):
+        table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])])
+        live = _live_wrapper(10, inner_start=14)
+        assert _build_quote_bar_requests([live["table"]], [table]) == []
+
+    def test_widths_go_on_the_table_inside_the_wrapper(self):
+        inner = Table(
+            rows=[Row(cells=[Cell(children=[Run("x")]), Cell(children=[Run("y")])])],
+            col_widths=[120.0, None],
+        )
+        wrapper = self._wrapped(inner)
+        live_doc = {"body": {"content": [_live_wrapper(10, inner_start=14, inner_columns=2)]}}
+        requests = _build_width_requests(live_doc, [wrapper])
+        assert requests == [
+            {
+                "updateTableColumnProperties": {
+                    "tableStartLocation": {"index": 14},
+                    "columnIndices": [0],
+                    "tableColumnProperties": {
+                        "widthType": "FIXED_WIDTH",
+                        "width": {"magnitude": 120.0, "unit": "PT"},
+                    },
+                    "fields": "width,widthType",
+                }
+            }
+        ]
+
+    def test_cell_styles_go_on_the_table_inside_the_wrapper(self):
+        inner = Table(
+            rows=[Row(cells=[Cell(children=[Run("x")], background_color=RGBColor(1, 0, 0))])]
+        )
+        wrapper = self._wrapped(inner)
+        live = _live_wrapper(10, inner_start=14)
+        (request,) = _build_cell_style_requests([live["table"]], [wrapper])
+        location = request["updateTableCellStyle"]["tableRange"]["tableCellLocation"]
+        assert location["tableStartLocation"] == {"index": 14}
+        assert request["updateTableCellStyle"]["fields"] == "backgroundColor"
 
 
 class TestEmptyListItemIsABullet:

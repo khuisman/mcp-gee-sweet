@@ -125,11 +125,16 @@ class Table:
     rows: list[Row]
     col_widths: list[float | None] = field(default_factory=list)
     table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
-    # Indent only (#1097): the emitter indents a quoted table like its quote, but gives
-    # it no border or quote spacing, and doesn't count it as quoted for separators.
+    # A quoted table (#1097, #1122): the emitter draws its quote bar with a wrapper
+    # table (see quote_bar) and doc_to_ast.py reads the wrapper back as this depth.
     blockquote_depth: int = 0
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see below
     list_depth: int | None = None  # #1094, see below
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see below
+    # Write side only (#1122): this is the emitter's 1x1 wrapper around a quoted table,
+    # its one cell holding that table, its left border the quote bar. Docs can't give a
+    # table a paragraph border, so this is how a table gets one.
+    quote_bar: bool = field(default=False, compare=False)
 
 
 # blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
