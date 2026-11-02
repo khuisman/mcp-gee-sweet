@@ -598,6 +598,11 @@ def _render_code_run_text(text: str, in_table: bool) -> str:
     return "<br>".join(spans)
 
 
+# A GFM delimiter row can only carry what Markdown can express (#1337): a
+# JUSTIFIED cell has no GFM form and stays `---`.
+_GFM_COLUMN_DELIMITERS = {"START": ":--", "CENTER": ":-:", "END": "--:"}
+
+
 def _render_table(table: Table) -> str:
     if not table.rows:
         return ""
@@ -607,16 +612,37 @@ def _render_table(table: Table) -> str:
 
     phantom = _build_phantom_set(table)
     grid: list[list[str]] = [["" for _ in range(ncols)] for _ in range(len(table.rows))]
+    # A column only carries an alignment when every cell in it that has text
+    # agrees on one (#1337): Docs aligns per cell and Markdown per column, so
+    # a mixed or unaligned column stays `---`. Cells without text never vote.
+    votes: list[set[str]] = [set() for _ in range(ncols)]
+    unaligned_text: list[bool] = [False] * ncols
     for r, row in enumerate(table.rows):
         col = 0
         for cell in row.cells:
             while (r, col) in phantom:
                 col += 1
             if col < ncols:
-                grid[r][col] = _render_cell(cell)
+                text = _render_cell(cell)
+                grid[r][col] = text
+                if text:
+                    span = min(cell.colspan, ncols - col)
+                    for c in range(col, col + span):
+                        if cell.alignment:
+                            votes[c].add(cell.alignment)
+                        else:
+                            unaligned_text[c] = True
             col += cell.colspan
 
-    lines = ["| " + " | ".join(grid[0]) + " |", "| " + " | ".join(["---"] * ncols) + " |"]
+    delimiters = [
+        # JUSTIFIED has no GFM form, so .get falls back to --- (#1337).
+        _GFM_COLUMN_DELIMITERS.get(next(iter(votes[c])), "---")
+        if len(votes[c]) == 1 and not unaligned_text[c]
+        else "---"
+        for c in range(ncols)
+    ]
+
+    lines = ["| " + " | ".join(grid[0]) + " |", "| " + " | ".join(delimiters) + " |"]
     for row_cells in grid[1:]:
         lines.append("| " + " | ".join(row_cells) + " |")
     return "\n".join(lines)
