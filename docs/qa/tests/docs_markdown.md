@@ -1383,6 +1383,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-01, PR #1356 QA round 1 @ 730f8b58, Kit) PARTIAL — Run 1, EP-3 only; the round was sent back before the full matrix.** EP-3 (`create_doc_from_file`): LB-01 to LB-04 all match on screen and in `get_doc_structure` (one `HEADING_2` "Heading one`\v`heading two"; items 1–3 in one list, item 1 one paragraph with only its first sentence bold, item 2 and the nested item each joined by a `\v`; one quoted paragraph with a `\v`; image and " continues the same paragraph." in one paragraph). Not run yet: EP-1, EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2. A separate probe through EP-1 (HTML) showed two send-backs on screen: `<p>text<br></p>` and `<p><br></p>` each leave an extra blank line, and a `<br>` after a nested list (`<li>a<ul><li>b</li></ul><br></li>`) adds a two-line gap before the next item.
 
+**Result (2026-11-01, PR #1356 QA round 2 @ 7bc387f3, Kit) PARTIAL — Run 1, EP-1 only; the round was sent back before the full matrix.** EP-1 (`create_doc`, Markdown): LB-01 to LB-04 match on screen, as EP-3 did in round 1. Round 1's three probes now render as a browser shows them: `<p>text<br></p>` has no blank line, `<p><br></p>` is one empty line, and a `<br>` after a nested list adds no gap. Two new defects on screen: `<p><br><br></p>` is one empty line where a browser shows two, and bare text `Line one<br>\nLine two` shows a blank line between the two lines. Not run yet: EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2.
+
 ---
 
 ## Known gaps and not-applicable
