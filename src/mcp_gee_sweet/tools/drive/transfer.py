@@ -807,12 +807,14 @@ async def _upload_local_file(
     if convert:
         # Derived from the effective destination name, not local_path's suffix —
         # a name= override changes what conversion applies (#188 QA review, PR #410).
-        # A name= without a convertible extension falls back to the local file's
-        # own (#1307) — titling a converted Doc must not mean renaming the file —
-        # while a convertible extension on each side that differ is a real
-        # mismatch and still errors. Mapping extensions compare by their
-        # conversion, not their spelling: report.htm over a .html source is the
-        # same conversion, not a mismatch.
+        # A name= without an extension falls back to the local file's own (#1307)
+        # — titling a converted Doc must not mean renaming the file — while a
+        # name= that does carry an extension still owns the choice outright:
+        # unsupported there is an error, never a silent conversion as
+        # local_path's type (PR #410 QA review, kept). Convertible extensions on
+        # each side that differ are a real mismatch and also error. Mapping
+        # extensions compare by their conversion, not their spelling:
+        # report.htm over a .html source is the same conversion, not a mismatch.
         dest_suffix = Path(file_name).suffix.lower()
         local_suffix = Path(local_path).suffix.lower()
         dest_mime = _CONVERT_MIME.get(dest_suffix)
@@ -825,6 +827,18 @@ async def _upload_local_file(
                     f"local_path extension {local_suffix!r}. Both are convertible "
                     f"({supported}); pass a name without an extension to convert as "
                     f"the local file, or make the extensions agree."
+                )
+            }
+        if dest_mime is None and dest_suffix:
+            # #1307's fallback is only for an extension-less title: a name= that
+            # carries an unsupported extension would otherwise silently convert
+            # as local_path's type instead of the one the caller named (the
+            # #410 QA review's rule this whole branch used to enforce).
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {dest_suffix!r}. "
+                    f"Supported extensions: {supported}"
                 )
             }
         convert_mime = dest_mime or local_mime
