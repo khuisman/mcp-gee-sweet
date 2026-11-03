@@ -675,7 +675,7 @@ def ast_to_requests(
     """
     if image_uris is None:
         image_uris = {}
-    nodes, separators = _with_quote_separators(nodes)
+    nodes, separators = _with_quote_separators(_wrap_quoted_tables(nodes))
     text_parts: list[str] = []
     utf16_offset = 0
     segment_meta: list[_SegmentMeta] = []
@@ -976,11 +976,11 @@ def ast_to_requests(
                 "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
             }
             if isinstance(node, BulletItem):
-                if node.blockquote_depth == 0:
-                    continue
-                requests.append(
-                    _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
-                )
+                # An unquoted item still takes the quote-edge gap beside a quoted table.
+                if node.blockquote_depth > 0:
+                    requests.append(
+                        _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
+                    )
             else:
                 content_depth = _list_content_depth(node)
                 if content_depth is None:
@@ -1001,7 +1001,10 @@ def ast_to_requests(
             position = _after_bullet_pass(pending.position, pending.tab_offset)
             requests.extend(
                 _table_placeholder_requests(
-                    position, pending.node.blockquote_depth, pending.node.list_depth
+                    position,
+                    pending.node.blockquote_depth,
+                    pending.node.list_depth,
+                    quote_bar=pending.node.quote_bar,
                 )
             )
 
@@ -1075,6 +1078,18 @@ _BLOCKQUOTE_BORDER = {
     "padding": {"magnitude": 8, "unit": "PT"},
     "dashStyle": "SOLID",
 }
+
+# A quoted table's quote bar (#1122). A table takes no paragraph border, so a quoted
+# table goes in the one cell of a 1x1 wrapper table whose left cell border is the bar
+# and whose other borders are 0 wide (the API rejects a transparent cell border). Docs
+# draws a paragraph's bar its padding plus its width left of the indent, and a table's
+# border centered on the table's edge, so the wrapper sits that far, less half the
+# bar, left of the quote's indent: its bar then lines up with the bar of the quote's
+# paragraphs. A nested table starts at its cell's left padding, not past the border,
+# so the same padding puts the quoted table back at the quote's indent (both
+# confirmed live).
+_QUOTE_BAR_WIDTH_PT = _BLOCKQUOTE_BORDER["width"]["magnitude"]
+_QUOTE_BAR_OFFSET_PT = _BLOCKQUOTE_BORDER["padding"]["magnitude"] + _QUOTE_BAR_WIDTH_PT / 2
 
 
 # Paragraph indents createParagraphBullets gives a list item at nesting level n, for
@@ -1162,6 +1177,40 @@ def _quoted(node: DocNode) -> bool:
     return not isinstance(node, Table) and node.blockquote_depth > 0
 
 
+def _wrap_quoted_tables(nodes: list[DocNode]) -> list[DocNode]:
+    """Return `nodes` with each quoted table replaced by its quote-bar wrapper (#1122,
+    see _QUOTE_BAR_OFFSET_PT). The wrapper takes the table's quote and list placement;
+    the table inside it has none of its own. A table with no row or column gets no
+    insertTable, so it isn't wrapped either. Caller-owned nodes are never mutated."""
+    return [
+        _quote_bar_wrapper(node)
+        if isinstance(node, Table)
+        and node.blockquote_depth > 0
+        and not node.quote_bar
+        and _is_insertable_table(node)
+        else node
+        for node in nodes
+    ]
+
+
+def _quote_bar_wrapper(table: Table) -> Table:
+    inner = replace(table, blockquote_depth=0, blockquote_path=(), list_depth=None, list_path=())
+    return Table(
+        rows=[Row(cells=[Cell(children=[inner])])],
+        blockquote_depth=table.blockquote_depth,
+        blockquote_path=table.blockquote_path,
+        list_depth=table.list_depth,
+        list_path=table.list_path,
+        quote_bar=True,
+    )
+
+
+def _in_quote(node: DocNode) -> bool:
+    """Whether `node` is inside a quote, for spacing: a quoted table too, whose wrapper
+    draws the quote's bar beside it."""
+    return node.blockquote_depth > 0 and (not isinstance(node, Table) or node.quote_bar)
+
+
 def _has_named_spacing(node: DocNode) -> bool:
     """Whether the emitter gives `node` a named style with spacing of its own."""
     if isinstance(node, Heading):
@@ -1187,12 +1236,19 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
 
     A separator between two quotes inside one list item belongs to that item too
     (#1094), so it doesn't end the item's list.
+
+    A quoted table counts (#1122): its wrapper's bar met the next quote's just the same.
+    Two tables in a row get none: the paragraph Docs keeps between them stays at full
+    height, unbordered, and takes the bar only when they share a quote
+    (_build_blank_para_before_table_collapses). A separator there pushed it out of that
+    check, and both were collapsed, so the tables touched (PR #1359 round 2 probe).
     """
     result: list[DocNode] = []
     separators: set[int] = set()
     prev: DocNode | None = None
     for node in nodes:
-        if prev is not None and _quoted(prev) and _quoted(node):
+        between_tables = isinstance(prev, Table) and isinstance(node, Table)
+        if prev is not None and _in_quote(prev) and _in_quote(node) and not between_tables:
             a, b = prev.blockquote_path, node.blockquote_path
             if a[: len(b)] != b and b[: len(a)] != a:
                 content_depth = _list_content_depth(node)
@@ -1216,20 +1272,30 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
 def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tuple[int, int]]:
     """Map a node's index in `nodes` to the (spaceAbove, spaceBelow) it needs (#1098):
     a code block gets both, and a quoted node gets space on each side where its quote
-    meets content outside it (an unquoted node, a table, or the edge). Nodes inside one
-    quote get none between them, so the quote stays one block.
+    meets content outside it (an unquoted node, an unquoted table, or the edge). Nodes
+    inside one quote get none between them, a quoted table included (#1122), so the
+    quote stays one block. A table itself gets no spacing.
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
     A Heading or a TITLE/SUBTITLE NamedBlock gets no quote-edge space: an explicit
-    value would replace its named style's own spacing (HEADING_1's 20pt above, say)."""
+    value would replace its named style's own spacing (HEADING_1's 20pt above, say).
+
+    A table can't take spacing, so where a quote starts or ends with a table, the
+    unquoted node on the other side of that edge takes the gap instead (PR #1359 QA
+    round 1)."""
+
+    def quoted_table(i: int) -> bool:
+        return 0 <= i < len(nodes) and isinstance(nodes[i], Table) and _in_quote(nodes[i])
 
     def outside_quote(i: int, *, count_separator: bool) -> bool:
         if i < 0 or i >= len(nodes):
             return True
         if id(nodes[i]) in separators:
-            return count_separator
-        return not _quoted(nodes[i])
+            # After a table, the quote after the separator takes the gap: a table
+            # can't take space below it (#1122).
+            return count_separator or (i > 0 and isinstance(nodes[i - 1], Table))
+        return not _in_quote(nodes[i])
 
     spacing: dict[int, tuple[int, int]] = {}
     for i, node in enumerate(nodes):
@@ -1242,6 +1308,11 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
             if outside_quote(i - 1, count_separator=False):
                 above = _BLOCK_SPACING_PT
             if outside_quote(i + 1, count_separator=True):
+                below = _BLOCK_SPACING_PT
+        elif not _in_quote(node) and not _has_named_spacing(node):
+            if quoted_table(i - 1):
+                above = _BLOCK_SPACING_PT
+            if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
         if above or below:
             spacing[i] = (above, below)
@@ -1372,7 +1443,11 @@ def _rule_requests(rng: dict, *, quoted: bool) -> list[dict]:
 
 
 def _table_placeholder_requests(
-    position: int, blockquote_depth: int, list_depth: int | None = None
+    position: int,
+    blockquote_depth: int,
+    list_depth: int | None = None,
+    *,
+    quote_bar: bool = False,
 ) -> list[dict]:
     """Reset a table's placeholder paragraph (#1097) to plain before its insertTable,
     since the table takes its indent and every empty cell its text style. Plain means
@@ -1380,11 +1455,16 @@ def _table_placeholder_requests(
     paragraph field at its default (`*`: the doc's surviving final paragraph mark can
     carry a heading's style into new content), and no text style. A table inside a
     quote keeps the quote's indent, with no border, which a table doesn't take, and a
-    table inside a list item (`list_depth`, #1094) is indented to the item's text.
+    table inside a list item (`list_depth`, #1094) is indented to the item's text. A
+    quoted table's wrapper (`quote_bar`, #1122) sits _QUOTE_BAR_OFFSET_PT left of that,
+    so its bar lines up with the quote's.
     Bullets go first: deleteParagraphBullets adds indent, which the reset clears."""
     rng = {"startIndex": position, "endIndex": position + 1}
     paragraph_style: dict = {"namedStyleType": "NORMAL_TEXT"}
     first_line, start = _block_indents(blockquote_depth, content_level=list_depth)
+    if quote_bar:
+        first_line -= _QUOTE_BAR_OFFSET_PT
+        start -= _QUOTE_BAR_OFFSET_PT
     if start > 0:
         paragraph_style["indentStart"] = {"magnitude": start, "unit": "PT"}
         paragraph_style["indentFirstLine"] = {"magnitude": first_line, "unit": "PT"}
@@ -1624,15 +1704,20 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
       7. If any cell, at any depth, has an alignment: emit updateParagraphStyle over
          its paragraphs (#1095), in the same batch as step 6
+      8. If any table is a quoted table's wrapper (Table.quote_bar, #1122): draw its
+         bar and collapse its cell's empty paragraphs, in the same batch as step 6.
+         Steps 5 and 6 apply a wrapped table's widths and cell styles to the table
+         inside the wrapper.
 
-    Phases 5 to 7 must use a doc fetched after phases 3 and 4: the fill shifts the
+    Phases 5 to 8 must use a doc fetched after phases 3 and 4: the fill shifts the
     startIndex of every table after the first, and a stale one is a 400 (#1053).
     They share one post-fill fetch, since none of them moves an index.
 
     images: the resolved images to embed in cells, at any nesting depth, and how each
     fill batch is sent (#1073).
 
-    Nested table limitations: no col_widths inside nested tables. colspan/
+    Nested table limitations: no col_widths inside nested tables, except a quoted
+    table inside its quote-bar wrapper (#1122), whose widths step 5 applies. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
     (#108, #275) are both fully supported, at any nesting depth — each run of
     text, merge, and nested table renders in the same order and shape it had
@@ -1656,7 +1741,7 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    blank_collapses = _build_blank_para_before_table_collapses(live_doc)
+    blank_collapses = _build_blank_para_before_table_collapses(live_doc, tables)
     if blank_collapses:
         await execute_in_thread(
             docs_service.documents()
@@ -1690,7 +1775,7 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     post_fill_doc: dict | None = None
 
     # Step 5: column widths
-    if any(w is not None for t in tables for w in t.col_widths):
+    if any(w is not None for t in _quote_bars_unwrapped(tables) for w in t.col_widths):
         post_fill_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
             docs_service,
@@ -1714,14 +1799,17 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         or cell.border_color is not None
         or cell.border_width is not None
         or cell.border_dash_style is not None
-        for table in tables
+        for table in _quote_bars_unwrapped(tables)
         for row in table.rows
         for cell in row.cells
     )
     # Step 7: horizontal cell alignment (#1095). It goes in step 6's batch, built from the
     # same post-fill snapshot: neither step moves an index.
     has_alignment = _has_cell_alignment(tables)
-    if has_cell_styles or has_alignment:
+    # Step 8: each quoted table's wrapper (#1122), in the same batch: its bar, and its
+    # cell's empty paragraphs collapsed. Neither moves an index.
+    has_quote_bars = any(table.quote_bar for table in tables)
+    if has_cell_styles or has_alignment or has_quote_bars:
         if post_fill_doc is None:
             post_fill_doc = await execute_in_thread(
                 docs_service.documents().get(documentId=doc_id).execute,
@@ -1733,6 +1821,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
             style_requests.extend(_build_cell_style_requests(doc_tables, tables))
         if has_alignment:
             style_requests.extend(_build_cell_alignment_requests(doc_tables, tables))
+        if has_quote_bars:
+            style_requests.extend(_build_quote_bar_requests(doc_tables, tables))
         if style_requests:
             await execute_in_thread(
                 docs_service.documents()
@@ -1746,6 +1836,87 @@ def _top_level_tables(live_doc: dict) -> list[dict]:
     return [
         elem["table"] for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
     ]
+
+
+def _quote_bars_unwrapped(tables: list[Table]) -> list[Table]:
+    """`tables` with each quote-bar wrapper (#1122) replaced by the table it holds."""
+    return [_quote_bar_inner(table) if table.quote_bar else table for table in tables]
+
+
+def _quote_bar_inner(wrapper: Table) -> Table:
+    inner = wrapper.rows[0].cells[0].children[0]
+    assert isinstance(inner, Table)
+    return inner
+
+
+def _quote_bar_inner_elem(doc_wrapper: dict) -> dict | None:
+    """The live content element of the table inside a quote-bar wrapper (#1122), or
+    None when the wrapper's cell doesn't hold exactly one table (the fill skipped it)."""
+    rows = doc_wrapper.get("tableRows", [])
+    cells = rows[0].get("tableCells", []) if rows else []
+    content = cells[0].get("content", []) if cells else []
+    nested = [elem for elem in content if "table" in elem]
+    return nested[0] if len(nested) == 1 else None
+
+
+def _quote_bar_cell_style(table_start: int) -> dict:
+    """updateTableCellStyle giving a wrapper's one cell the quote bar as its left
+    border, no other border, and the left padding that puts the table it holds at the
+    quote's indent (see _QUOTE_BAR_OFFSET_PT)."""
+    hidden = {"color": _BORDER_GRAY, "width": {"magnitude": 0, "unit": "PT"}, "dashStyle": "SOLID"}
+    style = {
+        "borderLeft": {
+            "color": _BORDER_GRAY,
+            "width": {"magnitude": _QUOTE_BAR_WIDTH_PT, "unit": "PT"},
+            "dashStyle": "SOLID",
+        },
+        "borderTop": hidden,
+        "borderRight": hidden,
+        "borderBottom": hidden,
+        "paddingLeft": {"magnitude": _QUOTE_BAR_OFFSET_PT, "unit": "PT"},
+        "paddingTop": {"magnitude": 0, "unit": "PT"},
+        "paddingRight": {"magnitude": 0, "unit": "PT"},
+        "paddingBottom": {"magnitude": 0, "unit": "PT"},
+    }
+    return {
+        "updateTableCellStyle": {
+            "tableStartLocation": {"index": table_start},
+            "tableCellStyle": style,
+            "fields": ",".join(style),
+        }
+    }
+
+
+def _build_quote_bar_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Style each quoted table's wrapper (#1122) from a doc fetched after the fill: its
+    cell's bar and padding, and the empty paragraphs Docs keeps around the table in the
+    cell (one before it from the insertTable, the cell's own after it), collapsed so the
+    bar hugs the table. The first one records the quote's indent, the one place a table's
+    quote depth survives in the doc: doc_to_ast.py reads it back. It's empty and
+    collapsed, so the indent shows nowhere. None of this moves an index."""
+    requests: list[dict] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        if not ast_table.quote_bar:
+            continue
+        table_start = _table_start_index(doc_table)
+        if table_start is None:
+            continue
+        requests.append(_quote_bar_cell_style(table_start))
+        cells = doc_table.get("tableRows", [{}])[0].get("tableCells", [])
+        paragraphs = [
+            elem
+            for elem in (cells[0].get("content", []) if cells else [])
+            if "paragraph" in elem and "startIndex" in elem and "endIndex" in elem
+        ]
+        _first_line, indent = _block_indents(
+            ast_table.blockquote_depth, content_level=ast_table.list_depth
+        )
+        for i, elem in enumerate(paragraphs):
+            rng = {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]}
+            if i == 0:
+                requests.append(_indent_style_request(rng, (indent, indent), border=False))
+            requests.extend(_collapse_paragraph_requests(rng))
+    return requests
 
 
 def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: int) -> dict | None:
@@ -2255,7 +2426,8 @@ def _build_fill_requests(
 
 
 def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
-    """Build updateTableCellStyle requests for cells with Phase 3 style fields set."""
+    """Build updateTableCellStyle requests for cells with Phase 3 style fields set. A
+    quoted table's go on the table inside its wrapper (#1122)."""
     requests: list[dict] = []
 
     def _rgb(color) -> dict:
@@ -2265,6 +2437,11 @@ def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) 
         return {"magnitude": magnitude, "unit": "PT"}
 
     for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        if ast_table.quote_bar:
+            inner_elem = _quote_bar_inner_elem(doc_table)
+            if inner_elem is None:
+                continue
+            doc_table, ast_table = inner_elem["table"], _quote_bar_inner(ast_table)
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
@@ -2421,13 +2598,19 @@ def _has_cell_alignment(tables: list[Table]) -> bool:
 
 
 def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]:
-    """Build updateTableColumnProperties requests for tables with col_widths."""
+    """Build updateTableColumnProperties requests for tables with col_widths. A quoted
+    table's widths go on the table inside its wrapper (#1122), not on the wrapper."""
     requests: list[dict] = []
     doc_table_elems = [
         elem for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
     ]
 
     for elem, ast_table in zip(doc_table_elems, ast_tables, strict=True):
+        if ast_table.quote_bar:
+            inner_elem = _quote_bar_inner_elem(elem["table"])
+            if inner_elem is None:
+                continue
+            elem, ast_table = inner_elem, _quote_bar_inner(ast_table)
         if not ast_table.col_widths:
             continue
         table_start = elem.get("startIndex")
@@ -2459,7 +2642,22 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
     return requests
 
 
-def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
+def _shared_quote_indents(first: Table, second: Table) -> tuple[int, int] | None:
+    """The indents of the quote two adjacent quoted tables' wrappers share (#1122): the
+    shallower one's, when both are wrappers in one quote (one's blockquote_path a prefix
+    of the other's, as in _with_quote_separators). None otherwise."""
+    if not (first.quote_bar and second.quote_bar):
+        return None
+    a, b = first.blockquote_path, second.blockquote_path
+    if a[: len(b)] != b and b[: len(a)] != a:
+        return None
+    outer = first if first.blockquote_depth <= second.blockquote_depth else second
+    return _block_indents(outer.blockquote_depth, content_level=outer.list_depth)
+
+
+def _build_blank_para_before_table_collapses(
+    live_doc: dict, ast_tables: list[Table] | None = None
+) -> list[dict]:
     """Return requests that reset empty paragraphs immediately before tables to a plain
     paragraph and collapse them to zero visual height.
 
@@ -2471,11 +2669,19 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
     preceding heading's style, #1092), no bullet and no indent or border (see below).  Only
     paragraphs whose sole content is a newline are affected, and one sitting between two
     tables is reset but keeps its height (#1098).
+
+    `ast_tables` are the top-level tables in document order, as fill_tables gets them.
+    Between two quoted tables' wrappers in one quote, the full-height paragraph also gets
+    that quote's indent and bar, so the bar runs on past the gap (PR #1359 QA round 1).
     """
     content = live_doc.get("body", {}).get("content", [])
     requests: list[dict] = []
+    table_count = 0
     for i, elem in enumerate(content):
-        if "table" not in elem or i == 0:
+        if "table" not in elem:
+            continue
+        table_count += 1
+        if i == 0:
             continue
         prev = content[i - 1]
         if "paragraph" not in prev:
@@ -2513,6 +2719,11 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
         if i >= 2 and "table" in content[i - 2]:
             # The only thing between two tables: collapsed, the tables touched and read
             # as one (#1098). Left at full height, it's the blank line between them.
+            this = table_count - 1
+            if ast_tables is not None and this < len(ast_tables):
+                indents = _shared_quote_indents(ast_tables[this - 1], ast_tables[this])
+                if indents is not None:
+                    requests.append(_indent_style_request(rng, indents, border=True))
             continue
         requests.extend(_collapse_paragraph_requests(rng))
     return requests

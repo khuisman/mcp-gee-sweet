@@ -24,8 +24,31 @@ equivalent manual deletion.
 (`fontSize = 1pt`). The paragraph remains in the document structure but is invisible in the
 rendered output. The one exception is a paragraph between two tables: it keeps its height, as
 the blank line that keeps the tables from touching and reading as one (#1098). Every such
-paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097).
+paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097),
+except that one between two quoted tables in the same quote takes the quote's indent and
+bar (#1122).
 Related: #190.
+
+---
+
+### A quoted table is a table inside a 1x1 wrapper table
+
+**What:** A table inside a blockquote (Markdown `> | a | b |`, or HTML `<blockquote><table>`)
+is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
+gray bar (#1122). `get_doc_structure` reports the wrapper as the top-level table, with the
+quoted table nested in its cell, so table tools that take a table's position
+(`insert_table_row`, `merge_table_cells`, and so on) reach the wrapper, not the table you
+see. Removing the wrapper in the Docs editor removes the bar but leaves the table.
+
+**Why:** The Docs API can't give a table a paragraph border, so a bar beside a table has to
+come from a table cell's border. Without the wrapper, a quoted table sat at the quote's
+indent with a gap in the bar beside it.
+
+**Workaround:** To edit a quoted table's rows or columns with the table tools, pass the
+quoted table's own `table_start_index`: one more than the wrapper cell's
+`paragraphStartIndex` in `get_doc_structure`, since the cell's first paragraph is an empty
+line before the table. Or rewrite the content with `write_doc_content`. `get_doc_as_markdown` reads the wrapper back
+as the quoted table (`> | a | b |`).
 
 ---
 

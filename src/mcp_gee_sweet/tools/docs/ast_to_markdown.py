@@ -114,9 +114,11 @@ class _OpenItems:
     A node with no `list_depth` ends them all.
 
     A quoted item's quote markers come before its indent ("> - a"). A block inside
-    it is inside that quote too, whatever depth it reads with (a table reads none),
-    so the item's quote levels go outside the block's indent and only its own extra
-    levels inside ("> - a" then ">   > b").
+    it is inside that quote too, whatever depth it reads with (an unquoted table
+    reads none), so the item's quote levels go outside the block's indent and only
+    its own extra levels inside ("> - a" then ">   > b"). Two blocks in one item
+    whose own levels overlap share that quote, so the blank line between them
+    carries it (#1122).
 
     After `render`, `separator` is what goes between the node and the one before it:
     a newline between two items at the same quote depth, so a list stays tight (items at
@@ -133,20 +135,35 @@ class _OpenItems:
         self._items: list[tuple[int, int]] = []
         # Quote levels the last node wrote at the margin, before any indent.
         self._margin_quote = 0
+        # For a block inside an item: (list_depth, content column, the quote levels it
+        # writes inside the item's indent). None for anything else.
+        self._inner_quote: tuple[int, int, int] | None = None
         self.separator = "\n\n"
 
     def render(self, node: DocNode, prev_node: DocNode | None) -> str:
         prev_quote = self._margin_quote
+        prev_inner = self._inner_quote
         rendered = self._render(node, prev_node)
         same_list = (
             isinstance(node, BulletItem)
             and isinstance(prev_node, BulletItem)
             and node.blockquote_depth == prev_node.blockquote_depth
         )
+        shared = min(prev_quote, self._margin_quote)
         if same_list or _starts_empty_item(prev_node, node):
             self.separator = "\n"
+        elif (
+            prev_inner is not None
+            and self._inner_quote is not None
+            and prev_inner[:2] == self._inner_quote[:2]
+            and min(prev_inner[2], self._inner_quote[2])
+        ):
+            # Two blocks in one item that share a quote inside its indent: the blank
+            # line between them carries that quote too, or it would end it (#1122).
+            column = self._inner_quote[1]
+            inner = min(prev_inner[2], self._inner_quote[2])
+            self.separator = f"\n{_blockquote(' ' * column + '>' * inner, shared)}\n"
         else:
-            shared = min(prev_quote, self._margin_quote)
             self.separator = f"\n{'>' * shared}\n" if shared else "\n\n"
         return rendered
 
@@ -157,27 +174,31 @@ class _OpenItems:
             self._items.extend([(0, 0)] * (node.depth - len(self._items)))
             self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
             self._margin_quote = node.blockquote_depth
+            self._inner_quote = None
             return _render_block(node, opens_sublist=opens_sublist)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
-            if isinstance(node, Table):
-                # A table renders unquoted (_render_table writes no quote markers).
-                self._margin_quote = 0
-                return _render_table(node)
             self._margin_quote = node.blockquote_depth
+            self._inner_quote = None
+            if isinstance(node, Table):
+                # A quoted table (#1122) gets its quote markers like any block.
+                body = _render_table(node)
+                return _blockquote(body, node.blockquote_depth) if node.blockquote_depth else body
             return _render_block(node)
         del self._items[list_depth + 1 :]
         column, item_quote = self._items[list_depth]
         # A block inside a quoted list's item is inside that list's quote too. Its
-        # own depth can read lower: a table has no indent in the API, and Docs puts
-        # an unindented empty paragraph before a table in an item.
-        quote = 0 if isinstance(node, Table) else node.blockquote_depth
-        quote = max(quote, item_quote)
+        # own depth can read lower: an unquoted table has no indent in the API, and
+        # Docs puts an unindented empty paragraph before a table in an item.
+        quote = max(node.blockquote_depth, item_quote)
         outer = item_quote
         self._margin_quote = outer
+        self._inner_quote = (list_depth, column, quote - outer)
         if isinstance(node, Table):
             body = _render_table(node)
+            if quote > outer:
+                body = _blockquote(body, quote - outer)
         else:
             body = _render_block(node, blockquote_depth=quote - outer)
         body = _indent_lines(body, column)
