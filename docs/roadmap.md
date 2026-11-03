@@ -519,7 +519,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] Document as a known limitation: a list inside a blockquote draws its border at the list indent, not the quote's. Maintainer's call 2026-10-29, after community PR #1258 (closed) showed Docs draws the border at `indentStart`, the same setting as the item's hanging indent. Out of ankylosaurus since then: a docs ticket with no version label, Amy ([#1242](https://github.com/khuisman/mcp-gee-sweet/issues/1242)) (PR #1294)
 - [x] DocContentCache.store has no epoch guard; a pre-edit fetch can overwrite an edit's mark_dirty — `wrong/rare` ([#1032](https://github.com/khuisman/mcp-gee-sweet/issues/1032)) (PR #1264)
 - [x] Doc-edit tools outside content/images leave the doc cache stale when cancelled mid-edit — `wrong/rare` ([#1030](https://github.com/khuisman/mcp-gee-sweet/issues/1030)) (PR #1264)
-- [ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. `wrong/rare`; found in PR #1264, the same gap #1030 closed for Docs and Drive ([#1265](https://github.com/khuisman/mcp-gee-sweet/issues/1265))
+- [ ] Sheets and Calendar write tools leave their caches stale when cancelled or failed mid-write. `wrong/rare`; found in PR #1264, the same gap #1030 closed for Docs and Drive — lane B ([#1265](https://github.com/khuisman/mcp-gee-sweet/issues/1265))
 - [ ] pre-commit's ruff-format hook skips Markdown, but CI's ruff format --check . formats it ([#1087](https://github.com/khuisman/mcp-gee-sweet/issues/1087))
 
 **Triaged in 2026-10-24**
