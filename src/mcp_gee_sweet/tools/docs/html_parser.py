@@ -228,11 +228,21 @@ def _collapse_soft_breaks(runs: list[Run | Image]) -> list[Run | Image]:
     return result
 
 
+def _has_content(runs: list[Run | Image]) -> bool:
+    """True when `runs` hold something a reader sees: an image, text that isn't
+    whitespace, or a line break "\\v", which draws a line though str.strip() strips it
+    (PR #1356 QA rounds 2 and 3). The one emptiness test every branch of
+    _emit_block_node uses. Whitespace-only text, an "&nbsp;" included, isn't content
+    here: #402's and #444's rules decide whether such a segment is kept."""
+    return any(isinstance(r, Image) or r.text.strip() or "\v" in r.text for r in runs)
+
+
 def _drop_final_line_break(runs: list[Run | Image]) -> tuple[list[Run | Image], bool]:
     """`runs` without a "\\v" that ends them, ignoring formatting whitespace after it,
-    and whether one was dropped. A browser draws no line for a <br> at the end of a
-    block or right before a nested one, but Docs draws an empty line for a paragraph's
-    final "\\v" (PR #1356 QA round 1). Only one goes: `a<br><br>` keeps one empty line,
+    and whether one was dropped. A browser draws no line for a <br> that ends a
+    segment's text (at a block's end or right before a nested block), but Docs draws an
+    empty line for a paragraph's final "\\v" (PR #1356 QA round 1). A segment left with
+    nothing is still a line: _emit_block_node keeps it (round 3). Only one goes: `a<br><br>` keeps one empty line,
     as a browser shows. The whitespace after it is left for #1229. Returns new Run
     objects; the caller's are never changed."""
     for i in range(len(runs) - 1, -1, -1):
@@ -375,6 +385,10 @@ class _AstParser(HTMLParser):
         # _emit_block_node drop a final "\v", so an authored "\v" character stays
         # (PR #772). Per-segment, reset by _open_block.
         self._ends_with_line_break = False
+        # True once the current segment has held a <br>: a segment that did is never
+        # discarded, since a browser draws a line for it (PR #1356 QA round 3).
+        # Per-segment, reset by _open_block.
+        self._segment_had_line_break = False
         # True while the segment about to be flushed is a list item whose text
         # came through its own transparent `<p>` (#1111); makes
         # _flush_pending_runs trim the HTML padding that follows that `</p>`.
@@ -553,6 +567,7 @@ class _AstParser(HTMLParser):
         # (PR #1356 QA round 1).
         self._block_implicit = implicit
         self._ends_with_line_break = False
+        self._segment_had_line_break = False
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
         self._li_trailing_padding = False
@@ -778,39 +793,35 @@ class _AstParser(HTMLParser):
         """
         # Line breaks (#1230). A <pre> interrupted by a nested block lands here too; its
         # text is literal. Bare top-level text keeps its source line breaks (_open_block).
-        dropped_break = False
         if tag != "pre":
             if not self._block_implicit:
                 runs = _collapse_soft_breaks(runs)
             if self._ends_with_line_break:
-                runs, dropped_break = _drop_final_line_break(runs)
+                runs, _ = _drop_final_line_break(runs)
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
-        text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
-        # Not `not text`: str.strip() strips "\v" too, so `<p><br><br></p>` (one "\v"
-        # left, two lines on screen) would count as empty (PR #1356 QA round 2).
-        only_break_dropped = all(c in _ASCII_FORMATTING_WHITESPACE for c in raw_text)
-        if (
-            dropped_break
-            and only_break_dropped
-            and not has_image
-            and tag == "p"
-            and not self._block_resumed
-        ):
-            # `<p><br></p>`, an editor's empty line: one empty paragraph, as a browser
-            # shows it. Any whitespace around the break goes with it.
-            runs = []
-            preserve_if_empty = True
+        if tag != "pre" and self._segment_had_line_break and not has_image:
+            if all(c in _ASCII_FORMATTING_WHITESPACE for c in raw_text):
+                # A segment that held only a <br> (its final "\v" dropped above) is one
+                # empty line in a browser, whatever its tag and whether it's fresh or
+                # resumed: `<p><br></p>`, `<li>a<ul>…</ul><br></li>`, `<h2><br></h2>`.
+                # Its whitespace goes with it (PR #1356 QA rounds 2 and 3).
+                runs = []
+                preserve_if_empty = True
+            elif all(c in _ASCII_FORMATTING_WHITESPACE or c == "\v" for c in raw_text):
+                # Only line breaks left (`<br><br>`): the formatting whitespace around
+                # them is source layout, not text.
+                runs = _strip_formatting_whitespace(runs)
         if tag == "li" and not self._block_resumed:
             # A list item is a bullet whatever it holds (#1075): `<li></li>` (a
             # Markdown bare `-`), an item holding only whitespace or `&nbsp;`, and an
             # item whose content starts with a nested list or block, all of which
             # show a marker in a browser. Its whitespace is padding, not text.
-            if not text and not has_image:
+            if not _has_content(runs):
                 runs = []
             self._nodes.append(self._make_bullet_item(runs))
             return
-        if not text and not has_image:
+        if not _has_content(runs):
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
             is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
                 self._block_resumed, runs, raw_text
@@ -1246,6 +1257,7 @@ class _AstParser(HTMLParser):
                 in_pre = self._in_pre or self._cell_pre_depth > 0
                 self._run_buf.append(_LineBreak("\n" if in_pre else "\v"))
                 self._ends_with_line_break = True
+                self._segment_had_line_break = True
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an

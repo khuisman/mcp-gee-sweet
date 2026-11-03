@@ -876,14 +876,27 @@ class TestLineBreakQaRound1:
             "<ul><li>a<ul><li>b</li></ul>\n<br>\n</li><li>c</li></ul>",
         ],
     )
-    def test_br_after_a_nested_list_adds_no_paragraph(self, html):
-        # Finding 1.
-        assert [type(n).__name__ for n in html_to_ast(html)] == ["BulletItem"] * 3
-        assert _html_inserted_text(html) == "a\n\tb\nc\n"
+    def test_br_after_a_nested_list_is_one_empty_line(self, html):
+        # Finding 1, as corrected in round 3: a browser draws one line for a segment
+        # holding a single <br> (Chromium-measured), so one empty paragraph in the item.
+        nodes = html_to_ast(html)
+        assert [type(n).__name__ for n in nodes] == [
+            "BulletItem",
+            "BulletItem",
+            "Paragraph",
+            "BulletItem",
+        ]
+        assert nodes[2].runs == [] and nodes[2].list_depth == 0
+        assert _html_inserted_text(html) == "a\n\tb\n\nc\n"
 
-    def test_br_after_a_table_adds_no_paragraph(self):
+    def test_two_brs_after_a_nested_list_are_two_lines(self):
+        html = "<ul><li>a<ul><li>b</li></ul><br><br></li><li>c</li></ul>"
+        assert _html_inserted_text(html) == "a\n\tb\n\v\nc\n"
+
+    def test_br_after_a_table_is_one_empty_line(self):
         nodes = html_to_ast("<p>a<table><tr><td>x</td></tr></table><br></p>")
-        assert [type(n).__name__ for n in nodes] == ["Paragraph", "Table"]
+        assert [type(n).__name__ for n in nodes] == ["Paragraph", "Table", "Paragraph"]
+        assert nodes[2].runs == []
 
     @pytest.mark.parametrize(
         ("html", "text"),
@@ -906,8 +919,27 @@ class TestLineBreakQaRound1:
         assert len(nodes) == 1 and isinstance(nodes[0], Paragraph) and nodes[0].runs == []
         assert _html_inserted_text(html) == "\n"
 
-    def test_br_only_heading_is_still_dropped(self):
-        assert html_to_ast("<h1><br></h1><p>x</p>") == html_to_ast("<p>x</p>")
+    @pytest.mark.parametrize(
+        ("html", "inserted"),
+        [
+            ("<h2><br></h2><p>x</p>", "\nx\n"),
+            ("<h2><br><br></h2><p>x</p>", "\v\nx\n"),
+            ("<ul><li><br></li></ul>", "\n"),
+            ("<ul><li><br><br></li></ul>", "\v\n"),
+            ("<ol><li><p><br><br></p></li></ol>", "\v\n"),
+        ],
+    )
+    def test_br_only_heading_and_item_keep_their_lines(self, html, inserted):
+        # Round 3, findings 2 and 3: "\v" is content, though str.strip() strips it.
+        assert _html_inserted_text(html) == inserted
+
+    def test_br_only_heading_is_a_heading(self):
+        nodes = html_to_ast("<h2><br><br></h2>")
+        assert isinstance(nodes[0], Heading) and _text(nodes[0]) == "\v"
+
+    def test_nbsp_only_heading_is_still_dropped(self):
+        # PR #441: no <br>, so no line to keep.
+        assert html_to_ast("<h1>&nbsp;</h1><p>x</p>") == html_to_ast("<p>x</p>")
 
     def test_authored_vertical_tab_at_the_end_stays(self):
         # Only a <br>'s break is dropped; a typed "\v" is content (PR #772).
