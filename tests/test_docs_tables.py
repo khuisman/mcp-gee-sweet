@@ -1297,7 +1297,7 @@ class TestCellImageParser:
             "</td></tr></table>"
         )
         cells = nodes[0].rows[0].cells
-        assert "".join(r.text for r in _runs_in(cells[0])) == "a\nb"
+        assert "".join(r.text for r in _runs_in(cells[0])) == "a\vb"
         assert self._shape(cells[1]) == ["Some label ", "Table"]
 
 

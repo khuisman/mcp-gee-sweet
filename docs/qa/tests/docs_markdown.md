@@ -1365,6 +1365,32 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 
 ---
 
+## Line breaks
+
+How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a hard break or `<br>` (a line break inside the paragraph, `\v`) in the blocks that keep a paragraph style (#1230). TC-MD114's BR-01 to BR-03 and TC-MD116's HT-03 cover them in a plain paragraph.
+
+### TC-MD504: Line breaks inside headings, list items and quotes ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/line-breaks.md` through EP-1 to EP-4 and EP-8. Also run TC-MD114's BR-01 to BR-03, TC-MD116's HT-03, TC-MD108's LX-04 and TC-MD110's BQ-07 through EP-1 to EP-4: #1093's and #1117's done-when. Two runs, with an on-screen check.
+
+**Checks** (read the stored text with `get_doc_structure`, whose paragraph text shows a `\v`)
+- LB-01: one `HEADING_2` paragraph, "Heading one`\v`heading two"; on screen, two lines in heading style with no paragraph gap between them.
+- LB-02: three top-level numbered items, 1–3, in one list. Item 1 is one paragraph, "The first week matters most. New hires who had a buddy were 2.3x more likely to rate onboarding as good.", with only "The first week matters most." bold. Item 2 is "Second item`\v`after a hard break", with one marker. The nested item is one level-1 bullet, "nested`\v`item". Item 3 is numbered 3.
+- LB-03: one quoted paragraph (left bar, 36pt indent), "Quoted text written across two lines`\v`then a break.", one bar on screen.
+- LB-04: the image and "continues the same paragraph." in one paragraph, with a space before "continues".
+- Round trip: `get_doc_as_markdown` on the EP-1 Doc, then `create_doc(content_format="markdown")` with that output. Each `\v` above comes back as a `\v` in the same paragraph, not as a second paragraph.
+
+**Result (2026-11-01, PR #1356 QA round 1 @ 730f8b58, Kit) PARTIAL — Run 1, EP-3 only; the round was sent back before the full matrix.** EP-3 (`create_doc_from_file`): LB-01 to LB-04 all match on screen and in `get_doc_structure` (one `HEADING_2` "Heading one`\v`heading two"; items 1–3 in one list, item 1 one paragraph with only its first sentence bold, item 2 and the nested item each joined by a `\v`; one quoted paragraph with a `\v`; image and " continues the same paragraph." in one paragraph). Not run yet: EP-1, EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2. A separate probe through EP-1 (HTML) showed two send-backs on screen: `<p>text<br></p>` and `<p><br></p>` each leave an extra blank line, and a `<br>` after a nested list (`<li>a<ul><li>b</li></ul><br></li>`) adds a two-line gap before the next item.
+
+**Result (2026-11-01, PR #1356 QA round 2 @ 7bc387f3, Kit) PARTIAL — Run 1, EP-1 only; the round was sent back before the full matrix.** EP-1 (`create_doc`, Markdown): LB-01 to LB-04 match on screen, as EP-3 did in round 1. Round 1's three probes now render as a browser shows them: `<p>text<br></p>` has no blank line, `<p><br></p>` is one empty line, and a `<br>` after a nested list adds no gap. Two new defects on screen: `<p><br><br></p>` is one empty line where a browser shows two, and bare text `Line one<br>\nLine two` shows a blank line between the two lines. Not run yet: EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2.
+
+**Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
+
+**Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.** LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: [`results/2026-11-02-markdown-pr1356.md`](../results/2026-11-02-markdown-pr1356.md)
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

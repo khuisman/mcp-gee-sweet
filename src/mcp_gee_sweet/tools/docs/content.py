@@ -1644,7 +1644,9 @@ def register(tool):
         Markdown instead (headings, bold, italic, lists, links, tables, fenced code blocks,
         task list items, and images are all supported). Each table is inserted where it
         appears in the content. A table nested inside a table cell needs HTML content;
-        Markdown has no syntax for one.
+        Markdown has no syntax for one. In HTML, a line break inside a tag's text is a
+        space, as a browser shows it: use <p> or <br> (or Markdown) for line structure.
+        Plain text with no tags at all keeps each line as its own paragraph.
 
         Images: a markdown "![alt](src)" (or an HTML <img src=...>) is embedded inline.
         `src` may be a local filesystem path (uploaded to Drive automatically), a
@@ -1927,7 +1929,10 @@ def register(tool):
         Content is interpreted as HTML by default. Pass content_format='markdown' to supply
         Markdown instead. Headings, paragraphs, lists, links, tables, fenced code blocks,
         task list items, and images are all supported. Each table is inserted where it
-        appears in the content. Use this to populate a doc created manually in Drive (bypassing
+        appears in the content. In HTML, a line break inside a tag's text is a space, as a
+        browser shows it: use <p> or <br> (or Markdown) for line structure. Plain text with
+        no tags at all keeps each line as its own paragraph. Use this to populate a doc
+        created manually in Drive (bypassing
         service account storage quota limits).
 
         Images are embedded inline the same way create_doc's own content_format='markdown'
