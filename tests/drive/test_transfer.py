@@ -942,9 +942,7 @@ class TestUploadLocalFileConvert:
         assert ".zip" in result["error"]
         drive_svc.files.return_value.create.assert_not_called()
 
-    async def test_convert_name_without_extension_falls_back_to_local_extension(
-        self, tmp_path
-    ):
+    async def test_convert_name_without_extension_falls_back_to_local_extension(self, tmp_path):
         """#1307: name= is the natural way to title a converted Doc, and a title
         without an extension must not be rejected as unconvertible — the
         conversion falls back to local_path's own extension, and the title stays
@@ -972,7 +970,8 @@ class TestUploadLocalFileConvert:
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.document"
         assert all(
-            "name" not in c.kwargs["body"] for c in drive_svc.files.return_value.update.call_args_list
+            "name" not in c.kwargs["body"]
+            for c in drive_svc.files.return_value.update.call_args_list
         )
 
     async def test_convert_mismatch_between_convertible_extensions_errors(self, tmp_path):
@@ -1021,9 +1020,7 @@ class TestUploadLocalFileConvert:
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.document"
 
-    async def test_convert_strips_source_extension_kept_by_importer_in_display_name(
-        self, tmp_path
-    ):
+    async def test_convert_strips_source_extension_kept_by_importer_in_display_name(self, tmp_path):
         """#1309: Drive's importer keeps the source extension in some converted
         types' display names (.md) while stripping it from others (CSV). A
         created name that kept its extension gets exactly one name-only update
@@ -1058,9 +1055,7 @@ class TestUploadLocalFileConvert:
         assert rename_calls[0].kwargs["fields"] == "name"
         assert result["name"] == "report"
 
-    async def test_convert_no_rename_when_importer_already_stripped_extension(
-        self, tmp_path
-    ):
+    async def test_convert_no_rename_when_importer_already_stripped_extension(self, tmp_path):
         """TC-D215 respected: when the importer has already stripped the
         extension from the created display name, no rename update fires."""
         local_file = tmp_path / "data.csv"
@@ -1078,7 +1073,8 @@ class TestUploadLocalFileConvert:
 
         assert "error" not in result
         assert all(
-            "name" not in c.kwargs["body"] for c in drive_svc.files.return_value.update.call_args_list
+            "name" not in c.kwargs["body"]
+            for c in drive_svc.files.return_value.update.call_args_list
         )
 
     async def test_skip_if_exists_does_not_skip_when_existing_file_is_unconverted(self, tmp_path):
