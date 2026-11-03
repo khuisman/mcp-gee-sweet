@@ -1564,7 +1564,13 @@ by design: example 297 (<code>10) foo</code> / <code>- bar</code>: the bullet ne
 <td>Hard break</td>
 <td><code>&lt;br /&gt;\n</code></td>
 <td>same</td>
-<td>Unchanged; the double break it produces is #1117. Now reachable from a trailing <code>\</code> too.</td>
+<td>Unchanged at this PR; the double break it produced was #1117. Now reachable from a trailing <code>\</code> too. Since #1230 a <code>&lt;br&gt;</code> is a <code>"\v"</code> line break inside the paragraph, and the source line break after it is dropped.</td>
+</tr>
+<tr>
+<td>Soft break</td>
+<td><code>a\nb</code></td>
+<td>same</td>
+<td>Unchanged at this PR; it split the paragraph (#1093). Since #1230 it's a space.</td>
 </tr>
 <tr>
 <td>Two quotes</td>
