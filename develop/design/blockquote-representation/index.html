@@ -1541,9 +1541,51 @@ its indent. Since #1097 each table is inserted at a plain placeholder paragraph 
 instead (see <code>docs-ast-pipeline.md</code>), so none of it reaches the table, and the reset above
 stays as a backstop. A table inside a quote used to get the quote's indent only by that
 accident, from the quote paragraph after it. Now the parser records its quote depth on
-the <code>Table</code> (<code>blockquote_depth</code>, no path), and its placeholder gets the quote's indent
-(36pt per level) and no border. A table can't take a left border, so a quoted table sits
-indented between the quote's bordered paragraphs, with a gap in the bar beside it.</p>
+the <code>Table</code>, and its placeholder gets the quote's indent (36pt per level).</p>
+<h3 id="a-quoted-tables-bar-1122">A quoted table's bar (#1122)<a class="headerlink" href="#a-quoted-tables-bar-1122" title="Permanent link">&para;</a></h3>
+<p>A table can't take a paragraph border, so after #1097 a quoted table sat at the quote's
+indent with a gap in the bar beside it. Now the emitter puts a quoted table in the one
+cell of a 1x1 wrapper table (<code>_wrap_quoted_tables</code>, <code>Table.quote_bar</code>), and the wrapper's
+left cell border is the bar.</p>
+<ul>
+<li><strong>Placement.</strong> Docs draws a paragraph's bar its padding (8pt) plus its width (3pt) left
+  of the indent, and a table's border centered on the table's edge. So the wrapper's
+  placeholder sits <code>_QUOTE_BAR_OFFSET_PT</code> (9.5pt) left of the quote's indent, and its bar
+  lines up with the quote paragraphs' bar. A nested table starts at its cell's left
+  padding, not past the border, so a 9.5pt left padding puts the quoted table back at the
+  quote's indent, where #1097 had it. Both confirmed live.</li>
+<li><strong>The wrapper's cell.</strong> The API rejects a transparent cell border, so the wrapper's top,
+  right and bottom borders are 0pt wide, with no padding but the left. Docs keeps an
+  empty paragraph before and after a table in a cell; <code>_build_quote_bar_requests</code> collapses
+  both after the fill, so the bar hugs the table.</li>
+<li><strong>Quote membership.</strong> A quoted table carries <code>blockquote_path</code> (the parser sets it at
+  <code>&lt;/table&gt;</code>, like every leaf node), and it counts as quoted for separators and
+  quote-edge spacing (<code>_in_quote</code>): a quote's paragraphs and its table get no space
+  between them, so their bars meet, and two separate quotes that meet at a table get a
+  separator. A table can't take spacing, so the node across a quote edge takes the gap:
+  after a table, the quote following the separator; beside a quote that starts or ends
+  with a table, the unquoted paragraph or list item on the other side (PR #1359 QA round
+  1). <code>_quoted</code> still excludes tables, because a table never takes a paragraph border or
+  spacing of its own.</li>
+<li><strong>Two tables in a row.</strong> They never get a separator. Docs keeps a full-height paragraph
+  between two tables (#1098), and a separator there pushed it out of that check, so both
+  were collapsed and the tables touched. That paragraph keeps them apart, unbordered, and
+  takes the quote's indent and bar only when both tables are wrappers in one quote, so the
+  bar runs on past the gap (<code>_shared_quote_indents</code>, PR #1359 QA round 1).</li>
+<li><strong>Read side.</strong> <code>doc_to_ast</code> recognizes the wrapper by its whole signature
+  (<code>_quote_bar_wrapped</code>: 1x1, a left border and no other, one table among empty
+  paragraphs) and reads the quoted table it holds. A table has no indent in the API, so
+  the wrapper's first empty paragraph records the quote's indent (the list item's text
+  indent included) for the read side to place it, as it places a quoted paragraph. The
+  newline <code>insertTable</code> puts before the wrapper is dropped on read, before the table is
+  placed (placing it can settle a waiting paragraph into a list item), since it would end
+  the quote in the Markdown. An unquoted one right after another quoted table is kept: it's
+  the boundary between two quotes. <code>ast_to_markdown</code> writes a quoted table's <code>&gt;</code> markers, and the
+  blank line between two blocks in one item that share a quote carries that quote.</li>
+<li><strong>Cost.</strong> The wrapper is a real table: <code>get_doc_structure</code> and the table tools see a
+  1x1 table holding the quoted one (<code>known-limitations.md</code>). Widths, merges, cell styles,
+  alignment and cell images all go on the table inside, through the nested-table fill.</li>
+</ul>
 <p><strong>Markdown input was affected by the parser until #1116.</strong> Python-Markdown parsed <code>&gt; a</code>, a
 blank line, <code>&gt; b</code> as one <code>&lt;blockquote&gt;</code> with two paragraphs, where CommonMark has two quotes,
 so it rendered as one quote. The CommonMark parser (#1116, <code>docs/design/markdown-parser.md</code>)
