@@ -1387,6 +1387,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
 
+**Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.** LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: [`results/2026-11-02-markdown-pr1356.md`](../results/2026-11-02-markdown-pr1356.md)
+
 ---
 
 ## Known gaps and not-applicable
