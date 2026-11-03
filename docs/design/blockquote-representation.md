@@ -207,16 +207,25 @@ left cell border is the bar.
   `</table>`, like every leaf node), and it counts as quoted for separators and
   quote-edge spacing (`_in_quote`): a quote's paragraphs and its table get no space
   between them, so their bars meet, and two separate quotes that meet at a table get a
-  separator. A table can't take space below it, so after a table the quote following the
-  separator takes the gap instead. `_quoted` still excludes tables, because a table never
-  takes a paragraph border or spacing of its own.
+  separator. A table can't take spacing, so the node across a quote edge takes the gap:
+  after a table, the quote following the separator; beside a quote that starts or ends
+  with a table, the unquoted paragraph or list item on the other side (PR #1359 QA round
+  1). `_quoted` still excludes tables, because a table never takes a paragraph border or
+  spacing of its own.
+- **Two tables in a row.** They never get a separator. Docs keeps a full-height paragraph
+  between two tables (#1098), and a separator there pushed it out of that check, so both
+  were collapsed and the tables touched. That paragraph keeps them apart, unbordered, and
+  takes the quote's indent and bar only when both tables are wrappers in one quote, so the
+  bar runs on past the gap (`_shared_quote_indents`, PR #1359 QA round 1).
 - **Read side.** `doc_to_ast` recognizes the wrapper by its whole signature
   (`_quote_bar_wrapped`: 1x1, a left border and no other, one table among empty
   paragraphs) and reads the quoted table it holds. A table has no indent in the API, so
   the wrapper's first empty paragraph records the quote's indent (the list item's text
   indent included) for the read side to place it, as it places a quoted paragraph. The
-  newline `insertTable` puts before the wrapper is dropped on read, since it would end
-  the quote in the Markdown. `ast_to_markdown` writes a quoted table's `>` markers, and the
+  newline `insertTable` puts before the wrapper is dropped on read, before the table is
+  placed (placing it can settle a waiting paragraph into a list item), since it would end
+  the quote in the Markdown. An unquoted one right after another quoted table is kept: it's
+  the boundary between two quotes. `ast_to_markdown` writes a quoted table's `>` markers, and the
   blank line between two blocks in one item that share a quote carries that quote.
 - **Cost.** The wrapper is a real table: `get_doc_structure` and the table tools see a
   1x1 table holding the quoted one (`known-limitations.md`). Widths, merges, cell styles,

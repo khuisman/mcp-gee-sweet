@@ -2528,6 +2528,62 @@ class TestQuotedTableReadBack:
         table = next(n for n in nodes if isinstance(n, Table))
         assert (table.list_depth, table.blockquote_depth) == (0, 1)
 
+    def test_newline_before_a_wrapper_is_dropped_even_once_placed_in_an_item(self):
+        # PR #1359 QA round 1: a list whose text indent isn't a whole number of quote
+        # steps (40pt, edited in the UI) places the table by its item, which settled
+        # the waiting newline into the item too; it then stayed and ended the quote.
+        lists = {
+            "l1": {
+                "listProperties": {
+                    "nestingLevels": [
+                        {"indentStart": {"magnitude": 40}, "indentFirstLine": {"magnitude": 22}}
+                    ]
+                }
+            }
+        }
+        item = _item("a")
+        item["paragraph"]["paragraphStyle"] = _indents(40, first_line=22)
+        nodes = document_to_ast(
+            {
+                "body": {
+                    "content": [
+                        item,
+                        _para("Quote in item\n", para_style=_indents(76, quoted=True)),
+                        _para("\n"),
+                        _quote_bar_wrapper(76),
+                        _item("b"),
+                    ]
+                },
+                "lists": lists,
+            }
+        )
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Table, BulletItem]
+        table = nodes[2]
+        assert (table.list_depth, table.blockquote_depth) == (0, 1)
+        md = ast_to_markdown(nodes)
+        assert "  > Quote in item\n  >\n  > | k |" in md
+
+    def test_quoted_newline_between_two_wrappers_is_dropped(self):
+        # Between two wrappers in one quote, the newline carries the quote's bar.
+        nodes = self._nodes(
+            [
+                _para("\n"),
+                _quote_bar_wrapper(36),
+                _para("\n", para_style=_indents(36, quoted=True)),
+                _quote_bar_wrapper(36),
+            ]
+        )
+        assert [type(n) for n in nodes] == [Table, Table]
+        assert ast_to_markdown(nodes).count("\n>\n") == 1
+
+    def test_unquoted_gap_between_two_wrappers_keeps_two_quotes(self):
+        nodes = self._nodes(
+            [_para("\n"), _quote_bar_wrapper(36), _para("\n"), _quote_bar_wrapper(36)]
+        )
+        assert [type(n) for n in nodes] == [Table, Paragraph, Table]
+        md = ast_to_markdown(nodes)
+        assert [t.type for t in _COMMONMARK.parse(md)].count("blockquote_open") == 2
+
     def test_round_trip_keeps_one_quote(self):
         md = ast_to_markdown(
             self._nodes(

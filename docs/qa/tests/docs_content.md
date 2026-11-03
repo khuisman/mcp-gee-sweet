@@ -6823,6 +6823,8 @@ Live on `mcp-gee-sweet-sky` at 10923b31, after `/mcp reconnect` (OAuth, Shared D
 3. `get_doc_as_markdown(doc_id={MD})`
 4. `get_doc_structure(doc_id={MD})`. Find the "V | W" table's wrapper: the first `table` element with `rows: 1`, `columns: 1`. Call its one cell's `paragraphStartIndex` `{P}`
 5. `insert_table_row(doc_id={MD}, table_start_index={P}+1, row_index=1)`, then `get_doc_as_markdown(doc_id={MD})`
+6. `create_doc(title="TC-DOC248 edges", folder_id={FOLDER_ID}, content_format="markdown", content="> | a | b |\n> |---|---|\n> | 1 | 2 |\n>\n> | c | d |\n> |---|---|\n> | 3 | 4 |\n\nBefore paragraph.\n\n> | e | f |\n> |---|---|\n> | 5 | 6 |\n\nAfter paragraph.\n\n> | g | h |\n> |---|---|\n> | 7 | 8 |\n\n- List item after\n\n> | i | j |\n> |---|---|\n> | 9 | 10 |\n\n> | k | l |\n> |---|---|\n> | 11 | 12 |\n")`; call its `docId` `{EDGES}` (PR #1359 QA round 1)
+7. `get_doc_as_markdown(doc_id={EDGES})`
 
 **Checks**
 - Steps 1 and 2 return a `docId` with no `error`
@@ -6834,8 +6836,12 @@ Live on `mcp-gee-sweet-sky` at 10923b31, after `/mcp reconnect` (OAuth, Shared D
 - Step 2, on screen: the bar runs from "Sized quote" down beside the table. The table is narrow (its two columns about 120pt and 60pt, not the page width), and "merged" spans both columns
 - Step 3: the Markdown has `> | **V** | **W** |` inside the same quote as "One quote, first line." and "One quote, last line." (a `>` line between them, never a blank line). "First quote.", the T/U table and "Third quote." are three separate quotes. The N/M table's lines start with `> > `. The A/B table is indented under "- Item one" with `> ` after the indent, joined to "Quote in item" by a line of the indent plus `>`. The C/D table's lines start with `>   | `. The Plain/Table table has no `>`. No line reads `nested table omitted`
 - Step 5: no `error`. The Markdown's V/W table now has an empty third row and is still inside the quote
+- Step 6, on screen: the a/b and c/d tables are one quote. One bar runs unbroken beside both tables and through the blank line between them, and the tables don't touch
+- Step 6, on screen: "Before paragraph." has a visible gap above it (after the c/d quote) and below it (before the e/f table's bar), like the gap between a paragraph and a quote of text. "After paragraph." has the same gap above it, after the e/f table. "List item after" has the same gap above it, after the g/h table
+- Step 6, on screen: the i/j and k/l tables are two quotes. Each has its own bar, with a visible gap between the bars, and the tables don't touch
+- Step 7: the a/b and c/d tables are in one quote, joined by a `>` line, never a blank line. The i/j and k/l tables are in two quotes, with a blank line between them that has no `>`
 
-**Cleanup:** `delete_file` both docs
+**Cleanup:** `delete_file` the three docs
 
 **Result (2026-11-01) ✅ PASS — PR #1359 round 1 (Sky)**
 Live on `mcp-gee-sweet-sky` at aa397141, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all five steps, checked on screen with Playwright. Step 1: "One quote" has one unbroken bar from the first line, beside the V/W table, to the last line, with V/3 left-aligned and W/4 right-aligned; "First quote.", the T/U table and "Third quote." are three bars with gaps; "Inner line" and the N/M table share the second-level bar; "Quote in item" and the A/B table share one bar at the item's text indent, and "Item two" continues the list; the C/D table has a bar at "Quoted item"'s text indent, and "Quoted item two" is the next bullet; Plain/Table sits at the margin with no bar. Step 2: the bar runs from "Sized quote" down beside a narrow table, with "merged" spanning both columns. Step 3: the Markdown matches every check. Step 5: `insert_table_row` at `{P}`+1 (29) added an empty third row, and the V/W table is still inside the quote. Cleanup: both docs trashed.

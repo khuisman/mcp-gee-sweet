@@ -24,7 +24,9 @@ equivalent manual deletion.
 (`fontSize = 1pt`). The paragraph remains in the document structure but is invisible in the
 rendered output. The one exception is a paragraph between two tables: it keeps its height, as
 the blank line that keeps the tables from touching and reading as one (#1098). Every such
-paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097).
+paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097),
+except that one between two quoted tables in the same quote takes the quote's indent and
+bar (#1122).
 Related: #190.
 
 ---

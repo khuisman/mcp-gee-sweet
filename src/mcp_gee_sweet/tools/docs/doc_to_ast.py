@@ -64,6 +64,11 @@ def document_to_ast(document: dict) -> list[DocNode]:
                 # A quoted table in its quote-bar wrapper (#1122): placed by the quote
                 # indent the wrapper records, like a quoted paragraph.
                 inner, indent = wrapped
+                if nodes and _is_empty_paragraph(nodes[-1]) and not _ends_a_quoted_table(nodes):
+                    # The newline insertTable puts before every table. Kept, it read
+                    # as a blank line that ended the quote before its table. Dropped
+                    # before the table is placed, which can settle its list depth.
+                    items.discard(nodes.pop())
                 table = _table_elem_to_ast(inner, document)
                 table.blockquote_depth = max(1, round(indent / _BLOCKQUOTE_INDENT_PT_PER_LEVEL))
                 pstyle = {
@@ -72,10 +77,6 @@ def document_to_ast(document: dict) -> list[DocNode]:
                     "borderLeft": {"width": {"magnitude": 1}},
                 }
                 items.block(table, {"paragraphStyle": pstyle})
-                if nodes and _is_bare_empty_paragraph(nodes[-1]):
-                    # The newline insertTable puts before every table. Kept, it read
-                    # as a blank line that ended the quote before its table.
-                    nodes.pop()
             nodes.append(table)
         # sectionBreak, tableOfContents: no Markdown equivalent, silently skipped
         # — same "unsupported construct" convention html_parser.py uses on write.
@@ -161,6 +162,10 @@ class _ListItemContext:
     def table(self, table: Table) -> None:
         if self._lists:
             self._pending.append((table, None))
+
+    def discard(self, node: DocNode) -> None:
+        """Forget a node the caller dropped, so a later settle doesn't place it."""
+        self._pending = [(n, match) for n, match in self._pending if n is not node]
 
     def close(self) -> None:
         """End the open list: whatever was waiting stays outside it, as read."""
@@ -549,14 +554,24 @@ def _resolve_inline_image(
     )
 
 
-def _is_bare_empty_paragraph(node: DocNode) -> bool:
+def _ends_a_quoted_table(nodes: list[DocNode]) -> bool:
+    """Whether the empty paragraph ending `nodes` is the unquoted gap after a quoted
+    table: between two quoted tables in separate quotes, it's what keeps them apart (a
+    gap between two in one quote carries their bar instead)."""
+    gap = nodes[-1]
     return (
-        isinstance(node, Paragraph)
-        and not node.runs
-        and not node.rule
-        and node.blockquote_depth == 0
-        and node.list_depth is None
+        len(nodes) >= 2
+        and isinstance(nodes[-2], Table)
+        and nodes[-2].blockquote_depth > 0
+        and gap.blockquote_depth == 0
     )
+
+
+def _is_empty_paragraph(node: DocNode) -> bool:
+    """An empty paragraph that isn't a rule. Right before a quote-bar wrapper it's the
+    newline insertTable put there, whatever quote it reads in: between two wrappers in
+    one quote it carries that quote's bar (PR #1359 QA round 1)."""
+    return isinstance(node, Paragraph) and not node.runs and not node.rule
 
 
 def _quote_bar_wrapped(table: dict) -> tuple[dict, float] | None:

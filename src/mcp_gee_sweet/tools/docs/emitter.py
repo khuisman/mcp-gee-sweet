@@ -976,11 +976,11 @@ def ast_to_requests(
                 "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
             }
             if isinstance(node, BulletItem):
-                if node.blockquote_depth == 0:
-                    continue
-                requests.append(
-                    _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
-                )
+                # An unquoted item still takes the quote-edge gap beside a quoted table.
+                if node.blockquote_depth > 0:
+                    requests.append(
+                        _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
+                    )
             else:
                 content_depth = _list_content_depth(node)
                 if content_depth is None:
@@ -1238,12 +1238,17 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     (#1094), so it doesn't end the item's list.
 
     A quoted table counts (#1122): its wrapper's bar met the next quote's just the same.
+    Two tables in a row get none: the paragraph Docs keeps between them stays at full
+    height, unbordered, and takes the bar only when they share a quote
+    (_build_blank_para_before_table_collapses). A separator there pushed it out of that
+    check, and both were collapsed, so the tables touched (PR #1359 round 2 probe).
     """
     result: list[DocNode] = []
     separators: set[int] = set()
     prev: DocNode | None = None
     for node in nodes:
-        if prev is not None and _in_quote(prev) and _in_quote(node):
+        between_tables = isinstance(prev, Table) and isinstance(node, Table)
+        if prev is not None and _in_quote(prev) and _in_quote(node) and not between_tables:
             a, b = prev.blockquote_path, node.blockquote_path
             if a[: len(b)] != b and b[: len(a)] != a:
                 content_depth = _list_content_depth(node)
@@ -1274,7 +1279,14 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
     A Heading or a TITLE/SUBTITLE NamedBlock gets no quote-edge space: an explicit
-    value would replace its named style's own spacing (HEADING_1's 20pt above, say)."""
+    value would replace its named style's own spacing (HEADING_1's 20pt above, say).
+
+    A table can't take spacing, so where a quote starts or ends with a table, the
+    unquoted node on the other side of that edge takes the gap instead (PR #1359 QA
+    round 1)."""
+
+    def quoted_table(i: int) -> bool:
+        return 0 <= i < len(nodes) and isinstance(nodes[i], Table) and _in_quote(nodes[i])
 
     def outside_quote(i: int, *, count_separator: bool) -> bool:
         if i < 0 or i >= len(nodes):
@@ -1296,6 +1308,11 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
             if outside_quote(i - 1, count_separator=False):
                 above = _BLOCK_SPACING_PT
             if outside_quote(i + 1, count_separator=True):
+                below = _BLOCK_SPACING_PT
+        elif not _in_quote(node) and not _has_named_spacing(node):
+            if quoted_table(i - 1):
+                above = _BLOCK_SPACING_PT
+            if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
         if above or below:
             spacing[i] = (above, below)
@@ -1699,7 +1716,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     images: the resolved images to embed in cells, at any nesting depth, and how each
     fill batch is sent (#1073).
 
-    Nested table limitations: no col_widths inside nested tables. colspan/
+    Nested table limitations: no col_widths inside nested tables, except a quoted
+    table inside its quote-bar wrapper (#1122), whose widths step 5 applies. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
     (#108, #275) are both fully supported, at any nesting depth — each run of
     text, merge, and nested table renders in the same order and shape it had
@@ -1723,7 +1741,7 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    blank_collapses = _build_blank_para_before_table_collapses(live_doc)
+    blank_collapses = _build_blank_para_before_table_collapses(live_doc, tables)
     if blank_collapses:
         await execute_in_thread(
             docs_service.documents()
@@ -2624,7 +2642,22 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
     return requests
 
 
-def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
+def _shared_quote_indents(first: Table, second: Table) -> tuple[int, int] | None:
+    """The indents of the quote two adjacent quoted tables' wrappers share (#1122): the
+    shallower one's, when both are wrappers in one quote (one's blockquote_path a prefix
+    of the other's, as in _with_quote_separators). None otherwise."""
+    if not (first.quote_bar and second.quote_bar):
+        return None
+    a, b = first.blockquote_path, second.blockquote_path
+    if a[: len(b)] != b and b[: len(a)] != a:
+        return None
+    outer = first if first.blockquote_depth <= second.blockquote_depth else second
+    return _block_indents(outer.blockquote_depth, content_level=outer.list_depth)
+
+
+def _build_blank_para_before_table_collapses(
+    live_doc: dict, ast_tables: list[Table] | None = None
+) -> list[dict]:
     """Return requests that reset empty paragraphs immediately before tables to a plain
     paragraph and collapse them to zero visual height.
 
@@ -2636,11 +2669,19 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
     preceding heading's style, #1092), no bullet and no indent or border (see below).  Only
     paragraphs whose sole content is a newline are affected, and one sitting between two
     tables is reset but keeps its height (#1098).
+
+    `ast_tables` are the top-level tables in document order, as fill_tables gets them.
+    Between two quoted tables' wrappers in one quote, the full-height paragraph also gets
+    that quote's indent and bar, so the bar runs on past the gap (PR #1359 QA round 1).
     """
     content = live_doc.get("body", {}).get("content", [])
     requests: list[dict] = []
+    table_count = 0
     for i, elem in enumerate(content):
-        if "table" not in elem or i == 0:
+        if "table" not in elem:
+            continue
+        table_count += 1
+        if i == 0:
             continue
         prev = content[i - 1]
         if "paragraph" not in prev:
@@ -2678,6 +2719,11 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
         if i >= 2 and "table" in content[i - 2]:
             # The only thing between two tables: collapsed, the tables touched and read
             # as one (#1098). Left at full height, it's the blank line between them.
+            this = table_count - 1
+            if ast_tables is not None and this < len(ast_tables):
+                indents = _shared_quote_indents(ast_tables[this - 1], ast_tables[this])
+                if indents is not None:
+                    requests.append(_indent_style_request(rng, indents, border=True))
             continue
         requests.extend(_collapse_paragraph_requests(rng))
     return requests

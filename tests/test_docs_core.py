@@ -3707,6 +3707,145 @@ class TestQuoteBarFill:
         assert request["updateTableCellStyle"]["fields"] == "backgroundColor"
 
 
+def _two_tables_doc() -> dict:
+    """Two top-level tables with only the required empty paragraph between them."""
+    table = {"table": {"tableRows": []}}
+    gap = {
+        "startIndex": 20,
+        "endIndex": 21,
+        "paragraph": {"elements": [{"textRun": {"content": "\n"}}]},
+    }
+    before = {
+        "startIndex": 1,
+        "endIndex": 2,
+        "paragraph": {"elements": [{"textRun": {"content": "\n"}}]},
+    }
+    return {
+        "body": {"content": [before, {**table, "startIndex": 2}, gap, {**table, "startIndex": 21}]}
+    }
+
+
+class TestQuoteBarBetweenTwoQuotedTables:
+    """PR #1359 QA round 1: the full-height paragraph Docs keeps between two tables split
+    one quote's bar when both tables were quoted. It keeps its height, so the tables don't
+    touch (#1098), but takes that quote's indent and bar."""
+
+    @staticmethod
+    def _wrappers(*quoted: Table) -> list[Table]:
+        _, tables = ast_to_requests(list(quoted))
+        return tables
+
+    @staticmethod
+    def _gap_styles(requests: list[dict]) -> list[dict]:
+        return [
+            r["updateParagraphStyle"]
+            for r in requests
+            if r.get("updateParagraphStyle", {}).get("range") == {"startIndex": 20, "endIndex": 21}
+        ]
+
+    def test_two_tables_in_one_quote_carry_the_bar(self):
+        nodes = html_to_ast(
+            "<blockquote><table><tr><td>a</td></tr></table>"
+            "<table><tr><td>c</td></tr></table></blockquote>"
+        )
+        _, tables = ast_to_requests(nodes)
+        requests = _build_blank_para_before_table_collapses(_two_tables_doc(), tables)
+        styles = self._gap_styles(requests)
+        assert styles[-1]["paragraphStyle"]["indentStart"] == {"magnitude": 36, "unit": "PT"}
+        assert "borderLeft" in styles[-1]["paragraphStyle"]
+        # Still full height: never collapsed.
+        assert not any(s["paragraphStyle"].get("lineSpacing") == 1 for s in styles)
+
+    def test_nested_quotes_take_the_shallower_indent(self):
+        nodes = html_to_ast(
+            "<blockquote><table><tr><td>a</td></tr></table>"
+            "<blockquote><table><tr><td>c</td></tr></table></blockquote></blockquote>"
+        )
+        _, tables = ast_to_requests(nodes)
+        requests = _build_blank_para_before_table_collapses(_two_tables_doc(), tables)
+        styles = self._gap_styles(requests)
+        assert styles[-1]["paragraphStyle"]["indentStart"] == {"magnitude": 36, "unit": "PT"}
+
+    def test_tables_in_separate_quotes_get_no_bar(self):
+        first = Table(
+            rows=[Row(cells=[Cell(children=[Run("a")])])], blockquote_depth=1, blockquote_path=(1,)
+        )
+        second = Table(
+            rows=[Row(cells=[Cell(children=[Run("c")])])], blockquote_depth=1, blockquote_path=(2,)
+        )
+        _, tables = ast_to_requests([first, second])
+        requests = _build_blank_para_before_table_collapses(_two_tables_doc(), tables)
+        assert all("borderLeft" not in s["paragraphStyle"] for s in self._gap_styles(requests))
+
+    def test_tables_in_separate_quotes_get_no_separator(self):
+        # A separator would push the full-height gap out of the between-two-tables
+        # check, and both paragraphs were collapsed: the tables touched (round 2 probe).
+        nodes = html_to_ast(
+            "<blockquote><table><tr><td>a</td></tr></table></blockquote>"
+            "<blockquote><table><tr><td>c</td></tr></table></blockquote>"
+        )
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\n\n"
+
+    def test_unquoted_tables_get_no_bar(self):
+        plain = [Table(rows=[Row(cells=[Cell(children=[Run(x)])])]) for x in "ac"]
+        requests = _build_blank_para_before_table_collapses(_two_tables_doc(), plain)
+        assert all("borderLeft" not in s["paragraphStyle"] for s in self._gap_styles(requests))
+
+
+class TestQuoteEdgeBesideAQuotedTable:
+    """PR #1359 QA round 1: a quote that starts or ends with a table met the content
+    outside it with no gap, since a table can't take spacing. The unquoted neighbour
+    takes the 8pt instead (#1098's quote-edge rule)."""
+
+    @staticmethod
+    def _spacing(html: str) -> list[dict]:
+        requests, _ = ast_to_requests(html_to_ast(html))
+        return [
+            r["updateParagraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and set(r["updateParagraphStyle"]["paragraphStyle"]) & {"spaceAbove", "spaceBelow"}
+            and r["updateParagraphStyle"]["paragraphStyle"].get("lineSpacing") is None
+        ]
+
+    def test_paragraphs_around_a_table_only_quote_take_the_gap(self):
+        spacing = self._spacing(
+            "<p>before</p><blockquote><table><tr><td>x</td></tr></table></blockquote><p>after</p>"
+        )
+        # "before" is 1..8; the placeholder 8..9; "after" 9..15.
+        assert spacing == [
+            {
+                "range": {"startIndex": 7, "endIndex": 8},
+                "paragraphStyle": {"spaceBelow": {"magnitude": 8, "unit": "PT"}},
+                "fields": "spaceBelow",
+            },
+            {
+                "range": {"startIndex": 9, "endIndex": 10},
+                "paragraphStyle": {"spaceAbove": {"magnitude": 8, "unit": "PT"}},
+                "fields": "spaceAbove",
+            },
+        ]
+
+    def test_list_item_after_a_quote_ending_in_a_table_takes_the_gap(self):
+        spacing = self._spacing(
+            "<blockquote><table><tr><td>x</td></tr></table></blockquote><ul><li>item</li></ul>"
+        )
+        assert [s["paragraphStyle"] for s in spacing] == [
+            {"spaceAbove": {"magnitude": 8, "unit": "PT"}}
+        ]
+
+    def test_heading_beside_a_quoted_table_keeps_its_own_spacing(self):
+        spacing = self._spacing(
+            "<h2>Title</h2><blockquote><table><tr><td>x</td></tr></table></blockquote>"
+        )
+        assert spacing == []
+
+    def test_unquoted_table_gives_its_neighbours_nothing(self):
+        assert self._spacing("<p>a</p><table><tr><td>x</td></tr></table><p>b</p>") == []
+
+
 class TestEmptyListItemIsABullet:
     """#1075: a list item with no text (a Markdown bare `-`, an HTML `<li></li>`) was
     dropped, so the list lost an item and an ordered list a number. Every item is now a
