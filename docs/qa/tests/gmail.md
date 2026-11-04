@@ -1350,7 +1350,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ## Send confirmation (`GMAIL_SEND=confirm`, #1081)
 
-Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
+**Required in the _ornithomimus_ release pass, whatever the tier (#1081's live acceptance criteria):** TC-GM57, 58, 59, 60, 65 and 66. Copy them into that release's run file.
+
+Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here except TC-GM65 drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
 
 - **accepts** (box checked): `ElicitResult(action="accept", content={"send": True})`
 - **accepts without checking the box**: `ElicitResult(action="accept", content={"send": False})`
@@ -1549,6 +1551,48 @@ Driven from a fresh interpreter (legacy client, declining callback) for the reas
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Step 1: `To: José Ñúñez <…>`, the fenced 3-line body, and `│ HTML-ONLY-CONTENT` with no `hidden()`. Step 2 (added this round for the round-2 fix): the HTML section read `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY`, `│ END` on separate lines, and `plain comment` appeared nowhere. Both `declined`; drafts deleted.
+
+---
+
+### TC-GM65: A send from Claude Code lands as a held draft
+
+**Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
+
+Run from a Claude Code session on the slot's own tools, not the harness: this is the path a Claude Code user is on until #1235 ships. Take `{THREAD_MSG}` as in TC-GM58.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] held"`, `body: "mcp-gee-sweet TC-GM65"`
+2. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM65 reply"`
+3. `create_draft` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] send_draft"`, `body: "mcp-gee-sweet TC-GM65"`, then `send_draft` on its `id`
+4. Playwright: open Gmail's Drafts folder for the QA mailbox, then the `thread` fixture's conversation (Playwright mutex per `run.md`)
+5. Needs a person with Claude Desktop, alongside TC-I68's steps 5–7: repeat step 1 from Claude Desktop with `subject: "[mcp-qa:tc-gm65] desktop"`. Without one, record this step as SKIP with that reason.
+
+**Checks**
+- Steps 1–3: every `send_message`, `reply_to_message` and `send_draft` result has `sent: false`, `reason: no_elicitation`, a `draft_id`, and a `note` naming Gmail's Drafts folder. Any other reason is a FAIL, since the docs say Claude Code's sends are held. Record the Claude Code version.
+- Step 2's `message.thread_id` equals `{THREAD_MSG}`'s `thread_id`
+- Step 4: the `[mcp-qa:tc-gm65] held` and `[mcp-qa:tc-gm65] send_draft` drafts are listed, and the conversation shows the unsent draft reply inside the thread
+- Step 5: nothing is delivered without a yes. Record what Claude Desktop did: `no_elicitation`, or a form (decline it). Nothing here has checked which handshake it uses.
+- Nothing was sent: `in:sent` finds nothing for `tc-gm65`, and the `thread` fixture gained no sent reply
+
+**Cleanup:** `delete_draft` every `draft_id`. Don't touch the fixture.
+
+---
+
+### TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter
+
+`_CONFIRM_TIMEOUT_SECONDS` is 600 and has no setting, so this case takes about 11 minutes. Run the two calls concurrently on one client.
+
+**Action:** legacy client, with an `elicitation_callback` that records the time, sleeps 660 seconds, then accepts with `{"send": true}`:
+1. `send_message` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] timeout"`, `body: "mcp-gee-sweet TC-GM66"`
+2. `create_draft` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] send_draft"`, `body: "mcp-gee-sweet TC-GM66"`, then `send_draft` on its `id`
+3. Keep the client open until both callbacks have returned their late accept, then run the Checks
+
+**Checks**
+- Steps 1 and 2 each return about 600 seconds after their form opened, before the callback answers, with `sent: false`, `reason: timeout`, a `draft_id`, and a `note` naming Gmail's Drafts folder
+- `get_draft` finds both drafts after the late accept
+- The late accept sends nothing: `in:sent` finds nothing for `tc-gm66`
+
+**Cleanup:** `delete_draft` each `draft_id`.
 
 ---
 
