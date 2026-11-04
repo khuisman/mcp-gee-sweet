@@ -1434,6 +1434,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals the original's `message_id`. Playwright shows the reply draft inline in the thread. Draft deleted.
 
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset), with the new Setup: `get_thread` on `{TEST_THREAD_ID}` gave three non-trashed messages, and M1 is the `[mcp-qa:thread]` opener. The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the TC-GM58 reply draft inline in the thread, after a full page load: going to the same Gmail hash doesn't reload the page, and it kept showing an already deleted draft. `in:sent` found no new reply. Draft deleted, fixture untouched.
+
 ---
 
 ### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
@@ -1603,6 +1606,9 @@ A response that arrives after the timeout isn't covered, since the `mcp` client 
 **Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
 Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25, scripted callback, rio slot, `GMAIL_SEND` unset), both calls concurrent on one client. Both forms opened at about 4 s. `send_message` returned at 603 s and `send_draft` at 604 s, each with `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both at 690 s, and `in:sent` found nothing for `tc-gm66`. Drafts deleted. Didn't run: the late accept. On timeout the server sends `notifications/cancelled`, and the `mcp` client cancels the callback (`_InFlight.scope.cancel()`), so it never returned and no late answer reached the server. Step 3 can't complete as written.
 
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Same harness, reworded case, with the callback logging its cancellation. Both forms opened at about 2 s. At 602 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
+
 ---
 
 ### TC-GM67: An accepted confirmation sends the reply ⚠️ destructive ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
@@ -1624,6 +1630,9 @@ Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25,
 - Step 5: the sender mailbox holds the delivered `Re: [mcp-qa:thread] two-party thread`
 
 **Cleanup:** `trash_message` the step-1 `id`. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy through `mcp__mcp-gee-sweet__trash_message`.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To: {SENDER}` and the body text. Accepted: `sent: true`, `id`, `draft_id`, label_ids `SENT`, `thread_id` equal to `{TEST_THREAD_ID}`, plus the expected `outside_organization` flag. `get_message`: no `DRAFT`, and `in_reply_to` equals M1's `message_id`. `get_draft` on the `draft_id` returned a 404 error. Step 5 ran from Aziz's session, since Rio's has no sender-mailbox server: `list_messages` found the delivered reply on the first try, with the right subject and body. Both copies trashed.
 
 ---
 
