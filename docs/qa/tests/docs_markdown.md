@@ -1404,6 +1404,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - Existing Doc: `write_doc_content` with LM-04 keeps the Doc's header and its changed named style (`get_doc_named_styles`), which a Drive import would have removed.
 - Round trip: `get_doc_as_markdown` on the LM-04 Doc returns `3. Three`, `4. Four` and `5. Five` with no backslashes, and on the LX-09 Doc `1.`, a fence, `2.`.
 
+**Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through `documents().get()`, not viewed on screen. Existing Doc: `write_doc_content` with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as `100.`, starts its text at 72pt with wrapped lines at 36pt.**
+
 ---
 
 ## Known gaps and not-applicable
