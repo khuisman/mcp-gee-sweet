@@ -7,14 +7,14 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 ## Conventions
 
 - **Fixtures.** Read cases use the seeded fixture set, never real inbox contents. Seed it with `scripts/qa_gmail_fixtures.py` (setup.md §"Gmail fixture setup") and run its `status` command first. Placeholders in `{TEST_…}` form are the `.env` keys that script writes. Every fixture carries the user label `mcp-qa-fixture` (`{TEST_GMAIL_LABEL_ID}`) and a `[mcp-qa:<key>]` subject.
-- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except the cross-mailbox cases (TC-GM44–45), which also send to `{SENDER}`, and TC-GM25, which also sends to the bare `{QA}`. Nothing else is ever a recipient.
+- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except TC-GM43 and the cross-mailbox cases (TC-GM44–45, TC-GM67), which also send to `{SENDER}`, and TC-GM25, which also sends to the bare `{QA}`. Nothing else is ever a recipient.
 - **Subjects.** Every message a case sends or drafts has a subject starting `[mcp-qa:tc-gmNN]`, so `qa_gmail_fixtures.py reset` sweeps anything a failed run leaves behind. (TC-GM42's empty-subject message is the one exception; its Cleanup trashes it by ID.)
 - **Sending to yourself is one message.** Mail to `{QA+tag}` comes back as one ID labeled `SENT`+`INBOX`, not a sent copy plus a delivered copy. Cleanup trashes that one ID.
 - **Don't break fixtures.** Never trash a fixture, and never remove `mcp-qa-fixture` from one. Cases that change a fixture's labels (TC-GM19) restore them in the same case.
-- **Sender mailbox.** TC-GM44–45 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
+- **Sender mailbox.** TC-GM44–45 and TC-GM67 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
 - **Sharding.** Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.
-- **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 (replies into it).
-- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset) and a client on the 2025-11-25 handshake that answers form elicitations. Claude Code isn't one: it connects to this server on MCP 2026-07-28 (2.1.310, checked 2026-10-26), where no form can be sent, so those cases run from the fresh-interpreter harness their section describes. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}` from the slot's own tools: under `direct` it returns `sent: true` (trash it); under `confirm` it returns `sent: false` (`delete_draft` the returned `draft_id`).
+- **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 and TC-GM67 (reply into it).
+- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset) and a client on the 2025-11-25 handshake that answers form elicitations. Claude Code isn't one: it connects to this server on MCP 2026-07-28 (2.1.310, checked 2026-10-26), where no form can be sent, so those cases run from the fresh-interpreter harness their section describes. TC-GM65 is the exception: it tests that held path, so it runs from Claude Code on the slot's own tools. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}` from the slot's own tools: under `direct` it returns `sent: true` (trash it); under `confirm` it returns `sent: false` (`delete_draft` the returned `draft_id`).
 
 ---
 
@@ -489,7 +489,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Action**
 1. `get_thread` with `thread_id: "{TEST_THREAD_ID}"`
 
-Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM43 run). Call the remaining three M1, M2, M3, identified by their body text in the checks below.
+Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM43 or TC-GM67 run). Call the remaining three M1, M2, M3, identified by their body text in the checks below.
 
 **Checks**
 - Exactly 3 non-trashed messages, with non-decreasing `internal_date`. M2 and M3 can share a value (sent in the same second; seen live 2026-09-26), so the order is proven by the `in_reply_to` chain below, not by the timestamps.
@@ -1350,7 +1350,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 ## Send confirmation (`GMAIL_SEND=confirm`, #1081)
 
-Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
+**Required in the _ornithomimus_ release pass, whatever the tier (#1081's live acceptance criteria):** TC-GM56, 57, 58, 59, 60, 65, 66 and 67. Copy them into that release's run file.
+
+Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here except TC-GM65 drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
 
 - **accepts** (box checked): `ElicitResult(action="accept", content={"send": True})`
 - **accepts without checking the box**: `ElicitResult(action="accept", content={"send": False})`
@@ -1410,7 +1412,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, sky
 
 **Playwright: required** (step 3, signed into the QA mailbox `{QA}`)
 
-**Setup:** run after TC-GM33. Take the `thread` fixture's first message ID as `{THREAD_MSG}` (`list_messages` with `query: "label:mcp-qa-fixture subject:(mcp-qa thread)"`).
+**Setup:** run after TC-GM33. `get_thread` with `thread_id: "{TEST_THREAD_ID}"`, and take M1 (as TC-GM33 identifies it) as `{THREAD_MSG}`. Don't find it by subject search: `subject:(mcp-qa thread)` also matches the `over-cap-thread` fixture.
 
 **Action**
 1. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM58 reply"`. The human declines the form.
@@ -1431,6 +1433,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals the original's `message_id`. Playwright shows the reply draft inline in the thread. Draft deleted.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset), with the new Setup: `get_thread` on `{TEST_THREAD_ID}` gave three non-trashed messages, and M1 is the `[mcp-qa:thread]` opener. The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the TC-GM58 reply draft inline in the thread, after a full page load: going to the same Gmail hash doesn't reload the page, and it kept showing an already deleted draft. `in:sent` found no new reply. Draft deleted, fixture untouched.
 
 ---
 
@@ -1549,6 +1554,85 @@ Driven from a fresh interpreter (legacy client, declining callback) for the reas
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Step 1: `To: José Ñúñez <…>`, the fenced 3-line body, and `│ HTML-ONLY-CONTENT` with no `hidden()`. Step 2 (added this round for the round-2 fix): the HTML section read `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY`, `│ END` on separate lines, and `plain comment` appeared nowhere. Both `declined`; drafts deleted.
+
+---
+
+### TC-GM65: A send from Claude Code lands as a held draft
+
+**Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
+
+Run from a Claude Code session on the slot's own tools, not the harness: this is the path a Claude Code user is on until #1235 ships. Take `{THREAD_MSG}` as in TC-GM58.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] held"`, `body: "mcp-gee-sweet TC-GM65"`
+2. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM65 reply"`
+3. `create_draft` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] send_draft"`, `body: "mcp-gee-sweet TC-GM65"`, then `send_draft` on its `id`
+4. Playwright: open Gmail's Drafts folder for the QA mailbox, then the `thread` fixture's conversation (Playwright mutex per `run.md`)
+5. Needs a person with Claude Desktop, alongside TC-I68's steps 5–7: repeat step 1 from Claude Desktop with `subject: "[mcp-qa:tc-gm65] desktop"`. Without one, record this step as SKIP with that reason.
+
+**Checks**
+- Steps 1–3: every `send_message`, `reply_to_message` and `send_draft` result has `sent: false`, `reason: no_elicitation`, a `draft_id`, and a `note` naming Gmail's Drafts folder. Any other reason is a FAIL, since the docs say Claude Code's sends are held. Record the Claude Code version.
+- Step 2's `message.thread_id` equals `{THREAD_MSG}`'s `thread_id`
+- Step 4: the `[mcp-qa:tc-gm65] held` and `[mcp-qa:tc-gm65] send_draft` drafts are listed, and the conversation shows the unsent draft reply inside the thread
+- Step 5: nothing is delivered without a yes. Record what Claude Desktop did: `no_elicitation`, or a form (decline it). Nothing here has checked which handshake it uses.
+- Nothing was sent: `in:sent` finds nothing for `tc-gm65`, and the `thread` fixture gained no sent reply
+
+**Cleanup:** `delete_draft` every `draft_id`. Don't touch the fixture.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Rio slot's own tools, Claude Code 2.1.318, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply draft (Gmail search `in:drafts tc-gm65`), and the fixture's conversation shows the unsent reply inline. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Didn't run: step 5 and its check (no person with Claude Desktop).
+
+---
+
+### TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter
+
+`_CONFIRM_TIMEOUT_SECONDS` is 600 and has no setting, so this case takes just over 10 minutes. Run the two calls concurrently on one client.
+
+**Action:** legacy client, with an `elicitation_callback` that records when it starts and when it's cancelled, sleeps 660 seconds, then accepts with `{"send": true}`:
+1. `send_message` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] timeout"`, `body: "mcp-gee-sweet TC-GM66"`
+2. `create_draft` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] send_draft"`, `body: "mcp-gee-sweet TC-GM66"`, then `send_draft` on its `id`
+3. Run the Checks once both calls have returned. Don't wait for the callbacks: at the timeout the server sends `notifications/cancelled`, and the `mcp` client cancels them, so they never reach their accept.
+
+**Checks**
+- Steps 1 and 2 each return about 600 seconds after their form opened, with `sent: false`, `reason: timeout`, a `draft_id`, and a `note` naming Gmail's Drafts folder
+- Both callbacks are cancelled at about 600 seconds, and neither accepts
+- `get_draft` finds both drafts
+- Nothing is sent: `in:sent` finds nothing for `tc-gm66`
+
+A response that arrives after the timeout isn't covered, since the `mcp` client can't send one. It would take a raw JSON-RPC client.
+
+**Cleanup:** `delete_draft` each `draft_id`.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25, scripted callback, rio slot, `GMAIL_SEND` unset), both calls concurrent on one client. Both forms opened at about 4 s. `send_message` returned at 603 s and `send_draft` at 604 s, each with `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both at 690 s, and `in:sent` found nothing for `tc-gm66`. Drafts deleted. Didn't run: the late accept. On timeout the server sends `notifications/cancelled`, and the `mcp` client cancels the callback (`_InFlight.scope.cancel()`), so it never returned and no late answer reached the server. Step 3 can't complete as written.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Same harness, reworded case, with the callback logging its cancellation. Both forms opened at about 2 s. At 602 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
+
+---
+
+### TC-GM67: An accepted confirmation sends the reply ⚠️ destructive ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
+
+**Setup:** take `{THREAD_MSG}` as in TC-GM58. M1 came from the sender mailbox, so the reply goes to `{SENDER}`.
+
+**Action**
+1. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM67 reply"`
+2. The human reads the form, checks **Send this email now**, and accepts.
+3. `get_message` with the returned `id`
+4. `get_draft` with the returned `draft_id`
+5. Sender, after ~30 s: `mcp__mcp-gee-sweet__list_messages` with `query: "\"mcp-gee-sweet TC-GM67 reply\""`, `max_results: 10`. Retry as in TC-GM44.
+
+**Checks**
+- The form shows `Subject: Re: [mcp-qa:thread] two-party thread`, `To: {SENDER}`, and the body text
+- Step 1 returns `sent: true`, `id`, `draft_id`, `label_ids` with `SENT`, and `thread_id` equal to `{TEST_THREAD_ID}`
+- Step 3: `label_ids` doesn't include `DRAFT`, and `headers.in_reply_to` equals M1's `headers.message_id`
+- Step 4: the draft is gone
+- Step 5: the sender mailbox holds the delivered `Re: [mcp-qa:thread] two-party thread`
+
+**Cleanup:** `trash_message` the step-1 `id`. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy through `mcp__mcp-gee-sweet__trash_message`.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To: {SENDER}` and the body text. Accepted: `sent: true`, `id`, `draft_id`, label_ids `SENT`, `thread_id` equal to `{TEST_THREAD_ID}`, plus the expected `outside_organization` flag. `get_message`: no `DRAFT`, and `in_reply_to` equals M1's `message_id`. `get_draft` on the `draft_id` returned a 404 error. Step 5 ran from Aziz's session, since Rio's has no sender-mailbox server: `list_messages` found the delivered reply on the first try, with the right subject and body. Both copies trashed.
 
 ---
 
