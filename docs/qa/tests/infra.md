@@ -2108,3 +2108,6 @@ All seven steps met their checks. Probes outside the steps found defects (below)
 - 6: exits 2 with an `unrecognized arguments` error, and prints no URL
 
 **Cleanup:** delete `<scratch>`.
+
+**Result (2026-11-03) ✅ PASS — PR #1365 round 2 (Kit) @ f0083ff5**
+All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as in TC-I69. Step 1: 1 tool, no smaller-default line. Step 2: 143, no line. Step 3: 134, `not registering local-only tools named in ENABLED_TOOLS: sync_folder`. Step 4: 134, no such line. Step 5: `Scopes` has no `gmail.modify`. Step 6: exit 2, `unrecognized arguments: --include get_sheet_data`, no URL. TC-I69 steps 1–4 repeated with the same results as round 1. Probes: `--include-tools=` falls through to `ENABLED_TOOLS` (1 tool) or, with none, 143 with the line; `--include-tools=list_sheets` beats `ENABLED_TOOLS=get_sheet_data`; `off` with `--include-tools=all,sync_folder` warns; `off` with two local-only names and a normal one lists just the two; `off` unset logs no local-only line.
