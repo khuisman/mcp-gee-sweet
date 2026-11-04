@@ -1412,6 +1412,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through `documents().get()`, not viewed on screen. Existing Doc: `write_doc_content` with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as `100.`, starts its text at 72pt with wrapped lines at 36pt.**
 
+**Result (2026-11-03, PR #1368 QA round 2 @ d3c252b3, Sky) ⚠️ PARTIAL — one run. Both round 1 live defects are fixed: LX-18 to LX-21 match the TC-MD108 table on screen at EP-3. HTML through EP-1: `reversed` shows 3. 2. 1. and `value` shows 5. 6. on screen. Hand-numbered heading through EP-2: the `#1-introduction` link resolved to its heading. LX-09 to LX-17 structure unchanged from round 1 at EP-3. Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a quoted stand-in at list level 2 exports with the wrong number (`iii.` as `6327.`), and a paragraph or sublist under a `100.` item sits left of the item's text.**
+
 ---
 
 ## Known gaps and not-applicable
