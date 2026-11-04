@@ -63,6 +63,20 @@ The container serves over the network interface, so it needs a bearer token (see
 
 For Claude Code: `claude mcp add --transport sse mcp-gee-sweet http://localhost:47000/sse --header "Authorization: Bearer <token>"`.
 
+## Claude Code — stdio
+
+```bash
+claude mcp add mcp-gee-sweet \
+  -e ENABLED_TOOLS=all \
+  -e CREDENTIALS_PATH=/path/to/credentials.json \
+  -e TOKEN_PATH=/path/to/token.json \
+  -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
+```
+
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+
+Before the first connection, log in once as in [stdio — cloned repo](#stdio-cloned-repo).
+
 ## Claude Code (this project's own MCP config)
 
 The project runs two instances — one OAuth, one service account — defined in `.mcp.json` at the repo root. Claude Code picks these up automatically when you open the project.

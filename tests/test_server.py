@@ -132,12 +132,69 @@ class TestParseEnabledTools:
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
         assert _parse_enabled_tools() is None
 
+    def test_all_means_every_tool(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "all")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        assert _parse_enabled_tools() is None
+
+    def test_all_on_the_cli_means_every_tool(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools", "all"])
+        assert _parse_enabled_tools() is None
+
+    def test_all_with_tool_names_is_still_every_tool(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data, all ,list_sheets")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        assert _parse_enabled_tools() is None
+
     def test_cli_arg_missing_value_falls_through_to_env(self, monkeypatch):
         monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
         # --include-tools is the last arg with no following value
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools"])
         result = _parse_enabled_tools()
         assert result == {"get_sheet_data"}
+
+
+class TestSmallerDefaultWarning:
+    """#1363: a server with no tool filter says, once, that the default will shrink."""
+
+    def _warnings(self, monkeypatch, argv, enabled_tools):
+        if enabled_tools is None:
+            monkeypatch.delenv("ENABLED_TOOLS", raising=False)
+        else:
+            monkeypatch.setenv("ENABLED_TOOLS", enabled_tools)
+        monkeypatch.setattr(sys, "argv", argv)
+        monkeypatch.setattr(mcp, "run", MagicMock())
+        warning = MagicMock()
+        # server.logger, not caplog: DEBUG_LEVEL turns off the package logger's
+        # propagation, so caplog would depend on the environment.
+        monkeypatch.setattr(server.logger, "warning", warning)
+        main()
+        return [c for c in warning.call_args_list if "smaller default" in str(c)]
+
+    @pytest.mark.parametrize("enabled_tools", [None, "", " , "])
+    def test_unset_warns_once(self, monkeypatch, enabled_tools):
+        calls = self._warnings(monkeypatch, ["mcp-gee-sweet"], enabled_tools)
+        assert len(calls) == 1
+        assert calls[0].args == (
+            "An upcoming release loads a smaller default tool set when ENABLED_TOOLS is unset. "
+            "To keep every tool, set ENABLED_TOOLS=all.",
+        )
+
+    @pytest.mark.parametrize("enabled_tools", ["all", "get_sheet_data", "all,get_sheet_data"])
+    def test_any_value_stays_quiet(self, monkeypatch, enabled_tools):
+        assert self._warnings(monkeypatch, ["mcp-gee-sweet"], enabled_tools) == []
+
+    @pytest.mark.parametrize("value", ["all", "get_sheet_data"])
+    def test_a_cli_value_stays_quiet(self, monkeypatch, value):
+        argv = ["mcp-gee-sweet", "--include-tools", value]
+        assert self._warnings(monkeypatch, argv, None) == []
+
+    def test_the_auth_command_stays_quiet(self, monkeypatch):
+        monkeypatch.setattr(server, "run_auth_command", MagicMock(return_value=0))
+        with pytest.raises(SystemExit):
+            self._warnings(monkeypatch, ["mcp-gee-sweet", "auth"], None)
+        server.logger.warning.assert_not_called()
 
 
 class TestAuthStatusResource:
@@ -1235,6 +1292,19 @@ class TestLocalFilePolicyAtImport:
         )
         assert names == {"get_sheet_data"}
         assert "not registering local-only tools named in ENABLED_TOOLS: sync_folder" in stderr
+
+    def test_enabled_tools_all_registers_every_tool(self):
+        unset, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {})
+        everything, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {"ENABLED_TOOLS": "all"})
+        assert everything == unset
+        assert len(everything) > 100
+
+    def test_include_tools_all_with_a_name_registers_every_tool(self):
+        unset, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {})
+        everything, _ = _import_server_in_subprocess(
+            ["mcp-gee-sweet", "--include-tools", "all,get_sheet_data"], {}
+        )
+        assert everything == unset
 
 
 class TestLocalPathToolsAreCovered:

@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Upcoming change
+
+- **An upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset.** To keep every tool, set `ENABLED_TOOLS=all`. Until then, a server started with `ENABLED_TOOLS` unset logs this as a warning at startup — #1363
+
 ### New tools
 
 - Gmail drafts can now be reviewed, edited, and discarded before sending: `list_drafts` (query and pagination; each draft's recipients, subject, and snippet), `get_draft` (same shape as `get_message`), `update_draft` (replaces the content and keeps the draft ID, the thread of a reply draft, and its send-as From; `keep_attachments=True` keeps the existing attachments), and `delete_draft`. None of them sends mail; `send_draft` is still the only way a draft goes out — #1205
@@ -13,6 +17,7 @@ All notable changes to this project are documented in this file.
 ### New features
 
 - Each GitHub Release now carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, which installs the server in Claude Desktop in one click: the install dialog asks for the OAuth client file, and nothing goes into `claude_desktop_config.json` by hand. The bundle uses OAuth only and keeps its token at `~/.mcp-gee-sweet-token.json`. See [Install as a bundle](docs/client-setup.md#install-as-a-bundle) — #1036
+- `ENABLED_TOOLS=all` and `--include-tools all` register every tool, the same as leaving them unset. `all` used to be read as a tool name, so the server started with no tools and no error — #1363
 
 ### Changed
 

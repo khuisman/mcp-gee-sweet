@@ -376,7 +376,13 @@ def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
         "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
         "```",
         "",
-        "If neither is set, all tools are registered.",
+        "If neither is set, or the value is empty, all tools are registered. "
+        "`ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. "
+        "Listed with tool names, `all` adds nothing: every tool is still registered.",
+        "",
+        "**Upcoming change:** an upcoming release loads a smaller default tool set when "
+        "`ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`. Until "
+        "then, a server started with neither set logs this as a warning at startup.",
         "",
         "### Suggested subsets",
         "",

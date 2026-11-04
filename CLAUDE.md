@@ -149,7 +149,7 @@ Each entry below says what a module owns and the invariants a future edit could 
 The project philosophy is to be as powerful and flexible as possible by default, while giving security-conscious users the configuration knobs to lock things down. Two mechanisms reflect this:
 
 - **Auth** (`AUTH_METHOD`): out of the box the waterfall tries everything so the server just works; setting `AUTH_METHOD` restricts it to exactly one method with no fallback.
-- **Tool surface** (`ENABLED_TOOLS` / `--include-tools`): by default all tools are registered; setting `ENABLED_TOOLS` to a comma-separated list of function names limits the server to exactly that subset. This lets operators expose only the tools their users need.
+- **Tool surface** (`ENABLED_TOOLS` / `--include-tools`): by default all tools are registered; setting `ENABLED_TOOLS` to a comma-separated list of function names limits the server to exactly that subset, and `all` anywhere in the list means every tool. This lets operators expose only the tools their users need.
 
 By default (`AUTH_METHOD` unset), auth falls through in order: OAuth (`CREDENTIALS_PATH`/`TOKEN_PATH`) → service account (`CREDENTIALS_CONFIG` or `SERVICE_ACCOUNT_PATH`) → Application Default Credentials. OAuth is tried first because it authenticates as the user (full personal Drive access); service account is a fallback for headless/server deployments.
 
@@ -160,7 +160,7 @@ Set `AUTH_METHOD` to pin a specific method with no fallback — removes ambiguit
 
 **Logging** (`DEBUG_LEVEL` env var): when set, configures the `mcp_gee_sweet` package logger and `uvicorn.access` logger to the given level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). The `_timed` wrapper in `server.py` emits one `INFO` line per tool call to `mcp_gee_sweet.access` — format: `"IP" "UA" "TOOL name" status elapsed`. IP/UA come from `ctx.request_context` in SSE mode; fall back to `-` in stdio. `LOG_FILE` and `ACCESS_LOG_FILE` env vars write logs to file (required for stdio where stderr is dropped by the host). Runtime config lives in `src/mcp_gee_sweet/.env` (gitignored); template at `src/mcp_gee_sweet/.env.template`.
 
-**Tool registration** (`tool` decorator wrapper): A custom `@tool()` decorator wraps `@mcp.tool()`. It checks `ENABLED_TOOLS` (set via `ENABLED_TOOLS` env var or `--include-tools` CLI arg) and skips registration for any tool not in the allowlist. This is how tool filtering works — tools simply aren't registered with MCPServer rather than being conditionally hidden.
+**Tool registration** (`tool` decorator wrapper): A custom `@tool()` decorator wraps `@mcp.tool()`. It checks `ENABLED_TOOLS` (set via `ENABLED_TOOLS` env var or `--include-tools` CLI arg) and skips registration for any tool not in the allowlist. `_parse_enabled_tools` returns `None` (no filter) for both unset and `all`; only `_configured_tool_names` tells them apart, which `main()` uses for the once-per-server warning that the default will shrink (#1363). This is how tool filtering works — tools simply aren't registered with MCPServer rather than being conditionally hidden.
 
 **Async execution** (`execute_in_thread` + `thread_http`, in `http_transport.py`; full rationale in `docs/decisions/decision-async-tool-execution.md`, [History](docs/design/module-history.md#async-execution)):
 - Every `@tool()` function must be `async def`, even one with no API calls: `_timed` awaits it, so a plain `def` raises `TypeError` (`test_server.py::TestAllToolsAreAsync` guards this).
