@@ -170,9 +170,15 @@ as a list: pressing Enter in one doesn't add an item, and adding or removing one
 renumber the rest. `get_doc_as_markdown` reads them back as list items.
 
 A top-level list that starts where the last top-level list stopped (`1. a`, a code block,
-`2. b`) stays a real list: it joins that list, whatever came between. Only another list
-between them, a different blockquote, or a different number makes it literal. A nested list
-that doesn't start at 1 is always literal, written in its level's glyph (`c.`, `iv.`).
+`2. b`) stays a real list: it joins that list. It's literal instead when another list comes
+between them, or a table, an empty paragraph or a quote two levels deep (each would read back
+from the Doc as inside the first list's last item), or when it's in a different blockquote or
+has a different number. A nested list that doesn't start at 1 is always literal, written in its
+level's glyph (`c.`, `iv.`). So are `<ol reversed>` and a list with an `<li value>`.
+
+A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) moves that item's text
+and wrapped lines right, so its text sits further in than its neighbours'. The width is
+estimated from Arial at the default sizes, so a much wider font can still overrun it.
 
 **Why:** `NestingLevel.startNumber` is read-only: no `batchUpdate` request writes it, and
 deleting a list's first items renumbers the rest from 1 (confirmed live). Only Drive's HTML

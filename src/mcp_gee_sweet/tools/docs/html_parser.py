@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html as html_module
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 
 from .ast import (
@@ -312,23 +312,51 @@ _CELL_ALIGNMENTS = {
 
 _IMPORTANT = re.compile(r"!\s*important\s*$")
 
-# How a browser reads <ol start> (the HTML spec's rules for parsing integers): ASCII
-# whitespace, an optional sign, then digits, ignoring what follows them.
-_OL_START = re.compile(r"[ \t\n\f\r]*([+-]?[0-9]+)")
-# Past this a browser ignores the attribute. Also keeps int() from raising on a
-# number longer than Python's digit limit.
-_OL_START_MAX_DIGITS = 10
-_OL_START_MAX = 2**31 - 1
+# How a browser reads an integer attribute (the HTML spec's rules for parsing integers):
+# ASCII whitespace, an optional sign, then digits, ignoring what follows them.
+_HTML_INTEGER = re.compile(r"[ \t\n\f\r]*([+-]?)([0-9]+)")
+# Past int32 a browser ignores the attribute.
+_HTML_INTEGER_MAX = 2**31 - 1
 
 
-def _ol_start(value: str | None) -> int | None:
-    """The number an <ol start> gives its first item, or None when that's 1 or the
-    attribute is absent or invalid (#1118)."""
-    match = _OL_START.match(value or "")
-    if match is None or len(match.group(1).lstrip("+-")) > _OL_START_MAX_DIGITS:
+def _html_integer(value: str | None) -> int | None:
+    """An <ol start> or <li value> as a browser reads it, or None when absent or invalid
+    (#1118). Leading zeros don't count toward the size, and the length check keeps
+    int() from raising on a number past Python's digit limit."""
+    match = _HTML_INTEGER.match(value or "")
+    if match is None:
         return None
-    start = int(match.group(1))
-    return None if start == 1 or abs(start) > _OL_START_MAX else start
+    digits = match.group(2).lstrip("0") or "0"
+    if len(digits) > len(str(_HTML_INTEGER_MAX)):
+        return None
+    number = int(match.group(1) + digits)
+    return number if abs(number) <= _HTML_INTEGER_MAX else None
+
+
+@dataclass
+class _OrderedList:
+    """What numbers an <ol>'s items (#1118): its attributes, and each item built so
+    far with its <li value>."""
+
+    start: int | None
+    reversed: bool
+    items: list[tuple[BulletItem, int | None]] = field(default_factory=list)
+
+    def assign_numbers(self) -> None:
+        """Give each item the number a browser shows, unless that's 1, 2, 3."""
+        step = -1 if self.reversed else 1
+        number = self.start
+        if number is None:
+            number = len(self.items) if self.reversed else 1
+        numbers = []
+        for _, value in self.items:
+            number = number if value is None else value
+            numbers.append(number)
+            number += step
+        if numbers == list(range(1, len(numbers) + 1)):
+            return
+        for (item, _), item_number in zip(self.items, numbers, strict=True):
+            item.number = item_number
 
 
 _TABLE_SECTIONS = ("thead", "tbody", "tfoot")
@@ -428,9 +456,10 @@ class _AstParser(HTMLParser):
         # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
-        # The next item's number, by list id, for each <ol> whose start isn't 1
-        # (#1118): the only lists whose items carry a BulletItem.number.
-        self._list_numbers: dict[int, int] = {}
+        # Each <ol> by list id, numbered once every item is known (#1118).
+        self._ordered_lists: dict[int, _OrderedList] = {}
+        # The open <li>'s value attribute.
+        self._li_value: int | None = None
         # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
         # gets a fresh one, so two adjacent lists stay distinguishable (#1241).
         self._list_ids: list[int] = []
@@ -612,9 +641,6 @@ class _AstParser(HTMLParser):
         # sites, which is exactly the kind of duplication-invites-a-missed-site
         # pattern #417 was filed to close for block-open state.
         depth = max(len(list_ordered) - 1, 0)
-        number = self._list_numbers.get(list_path[-1]) if list_path else None
-        if number is not None:
-            self._list_numbers[list_path[-1]] = number + 1
         # Detect task list markers written as literal [x] / [ ] by the markdown library.
         # An image can never be the first child here in practice (markdown always wraps
         # a bare "![]()" in its own <p>, never mixes it as literal leading text before a
@@ -632,23 +658,24 @@ class _AstParser(HTMLParser):
                 runs[0].text = first_text[4:]
                 if not runs[0].text:
                     runs.pop(0)
-        return BulletItem(
+        item = BulletItem(
             runs=runs,
             depth=depth,
             ordered=ordered,
             checked=checked,
-            number=number,
             list_path=list_path,
             heading_level=self._li_heading_level,
             **self._blockquote_fields(),
         )
+        ordered_list = self._ordered_lists.get(list_path[-1]) if list_path else None
+        if ordered_list is not None:
+            ordered_list.items.append((item, self._li_value))
+        return item
 
-    def _push_list(self, ordered: bool, start: int | None = None) -> None:
+    def _push_list(self, ordered: bool) -> None:
         self._list_count += 1
         self._list_ordered.append(ordered)
         self._list_ids.append(self._list_count)
-        if start is not None:
-            self._list_numbers[self._list_count] = start
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -1102,7 +1129,10 @@ class _AstParser(HTMLParser):
         # --- list context ---
         if tag == "ol":
             self._interrupt_open_block("ol")
-            self._push_list(True, _ol_start(attr_dict.get("start")))
+            self._push_list(True)
+            self._ordered_lists[self._list_count] = _OrderedList(
+                _html_integer(attr_dict.get("start")), "reversed" in attr_dict
+            )
             return
         if tag == "ul":
             self._interrupt_open_block("ul")
@@ -1180,6 +1210,8 @@ class _AstParser(HTMLParser):
                 return
             self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
+            if tag == "li":
+                self._li_value = _html_integer(attr_dict.get("value"))
             return
 
         # --- thematic break (<hr>) with no open block ---
@@ -1639,6 +1671,8 @@ class _AstParser(HTMLParser):
             )
             self._block_tag = None
             self._block_named_style = None
+        for ordered_list in self._ordered_lists.values():
+            ordered_list.assign_numbers()
 
 
 class _TableBuilder:

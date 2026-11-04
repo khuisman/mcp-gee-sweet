@@ -144,3 +144,40 @@ A paragraph between.
    4. Child four
 
 2. Parent two
+
+### LX-18 — a tab-indented code line between two lists
+
+1. Tab one
+
+```
+	code starting with a tab
+```
+
+2. Tab two
+
+A paragraph after.
+
+### LX-19 — a tab-indented code line inside an item
+
+1. Inner one
+
+   ```
+   	code starting with a tab
+   ```
+
+2. Inner two
+
+### LX-20 — a table between two lists
+
+1. Before the table
+
+| x |
+|---|
+| y |
+
+2. After the table
+
+### LX-21 — a three-digit start
+
+100. Hundred, wrapping onto a second line so its hanging indent shows on screen, with enough words here to reach the far margin of the page and carry on past it
+101. Hundred and one

@@ -582,6 +582,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-15 | Numbered first 1.; Bullet between ●; Numbered second **2.**, as text (no `bullet`), lined up with the 1. above it (#1118) |
 | LX-16 | Counted one 1.; the paragraph; **7.** and **8.** as text, the wrapped line of 7. under its text, not under the number; Bullet under seven ○ at level 1; the second paragraph under seven's text; only "Bold" bold, not the number (#1118) |
 | LX-17 | Parent one 1.; Child three **c.** and Child four **d.** as text at level 1's indent; Parent two **2.** in Parent one's `listId` (#1118) |
+| LX-18 | Tab one 1.; the code block keeps its leading tab, no bullet; Tab two **2.** with its bullet, in Tab one's `listId`; the paragraph after is intact, no stray character or bullet near it (#1118) |
+| LX-19 | Inner one 1.; the code block under it, keeping its leading tab; Inner two **2.** (#1118) |
+| LX-20 | Before the table 1.; the table at the margin; **2.** as text. `get_doc_as_markdown` keeps the table at the margin, not under 1. (#1118) |
+| LX-21 | **100.** and **101.** as text; on screen the wrapped line of 100. sits exactly under its first line's text (#1118) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
@@ -1402,6 +1406,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - LM-04: on screen 3. 4. 5., aligned like the list in LM-02. `get_doc_structure` shows three unbulleted paragraphs, "3.`\t`Three" and so on, with `indentFirstLine` 18 and `indentStart` 36.
 - LX-09: on screen 1., the code block at the margin, 2. Both items share one `listId`; the code block has no `bullet` and no indent.
 - Existing Doc: `write_doc_content` with LM-04 keeps the Doc's header and its changed named style (`get_doc_named_styles`), which a Drive import would have removed.
+- HTML through EP-1: `<ol reversed start="3">` with three items shows 3. 2. 1.; `<ol><li value="5">a</li><li>b</li></ol>` shows 5. 6.
+- Hand-numbered heading: a Doc with a real `HEADING_2` "1.`\t`Introduction" and a `#1-introduction` link written by `write_doc_content` keeps a working link.
 - Round trip: `get_doc_as_markdown` on the LM-04 Doc returns `3. Three`, `4. Four` and `5. Five` with no backslashes, and on the LX-09 Doc `1.`, a fence, `2.`.
 
 **Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through `documents().get()`, not viewed on screen. Existing Doc: `write_doc_content` with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as `100.`, starts its text at 72pt with wrapped lines at 36pt.**

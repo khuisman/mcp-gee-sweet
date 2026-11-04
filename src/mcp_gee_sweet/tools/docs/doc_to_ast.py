@@ -12,9 +12,12 @@ scope) — multi-tab documents (includeTabsContent) are out of scope here too.
 
 from __future__ import annotations
 
-from dataclasses import replace
+import re
+from dataclasses import dataclass, replace
 
 from .ast import (
+    CHECKED_PREFIX,
+    UNCHECKED_PREFIX,
     BulletItem,
     Cell,
     DocNode,
@@ -32,7 +35,6 @@ from .emitter import (
     _LIST_INDENT_FIRST_LINE_PT,
     _LIST_INDENT_START_PT,
     _MAX_LIST_NESTING_LEVEL,
-    LITERAL_MARKER,
     is_rule_style,
     list_level_indents,
     literal_list_marker,
@@ -44,8 +46,6 @@ _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 # (#336's design decision — a literal glyph prefix, not a BULLET_CHECKBOX
 # preset list; see emitter.py's own comment). Recognized here on read-back the
 # same way the write side writes them, character-for-character.
-_CHECKED_PREFIX = "☑ "  # "☑ "
-_UNCHECKED_PREFIX = "☐ "  # "☐ "
 
 
 def document_to_ast(document: dict) -> list[DocNode]:
@@ -280,10 +280,16 @@ class _ListCounter:
 
 
 def _paragraph_to_node(
-    para: dict, document: dict, list_counter: _ListCounter | None
+    para: dict,
+    document: dict,
+    list_counter: _ListCounter | None,
+    *,
+    read_literal: bool = True,
 ) -> Heading | Paragraph | BulletItem | NamedBlock:
     """`list_counter` numbers a list item: pass one counter for a whole walk of
-    the body in document order, or None to leave `BulletItem.number` unset."""
+    the body in document order, or None to leave `BulletItem.number` unset.
+    `read_literal` False keeps an unbulleted paragraph from reading as a stand-in
+    for a list item (#1118), for a caller holding only a piece of a paragraph."""
     pstyle = para.get("paragraphStyle", {})
     named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
     runs = _paragraph_runs(para, document)
@@ -292,28 +298,29 @@ def _paragraph_to_node(
     blockquote_depth = _infer_blockquote_depth(
         pstyle, _list_level_indent_start(bullet, level_props) if bullet else 0
     )
-    literal = None if bullet else _literal_item(pstyle, runs)
-    if literal is not None:
-        depth, number, quote_depth, runs = literal
-        return _literal_list_item(runs, depth, number, quote_depth, named_style)
+    literal = None
+    if not bullet and read_literal and runs and isinstance(runs[0], Run):
+        literal = _literal_marker(pstyle, runs[0].text)
 
-    if bullet:
-        checked = None
-        if runs and isinstance(runs[0], Run):
-            if runs[0].text.startswith(_CHECKED_PREFIX):
-                checked = True
-                runs[0].text = runs[0].text[len(_CHECKED_PREFIX) :]
-            elif runs[0].text.startswith(_UNCHECKED_PREFIX):
-                checked = False
-                runs[0].text = runs[0].text[len(_UNCHECKED_PREFIX) :]
-        ordered = _is_ordered_level(level_props)
+    if bullet or literal:
+        if literal:
+            rest = runs[0].text[literal.length :]
+            runs = [replace(runs[0], text=rest), *runs[1:]] if rest else runs[1:]
+        checked = _read_task_prefix(runs)
+        ordered = literal is not None or _is_ordered_level(level_props)
+        if literal:
+            depth, number = literal.depth, literal.number
+            blockquote_depth = literal.quote_depth
+        else:
+            depth = bullet.get("nestingLevel", 0)
+            number = list_counter.number(bullet, level_props, ordered) if list_counter else None
         return BulletItem(
             runs=runs,
-            depth=bullet.get("nestingLevel", 0),
+            depth=depth,
             ordered=ordered,
             checked=checked,
             blockquote_depth=blockquote_depth,
-            number=list_counter.number(bullet, level_props, ordered) if list_counter else None,
+            number=number,
             # A bulleted HEADING_N paragraph is an item whose text is a heading
             # ("- # Title"), as html_parser.py writes it (#1094, #1302). Not a task
             # item: GFM reads "- [ ] ## Title" as task text, not a heading, so it
@@ -332,45 +339,63 @@ def _paragraph_to_node(
     )
 
 
+# The text emitter._literal_item opens a stand-in with. Bounded, since int32 needs no
+# more, so reading one stays cheap on any text.
+_LITERAL_MARKER = re.compile(r"(-?[0-9]{1,10}|[a-z]{1,15})\.\t")
 # listId of a stand-in's level in _ListItemContext: no doc's lists map has it, so a
 # block inside it is placed by the indents emitter.py writes.
 _LITERAL_LIST_ID = "literal-list-item"
 
 
-def _literal_item(
-    pstyle: dict, runs: list[Run | Image]
-) -> tuple[int, int, int, list[Run | Image]] | None:
-    """(depth, number, quote depth, runs without the marker) of emitter.py's stand-in
-    for a list item (#1118), or None for any other paragraph: an unbulleted paragraph
-    at a list level's hanging indent, starting with that level's number and a tab.
+@dataclass
+class _LiteralMarker:
+    """The opening of emitter.py's stand-in for a list item (#1118)."""
 
-    The written marker has to be the one that level writes, or a hanging paragraph
-    that merely opens with `iv.<tab>` at another level isn't an item. A quoted
-    stand-in's indent can't tell its list level from its quote depth, so it's read
-    as level 0, with the whole step in the quote."""
-    if not runs or not isinstance(runs[0], Run):
-        return None
-    match = LITERAL_MARKER.match(runs[0].text)
+    depth: int
+    number: int
+    quote_depth: int
+    length: int  # of the marker and its tab, in characters
+
+
+def _literal_marker(pstyle: dict, text: str) -> _LiteralMarker | None:
+    """What a paragraph's text and style say if it's a stand-in, else None: unbulleted
+    (the caller's check), hanging from a list level's first-line indent by at least the
+    list's own gap, starting with a number that level writes and a tab. A wide marker's
+    gap is wider, so only the first line places it.
+
+    The marker has to be one its level writes, or a hanging paragraph that merely
+    opens with `iv.<tab>` at another level isn't an item. A quoted stand-in's indent
+    is its list level and quote depth added together, so the marker settles the split:
+    the shallowest level writing it, with at least one quote level left. `i.` writes
+    both 9 at level 1 and 1 at level 2, and reads as level 1."""
+    match = _LITERAL_MARKER.match(text)
     start = pstyle.get("indentStart", {}).get("magnitude")
     first_line = pstyle.get("indentFirstLine", {}).get("magnitude")
     if match is None or start is None or first_line is None:
         return None
-    hanging = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
-    if abs(start - first_line - hanging) > _INDENT_TOLERANCE_PT:
+    gap = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
+    if start - first_line < gap - _INDENT_TOLERANCE_PT:
         return None
-    steps = _whole_quote_steps(start - _LIST_INDENT_START_PT)
+    steps = _whole_quote_steps(first_line - _LIST_INDENT_FIRST_LINE_PT)
     if steps is None or steps < 0:
         return None
-    quoted = bool(pstyle.get("borderLeft"))
-    depth, quote_depth = (0, steps) if quoted else (steps, 0)
-    if depth > _MAX_LIST_NESTING_LEVEL:
+    if pstyle.get("borderLeft"):
+        levels = range(min(steps, _MAX_LIST_NESTING_LEVEL + 1))
+    elif steps <= _MAX_LIST_NESTING_LEVEL:
+        levels = range(steps, steps + 1)
+    else:
         return None
-    number = _literal_number(match.group(1), depth)
-    if number is None:
-        return None
-    rest = runs[0].text[match.end() :]
-    first = [replace(runs[0], text=rest)] if rest else []
-    return depth, number, quote_depth, [*first, *runs[1:]]
+    for depth in levels:
+        number = _literal_number(match.group(1), depth)
+        if number is not None:
+            return _LiteralMarker(depth, number, steps - depth, match.end())
+    return None
+
+
+def literal_marker_length(pstyle: dict, text: str) -> int:
+    """How much of a heading's text is a stand-in's marker, for matching the rest."""
+    marker = _literal_marker(pstyle, text)
+    return marker.length if marker else 0
 
 
 _ROMAN_VALUES = {literal_list_marker(number, 2)[:-1]: number for number in range(1, 4000)}
@@ -394,31 +419,21 @@ def _literal_number(marker: str, depth: int) -> int | None:
     return number
 
 
-def _literal_list_item(
-    runs: list[Run | Image], depth: int, number: int, quote_depth: int, named_style: str
-) -> BulletItem:
-    """The BulletItem a stand-in reads as, the same fields a real item gets."""
-    checked = None
-    if runs and isinstance(runs[0], Run):
-        for prefix, state in ((_CHECKED_PREFIX, True), (_UNCHECKED_PREFIX, False)):
-            if runs[0].text.startswith(prefix):
-                checked = state
-                runs = [replace(runs[0], text=runs[0].text[len(prefix) :]), *runs[1:]]
-                break
-    return BulletItem(
-        runs=runs,
-        depth=depth,
-        ordered=True,
-        checked=checked,
-        blockquote_depth=quote_depth,
-        number=number,
-        heading_level=_HEADING_LEVELS.get(named_style) if checked is None else None,
-    )
-
-
 def _literal_item_bullet(item: BulletItem) -> dict:
     """A `bullet` for a stand-in, for _ListItemContext (#1118)."""
     return {"listId": _LITERAL_LIST_ID, "nestingLevel": item.depth}
+
+
+def _read_task_prefix(runs: list[Run | Image]) -> bool | None:
+    """A list item's checkbox state, taking the glyph off its first run (fresh from
+    _paragraph_runs). None when it isn't a task item."""
+    if not runs or not isinstance(runs[0], Run):
+        return None
+    for prefix, checked in ((CHECKED_PREFIX, True), (UNCHECKED_PREFIX, False)):
+        if runs[0].text.startswith(prefix):
+            runs[0].text = runs[0].text[len(prefix) :]
+            return checked
+    return None
 
 
 def _is_rule_paragraph(para: dict, runs: list[Run | Image]) -> bool:
@@ -487,7 +502,9 @@ def _paragraph_with_rules(
         elif item is not None:
             node = Paragraph(runs=_paragraph_runs({**para, "elements": piece}, document))
         else:
-            node = _paragraph_to_node({**para, "elements": piece}, document, list_counter)
+            node = _paragraph_to_node(
+                {**para, "elements": piece}, document, list_counter, read_literal=False
+            )
         assert not isinstance(node, BulletItem)
         if item is not None and i > item_at:
             # Inside the item: its depth and quote, not read from the paragraph's

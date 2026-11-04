@@ -7,7 +7,7 @@ import copy
 
 import pytest
 
-from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph
+from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph, Run
 from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.content import _md_to_html, _walk_headings_and_anchor_runs
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
@@ -64,10 +64,31 @@ class TestParserReadsStart:
             ("", None),
             ("9" * 5000, None),
             ("99999999999", None),
+            ("00000000003", 3),
+            ("-" + "0" * 20 + "4", -4),
+            ("2147483647", 2147483647),
+            ("2147483648", None),
         ],
     )
     def test_start_is_read_as_a_browser_reads_it(self, value, number):
         assert html_to_ast(f'<ol start="{value}"><li>a</li></ol>')[0].number == number
+
+    @pytest.mark.parametrize(
+        ("html", "numbers"),
+        [
+            ('<ol reversed start="3"><li>a</li><li>b</li><li>c</li></ol>', [3, 2, 1]),
+            ("<ol reversed><li>a</li><li>b</li></ol>", [2, 1]),
+            ("<ol reversed><li>a</li></ol>", [None]),
+            ('<ol><li value="5">a</li><li>b</li></ol>', [5, 6]),
+            ('<ol><li>a</li><li value="7">b</li><li>c</li></ol>', [1, 7, 8]),
+            ('<ol><li value="1">a</li><li value="2">b</li></ol>', [None, None]),
+            ('<ol><li value="x">a</li></ol>', [None]),
+            ('<ol reversed start="9"><li value="4">a</li><li>b</li></ol>', [4, 3]),
+            ('<ul><li value="5">a</li></ul>', [None]),
+        ],
+    )
+    def test_items_are_numbered_as_a_browser_numbers_them(self, html, numbers):
+        assert [n.number for n in html_to_ast(html)] == numbers
 
     def test_a_ul_start_means_nothing(self):
         assert html_to_ast('<ul start="3"><li>a</li></ul>')[0].number is None
@@ -145,17 +166,64 @@ class TestLiteralNumbers:
 
 
 class TestHeadingAnchor:
-    def test_a_literal_heading_item_matches_by_its_own_text(self):
-        body = [
+    def _heading(self, text: str, indents: dict) -> list[dict]:
+        return [
             {
                 "startIndex": 1,
                 "paragraph": {
-                    "paragraphStyle": {"namedStyleType": "HEADING_1", "headingId": "h.1"},
-                    "elements": [{"startIndex": 1, "textRun": {"content": "3.\tTitle\n"}}],
+                    "paragraphStyle": {
+                        "namedStyleType": "HEADING_1",
+                        "headingId": "h.1",
+                        **indents,
+                    },
+                    "elements": [{"startIndex": 1, "textRun": {"content": text + "\n"}}],
                 },
             }
         ]
+
+    def test_a_literal_heading_item_matches_by_its_own_text(self):
+        indents = {
+            "indentStart": {"magnitude": 36, "unit": "PT"},
+            "indentFirstLine": {"magnitude": 18, "unit": "PT"},
+        }
+        body = self._heading("3.\tTitle", indents)
         assert _walk_headings_and_anchor_runs(body)[0] == [("Title", "h.1")]
+
+    def test_a_heading_numbered_by_hand_keeps_its_number(self):
+        body = self._heading("1.\tIntroduction", {})
+        assert _walk_headings_and_anchor_runs(body)[0] == [("1.\tIntroduction", "h.1")]
+
+
+class TestWideMarkers:
+    @staticmethod
+    def _indents(markdown_text: str) -> tuple[float, float]:
+        style = next(
+            s["paragraphStyle"]
+            for s in _of(_requests(markdown_text), "updateParagraphStyle")
+            if "indentStart" in s["paragraphStyle"]
+        )
+        return style["indentFirstLine"]["magnitude"], style["indentStart"]["magnitude"]
+
+    def test_two_digits_fit_the_list_levels_gap(self):
+        assert self._indents("10. a\n") == (18, 36)
+
+    def test_three_digits_move_the_text_out(self):
+        first, start = self._indents("100. a\n")
+        assert first == 18
+        assert start - first > 21
+
+    def test_a_heading_marker_is_measured_at_its_size(self):
+        first, start = self._indents("10. # Title\n")
+        assert start - first > 27
+
+    def test_a_wide_marker_keeps_the_quote(self):
+        first, start = self._indents("> 100. a\n")
+        assert first == 54
+        assert start - first > 21
+
+    def test_it_reads_back(self):
+        nodes = document_to_ast(_doc(_para("100.\ta", start=46, first=18)))
+        assert nodes[0].number == 100
 
 
 class TestListMarker:
@@ -222,10 +290,34 @@ class TestContinuation:
         ]
         assert any(s.get("indentStart", {}).get("magnitude") == 36 for s in styles)
 
-    def test_a_table_between_stays_in_the_one_list(self):
+    def test_a_table_between_would_read_as_inside_the_item_so_its_literal(self):
         requests = _requests("1. a\n\n| x |\n|---|\n| y |\n\n2. b\n")
+        assert "2.\tb" in _inserted(requests)
         assert len(_of(requests, "createParagraphBullets")) == 1
-        assert len(_of(requests, "insertTable")) == 1
+
+    def test_a_table_inside_the_item_doesnt_stop_it(self):
+        requests = _requests("1. a\n\n   | x |\n   |---|\n   | y |\n\n   para\n\nout\n\n2. b\n")
+        assert "2.\tb" not in _inserted(requests)
+
+    def test_a_quote_two_deep_between_is_literal(self):
+        assert "2.\tb" in _inserted(_requests("1. a\n\n> > q\n\n2. b\n"))
+
+    def test_a_nested_list_of_another_top_list_between_is_literal(self):
+        nodes = html_to_ast(
+            '<ol><li>a</li></ol><ul><ul><li>x</li></ul></ul><ol start="2"><li>b</li></ol>'
+        )
+        assert _inserted(ast_to_requests(nodes)[0]) == "a\n\tx\n2.\tb\n"
+
+    def test_a_list_that_doesnt_count_up_is_literal(self):
+        nodes = html_to_ast(
+            '<ol><li>a</li></ol><p>t</p><ol reversed start="2"><li>b</li><li>c</li></ol>'
+        )
+        assert _inserted(ast_to_requests(nodes)[0]) == "a\nt\n2.\tb\n1.\tc\n"
+
+    def test_the_next_list_joins_the_one_it_was_mapped_to(self):
+        nodes, continuing = _resolve_list_starts(_ast("1. a\n\ntext\n\n2. b\n\nmore\n\n3. c\n"))
+        ids = [n.list_path[-1] for n in nodes if isinstance(n, BulletItem)]
+        assert continuing == {ids[1]: ids[0], ids[2]: ids[1]}
 
     def test_several_continuations_keep_counting(self):
         requests = _requests("1. a\n\ntext\n\n2. b\n\nmore\n\n3. c\n")
@@ -241,6 +333,32 @@ class TestContinuation:
         requests = _requests("1. a\n\n   in item\n\nout\n\n2. b\n")
         ranges = [d["range"]["startIndex"] for d in _of(requests, "deleteParagraphBullets")[-2:]]
         assert len(set(ranges)) == 2
+
+    def test_a_leading_tab_between_goes_back_after_the_bullets(self):
+        requests = _requests("1. a\n\n```\n\tcode\n```\n\n2. b\n\n3. c\n")
+        assert _inserted(requests) == "a\n\tcode\nb\nc\n"
+        create_at = next(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        after = requests[create_at + 1 :]
+        tab = next(r for r in after if r.get("insertText", {}).get("text") == "\t")
+        assert tab["insertText"]["location"]["index"] == 3
+        delete_at = after.index(
+            {"deleteParagraphBullets": {"range": {"startIndex": 3, "endIndex": 8}}}
+        )
+        assert after.index(tab) == delete_at + 1
+
+    def test_a_leading_tab_inside_an_item_goes_back_too(self):
+        requests = _requests("1. a\n\n   ```\n   \tcode\n   ```\n2. b\n")
+        assert {"insertText": {"location": {"index": 3}, "text": "\t"}} in requests
+
+    def test_every_tabbed_paragraph_of_a_block_goes_back(self):
+        nodes = [
+            *html_to_ast("<ol><li>a</li></ol>"),
+            Paragraph(runs=[Run("\tx\n\ty")]),
+            *html_to_ast('<ol start="2"><li>b</li></ol>'),
+        ]
+        nodes[2].list_path = (99,)
+        requests = ast_to_requests(nodes)[0]
+        assert len([r for r in requests if r.get("insertText", {}).get("text") == "\t"]) == 2
 
     def test_a_wrong_number_is_literal(self):
         requests = _requests("1. a\n\ntext\n\n5. b\n")
@@ -336,6 +454,18 @@ class TestReadBack:
     def test_a_quoted_item_reads_in_the_quote(self):
         nodes = document_to_ast(_doc(_para("3.\ta", start=72, first=54, border=True)))
         assert (nodes[0].depth, nodes[0].blockquote_depth, nodes[0].number) == (0, 1, 3)
+
+    def test_a_quoted_nested_item_reads_in_its_level(self):
+        nodes = document_to_ast(_doc(_para("c.\tb", start=108, first=90, border=True)))
+        assert isinstance(nodes[0], BulletItem)
+        assert (nodes[0].depth, nodes[0].blockquote_depth, nodes[0].number) == (1, 1, 3)
+
+    def test_a_paragraph_with_a_rule_in_it_stays_readable(self):
+        para = _para("3.\tThree", start=36, first=18)
+        para["paragraph"]["elements"].append({"horizontalRule": {}})
+        para["paragraph"]["elements"].append({"textRun": {"content": "\n"}})
+        nodes = document_to_ast(_doc(para))
+        assert any(isinstance(n, Paragraph) and n.rule for n in nodes)
 
     def test_a_task_item_keeps_its_state(self):
         nodes = document_to_ast(_doc(_para("3.\t☑ done", start=36, first=18)))

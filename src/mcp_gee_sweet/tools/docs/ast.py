@@ -155,6 +155,13 @@ class Table:
 # item of a list whose start number the Docs API can't set: the item's depth. Its
 # runs start with the written number and a tab, and it takes that list level's
 # hanging indent. None for every other node. Never set by html_parser.
+# literal_item_gap is its indentStart past indentFirstLine, in points: a list level's
+# own, or more when the marker wouldn't fit before the tab stop.
+
+
+# The glyph and space a task item's text starts with, in the Doc.
+CHECKED_PREFIX = "☑ "
+UNCHECKED_PREFIX = "☐ "
 
 
 @dataclass
@@ -168,6 +175,7 @@ class Heading:
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
     # #1118, see above Heading
     literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
 
 
 @dataclass
@@ -180,6 +188,7 @@ class Paragraph:
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
     # #1118, see above Heading
     literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
     # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
     # draws as a horizontal line, since the Docs API can't insert a horizontalRule
     # element. doc_to_ast.py reads both that stand-in and a native horizontal line back
@@ -198,8 +207,8 @@ class BulletItem:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     # Read side (#1208): an ordered item's ordinal in its Docs list, counted across
     # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
-    # Write side (#1118): the item's number in a source <ol> whose start isn't 1, None
-    # in any other list. Metadata like blockquote_path: no part in equality.
+    # Write side (#1118): the item's number in a source <ol> a browser wouldn't number
+    # 1, 2, 3, None in any other list. Metadata like blockquote_path: no part in equality.
     number: int | None = field(default=None, compare=False)
     # Write side only (#1241): ids of the source <ul>/<ol> lists enclosing the item,
     # outermost first, its own list last; parser-assigned counters like
