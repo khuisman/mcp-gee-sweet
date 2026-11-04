@@ -111,6 +111,17 @@ Service accounts (recommended for headless server deployments, see Option B abov
 }
 ```
 
+**Claude Code — stdio (cloned repo):**
+```bash
+claude mcp add mcp-gee-sweet \
+  -e ENABLED_TOOLS=all \
+  -e CREDENTIALS_PATH=/path/to/credentials.json \
+  -e TOKEN_PATH=/path/to/token.json \
+  -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
+```
+
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`. Run `mcp-gee-sweet auth` with the same `ENABLED_TOOLS`, since it decides the scopes.
+
 **Claude Desktop — SSE (Docker):**
 ```json
 {
@@ -140,6 +151,8 @@ Some MCP clients cap how many tools they accept, and with every tool registered 
 | Google Antigravity | 100 tools per server (user report) |
 
 On these clients, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
+
+> **Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`, which registers every tool today as well.
 
 ---
 

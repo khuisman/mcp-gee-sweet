@@ -12,7 +12,7 @@
 | `TOKEN_PATH` | Path to store the OAuth refresh token | `token.json` |
 | `OAUTH_CONSENT_TIMEOUT_SECONDS` | SSE only: how long the server waits for the browser consent when there's no usable OAuth token, before starting without Google access. See [Authentication](auth.md) | `300` |
 | `CREDENTIALS_CONFIG` | Base64-encoded credentials JSON (for containers) | — |
-| `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
+| `ENABLED_TOOLS` | Comma-separated list of tool names to register, or `all` for every tool. See [Tool filtering](#tool-filtering) | all tools (an upcoming release loads a smaller set) |
 | `LOCAL_FILE_ACCESS` | Which local files tools may read and write: `full`, `roots`, or `off`. See [Local file access](#local-file-access) | `full` under stdio, `off` under SSE and streamable HTTP |
 | `LOCAL_FILE_ROOTS` | With `LOCAL_FILE_ACCESS=roots`, the directories tools may use, separated by `:` (`;` on Windows), like `PATH` | — |
 | `CACHE_DB_PATH` | Path to the SQLite cache database (`:memory:` for none) | `mcp-gee-sweet/cache.db` in the user's cache directory (see [Caching](#caching)) |
@@ -89,7 +89,9 @@ ENABLED_TOOLS=get_sheet_data,update_cells,list_spreadsheets,list_sheets
 uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets
 ```
 
-If neither is set, all tools are registered.
+If neither is set, or the value is empty, all tools are registered. `ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. Listed with tool names, `all` adds nothing: every tool is still registered.
+
+**Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. Until then, `mcp-gee-sweet` logs this as a warning at startup when neither names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` doesn't log it.
 
 ### Suggested subsets
 

@@ -11,7 +11,7 @@ A [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries a
 The install dialog asks for:
 
 - **OAuth client file** (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See [Authentication](auth.md#method-b-oauth-20-personal-use--local-dev) for how to create one.
-- **Enabled tools** (optional): a comma-separated list of tool names. Leave it empty to enable every tool (see [Tool filtering](#tool-filtering-in-client-config)).
+- **Enabled tools** (optional): a comma-separated list of tool names, or `all` for every tool (see [Tool filtering](#tool-filtering-in-client-config)). Empty also enables every tool in this release, with a warning at startup: an upcoming release loads a smaller default set when it's empty, so enter `all` to keep every tool.
 
 The bundle ships the source and `uv.lock`, not the dependencies: the first start runs `uv run --frozen`, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (`AUTH_METHOD=oauth`) and keeps the token at `~/.mcp-gee-sweet-token.json`, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.
 
@@ -62,6 +62,20 @@ The container serves over the network interface, so it needs a bearer token (see
 ```
 
 For Claude Code: `claude mcp add --transport sse mcp-gee-sweet http://localhost:47000/sse --header "Authorization: Bearer <token>"`.
+
+## Claude Code — stdio
+
+```bash
+claude mcp add mcp-gee-sweet \
+  -e ENABLED_TOOLS=all \
+  -e CREDENTIALS_PATH=/path/to/credentials.json \
+  -e TOKEN_PATH=/path/to/token.json \
+  -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
+```
+
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+
+Before the first connection, log in once from a terminal with the same paths and the same `ENABLED_TOOLS`, which decides the scopes: `CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`, or `... uvx mcp-gee-sweet auth` for a PyPI install.
 
 ## Claude Code (this project's own MCP config)
 

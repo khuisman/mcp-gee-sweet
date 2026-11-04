@@ -28,6 +28,8 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I41, I42 (lane context-size hook, issue #847) | `scripts/lane_context_hook.py` is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in `tests/test_lane_context_hook.py`. Live QA runs a headless `claude -p` session from a lane worktree with `--include-hook-events`, so the hook's real input and output are visible in the stream |
 | TC-I66 (single publish workflow, issue #1124) | Not reachable via any MCP tool or unit test: it checks a GitHub Actions run and PyPI's attestation record. Manual / live QA only, once after #1124 merges and once at the next stable release — see TC-I66 below |
 | TC-I67 (socket timeout and resumable-upload 308, issue #1129) | Unit-tested in `tests/test_http_transport.py` (`TestSocketTimeout`, `TestResumableUploadStatus`) against local sockets that never answer or answer 308. Live QA for the real Drive upload path over 100 MB and the configured server's timeout message — see TC-I67 below |
+| TC-I69 (`ENABLED_TOOLS=all` and the smaller-default warning, issue #1363) | `_parse_enabled_tools`, the warning's conditions and registration at import are unit-tested in `tests/test_server.py`. Live QA starts a real server, since the warning's reach (stderr, once per server under SSE) only shows there — see TC-I69 below |
+| TC-I70 (`--include-tools=` form and the local-only warning beside `all`, issue #1363) | Unit-tested in `tests/test_server.py`. Live QA starts a real server, as for TC-I69 — see TC-I70 below |
 | TC-I68 (MCP Bundle install and OAuth, issue #1036) | `manifest.json`'s identity and `user_config` wiring, the build's version stamping, and its staging of committed files from an allowlist are unit-tested in `tests/test_mcpb_manifest.py`. The `MCP Bundle` workflow packs the bundle and installs it with uv on every PR that touches it. Consent needs a person at a browser, and the Claude Desktop install needs macOS with Claude Desktop, so both are manual — see TC-I68 below |
 
 ---
@@ -2047,3 +2049,65 @@ Steps 1–4 PASS; steps 5–7 SKIP (need a person with Claude Desktop on macOS; 
 
 **Result (2026-10-25) ⚠️ PARTIAL — PR #1255 round 2 (Kit) @ c16fcacd**
 Steps 1–4 PASS; steps 5–7 SKIP (need a person with Claude Desktop on macOS; owed before the first release that attaches the bundle). Step 1: `Manifest schema validation passes!`, `smoke: bundle installs and imports as mcp-gee-sweet 0.9.5` (stamped from `server.json`), 53 files, same list as round 1. Extra: `--version v9.8.7` with an uncommitted `README.md` edit warned `building from HEAD; these uncommitted changes aren't in the bundle: M README.md`, stamped `version` and `UV_DYNAMIC_VERSIONING_BYPASS` `9.8.7`, smoke reported `9.8.7`, and the bundled `README.md` had no trace of the edit. Step 2, run with stdout redirected to a file and no `python -u`: the `env:` block and consent link appeared in the file as printed; `tools: 143`, `token file before the call: False`; after approval `token file written, mode 0o600` and `retry 1 of list_spreadsheets: is_error=False` with the fixture spreadsheet. Step 3: `-rw-------`. Step 4: `token file before the call: True`, `is_error=False`, no consent link. Cleanup: scratch home deleted; the grant is this slot's own OAuth client, so it was kept.
+
+---
+
+### TC-I69: `ENABLED_TOOLS=all` registers every tool, and an unset value warns once per server (issue #1363)
+
+**Background:** `all` was read as a tool name, so the server started with no tools and no error. An upcoming release shrinks the default when `ENABLED_TOOLS` is unset, so this release warns at startup. Under SSE the lifespan runs once per connection, so a warning placed there would repeat.
+
+**Setup**
+- `ENABLED_TOOLS` unset, `DEBUG_LEVEL` unset. A scratch directory, `<scratch>`, under `$CLAUDE_JOB_DIR/tmp`.
+- An `mcp` SDK `stdio_client` + `ClientSession` script that runs `initialize` then `list_tools`, prints the tool count, and writes the server's stderr to a file.
+
+**Action**
+1. Start `uv run mcp-gee-sweet` through the SDK client, with `ENABLED_TOOLS` unset.
+2. Same, with `ENABLED_TOOLS=all`.
+3. Same, with `--include-tools all,get_sheet_data`.
+4. Same, with `ENABLED_TOOLS=get_sheet_data,list_sheets`.
+5. Start `uv run mcp-gee-sweet --transport sse` with `ENABLED_TOOLS` unset, stderr to a file, connect two SDK SSE clients one after the other, then stop the server.
+6. `ENABLED_TOOLS=all TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet auth --no-browser`: kill it once the URL is printed.
+7. From `<scratch>`, run the README's Claude Code stdio snippet with this checkout's path and scratch credential paths, then `claude mcp get mcp-gee-sweet`.
+
+**Checks**
+- 1: the full tool count. stderr has `An upcoming release loads a smaller default tool set when ENABLED_TOOLS is unset. To keep every tool, set ENABLED_TOOLS=all.` exactly once
+- 2 and 3: the same tool count as step 1, and no such line
+- 4: 2 tools, and no such line
+- 5: the line appears exactly once across both connections
+- 6: the `Scopes :` line includes `gmail.modify`, and no such line
+- 7: the add succeeds, and `claude mcp get` shows a stdio server with `ENABLED_TOOLS=all`
+
+**Cleanup:** from `<scratch>`, `claude mcp remove mcp-gee-sweet -s local` (without `-s`, it refuses when a user-scope server has the same name), then delete `<scratch>`.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1365 round 1 (Kit) @ ccf8d6e8**
+All seven steps met their checks. Probes outside the steps found defects (below), so this isn't a PASS. Run with `DEBUG_LEVEL` and `LOG_FILE` set empty in the environment, since this slot's `.env` sets both. Step 1: 143 tools, the line once. Steps 2 and 3: 143, no line. Step 4: 2, no line. Step 5: 134 tools on each of two connections (`LOCAL_FILE_ACCESS` defaults to `off` under SSE, so nine local-only tools are absent), the line once. Step 6: `Scopes` includes `gmail.modify`, no line. Step 7: added, `claude mcp get` shows `Connected`, stdio, `ENABLED_TOOLS=all`. Probes, stdio unless noted: `ENABLED_TOOLS=ALL` 0 tools, no line; a misspelled name alone 0 tools, no line; `--include-tools=all` 143 with the line; `--include-tools=get_sheet_data` 143 with the line (the filter is ignored); `auth --no-browser --include-tools=get_sheet_data` still requests `gmail.modify`, while the space-separated form doesn't; `LOCAL_FILE_ACCESS=off` with `all,sync_folder` 134 and no "not registering local-only tools" line, while `sync_folder,get_sheet_data` logs it; `uv run uvicorn mcp_gee_sweet.server:app` with `ENABLED_TOOLS` unset 143 tools, no line. Empty value and `" , "`: 143 with the line, as the PR intends.
+
+---
+
+### TC-I70: `--include-tools=<value>` filters like the space form, and a tool named beside `all` still gets the local-only warning (issue #1363)
+
+**Background:** PR #1365 QA round 1. The `=` form was ignored, so a filter failed open and `auth` asked for every scope. `all` also hid the `LOCAL_FILE_ACCESS=off` warning for a tool named beside it.
+
+**Setup**
+- `ENABLED_TOOLS` unset, `DEBUG_LEVEL` unset. The same SDK client script as TC-I69, and a scratch directory, `<scratch>`, under `$CLAUDE_JOB_DIR/tmp`.
+
+**Action**
+1. Start `uv run mcp-gee-sweet --include-tools=get_sheet_data` through the SDK client.
+2. Same, with `--include-tools=all`.
+3. Same, with `LOCAL_FILE_ACCESS=off` and `ENABLED_TOOLS=all,sync_folder`.
+4. Same, with `LOCAL_FILE_ACCESS=off` and `ENABLED_TOOLS=all`.
+5. `TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet auth --no-browser --include-tools=get_sheet_data`: kill it once the URL is printed.
+6. `TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet auth --no-browser --include get_sheet_data`
+
+**Checks**
+- 1: 1 tool, and no `smaller default tool set` line
+- 2: the full tool count, and no `smaller default tool set` line
+- 3: 134 tools, and stderr has `not registering local-only tools named in ENABLED_TOOLS: sync_folder` naming only that tool
+- 4: 134 tools, and no `not registering local-only tools` line
+- 5: the `Scopes :` line has no `gmail.modify`
+- 6: exits 2 with an `unrecognized arguments` error, and prints no URL
+
+**Cleanup:** delete `<scratch>`.
+
+**Result (2026-11-03) ✅ PASS — PR #1365 round 2 (Kit) @ f0083ff5**
+All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as in TC-I69. Step 1: 1 tool, no smaller-default line. Step 2: 143, no line. Step 3: 134, `not registering local-only tools named in ENABLED_TOOLS: sync_folder`. Step 4: 134, no such line. Step 5: `Scopes` has no `gmail.modify`. Step 6: exit 2, `unrecognized arguments: --include get_sheet_data`, no URL. TC-I69 steps 1–4 repeated with the same results as round 1. Probes: `--include-tools=` falls through to `ENABLED_TOOLS` (1 tool) or, with none, 143 with the line; `--include-tools=list_sheets` beats `ENABLED_TOOLS=get_sheet_data`; `off` with `--include-tools=all,sync_folder` warns; `off` with two local-only names and a normal one lists just the two; `off` unset logs no local-only line.

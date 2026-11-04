@@ -486,8 +486,8 @@ model and reports "Too many MCP tools are enabled for this mode", or uses only p
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own, and the server registers every tool unless told
-otherwise, so it works out of the box on clients without a cap. A smaller default tool set is a
-separate design question.
+otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller
+default tool set; `ENABLED_TOOLS=all` keeps every tool.
 
 **Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
 [suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
