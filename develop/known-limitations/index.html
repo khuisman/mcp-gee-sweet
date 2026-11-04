@@ -1737,8 +1737,8 @@ MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot 
 model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.</p>
 <p><strong>Why:</strong> The caps are the clients' own, and the server registers every tool unless told
-otherwise, so it works out of the box on clients without a cap. A smaller default tool set is a
-separate design question.</p>
+otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller
+default tool set; <code>ENABLED_TOOLS=all</code> keeps every tool.</p>
 <p><strong>Workaround:</strong> Set <code>ENABLED_TOOLS</code> (or <code>--include-tools</code>) to one of the
 <a href="../configuration/#suggested-subsets">suggested subsets</a>, each under 100 tools. Per-client
 config is in <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a>.</p>

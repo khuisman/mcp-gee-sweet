@@ -1561,8 +1561,8 @@
 </tr>
 <tr>
 <td><code>ENABLED_TOOLS</code></td>
-<td>Comma-separated list of tool names to register</td>
-<td>all tools</td>
+<td>Comma-separated list of tool names to register, or <code>all</code> for every tool. See <a href="#tool-filtering">Tool filtering</a></td>
+<td>all tools (an upcoming release loads a smaller set)</td>
 </tr>
 <tr>
 <td><code>LOCAL_FILE_ACCESS</code></td>
@@ -1685,7 +1685,8 @@
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># CLI flag</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>uv<span class="w"> </span>run<span class="w"> </span>mcp-gee-sweet<span class="w"> </span>--include-tools<span class="w"> </span>get_sheet_data,update_cells,list_spreadsheets
 </code></pre></div>
-<p>If neither is set, all tools are registered.</p>
+<p>If neither is set, or the value is empty, all tools are registered. <code>ENABLED_TOOLS=all</code> (or <code>--include-tools all</code>) registers all tools too. Listed with tool names, <code>all</code> adds nothing: every tool is still registered.</p>
+<p><strong>Upcoming change:</strong> an upcoming release loads a smaller default tool set when <code>ENABLED_TOOLS</code> is unset or empty. To keep every tool, set <code>ENABLED_TOOLS=all</code>. Until then, <code>mcp-gee-sweet</code> logs this as a warning at startup when neither names a tool. A server started directly with <code>uvicorn mcp_gee_sweet.server:app</code> doesn't log it.</p>
 <h3 id="suggested-subsets">Suggested subsets<a class="headerlink" href="#suggested-subsets" title="Permanent link">&para;</a></h3>
 <p>Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On those clients, pick one of these subsets. Each one is under 100 tools. See <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a> for each client's config.</p>
 <p>To combine two subsets, join their lists with a comma (a name listed twice is fine) and add up the counts to check you're still under your client's limit. Windsurf's 100 also counts every other server's tools.</p>
