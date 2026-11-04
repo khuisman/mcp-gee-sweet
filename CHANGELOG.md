@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 
 ### Upcoming change
 
-- **An upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset.** To keep every tool, set `ENABLED_TOOLS=all`. Until then, a server started with `ENABLED_TOOLS` unset logs this as a warning at startup — #1363
+- **An upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset.** To keep every tool, set `ENABLED_TOOLS=all`. Until then, a server started with `ENABLED_TOOLS` unset or empty logs this as a warning at startup — #1363
 
 ### New tools
 
@@ -40,6 +40,7 @@ All notable changes to this project are documented in this file.
 
 ### Bug fixes
 
+- `--include-tools=a,b`, written with `=`, filters the tools like `--include-tools a,b`. It used to be ignored, so the server registered every tool, and `mcp-gee-sweet auth` asked for every scope. `auth` also refuses an abbreviated option now, such as `--include` — #1363
 - A list item with no text (a line of only `-` or `2.`, or an `<li></li>`) is an empty bullet instead of being dropped, so the list keeps every item and a numbered list every number. A list nested under an empty item is one level deeper, as is a code block, quote or horizontal rule that is the item's only content (a rule there used to be dropped). **Behavior change for HTML input:** an `<li>` that holds only whitespace or `&nbsp;`, or that wraps only a nested list (`<li><ul>…</ul></li>`), is now an empty bullet with the nested list one level under it, where it used to produce nothing. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file` and `upload_file`'s Markdown Doc — #1075
 - A numbered list keeps its numbering after a bulleted list nested in one of its items (`1. A`, `   - a`, `2. B` shows 2, not 1), at every level; a sublist nested in one of the other type used to split the outer list into separate lists. A sublist that follows another sublist of a different type under the same item starts its own numbering. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1072
 - Two lists of the same type written one after the other, with a different marker (`-` then `*`, or `1.` then `1)`), render as two lists instead of one: the second numbered list starts again at 1, at the top level and as a second sublist under one item (`1. P`, `    1. a`, `    1) b` shows b as a., not b.). A numbered sublist that follows a deeper numbered list (`1. A`, `   - b`, `     1. c`, `   1. d`) no longer joins it. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file` and `upload_file`'s Markdown Doc — #1241

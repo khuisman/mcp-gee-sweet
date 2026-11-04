@@ -120,7 +120,7 @@ claude mcp add mcp-gee-sweet \
   -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
 ```
 
-`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`. Run `mcp-gee-sweet auth` with the same `ENABLED_TOOLS`, since it decides the scopes.
 
 **Claude Desktop — SSE (Docker):**
 ```json

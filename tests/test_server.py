@@ -147,6 +147,28 @@ class TestParseEnabledTools:
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
         assert _parse_enabled_tools() is None
 
+    def test_equals_form_filters_like_the_space_form(self, monkeypatch):
+        monkeypatch.delenv("ENABLED_TOOLS", raising=False)
+        monkeypatch.setattr(
+            sys, "argv", ["mcp-gee-sweet", "--include-tools=get_sheet_data,list_sheets"]
+        )
+        assert _parse_enabled_tools() == {"get_sheet_data", "list_sheets"}
+
+    def test_equals_form_beats_the_env_var(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "update_cells")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools=get_sheet_data"])
+        assert _parse_enabled_tools() == {"get_sheet_data"}
+
+    def test_equals_form_with_no_value_falls_through_to_env(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools="])
+        assert _parse_enabled_tools() == {"get_sheet_data"}
+
+    def test_all_in_the_equals_form_means_every_tool(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools=all"])
+        assert _parse_enabled_tools() is None
+
     def test_cli_arg_missing_value_falls_through_to_env(self, monkeypatch):
         monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
         # --include-tools is the last arg with no following value
@@ -188,6 +210,11 @@ class TestSmallerDefaultWarning:
     @pytest.mark.parametrize("value", ["all", "get_sheet_data"])
     def test_a_cli_value_stays_quiet(self, monkeypatch, value):
         argv = ["mcp-gee-sweet", "--include-tools", value]
+        assert self._warnings(monkeypatch, argv, None) == []
+
+    @pytest.mark.parametrize("value", ["all", "get_sheet_data"])
+    def test_an_equals_form_cli_value_stays_quiet(self, monkeypatch, value):
+        argv = ["mcp-gee-sweet", f"--include-tools={value}"]
         assert self._warnings(monkeypatch, argv, None) == []
 
     def test_the_auth_command_stays_quiet(self, monkeypatch):
@@ -781,6 +808,17 @@ class TestMainAuthAndTransport:
         auth_cmd.assert_not_called()
         run.assert_called_once()
 
+    def test_auth_rejects_an_abbreviated_include_tools(self, monkeypatch):
+        # _configured_tool_names reads only the full name, so an abbreviation accepted
+        # here would silently widen the consent's scopes.
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "auth", "--include", "list_sheets"])
+        auth_cmd = MagicMock()
+        monkeypatch.setattr(server, "run_auth_command", auth_cmd)
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 2
+        auth_cmd.assert_not_called()
+
     def test_auth_rejects_unknown_flags(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "auth", "--no-browswer"])
         auth_cmd = MagicMock()
@@ -1292,6 +1330,21 @@ class TestLocalFilePolicyAtImport:
         )
         assert names == {"get_sheet_data"}
         assert "not registering local-only tools named in ENABLED_TOOLS: sync_folder" in stderr
+
+    def test_a_named_tool_beside_all_still_warns_and_only_it_is_listed(self):
+        _, stderr = _import_server_in_subprocess(
+            ["mcp-gee-sweet"],
+            {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "all,sync_folder"},
+        )
+        assert stderr.count("not registering local-only tools") == 1
+        assert "named in ENABLED_TOOLS: sync_folder\n" in stderr
+
+    @pytest.mark.parametrize("value", ["all", ""])
+    def test_all_or_no_filter_names_no_dropped_tool(self, value):
+        _, stderr = _import_server_in_subprocess(
+            ["mcp-gee-sweet"], {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": value}
+        )
+        assert "not registering local-only tools" not in stderr
 
     def test_enabled_tools_all_registers_every_tool(self):
         unset, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {})

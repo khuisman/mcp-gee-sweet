@@ -381,8 +381,10 @@ def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
         "Listed with tool names, `all` adds nothing: every tool is still registered.",
         "",
         "**Upcoming change:** an upcoming release loads a smaller default tool set when "
-        "`ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`. Until "
-        "then, a server started with neither set logs this as a warning at startup.",
+        "`ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. "
+        "Until then, `mcp-gee-sweet` logs this as a warning at startup when neither "
+        "names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` "
+        "doesn't log it.",
         "",
         "### Suggested subsets",
         "",

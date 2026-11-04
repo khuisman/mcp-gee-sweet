@@ -118,6 +118,9 @@ def _configured_tool_names() -> set[str]:
         if arg == "--include-tools" and i + 1 < len(sys.argv):
             enabled_tools_str = sys.argv[i + 1]
             break
+        if arg.startswith("--include-tools="):
+            enabled_tools_str = arg.split("=", 1)[1]
+            break
     if not enabled_tools_str:
         enabled_tools_str = os.environ.get("ENABLED_TOOLS")
     if not enabled_tools_str:
@@ -357,11 +360,13 @@ from .tools import gmail as _gmail_tools  # noqa: E402
 from .tools import register_all  # noqa: E402
 
 register_all(tool)
-if ENABLED_TOOLS is not None and _unregistered_local_only_tools:
-    # An operator who named these in ENABLED_TOOLS should learn why they're missing.
+# An operator who named these in ENABLED_TOOLS should learn why they're missing, and
+# `all` beside a name doesn't change that. `all` itself names none of them.
+_named_but_unregistered = _configured_tool_names().intersection(_unregistered_local_only_tools)
+if _named_but_unregistered:
     logger.warning(
         "LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: %s",
-        ", ".join(sorted(_unregistered_local_only_tools)),
+        ", ".join(sorted(_named_but_unregistered)),
     )
 # Runs before the lifespan (i.e. before auth), so Gmail's mailbox scope is only
 # requested when an ENABLED_TOOLS filter leaves at least one Gmail tool in (#790).
@@ -650,6 +655,9 @@ def _auth_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="mcp-gee-sweet auth",
         description="Authorize OAuth access and save the token to TOKEN_PATH.",
+        # An abbreviated --include-tools would pass here, but _configured_tool_names
+        # wouldn't read it, so the consent would ask for every scope.
+        allow_abbrev=False,
     )
     parser.add_argument("auth")
     parser.add_argument(
