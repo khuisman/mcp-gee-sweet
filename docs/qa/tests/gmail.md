@@ -1576,6 +1576,9 @@ Run from a Claude Code session on the slot's own tools, not the harness: this is
 
 **Cleanup:** `delete_draft` every `draft_id`. Don't touch the fixture.
 
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Rio slot's own tools, Claude Code 2.1.318, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply draft (Gmail search `in:drafts tc-gm65`), and the fixture's conversation shows the unsent reply inline. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Didn't run: step 5 and its check (no person with Claude Desktop).
+
 ---
 
 ### TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter
@@ -1593,6 +1596,9 @@ Run from a Claude Code session on the slot's own tools, not the harness: this is
 - The late accept sends nothing: `in:sent` finds nothing for `tc-gm66`
 
 **Cleanup:** `delete_draft` each `draft_id`.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25, scripted callback, rio slot, `GMAIL_SEND` unset), both calls concurrent on one client. Both forms opened at about 4 s. `send_message` returned at 603 s and `send_draft` at 604 s, each with `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both at 690 s, and `in:sent` found nothing for `tc-gm66`. Drafts deleted. Didn't run: the late accept. On timeout the server sends `notifications/cancelled`, and the `mcp` client cancels the callback (`_InFlight.scope.cancel()`), so it never returned and no late answer reached the server. Step 3 can't complete as written.
 
 ---
 
