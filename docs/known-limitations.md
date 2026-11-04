@@ -161,6 +161,29 @@ lines join into one paragraph. Decided in #1242.
 
 ---
 
+### A list that doesn't start at 1 can be literal numbers, not a Docs list
+
+**What:** In Markdown or HTML content written to a Doc, `3. a` or `<ol start="3">` shows the
+right numbers, but unless it continues the list before it, its items are plain paragraphs
+holding the number, a tab and the text, at a list's hanging indent. Docs doesn't treat them
+as a list: pressing Enter in one doesn't add an item, and adding or removing one doesn't
+renumber the rest. `get_doc_as_markdown` reads them back as list items.
+
+A top-level list that starts where the last top-level list stopped (`1. a`, a code block,
+`2. b`) stays a real list: it joins that list, whatever came between. Only another list
+between them, a different blockquote, or a different number makes it literal. A nested list
+that doesn't start at 1 is always literal, written in its level's glyph (`c.`, `iv.`).
+
+**Why:** `NestingLevel.startNumber` is read-only: no `batchUpdate` request writes it, and
+deleting a list's first items renumbers the rest from 1 (confirmed live). Only Drive's HTML
+import sets it, and importing over an existing Doc removes its headers, named styles and
+margins. See `docs/design/list-start-numbers.md`.
+
+**Workaround:** To get a real list, start it at 1, or write it through Drive's import
+(`upload_local_file(convert=True)`), which creates a new Doc.
+
+---
+
 ### A horizontal rule is a bordered paragraph, not a Docs horizontal line
 
 **What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,

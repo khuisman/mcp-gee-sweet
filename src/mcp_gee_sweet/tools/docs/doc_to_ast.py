@@ -12,6 +12,8 @@ scope) — multi-tab documents (includeTabsContent) are out of scope here too.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .ast import (
     BulletItem,
     Cell,
@@ -25,7 +27,16 @@ from .ast import (
     Run,
     Table,
 )
-from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, is_rule_style, list_level_indents
+from .emitter import (
+    _BLOCKQUOTE_INDENT_PT_PER_LEVEL,
+    _LIST_INDENT_FIRST_LINE_PT,
+    _LIST_INDENT_START_PT,
+    _MAX_LIST_NESTING_LEVEL,
+    LITERAL_MARKER,
+    is_rule_style,
+    list_level_indents,
+    literal_list_marker,
+)
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -51,7 +62,7 @@ def document_to_ast(document: dict) -> list[DocNode]:
                 continue
             node = _paragraph_to_node(para, document, list_counter)
             if isinstance(node, BulletItem):
-                items.item(para["bullet"])
+                items.item(para.get("bullet") or _literal_item_bullet(node))
             else:
                 items.block(node, para)
             nodes.append(node)
@@ -154,7 +165,12 @@ class _ListItemContext:
             self._settle_pending(match[0])
             node.list_depth, node.blockquote_depth = match
             self._depth = match[0]
-        elif isinstance(node, Paragraph) and not node.runs and not _has_indent(para):
+        elif (
+            isinstance(node, Paragraph)
+            and not node.runs
+            and not node.rule
+            and not _has_indent(para)
+        ):
             self._pending.append((node, None))
         else:
             self.close()
@@ -276,6 +292,10 @@ def _paragraph_to_node(
     blockquote_depth = _infer_blockquote_depth(
         pstyle, _list_level_indent_start(bullet, level_props) if bullet else 0
     )
+    literal = None if bullet else _literal_item(pstyle, runs)
+    if literal is not None:
+        depth, number, quote_depth, runs = literal
+        return _literal_list_item(runs, depth, number, quote_depth, named_style)
 
     if bullet:
         checked = None
@@ -310,6 +330,95 @@ def _paragraph_to_node(
     return Paragraph(
         runs=runs, blockquote_depth=blockquote_depth, rule=_is_rule_paragraph(para, runs)
     )
+
+
+# listId of a stand-in's level in _ListItemContext: no doc's lists map has it, so a
+# block inside it is placed by the indents emitter.py writes.
+_LITERAL_LIST_ID = "literal-list-item"
+
+
+def _literal_item(
+    pstyle: dict, runs: list[Run | Image]
+) -> tuple[int, int, int, list[Run | Image]] | None:
+    """(depth, number, quote depth, runs without the marker) of emitter.py's stand-in
+    for a list item (#1118), or None for any other paragraph: an unbulleted paragraph
+    at a list level's hanging indent, starting with that level's number and a tab.
+
+    The written marker has to be the one that level writes, or a hanging paragraph
+    that merely opens with `iv.<tab>` at another level isn't an item. A quoted
+    stand-in's indent can't tell its list level from its quote depth, so it's read
+    as level 0, with the whole step in the quote."""
+    if not runs or not isinstance(runs[0], Run):
+        return None
+    match = LITERAL_MARKER.match(runs[0].text)
+    start = pstyle.get("indentStart", {}).get("magnitude")
+    first_line = pstyle.get("indentFirstLine", {}).get("magnitude")
+    if match is None or start is None or first_line is None:
+        return None
+    hanging = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
+    if abs(start - first_line - hanging) > _INDENT_TOLERANCE_PT:
+        return None
+    steps = _whole_quote_steps(start - _LIST_INDENT_START_PT)
+    if steps is None or steps < 0:
+        return None
+    quoted = bool(pstyle.get("borderLeft"))
+    depth, quote_depth = (0, steps) if quoted else (steps, 0)
+    if depth > _MAX_LIST_NESTING_LEVEL:
+        return None
+    number = _literal_number(match.group(1), depth)
+    if number is None:
+        return None
+    rest = runs[0].text[match.end() :]
+    first = [replace(runs[0], text=rest)] if rest else []
+    return depth, number, quote_depth, [*first, *runs[1:]]
+
+
+_ROMAN_VALUES = {literal_list_marker(number, 2)[:-1]: number for number in range(1, 4000)}
+
+
+def _literal_number(marker: str, depth: int) -> int | None:
+    """The number `marker` writes at list level `depth`, or None if that level
+    doesn't write it. The inverse of emitter.literal_list_marker."""
+    if marker.lstrip("-").isdigit():
+        number = int(marker)
+    elif depth % 3 == 1:
+        number = 0
+        for letter in marker:
+            number = number * 26 + ord(letter) - ord("a") + 1
+    elif depth % 3 == 2:
+        number = _ROMAN_VALUES.get(marker)
+    else:
+        number = None
+    if number is None or literal_list_marker(number, depth) != f"{marker}.":
+        return None
+    return number
+
+
+def _literal_list_item(
+    runs: list[Run | Image], depth: int, number: int, quote_depth: int, named_style: str
+) -> BulletItem:
+    """The BulletItem a stand-in reads as, the same fields a real item gets."""
+    checked = None
+    if runs and isinstance(runs[0], Run):
+        for prefix, state in ((_CHECKED_PREFIX, True), (_UNCHECKED_PREFIX, False)):
+            if runs[0].text.startswith(prefix):
+                checked = state
+                runs = [replace(runs[0], text=runs[0].text[len(prefix) :]), *runs[1:]]
+                break
+    return BulletItem(
+        runs=runs,
+        depth=depth,
+        ordered=True,
+        checked=checked,
+        blockquote_depth=quote_depth,
+        number=number,
+        heading_level=_HEADING_LEVELS.get(named_style) if checked is None else None,
+    )
+
+
+def _literal_item_bullet(item: BulletItem) -> dict:
+    """A `bullet` for a stand-in, for _ListItemContext (#1118)."""
+    return {"listId": _LITERAL_LIST_ID, "nestingLevel": item.depth}
 
 
 def _is_rule_paragraph(para: dict, runs: list[Run | Image]) -> bool:

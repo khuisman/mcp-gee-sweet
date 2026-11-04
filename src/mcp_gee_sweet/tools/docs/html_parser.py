@@ -311,6 +311,26 @@ _CELL_ALIGNMENTS = {
 }
 
 _IMPORTANT = re.compile(r"!\s*important\s*$")
+
+# How a browser reads <ol start> (the HTML spec's rules for parsing integers): ASCII
+# whitespace, an optional sign, then digits, ignoring what follows them.
+_OL_START = re.compile(r"[ \t\n\f\r]*([+-]?[0-9]+)")
+# Past this a browser ignores the attribute. Also keeps int() from raising on a
+# number longer than Python's digit limit.
+_OL_START_MAX_DIGITS = 10
+_OL_START_MAX = 2**31 - 1
+
+
+def _ol_start(value: str | None) -> int | None:
+    """The number an <ol start> gives its first item, or None when that's 1 or the
+    attribute is absent or invalid (#1118)."""
+    match = _OL_START.match(value or "")
+    if match is None or len(match.group(1).lstrip("+-")) > _OL_START_MAX_DIGITS:
+        return None
+    start = int(match.group(1))
+    return None if start == 1 or abs(start) > _OL_START_MAX else start
+
+
 _TABLE_SECTIONS = ("thead", "tbody", "tfoot")
 
 
@@ -408,6 +428,9 @@ class _AstParser(HTMLParser):
         # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # The next item's number, by list id, for each <ol> whose start isn't 1
+        # (#1118): the only lists whose items carry a BulletItem.number.
+        self._list_numbers: dict[int, int] = {}
         # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
         # gets a fresh one, so two adjacent lists stay distinguishable (#1241).
         self._list_ids: list[int] = []
@@ -589,6 +612,9 @@ class _AstParser(HTMLParser):
         # sites, which is exactly the kind of duplication-invites-a-missed-site
         # pattern #417 was filed to close for block-open state.
         depth = max(len(list_ordered) - 1, 0)
+        number = self._list_numbers.get(list_path[-1]) if list_path else None
+        if number is not None:
+            self._list_numbers[list_path[-1]] = number + 1
         # Detect task list markers written as literal [x] / [ ] by the markdown library.
         # An image can never be the first child here in practice (markdown always wraps
         # a bare "![]()" in its own <p>, never mixes it as literal leading text before a
@@ -611,15 +637,18 @@ class _AstParser(HTMLParser):
             depth=depth,
             ordered=ordered,
             checked=checked,
+            number=number,
             list_path=list_path,
             heading_level=self._li_heading_level,
             **self._blockquote_fields(),
         )
 
-    def _push_list(self, ordered: bool) -> None:
+    def _push_list(self, ordered: bool, start: int | None = None) -> None:
         self._list_count += 1
         self._list_ordered.append(ordered)
         self._list_ids.append(self._list_count)
+        if start is not None:
+            self._list_numbers[self._list_count] = start
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -1073,7 +1102,7 @@ class _AstParser(HTMLParser):
         # --- list context ---
         if tag == "ol":
             self._interrupt_open_block("ol")
-            self._push_list(True)
+            self._push_list(True, _ol_start(attr_dict.get("start")))
             return
         if tag == "ul":
             self._interrupt_open_block("ul")

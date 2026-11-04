@@ -151,6 +151,11 @@ class Table:
 # the item's BulletItem.list_path (write side only, identity only, like
 # blockquote_path), so the emitter can tell which list the block belongs to.
 
+# literal_item_level (#1118): set by the emitter on the node standing in for an
+# item of a list whose start number the Docs API can't set: the item's depth. Its
+# runs start with the written number and a tab, and it takes that list level's
+# hanging indent. None for every other node. Never set by html_parser.
+
 
 @dataclass
 class Heading:
@@ -161,6 +166,8 @@ class Heading:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     list_depth: int | None = None  # #1094, see above Heading
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
 
 
 @dataclass
@@ -171,6 +178,8 @@ class Paragraph:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     list_depth: int | None = None  # #1094, see above Heading
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
     # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
     # draws as a horizontal line, since the Docs API can't insert a horizontalRule
     # element. doc_to_ast.py reads both that stand-in and a native horizontal line back
@@ -187,9 +196,10 @@ class BulletItem:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
-    # Read side only (#1208): an ordered item's ordinal in its Docs list, counted across
+    # Read side (#1208): an ordered item's ordinal in its Docs list, counted across
     # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
-    # Read-side metadata like blockquote_path, so it doesn't take part in equality.
+    # Write side (#1118): the item's number in a source <ol> whose start isn't 1, None
+    # in any other list. Metadata like blockquote_path: no part in equality.
     number: int | None = field(default=None, compare=False)
     # Write side only (#1241): ids of the source <ul>/<ol> lists enclosing the item,
     # outermost first, its own list last; parser-assigned counters like

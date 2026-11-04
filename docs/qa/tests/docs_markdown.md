@@ -578,6 +578,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-11 | Dot one 1., Dot two 2.; Paren one restarts at **1.** in its own list (two `listId`s). Then Parent one 1.; Dot child a.; Paren child restarts at **a.** at level 1, in a list of its own; Parent two **2.** (#1241) |
 | LX-12 | Outer one 1.; Bullet child ○ at level 1; Deep child i. at level 2; Restarted child **a.** at level 1, in a list of its own, not Deep child's; Outer two **2.** (#1241) |
 | LX-13 | First bullet ●; Bullet child ○ at level 1; Last bullet ●; Numbered child one **a.** and Numbered child two **b.**, both at level 1 (PR #1295 QA round 1) |
+| LX-14 | Resume one 1.; the quote at its own indent with its bar; the heading at the margin; Resume two **2.**, Resume three **3.**, all three items one `listId` (#1118) |
+| LX-15 | Numbered first 1.; Bullet between ●; Numbered second **2.**, as text (no `bullet`), lined up with the 1. above it (#1118) |
+| LX-16 | Counted one 1.; the paragraph; **7.** and **8.** as text, the wrapped line of 7. under its text, not under the number; Bullet under seven ○ at level 1; the second paragraph under seven's text; only "Bold" bold, not the number (#1118) |
+| LX-17 | Parent one 1.; Child three **c.** and Child four **d.** as text at level 1's indent; Parent two **2.** in Parent one's `listId` (#1118) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
@@ -1388,6 +1392,17 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
 
 **Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.** LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: [`results/2026-11-02-markdown-pr1356.md`](../results/2026-11-02-markdown-pr1356.md)
+
+### TC-MD505: A list's start number survives every Docs entry point ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render the fixture's LM-04 and LX-09 sections through EP-1 to EP-4 and EP-8, on a new Doc, and again over an existing Doc that has a header and a changed named style. #1118's done-when.
+
+**Checks**
+- LM-04: on screen 3. 4. 5., aligned like the list in LM-02. `get_doc_structure` shows three unbulleted paragraphs, "3.`\t`Three" and so on, with `indentFirstLine` 18 and `indentStart` 36.
+- LX-09: on screen 1., the code block at the margin, 2. Both items share one `listId`; the code block has no `bullet` and no indent.
+- Existing Doc: `write_doc_content` with LM-04 keeps the Doc's header and its changed named style (`get_doc_named_styles`), which a Drive import would have removed.
+- Round trip: `get_doc_as_markdown` on the LM-04 Doc returns `3. Three`, `4. Four` and `5. Five` with no backslashes, and on the LX-09 Doc `1.`, a fence, `2.`.
 
 ---
 

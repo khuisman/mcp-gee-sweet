@@ -103,3 +103,44 @@ unindented code block
 - Last bullet
   1. Numbered child one
   2. Numbered child two
+
+### LX-14 — a list resumes past a quote and a heading
+
+1. Resume one
+
+> Quoted between the lists
+
+#### Heading between the lists
+
+2. Resume two
+3. Resume three
+
+### LX-15 — a list after another list can't resume the first
+
+1. Numbered first
+
+- Bullet between
+
+2. Numbered second
+
+### LX-16 — a list that doesn't pick up the count
+
+1. Counted one
+
+A paragraph between.
+
+7. Skips to seven, wrapping onto a second line so its hanging indent shows on screen, with enough words here to reach the far margin of the page and carry on past it
+   - Bullet under seven
+
+   A second paragraph in seven.
+
+8. **Bold** eight
+
+### LX-17 — a sublist that doesn't start at 1
+
+1. Parent one
+
+   3. Child three
+   4. Child four
+
+2. Parent two

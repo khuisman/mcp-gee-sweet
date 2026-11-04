@@ -32,6 +32,7 @@ from .ast import (
 )
 from .batch_retry import send_dropping_failed_images
 from .emitter import (
+    LITERAL_MARKER,
     CellImages,
     ImageFallbacks,
     ast_to_requests,
@@ -1534,7 +1535,11 @@ def _walk_headings_and_anchor_runs(
                         anchor_runs.append((link_url, run_start, end))
 
             if is_heading and heading_id:
-                headings.append(("".join(text_parts).strip(), heading_id))
+                # A list item's stand-in (#1118) has its number in the heading's text.
+                text = "".join(text_parts)
+                marker = LITERAL_MARKER.match(text)
+                text = text[marker.end() :] if marker else text
+                headings.append((text.strip(), heading_id))
         elif "table" in elem:
             for row in elem["table"].get("tableRows", []):
                 for cell in row.get("tableCells", []):
