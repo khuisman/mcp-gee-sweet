@@ -1417,6 +1417,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-03, PR #1368 QA round 2 @ d3c252b3, Sky) ⚠️ PARTIAL — one run. Both round 1 live defects are fixed: LX-18 to LX-21 match the TC-MD108 table on screen at EP-3. HTML through EP-1: `reversed` shows 3. 2. 1. and `value` shows 5. 6. on screen. Hand-numbered heading through EP-2: the `#1-introduction` link resolved to its heading. LX-09 to LX-17 structure unchanged from round 1 at EP-3. Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a quoted stand-in at list level 2 exports with the wrong number (`iii.` as `6327.`), and a paragraph or sublist under a `100.` item sits left of the item's text.**
 
+**Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's `get_doc_as_markdown` line: `Quote roman` exports `1.` under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan `<li>` keeps its bullet, and `2.` after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (`- a`, then `> 3. b` under it) renders correctly but exports `> > > c.<tab>b`, with the raw marker and two extra quote levels, where round 2's head exported a list item.**
+
 ---
 
 ## Known gaps and not-applicable
