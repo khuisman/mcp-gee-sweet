@@ -2260,6 +2260,50 @@
 <td>LX-13</td>
 <td>First bullet ●; Bullet child ○ at level 1; Last bullet ●; Numbered child one <strong>a.</strong> and Numbered child two <strong>b.</strong>, both at level 1 (PR #1295 QA round 1)</td>
 </tr>
+<tr>
+<td>LX-14</td>
+<td>Resume one 1.; the quote at its own indent with its bar; the heading at the margin; Resume two <strong>2.</strong>, Resume three <strong>3.</strong>, all three items one <code>listId</code> (#1118)</td>
+</tr>
+<tr>
+<td>LX-15</td>
+<td>Numbered first 1.; Bullet between ●; Numbered second <strong>2.</strong>, as text (no <code>bullet</code>), lined up with the 1. above it (#1118)</td>
+</tr>
+<tr>
+<td>LX-16</td>
+<td>Counted one 1.; the paragraph; <strong>7.</strong> and <strong>8.</strong> as text, the wrapped line of 7. under its text, not under the number; Bullet under seven ○ at level 1; the second paragraph under seven's text; only "Bold" bold, not the number (#1118)</td>
+</tr>
+<tr>
+<td>LX-17</td>
+<td>Parent one 1.; Child three <strong>c.</strong> and Child four <strong>d.</strong> as text at level 1's indent; Parent two <strong>2.</strong> in Parent one's <code>listId</code> (#1118)</td>
+</tr>
+<tr>
+<td>LX-18</td>
+<td>Tab one 1.; the code block keeps its leading tab, no bullet; Tab two <strong>2.</strong> with its bullet, in Tab one's <code>listId</code>; the paragraph after is intact, no stray character or bullet near it (#1118)</td>
+</tr>
+<tr>
+<td>LX-19</td>
+<td>Inner one 1.; the code block under it, keeping its leading tab; Inner two <strong>2.</strong> (#1118)</td>
+</tr>
+<tr>
+<td>LX-20</td>
+<td>Before the table 1.; the table at the margin; <strong>2.</strong> as text. <code>get_doc_as_markdown</code> keeps the table at the margin, not under 1. (#1118)</td>
+</tr>
+<tr>
+<td>LX-21</td>
+<td><strong>100.</strong> and <strong>101.</strong> as text; on screen the wrapped line of 100. sits exactly under its first line's text (#1118)</td>
+</tr>
+<tr>
+<td>LX-22</td>
+<td><strong>100.</strong>; its text, the paragraph under it and the bullet's parent indent line up at 36pt; <code>get_doc_as_markdown</code> keeps the paragraph in the item (#1118)</td>
+</tr>
+<tr>
+<td>LX-23</td>
+<td>Quote one 1.; Quote bullet ○; Quote roman <strong>iii.</strong> in one quote, on screen. <code>get_doc_as_markdown</code> writes it as a plain paragraph with its marker, the documented limitation (#1118)</td>
+</tr>
+<tr>
+<td>LX-24</td>
+<td>Loose one 1.; the paragraph at the margin; Loose two <strong>2.</strong>; the paragraph; Loose three <strong>3.</strong>, all three items one <code>listId</code> (#1118)</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: <a href="../../results/2026-10-18-markdown-phase2/"><code>results/2026-10-18-markdown-phase2.md</code></a>.</strong></p>
@@ -4991,6 +5035,23 @@
 <p><strong>Result (2026-11-01, PR #1356 QA round 2 @ 7bc387f3, Kit) PARTIAL — Run 1, EP-1 only; the round was sent back before the full matrix.</strong> EP-1 (<code>create_doc</code>, Markdown): LB-01 to LB-04 match on screen, as EP-3 did in round 1. Round 1's three probes now render as a browser shows them: <code>&lt;p&gt;text&lt;br&gt;&lt;/p&gt;</code> has no blank line, <code>&lt;p&gt;&lt;br&gt;&lt;/p&gt;</code> is one empty line, and a <code>&lt;br&gt;</code> after a nested list adds no gap. Two new defects on screen: <code>&lt;p&gt;&lt;br&gt;&lt;br&gt;&lt;/p&gt;</code> is one empty line where a browser shows two, and bare text <code>Line one&lt;br&gt;\nLine two</code> shows a blank line between the two lines. Not run yet: EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2.</p>
 <p><strong>Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.</strong> Round 2's two defects are fixed on screen: <code>&lt;p&gt;&lt;br&gt;&lt;br&gt;&lt;/p&gt;</code> is two empty lines, and bare <code>Line one&lt;br&gt;\nLine two</code> is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a <code>&lt;br&gt;</code> right after a nested list or table. Two defects on screen: <code>&lt;li&gt;a&lt;ul&gt;&lt;li&gt;b&lt;/li&gt;&lt;/ul&gt;&lt;br&gt;&lt;/li&gt;</code> draws no line before the next item (browser: one), and <code>&lt;ul&gt;&lt;li&gt;&lt;br&gt;&lt;br&gt;&lt;/li&gt;&lt;/ul&gt;</code> is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its <code>&lt;br&gt;</code> paths are unchanged since round 2's EP-1 pass.</p>
 <p><strong>Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.</strong> LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: <a href="../../results/2026-11-02-markdown-pr1356/"><code>results/2026-11-02-markdown-pr1356.md</code></a></p>
+<h3 id="tc-md505-a-lists-start-number-survives-every-docs-entry-point-destructive">TC-MD505: A list's start number survives every Docs entry point ⚠️ destructive<a class="headerlink" href="#tc-md505-a-lists-start-number-survives-every-docs-entry-point-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render the fixture's LM-04 and LX-09 sections through EP-1 to EP-4 and EP-8, on a new Doc, and again over an existing Doc that has a header and a changed named style. #1118's done-when.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- LM-04: on screen 3. 4. 5., aligned like the list in LM-02. <code>get_doc_structure</code> shows three unbulleted paragraphs, "3.<code>\t</code>Three" and so on, with <code>indentFirstLine</code> 18 and <code>indentStart</code> 36.
+- LX-09: on screen 1., the code block at the margin, 2. Both items share one <code>listId</code>; the code block has no <code>bullet</code> and no indent.
+- Existing Doc: <code>write_doc_content</code> with LM-04 keeps the Doc's header and its changed named style (<code>get_doc_named_styles</code>), which a Drive import would have removed.
+- HTML through EP-1: <code>&lt;ol reversed start="3"&gt;</code> with three items shows 3. 2. 1.; <code>&lt;ol&gt;&lt;li value="5"&gt;a&lt;/li&gt;&lt;li&gt;b&lt;/li&gt;&lt;/ol&gt;</code> shows 5. 6.
+- Hand-numbered heading: a Doc with a real <code>HEADING_2</code> "1.<code>\t</code>Introduction" and a <code>#1-introduction</code> link written by <code>write_doc_content</code> keeps a working link.
+- Round trip: <code>get_doc_as_markdown</code> on the LM-04 Doc returns <code>3. Three</code>, <code>4. Four</code> and <code>5. Five</code> with no backslashes, and on the LX-09 Doc <code>1.</code>, a fence, <code>2.</code>.</p>
+<p><strong>Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through <code>documents().get()</code>, not viewed on screen. Existing Doc: <code>write_doc_content</code> with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as <code>100.</code>, starts its text at 72pt with wrapped lines at 36pt.</strong></p>
+<p><strong>Result (2026-11-03, PR #1368 QA round 2 @ d3c252b3, Sky) ⚠️ PARTIAL — one run. Both round 1 live defects are fixed: LX-18 to LX-21 match the TC-MD108 table on screen at EP-3. HTML through EP-1: <code>reversed</code> shows 3. 2. 1. and <code>value</code> shows 5. 6. on screen. Hand-numbered heading through EP-2: the <code>#1-introduction</code> link resolved to its heading. LX-09 to LX-17 structure unchanged from round 1 at EP-3. Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a quoted stand-in at list level 2 exports with the wrong number (<code>iii.</code> as <code>6327.</code>), and a paragraph or sublist under a <code>100.</code> item sits left of the item's text.</strong></p>
+<p><strong>Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's <code>get_doc_as_markdown</code> line: <code>Quote roman</code> exports <code>1.</code> under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan <code>&lt;li&gt;</code> keeps its bullet, and <code>2.</code> after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (<code>- a</code>, then <code>&gt; 3. b</code> under it) renders correctly but exports <code>&gt; &gt; &gt; c.&lt;tab&gt;b</code>, with the raw marker and two extra quote levels, where round 2's head exported a list item.</strong></p>
+<p><strong>Result (2026-11-04, PR #1368 QA round 4 @ d4908a51, Sky) ⚠️ PARTIAL — every check passes, in one run. LM-04 and LX-09: on screen at EP-1; EP-8 has the same paragraphs, indents and bullets through <code>documents().get()</code>; EP-3 and EP-4 match each other across the whole fixture (LX-09 to LX-24 and LM-04); EP-2's existing-Doc run with LM-04 kept the header and the changed named style. Round trip as listed. HTML: <code>reversed</code> 3. 2. 1. and <code>value</code> 5. 6. by structure and export at EP-1. Hand-numbered heading: <code>1.&lt;tab&gt;Introduction</code> keeps its number and its <code>#1-introduction</code> link. LX-23 exports as the plain paragraph the table now expects, the maintainer's scope cut. Not run: the second run, LX-09 through EP-2 at this head, and the TC-MD105/TC-MD108 grids.</strong></p>
 <hr />
 <h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
 <ul>

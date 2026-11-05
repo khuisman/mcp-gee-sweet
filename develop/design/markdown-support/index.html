@@ -1567,6 +1567,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td>numbered list</td>
 </tr>
 <tr>
+<td><code>3. item</code></td>
+<td><code>&lt;ol start="3"&gt;&lt;li&gt;</code></td>
+<td><code>BulletItem(ordered=True, number=3)</code></td>
+<td>joins the last list if it stopped at 2, else literal numbers (<code>list-start-numbers.md</code>)</td>
+</tr>
+<tr>
 <td><code>- [x] item</code></td>
 <td><code>&lt;input type="checkbox" checked&gt;</code></td>
 <td><code>BulletItem(checked=True)</code></td>
