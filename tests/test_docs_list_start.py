@@ -497,47 +497,20 @@ class TestReadBack:
         nodes = document_to_ast(_doc(_para("3.\ta", start=72, first=54, border=True)))
         assert (nodes[0].depth, nodes[0].blockquote_depth, nodes[0].number) == (0, 1, 3)
 
-    def _quoted_item(self, depth: int) -> dict:
-        para = _para("x", start=72 + 36 * depth, first=54 + 36 * depth, border=True)
-        para["paragraph"]["bullet"] = {"listId": "l", "nestingLevel": depth}
-        return para
-
-    def _lists_doc(self, *paragraphs):
-        document = _doc(*paragraphs)
-        level = {"glyphType": "DECIMAL", "indentStart": {"magnitude": 36}}
-        levels = [{**level, "indentStart": {"magnitude": 36 * (i + 1)}} for i in range(9)]
-        document["lists"] = {"l": {"listProperties": {"nestingLevels": levels}}}
-        return document
-
-    def test_a_quoted_nested_item_reads_in_its_level(self):
-        nodes = document_to_ast(
-            self._lists_doc(self._quoted_item(0), _para("c.\tb", start=108, first=90, border=True))
-        )
-        assert isinstance(nodes[1], BulletItem)
-        assert (nodes[1].depth, nodes[1].blockquote_depth, nodes[1].number) == (1, 1, 3)
-
-    def test_a_quoted_item_at_a_roman_level_isnt_read_as_letters(self):
-        nodes = document_to_ast(
-            self._lists_doc(
-                self._quoted_item(0),
-                self._quoted_item(1),
-                _para("iii.\tc", start=144, first=126, border=True),
-            )
-        )
-        assert (nodes[2].depth, nodes[2].blockquote_depth, nodes[2].number) == (2, 1, 3)
-
-    def test_a_quoted_digit_item_at_a_deep_level_keeps_its_level(self):
-        nodes = document_to_ast(
-            self._lists_doc(
-                self._quoted_item(2),
-                _para("5.\tc", start=180, first=162, border=True),
-            )
-        )
-        assert (nodes[1].depth, nodes[1].blockquote_depth) == (3, 1)
-
-    def test_a_quoted_letter_with_no_open_list_stays_a_paragraph(self):
-        nodes = document_to_ast(_doc(_para("c.\tb", start=108, first=90, border=True)))
+    @pytest.mark.parametrize(
+        ("text", "start", "first"),
+        [("c.\tb", 108, 90), ("iii.\tc", 144, 126)],
+    )
+    def test_a_quoted_nested_item_stays_a_paragraph(self, text, start, first):
+        nodes = document_to_ast(_doc(_para(text, start=start, first=first, border=True)))
         assert isinstance(nodes[0], Paragraph)
+
+    def test_a_quoted_nested_item_under_a_list_stays_a_paragraph(self):
+        item = _para("a", start=36, first=18)
+        item["paragraph"]["bullet"] = {"listId": "l", "nestingLevel": 0}
+        document = _doc(item, _para("c.\tb", start=108, first=90, border=True))
+        document["lists"] = {"l": {"listProperties": {"nestingLevels": [{}]}}}
+        assert isinstance(document_to_ast(document)[1], Paragraph)
 
     def test_a_paragraph_with_a_rule_in_it_stays_readable(self):
         para = _para("3.\tThree", start=36, first=18)

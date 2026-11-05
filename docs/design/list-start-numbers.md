@@ -53,10 +53,13 @@ allows and why the fix has two mechanisms.
 `doc_to_ast._literal_marker` turns a stand-in back into a `BulletItem`, so the export says `3. Three`
 rather than the escaped `3\.` a paragraph would get. It needs the whole signature: no bullet, the
 hanging indent, and the marker that level writes. A quoted stand-in's indent adds its list level to
-its quote depth, and a marker can't split them, since a roman numeral is letters too. The open list
-does: the stand-in takes the quote depth of that list's last item. With no list open it's a list's
-first item, at level 0, so only a digit marker reads, and a letter stays a paragraph. The anchor pass
-uses the same check, so a heading numbered by hand keeps its number.
+its quote depth, and nothing in the Doc separates them. So a quoted stand-in reads as an item only at
+level 0 with a digit marker, and a nested one exports as a plain paragraph. That's the maintainer's
+scope cut after three attempts that each moved the failure (PR #1368): level 0 always, the shallowest
+level writing the marker (a roman numeral is letters too, so `iii.` read as 6327), and the open
+list's quote depth (the stand-in can have a quote its list doesn't). Don't try to recover its level.
+The Doc itself renders correctly either way. The anchor pass uses the same check, so a heading
+numbered by hand keeps its number.
 
 A leading tab in a block inside the bullet range is consumed like a depth-tab. `_top_list_requests`
 puts it back right after that block's `deleteParagraphBullets`, so nothing past the list sees it

@@ -55,11 +55,9 @@ def document_to_ast(document: dict) -> list[DocNode]:
             if len(pieces) > 1:
                 nodes.extend(_paragraph_with_rules(para, pieces, document, list_counter, items))
                 continue
-            node = _paragraph_to_node(
-                para, document, list_counter, open_quote=items.open_quote_depth
-            )
+            node = _paragraph_to_node(para, document, list_counter)
             if isinstance(node, BulletItem):
-                items.item(para.get("bullet") or _literal_item_bullet(node), node)
+                items.item(para.get("bullet") or _literal_item_bullet(node))
             else:
                 items.block(node, para)
             nodes.append(node)
@@ -131,18 +129,11 @@ class _ListItemContext:
         # (a list that starts deeper than level 0).
         self._lists: list[str | None] = []
         self._depth = 0
-        self._quote_depth = 0
         # Each waiting block, with its (list_depth, blockquote_depth) when inside an
         # item, or None when it takes the depth of the item that ends the wait.
         self._pending: list[tuple[Table | Paragraph | Heading | NamedBlock, tuple | None]] = []
 
-    @property
-    def open_quote_depth(self) -> int | None:
-        """The quote depth of the last item of the open list, or None with no list
-        open: a stand-in's indent can't split its list level from its quote depth."""
-        return self._quote_depth if self._lists else None
-
-    def item(self, bullet: dict, node: BulletItem) -> None:
+    def item(self, bullet: dict) -> None:
         list_id = bullet.get("listId")
         depth = bullet.get("nestingLevel", 0)
         continues = bool(self._lists) and (
@@ -156,7 +147,6 @@ class _ListItemContext:
         self._lists.extend([None] * (depth - len(self._lists)))
         self._lists.append(list_id)
         self._depth = depth
-        self._quote_depth = node.blockquote_depth
 
     def block(self, node: Heading | Paragraph | NamedBlock | Table, para: dict) -> None:
         if not self._lists:
@@ -290,13 +280,11 @@ def _paragraph_to_node(
     list_counter: _ListCounter | None,
     *,
     read_literal: bool = True,
-    open_quote: int | None = None,
 ) -> Heading | Paragraph | BulletItem | NamedBlock:
     """`list_counter` numbers a list item: pass one counter for a whole walk of
     the body in document order, or None to leave `BulletItem.number` unset.
     `read_literal` False keeps an unbulleted paragraph from reading as a stand-in
-    for a list item (#1118), for a caller holding only a piece of a paragraph.
-    `open_quote` is _ListItemContext.open_quote_depth, for _literal_marker."""
+    for a list item (#1118), for a caller holding only a piece of a paragraph."""
     pstyle = para.get("paragraphStyle", {})
     named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
     runs = _paragraph_runs(para, document)
@@ -307,7 +295,7 @@ def _paragraph_to_node(
     )
     literal = None
     if not bullet and read_literal and runs and isinstance(runs[0], Run):
-        literal = _literal_marker(pstyle, runs[0].text, open_quote)
+        literal = _literal_marker(pstyle, runs[0].text)
 
     if bullet or literal:
         if literal:
@@ -364,9 +352,7 @@ class _LiteralMarker:
     length: int  # of the marker and its tab, in characters
 
 
-def _literal_marker(
-    pstyle: dict, text: str, open_quote: int | None = None
-) -> _LiteralMarker | None:
+def _literal_marker(pstyle: dict, text: str) -> _LiteralMarker | None:
     """What a paragraph's text and style say if it's a stand-in, else None: unbulleted
     (the caller's check), its text at a list level's indentStart, its first line at
     least the list's gap left of that, starting with a number that level writes and
@@ -375,10 +361,11 @@ def _literal_marker(
 
     The marker has to be one its level writes, or a hanging paragraph that merely
     opens with `iv.<tab>` at another level isn't an item. A quoted stand-in's indent is
-    its list level and quote depth added together, and a marker can't split them (a
-    roman numeral is letters too). So the list it sits in does: `open_quote`, the quote
-    depth of the open list's last item. With none, it's a list's first item, at level 0
-    with the whole indent in the quote, and only a number written in digits reads."""
+    its list level and quote depth added together, and nothing in the Doc separates
+    them: neither the marker (a roman numeral is letters too) nor the open list (the
+    stand-in can have a quote its list doesn't). So a quoted one reads only at level 0,
+    with a digit marker, and a nested one stays a paragraph (known-limitations.md).
+    Never try to recover its level: each attempt moved the failure (PR #1368)."""
     match = _LITERAL_MARKER.match(text)
     start = pstyle.get("indentStart", {}).get("magnitude")
     # Docs leaves a zero indent out of the response.
@@ -396,16 +383,13 @@ def _literal_marker(
     if pstyle.get("borderLeft"):
         if steps < 1:
             return None
-        levels = [0]
-        if open_quote and open_quote <= steps:
-            levels.insert(0, steps - open_quote)
+        depth = 0
     else:
-        levels = [steps]
-    for depth in levels:
-        number = _literal_number(match.group(1), depth)
-        if depth <= _MAX_LIST_NESTING_LEVEL and number is not None:
-            return _LiteralMarker(depth, number, steps - depth, match.end())
-    return None
+        depth = steps
+    number = _literal_number(match.group(1), depth)
+    if depth > _MAX_LIST_NESTING_LEVEL or number is None:
+        return None
+    return _LiteralMarker(depth, number, steps - depth, match.end())
 
 
 def literal_marker_length(para: dict, text: str) -> int:
@@ -511,7 +495,7 @@ def _paragraph_with_rules(
     out: list[DocNode] = []
     for i, piece in enumerate(pieces):
         if item is not None and i == item_at:
-            items.item(para["bullet"], item)
+            items.item(para["bullet"])
             out.append(item)
             continue
         node: Heading | Paragraph | BulletItem | NamedBlock

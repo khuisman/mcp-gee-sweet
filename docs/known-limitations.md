@@ -176,6 +176,12 @@ from the Doc as inside the first list's last item), or when it's in a different 
 has a different number. A nested list that doesn't start at 1 is always literal, written in its
 level's glyph (`c.`, `iv.`). So are `<ol reversed>` and a list with an `<li value>`.
 
+A literal item that's both quoted and nested in a list reads back through `get_doc_as_markdown`
+as a plain paragraph: its marker and tab as text, at the quote depth its indent gives. The Doc
+itself shows it correctly. An indent adds the item's list level to its quote depth, and nothing
+in the Doc separates the two. A quoted literal item at the top of a list, with a digit marker,
+reads back as a list item.
+
 A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) starts further left, so
 its text stays lined up with the other items. A marker wider than the level's whole text indent
 moves the item's text right, leaving the blocks and sublists under it behind. The width is
