@@ -189,6 +189,15 @@ class TestHeadingAnchor:
         body = self._heading("3.\tTitle", indents)
         assert _walk_headings_and_anchor_runs(body)[0] == [("Title", "h.1")]
 
+    def test_a_bulleted_heading_keeps_its_number(self):
+        indents = {
+            "indentStart": {"magnitude": 36, "unit": "PT"},
+            "indentFirstLine": {"magnitude": 18, "unit": "PT"},
+        }
+        body = self._heading("1.\tIntro", indents)
+        body[0]["paragraph"]["bullet"] = {"listId": "l"}
+        assert _walk_headings_and_anchor_runs(body)[0] == [("1.\tIntro", "h.1")]
+
     def test_a_heading_numbered_by_hand_keeps_its_number(self):
         body = self._heading("1.\tIntroduction", {})
         assert _walk_headings_and_anchor_runs(body)[0] == [("1.\tIntroduction", "h.1")]
@@ -207,23 +216,40 @@ class TestWideMarkers:
     def test_two_digits_fit_the_list_levels_gap(self):
         assert self._indents("10. a\n") == (18, 36)
 
-    def test_three_digits_move_the_text_out(self):
+    def test_three_digits_start_further_left_and_keep_the_text_indent(self):
         first, start = self._indents("100. a\n")
-        assert first == 18
-        assert start - first > 21
+        assert start == 36
+        assert 0 < first < 15
 
     def test_a_heading_marker_is_measured_at_its_size(self):
         first, start = self._indents("10. # Title\n")
-        assert start - first > 27
+        assert start == 36
+        assert first < 8
 
     def test_a_wide_marker_keeps_the_quote(self):
         first, start = self._indents("> 100. a\n")
-        assert first == 54
-        assert start - first > 21
+        assert start == 72
+        assert 36 < first < 51
 
     def test_it_reads_back(self):
-        nodes = document_to_ast(_doc(_para("100.\ta", start=46, first=18)))
+        nodes = document_to_ast(_doc(_para("100.\ta", start=36, first=9)))
         assert nodes[0].number == 100
+
+    def test_a_marker_past_the_whole_indent_moves_the_text(self):
+        first, start = self._indents("100000000. a\n")
+        assert first == 0
+        assert start > 36
+        nodes = document_to_ast(_doc(_para("100000000.\ta", start=start, first=0)))
+        assert nodes[0].number == 100000000
+
+    def test_a_first_line_at_the_margin_is_absent_from_the_response(self):
+        para = _para("101.\thead", start=46, first=0)
+        del para["paragraph"]["paragraphStyle"]["indentFirstLine"]
+        assert document_to_ast(_doc(para))[0].number == 101
+
+    def test_blocks_under_a_wide_marker_stay_at_the_level_indent(self):
+        document = _doc(_para("100.\ta", start=36, first=9), _para("b", start=36, first=36))
+        assert document_to_ast(document)[1].list_depth == 0
 
 
 class TestListMarker:
@@ -360,6 +386,22 @@ class TestContinuation:
         requests = ast_to_requests(nodes)[0]
         assert len([r for r in requests if r.get("insertText", {}).get("text") == "\t"]) == 2
 
+    def test_a_loose_block_in_a_list_doesnt_restart_it(self):
+        nodes = html_to_ast(
+            '<ol><li>a</li><p>x</p><li>b</li></ol><p>y</p><ol start="3"><li>c</li></ol>'
+        )
+        requests = ast_to_requests(nodes)[0]
+        assert _inserted(requests) == "a\nx\nb\ny\nc\n"
+        assert len(_of(requests, "createParagraphBullets")) == 1
+
+    def test_a_quote_separator_between_items_keeps_the_list(self):
+        requests = _requests("1. a\n   - b\n\n     > q\n\n   > r\n\n2. c\n")
+        assert len(_of(requests, "createParagraphBullets")) == 2
+
+    def test_an_orphan_item_stops_continuation(self):
+        nodes = html_to_ast('<ol><li>a</li></ol><li>orphan</li><ol start="2"><li>b</li></ol>')
+        assert _inserted(ast_to_requests(nodes)[0]) == "a\norphan\n2.\tb\n"
+
     def test_a_wrong_number_is_literal(self):
         requests = _requests("1. a\n\ntext\n\n5. b\n")
         assert _inserted(requests) == "a\ntext\n5.\tb\n"
@@ -455,10 +497,47 @@ class TestReadBack:
         nodes = document_to_ast(_doc(_para("3.\ta", start=72, first=54, border=True)))
         assert (nodes[0].depth, nodes[0].blockquote_depth, nodes[0].number) == (0, 1, 3)
 
+    def _quoted_item(self, depth: int) -> dict:
+        para = _para("x", start=72 + 36 * depth, first=54 + 36 * depth, border=True)
+        para["paragraph"]["bullet"] = {"listId": "l", "nestingLevel": depth}
+        return para
+
+    def _lists_doc(self, *paragraphs):
+        document = _doc(*paragraphs)
+        level = {"glyphType": "DECIMAL", "indentStart": {"magnitude": 36}}
+        levels = [{**level, "indentStart": {"magnitude": 36 * (i + 1)}} for i in range(9)]
+        document["lists"] = {"l": {"listProperties": {"nestingLevels": levels}}}
+        return document
+
     def test_a_quoted_nested_item_reads_in_its_level(self):
+        nodes = document_to_ast(
+            self._lists_doc(self._quoted_item(0), _para("c.\tb", start=108, first=90, border=True))
+        )
+        assert isinstance(nodes[1], BulletItem)
+        assert (nodes[1].depth, nodes[1].blockquote_depth, nodes[1].number) == (1, 1, 3)
+
+    def test_a_quoted_item_at_a_roman_level_isnt_read_as_letters(self):
+        nodes = document_to_ast(
+            self._lists_doc(
+                self._quoted_item(0),
+                self._quoted_item(1),
+                _para("iii.\tc", start=144, first=126, border=True),
+            )
+        )
+        assert (nodes[2].depth, nodes[2].blockquote_depth, nodes[2].number) == (2, 1, 3)
+
+    def test_a_quoted_digit_item_at_a_deep_level_keeps_its_level(self):
+        nodes = document_to_ast(
+            self._lists_doc(
+                self._quoted_item(2),
+                _para("5.\tc", start=180, first=162, border=True),
+            )
+        )
+        assert (nodes[1].depth, nodes[1].blockquote_depth) == (3, 1)
+
+    def test_a_quoted_letter_with_no_open_list_stays_a_paragraph(self):
         nodes = document_to_ast(_doc(_para("c.\tb", start=108, first=90, border=True)))
-        assert isinstance(nodes[0], BulletItem)
-        assert (nodes[0].depth, nodes[0].blockquote_depth, nodes[0].number) == (1, 1, 3)
+        assert isinstance(nodes[0], Paragraph)
 
     def test_a_paragraph_with_a_rule_in_it_stays_readable(self):
         para = _para("3.\tThree", start=36, first=18)

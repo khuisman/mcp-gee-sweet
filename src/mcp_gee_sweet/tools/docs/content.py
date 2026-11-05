@@ -1537,7 +1537,7 @@ def _walk_headings_and_anchor_runs(
             if is_heading and heading_id:
                 # A list item's stand-in (#1118) has its number in the heading's text.
                 text = "".join(text_parts)
-                text = text[literal_marker_length(pstyle, text) :]
+                text = text[literal_marker_length(para, text) :]
                 headings.append((text.strip(), heading_id))
         elif "table" in elem:
             for row in elem["table"].get("tableRows", []):

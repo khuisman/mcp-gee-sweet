@@ -155,11 +155,12 @@ class Table:
 # item of a list whose start number the Docs API can't set: the item's depth. Its
 # runs start with the written number and a tab, and it takes that list level's
 # hanging indent. None for every other node. Never set by html_parser.
-# literal_item_gap is its indentStart past indentFirstLine, in points: a list level's
-# own, or more when the marker wouldn't fit before the tab stop.
+# literal_item_gap is the room its marker needs before its text, in points: a list
+# level's own gap, or more for a marker that wouldn't clear the tab stop.
 
 
-# The glyph and space a task item's text starts with, in the Doc.
+# The glyph and space a task item's text starts with, in the Doc: a literal prefix, not
+# a BULLET_CHECKBOX preset (#336). The emitter writes them, doc_to_ast reads them back.
 CHECKED_PREFIX = "☑ "
 UNCHECKED_PREFIX = "☐ "
 

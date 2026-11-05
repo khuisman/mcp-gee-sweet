@@ -586,6 +586,9 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-19 | Inner one 1.; the code block under it, keeping its leading tab; Inner two **2.** (#1118) |
 | LX-20 | Before the table 1.; the table at the margin; **2.** as text. `get_doc_as_markdown` keeps the table at the margin, not under 1. (#1118) |
 | LX-21 | **100.** and **101.** as text; on screen the wrapped line of 100. sits exactly under its first line's text (#1118) |
+| LX-22 | **100.**; its text, the paragraph under it and the bullet's parent indent line up at 36pt; `get_doc_as_markdown` keeps the paragraph in the item (#1118) |
+| LX-23 | Quote one 1.; Quote bullet ○; Quote roman **iii.** in one quote; `get_doc_as_markdown` keeps it at one quote level (#1118) |
+| LX-24 | Loose one 1.; the paragraph at the margin; Loose two **2.**; the paragraph; Loose three **3.**, all three items one `listId` (#1118) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 

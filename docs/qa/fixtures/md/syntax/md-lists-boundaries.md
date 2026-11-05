@@ -181,3 +181,26 @@ A paragraph after.
 
 100. Hundred, wrapping onto a second line so its hanging indent shows on screen, with enough words here to reach the far margin of the page and carry on past it
 101. Hundred and one
+
+### LX-22 — blocks and a sublist under a wide marker
+
+100. Wide parent
+
+     A paragraph under wide.
+
+     - Bullet under wide
+
+### LX-23 — a quoted literal list at a roman level
+
+> 1. Quote one
+>    - Quote bullet
+>
+>      3. Quote roman
+
+### LX-24 — a block loose in a list, then a list that picks up its count
+
+<ol><li>Loose one</li><p>Loose in the list</p><li>Loose two</li></ol>
+
+Between lists.
+
+<ol start="3"><li>Loose three</li></ol>

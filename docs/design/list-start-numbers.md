@@ -32,8 +32,9 @@ allows and why the fix has two mechanisms.
 2. **Otherwise write the numbers as text.** The item becomes `<number>.<tab><text>` at the list
    level's hanging indent. The tab stops at `indentStart`, so a literal list lines up with a real one
    (compared in a PDF render) while its marker fits the 18pt gap. Past that the tab would run to the
-   next default stop, 36pt on, leaving the wrapped lines behind, so a wider marker moves `indentStart`
-   out (`_literal_item_gap`, from an Arial estimate at the default sizes). A nested one uses its
+   next default stop, 36pt on, leaving the wrapped lines behind, so a wider marker starts further left
+   (`_literal_item_gap`, from an Arial estimate at the default sizes). `indentStart` stays at the
+   level's text indent, where the blocks and sublists under the item already sit. A nested one uses its
    level's glyph, since a real sublist there shows letters or roman numerals. This keeps the numbers right at every entry point, in new and existing
    Docs alike, at the cost of not being a Docs list. The maintainer chose this over the alternatives
    below.
@@ -52,14 +53,19 @@ allows and why the fix has two mechanisms.
 `doc_to_ast._literal_marker` turns a stand-in back into a `BulletItem`, so the export says `3. Three`
 rather than the escaped `3\.` a paragraph would get. It needs the whole signature: no bullet, the
 hanging indent, and the marker that level writes. A quoted stand-in's indent adds its list level to
-its quote depth, so the marker settles the split: the shallowest level writing it, with a quote
-level left. That reads `c.` at 90pt as level 1 in one quote, and a digit marker as level 0 in a
-deeper quote. The anchor pass uses the same check, so a heading numbered by hand keeps its number.
+its quote depth, and a marker can't split them, since a roman numeral is letters too. The open list
+does: the stand-in takes the quote depth of that list's last item. With no list open it's a list's
+first item, at level 0, so only a digit marker reads, and a letter stays a paragraph. The anchor pass
+uses the same check, so a heading numbered by hand keeps its number.
 
 A leading tab in a block inside the bullet range is consumed like a depth-tab. `_top_list_requests`
 puts it back right after that block's `deleteParagraphBullets`, so nothing past the list sees it
 gone. Every position it computes before that allows for it (`block_tabs_before`). That also fixes
 the same defect in a block inside a list item, which predates this work.
+
+A block loose in an `<ol>` (`<ol><li>a</li><p>x</p><li>b</li></ol>`) used to end its Docs list, so
+`b` showed 1. It now joins the list again, the same way, and so a later list's count holds. A quote
+separator between two nodes in one list carries the shallower one's item for the same reason.
 
 `<ol reversed>` and `<li value>` give numbers a Docs list can't show either, so `html_parser` numbers
 a list's items at the end of the parse, as a browser would, and a list that comes out 1, 2, 3 has no

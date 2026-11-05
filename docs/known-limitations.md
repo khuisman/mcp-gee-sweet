@@ -176,8 +176,9 @@ from the Doc as inside the first list's last item), or when it's in a different 
 has a different number. A nested list that doesn't start at 1 is always literal, written in its
 level's glyph (`c.`, `iv.`). So are `<ol reversed>` and a list with an `<li value>`.
 
-A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) moves that item's text
-and wrapped lines right, so its text sits further in than its neighbours'. The width is
+A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) starts further left, so
+its text stays lined up with the other items. A marker wider than the level's whole text indent
+moves the item's text right, leaving the blocks and sublists under it behind. The width is
 estimated from Arial at the default sizes, so a much wider font can still overrun it.
 
 **Why:** `NestingLevel.startNumber` is read-only: no `batchUpdate` request writes it, and

@@ -42,11 +42,6 @@ from .emitter import (
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
-# Checkbox glyphs the emitter prepends to a checked/unchecked task item's text
-# (#336's design decision — a literal glyph prefix, not a BULLET_CHECKBOX
-# preset list; see emitter.py's own comment). Recognized here on read-back the
-# same way the write side writes them, character-for-character.
-
 
 def document_to_ast(document: dict) -> list[DocNode]:
     """Walk a `documents().get()` response body into a list of DocNode."""
@@ -60,9 +55,11 @@ def document_to_ast(document: dict) -> list[DocNode]:
             if len(pieces) > 1:
                 nodes.extend(_paragraph_with_rules(para, pieces, document, list_counter, items))
                 continue
-            node = _paragraph_to_node(para, document, list_counter)
+            node = _paragraph_to_node(
+                para, document, list_counter, open_quote=items.open_quote_depth
+            )
             if isinstance(node, BulletItem):
-                items.item(para.get("bullet") or _literal_item_bullet(node))
+                items.item(para.get("bullet") or _literal_item_bullet(node), node)
             else:
                 items.block(node, para)
             nodes.append(node)
@@ -134,11 +131,18 @@ class _ListItemContext:
         # (a list that starts deeper than level 0).
         self._lists: list[str | None] = []
         self._depth = 0
+        self._quote_depth = 0
         # Each waiting block, with its (list_depth, blockquote_depth) when inside an
         # item, or None when it takes the depth of the item that ends the wait.
         self._pending: list[tuple[Table | Paragraph | Heading | NamedBlock, tuple | None]] = []
 
-    def item(self, bullet: dict) -> None:
+    @property
+    def open_quote_depth(self) -> int | None:
+        """The quote depth of the last item of the open list, or None with no list
+        open: a stand-in's indent can't split its list level from its quote depth."""
+        return self._quote_depth if self._lists else None
+
+    def item(self, bullet: dict, node: BulletItem) -> None:
         list_id = bullet.get("listId")
         depth = bullet.get("nestingLevel", 0)
         continues = bool(self._lists) and (
@@ -152,6 +156,7 @@ class _ListItemContext:
         self._lists.extend([None] * (depth - len(self._lists)))
         self._lists.append(list_id)
         self._depth = depth
+        self._quote_depth = node.blockquote_depth
 
     def block(self, node: Heading | Paragraph | NamedBlock | Table, para: dict) -> None:
         if not self._lists:
@@ -285,11 +290,13 @@ def _paragraph_to_node(
     list_counter: _ListCounter | None,
     *,
     read_literal: bool = True,
+    open_quote: int | None = None,
 ) -> Heading | Paragraph | BulletItem | NamedBlock:
     """`list_counter` numbers a list item: pass one counter for a whole walk of
     the body in document order, or None to leave `BulletItem.number` unset.
     `read_literal` False keeps an unbulleted paragraph from reading as a stand-in
-    for a list item (#1118), for a caller holding only a piece of a paragraph."""
+    for a list item (#1118), for a caller holding only a piece of a paragraph.
+    `open_quote` is _ListItemContext.open_quote_depth, for _literal_marker."""
     pstyle = para.get("paragraphStyle", {})
     named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
     runs = _paragraph_runs(para, document)
@@ -300,7 +307,7 @@ def _paragraph_to_node(
     )
     literal = None
     if not bullet and read_literal and runs and isinstance(runs[0], Run):
-        literal = _literal_marker(pstyle, runs[0].text)
+        literal = _literal_marker(pstyle, runs[0].text, open_quote)
 
     if bullet or literal:
         if literal:
@@ -357,44 +364,57 @@ class _LiteralMarker:
     length: int  # of the marker and its tab, in characters
 
 
-def _literal_marker(pstyle: dict, text: str) -> _LiteralMarker | None:
+def _literal_marker(
+    pstyle: dict, text: str, open_quote: int | None = None
+) -> _LiteralMarker | None:
     """What a paragraph's text and style say if it's a stand-in, else None: unbulleted
-    (the caller's check), hanging from a list level's first-line indent by at least the
-    list's own gap, starting with a number that level writes and a tab. A wide marker's
-    gap is wider, so only the first line places it.
+    (the caller's check), its text at a list level's indentStart, its first line at
+    least the list's gap left of that, starting with a number that level writes and
+    a tab. A marker too wide for the indentStart moves it instead, with the first line
+    at the margin (emitter._deferred_indent_request).
 
     The marker has to be one its level writes, or a hanging paragraph that merely
-    opens with `iv.<tab>` at another level isn't an item. A quoted stand-in's indent
-    is its list level and quote depth added together, so the marker settles the split:
-    the shallowest level writing it, with at least one quote level left. `i.` writes
-    both 9 at level 1 and 1 at level 2, and reads as level 1."""
+    opens with `iv.<tab>` at another level isn't an item. A quoted stand-in's indent is
+    its list level and quote depth added together, and a marker can't split them (a
+    roman numeral is letters too). So the list it sits in does: `open_quote`, the quote
+    depth of the open list's last item. With none, it's a list's first item, at level 0
+    with the whole indent in the quote, and only a number written in digits reads."""
     match = _LITERAL_MARKER.match(text)
     start = pstyle.get("indentStart", {}).get("magnitude")
-    first_line = pstyle.get("indentFirstLine", {}).get("magnitude")
-    if match is None or start is None or first_line is None:
+    # Docs leaves a zero indent out of the response.
+    first_line = pstyle.get("indentFirstLine", {}).get("magnitude", 0)
+    if match is None or start is None:
         return None
     gap = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
     if start - first_line < gap - _INDENT_TOLERANCE_PT:
         return None
-    steps = _whole_quote_steps(first_line - _LIST_INDENT_FIRST_LINE_PT)
+    steps = _whole_quote_steps(start - _LIST_INDENT_START_PT)
+    if steps is None:
+        steps = _whole_quote_steps(first_line)
     if steps is None or steps < 0:
         return None
     if pstyle.get("borderLeft"):
-        levels = range(min(steps, _MAX_LIST_NESTING_LEVEL + 1))
-    elif steps <= _MAX_LIST_NESTING_LEVEL:
-        levels = range(steps, steps + 1)
+        if steps < 1:
+            return None
+        levels = [0]
+        if open_quote and open_quote <= steps:
+            levels.insert(0, steps - open_quote)
     else:
-        return None
+        levels = [steps]
     for depth in levels:
         number = _literal_number(match.group(1), depth)
-        if number is not None:
+        if depth <= _MAX_LIST_NESTING_LEVEL and number is not None:
             return _LiteralMarker(depth, number, steps - depth, match.end())
     return None
 
 
-def literal_marker_length(pstyle: dict, text: str) -> int:
-    """How much of a heading's text is a stand-in's marker, for matching the rest."""
-    marker = _literal_marker(pstyle, text)
+def literal_marker_length(para: dict, text: str) -> int:
+    """How much of a paragraph's text is a stand-in's marker, for matching the rest
+    (the anchor pass), or 0. A bulleted paragraph is never a stand-in, whatever it
+    says."""
+    if para.get("bullet"):
+        return 0
+    marker = _literal_marker(para.get("paragraphStyle", {}), text)
     return marker.length if marker else 0
 
 
@@ -491,7 +511,7 @@ def _paragraph_with_rules(
     out: list[DocNode] = []
     for i, piece in enumerate(pieces):
         if item is not None and i == item_at:
-            items.item(para["bullet"])
+            items.item(para["bullet"], item)
             out.append(item)
             continue
         node: Heading | Paragraph | BulletItem | NamedBlock
