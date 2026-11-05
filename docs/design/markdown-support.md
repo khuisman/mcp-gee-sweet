@@ -184,6 +184,7 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `[![alt](src)](url)` | `<a href=...><img ...></a>` | `Image(link_url=...)` | linked inline image (#977) |
 | `- item` | `<ul><li>` | `BulletItem(ordered=False)` | disc bullet list |
 | `1. item` | `<ol><li>` | `BulletItem(ordered=True)` | numbered list |
+| `3. item` | `<ol start="3"><li>` | `BulletItem(ordered=True, number=3)` | joins the last list if it stopped at 2, else literal numbers (`list-start-numbers.md`) |
 | `- [x] item` | `<input type="checkbox" checked>` | `BulletItem(checked=True)` | bullet with a `☑`/`☐` glyph prefix |
 | a block indented under an item (a second paragraph, code, a quote, a heading, a table, a rule, an image) | the block inside the `<li>` | that block's own node with `list_depth` = the item's depth (#1094) | no bullet, indented to the item's text (a quote one step further, with its border); the list continues past it, so the next item keeps its number |
 | `- # Heading` (a heading as the item's own text) | `<li><h1>` | `BulletItem(heading_level=1)` | a bulleted HEADING_1 paragraph (#1094) |

@@ -31,6 +31,7 @@ from .ast import (
     image_url,
 )
 from .batch_retry import send_dropping_failed_images
+from .doc_to_ast import literal_marker_length
 from .emitter import (
     CellImages,
     ImageFallbacks,
@@ -1534,7 +1535,10 @@ def _walk_headings_and_anchor_runs(
                         anchor_runs.append((link_url, run_start, end))
 
             if is_heading and heading_id:
-                headings.append(("".join(text_parts).strip(), heading_id))
+                # A list item's stand-in (#1118) has its number in the heading's text.
+                text = "".join(text_parts)
+                text = text[literal_marker_length(para, text) :]
+                headings.append((text.strip(), heading_id))
         elif "table" in elem:
             for row in elem["table"].get("tableRows", []):
                 for cell in row.get("tableCells", []):

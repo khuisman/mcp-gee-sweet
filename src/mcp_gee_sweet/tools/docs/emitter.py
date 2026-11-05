@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
+from bisect import bisect_left
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
+from itertools import accumulate, pairwise
 from pathlib import PurePath
 from urllib.parse import unquote, urlsplit
 
 from ...auth import execute_in_thread
 from .ast import (
+    CHECKED_PREFIX,
     IMAGE_SOURCE_LOCAL,
     IMAGE_SOURCE_URL,
+    UNCHECKED_PREFIX,
     BulletItem,
     Cell,
     DocNode,
@@ -264,9 +269,10 @@ class _BulletList:
 
     `source_path` is the BulletItem.list_path of the item that started it.
 
-    A top-level list's `continuations` are the blocks inside its items (#1094), in
-    document order: they don't end the list, and the ones inside its range are taken
-    back out of it after its bullet requests."""
+    A top-level list's `continuations` are the blocks inside its items (#1094) and
+    the blocks between it and a list that continues it (#1118), in document order:
+    they don't end the list, and the ones inside its range are taken back out of it
+    after its bullet requests."""
 
     ordered: bool
     first: int
@@ -317,7 +323,25 @@ def _rejoins_root(root: _BulletList, node: BulletItem) -> bool:
     return len(path) < len(root.source_path) and root.source_path[: len(path)] == path
 
 
-def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
+def _joins_last_list(
+    node: BulletItem,
+    continuing: dict[int, int],
+    by_source: dict[int, _BulletList],
+    tops: list[_BulletList],
+) -> bool:
+    """Whether an item with no open list joins the last top-level list instead of
+    starting one: its own source list's, or the one `continuing` names. Only ever the
+    last one, since any range past it would overlap the lists in between."""
+    if not node.ordered or len(node.list_path) != 1:
+        return False
+    source = node.list_path[-1]
+    target = by_source.get(continuing.get(source, source))
+    return target is not None and target is tops[-1]
+
+
+def _bullet_lists(
+    segment_meta: list[_SegmentMeta], continuing: dict[int, int] | None = None
+) -> list[_BulletList]:
     """Group the BulletItems in `segment_meta` into Docs lists and return the
     top-level ones, in document order, each holding the lists nested in it.
 
@@ -342,8 +366,16 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
     block is recorded in its top-level list's `continuations`. Any other non-BulletItem
     segment ends the block, and so does a block inside an item with no open list left
     to belong to. A Table isn't in segment_meta, so a table between two items keeps
-    them in one list, as before."""
+    them in one list, as before.
+
+    A source list in `continuing` (#1118, _resolve_list_starts) joins the list it
+    maps to instead of starting one, and a top-level ordered item past a block that
+    ended its own source list's Docs list (`<ol><li>a</li><p>x</p><li>b</li></ol>`)
+    joins that list again, so it keeps counting as in a browser. The blocks between
+    join that list's `continuations`."""
     tops: list[_BulletList] = []
+    continuing = continuing or {}
+    by_source: dict[int, _BulletList] = {}
     stack: list[_OpenList] = []
     root: _BulletList | None = None
     for i, seg in enumerate(segment_meta):
@@ -381,6 +413,10 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
             enclosing.had_child = True
         elif root is not None and _rejoins_root(root, node):
             bullet_list = root
+        elif _joins_last_list(node, continuing, by_source, tops):
+            bullet_list = root = tops[-1]
+            seen = max((bullet_list.last, *bullet_list.continuations[-1:]))
+            bullet_list.continuations.extend(range(seen + 1, i))
         else:
             bullet_list = root = _BulletList(
                 ordered, i, i, depth, node.list_path, top=None, nested=[]
@@ -390,12 +426,211 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
         (bullet_list.top or bullet_list).last = i
         bullet_list.min_depth = min(bullet_list.min_depth, depth)
         list_id = node.list_path[-1] if node.list_path else None
+        if list_id is not None:
+            by_source[list_id] = bullet_list
         stack.append(_OpenList(depth, bullet_list, list_id))
     return tops
 
 
+_ORDERED_PRESET = "NUMBERED_DECIMAL_ALPHA_ROMAN"
+
+
 def _bullet_preset(ordered: bool) -> str:
-    return "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+    return _ORDERED_PRESET if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+
+
+_ROMAN_NUMERALS = (
+    (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"), (100, "c"), (90, "xc"),
+    (50, "l"), (40, "xl"), (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+)  # fmt: skip
+_MAX_ROMAN = 3999
+
+
+def _alpha_marker(number: int) -> str:
+    """a, b, ... z, aa, ab: how Docs letters a list level past z."""
+    letters = ""
+    while number > 0:
+        number, remainder = divmod(number - 1, 26)
+        letters = chr(ord("a") + remainder) + letters
+    return letters
+
+
+def _roman_marker(number: int) -> str:
+    numeral = ""
+    for value, letters in _ROMAN_NUMERALS:
+        count, number = divmod(number, value)
+        numeral += letters * count
+    return numeral
+
+
+def literal_list_marker(number: int, depth: int) -> str:
+    """`number` as _ORDERED_PRESET draws it at nesting level `depth`: decimal, lower
+    alpha and lower roman in turn, like Docs itself. A number that glyph can't write
+    (zero or negative, or a roman numeral past 3999) stays decimal."""
+    kind = min(depth, _MAX_LIST_NESTING_LEVEL) % 3
+    if kind == 1 and number > 0:
+        return _alpha_marker(number) + "."
+    if kind == 2 and 0 < number <= _MAX_ROMAN:
+        return _roman_marker(number) + "."
+    return f"{number}."
+
+
+# Each character's width in Arial, in ems, near enough to tell whether a marker clears
+# the tab stop. A doc's own font can differ, so this errs a little wide.
+_MARKER_CHAR_EM = {".": 0.28, "-": 0.34, "m": 0.84, "i": 0.24, "l": 0.24}
+_DIGIT_EM = 0.56
+_LETTER_EM = 0.56
+_BODY_SIZE_PT = 11
+_HEADING_SIZE_PT = {1: 20, 2: 16, 3: 14, 4: 12, 5: 11, 6: 11}
+# Between a marker and the tab stop after it, at least.
+_MARKER_CLEARANCE_PT = 2.5
+# Past a marker too wide for the list level's gap, so the two don't touch.
+_WIDE_MARKER_CLEARANCE_PT = 6
+
+
+def _literal_item_gap(marker: str, heading_level: int | None) -> int:
+    """How far left of its text a stand-in's first line starts. The tab after the
+    marker stops at indentStart only while the marker hasn't reached it: past that it
+    runs to the next default stop, 36pt on, and the text leaves its wrapped lines
+    behind. So a marker too wide for the list level's gap gets a wider one."""
+    size = _BODY_SIZE_PT if heading_level is None else _HEADING_SIZE_PT[heading_level]
+    width = size * sum(
+        _MARKER_CHAR_EM.get(c, _DIGIT_EM if c.isdigit() else _LETTER_EM) for c in marker
+    )
+    list_gap = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
+    if width + _MARKER_CLEARANCE_PT <= list_gap:
+        return list_gap
+    return math.ceil(width + _WIDE_MARKER_CLEARANCE_PT)
+
+
+def task_prefix(checked: bool) -> str:
+    return CHECKED_PREFIX if checked else UNCHECKED_PREFIX
+
+
+def _literal_item(item: BulletItem) -> Paragraph | Heading:
+    """The node standing in for `item` when its list can't be a Docs list showing its
+    number (#1118): its number as text, a tab, and its own text, at its list level's
+    hanging indent. Inside a list, it's a block in its parent item, so that list keeps
+    counting past it. The caller's item is left alone."""
+    depth = item.depth
+    marker = literal_list_marker(item.number, depth)
+    text = marker + "\t"
+    if item.checked is not None:
+        text += task_prefix(item.checked)
+    fields = {
+        "blockquote_depth": item.blockquote_depth,
+        "blockquote_path": item.blockquote_path,
+        "list_depth": depth - 1 if depth else None,
+        "list_path": item.list_path[:-1],
+        "literal_item_level": depth,
+        "literal_item_gap": _literal_item_gap(marker, item.heading_level),
+    }
+    runs = [Run(text), *item.runs]
+    if item.heading_level is not None:
+        return Heading(level=item.heading_level, runs=runs, **fields)
+    return Paragraph(runs=runs, **fields)
+
+
+@dataclass
+class _LastList:
+    """The last top-level list _resolve_list_starts walked past. `open` is whether a
+    list after it can still continue it, and `interrupted` whether a block has come
+    after its last top-level item."""
+
+    list_id: int
+    ordered: bool
+    open: bool
+    blockquote_path: tuple[int, ...]
+    next_number: int
+    interrupted: bool = False
+
+
+def _reads_as_inside_item(node: DocNode) -> bool:
+    """Whether a block between two lists would read back as inside the first one's
+    last item if they shared a listId (doc_to_ast._ListItemContext). A table and an
+    empty paragraph have no indent to say otherwise, and a quote two levels deep sits
+    where a quote in the item would."""
+    if _list_content_depth(node) is not None:
+        return False
+    if isinstance(node, Table):
+        return True
+    if isinstance(node, Paragraph) and not node.runs and not node.rule:
+        return True
+    return node.blockquote_depth >= 2
+
+
+def _counts_up(numbers: list[int | None]) -> bool:
+    return all(a is not None and b is not None and b == a + 1 for a, b in pairwise(numbers))
+
+
+def _resolve_list_starts(nodes: list[DocNode]) -> tuple[list[DocNode], dict[int, int]]:
+    """Decide how each list a browser wouldn't number 1, 2, 3 keeps its numbers (#1118).
+
+    No Docs API request sets a list's start number: `startNumber` is read-only, and
+    deleting a list's first items renumbers the rest (both confirmed live). Docs does
+    number a list by listId, past anything between its items. So a top-level list
+    that counts up from where the last top-level list stopped, in the same quote,
+    joins that list. Any other list between them prevents that, and so does a block
+    that would then read back as inside the first list's last item
+    (_reads_as_inside_item).
+
+    Any other such list's items become literal text (_literal_item), since a real
+    list would show the wrong numbers. So they're stand-ins, not list items: Docs
+    won't renumber them. Returns the nodes, with the stand-ins in the items' places
+    (the caller's list and nodes are left alone), and each continuing list's id
+    mapped to the id of the list it joins."""
+    numbers: dict[int, list[int | None]] = {}
+    for node in nodes:
+        if isinstance(node, BulletItem) and node.list_path:
+            numbers.setdefault(node.list_path[-1], []).append(node.number)
+    if not any(n is not None for list_numbers in numbers.values() for n in list_numbers):
+        return nodes, {}
+    resolved: list[DocNode] = []
+    continuing: dict[int, int] = {}
+    last: _LastList | None = None
+    for node in nodes:
+        if not isinstance(node, BulletItem) or not node.list_path:
+            if last is not None:
+                # An orphan <li> is a list of its own, in no source list.
+                if isinstance(node, BulletItem) or _reads_as_inside_item(node):
+                    last.open = False
+                last.interrupted = last.interrupted or _list_content_depth(node) is None
+            resolved.append(node)
+            continue
+        top_level = len(node.list_path) == 1
+        list_id = node.list_path[-1]
+        # An item nested under an interrupted list starts a Docs list of its own.
+        if (
+            last is not None
+            and not top_level
+            and (node.list_path[0] != last.list_id or last.interrupted)
+        ):
+            last.open = False
+        if top_level and (last is None or last.list_id != list_id):
+            start = node.number
+            if (
+                start is not None
+                and last is not None
+                and last.open
+                and last.ordered
+                and last.blockquote_path == node.blockquote_path
+                and last.next_number == start
+                and _counts_up(numbers[list_id])
+            ):
+                continuing[list_id] = last.list_id
+            last = _LastList(
+                list_id,
+                node.ordered,
+                start is None or list_id in continuing,
+                node.blockquote_path,
+                1 if start is None else start,
+            )
+        if top_level:
+            last.next_number += 1
+            last.interrupted = False
+        literal = node.number is not None and list_id not in continuing
+        resolved.append(_literal_item(node) if literal else node)
+    return resolved, continuing
 
 
 def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> list[dict]:
@@ -458,12 +693,29 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
         requests = isolated_bullet_run_wrap_requests(start, end, preset)
 
     tabs_ahead = segment_meta[top.first].tabs_through - segment_meta[top.first].own_tabs
+    # A block in the range loses its own leading tabs to that call too, a paragraph
+    # the API reads like any other, and they aren't depth-tabs: they go back with the
+    # block's bullet, below, so positions past `top` never see them gone.
+    in_range = [index for index in top.continuations if index <= top.last]
+    block_tabs = {index: _leading_tabs(segment_meta[index]) for index in in_range}
+    tabs_in_blocks = list(
+        accumulate(sum(count for _, count in block_tabs[index]) for index in in_range)
+    )
+
+    def block_tabs_before(index: int) -> int:
+        position = bisect_left(in_range, index)
+        return tabs_in_blocks[position - 1] if position else 0
 
     def after_top(index: int) -> tuple[int, int]:
         """Segment `index`'s (start, end) once `top`'s first call consumed its tabs."""
         seg = segment_meta[index]
-        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead
-        return seg.doc_start - own_start, seg.doc_end - (seg.tabs_through - tabs_ahead)
+        before = block_tabs_before(index)
+        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead + before
+        own_block_tabs = sum(count for _, count in block_tabs.get(index, ()))
+        return (
+            seg.doc_start - own_start,
+            seg.doc_end - (seg.tabs_through - tabs_ahead + before + own_block_tabs),
+        )
 
     for bullet_list in top.nested:
         list_start = after_top(bullet_list.first)[0]
@@ -507,14 +759,34 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
     # last, once no later call can bullet it again (#1094). Docs numbers a list's items
     # by listId, so the items after it keep counting (confirmed live). Its indent is set
     # after the whole bullet pass (ast_to_requests).
-    for index in top.continuations:
-        if index > top.last:
-            break
+    # Latest first, so putting a block's tabs back leaves the earlier ranges valid.
+    for index in reversed(in_range):
         start, end = after_top(index)
         requests.append(
             {"deleteParagraphBullets": {"range": {"startIndex": start, "endIndex": end}}}
         )
+        for offset, count in reversed(block_tabs[index]):
+            requests.append(
+                {"insertText": {"location": {"index": start + offset}, "text": "\t" * count}}
+            )
     return requests
+
+
+def _leading_tabs(seg: _SegmentMeta) -> list[tuple[int, int]]:
+    """The leading tabs of each paragraph in a non-item block, as (offset of the
+    paragraph in the block with these tabs already gone, how many), in order.
+    createParagraphBullets removes them from any paragraph in its range. A code
+    block is one paragraph, since its line breaks are written as "\v"."""
+    text = "".join(run.text for run in seg.runs if isinstance(run, Run))
+    lines = [text] if _is_code_paragraph(seg.node) else text.split("\n")
+    tabs: list[tuple[int, int]] = []
+    offset = 0
+    for line in lines:
+        rest = line.lstrip("\t")
+        if len(rest) != len(line):
+            tabs.append((offset, len(line) - len(rest)))
+        offset += utf16_len(rest) + 1
+    return tabs
 
 
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
@@ -675,6 +947,7 @@ def ast_to_requests(
     """
     if image_uris is None:
         image_uris = {}
+    nodes, continuing = _resolve_list_starts(nodes)
     nodes, separators = _with_quote_separators(_wrap_quoted_tables(nodes))
     text_parts: list[str] = []
     utf16_offset = 0
@@ -728,7 +1001,7 @@ def ast_to_requests(
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
-                prefix = "☑ " if node.checked else "☐ "
+                prefix = task_prefix(node.checked)
             # Images (#333) contribute zero characters here — they're not part of the
             # text at all, just a positional marker resolved into its own
             # insertInlineImage request below, exactly like a Table.
@@ -840,6 +1113,15 @@ def ast_to_requests(
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
         spacing = _block_spacing(nodes, separators)
+        top_lists = _bullet_lists(segment_meta, continuing)
+        # The blocks between a list and the list that continues it (#1118): outside
+        # every item, but bulleted and taken back out like a block inside one.
+        between_lists = {
+            id(segment_meta[index].node)
+            for top in top_lists
+            for index in top.continuations
+            if _list_content_depth(segment_meta[index].node) is None
+        }
         for seg in segment_meta:
             node = seg.node
             doc_start, doc_end = seg.doc_start, seg.doc_end
@@ -847,7 +1129,12 @@ def ast_to_requests(
             # A block inside a list item gets its indent, quote styling, rule line and
             # spacing after the bullet pass (#1094), since that pass may bullet it before
             # taking it back out, and createParagraphBullets overwrites both indents.
-            deferred = isinstance(node, BulletItem) or _list_content_depth(node) is not None
+            deferred = (
+                isinstance(node, BulletItem)
+                or _list_content_depth(node) is not None
+                or _literal_item_level(node) is not None
+                or id(node) in between_lists
+            )
 
             if isinstance(node, Heading):
                 requests.append(
@@ -950,7 +1237,7 @@ def ast_to_requests(
         # nested lists. Each list nested in it that isn't merged into it is taken back
         # out afterward, so the outer list keeps counting past it (#1072,
         # _top_list_requests).
-        for top in _bullet_lists(segment_meta):
+        for top in top_lists:
             bullet_run_requests.append(
                 (segment_meta[top.first].doc_start, _top_list_requests(top, segment_meta))
             )
@@ -982,12 +1269,12 @@ def ast_to_requests(
                         _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
                     )
             else:
-                content_depth = _list_content_depth(node)
-                if content_depth is None:
-                    continue
-                requests.append(
-                    _list_content_style_request(rng, content_depth, node.blockquote_depth)
+                indent_request = _deferred_indent_request(
+                    node, rng, between_lists=id(node) in between_lists
                 )
+                if indent_request is None:
+                    continue
+                requests.append(indent_request)
                 if isinstance(node, Paragraph) and node.rule:
                     requests.extend(_rule_requests(rng, quoted=node.blockquote_depth > 0))
             if seg.order in spacing and id(node) not in separators:
@@ -1167,6 +1454,51 @@ def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: in
     return _indent_style_request(rng, indents, border=blockquote_depth > 0)
 
 
+def _literal_item_level(node: DocNode) -> int | None:
+    """The list level a node stands in an item of (#1118), or None for any other."""
+    return node.literal_item_level if isinstance(node, (Paragraph, Heading)) else None
+
+
+def _literal_item_indents(node: Paragraph | Heading, level: int) -> tuple[int, int]:
+    """(indentFirstLine, indentStart) of a stand-in. Its text stays at the list level's
+    text indent, where the blocks and sublists under it line up, and a wide marker
+    starts further left to make room. Only a marker wider than that whole indent
+    moves the text itself."""
+    quote_indent = _block_indents(node.blockquote_depth)[0]
+    text_indent = list_level_indents(level)[1]
+    gap = node.literal_item_gap
+    return max(text_indent - gap, 0) + quote_indent, max(text_indent, gap) + quote_indent
+
+
+def _deferred_indent_request(node: DocNode, rng: dict, *, between_lists: bool) -> dict | None:
+    """The indent request a non-item block takes after the bullet pass, or None when
+    it set its style before that pass. A stand-in for a list item (#1118) takes the
+    item's hanging indent, a block inside an item its item's text, and a block
+    between a list and the list that continues it goes back to where it was: the
+    quote's indent, or whatever its named style gives it (fields named, values
+    absent: the bullet pass left the list level's indents)."""
+    quote_depth = node.blockquote_depth
+    level = _literal_item_level(node)
+    if level is not None:
+        return _indent_style_request(
+            rng, _literal_item_indents(node, level), border=quote_depth > 0
+        )
+    content_depth = _list_content_depth(node)
+    if content_depth is not None:
+        return _list_content_style_request(rng, content_depth, quote_depth)
+    if not between_lists:
+        return None
+    if quote_depth > 0:
+        return _blockquote_style_request(rng, quote_depth)
+    return {
+        "updateParagraphStyle": {
+            "range": rng,
+            "paragraphStyle": {},
+            "fields": "indentStart,indentFirstLine",
+        }
+    }
+
+
 # Space above and below a code block, and around a quote where it meets other content
 # (#1098). Docs' NORMAL_TEXT has none, so without it a quote or code block touched the
 # paragraphs around it and two code blocks in a row read as one.
@@ -1220,6 +1552,27 @@ def _has_named_spacing(node: DocNode) -> bool:
     return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
 
 
+def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
+    """The depth and list_path of the item `node` is, or sits in. None outside lists."""
+    if isinstance(node, BulletItem):
+        return (node.depth, node.list_path) if node.list_path else None
+    depth = _list_content_depth(node)
+    return None if depth is None else (depth, node.list_path)
+
+
+def _separator_list_fields(first: DocNode, second: DocNode) -> dict:
+    """list_depth and list_path of a quote separator between two nodes: the shallower
+    of their items, when one sits in the other's list. Empty when they're in no list
+    or different ones, which a separator doesn't have to keep together."""
+    places = [_list_place(first), _list_place(second)]
+    if places[0] is None or places[1] is None:
+        return {}
+    (depth, path), (_, deeper_path) = sorted(places, key=lambda place: place[0])
+    if deeper_path[: len(path)] != path:
+        return {}
+    return {"list_depth": depth, "list_path": path}
+
+
 def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int]]:
     """Return `nodes` with an empty separator Paragraph between each two adjacent quoted
     nodes that belong to separate quotes, plus the separators' ids.
@@ -1234,8 +1587,8 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     live), and the outer bar is already broken around the deeper-indented nested ones.
     _collapse_paragraph_requests shrinks it.
 
-    A separator between two quotes inside one list item belongs to that item too
-    (#1094), so it doesn't end the item's list.
+    A separator between two quotes inside one list belongs to its shallower item
+    (#1094, #1118), so it doesn't end that list.
 
     A quoted table counts (#1122): its wrapper's bar met the next quote's just the same.
     Two tables in a row get none: the paragraph Docs keeps between them stays at full
@@ -1251,17 +1604,7 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
         if prev is not None and _in_quote(prev) and _in_quote(node) and not between_tables:
             a, b = prev.blockquote_path, node.blockquote_path
             if a[: len(b)] != b and b[: len(a)] != a:
-                content_depth = _list_content_depth(node)
-                in_item = (
-                    content_depth is not None
-                    and _list_content_depth(prev) == content_depth
-                    and prev.list_path == node.list_path
-                )
-                separator = (
-                    Paragraph(runs=[], list_depth=content_depth, list_path=node.list_path)
-                    if in_item
-                    else Paragraph(runs=[])
-                )
+                separator = Paragraph(runs=[], **_separator_list_fields(prev, node))
                 result.append(separator)
                 separators.add(id(separator))
         result.append(node)

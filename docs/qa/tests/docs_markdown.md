@@ -578,6 +578,17 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-11 | Dot one 1., Dot two 2.; Paren one restarts at **1.** in its own list (two `listId`s). Then Parent one 1.; Dot child a.; Paren child restarts at **a.** at level 1, in a list of its own; Parent two **2.** (#1241) |
 | LX-12 | Outer one 1.; Bullet child ○ at level 1; Deep child i. at level 2; Restarted child **a.** at level 1, in a list of its own, not Deep child's; Outer two **2.** (#1241) |
 | LX-13 | First bullet ●; Bullet child ○ at level 1; Last bullet ●; Numbered child one **a.** and Numbered child two **b.**, both at level 1 (PR #1295 QA round 1) |
+| LX-14 | Resume one 1.; the quote at its own indent with its bar; the heading at the margin; Resume two **2.**, Resume three **3.**, all three items one `listId` (#1118) |
+| LX-15 | Numbered first 1.; Bullet between ●; Numbered second **2.**, as text (no `bullet`), lined up with the 1. above it (#1118) |
+| LX-16 | Counted one 1.; the paragraph; **7.** and **8.** as text, the wrapped line of 7. under its text, not under the number; Bullet under seven ○ at level 1; the second paragraph under seven's text; only "Bold" bold, not the number (#1118) |
+| LX-17 | Parent one 1.; Child three **c.** and Child four **d.** as text at level 1's indent; Parent two **2.** in Parent one's `listId` (#1118) |
+| LX-18 | Tab one 1.; the code block keeps its leading tab, no bullet; Tab two **2.** with its bullet, in Tab one's `listId`; the paragraph after is intact, no stray character or bullet near it (#1118) |
+| LX-19 | Inner one 1.; the code block under it, keeping its leading tab; Inner two **2.** (#1118) |
+| LX-20 | Before the table 1.; the table at the margin; **2.** as text. `get_doc_as_markdown` keeps the table at the margin, not under 1. (#1118) |
+| LX-21 | **100.** and **101.** as text; on screen the wrapped line of 100. sits exactly under its first line's text (#1118) |
+| LX-22 | **100.**; its text, the paragraph under it and the bullet's parent indent line up at 36pt; `get_doc_as_markdown` keeps the paragraph in the item (#1118) |
+| LX-23 | Quote one 1.; Quote bullet ○; Quote roman **iii.** in one quote, on screen. `get_doc_as_markdown` writes it as a plain paragraph with its marker, the documented limitation (#1118) |
+| LX-24 | Loose one 1.; the paragraph at the margin; Loose two **2.**; the paragraph; Loose three **3.**, all three items one `listId` (#1118) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
@@ -1388,6 +1399,27 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
 
 **Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.** LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: [`results/2026-11-02-markdown-pr1356.md`](../results/2026-11-02-markdown-pr1356.md)
+
+### TC-MD505: A list's start number survives every Docs entry point ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render the fixture's LM-04 and LX-09 sections through EP-1 to EP-4 and EP-8, on a new Doc, and again over an existing Doc that has a header and a changed named style. #1118's done-when.
+
+**Checks**
+- LM-04: on screen 3. 4. 5., aligned like the list in LM-02. `get_doc_structure` shows three unbulleted paragraphs, "3.`\t`Three" and so on, with `indentFirstLine` 18 and `indentStart` 36.
+- LX-09: on screen 1., the code block at the margin, 2. Both items share one `listId`; the code block has no `bullet` and no indent.
+- Existing Doc: `write_doc_content` with LM-04 keeps the Doc's header and its changed named style (`get_doc_named_styles`), which a Drive import would have removed.
+- HTML through EP-1: `<ol reversed start="3">` with three items shows 3. 2. 1.; `<ol><li value="5">a</li><li>b</li></ol>` shows 5. 6.
+- Hand-numbered heading: a Doc with a real `HEADING_2` "1.`\t`Introduction" and a `#1-introduction` link written by `write_doc_content` keeps a working link.
+- Round trip: `get_doc_as_markdown` on the LM-04 Doc returns `3. Three`, `4. Four` and `5. Five` with no backslashes, and on the LX-09 Doc `1.`, a fence, `2.`.
+
+**Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through `documents().get()`, not viewed on screen. Existing Doc: `write_doc_content` with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as `100.`, starts its text at 72pt with wrapped lines at 36pt.**
+
+**Result (2026-11-03, PR #1368 QA round 2 @ d3c252b3, Sky) ⚠️ PARTIAL — one run. Both round 1 live defects are fixed: LX-18 to LX-21 match the TC-MD108 table on screen at EP-3. HTML through EP-1: `reversed` shows 3. 2. 1. and `value` shows 5. 6. on screen. Hand-numbered heading through EP-2: the `#1-introduction` link resolved to its heading. LX-09 to LX-17 structure unchanged from round 1 at EP-3. Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a quoted stand-in at list level 2 exports with the wrong number (`iii.` as `6327.`), and a paragraph or sublist under a `100.` item sits left of the item's text.**
+
+**Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's `get_doc_as_markdown` line: `Quote roman` exports `1.` under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan `<li>` keeps its bullet, and `2.` after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (`- a`, then `> 3. b` under it) renders correctly but exports `> > > c.<tab>b`, with the raw marker and two extra quote levels, where round 2's head exported a list item.**
+
+**Result (2026-11-04, PR #1368 QA round 4 @ d4908a51, Sky) ⚠️ PARTIAL — every check passes, in one run. LM-04 and LX-09: on screen at EP-1; EP-8 has the same paragraphs, indents and bullets through `documents().get()`; EP-3 and EP-4 match each other across the whole fixture (LX-09 to LX-24 and LM-04); EP-2's existing-Doc run with LM-04 kept the header and the changed named style. Round trip as listed. HTML: `reversed` 3. 2. 1. and `value` 5. 6. by structure and export at EP-1. Hand-numbered heading: `1.<tab>Introduction` keeps its number and its `#1-introduction` link. LX-23 exports as the plain paragraph the table now expects, the maintainer's scope cut. Not run: the second run, LX-09 through EP-2 at this head, and the TC-MD105/TC-MD108 grids.**
 
 ---
 

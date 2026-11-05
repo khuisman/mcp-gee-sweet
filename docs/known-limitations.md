@@ -161,6 +161,42 @@ lines join into one paragraph. Decided in #1242.
 
 ---
 
+### A list that doesn't start at 1 can be literal numbers, not a Docs list
+
+**What:** In Markdown or HTML content written to a Doc, `3. a` or `<ol start="3">` shows the
+right numbers, but unless it continues the list before it, its items are plain paragraphs
+holding the number, a tab and the text, at a list's hanging indent. Docs doesn't treat them
+as a list: pressing Enter in one doesn't add an item, and adding or removing one doesn't
+renumber the rest. `get_doc_as_markdown` reads them back as list items.
+
+A top-level list that starts where the last top-level list stopped (`1. a`, a code block,
+`2. b`) stays a real list: it joins that list. It's literal instead when another list comes
+between them, or a table, an empty paragraph or a quote two levels deep (each would read back
+from the Doc as inside the first list's last item), or when it's in a different blockquote or
+has a different number. A nested list that doesn't start at 1 is always literal, written in its
+level's glyph (`c.`, `iv.`). So are `<ol reversed>` and a list with an `<li value>`.
+
+A literal item that's both quoted and nested in a list reads back through `get_doc_as_markdown`
+as a plain paragraph: its marker and tab as text, at the quote depth its indent gives. The Doc
+itself shows it correctly. An indent adds the item's list level to its quote depth, and nothing
+in the Doc separates the two. A quoted literal item at the top of a list, with a digit marker,
+reads back as a list item.
+
+A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) starts further left, so
+its text stays lined up with the other items. A marker wider than the level's whole text indent
+moves the item's text right, leaving the blocks and sublists under it behind. The width is
+estimated from Arial at the default sizes, so a much wider font can still overrun it.
+
+**Why:** `NestingLevel.startNumber` is read-only: no `batchUpdate` request writes it, and
+deleting a list's first items renumbers the rest from 1 (confirmed live). Only Drive's HTML
+import sets it, and importing over an existing Doc removes its headers, named styles and
+margins. See `docs/design/list-start-numbers.md`.
+
+**Workaround:** To get a real list, start it at 1, or write it through Drive's import
+(`upload_local_file(convert=True)`), which creates a new Doc.
+
+---
+
 ### A horizontal rule is a bordered paragraph, not a Docs horizontal line
 
 **What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,
