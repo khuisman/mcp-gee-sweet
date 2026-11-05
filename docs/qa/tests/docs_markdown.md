@@ -1419,6 +1419,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's `get_doc_as_markdown` line: `Quote roman` exports `1.` under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan `<li>` keeps its bullet, and `2.` after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (`- a`, then `> 3. b` under it) renders correctly but exports `> > > c.<tab>b`, with the raw marker and two extra quote levels, where round 2's head exported a list item.**
 
+**Result (2026-11-04, PR #1368 QA round 4 @ d4908a51, Sky) ⚠️ PARTIAL — every check passes, in one run. LM-04 and LX-09: on screen at EP-1; EP-8 has the same paragraphs, indents and bullets through `documents().get()`; EP-3 and EP-4 match each other across the whole fixture (LX-09 to LX-24 and LM-04); EP-2's existing-Doc run with LM-04 kept the header and the changed named style. Round trip as listed. HTML: `reversed` 3. 2. 1. and `value` 5. 6. by structure and export at EP-1. Hand-numbered heading: `1.<tab>Introduction` keeps its number and its `#1-introduction` link. LX-23 exports as the plain paragraph the table now expects, the maintainer's scope cut. Not run: the second run, LX-09 through EP-2 at this head, and the TC-MD105/TC-MD108 grids.**
+
 ---
 
 ## Known gaps and not-applicable
