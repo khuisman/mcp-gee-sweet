@@ -169,7 +169,7 @@ On these clients, set `ENABLED_TOOLS` in the server's `env` to one of the [sugge
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/khuisman/mcp-gee-sweet/blob/main/CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](https://github.com/khuisman/mcp-gee-sweet/tree/main/docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/qa/README.md) for the QA workflow.
+See [CONTRIBUTING.md](https://github.com/khuisman/mcp-gee-sweet/blob/develop/CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](https://github.com/khuisman/mcp-gee-sweet/tree/develop/docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](https://github.com/khuisman/mcp-gee-sweet/blob/develop/docs/qa/README.md) for the QA workflow.
 
 ## License
 
