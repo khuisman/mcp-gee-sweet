@@ -440,7 +440,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) ([#1185](https://github.com/khuisman/mcp-gee-sweet/issues/1185)) (PR #1253)
 - [ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, `configuration.md` subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) ([#1214](https://github.com/khuisman/mcp-gee-sweet/issues/1214)) (docs landed in PR #1254; VS Code + Copilot and Cursor live checks still open)
 - [x] Accept `ENABLED_TOOLS=all` and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change ([#1363](https://github.com/khuisman/mcp-gee-sweet/issues/1363)) (PR #1365)
-- [ ] `release.md` step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob ([#1366](https://github.com/khuisman/mcp-gee-sweet/issues/1366))
+- [x] `release.md` step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob ([#1366](https://github.com/khuisman/mcp-gee-sweet/issues/1366)) (PR #1373)
 - [ ] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) ([#1343](https://github.com/khuisman/mcp-gee-sweet/issues/1343))
 
 **Fill** _(rank order, locked 2026-10-18)_
@@ -458,7 +458,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] `style_doc_range` with only `font_family` clears bold on the range. `wrong/narrow`, observed, not a regression; community PR #1279 merged 2026-10-31; moved from ankylosaurus, the maintainer's call to ship it here ([#1273](https://github.com/khuisman/mcp-gee-sweet/issues/1273)) (PR #1279)
 - [x] A table inside a list item renders at the left margin instead of under the item's text (C14). `wrong/narrow`, observed in #1268's live check; fixed by #1094's change, confirmed live 2026-10-31 (TC-MD201 CT-08/18/28/38/48/58) ([#1277](https://github.com/khuisman/mcp-gee-sweet/issues/1277)) (PR #1301)
 - [x] `get_doc_as_markdown` exports a block inside a list item at the margin, and a quote inside an item as `> >`. `wrong/narrow`, observed; the quote half is a regression since v0.9.5 (PR #1301 put it at 72pt). Joined the locked fill 2026-10-31 (maintainer); from PR #1301's review — lane A ([#1302](https://github.com/khuisman/mcp-gee-sweet/issues/1302)) (PR #1311)
-- [ ] docs: tell contributors to target `develop`, not `main`. Joined the locked fill 2026-11-01 (maintainer's explicit approval), since contributors arrive with the launch; the CI check (#1152) stays in ankylosaurus ([#1151](https://github.com/khuisman/mcp-gee-sweet/issues/1151))
+- [x] docs: tell contributors to target `develop`, not `main`. Joined the locked fill 2026-11-01 (maintainer's explicit approval), since contributors arrive with the launch; the CI check (#1152) stays in ankylosaurus ([#1151](https://github.com/khuisman/mcp-gee-sweet/issues/1151)) (PR #1374)
 
 **Live QA for merged community PRs** _(their code ships in this release; run on the gee-sweet-biz side)_
 
@@ -468,7 +468,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] qa: live verification for PR #1149 (scheme-less link targets) ([#1190](https://github.com/khuisman/mcp-gee-sweet/issues/1190)) (live PASS 2026-10-27)
 - [x] qa: live verification for PR #1026 (`font_family` in `style_doc_range`). Moved from ankylosaurus 2026-10-31 (maintainer) so the #1273 fix shipping here is checked live ([#1153](https://github.com/khuisman/mcp-gee-sweet/issues/1153)) (live PASS 2026-10-31; heading-bold add-on failed → #1300)
 - [x] qa: live verification for PR #1279 (`font_family` keeps direct bold, table cells, explicit `bold` in the same call) ([#1299](https://github.com/khuisman/mcp-gee-sweet/issues/1299)) (live PASS 2026-10-31)
-- [ ] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268))
+- [x] qa: live verification for PR #1164 (loose list items keep their bullets); run after #1228 so it covers the new parser ([#1268](https://github.com/khuisman/mcp-gee-sweet/issues/1268)) (PR #1376)
 - [x] qa: point docs_markdown.md's EP-5 to EP-7 expected rendering at the Drive-importer known-limitations entry; closes out #1101 ([#1263](https://github.com/khuisman/mcp-gee-sweet/issues/1263)) (PR #1270)
 
 Moved out 2026-10-18: [#379](https://github.com/khuisman/mcp-gee-sweet/issues/379) (unversioned, Joy decides whether to do it); [#378](https://github.com/khuisman/mcp-gee-sweet/issues/378) closed (ASYNC240 stays off). Everything else formerly here is under _ankylosaurus_ below.
