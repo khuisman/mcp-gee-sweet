@@ -328,7 +328,7 @@ Rio's first pass on PR #1318, a roadmap-only edit of Kai's, ran `/qa-kickoff` as
 
 ### Docs text outside `docs/` (2026-11-05)
 
-PR #1374, Amy's contributor-docs change, touches `README.md`, `CONTRIBUTING.md`, and `.github/PULL_REQUEST_TEMPLATE.md`, and no path under `docs/`. `rio.md` then gave it `qa-approved`, while `amy.md` says her PRs need `docs-qa-approved`. The maintainer decided `docs-qa-approved` is right, so `rio.md` now names those three files. The list is explicit so that workflow files and the rest of `.github/` stay on `qa-approved`. `qa-kickoff.md`'s `/code-review` skip wasn't changed here.
+PR #1374, Amy's contributor-docs change, touches `README.md`, `CONTRIBUTING.md`, and `.github/PULL_REQUEST_TEMPLATE.md`, and no path under `docs/`. `rio.md` then gave it `qa-approved`, while `amy.md` says her PRs need `docs-qa-approved`. The maintainer decided `docs-qa-approved` is right, so `rio.md` now names those three files. The list is explicit so that workflow files and the rest of `.github/` stay on `qa-approved`. `qa-kickoff.md`'s `/code-review` skip widened to the same files, since it's the only instruction to do the claim check the label promises.
 
 ## `aziz.md`
 
