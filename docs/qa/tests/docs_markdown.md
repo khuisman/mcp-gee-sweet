@@ -486,6 +486,10 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2, EP-3) ❌ FAIL — 7/8 at EP-3: LM-01 (three `listId`s) and LM-07 (two) now pass (#1241); LM-04 still fails on #1118. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
 
+**Result (2026-11-05, develop @ 2cf72ae3, #1268, EP-1–EP-4) ✅ PASS — 32/32 EP-1–EP-4 cells pass, identical in both runs: LM-01 has three `listId`s, LM-07 two, LM-04 shows 3. 4. 5. EP-5–EP-8 not run. Grid: [`results/2026-11-05-markdown-i1268.md`](../results/2026-11-05-markdown-i1268.md)**
+
+**Result (2026-11-05, PR #1376 @ f9ef738f, Rio, EP-3) ✅ PASS — 8/8 at EP-3, identical in both runs after renumbering list IDs, rendered as part of a subset rebuilt from the fixtures: LM-01 has three `listId`s, LM-07 two. Seen on screen (Playwright, Run 1): LM-04 shows 3. 4. 5., LM-06 runs 1. to 11. EP-1, EP-2, EP-4 and EP-5–EP-8 not run.**
+
 ### TC-MD106: Nesting widths × list-type combinations ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -918,6 +922,10 @@ Not expressible, so not in the matrix:
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ⚠️ PARTIAL — 54/60 list-container cases (CT-01–CT-60) pass at EP-3: every block sits at its item's text indent and the sibling after it continues the container's list (#1094 fixed). The six rule cases (CT-10, 20, 30, 40, 50, 60) fail on #1096. CT-61–CT-80 not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ⚠️ PARTIAL — 54/60, identical to round 1 (paragraph dump unchanged; the six rule cases #1096). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
+
+**Result (2026-11-05, develop @ 2cf72ae3, #1268, 18 cases, EP-1–EP-4) ⚠️ PARTIAL — the 18 paragraph, table and image cases in list containers (CT-01/08/09, 11/18/19, 21/28/29, 31/38/39, 41/48/49, 51/58/59) pass on EP-1–EP-4, identical in both runs: tables sit at the item's indent (#1277) and each sibling continues its list. The other cases and EP-5–EP-8 not run. Grid: [`results/2026-11-05-markdown-i1268.md`](../results/2026-11-05-markdown-i1268.md)**
+
+**Result (2026-11-05, PR #1376 @ f9ef738f, Rio, 18 cases, EP-3) ⚠️ PARTIAL — the same 18 cases pass at EP-3, identical in both runs after renumbering list IDs. Seen on screen (Playwright, Run 1): each paragraph, table and image sits at its item's text indent, each sibling continues its list (2., b., ii.), and all six images embedded. The other cases, EP-1, EP-2, EP-4 and EP-5–EP-8 not run.**
 
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
