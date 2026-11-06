@@ -427,7 +427,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 **Feature set: Gmail sending safety**
 
-- [x] Safe-by-default sending: `send_message`/`reply_to_message`/`send_draft` don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a `CHANGELOG.md` note. Spec updated 2026-10-25 from Joy's design pass (detection needs `elicitation.form` and `can_send_request`; catch `NoBackChannelError`; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip, #1235, is not planned ([#1081](https://github.com/khuisman/mcp-gee-sweet/issues/1081)) (PR #1249)
+- [x] Safe-by-default sending: `send_message`/`reply_to_message`/`send_draft` don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a `CHANGELOG.md` note. Spec updated 2026-10-25 from Joy's design pass (detection needs `elicitation.form` and `can_send_request`; catch `NoBackChannelError`; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip is #1235, planned for ankylosaurus ([#1081](https://github.com/khuisman/mcp-gee-sweet/issues/1081)) (PR #1249)
 - [x] Gmail: list, get, update and delete drafts, so a drafts-first flow can be managed end to end. Added 2026-10-24 ([#1205](https://github.com/khuisman/mcp-gee-sweet/issues/1205)) (PR #1227)
 
 **Feature set: launch readiness**
@@ -488,7 +488,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] CI: lint every tool's schemas for client compatibility (root `oneOf`/`anyOf`, `$ref`, name rules), since some clients silently drop a tool that breaks them. Feature set, added 2026-11-01 ([#1342](https://github.com/khuisman/mcp-gee-sweet/issues/1342))
 - [ ] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment`/`resolve_doc_comment` → `list_file_comments`/`add_file_comment`/`resolve_comment` (param `doc_id` → `file_id`); retire `tools/docs/comments.py`. Breaking change. ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663))
 - [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
-- [ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round `InputRequiredResult` flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) ([#1235](https://github.com/khuisman/mcp-gee-sweet/issues/1235))
 - [ ] Follow-up cleanup for the docs comments API (`add_doc_comment`/`resolve_doc_comment`/`list_doc_comments`) — same surface #663/#664 generalize, do it there rather than twice; triaged out of `backlog` 2026-09-11 ([#329](https://github.com/khuisman/mcp-gee-sweet/issues/329))
 
 **Moved from ornithomimus at the re-split, 2026-10-24**
@@ -553,6 +552,10 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] An inline image (and its alt-text fallback) inherits the preceding run's style. Enhancement; from PR #1332 ([#1334](https://github.com/khuisman/mcp-gee-sweet/issues/1334))
 - [ ] Markdown single-tilde `~x~` isn't strikethrough (GFM accepts one or two). Enhancement; from PR #1332 ([#1335](https://github.com/khuisman/mcp-gee-sweet/issues/1335))
 - [ ] `get_doc_as_markdown` drops table column alignment on export (writes `---` for every column). From PR #1336 ([#1337](https://github.com/khuisman/mcp-gee-sweet/issues/1337))
+
+**Triaged in 2026-11-04**
+
+- [ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round `InputRequiredResult` flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) ([#1235](https://github.com/khuisman/mcp-gee-sweet/issues/1235))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
