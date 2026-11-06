@@ -803,12 +803,37 @@ async def _upload_local_file(
     file_name = name or Path(local_path).name
 
     convert_mime: tuple[str, str] | None = None
+    convert_suffix = ""
     if convert:
         # Derived from the effective destination name, not local_path's suffix —
         # a name= override changes what conversion applies (#188 QA review, PR #410).
+        # A name= without an extension falls back to the local file's own (#1307)
+        # — titling a converted Doc must not mean renaming the file — while a
+        # name= that does carry an extension still owns the choice outright:
+        # unsupported there is an error, never a silent conversion as
+        # local_path's type (PR #410 QA review, kept). Convertible extensions on
+        # each side that differ are a real mismatch and also error. Mapping
+        # extensions compare by their conversion, not their spelling:
+        # report.htm over a .html source is the same conversion, not a mismatch.
         dest_suffix = Path(file_name).suffix.lower()
-        convert_mime = _CONVERT_MIME.get(dest_suffix)
-        if convert_mime is None:
+        local_suffix = Path(local_path).suffix.lower()
+        dest_mime = _CONVERT_MIME.get(dest_suffix)
+        local_mime = _CONVERT_MIME.get(local_suffix)
+        if dest_mime is not None and local_mime is not None and dest_mime != local_mime:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion mismatch: name extension {dest_suffix!r} differs from "
+                    f"local_path extension {local_suffix!r}. Both are convertible "
+                    f"({supported}); pass a name without an extension to convert as "
+                    f"the local file, or make the extensions agree."
+                )
+            }
+        if dest_mime is None and dest_suffix:
+            # #1307's fallback is only for an extension-less title: a name= that
+            # carries an unsupported extension would otherwise silently convert
+            # as local_path's type instead of the one the caller named (the
+            # #410 QA review's rule this whole branch used to enforce).
             supported = ", ".join(sorted(_CONVERT_MIME))
             return {
                 "error": (
@@ -816,6 +841,16 @@ async def _upload_local_file(
                     f"Supported extensions: {supported}"
                 )
             }
+        convert_mime = dest_mime or local_mime
+        if convert_mime is None:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {(dest_suffix or local_suffix)!r}. "
+                    f"Supported extensions: {supported}"
+                )
+            }
+        convert_suffix = dest_suffix or local_suffix
 
     if skip_if_exists:
         # Under convert, also look up the extension-stripped stem — Drive's
@@ -936,6 +971,38 @@ async def _upload_local_file(
         restamp_failure = await _restamp_modified_time(drive_service, result["id"], lmtime_str)
         if restamp_failure is not None:
             return restamp_failure
+        # Drive's importer keeps the source extension in some converted types'
+        # display names (.md) while it strips it from others (CSV, TC-D215). The
+        # skip_if_exists stem lookup and the convert markers already expect the
+        # stripped name (#769, #414), so drop a kept extension here instead of
+        # leaving every converted file one rename_file call short (#1307, #1309).
+        created_name = result.get("name") or ""
+        if convert_suffix and created_name.lower().endswith(convert_suffix):
+            stripped_name = str(Path(created_name).with_suffix(""))
+            try:
+                renamed = await execute_in_thread(
+                    drive_service.files()
+                    .update(
+                        fileId=result["id"],
+                        body={"name": stripped_name},
+                        supportsAllDrives=True,
+                        fields="name",
+                    )
+                    .execute,
+                    drive_service,
+                )
+                if isinstance(renamed, dict) and renamed.get("name"):
+                    result["name"] = renamed["name"]
+            except Exception as e:
+                # The upload itself succeeded; a display name that kept its
+                # extension is cosmetic, not a failure worth an error result.
+                logger.debug(
+                    "Converted file %s kept its extension in its display name "
+                    "and the rename to %r failed: %s",
+                    result["id"],
+                    stripped_name,
+                    e,
+                )
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     uploaded = {
