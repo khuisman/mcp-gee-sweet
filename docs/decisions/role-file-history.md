@@ -330,9 +330,9 @@ Rio's first pass on PR #1318, a roadmap-only edit of Kai's, ran `/qa-kickoff` as
 
 PR #1374, Amy's contributor-docs change, touches `README.md`, `CONTRIBUTING.md`, and `.github/PULL_REQUEST_TEMPLATE.md`, and no path under `docs/`. `rio.md` then gave it `qa-approved`, while `amy.md` says her PRs need `docs-qa-approved`. The maintainer decided `docs-qa-approved` is right, so `rio.md` now names those three files. The list is explicit so that workflow files and the rest of `.github/` stay on `qa-approved`. `qa-kickoff.md`'s `/code-review` skip widened to the same files, since it's the only instruction to do the claim check the label promises.
 
-### Reconnect before a live case, whatever the diff (2026-11-05)
+### Reconnect before a server call, whatever the diff (2026-11-05)
 
-PR #1376 records live results and changes only `docs/qa/`, so `qa-kickoff.md` asked for no reconnect. Its re-run of TC-MD105 on Rio's server gave LM-04 a real list numbered 1. 2. 3., against the recorded 3. 4. 5. The record was right: Rio's server started at 21:01:28, the worktree's reset came at 21:01:53, and the server had imported that slot's Nov 3 code, from before #1118 merged. A `/clear` doesn't restart a slot's server, so it can hold code older than the worktree for a whole session. A fresh interpreter and the `git reflog` showed the mismatch, and a reconnect fixed it. The no-reconnect rule was written for PR #866, which ran no live case, so `qa-kickoff.md` now keeps the reconnect whenever the round runs one.
+PR #1376 records live results and changes only `docs/qa/`, so `qa-kickoff.md` asked for no reconnect. Its re-run of TC-MD105 on Rio's server gave LM-04 a real list numbered 1. 2. 3., against the recorded 3. 4. 5. The record was right: Rio's server started at 21:01:28, the worktree's reset came at 21:01:53, and the server had imported that slot's Nov 3 code, from before #1118 merged. A `/clear` doesn't restart a slot's server, so it can hold code older than the worktree for a whole session. A fresh interpreter and the `git reflog` showed the mismatch, and a reconnect fixed it. The no-reconnect rule came from PR #866, whose live cases tested a Claude Code hook and never called the server, so `qa-kickoff.md` now keeps the reconnect whenever a round calls a tool on the slot's server.
 
 ## `aziz.md`
 
