@@ -2200,14 +2200,14 @@
 <li>[x] <code>upload_file(source_format="markdown", convert_to_doc=True)</code> (EP-8) loses list nesting, code styling and task glyphs, and is nondeterministic — route EP-8 through the create_doc Markdown path, plus a CHANGELOG line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1102">#1102</a>) (PR #1283)</li>
 <li>[x] Switch the Markdown parser to CommonMark/GFM (decided 2026-10-18), keeping the HTML → AST → Docs pipeline. Absorbs Joy's spike <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1112">#1112</a>, closed into it 2026-10-24. Doesn't fix #1071 on its own (needs a pre-pass), nor #1093/#1115/#1117 (HTML → AST step) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1116">#1116</a>) (PR #1228)</li>
 <li>[x] A loose list (blank lines between items) loses its bullets and numbers — #1044 Phase 2 finding; HTML → AST step, not fixed by #1116 alone (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1115">#1115</a>) (PR #1164)</li>
-<li>[ ] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1118">#1118</a>)</li>
+<li>[x] An ordered list's start number is ignored; the Docs API has no request that sets it, so a fix needs a workaround — #1044 Phase 2 finding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1118">#1118</a>) (PR #1368)</li>
 <li>[x] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1122">#1122</a>) (PR #1359)</li>
 <li>[x] A relative link becomes <code>http://./guide.md</code> — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1120">#1120</a>) (PR #1149)</li>
 <li>[x] Blank paragraph before a table keeps the preceding heading's style — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1092">#1092</a>) (PR #1138)</li>
 </ul>
 <p><strong>Feature set: Gmail sending safety</strong></p>
 <ul>
-<li>[x] Safe-by-default sending: <code>send_message</code>/<code>reply_to_message</code>/<code>send_draft</code> don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a <code>CHANGELOG.md</code> note. Spec updated 2026-10-25 from Joy's design pass (detection needs <code>elicitation.form</code> and <code>can_send_request</code>; catch <code>NoBackChannelError</code>; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip, #1235, is not planned (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1081">#1081</a>) (PR #1249)</li>
+<li>[x] Safe-by-default sending: <code>send_message</code>/<code>reply_to_message</code>/<code>send_draft</code> don't deliver without explicit confirmation (drafts-first or elicitation), flag external-domain and over-threshold recipients, documented opt-out. Behavior change, needs a <code>CHANGELOG.md</code> note. Spec updated 2026-10-25 from Joy's design pass (detection needs <code>elicitation.form</code> and <code>can_send_request</code>; catch <code>NoBackChannelError</code>; refuse a draft changed after confirmation); hold lifted (maintainer). The 2026-07-28 round trip is #1235, planned for ankylosaurus (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1081">#1081</a>) (PR #1249)</li>
 <li>[x] Gmail: list, get, update and delete drafts, so a drafts-first flow can be managed end to end. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1205">#1205</a>) (PR #1227)</li>
 </ul>
 <p><strong>Feature set: launch readiness</strong></p>
@@ -2219,7 +2219,8 @@
 <li>[x] Make Lint and test 3.14/3.15 required status checks on <code>develop</code> and <code>main</code> — #1212 review follow-up, a branch-protection settings change with no PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1224">#1224</a>)</li>
 <li>[x] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1185">#1185</a>) (PR #1253)</li>
 <li>[ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, <code>configuration.md</code> subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1214">#1214</a>) (docs landed in PR #1254; VS Code + Copilot and Cursor live checks still open)</li>
-<li>[ ] Accept <code>ENABLED_TOOLS=all</code> and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change — lane B (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1363">#1363</a>)</li>
+<li>[x] Accept <code>ENABLED_TOOLS=all</code> and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1363">#1363</a>) (PR #1365)</li>
+<li>[ ] <code>release.md</code> step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1366">#1366</a>)</li>
 <li>[ ] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1343">#1343</a>)</li>
 </ul>
 <p><strong>Fill</strong> <em>(rank order, locked 2026-10-18)</em></p>
@@ -2326,6 +2327,10 @@
 <li>[ ] An inline image (and its alt-text fallback) inherits the preceding run's style. Enhancement; from PR #1332 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1334">#1334</a>)</li>
 <li>[ ] Markdown single-tilde <code>~x~</code> isn't strikethrough (GFM accepts one or two). Enhancement; from PR #1332 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1335">#1335</a>)</li>
 <li>[ ] <code>get_doc_as_markdown</code> drops table column alignment on export (writes <code>---</code> for every column). From PR #1336 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1337">#1337</a>)</li>
+</ul>
+<p><strong>Triaged in 2026-11-04</strong></p>
+<ul>
+<li>[ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round <code>InputRequiredResult</code> flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1235">#1235</a>)</li>
 </ul>
 <p><strong>Bundled 2026-11-01</strong> <em>(maintainer's ankylosaurus scoping)</em></p>
 <ul>
