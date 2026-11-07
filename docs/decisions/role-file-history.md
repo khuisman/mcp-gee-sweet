@@ -338,6 +338,10 @@ PR #1376 records live results and changes only `docs/qa/`, so `qa-kickoff.md` as
 
 `rio.md` said `qa-approved` on a `docs/qa/` PR means every touched case was run live, but not who ran it or through how many entry points. Rio had already been approving such PRs on a partial re-run. On #1274 it re-ran TC-DOC241 and left TC-DOC240, TC-DOC242 and TC-D303 on Jay's recorded Results. On #1376 it re-ran the touched cases at EP-3 and left EP-1, EP-2 and EP-4 on Aziz's run. PR #1378's body asked whether that bar should be stricter. The maintainer kept it and had it written down. Bob's first wording named only entry points, which covered #1376 but not #1274, or #1385, where the user-approved scope re-ran C7 and BQ-04 at one entry point and left TC-MD001 to TC-MD016 on Aziz's record. The maintainer chose wording that covers all three: a re-run of at least one touched case at one or more entry points, with the QA comment naming what was re-run and what rests on the record.
 
+### Which session may take a QA-docs PR (2026-11-07)
+
+`rio.md` said a session "never resets to a non-QA-docs head of a different PR", which reads as if a QA-docs head were always allowed. `qa.md` allows the move only from a QA-docs PR after its verdict. On 2026-11-07 Rio refused #1385 after #1384 and #1395 after #1393 under `qa.md`'s reading, while Kai read `rio.md` as allowing #1395, which cost a hand-off and a restart. The sentence now says what Rio already did.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
