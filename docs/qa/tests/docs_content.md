@@ -6872,6 +6872,9 @@ Live on `mcp-gee-sweet-sky` at 5619ff36, after `/mcp reconnect` (OAuth, Shared D
 **Result (2026-11-07) ✅ PASS — PR #1400 round 1 (Kit)**
 Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. Step 2 exports the five paragraphs in order, then `> quoted in a div`. Step 4's first paragraph is `**Bold** and [linked](https://example.com) on two source lines` with nothing before it, then one empty paragraph, "after a blank line", "Summary" and "Details body"; no title, style or script text anywhere. Step 6 is "Before", "raw html block", "After". The case passes, but the round was sent back for code-review findings outside its inputs. Two were confirmed in a live probe doc: a pretty-printed `<div>` around a multi-line `<a>` gets an extra empty paragraph after the link, and an unclosed `<video>` in a `<div>` drops every later paragraph while `create_doc` still reports success. Cleanup: the three docs and the probe doc trashed.
 
+**Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
+Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match round 1's exactly. Cleanup: the three docs trashed.
+
 ### TC-DOC250: An end tag closes everything left open inside it, and hidden elements add nothing to the Doc (#1391) ⚠️ requires-oauth
 **Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed `<video>` or `<canvas>` hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
 
@@ -6887,3 +6890,6 @@ Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared D
 - Step 4: exactly three paragraphs, "shown", "open dialog" and "end", with no heading, table or image anywhere. "preheader", "var x", "no script", "hidden div" and "closed dialog" appear nowhere
 
 **Cleanup:** `delete_file` the two docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
+Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports, in order, "visible one", "visible two", a two-cell table with an empty first cell and "cell text" in the second, then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. The export has the usual empty paragraph before the table. Step 4 exports exactly "shown", "open dialog" and "end". The case passes, but the round was sent back for review findings outside its inputs. One was confirmed in a live probe doc: Markdown `# Demo` / `<video src="demo.mp4" controls>` / `## Install` / `Run the thing.` gives a Doc holding only "Demo", and `create_doc` reports success. Cleanup: the two docs and the probe doc trashed.
