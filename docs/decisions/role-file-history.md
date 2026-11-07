@@ -334,6 +334,10 @@ PR #1374, Amy's contributor-docs change, touches `README.md`, `CONTRIBUTING.md`,
 
 PR #1376 records live results and changes only `docs/qa/`, so `qa-kickoff.md` asked for no reconnect. Its re-run of TC-MD105 on Rio's server gave LM-04 a real list numbered 1. 2. 3., against the recorded 3. 4. 5. The record was right: Rio's server started at 21:01:28, the worktree's reset came at 21:01:53, and the server had imported that slot's Nov 3 code, from before #1118 merged. A `/clear` doesn't restart a slot's server, so it can hold code older than the worktree for a whole session. A fresh interpreter and the `git reflog` showed the mismatch, and a reconnect fixed it. The no-reconnect rule came from PR #866, whose live cases tested a Claude Code hook and never called the server, so `qa-kickoff.md` now keeps the reconnect whenever a round calls a tool on the slot's server.
 
+### How much of a recorded live run QA repeats (2026-11-07)
+
+`rio.md` said `qa-approved` on a `docs/qa/` PR means every touched case was run live, but not who ran it or through how many entry points. Rio had already been approving such PRs on a partial re-run. On #1274 it re-ran TC-DOC241 and left TC-DOC240, TC-DOC242 and TC-D303 on Jay's recorded Results. On #1376 it re-ran the touched cases at EP-3 and left EP-1, EP-2 and EP-4 on Aziz's run. PR #1378's body asked whether that bar should be stricter. The maintainer kept it and had it written down. Bob's first wording named only entry points, which covered #1376 but not #1274, or #1385, where the user-approved scope re-ran C7 and BQ-04 at one entry point and left TC-MD001 to TC-MD016 on Aziz's record. The maintainer chose wording that covers all three: a re-run of at least one touched case at one or more entry points, with the QA comment naming what was re-run and what rests on the record.
+
 ## `aziz.md`
 
 ### Server slots during a release pass
