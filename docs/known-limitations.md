@@ -207,6 +207,10 @@ removes the 10pt from every NORMAL_TEXT body paragraph that has exactly that val
 a person set by hand. A doc whose NORMAL_TEXT has nonzero spacing gets no gaps when it's written,
 but a NORMAL_TEXT set to 0 can't be told from the default, so that doc gets them.
 
+The same 10pt goes on each side of a list (#1389), but not on a list inside a quote: the list's
+indent differs from the paragraphs beside it, so Docs wouldn't draw the quote bar across the gap,
+and a quoted list sits tight against the quoted paragraphs around it.
+
 `get_doc_theme` leaves 8pt and 10pt out of NORMAL_TEXT's `space_above` and `space_below`, since
 that's what those values are on a server-written doc, so it also misses them on a paragraph set
 to one by hand.

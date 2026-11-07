@@ -1416,13 +1416,17 @@ class TestBlockSeparation:
             "<hr><p>a</p>",
             "<p>a</p><h2>h</h2>",
             "<h2>h</h2><p>a</p>",
-            "<ul><li>l</li></ul><p>a</p>",
-            "<p>a</p><ul><li>l</li></ul>",
             "<ul><li>l</li><li>m</li></ul>",
+            "<ul><li><h2>h</h2></li></ul><p>a</p>",
+            "<p>a</p><ul><li><h2>h</h2></li></ul>",
+            "<ul><li><pre><code>c</code></pre></li></ul><p>a</p>",
+            "<ul><li>l<ul><li>m</li></ul></li></ul>",
         ],
     )
     def test_gap_only_between_two_paragraphs(self, html):
-        """A spacer is a gap already, and a rule, a heading or a list has its own look."""
+        """A spacer is a gap already, and a rule, a heading or a code block has its own
+        look. A list's items keep their list spacing, and so does an item's text beside
+        its sublist. A paragraph beside a list gets one (#1389), tested below."""
         requests, _ = _html_to_doc_requests(html)
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(requests).values())
 
@@ -1456,9 +1460,86 @@ class TestBlockSeparation:
         # "3.\ta\n" [1,6), "b\n" [6,8), "c\n" [8,10).
         assert self._spacing(requests) == {5: {"spaceBelow": 10}, 7: {"spaceBelow": 10}}
 
-    def test_literal_item_gets_no_gap_before_a_paragraph_outside_it(self):
-        requests, _ = _to_doc_requests("3. a\n\nb\n", "markdown")
-        assert self._spacing(requests) == {}
+    def test_literal_list_gets_the_list_gap_before_a_paragraph_outside_it(self):
+        """A literal list is still a list (#1389)."""
+        requests, _ = _to_doc_requests("p\n\n3. a\n\nb\n", "markdown")
+        # "p\n" [1,3), "3.\ta\n" [3,8), "b\n" [8,10).
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 7: {"spaceBelow": 10}}
+
+    def test_paragraph_and_list_get_a_gap_on_both_sides(self):
+        """#1389: Drive's import leaves an empty line before and after a list, an intro
+        line's included."""
+        requests, _ = _to_doc_requests("Install:\n\n- a\n- b\n\nAfter.\n", "markdown")
+        # "Install:\n" [1,10), "a\n" [10,12), "b\n" [12,14), "After.\n" [14,21).
+        assert self._inserted_text(requests) == "Install:\na\nb\nAfter.\n"
+        assert self._spacing(requests) == {9: {"spaceBelow": 10}, 13: {"spaceBelow": 10}}
+
+    def test_the_last_items_gap_comes_after_the_bullet_pass(self):
+        """createParagraphBullets runs over the item, so its spacing waits, as every
+        item's styling does."""
+        requests, _ = _to_doc_requests("- a\n- b\n\nAfter.\n", "markdown")
+        last_bullet_call = max(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        gaps = [
+            i
+            for i, r in enumerate(requests)
+            if r.get("updateParagraphStyle", {})
+            .get("paragraphStyle", {})
+            .get("spaceBelow", {})
+            .get("magnitude")
+            == 10
+        ]
+        assert len(gaps) == 1
+        assert gaps[0] > last_bullet_call
+
+    def test_nested_list_ending_the_list_gets_the_gap_below_its_last_item(self):
+        requests, _ = _to_doc_requests("- a\n  - b\n\nAfter.\n", "markdown")
+        # "a\n" [1,3), "b\n" [3,5) after the bullet pass consumes b's tab.
+        assert self._spacing(requests) == {4: {"spaceBelow": 10}}
+
+    def test_paragraph_ending_a_list_item_gets_the_gap_before_a_paragraph_outside(self):
+        requests, _ = _to_doc_requests("- a\n\n  b\n\nAfter.\n", "markdown")
+        # "a\n" [1,3), "b\n" [3,5): the item's own gap, then the list's.
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 4: {"spaceBelow": 10}}
+
+    def test_paragraph_in_an_item_and_its_sublist_get_the_gap(self):
+        """A sublist after a paragraph inside its item is a list meeting a paragraph
+        outside it, one level down; the paragraph after it is back in the item."""
+        requests, _ = _to_doc_requests("- a\n\n  b\n\n  - c\n\n  d\n", "markdown")
+        assert self._inserted_text(requests).replace("\t", "") == "a\nb\nc\nd\n"
+        # "a\n" [1,3), "b\n" [3,5), "c\n" [5,7), "d\n" [7,9) after the bullet pass.
+        assert self._spacing(requests) == {
+            2: {"spaceBelow": 10},
+            4: {"spaceBelow": 10},
+            6: {"spaceBelow": 10},
+        }
+
+    def test_paragraph_in_an_item_and_the_next_item_get_no_gap(self):
+        """PG-04: the next item keeps its list spacing."""
+        requests, _ = _to_doc_requests("- a\n\n  b\n\n- c\n", "markdown")
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}}
+
+    def test_paragraph_between_a_list_and_its_continuation_gets_both_gaps(self):
+        """#1118: the paragraph sits outside the list, which goes on counting after it."""
+        requests, _ = _to_doc_requests("1. a\n\np\n\n2. b\n", "markdown")
+        assert self._inserted_text(requests) == "a\np\nb\n"
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 4: {"spaceBelow": 10}}
+
+    @pytest.mark.parametrize(
+        "markdown",
+        ["> p\n>\n> - a\n>\n> q\n", "> p\n>\n> 3. a\n>\n> q\n"],
+        ids=["bullet", "literal"],
+    )
+    def test_quoted_list_gets_no_list_gap(self, markdown):
+        """The item's indent differs from the paragraphs', so the quote bar wouldn't
+        cover the gap (PR #1388 QA round 1)."""
+        requests, _ = _to_doc_requests(markdown, "markdown")
+        assert not any(style.get("spaceBelow") == 10 for style in self._spacing(requests).values())
+
+    def test_list_gaps_go_with_the_other_paragraph_gaps(self):
+        """A doc with spacing of its own drops them all (without_paragraph_gaps)."""
+        requests, _ = _to_doc_requests("p\n\n- a\n\nq\n", "markdown")
+        kept = without_paragraph_gaps(requests)
+        assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
 
     @pytest.mark.parametrize(
         "markdown",
@@ -1477,11 +1558,13 @@ class TestBlockSeparation:
         gaps = [s for s in self._spacing(requests).values() if s.get("spaceBelow") == 10]
         assert len(gaps) == 1
 
-    def test_orphan_item_gets_no_gap(self):
+    def test_orphan_item_gets_only_the_list_gap(self):
         """An <li> outside any list has no list place, which isn't the same place as a
-        paragraph outside every list (PR #1388 QA round 1)."""
+        paragraph outside every list (PR #1388 QA round 1), so the paragraph isn't its
+        own. It's still a bulleted line, so a paragraph after it is outside a list
+        (#1389)."""
         requests, _ = _html_to_doc_requests("<li>a</li><p>b</p>")
-        assert self._spacing(requests) == {}
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}}
 
     def test_paragraphs_in_different_items_get_no_gap(self):
         requests, _ = _html_to_doc_requests("<ul><li><p>a</p></li><li><p>b</p></li></ul>")
@@ -1582,9 +1665,10 @@ class TestBlockSeparation:
         # "x\n" [1,3), "H\n" [3,5), "q\n" [5,7).
         assert self._spacing(requests) == {6: {"spaceBelow": 8}}
 
-    def test_plain_paragraphs_and_lists_get_no_spacing(self):
+    def test_heading_and_paragraph_get_no_spacing_and_the_list_its_gap(self):
         requests, _ = _html_to_doc_requests("<h2>h</h2><p>p</p><ul><li>l</li></ul>")
-        assert self._spacing(requests) == {}
+        # "h\n" [1,3), "p\n" [3,5): only the gap above the list (#1389).
+        assert self._spacing(requests) == {4: {"spaceBelow": 10}}
 
 
 class TestColspanNumCols:

@@ -1509,6 +1509,24 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1399 QA round 2 @ f51e67cf, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run. The fixture through `create_doc_from_file`: every marker plain on screen and `{"underline": false}` alone in `paragraph.bullet.textStyle`, every item keeping its own style, no `\u200b` in any item text. Round 1's HTML failure is fixed: `create_doc` with a pretty-printed HTML list (`<li>\n\t\t<b>one</b>\n\t</li>`, an `<li><b>bold</b>\n</li>`, and the same shape inside a `<blockquote>`) succeeds, bold and italic land on exactly their own characters, every marker is plain and the quote bar spans its list. The empty bulleted paragraphs that shape still makes are #1229.**
 
+### TC-MD508: A gap on both sides of a list ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-list-gaps.md` and `docs/qa/fixtures/md/realistic/r06-howto.md` through EP-1 to EP-4. #1389's done-when. Then, on the fixture's EP-1 Doc, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`.
+
+**Checks**
+- LG-01: a gap about two thirds of a line below "Install the headers:" and below "two", the same as between two paragraphs (TC-MD506). "one" and "two" sit at their usual list spacing.
+- LG-02: the gap is below "nested last", not inside the list.
+- LG-03: gaps below "first", "Paragraph inside first." and "sub item". None below "Back in first.": "2. second" sits at list spacing.
+- LG-04: gaps on both sides of "Between the list and its continuation.", and the list still numbers 1, 2.
+- LG-05: no extra gap below the heading item or the code block, which keep their own spacing; a gap below "Paragraph after the heading item.", which leads into a list. The quote is one continuous bar, with no gap beside "quoted item".
+- r06: each list has the same gap from its intro line and from the paragraph after it.
+- Structure: in `documents().get()`, each gap is `spaceBelow` 10pt on one paragraph, and no empty paragraph was added. NORMAL_TEXT's `spacingMode` is the Doc's own (`COLLAPSE_LISTS` on a new Doc).
+- Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceBelow`, list items included, and on screen each place that had a 10pt gap shows the theme's 20pt instead.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
 ---
 
 ## Known gaps and not-applicable
