@@ -1504,6 +1504,13 @@ def _deferred_indent_request(node: DocNode, rng: dict, *, between_lists: bool) -
 # paragraphs around it and two code blocks in a row read as one.
 _BLOCK_SPACING_PT = 8
 
+# Space below a paragraph that the next paragraph follows (#1382): what Docs' own "Add
+# space after paragraph" adds, so a blank line in the source reads as a break. It's
+# explicit paragraph styling, which beats the doc's NORMAL_TEXT, so a doc with spacing of
+# its own doesn't take it: see without_paragraph_gaps and apply_theme, which finds it by
+# this value. Keep it different from every other spacing the emitter writes.
+PARAGRAPH_GAP_PT = 10
+
 
 def _quoted(node: DocNode) -> bool:
     return not isinstance(node, Table) and node.blockquote_depth > 0
@@ -1550,6 +1557,63 @@ def _has_named_spacing(node: DocNode) -> bool:
     if isinstance(node, BulletItem):
         return node.heading_level is not None
     return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
+
+
+def _has_visible_content(node: DocNode) -> bool:
+    return any(isinstance(run, Image) or run.text.strip() for run in node.runs)
+
+
+def _is_plain_paragraph(node: DocNode) -> bool:
+    """Whether `node` is body text with something on its line: not code, a rule, a
+    stand-in for a list item, or a whitespace-only spacer, which is a gap already."""
+    if isinstance(node, NamedBlock):
+        plain = node.style_type == "NORMAL_TEXT"
+    elif isinstance(node, Paragraph):
+        plain = not (node.rule or node.literal_item_level is not None)
+        plain = plain and not _is_code_paragraph(node)
+    else:
+        return False
+    return plain and _has_visible_content(node)
+
+
+def _is_text_of_item_holding(first: DocNode, second: DocNode) -> bool:
+    """Whether `first` is a list item's own text, or the stand-in for it (#1118), and
+    `second` sits inside that item."""
+    place = _list_place(second)
+    if place is None:
+        return False
+    if isinstance(first, BulletItem):
+        return (
+            first.heading_level is None
+            and _has_visible_content(first)
+            and _list_place(first) == place
+        )
+    # A stand-in's list_path stops at its parent list: it's a block in the parent item.
+    depth, path = place
+    return (
+        isinstance(first, Paragraph)
+        and first.literal_item_level == depth
+        and first.list_path == path[:-1]
+    )
+
+
+def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether a paragraph break between two adjacent nodes needs PARAGRAPH_GAP_PT
+    (#1382): `second` is a plain paragraph in the same quote and at the same quote depth
+    as `first`, which is a plain paragraph in the same list item, or that item's text.
+
+    Docs covers the gap with the quote bar only between paragraphs with the same border
+    and indent. So a quoted paragraph gets no gap beside a nested quote's, or beside its
+    item's text, whose indent differs: the bar broke there (PR #1388 QA round 1)."""
+    if (
+        not _is_plain_paragraph(second)
+        or first.blockquote_depth != second.blockquote_depth
+        or first.blockquote_path != second.blockquote_path
+    ):
+        return False
+    if _is_plain_paragraph(first):
+        return _list_place(first) == _list_place(second)
+    return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
 
 
 def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
@@ -1617,7 +1681,11 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
     a code block gets both, and a quoted node gets space on each side where its quote
     meets content outside it (an unquoted node, an unquoted table, or the edge). Nodes
     inside one quote get none between them, a quoted table included (#1122), so the
-    quote stays one block. A table itself gets no spacing.
+    quote stays one block, unless they're two paragraphs of that quote. A table itself
+    gets no spacing.
+
+    A paragraph break gets PARAGRAPH_GAP_PT below the first paragraph (#1382), so two
+    paragraphs don't read as one with a line break (_paragraph_gap_between).
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
@@ -1657,6 +1725,8 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
+        if i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
+            below = PARAGRAPH_GAP_PT
         if above or below:
             spacing[i] = (above, below)
     return spacing
@@ -1683,6 +1753,17 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
                 }
             )
     return requests
+
+
+def without_paragraph_gaps(requests: list[dict]) -> list[dict]:
+    """`requests` without the paragraph gaps (#1382), for a doc whose own spacing should
+    stand. The gaps are paragraph styling, so nothing else's position moves."""
+    return [request for request in requests if not _is_paragraph_gap(request)]
+
+
+def _is_paragraph_gap(request: dict) -> bool:
+    style = request.get("updateParagraphStyle", {}).get("paragraphStyle", {})
+    return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
 
 
 def _collapse_paragraph_requests(rng: dict) -> list[dict]:

@@ -193,6 +193,40 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | ` ```code block``` ` | `<pre><code>` | `Paragraph` (all runs `font_family="Courier New"`) | monospace paragraph, 8pt above and below (#1098) |
 | `> quoted text` | `<blockquote><p>` | `Paragraph(blockquote_depth=1)` (or `Heading`/`BulletItem`/`NamedBlock`, whichever the quoted content is) | left border + indent, scaled by nesting depth (#476), 8pt above and below the quote; adjacent quotes kept apart (#1098) — see [blockquote-representation.md](blockquote-representation.md) |
 
+A blank line between two paragraphs is 10pt of `spaceBelow` on the first (#1382), what Docs'
+own "Add space after paragraph" adds, close to the 8pt around code blocks and quotes. Drive's
+import makes the same gap with an empty paragraph instead, which would read back as content.
+The gap goes between two plain paragraphs in the same quote depth and list item, and between
+an item's text and a paragraph inside that item, a literal item's included. Inside a quote, an
+item's text gets none: the paragraph has a different indent, so Docs leaves the gap out of the
+bar. A spacer line (`&nbsp;`) is a gap already, and a
+list, a heading or a table keeps its own look next to a paragraph. A paragraph in a table cell
+gets none: cells stay compact, and Markdown can't write one.
+
+The gap is set on each paragraph, and the API has no other way to write it short of changing
+NORMAL_TEXT for the whole Doc, lists and table cells included. A value on a paragraph beats the
+named style, so a theme's spacing has to win some other way, in either order:
+
+- A Doc that already has NORMAL_TEXT spacing gets no gaps: `_replace_doc_content` reads it
+  (`_has_own_paragraph_spacing`) and drops them from the converted requests
+  (`without_paragraph_gaps`). Spacing of exactly 0 can't be told from the default.
+- `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` hands the gap paragraphs back to
+  the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT`, which
+  no other spacing the emitter writes uses.
+
+`get_doc_theme` must not report what the emitter wrote as the Doc's theme: applying it would
+set that spacing across the target Doc, lists and cells included. So NORMAL_TEXT comes from body
+text, not a quote, a rule, an empty line or a code block (`_is_block_paragraph`), which it knows
+by Courier New and its 8pt on both sides, since a Doc set in Courier by hand is body text. Its
+spacing leaves out 8pt and 10pt (`_body_style_entry`), which also covers a paragraph beside a
+quoted table: that has the quote's 8pt and no border. A Doc with no body text at all takes
+NORMAL_TEXT from its first block with text, font but not those values. The first paragraph of a
+style decides even with no explicit style, and a text field counts only when every run in it
+shares that field, or one run's inline bold or code span would read as the Doc's body text.
+
+`get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
+gaps (checked live on r06).
+
 Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.
 

@@ -197,6 +197,22 @@ margins. See `docs/design/list-start-numbers.md`.
 
 ---
 
+### The gap between paragraphs is set on each paragraph
+
+**What:** `create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file`, and
+`upload_file` (Markdown source) put 10pt below a paragraph that another paragraph follows, in the
+paragraph's own style rather than in NORMAL_TEXT, so a change to NORMAL_TEXT in the Docs UI doesn't
+reach those paragraphs. `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` does: it
+removes the 10pt from every NORMAL_TEXT body paragraph that has exactly that value, including one
+a person set by hand. A doc whose NORMAL_TEXT has nonzero spacing gets no gaps when it's written,
+but a NORMAL_TEXT set to 0 can't be told from the default, so that doc gets them.
+
+`get_doc_theme` leaves 8pt and 10pt out of NORMAL_TEXT's `space_above` and `space_below`, since
+that's what those values are on a server-written doc, so it also misses them on a paragraph set
+to one by hand.
+
+---
+
 ### A horizontal rule is a bordered paragraph, not a Docs horizontal line
 
 **What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,

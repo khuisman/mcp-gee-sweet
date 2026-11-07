@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
@@ -18,6 +20,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
 from mcp_gee_sweet.tools.docs.style import (
     _add_or_clear_field,
     _build_named_style_requests,
+    _has_own_paragraph_spacing,
     _read_body_styles,
     _read_named_styles,
     _text_style_and_fields,
@@ -1831,6 +1834,278 @@ class TestApplyThemeTool:
         reqs = call_kwargs["body"]["requests"]
         assert any("updateNamedStyle" in r for r in reqs)
         assert any("updateTextStyle" in r for r in reqs)
+
+    @pytest.mark.parametrize(
+        "paragraph_style, own",
+        [
+            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, False),
+            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, True),
+            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, True),
+        ],
+    )
+    def test_has_own_paragraph_spacing_reads_normal_text(self, paragraph_style, own):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "paragraphStyle": {"spaceAbove": {"magnitude": 20, "unit": "PT"}},
+                    },
+                    {"namedStyleType": "NORMAL_TEXT", "paragraphStyle": paragraph_style},
+                ]
+            }
+        }
+        assert _has_own_paragraph_spacing(doc) is own
+
+    @staticmethod
+    def _body_paragraph(style, text, font=None):
+        text_style = {"weightedFontFamily": {"fontFamily": font}} if font else {}
+        return {
+            "paragraph": {
+                "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                "elements": [{"textRun": {"content": text, "textStyle": text_style}}],
+            }
+        }
+
+    def test_unstyled_first_paragraph_decides_over_a_later_bold_lead_in(self):
+        """One run's bold isn't the doc's body text (PR #1388 QA round 3)."""
+        lead_in = self._body_paragraph({}, "Lead-in.")
+        lead_in["paragraph"]["elements"] = [
+            {"textRun": {"content": "Lead-in.", "textStyle": {"bold": True}}},
+            {"textRun": {"content": " The rest.\n", "textStyle": {}}},
+        ]
+        doc = {"body": {"content": [self._body_paragraph({}, "plain\n"), lead_in]}}
+        assert _read_body_styles(doc) == {}
+
+    def test_opening_bold_or_code_run_is_not_the_paragraphs_style(self):
+        para = self._body_paragraph({}, "x")
+        para["paragraph"]["elements"] = [
+            {
+                "textRun": {
+                    "content": "pip",
+                    "textStyle": {
+                        "bold": True,
+                        "weightedFontFamily": {"fontFamily": "Courier New"},
+                        "fontSize": {"magnitude": 12, "unit": "PT"},
+                    },
+                }
+            },
+            {
+                "textRun": {
+                    "content": " fails\n",
+                    "textStyle": {"fontSize": {"magnitude": 12, "unit": "PT"}},
+                }
+            },
+        ]
+        assert _read_body_styles({"body": {"content": [para]}})["NORMAL_TEXT"] == {"font_size": 12}
+
+    def test_first_heading_decides_for_its_style_too(self):
+        def heading(text_style):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                    "elements": [{"textRun": {"content": "h\n", "textStyle": text_style}}],
+                }
+            }
+
+        doc = {"body": {"content": [heading({}), heading({"italic": True})]}}
+        assert _read_body_styles(doc) == {}
+
+    def test_body_theme_reads_a_doc_set_in_courier(self):
+        """Courier New alone isn't a code block (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "one\n", font="Courier New"),
+                    self._body_paragraph({}, "two\n", font="Courier New"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Courier New"}
+
+    def test_body_theme_skips_a_code_block_for_body_text(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                    self._body_paragraph({}, "body\n", font="Georgia"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_unstyled_body_text_keeps_a_block_out_of_the_theme(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "body\n"),
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                ]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_doc_of_blocks_only_keeps_the_font_but_not_their_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(
+                        {
+                            "borderLeft": {"width": {"magnitude": 3, "unit": "PT"}},
+                            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                        },
+                        "quote\n",
+                        font="Georgia",
+                    )
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    @pytest.mark.parametrize("key", ["spaceAbove", "spaceBelow"])
+    def test_body_theme_leaves_out_spacing_beside_a_quoted_table(self, key):
+        """That paragraph has the quote's 8pt and no border (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [self._body_paragraph({key: {"magnitude": 8, "unit": "PT"}}, "next\n")]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_body_theme_keeps_a_heading_at_the_block_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_2",
+                                "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                            },
+                            "elements": [],
+                        }
+                    }
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["HEADING_2"] == {"space_above": 8}
+
+    def test_body_theme_leaves_out_the_paragraph_gap_and_block_spacing(self):
+        """A theme carrying them would space a whole doc (PR #1388 QA round 1)."""
+        theme = _read_body_styles(self._paragraph_gap_doc())
+        assert "NORMAL_TEXT" not in theme
+        # A heading at the same value is that heading's own style.
+        assert theme["HEADING_1"]["space_below"] == 10
+
+    @pytest.mark.parametrize(
+        "block_style, runs",
+        [
+            ({"borderLeft": {"width": {"magnitude": 3, "unit": "PT"}}}, ["quote\n"]),
+            ({"borderBottom": {"width": {"magnitude": 1, "unit": "PT"}}}, ["\n"]),
+            ({}, ["\n"]),
+        ],
+        ids=["quote", "rule", "empty"],
+    )
+    def test_body_theme_skips_a_block_for_the_first_body_text(self, block_style, runs):
+        def paragraph(style, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        spacing = {"spaceAbove": {"magnitude": 8, "unit": "PT"}}
+        doc = {
+            "body": {
+                "content": [
+                    paragraph({**spacing, **block_style}, runs[0]),
+                    paragraph({"spaceBelow": {"magnitude": 4, "unit": "PT"}}, "body\n"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"space_below": 4}
+
+    @staticmethod
+    def _paragraph_gap_doc():
+        """A gap paragraph, one with a quote edge's 8pt, and a heading at the gap's value."""
+
+        def paragraph(start, end, named_style, space_below):
+            return {
+                "startIndex": start,
+                "endIndex": end,
+                "paragraph": {
+                    "paragraphStyle": {
+                        "namedStyleType": named_style,
+                        "spaceBelow": {"magnitude": space_below, "unit": "PT"},
+                    },
+                    "elements": [{"textRun": {"content": "x\n", "textStyle": {}}}],
+                },
+            }
+
+        return {
+            "body": {
+                "content": [
+                    {"endIndex": 1, "sectionBreak": {}},
+                    paragraph(1, 3, "NORMAL_TEXT", 10),
+                    paragraph(3, 5, "NORMAL_TEXT", 8),
+                    paragraph(5, 7, "HEADING_1", 10),
+                ]
+            }
+        }
+
+    async def _run_theme(self, theme, **kwargs):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._paragraph_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx, **kwargs)
+        return mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+
+    @pytest.mark.parametrize("key", ["space_above", "space_below"])
+    async def test_theme_spacing_replaces_the_paragraph_gap(self, key):
+        """#1382: a value on the paragraph would beat the theme's NORMAL_TEXT."""
+        reqs = await self._run_theme({"NORMAL_TEXT": {key: 20}})
+        assert [r for r in reqs if "updateParagraphStyle" in r] == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 1, "endIndex": 3},
+                    "paragraphStyle": {},
+                    "fields": "spaceBelow",
+                }
+            }
+        ]
+
+    @pytest.mark.parametrize(
+        "theme",
+        [{"NORMAL_TEXT": {"font_family": "Georgia"}}, {"HEADING_1": {"space_below": 20}}],
+    )
+    async def test_theme_without_body_spacing_leaves_the_doc_alone(self, theme):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx)
+        mock_docs.documents().get.assert_not_called()
+
+    async def test_overwrite_spacing_lands_after_the_gap_is_cleared(self):
+        reqs = await self._run_theme({"NORMAL_TEXT": {"space_below": 20}}, overwrite=True)
+        styles = [
+            r["updateParagraphStyle"]
+            for r in reqs
+            if r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 1
+        ]
+        assert styles[0]["paragraphStyle"] == {}
+        assert styles[-1]["paragraphStyle"]["spaceBelow"]["magnitude"] == 20
 
     async def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()

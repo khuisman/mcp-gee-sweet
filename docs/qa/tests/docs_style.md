@@ -249,6 +249,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-09-04) ✅ PASS**
 get_doc_theme on inherited-style doc returned {} — expected, no error.
 
+**Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS** Inherited-style Markdown Doc returned `{}`, no error. After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) it returned both entries. The first paragraph of a style now decides, so a Doc with an unstyled first paragraph reports nothing for that style even if later ones are hand-styled.
+
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
@@ -336,6 +338,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Result (2026-09-04) ✅ PASS**
 round-tripped Georgia/Roboto fonts render distinctly
+
+**Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS** `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`; applying it back with `overwrite=True` returned `requests > 0` and no error. Not checked on screen.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
