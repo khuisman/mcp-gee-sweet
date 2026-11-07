@@ -583,11 +583,19 @@ sees a confirmation: `send_message` and `reply_to_message` save the email as a d
 elicitation. **Claude Code currently connects on 2026-07-28** (2.1.310, checked 2026-10-26),
 so every send from Claude Code is held as a draft.
 
+**Claude Desktop holds sends too.** On the Chat tab, Claude Desktop 4.23118.0 with the bundle
+installed (checked 2026-11-07) never showed this server's confirmation form: `send_message`
+returned `reason: no_elicitation` and left the email as a draft. Claude Desktop's own permission
+prompt may appear first, showing To, Subject and Body. Allowing it only saves the draft; nothing
+is sent. Which protocol version it connects on hasn't been checked, so this may have a different
+cause from the one below, and #1235 may not change it.
+
 **Why:** Revision 2026-07-28 removed server-initiated requests. Asking there takes an
 `InputRequiredResult` round trip, which isn't implemented yet (#1235).
 
 **Workaround:** Send the draft from Gmail's Drafts folder, connect with a client on the
-2025-11-25 `initialize` handshake, or set `GMAIL_SEND=direct`.
+2025-11-25 `initialize` handshake, or set `GMAIL_SEND=direct`. The bundle install has no setting
+for `GMAIL_SEND`.
 
 ### The changed-draft check has a short window before the send
 
