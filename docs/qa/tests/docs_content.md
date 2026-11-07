@@ -6848,3 +6848,74 @@ Live on `mcp-gee-sweet-sky` at aa397141, after `/mcp reconnect` (OAuth, Shared D
 
 **Result (2026-11-02) ✅ PASS — PR #1359 round 2 (Sky)**
 Live on `mcp-gee-sweet-sky` at 5619ff36, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all seven steps, checked on screen with Playwright. Steps 1–5 look and export exactly as in round 1. The one difference on screen is that "Item one" now has a gap above it after the N/M quote-table, and "Item two" has one after the A/B table. Step 6: one bar runs beside the a/b and c/d tables and through the full-height line between them, and the tables don't touch. "Before paragraph." has a gap above and below it, "After paragraph." and "List item after" each have a gap above them, and i/j and k/l have two bars with a gap between them. Step 7: a/b and c/d are joined by a `>` line, and i/j and k/l are separated by blank lines with no `>`. Cleanup: the three docs trashed.
+
+### TC-DOC249: Text directly inside a div, section, dl or other block container reaches the Doc, and hidden text stays out (#1391) ⚠️ requires-oauth
+**Purpose:** `create_doc` with its default HTML format reported success while dropping any text not in a `<p>`, heading or list item: `html_parser` kept text only with no tag around it at all. Text directly inside a tag a browser draws as a block is now its own paragraph, inline-only content included, in a `<blockquote>` too. A `<script>`, `<style>` or `<title>`'s text stays out, and a `<span>` with no block around it stays a no-op.
+
+**Steps**
+1. `create_doc(title="TC-DOC249 issue", folder_id={FOLDER_ID}, content="<div>first in a div</div><section>second in a section</section><dl><dt>term</dt><dd>definition</dd></dl><p>only this paragraph</p><blockquote><div>quoted in a div</div></blockquote>")` → record `docId` as `{ISSUE}`
+2. `get_doc_as_markdown(doc_id={ISSUE})`
+3. `create_doc(title="TC-DOC249 page", folder_id={FOLDER_ID}, content="<!doctype html>\n<html>\n<head>\n  <title>Page title</title>\n  <style>p { color: red }</style>\n</head>\n<body>\n  <div>\n    <b>Bold</b> and <a href=\"https://example.com\">linked</a>\n    on two source lines\n  </div>\n  <div><br></div>\n  <div>after a blank line<script>var hidden = 1;</script></div>\n  <details><summary>Summary</summary>Details body</details>\n</body>\n</html>\n")` → record `docId` as `{PAGE}`
+4. `get_doc_as_markdown(doc_id={PAGE})`
+5. `create_doc(title="TC-DOC249 markdown", folder_id={FOLDER_ID}, content_format="markdown", content="Before\n\n<div>\nraw html block\n</div>\n\nAfter")` → record `docId` as `{MD}`
+6. `get_doc_as_markdown(doc_id={MD})`
+
+**Checks**
+- Steps 1, 3 and 5 return a `docId` with no `error`
+- Step 2: in order, "first in a div", "second in a section", "term", "definition" and "only this paragraph" are separate paragraphs, followed by `> quoted in a div`
+- Step 4: the first paragraph is `**Bold** and [linked](https://example.com) on two source lines`, with both source lines on one line and no empty paragraph before it. After it come one blank line in the Doc, then "after a blank line", "Summary" and "Details body" as separate paragraphs
+- Step 4: "Page title", "color: red" and "var hidden" appear nowhere
+- Step 6: "Before", "raw html block" and "After" are three paragraphs
+
+**Cleanup:** `delete_file` the three docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 1 (Kit)**
+Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. Step 2 exports the five paragraphs in order, then `> quoted in a div`. Step 4's first paragraph is `**Bold** and [linked](https://example.com) on two source lines` with nothing before it, then one empty paragraph, "after a blank line", "Summary" and "Details body"; no title, style or script text anywhere. Step 6 is "Before", "raw html block", "After". The case passes, but the round was sent back for code-review findings outside its inputs. Two were confirmed in a live probe doc: a pretty-printed `<div>` around a multi-line `<a>` gets an extra empty paragraph after the link, and an unclosed `<video>` in a `<div>` drops every later paragraph while `create_doc` still reports success. Cleanup: the three docs and the probe doc trashed.
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
+Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match round 1's exactly. Cleanup: the three docs trashed.
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match rounds 1 and 2 exactly. Cleanup: the three docs trashed.
+
+### TC-DOC250: An end tag closes everything left open inside it, and hidden elements add nothing to the Doc (#1391) ⚠️ requires-oauth
+**Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed hidden element hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
+
+**Steps**
+1. `create_doc(title="TC-DOC250 unclosed", folder_id={FOLDER_ID}, content="<div><datalist id='x'></div><p>visible one</p><p><datalist></p><p>visible two</p><table><tr><td><datalist id='y'></td><td>cell text</td></tr></table><div>a<p>b</div>c<div>d</section>e</div><section><ul><li>item</section>after list<blockquote><b>quoted bold</blockquote>after quote")` → record `docId` as `{UNCLOSED}`
+2. `get_doc_as_markdown(doc_id={UNCLOSED})`
+3. `create_doc(title="TC-DOC250 hidden", folder_id={FOLDER_ID}, content="<p>shown<span style='display:none'> preheader</span></p><h1><script>var x = 1;</script></h1><noscript><table><tr><td>no script</td></tr></table><img src='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png'></noscript><div hidden>hidden div</div><dialog>closed dialog</dialog><dialog open>open dialog</dialog><p>end</p>")` → record `docId` as `{HIDDEN}`
+4. `get_doc_as_markdown(doc_id={HIDDEN})`
+
+**Checks**
+- Steps 1 and 3 return a `docId` with no `error`
+- Step 2: in order, "visible one", "visible two", a table whose first cell is empty and whose second cell is "cell text", then "a", "b", "c" and "de" as separate paragraphs, a bullet "item", a paragraph "after list", `> **quoted bold**`, and "after quote" outside the quote and not bold
+- Step 4: exactly three paragraphs, "shown", "open dialog" and "end", with no heading, table or image anywhere. "preheader", "var x", "no script", "hidden div" and "closed dialog" appear nowhere
+
+**Cleanup:** `delete_file` the two docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
+Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports, in order, "visible one", "visible two", a two-cell table with an empty first cell and "cell text" in the second, then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. The export has the usual empty paragraph before the table. Step 4 exports exactly "shown", "open dialog" and "end". The case passes, but the round was sent back for review findings outside its inputs. One was confirmed in a live probe doc: Markdown `# Demo` / `<video src="demo.mp4" controls>` / `## Install` / `Run the thing.` gives a Doc holding only "Demo", and `create_doc` reports success. Cleanup: the two docs and the probe doc trashed.
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps with step 1's new `<datalist>` content. Step 2 exports "visible one", "visible two", a table with an empty first cell and "cell text" in the second (after the usual empty paragraph before a table), then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. Step 4 exports exactly "shown", "open dialog" and "end". Cleanup: the two docs trashed.
+
+### TC-DOC251: Media fallback is shown, a linked image in a div keeps its link, omitted cell and row end tags split cells and rows, and display resolves as CSS does (#1391) ⚠️ requires-oauth
+**Purpose:** PR #1400 round 2. A Doc can't play or draw `<video>`, `<audio>`, `<canvas>` or `<object>`, so their fallback content is shown, and one left unclosed in Markdown no longer hides the rest of the document. An `<a>` around a `<div>` holding an image links the image. A `<td>` start tag closes the open cell and a `<tr>` the open row, as a browser's implied end tags do. A `display` declaration follows CSS: `!important` wins, and an invalid value is ignored.
+
+**Steps**
+1. `create_doc(title="TC-DOC251 markdown", folder_id={FOLDER_ID}, content_format="markdown", content="# Demo\n\n<video src=\"demo.mp4\" controls>\n\n## Install\n\nRun the thing.")` → record `docId` as `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC251 html", folder_id={FOLDER_ID}, content="<p>before <canvas>canvas fallback</canvas> after</p><p><object data=\"d.svg\"><img src=\"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png\" width=\"136\" height=\"46\"></object></p><a href=\"https://example.com/logo\"><div><img src=\"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png\" width=\"136\" height=\"46\"></div></a><table><tr><td>a<td>b<tr><td>c<td>d</table><div style=\"display:none !important; display:block\">important hidden</div><div style=\"display:none; display:bogus\">invalid hidden</div><div style=\"display:none; display:block\">shown block</div>")` → record `docId` as `{HTML}`
+4. `get_doc_as_markdown(doc_id={HTML})`
+
+**Checks**
+- Steps 1 and 3 return a `docId` with no `error`
+- Step 2: "Demo" and "Install" are headings, followed by the paragraph "Run the thing."
+- Step 4: in order, "before canvas fallback after", an image, an image linked to `https://example.com/logo`, a 2×2 table reading a/b on the first row and c/d on the second, then "shown block"
+- Step 4: "important hidden" and "invalid hidden" appear nowhere
+
+**Cleanup:** `delete_file` the two docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports `# Demo`, `## Install` and "Run the thing.". Step 4 exports, in order, "before canvas fallback after", an image, an image linked to `https://example.com/logo`, a 2×2 table reading a/b then c/d (after the usual empty paragraph before a table), and "shown block". "important hidden" and "invalid hidden" appear nowhere. Step 3 returned both images with no `error`. Cleanup: the two docs trashed.
