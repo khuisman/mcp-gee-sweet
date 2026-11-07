@@ -214,9 +214,13 @@ named style, so a theme's spacing has to win some other way, in either order:
   the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT`, which
   no other spacing the emitter writes uses.
 
-`get_doc_theme` leaves the gap out of a body-derived theme, and doesn't take NORMAL_TEXT from
-a quote, a rule, a code block or an empty line (`_is_block_paragraph`): applying a theme that
-carried their spacing would set it across the target Doc, lists and cells included.
+`get_doc_theme` must not report what the emitter wrote as the Doc's theme: applying it would
+set that spacing across the target Doc, lists and cells included. So NORMAL_TEXT comes from body
+text, not a quote, a rule, an empty line or a code block (`_is_block_paragraph`), which it knows
+by Courier New and its 8pt on both sides, since a Doc set in Courier by hand is body text. Its
+spacing leaves out 8pt and 10pt (`_body_style_entry`), which also covers a paragraph beside a
+quoted table: that has the quote's 8pt and no border. A Doc with no body text at all takes
+NORMAL_TEXT from its first block with text, font but not those values.
 
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).

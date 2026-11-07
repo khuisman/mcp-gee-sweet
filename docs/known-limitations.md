@@ -207,6 +207,10 @@ removes the 10pt from every NORMAL_TEXT body paragraph that has exactly that val
 a person set by hand. A doc whose NORMAL_TEXT has nonzero spacing gets no gaps when it's written,
 but a NORMAL_TEXT set to 0 can't be told from the default, so that doc gets them.
 
+`get_doc_theme` leaves 8pt and 10pt out of NORMAL_TEXT's `space_above` and `space_below`, since
+that's what those values are on a server-written doc, so it also misses them on a paragraph set
+to one by hand.
+
 ---
 
 ### A horizontal rule is a bordered paragraph, not a Docs horizontal line

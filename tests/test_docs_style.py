@@ -1857,6 +1857,103 @@ class TestApplyThemeTool:
         }
         assert _has_own_paragraph_spacing(doc) is own
 
+    @staticmethod
+    def _body_paragraph(style, text, font=None):
+        text_style = {"weightedFontFamily": {"fontFamily": font}} if font else {}
+        return {
+            "paragraph": {
+                "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                "elements": [{"textRun": {"content": text, "textStyle": text_style}}],
+            }
+        }
+
+    def test_body_theme_reads_a_doc_set_in_courier(self):
+        """Courier New alone isn't a code block (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "one\n", font="Courier New"),
+                    self._body_paragraph({}, "two\n", font="Courier New"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Courier New"}
+
+    def test_body_theme_skips_a_code_block_for_body_text(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                    self._body_paragraph({}, "body\n", font="Georgia"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_unstyled_body_text_keeps_a_block_out_of_the_theme(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "body\n"),
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                ]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_doc_of_blocks_only_keeps_the_font_but_not_their_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(
+                        {
+                            "borderLeft": {"width": {"magnitude": 3, "unit": "PT"}},
+                            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                        },
+                        "quote\n",
+                        font="Georgia",
+                    )
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    @pytest.mark.parametrize("key", ["spaceAbove", "spaceBelow"])
+    def test_body_theme_leaves_out_spacing_beside_a_quoted_table(self, key):
+        """That paragraph has the quote's 8pt and no border (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [self._body_paragraph({key: {"magnitude": 8, "unit": "PT"}}, "next\n")]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_body_theme_keeps_a_heading_at_the_block_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_2",
+                                "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                            },
+                            "elements": [],
+                        }
+                    }
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["HEADING_2"] == {"space_above": 8}
+
     def test_body_theme_leaves_out_the_paragraph_gap_and_block_spacing(self):
         """A theme carrying them would space a whole doc (PR #1388 QA round 1)."""
         theme = _read_body_styles(self._paragraph_gap_doc())
@@ -1895,10 +1992,9 @@ class TestApplyThemeTool:
 
     @staticmethod
     def _paragraph_gap_doc():
-        """A gap paragraph, a code block with its 8pt, and a heading at the gap's value."""
+        """A gap paragraph, one with a quote edge's 8pt, and a heading at the gap's value."""
 
-        def paragraph(start, end, named_style, space_below, font=None):
-            text_style = {"weightedFontFamily": {"fontFamily": font}} if font else {}
+        def paragraph(start, end, named_style, space_below):
             return {
                 "startIndex": start,
                 "endIndex": end,
@@ -1907,7 +2003,7 @@ class TestApplyThemeTool:
                         "namedStyleType": named_style,
                         "spaceBelow": {"magnitude": space_below, "unit": "PT"},
                     },
-                    "elements": [{"textRun": {"content": "x\n", "textStyle": text_style}}],
+                    "elements": [{"textRun": {"content": "x\n", "textStyle": {}}}],
                 },
             }
 
@@ -1916,7 +2012,7 @@ class TestApplyThemeTool:
                 "content": [
                     {"endIndex": 1, "sectionBreak": {}},
                     paragraph(1, 3, "NORMAL_TEXT", 10),
-                    paragraph(3, 5, "NORMAL_TEXT", 8, font="Courier New"),
+                    paragraph(3, 5, "NORMAL_TEXT", 8),
                     paragraph(5, 7, "HEADING_1", 10),
                 ]
             }
