@@ -1505,6 +1505,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Cleanup:** trash the Docs.
 
+**Result (2026-11-07, PR #1399 QA round 1 @ 8e41d4e5, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run this round. Both fixtures through `create_doc_from_file`: on screen every marker is regular weight, roman and black, r06's step numbers 1 to 5 included, and each item keeps its own style; the heading item's marker is heading-sized. The raw `paragraph.bullet.textStyle` of every list paragraph is `{"underline": false}` alone. No `​` in any item's text. `get_doc_as_markdown` matches the fixture line for line. Also through EP-1 (`create_doc`, Markdown): a `#slug` TOC list and a list whose only item content is an unfetchable linked SVG badge (written as its alt text) both keep black markers. Two failures outside this case's checks: pretty-printed HTML (`<li>\n\t\t<b>one</b>\n\t</li>`) now fails `create_doc` with a 400, and `create_paragraph_bullets` on one item of the fixture's first list gives its neighbours' markers bold, italic, Courier New and strikethrough (see the round's PR comment).**
+
 ---
 
 ## Known gaps and not-applicable
