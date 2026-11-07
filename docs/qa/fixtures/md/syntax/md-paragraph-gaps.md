@@ -46,3 +46,21 @@ Paragraph after code.
 &nbsp;
 
 Paragraph after a spacer.
+
+### PG-06 — paragraphs in a quoted list item
+
+> - Quoted item text, long enough to wrap on to a second line of the quote, so that a break in the bar can be seen next to it.
+>
+>   Second paragraph inside the quoted item.
+>
+>   Third paragraph inside the quoted item.
+>
+> - Quoted item two
+
+### PG-07 — a paragraph in a literal list item
+
+3. Literal item text
+
+   Paragraph inside the literal item.
+
+4. Next literal item
