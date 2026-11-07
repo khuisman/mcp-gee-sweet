@@ -6848,3 +6848,23 @@ Live on `mcp-gee-sweet-sky` at aa397141, after `/mcp reconnect` (OAuth, Shared D
 
 **Result (2026-11-02) ✅ PASS — PR #1359 round 2 (Sky)**
 Live on `mcp-gee-sweet-sky` at 5619ff36, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all seven steps, checked on screen with Playwright. Steps 1–5 look and export exactly as in round 1. The one difference on screen is that "Item one" now has a gap above it after the N/M quote-table, and "Item two" has one after the A/B table. Step 6: one bar runs beside the a/b and c/d tables and through the full-height line between them, and the tables don't touch. "Before paragraph." has a gap above and below it, "After paragraph." and "List item after" each have a gap above them, and i/j and k/l have two bars with a gap between them. Step 7: a/b and c/d are joined by a `>` line, and i/j and k/l are separated by blank lines with no `>`. Cleanup: the three docs trashed.
+
+### TC-DOC249: Text directly inside a div, section, dl or other block container reaches the Doc, and hidden text stays out (#1391) ⚠️ requires-oauth
+**Purpose:** `create_doc` with its default HTML format reported success while dropping any text not in a `<p>`, heading or list item: `html_parser` kept text only with no tag around it at all. Text directly inside a tag a browser draws as a block is now its own paragraph, inline-only content included, in a `<blockquote>` too. A `<script>`, `<style>` or `<title>`'s text stays out, and a `<span>` with no block around it stays a no-op.
+
+**Steps**
+1. `create_doc(title="TC-DOC249 issue", folder_id={FOLDER_ID}, content="<div>first in a div</div><section>second in a section</section><dl><dt>term</dt><dd>definition</dd></dl><p>only this paragraph</p><blockquote><div>quoted in a div</div></blockquote>")` → record `docId` as `{ISSUE}`
+2. `get_doc_as_markdown(doc_id={ISSUE})`
+3. `create_doc(title="TC-DOC249 page", folder_id={FOLDER_ID}, content="<!doctype html>\n<html>\n<head>\n  <title>Page title</title>\n  <style>p { color: red }</style>\n</head>\n<body>\n  <div>\n    <b>Bold</b> and <a href=\"https://example.com\">linked</a>\n    on two source lines\n  </div>\n  <div><br></div>\n  <div>after a blank line<script>var hidden = 1;</script></div>\n  <details><summary>Summary</summary>Details body</details>\n</body>\n</html>\n")` → record `docId` as `{PAGE}`
+4. `get_doc_as_markdown(doc_id={PAGE})`
+5. `create_doc(title="TC-DOC249 markdown", folder_id={FOLDER_ID}, content_format="markdown", content="Before\n\n<div>\nraw html block\n</div>\n\nAfter")` → record `docId` as `{MD}`
+6. `get_doc_as_markdown(doc_id={MD})`
+
+**Checks**
+- Steps 1, 3 and 5 return a `docId` with no `error`
+- Step 2: in order, "first in a div", "second in a section", "term", "definition" and "only this paragraph" are separate paragraphs, followed by `> quoted in a div`
+- Step 4: the first paragraph is `**Bold** and [linked](https://example.com) on two source lines`, with both source lines on one line and no empty paragraph before it. After it come one blank line in the Doc, then "after a blank line", "Summary" and "Details body" as separate paragraphs
+- Step 4: "Page title", "color: red" and "var hidden" appear nowhere
+- Step 6: "Before", "raw html block" and "After" are three paragraphs
+
+**Cleanup:** `delete_file` the three docs

@@ -24,6 +24,64 @@ from .ast import (
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
 _NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+# What a browser draws as a block but this parser has no node for (#1391): the HTML
+# spec's display:block elements (Rendering, "Flow content" and "Sections and headings",
+# plus details, summary and fieldset), less those handled by name (p, pre, headings,
+# lists, blockquote, table). Text directly inside one is its own paragraph. An allowlist
+# rather than "any unknown tag": an inline tag with no block around it stays a no-op.
+_CONTAINER_TAGS = {
+    "address",
+    "article",
+    "aside",
+    "body",
+    "center",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "header",
+    "hgroup",
+    "html",
+    "legend",
+    "listing",
+    "main",
+    "menu",
+    "nav",
+    "plaintext",
+    "search",
+    "section",
+    "summary",
+    "xmp",
+}
+# The block tag of a paragraph opened for text directly inside a container. Never a
+# _BLOCK_TAGS entry: only _end_anonymous_block closes it.
+_ANONYMOUS_BLOCK = "div"
+# Elements whose text a browser doesn't draw: a stylesheet, a script, the page title,
+# or fallback for something else. <head> isn't one: its end tag is optional, so it could
+# hide the whole document, and everything in it that has text is listed here anyway.
+_HIDDEN_TEXT_TAGS = {
+    "audio",
+    "canvas",
+    "datalist",
+    "iframe",
+    "noembed",
+    "noframes",
+    "noscript",
+    "object",
+    "script",
+    "style",
+    "template",
+    "title",
+    "video",
+}
 _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
@@ -502,6 +560,17 @@ class _AstParser(HTMLParser):
         # are excluded since they never get a matching close tag.
         self._tag_depth = 0
 
+        # One entry per open _CONTAINER_TAGS tag. It's the _tag_depth at its start tag if
+        # it opened with no block or table around it, so it holds its own text (#1391);
+        # its end tag restores that depth, since an inline tag left open in it would
+        # otherwise read as enclosing all later text. It's None for an unrecognized tag
+        # inside an open block, which keeps its text anyway and whose end tag takes the
+        # generic path. _container_depth counts the entries that aren't None.
+        self._containers: list[int | None] = []
+        self._container_depth = 0
+        # Open _HIDDEN_TEXT_TAGS elements; their text is dropped wherever they are.
+        self._hidden_depth = 0
+
         # --- inline formatting stacks ---
         self._bold_depth = 0
         self._italic_depth = 0
@@ -627,6 +696,41 @@ class _AstParser(HTMLParser):
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
         self._run_buf = []
         self._pending_runs = []
+
+    def _can_open_anonymous_block(self) -> bool:
+        """True where content with no block of its own gets a paragraph (#1391): directly
+        inside a container or a <blockquote>. Unlike the implicit paragraph for bare
+        top-level text (#343), its source line breaks are soft breaks: this is HTML, not
+        plain lines, and it opens for an inline tag too, not just for text."""
+        return (
+            self._block_tag is None
+            and self._table_depth == 0
+            and not self._hidden_depth
+            and bool(self._container_depth or self._blockquote_ids)
+        )
+
+    def _end_anonymous_block(self):
+        """Emit the paragraph a container's own text opened, if one is open: a container
+        boundary ends it, as a block's end tag ends that block (#1391)."""
+        if self._block_tag != _ANONYMOUS_BLOCK:
+            return
+        self._trim_source_line_break()
+        self._emit_block_node(_ANONYMOUS_BLOCK, self._flush_pending_runs())
+        self._block_tag = None
+        self._close_dangling_inline_formatting()
+
+    def _trim_source_line_break(self):
+        """Drop whitespace holding a line break from the end of the text not yet flushed,
+        since at a block's edge it's source formatting, not content: markdown-it writes
+        "<li>a\\n<ul>" for every nested list (#1116), and the "\\n" would reach the Docs
+        API as an empty paragraph. Only raw text is trimmed, so a <br>'s own break stays."""
+        last_br = max(
+            (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
+            default=-1,
+        )
+        kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
+        tail = _without_line_break_edge(text, leading=False)
+        self._run_buf = [*kept, tail] if tail else kept
 
     def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
         # The lists open when this segment began, not now: see _block_lists.
@@ -847,6 +951,10 @@ class _AstParser(HTMLParser):
         Run at all, must never hit the empty-drop path below just because
         joining its (nonexistent) Run text yields "".
         """
+        # Something dropped in a container's own text is no paragraph to keep: the
+        # container's boundary is there without it (<div><span></span></div>).
+        if tag == _ANONYMOUS_BLOCK:
+            preserve_if_empty = False
         # Line breaks (#1230). A <pre> interrupted by a nested block lands here too; its
         # text is literal. Bare top-level text keeps its source line breaks (_open_block).
         if tag != "pre":
@@ -879,8 +987,10 @@ class _AstParser(HTMLParser):
             return
         if not _has_content(runs):
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
+            # A container's "&nbsp;" draws a line and its source indentation doesn't,
+            # the same test a resumed segment needs (<div>&nbsp;</div>, #1391).
             is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
-                self._block_resumed, runs, raw_text
+                self._block_resumed or tag == _ANONYMOUS_BLOCK, runs, raw_text
             )
             if is_resumed_authored_whitespace:
                 runs = _strip_formatting_whitespace(runs)
@@ -937,18 +1047,8 @@ class _AstParser(HTMLParser):
             return
         outer_tag = self._block_tag
         outer_named_style = self._block_named_style
-        # Whitespace holding a line break just before a block element is source
-        # formatting, not content: markdown-it writes "<li>a\n<ul>" for every nested
-        # list (#1116), and the "\n" would reach the Docs API as an empty paragraph.
-        # Only the raw text not yet flushed is trimmed, so a <br>'s own break stays.
         if self._run_buf and not self._in_pre:
-            last_br = max(
-                (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
-                default=-1,
-            )
-            kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
-            tail = _without_line_break_edge(text, leading=False)
-            self._run_buf = [*kept, tail] if tail else kept
+            self._trim_source_line_break()
         runs = self._flush_pending_runs()
         self._emit_block_node(
             outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
@@ -1214,6 +1314,17 @@ class _AstParser(HTMLParser):
                 self._li_value = _html_integer(attr_dict.get("value"))
             return
 
+        # --- block container with no node of its own (#1391) ---
+        # One inside an open block stays an unrecognized tag there, whose text the
+        # block already keeps.
+        if tag in _CONTAINER_TAGS and self._table_depth == 0:
+            self._end_anonymous_block()
+            holds_text = self._block_tag is None
+            self._containers.append(self._tag_depth if holds_text else None)
+            if holds_text:
+                self._container_depth += 1
+                return
+
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
         # image already reaches _emit_block_node's runs=[] handling above),
@@ -1287,6 +1398,11 @@ class _AstParser(HTMLParser):
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS:
             self._tag_depth += 1
+        if tag in _HIDDEN_TEXT_TAGS:
+            self._hidden_depth += 1
+        elif (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
+            # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -1538,9 +1654,20 @@ class _AstParser(HTMLParser):
             self._resume_interrupted_block(tag)
             return
 
+        # --- block container with no node of its own (#1391) ---
+        if tag in _CONTAINER_TAGS and self._table_depth == 0 and self._containers:
+            tag_depth = self._containers.pop()
+            if tag_depth is not None:
+                self._end_anonymous_block()
+                self._container_depth -= 1
+                self._tag_depth = tag_depth
+                return
+
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS and self._tag_depth > 0:
             self._tag_depth -= 1
+        if tag in _HIDDEN_TEXT_TAGS and self._hidden_depth > 0:
+            self._hidden_depth -= 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -1595,6 +1722,11 @@ class _AstParser(HTMLParser):
             self._bare_link_url.pop()
 
     def handle_data(self, data):
+        if self._hidden_depth:
+            return
+        # An "&nbsp;" draws a line in a container, as source indentation doesn't.
+        if data and not _is_formatting_whitespace(data) and self._can_open_anonymous_block():
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
@@ -1620,12 +1752,13 @@ class _AstParser(HTMLParser):
         elif self._block_tag:
             # Never in <pre>, where the line break and indentation are the code's.
             if (
-                self._block_resumed
+                (self._block_resumed or self._block_tag == _ANONYMOUS_BLOCK)
                 and not self._in_pre
                 and not (self._run_buf or self._pending_runs)
             ):
                 # A resumed segment starts right after the block that interrupted it,
-                # and markdown-it writes a line break there ("<hr />\nmore"). Source
+                # and markdown-it writes a line break there ("<hr />\nmore"), as a
+                # container's source does before its text ("<div>\n  text"). Source
                 # formatting, like the break before the block (_interrupt_open_block);
                 # an authored "&nbsp;" is not ASCII whitespace and stays (#444).
                 data = _without_line_break_edge(data, leading=True)
@@ -1664,6 +1797,7 @@ class _AstParser(HTMLParser):
         opened for bare top-level text (no closing tag ever arrives for it),
         or malformed HTML missing a final close tag — so trailing content
         isn't silently dropped."""
+        self._end_anonymous_block()
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
             self._emit_block_node(

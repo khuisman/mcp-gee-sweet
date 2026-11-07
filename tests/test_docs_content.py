@@ -17,6 +17,7 @@ from PIL import Image as PILImage
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import content as content_module
+from mcp_gee_sweet.tools.docs import html_parser
 from mcp_gee_sweet.tools.docs import images as images_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
@@ -844,6 +845,179 @@ class TestBareTopLevelText:
 # ---------------------------------------------------------------------------
 # Markdown pipeline — _md_to_html and _to_doc_requests
 # ---------------------------------------------------------------------------
+
+
+def _para_texts(html: str) -> list[str]:
+    return ["".join(r.text for r in n.runs if isinstance(r, Run)) for n in html_to_ast(html)]
+
+
+class TestContainerText:
+    """#1391: text directly inside a tag a browser draws as a block, with no <p> of its
+    own, was silently dropped, so create_doc reported success on a Doc missing it."""
+
+    def test_issue_example_keeps_every_block(self):
+        html = (
+            "<div>first in a div</div><section>second in a section</section>"
+            "<dl><dt>term</dt><dd>definition</dd></dl><p>only this paragraph</p>"
+        )
+        nodes = html_to_ast(html)
+        assert all(isinstance(n, Paragraph) for n in nodes)
+        assert _para_texts(html) == [
+            "first in a div",
+            "second in a section",
+            "term",
+            "definition",
+            "only this paragraph",
+        ]
+
+    @pytest.mark.parametrize("tag", sorted(html_parser._CONTAINER_TAGS - {"plaintext"}))
+    def test_every_container_keeps_its_text(self, tag):
+        assert _para_texts(f"<{tag}>kept</{tag}>") == ["kept"]
+
+    def test_plaintext_has_no_end_tag(self):
+        assert _para_texts("<plaintext>kept") == ["kept"]
+
+    def test_a_quote_holding_only_a_div(self):
+        nodes = html_to_ast("<blockquote><div>quoted</div></blockquote>")
+        assert len(nodes) == 1
+        assert nodes[0].runs[0].text == "quoted"
+        assert nodes[0].blockquote_depth == 1
+
+    def test_inline_only_content_in_a_quote(self):
+        nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("quoted", True)]
+        assert nodes[0].blockquote_depth == 1
+
+    def test_inline_tags_directly_in_a_container_keep_their_formatting(self):
+        nodes = html_to_ast('<div><b>bold</b> and <a href="https://x.test">link</a></div>')
+        assert len(nodes) == 1
+        assert [(r.text, r.bold, r.link_url) for r in nodes[0].runs] == [
+            ("bold", True, None),
+            (" and ", None, None),
+            ("link", None, "https://x.test"),
+        ]
+
+    def test_a_linked_image_in_a_container_keeps_its_link(self):
+        nodes = html_to_ast('<div><a href="https://x.test"><img src="a.png"></a></div>')
+        assert isinstance(nodes[0].runs[0], Image)
+        assert nodes[0].runs[0].link_url == "https://x.test"
+
+    def test_nested_containers_split_their_text(self):
+        assert _para_texts("<div>a<div>b</div>c</div>") == ["a", "b", "c"]
+
+    def test_text_around_blocks_in_a_container(self):
+        html = "<div>a<p>b</p>c<ul><li>d</li></ul>e<hr>f</div>after"
+        nodes = html_to_ast(html)
+        assert [type(n) for n in nodes] == [
+            Paragraph,
+            Paragraph,
+            Paragraph,
+            BulletItem,
+            Paragraph,
+            Paragraph,
+            Paragraph,
+            Paragraph,
+        ]
+        assert ["".join(r.text for r in n.runs) for n in nodes] == [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "",
+            "f",
+            "after",
+        ]
+        assert nodes[5].rule
+
+    def test_table_in_a_container_is_followed_by_its_text(self):
+        nodes = html_to_ast("<div><table><tr><td><div>c</div></td></tr></table>t</div>")
+        assert isinstance(nodes[0], Table)
+        assert nodes[1].runs[0].text == "t"
+
+    def test_source_line_breaks_read_as_html_not_lines(self):
+        assert _para_texts("<div>\n  line one\n  line two\n</div>") == ["line one line two"]
+
+    def test_pretty_printed_document_adds_no_empty_paragraphs(self):
+        html = (
+            "<!doctype html>\n<html>\n<head>\n  <title>T</title>\n</head>\n<body>\n"
+            "  <div>\n    <p>a</p>\n    b\n  </div>\n</body>\n</html>\n"
+        )
+        assert _para_texts(html) == ["a", "b"]
+
+    def test_body_text_of_a_document_with_no_end_tags(self):
+        assert _para_texts("<html><head><title>T</title><body>hi") == ["hi"]
+
+    def test_br_alone_is_an_empty_line(self):
+        nodes = html_to_ast("<div>a</div><div><br></div><div>b</div>")
+        assert [n.runs for n in nodes[1:2]] == [[]]
+        assert len(nodes) == 3
+
+    def test_nbsp_alone_is_kept_as_a_spacer(self):
+        assert _para_texts("<div>&nbsp;</div>") == ["\xa0"]
+
+    def test_empty_containers_add_nothing(self):
+        assert html_to_ast("<div> </div><div></div><div>\n</div><div><span></span></div>") == []
+
+    def test_a_container_left_open_is_flushed_without_its_final_line_break(self):
+        assert _para_texts("<div>unclosed\n") == ["unclosed"]
+
+    def test_inline_tag_left_open_in_a_container_doesnt_hide_later_text(self):
+        # Its end tag never comes, so its count in _tag_depth must go with the container.
+        assert _para_texts("<div><b>a</div>after") == ["a", "after"]
+
+    def test_inline_formatting_left_open_ends_with_the_container(self):
+        nodes = html_to_ast("<div><b>a</div>after")
+        assert nodes[1].runs[0].bold is None
+
+    def test_stray_container_end_tag_is_ignored(self):
+        assert _para_texts("</div>stray") == ["stray"]
+
+    def test_container_inside_an_open_block_stays_in_that_block(self):
+        assert _para_texts("<p>x<div>y</div>z</p>") == ["xyz"]
+        nodes = html_to_ast("<div><p>x<div>y</div>z</p>after</div>")
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["xyz", "after"]
+
+    def test_div_wrapping_a_list_items_text_is_still_the_bullet(self):
+        nodes = html_to_ast("<ul><li><div>x</div></li></ul>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], BulletItem)
+        assert nodes[0].runs[0].text == "x"
+
+    def test_container_in_a_table_cell_stays_cell_text(self):
+        table = html_to_ast("<table><tr><td><div>c</div></td></tr></table>")[0]
+        assert table.rows[0].cells[0].children[0].text == "c"
+
+    def test_span_with_no_block_around_it_is_still_dropped(self):
+        # The containers are an allowlist: #343's policy for inline tags is unchanged.
+        assert html_to_ast("<span>no blocks</span>") == []
+
+    @pytest.mark.parametrize("tag", sorted(html_parser._HIDDEN_TEXT_TAGS))
+    def test_hidden_text_stays_hidden_in_a_container(self, tag):
+        assert _para_texts(f"<div><{tag}>hidden</{tag}>shown</div>") == ["shown"]
+
+    def test_hidden_text_alone_opens_no_paragraph(self):
+        assert html_to_ast("<div><style>p { color: red }</style></div>") == []
+
+    def test_hidden_text_stays_out_of_an_open_block(self):
+        assert _para_texts("<p>a<style>b</style>c</p>") == ["ac"]
+
+    def test_head_with_no_end_tag_hides_nothing(self):
+        assert _para_texts("<head><meta charset='utf-8'><p>a</p>") == ["a"]
+
+    async def test_create_doc_writes_container_text(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "d1"}
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {}
+        ctx = MagicMock()
+        lc = ctx.request_context.lifespan_context
+        lc.drive_service = drive_svc
+        lc.docs_service = docs_svc
+        lc.folder_id = None
+        await _docs_tools["create_doc"](title="Doc", content="<div>kept</div>", ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert "kept" in json.dumps(body)
 
 
 class TestMdToHtml:
