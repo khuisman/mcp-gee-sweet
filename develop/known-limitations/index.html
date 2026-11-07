@@ -1811,10 +1811,17 @@ sees a confirmation: <code>send_message</code> and <code>reply_to_message</code>
 <code>sent: false</code>, and <code>send_draft</code> refuses. This happens even when the client declares form
 elicitation. <strong>Claude Code currently connects on 2026-07-28</strong> (2.1.310, checked 2026-10-26),
 so every send from Claude Code is held as a draft.</p>
+<p><strong>Claude Desktop holds sends too.</strong> On the Chat tab, Claude Desktop 4.23118.0 with the bundle
+installed (checked 2026-11-07) never showed this server's confirmation form: <code>send_message</code>
+returned <code>reason: no_elicitation</code> and left the email as a draft. Claude Desktop's own permission
+prompt may appear first, showing To, Subject and Body. Allowing it only saves the draft; nothing
+is sent. Which protocol version it connects on hasn't been checked, so this may have a different
+cause from the one below, and #1235 may not change it.</p>
 <p><strong>Why:</strong> Revision 2026-07-28 removed server-initiated requests. Asking there takes an
 <code>InputRequiredResult</code> round trip, which isn't implemented yet (#1235).</p>
 <p><strong>Workaround:</strong> Send the draft from Gmail's Drafts folder, connect with a client on the
-2025-11-25 <code>initialize</code> handshake, or set <code>GMAIL_SEND=direct</code>.</p>
+2025-11-25 <code>initialize</code> handshake, or set <code>GMAIL_SEND=direct</code>. The bundle install has no setting
+for <code>GMAIL_SEND</code>.</p>
 <h3 id="the-changed-draft-check-has-a-short-window-before-the-send">The changed-draft check has a short window before the send<a class="headerlink" href="#the-changed-draft-check-has-a-short-window-before-the-send" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> After the user confirms, the server reads the draft again and sends it only if its
 message ID is unchanged. An edit that lands between that read and Gmail's <code>drafts.send</code> would
