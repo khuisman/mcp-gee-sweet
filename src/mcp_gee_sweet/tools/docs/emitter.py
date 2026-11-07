@@ -1647,8 +1647,8 @@ def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
 
 def _list_gap_between(first: DocNode, second: DocNode) -> bool:
     """Whether `first` and `second` are where a list meets a paragraph outside it
-    (#1389): a plain paragraph followed by the first item of a list that starts deeper
-    than the paragraph's own place, or a list's last item, or a plain paragraph inside
+    (#1389): a plain paragraph followed by the first item of a list it isn't inside
+    (_starts_list_outside), or a list's last item, or a plain paragraph inside
     that item, followed by a plain paragraph shallower than it. Drive's import leaves an
     empty line on both sides of a list, an intro line's included.
 
@@ -1660,7 +1660,7 @@ def _list_gap_between(first: DocNode, second: DocNode) -> bool:
     if first.blockquote_depth or second.blockquote_depth:
         return False
     if _is_plain_paragraph(first) and _is_list_item(second):
-        return _deeper_than(_item_place(second), _list_place(first))
+        return _starts_list_outside(second, _list_place(first))
     if not _is_plain_paragraph(second):
         return False
     if _is_list_item(first):
@@ -1683,6 +1683,21 @@ def _item_place(node: DocNode) -> tuple[int, tuple[int, ...]]:
         return node.depth, node.list_path
     assert isinstance(node, Paragraph) and node.literal_item_level is not None
     return node.literal_item_level, node.list_path
+
+
+def _starts_list_outside(item: DocNode, place: tuple[int, tuple[int, ...]] | None) -> bool:
+    """Whether list item `item` (_is_list_item) belongs to a list that a paragraph at
+    `place` isn't inside: a sublist nested in the paragraph's item, or another list,
+    at any depth (PR #1406 QA round 1). Not the next item of a list the paragraph sits
+    in, which keeps the list's spacing. A BulletItem's list_path ends with its own
+    list's id, so its list is one the paragraph sits in exactly when that path is a
+    prefix of the paragraph's. A stand-in's path doesn't name its own list, and an
+    item may have no ids at all: those fall back to depth (_deeper_than)."""
+    if place is None:
+        return True
+    if isinstance(item, BulletItem) and item.list_path and place[1]:
+        return place[1][: len(item.list_path)] != item.list_path
+    return _deeper_than(_item_place(item), place)
 
 
 def _deeper_than(

@@ -1520,6 +1520,7 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - LG-03: gaps below "first", "Paragraph inside first." and "sub item". None below "Back in first.": "2. second" sits at list spacing.
 - LG-04: gaps on both sides of "Between the list and its continuation.", and the list still numbers 1, 2.
 - LG-05: no extra gap below the heading item or the code block, which keep their own spacing; a gap below "Paragraph after the heading item.", which leads into a list. The quote is one continuous bar, with no gap beside "quoted item".
+- LG-06: a gap below "Paragraph inside a." before "1. b starts a new list", the same as an intro line's. None below "Paragraph inside c1.": "c2" sits at list spacing.
 - r06: each list has the same gap from its intro line and from the paragraph after it.
 - Structure: in `documents().get()`, each gap is `spaceBelow` 10pt on one paragraph, and no empty paragraph was added. NORMAL_TEXT's `spacingMode` is the Doc's own (`COLLAPSE_LISTS` on a new Doc).
 - Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceBelow`, list items included, and on screen each place that had a 10pt gap shows the theme's 20pt instead.

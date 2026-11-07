@@ -58,3 +58,18 @@ Paragraph after the code block.
 > - quoted item
 >
 > Quoted paragraph after.
+
+### LG-06 — a paragraph in one list's last item, then another list
+
+- a
+
+  Paragraph inside a.
+
+1. b starts a new list
+
+- c
+  - c1
+
+    Paragraph inside c1.
+
+  - c2

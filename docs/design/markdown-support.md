@@ -207,9 +207,10 @@ A list gets the same gap on both sides where it meets a plain paragraph outside 
 below the paragraph before its first item, an intro line ("Install the headers:") included,
 and below its last item, or the plain paragraph that ends that item. Drive's import leaves an
 empty line in both places, and a browser's paragraph margin does the same. "Outside" is by list
-place: a paragraph inside an item followed by a sublist under that item is a list starting
-deeper than the paragraph, so it gets the gap, while the item's own text before its sublist,
-and a paragraph inside an item before the next item, keep the list's spacing. A list item
+place: a paragraph inside an item gets the gap before a sublist under that item, and before
+a different list at any depth (`_starts_list_outside`, by `list_path` ids), while the item's
+own text before its sublist, and a paragraph inside an item before the next item of a list it
+sits in, keep the list's spacing. A list item
 that's a heading, and a code block, table or rule at the list's edge, keep their own spacing.
 A quoted list gets none, for the same reason as a quoted item's text. Docs' default NORMAL_TEXT
 `spacingMode` is `COLLAPSE_LISTS`, which drops spacing only between two list items: a 10pt

@@ -1518,6 +1518,27 @@ class TestBlockSeparation:
         requests, _ = _to_doc_requests("- a\n\n  b\n\n- c\n", "markdown")
         assert self._spacing(requests) == {2: {"spaceBelow": 10}}
 
+    def test_paragraph_in_a_nested_item_and_the_next_nested_item_get_no_gap(self):
+        requests, _ = _to_doc_requests("- a\n  - b\n\n    p\n\n  - c\n", "markdown")
+        # "a\n" [1,3), "b\n" [3,5), "p\n" [5,7): only b's own gap.
+        assert self._spacing(requests) == {4: {"spaceBelow": 10}}
+
+    def test_paragraph_in_one_lists_last_item_gets_the_gap_before_another_list(self):
+        """A new list at the paragraph's own depth isn't one the paragraph sits in
+        (PR #1406 QA round 1)."""
+        requests, _ = _to_doc_requests("- a\n\n  p\n\n1. b\n", "markdown")
+        # "a\n" [1,3), "p\n" [3,5).
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 4: {"spaceBelow": 10}}
+
+    def test_paragraph_gets_the_gap_before_a_fragment_list_of_another_list(self):
+        """A list whose parents were dropped (#714) is deeper, but not nested in the
+        paragraph's item (PR #1406 QA round 1)."""
+        requests, _ = _html_to_doc_requests(
+            "<ul><li>a<p>p</p></li></ul><ul><ul><li>x</li></ul></ul>"
+        )
+        # "a\n" [1,3), "p\n" [3,5).
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 4: {"spaceBelow": 10}}
+
     def test_paragraph_between_a_list_and_its_continuation_gets_both_gaps(self):
         """#1118: the paragraph sits outside the list, which goes on counting after it."""
         requests, _ = _to_doc_requests("1. a\n\np\n\n2. b\n", "markdown")
