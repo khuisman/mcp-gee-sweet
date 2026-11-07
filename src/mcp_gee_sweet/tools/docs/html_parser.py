@@ -66,24 +66,23 @@ _PRE_ALIASES = {"listing": "pre", "xmp": "pre", "plaintext": "pre"}
 # _BLOCK_TAGS entry: only _end_anonymous_block closes it.
 _ANONYMOUS_BLOCK = "div"
 # Elements a browser doesn't draw: a stylesheet, a script, the page title, or fallback
-# for something else. <head> isn't one: its end tag is optional, so it could hide the
-# whole document, and everything in it that has text is listed here anyway. Any element
-# with the hidden attribute or display:none, and a <dialog> that isn't open, is hidden
-# too (_is_hidden).
+# for a script, frame or plugin. <head> isn't one: its end tag is optional, so it could
+# hide the whole document, and everything in it that has text is listed here anyway. Any
+# element with the hidden attribute or display:none, and a <dialog> that isn't open, is
+# hidden too (_is_hidden). <video>, <audio>, <canvas> and <object> aren't: a Doc can't
+# play or draw one, so its fallback content is what a reader can get, and one left
+# unclosed in Markdown would otherwise hide the rest of the document (PR #1400 QA
+# round 2).
 _HIDDEN_TAGS = {
-    "audio",
-    "canvas",
     "datalist",
     "iframe",
     "noembed",
     "noframes",
     "noscript",
-    "object",
     "script",
     "style",
     "template",
     "title",
-    "video",
 }
 # An end tag outside the table structure never closes past an open table or cell, as in
 # a browser: a </div> inside a cell can't close a <div> around the table.
@@ -117,11 +116,78 @@ def _is_hidden(tag: str, attr_dict: dict) -> bool:
         return True
     if tag == "dialog" and "open" not in attr_dict:
         return True
-    for declaration in reversed((attr_dict.get("style") or "").split(";")):
+    return _css_value(attr_dict, "display", _display_value) == "none"
+
+
+# CSS display keywords, any combination of which _display_value accepts as a valid value.
+_DISPLAY_KEYWORDS = {
+    "block",
+    "contents",
+    "flex",
+    "flow",
+    "flow-root",
+    "grid",
+    "inline",
+    "inline-block",
+    "inline-flex",
+    "inline-grid",
+    "inline-table",
+    "list-item",
+    "none",
+    "ruby",
+    "ruby-base",
+    "ruby-base-container",
+    "ruby-text",
+    "ruby-text-container",
+    "run-in",
+    "table",
+    "table-caption",
+    "table-cell",
+    "table-column",
+    "table-column-group",
+    "table-footer-group",
+    "table-header-group",
+    "table-row",
+    "table-row-group",
+    "-webkit-box",
+    "-webkit-inline-box",
+    "-moz-box",
+    "-moz-inline-box",
+    "-ms-flexbox",
+    "-ms-inline-flexbox",
+    "-ms-grid",
+    "-ms-inline-grid",
+    "inherit",
+    "initial",
+    "revert",
+    "revert-layer",
+    "unset",
+}
+
+
+def _display_value(value: str) -> str | None:
+    """A display value as CSS keeps it, or None for one it drops as invalid."""
+    words = value.split()
+    return value if words and all(w in _DISPLAY_KEYWORDS for w in words) else None
+
+
+def _css_value(attr_dict: dict, prop: str, parse):
+    """The value of `prop` in an element's style attribute, as CSS resolves it, parsed by
+    `parse` (None for a value CSS would drop as invalid), or None. An !important
+    declaration beats a normal one, and the last valid declaration of the same
+    importance wins: CSS drops an invalid one, so `display:none; display:bogus` is none
+    (PR #1400 QA round 2)."""
+    result, result_important = None, False
+    for declaration in (attr_dict.get("style") or "").split(";"):
         name, sep, value = declaration.partition(":")
-        if sep and name.strip().lower() == "display":
-            return _IMPORTANT.sub("", value.strip().lower()).strip() == "none"
-    return False
+        if not sep or name.strip().lower() != prop:
+            continue
+        value = value.strip().lower()
+        important = _IMPORTANT.search(value) is not None
+        parsed = parse(_IMPORTANT.sub("", value).strip())
+        if parsed is not None and (important or not result_important):
+            result, result_important = parsed, important
+    return result
 
 
 @dataclass
@@ -496,16 +562,10 @@ _TABLE_SECTIONS = ("thead", "tbody", "tfoot")
 
 
 def _text_align(attr_dict: dict) -> str | None:
-    """An element's own style text-align as a Docs paragraph alignment, or None. The
-    last declaration with a value we can map wins: CSS drops an invalid declaration,
-    so `text-align:right; text-align:bogus` is right."""
-    for declaration in reversed((attr_dict.get("style") or "").split(";")):
-        name, sep, value = declaration.partition(":")
-        if sep and name.strip().lower() == "text-align":
-            alignment = _CELL_ALIGNMENTS.get(_IMPORTANT.sub("", value.strip().lower()).strip())
-            if alignment is not None:
-                return alignment
-    return None
+    """An element's own style text-align as a Docs paragraph alignment, or None, resolved
+    as CSS does (_css_value): `text-align:right; text-align:bogus` is right, since we
+    can only map a valid value."""
+    return _css_value(attr_dict, "text-align", _CELL_ALIGNMENTS.get)
 
 
 def _cell_alignment(attr_dict: dict, *, align_attribute: bool = True) -> str | None:
@@ -810,8 +870,29 @@ class _AstParser(HTMLParser):
                 self._hidden_depth -= 1
             if element.counted:
                 self._tag_depth -= 1
+            if element.container_text:
+                self._container_depth -= 1
             popped.append(element)
         return popped
+
+    def _close_implied_table_parts(self, tag: str) -> None:
+        """Close the cell (for a <td>/<th>) or row (for a <tr> or table section) open in
+        the innermost open table, if any, through the ordinary end-tag path."""
+        table = next(
+            (
+                position
+                for position in reversed(self._scope_boundaries)
+                if self._open_elements[position].tag == "table"
+            ),
+            None,
+        )
+        if table is None:
+            return
+        for part in ("td", "th") if tag in ("td", "th") else ("tr",):
+            positions = self._open_index.get(part)
+            if positions and positions[-1] > table:
+                self.handle_endtag(part)
+                return
 
     def _can_open_anonymous_block(self) -> bool:
         """True where content with no block of its own gets a paragraph (#1391): directly
@@ -1302,6 +1383,11 @@ class _AstParser(HTMLParser):
             if tag not in _VOID_TAGS:
                 self._push_element(_OpenElement(tag, inert=True, hidden=hidden))
             return
+        # A cell or row start tag closes the cell or row open in the same table first,
+        # as a browser's implied end tags do: <td>a<td>b is two cells, and
+        # <tr><td>a<tr><td>b two rows (PR #1400 QA round 2).
+        if tag in ("td", "th", "tr", "thead", "tbody", "tfoot"):
+            self._close_implied_table_parts(tag)
         if tag not in _VOID_TAGS:
             self._push_element(_OpenElement(tag))
 
@@ -1579,9 +1665,14 @@ class _AstParser(HTMLParser):
                 # embedded image makes no sense.
                 src = _image_src(attr_dict)
                 if src:
-                    self._pending_runs.append(
-                        _make_image(attr_dict, src, self._link_url[-1] if self._link_url else None)
-                    )
+                    link_url = self._link_url[-1] if self._link_url else None
+                    if link_url is None and self._block_tag == _ANONYMOUS_BLOCK:
+                        # An <a> around the container, which opened with no block around
+                        # it, pushed its href as a bare link, which a bare <img> uses
+                        # (#977); one in the container's paragraph keeps it the same way
+                        # (PR #1400 QA round 2).
+                        link_url = self._bare_link_url[-1] if self._bare_link_url else None
+                    self._pending_runs.append(_make_image(attr_dict, src, link_url))
                     self._ends_with_line_break = False
                 elif self._block_tag:
                     self._block_had_unsupported_content = True
@@ -1619,7 +1710,6 @@ class _AstParser(HTMLParser):
         # --- block container with no node of its own (#1391) ---
         if element.container_text:
             self._end_anonymous_block()
-            self._container_depth -= 1
             return
         # --- table structure ---
         if tag == "table":

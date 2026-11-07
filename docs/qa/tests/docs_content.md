@@ -6876,10 +6876,10 @@ Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared D
 Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match round 1's exactly. Cleanup: the three docs trashed.
 
 ### TC-DOC250: An end tag closes everything left open inside it, and hidden elements add nothing to the Doc (#1391) ⚠️ requires-oauth
-**Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed `<video>` or `<canvas>` hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
+**Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed hidden element hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
 
 **Steps**
-1. `create_doc(title="TC-DOC250 unclosed", folder_id={FOLDER_ID}, content="<div><video src='x.mp4'></div><p>visible one</p><p><canvas></p><p>visible two</p><table><tr><td><audio src='x.mp3'></td><td>cell text</td></tr></table><div>a<p>b</div>c<div>d</section>e</div><section><ul><li>item</section>after list<blockquote><b>quoted bold</blockquote>after quote")` → record `docId` as `{UNCLOSED}`
+1. `create_doc(title="TC-DOC250 unclosed", folder_id={FOLDER_ID}, content="<div><datalist id='x'></div><p>visible one</p><p><datalist></p><p>visible two</p><table><tr><td><datalist id='y'></td><td>cell text</td></tr></table><div>a<p>b</div>c<div>d</section>e</div><section><ul><li>item</section>after list<blockquote><b>quoted bold</blockquote>after quote")` → record `docId` as `{UNCLOSED}`
 2. `get_doc_as_markdown(doc_id={UNCLOSED})`
 3. `create_doc(title="TC-DOC250 hidden", folder_id={FOLDER_ID}, content="<p>shown<span style='display:none'> preheader</span></p><h1><script>var x = 1;</script></h1><noscript><table><tr><td>no script</td></tr></table><img src='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png'></noscript><div hidden>hidden div</div><dialog>closed dialog</dialog><dialog open>open dialog</dialog><p>end</p>")` → record `docId` as `{HIDDEN}`
 4. `get_doc_as_markdown(doc_id={HIDDEN})`
@@ -6893,3 +6893,20 @@ Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared D
 
 **Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
 Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports, in order, "visible one", "visible two", a two-cell table with an empty first cell and "cell text" in the second, then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. The export has the usual empty paragraph before the table. Step 4 exports exactly "shown", "open dialog" and "end". The case passes, but the round was sent back for review findings outside its inputs. One was confirmed in a live probe doc: Markdown `# Demo` / `<video src="demo.mp4" controls>` / `## Install` / `Run the thing.` gives a Doc holding only "Demo", and `create_doc` reports success. Cleanup: the two docs and the probe doc trashed.
+
+### TC-DOC251: Media fallback is shown, a linked image in a div keeps its link, omitted cell and row end tags split cells and rows, and display resolves as CSS does (#1391) ⚠️ requires-oauth
+**Purpose:** PR #1400 round 2. A Doc can't play or draw `<video>`, `<audio>`, `<canvas>` or `<object>`, so their fallback content is shown, and one left unclosed in Markdown no longer hides the rest of the document. An `<a>` around a `<div>` holding an image links the image. A `<td>` start tag closes the open cell and a `<tr>` the open row, as a browser's implied end tags do. A `display` declaration follows CSS: `!important` wins, and an invalid value is ignored.
+
+**Steps**
+1. `create_doc(title="TC-DOC251 markdown", folder_id={FOLDER_ID}, content_format="markdown", content="# Demo\n\n<video src=\"demo.mp4\" controls>\n\n## Install\n\nRun the thing.")` → record `docId` as `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC251 html", folder_id={FOLDER_ID}, content="<p>before <canvas>canvas fallback</canvas> after</p><p><object data=\"d.svg\"><img src=\"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png\" width=\"136\" height=\"46\"></object></p><a href=\"https://example.com/logo\"><div><img src=\"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png\" width=\"136\" height=\"46\"></div></a><table><tr><td>a<td>b<tr><td>c<td>d</table><div style=\"display:none !important; display:block\">important hidden</div><div style=\"display:none; display:bogus\">invalid hidden</div><div style=\"display:none; display:block\">shown block</div>")` → record `docId` as `{HTML}`
+4. `get_doc_as_markdown(doc_id={HTML})`
+
+**Checks**
+- Steps 1 and 3 return a `docId` with no `error`
+- Step 2: "Demo" and "Install" are headings, followed by the paragraph "Run the thing."
+- Step 4: in order, "before canvas fallback after", an image, an image linked to `https://example.com/logo`, a 2×2 table reading a/b on the first row and c/d on the second, then "shown block"
+- Step 4: "important hidden" and "invalid hidden" appear nowhere
+
+**Cleanup:** `delete_file` the two docs

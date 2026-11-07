@@ -1060,9 +1060,9 @@ class TestContainerText:
     @pytest.mark.parametrize(
         ("html", "texts"),
         [
-            ("<div><video src='x'></div><p>visible</p><p>more</p>", ["visible", "more"]),
-            ("<p><canvas></p><p>visible</p>", ["visible"]),
-            ("<p>a<object>b</p><p>visible</p>", ["a", "visible"]),
+            ("<div><datalist id='x'></div><p>visible</p><p>more</p>", ["visible", "more"]),
+            ("<p><datalist></p><p>visible</p>", ["visible"]),
+            ("<p>a<datalist>b</p><p>visible</p>", ["a", "visible"]),
         ],
     )
     def test_unclosed_hidden_element_ends_with_its_parent(self, html, texts):
@@ -1070,7 +1070,7 @@ class TestContainerText:
 
     def test_unclosed_hidden_element_ends_with_its_cell(self):
         nodes = html_to_ast(
-            "<table><tr><td><audio src=x></td><td>cell</td></tr></table><p>after</p>"
+            "<table><tr><td><datalist id=x></td><td>cell</td></tr></table><p>after</p>"
         )
         cells = nodes[0].rows[0].cells
         assert cells[0].children == []
@@ -1135,6 +1135,69 @@ class TestContainerText:
 
     def test_container_start_ends_bare_text_before_it(self):
         assert _para_texts("bare\n<div>boxed</div>") == ["bare", "boxed"]
+
+    # PR #1400 QA round 2.
+
+    def test_unclosed_video_in_markdown_hides_nothing(self):
+        html = _md_to_html('# Demo\n\n<video src="demo.mp4" controls>\n\n## Install\n\nRun it.')
+        assert _para_texts(html) == ["Demo", "Install", "Run it."]
+
+    @pytest.mark.parametrize("tag", ["video", "audio", "canvas", "object"])
+    def test_media_fallback_content_is_shown(self, tag):
+        assert _para_texts(f"<p>x<{tag}>fallback</{tag}> y</p>") == ["xfallback y"]
+
+    def test_object_fallback_image_is_embedded(self):
+        nodes = html_to_ast('<p><object data="d.svg"><img src="https://x.test/d.png"></object></p>')
+        assert isinstance(nodes[0].runs[0], Image)
+
+    def test_linked_image_in_a_container_keeps_its_link(self):
+        nodes = html_to_ast(
+            '<a href="https://x.test"><div><img src="https://y.test/a.png"></div></a>'
+        )
+        assert nodes[0].runs[0].link_url == "https://x.test"
+
+    @pytest.mark.parametrize(
+        ("html", "cells"),
+        [
+            ("<table><tr><td>a<td>b</tr></table>", [["a", "b"]]),
+            ("<table><tr><td>a</td><tr><td>b</td></table>", [["a"], ["b"]]),
+            ("<table><tr><td>a<td>b<tr><td>c<td>d</table>", [["a", "b"], ["c", "d"]]),
+            ("<table><thead><tr><th>h<tbody><tr><td>x</table>", [["h"], ["x"]]),
+        ],
+    )
+    def test_omitted_cell_and_row_end_tags(self, html, cells):
+        table = html_to_ast(html)[0]
+        assert [
+            ["".join(c.text for c in cell.children) for cell in row.cells] for row in table.rows
+        ] == cells
+
+    def test_cell_start_in_a_nested_table_leaves_the_outer_cell_open(self):
+        table = html_to_ast("<table><tr><td><table><tr><td>in<td>in2</table>out<td>o2</table>")[0]
+        outer = table.rows[0].cells
+        assert isinstance(outer[0].children[0], Table)
+        assert [len(r.cells) for r in outer[0].children[0].rows] == [2]
+        assert outer[0].children[1].text == "out"
+        assert outer[1].children[0].text == "o2"
+
+    @pytest.mark.parametrize(
+        ("style", "hidden"),
+        [
+            ("display:none !important; display:block", True),
+            ("display:none; display:bogus", True),
+            ("display:none; display:block", False),
+            ("display:block !important; display:none", False),
+            ("display: inline flex", False),
+            ("DISPLAY: NONE", True),
+        ],
+    )
+    def test_display_resolves_as_css_does(self, style, hidden):
+        assert (_para_texts(f"<div style='{style}'>x</div>") == []) is hidden
+
+    def test_text_align_important_wins(self):
+        assert (
+            html_parser._text_align({"style": "text-align:right !important; text-align:left"})
+            == "END"
+        )
 
     def test_end_tag_in_a_cell_never_closes_past_the_table(self):
         nodes = html_to_ast("<div>a<table><tr><td>c</div>d</td></tr></table>e</div>")
