@@ -160,9 +160,10 @@ nested quotes, so nothing is lost. A separator between two quoted lists also spl
 into two Docs lists, as the source has.
 
 `_block_spacing` gives a quoted node 8pt above where its quote meets content outside it
-(an unquoted node, a table, or the start) and 8pt below likewise, and nothing between
-the paragraphs of one quote. A code block gets 8pt above and below, which is what tells
-two consecutive code blocks apart.
+(an unquoted node, a table, or the start) and 8pt below likewise. Between two paragraphs
+of one quote at one depth there's only the paragraph gap every paragraph break gets
+(#1382, 10pt), which the bar covers, as the table's second row shows. A code block gets 8pt
+above and below, which is what tells two consecutive code blocks apart.
 
 Two exceptions, both from PR #1199's QA round 1:
 

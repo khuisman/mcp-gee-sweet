@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
@@ -1831,6 +1833,79 @@ class TestApplyThemeTool:
         reqs = call_kwargs["body"]["requests"]
         assert any("updateNamedStyle" in r for r in reqs)
         assert any("updateTextStyle" in r for r in reqs)
+
+    @staticmethod
+    def _paragraph_gap_doc():
+        """A gap paragraph, a code block with its 8pt, and a heading at the gap's value."""
+
+        def paragraph(start, end, named_style, space_below):
+            return {
+                "startIndex": start,
+                "endIndex": end,
+                "paragraph": {
+                    "paragraphStyle": {
+                        "namedStyleType": named_style,
+                        "spaceBelow": {"magnitude": space_below, "unit": "PT"},
+                    },
+                    "elements": [],
+                },
+            }
+
+        return {
+            "body": {
+                "content": [
+                    {"endIndex": 1, "sectionBreak": {}},
+                    paragraph(1, 3, "NORMAL_TEXT", 10),
+                    paragraph(3, 5, "NORMAL_TEXT", 8),
+                    paragraph(5, 7, "HEADING_1", 10),
+                ]
+            }
+        }
+
+    async def _run_theme(self, theme, **kwargs):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._paragraph_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx, **kwargs)
+        return mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+
+    @pytest.mark.parametrize("key", ["space_above", "space_below"])
+    async def test_theme_spacing_replaces_the_paragraph_gap(self, key):
+        """#1382: a value on the paragraph would beat the theme's NORMAL_TEXT."""
+        reqs = await self._run_theme({"NORMAL_TEXT": {key: 20}})
+        assert [r for r in reqs if "updateParagraphStyle" in r] == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 1, "endIndex": 3},
+                    "paragraphStyle": {},
+                    "fields": "spaceBelow",
+                }
+            }
+        ]
+
+    @pytest.mark.parametrize(
+        "theme",
+        [{"NORMAL_TEXT": {"font_family": "Georgia"}}, {"HEADING_1": {"space_below": 20}}],
+    )
+    async def test_theme_without_body_spacing_keeps_the_paragraph_gap(self, theme):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx)
+        mock_docs.documents().get.assert_not_called()
+
+    async def test_overwrite_spacing_lands_after_the_gap_is_cleared(self):
+        reqs = await self._run_theme({"NORMAL_TEXT": {"space_below": 20}}, overwrite=True)
+        styles = [
+            r["updateParagraphStyle"]
+            for r in reqs
+            if r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 1
+        ]
+        assert styles[0]["paragraphStyle"] == {}
+        assert styles[-1]["paragraphStyle"]["spaceBelow"]["magnitude"] == 20
 
     async def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()

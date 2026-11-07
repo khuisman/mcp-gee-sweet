@@ -38,9 +38,11 @@ from .emitter import (
     ast_to_requests,
     extract_images,
     fill_tables,
+    has_own_paragraph_spacing,
     heading_image_ids,
     iter_cell_leaves,
     unstorable_link_urls,
+    without_paragraph_gaps,
 )
 from .html_parser import html_to_ast
 from .images import (
@@ -775,6 +777,8 @@ async def _replace_doc_content(
                 "docId": doc_id,
             }
     doc, end_index = await _doc_end_index(docs_service, doc_id)
+    if has_own_paragraph_spacing(doc):
+        converted.requests = without_paragraph_gaps(converted.requests)
 
     backup: dict[str, Any] = {}
     no_backup_reason: str | None = None

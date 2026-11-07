@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .emitter import PARAGRAPH_GAP_PT
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
 
@@ -117,6 +118,29 @@ def _read_named_styles(doc: dict) -> dict:
         if entry:
             theme[style_type] = entry
     return theme
+
+
+def _clear_paragraph_gap_requests(doc: dict) -> list[dict]:
+    """Requests that hand NORMAL_TEXT body paragraphs carrying the emitter's paragraph
+    gap (#1382) back to the named style: a value set on the paragraph beats the style,
+    so a theme's spacing wouldn't reach them. Fields named, values absent, resets it."""
+    requests = []
+    for elem in doc.get("body", {}).get("content", []):
+        paragraph_style = elem.get("paragraph", {}).get("paragraphStyle", {})
+        if (
+            paragraph_style.get("namedStyleType") == "NORMAL_TEXT"
+            and paragraph_style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
+        ):
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "range": {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]},
+                        "paragraphStyle": {},
+                        "fields": "spaceBelow",
+                    }
+                }
+            )
+    return requests
 
 
 def _add_or_clear_field(
@@ -1101,7 +1125,9 @@ def register(tool):
         style defaults via updateNamedStyle. Paragraphs that have explicit individual style
         overrides are unaffected — their styles take precedence over the named style
         defaults. This preserves intentional per-paragraph variations (e.g. a section
-        deliberately styled in a different colour).
+        deliberately styled in a different colour). One exception: a NORMAL_TEXT entry
+        with space_above or space_below replaces the 10pt space below a paragraph that
+        a Markdown or HTML write leaves between paragraphs, so the theme's spacing shows.
 
         For AI-generated docs where all content uses explicit paragraph/run styles, the
         default mode updates the named style definitions but does not visually change
@@ -1155,9 +1181,12 @@ def register(tool):
         for style_type, entry in named_style_keys.items():
             requests.extend(_build_named_style_requests(style_type, entry))
 
-        # Fetch the doc only when needed (overwrite mode or table styling)
+        normal_text = named_style_keys.get("NORMAL_TEXT", {})
+        sets_paragraph_spacing = "space_above" in normal_text or "space_below" in normal_text
+
+        # Fetch the doc only when needed (overwrite mode, table styling, or paragraph gaps)
         doc: dict | None = None
-        if overwrite or table_style:
+        if overwrite or table_style or sets_paragraph_spacing:
             try:
                 doc = await execute_in_thread(
                     lc.docs_service.documents().get(documentId=doc_id).execute,
@@ -1165,6 +1194,10 @@ def register(tool):
                 )
             except Exception as e:
                 return {"error": f"failed to fetch doc: {e}"}
+
+        # Before the overwrite pass, whose own space_below on a paragraph must win.
+        if sets_paragraph_spacing and doc:
+            requests.extend(_clear_paragraph_gap_requests(doc))
 
         # When overwrite=True, also apply styles directly to all existing paragraphs
         if overwrite and named_style_keys and doc:

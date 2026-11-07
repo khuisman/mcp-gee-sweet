@@ -1504,6 +1504,13 @@ def _deferred_indent_request(node: DocNode, rng: dict, *, between_lists: bool) -
 # paragraphs around it and two code blocks in a row read as one.
 _BLOCK_SPACING_PT = 8
 
+# Space below a paragraph that the next paragraph follows (#1382): what Docs' own "Add
+# space after paragraph" adds, so a blank line in the source reads as a break. It's
+# explicit paragraph styling, which beats the doc's NORMAL_TEXT, so a doc with spacing of
+# its own doesn't take it: see without_paragraph_gaps and apply_theme, which finds it by
+# this value. Keep it different from every other spacing the emitter writes.
+PARAGRAPH_GAP_PT = 10
+
 
 def _quoted(node: DocNode) -> bool:
     return not isinstance(node, Table) and node.blockquote_depth > 0
@@ -1550,6 +1557,43 @@ def _has_named_spacing(node: DocNode) -> bool:
     if isinstance(node, BulletItem):
         return node.heading_level is not None
     return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
+
+
+def _has_visible_content(node: DocNode) -> bool:
+    return any(isinstance(run, Image) or run.text.strip() for run in node.runs)
+
+
+def _is_plain_paragraph(node: DocNode) -> bool:
+    """Whether `node` is body text with something on its line: not code, a rule, a
+    stand-in for a list item, or a whitespace-only spacer, which is a gap already."""
+    if isinstance(node, NamedBlock):
+        plain = node.style_type == "NORMAL_TEXT"
+    elif isinstance(node, Paragraph):
+        plain = not (node.rule or node.literal_item_level is not None)
+        plain = plain and not _is_code_paragraph(node)
+    else:
+        return False
+    return plain and _has_visible_content(node)
+
+
+def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether a paragraph break between two adjacent nodes needs PARAGRAPH_GAP_PT
+    (#1382): `second` is a plain paragraph in the same place as `first`, which is one
+    too or the text of the list item `second` sits in. Same place means the same quote
+    at the same depth, whose bar covers the gap (a neighbour with another border leaves
+    the gap unbarred, PR #1326 QA round 1), and the same list item."""
+    first_is_text = (
+        first.heading_level is None and _has_visible_content(first)
+        if isinstance(first, BulletItem)
+        else _is_plain_paragraph(first)
+    )
+    return (
+        first_is_text
+        and _is_plain_paragraph(second)
+        and first.blockquote_depth == second.blockquote_depth
+        and first.blockquote_path == second.blockquote_path
+        and _list_place(first) == _list_place(second)
+    )
 
 
 def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
@@ -1617,7 +1661,11 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
     a code block gets both, and a quoted node gets space on each side where its quote
     meets content outside it (an unquoted node, an unquoted table, or the edge). Nodes
     inside one quote get none between them, a quoted table included (#1122), so the
-    quote stays one block. A table itself gets no spacing.
+    quote stays one block, unless they're two paragraphs of that quote. A table itself
+    gets no spacing.
+
+    A paragraph break gets PARAGRAPH_GAP_PT below the first paragraph (#1382), so two
+    paragraphs don't read as one with a line break (_paragraph_gap_between).
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
@@ -1657,6 +1705,13 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
+        following = nodes[i + 1] if i + 1 < len(nodes) else None
+        if (
+            following is not None
+            and id(following) not in separators
+            and _paragraph_gap_between(node, following)
+        ):
+            below = PARAGRAPH_GAP_PT
         if above or below:
             spacing[i] = (above, below)
     return spacing
@@ -1683,6 +1738,30 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
                 }
             )
     return requests
+
+
+def has_own_paragraph_spacing(doc: dict) -> bool:
+    """Whether a `documents().get()` response's NORMAL_TEXT has spacing of its own, as
+    a theme gives it, which a paragraph gap would override."""
+    for style in doc.get("namedStyles", {}).get("styles", []):
+        if style.get("namedStyleType") == "NORMAL_TEXT":
+            paragraph_style = style.get("paragraphStyle", {})
+            return any(
+                paragraph_style.get(field_name, {}).get("magnitude")
+                for field_name in ("spaceAbove", "spaceBelow")
+            )
+    return False
+
+
+def without_paragraph_gaps(requests: list[dict]) -> list[dict]:
+    """`requests` without the paragraph gaps (#1382), for a doc whose own spacing should
+    stand. The gaps are paragraph styling, so nothing else's position moves."""
+    return [request for request in requests if not _is_paragraph_gap(request)]
+
+
+def _is_paragraph_gap(request: dict) -> bool:
+    style = request.get("updateParagraphStyle", {}).get("paragraphStyle", {})
+    return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
 
 
 def _collapse_paragraph_requests(rng: dict) -> list[dict]:

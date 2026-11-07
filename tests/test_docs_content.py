@@ -3106,6 +3106,30 @@ class TestUpdateDocFromFile:
         content_requests = calls[1]
         assert any("insertText" in r for r in content_requests)
 
+    @pytest.mark.parametrize(
+        "normal_text, gaps",
+        [({}, 1), ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, 0)],
+    )
+    async def test_doc_with_its_own_spacing_gets_no_paragraph_gap(
+        self, tmp_path, normal_text, gaps
+    ):
+        """#1382: a gap set on a paragraph would override the doc's theme."""
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("One\n\nTwo\n")
+        drive_svc, docs_svc = self._make_services(end_index=50)
+        doc = docs_svc.documents().get().execute.return_value
+        doc["namedStyles"] = {
+            "styles": [{"namedStyleType": "NORMAL_TEXT", "paragraphStyle": normal_text}]
+        }
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["update_doc_from_file"](doc_id="doc1", local_path=str(md_file), ctx=ctx)
+        content_requests = self._batchupdate_calls(docs_svc)[1]
+        assert gaps == sum(
+            r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).get("spaceBelow")
+            == {"magnitude": 10, "unit": "PT"}
+            for r in content_requests
+        )
+
     async def test_empty_doc_skips_clear_requests(self, tmp_path):
         md_file = tmp_path / "notes.md"
         md_file.write_text("New content\n")

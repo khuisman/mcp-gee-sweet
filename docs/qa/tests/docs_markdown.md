@@ -748,7 +748,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | BR-06 | Same as BR-04 | — |
 | BR-07 | A Heading 2 "This line becomes a level-two heading"; no line | `HEADING_2` |
 | BR-08 | Same as BR-04 | — |
-| BR-09 | Two paragraphs with normal paragraph spacing, no extra empty paragraphs | 2 paragraphs |
+| BR-09 | Two paragraphs with a visible gap between them (#1382), no extra empty paragraphs. EP-1 to EP-4 and EP-8: 10pt `spaceBelow` on the first. EP-5 to EP-7: Drive's import writes the gap as an empty paragraph (D4), so they show 3 paragraphs | 2 paragraphs |
 
 **Result (2026-10-18) ❌ FAIL — 40/72 case×EP cells pass, in both runs; failures: #1093, #1117, #1116, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
@@ -1300,6 +1300,7 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 - Headings take the theme: Heading 1/2 in Montserrat, blue-ish, bold; Heading 3 Montserrat, gray, italic. Body text in Georgia.
 - Code spans and code blocks are still Courier New, not Georgia.
 - Lists, tables and numbering render exactly as in TC-MD002.
+- Paragraph spacing stays the Doc's (#1382): this theme sets none, so adjacent paragraphs carry the 10pt gap. TC-MD506 covers a theme that does set it.
 
 **Result (2026-10-22) ❌ FAIL — 0/2 cells pass. Headings and body take the theme; table cells also take the heading look in the themed Doc only (#1097); lists fail as in TC-MD002 (#1071). r02 has no code, so the Courier New check isn't exercised. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 
@@ -1428,6 +1429,22 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's `get_doc_as_markdown` line: `Quote roman` exports `1.` under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan `<li>` keeps its bullet, and `2.` after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (`- a`, then `> 3. b` under it) renders correctly but exports `> > > c.<tab>b`, with the raw marker and two extra quote levels, where round 2's head exported a list item.**
 
 **Result (2026-11-04, PR #1368 QA round 4 @ d4908a51, Sky) ⚠️ PARTIAL — every check passes, in one run. LM-04 and LX-09: on screen at EP-1; EP-8 has the same paragraphs, indents and bullets through `documents().get()`; EP-3 and EP-4 match each other across the whole fixture (LX-09 to LX-24 and LM-04); EP-2's existing-Doc run with LM-04 kept the header and the changed named style. Round trip as listed. HTML: `reversed` 3. 2. 1. and `value` 5. 6. by structure and export at EP-1. Hand-numbered heading: `1.<tab>Introduction` keeps its number and its `#1-introduction` link. LX-23 exports as the plain paragraph the table now expects, the maintainer's scope cut. Not run: the second run, LX-09 through EP-2 at this head, and the TC-MD105/TC-MD108 grids.**
+
+### TC-MD506: A gap between paragraphs, on its own and under a theme ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/realistic/r06-howto.md` and `docs/qa/fixtures/md/syntax/md-paragraph-gaps.md` through EP-1 to EP-4. #1382's done-when. Then run the two theme orders below on the gaps fixture.
+
+**Checks**
+- r06: in Troubleshooting, "Port 5432 is already in use." and "`pip install` fails" read as two paragraphs, with a gap about two thirds of a line, in the same range as the 8pt around its code blocks. `get_doc_structure` shows no extra empty paragraphs.
+- PG-01 and PG-02: a gap below each paragraph that a paragraph follows, none inside a wrapped line, and none for PG-02's soft-broken lines.
+- PG-03: one continuous quote bar, with the gap inside it. The nested quote gets no gap above it, and the outer bar breaks only where it does without this fix.
+- PG-04: a gap below the item's text and between its paragraphs. The markers and the next item keep their list spacing.
+- PG-05: no doubled space beside the code block, and none added beside the spacer line.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand. Nothing in the export shows the gap.
+- Theme after: on a Doc written through EP-1, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. `spaceBelow` is absent from the gap paragraphs in `documents().get()`, and on screen every body paragraph has the theme's 20pt, list items included.
+- Theme before: run the same `apply_theme` on a blank Doc, then write through EP-2 and, on a second Doc, EP-4. No paragraph carries an explicit 10pt, and on screen the theme's 20pt stands.
+- A theme with no spacing, `{"NORMAL_TEXT": {"font_family": "Georgia"}}`, leaves the gaps in place in either order.
 
 ---
 
