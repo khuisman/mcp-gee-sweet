@@ -16,6 +16,8 @@ A few highlights:
 - **Formula access** — reads raw `=VLOOKUP()`, `=SUM()`, and `=IF()` expressions, not just the values they produce.
 - **Local sync** — two-way sync between a local folder and Google Drive.
 
+<img src="https://raw.githubusercontent.com/khuisman/mcp-gee-sweet/develop/docs/assets/readme-demo.png" alt="A Markdown file in an editor beside the Google Doc that create_doc_from_file produces from it, with the heading, table, nested list, quote, and code block intact" width="100%">
+
 **Install (stable):**
 ```bash
 uvx mcp-gee-sweet
