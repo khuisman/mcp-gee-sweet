@@ -6875,6 +6875,9 @@ Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared D
 **Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
 Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match round 1's exactly. Cleanup: the three docs trashed.
 
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. The exports match rounds 1 and 2 exactly. Cleanup: the three docs trashed.
+
 ### TC-DOC250: An end tag closes everything left open inside it, and hidden elements add nothing to the Doc (#1391) ⚠️ requires-oauth
 **Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed hidden element hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
 
@@ -6894,6 +6897,9 @@ Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared D
 **Result (2026-11-07) ✅ PASS — PR #1400 round 2 (Kit)**
 Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports, in order, "visible one", "visible two", a two-cell table with an empty first cell and "cell text" in the second, then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. The export has the usual empty paragraph before the table. Step 4 exports exactly "shown", "open dialog" and "end". The case passes, but the round was sent back for review findings outside its inputs. One was confirmed in a live probe doc: Markdown `# Demo` / `<video src="demo.mp4" controls>` / `## Install` / `Run the thing.` gives a Doc holding only "Demo", and `create_doc` reports success. Cleanup: the two docs and the probe doc trashed.
 
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps with step 1's new `<datalist>` content. Step 2 exports "visible one", "visible two", a table with an empty first cell and "cell text" in the second (after the usual empty paragraph before a table), then "a", "b", "c", "de", `- item`, "after list", `> **quoted bold**` and an unbolded "after quote" outside the quote. Step 4 exports exactly "shown", "open dialog" and "end". Cleanup: the two docs trashed.
+
 ### TC-DOC251: Media fallback is shown, a linked image in a div keeps its link, omitted cell and row end tags split cells and rows, and display resolves as CSS does (#1391) ⚠️ requires-oauth
 **Purpose:** PR #1400 round 2. A Doc can't play or draw `<video>`, `<audio>`, `<canvas>` or `<object>`, so their fallback content is shown, and one left unclosed in Markdown no longer hides the rest of the document. An `<a>` around a `<div>` holding an image links the image. A `<td>` start tag closes the open cell and a `<tr>` the open row, as a browser's implied end tags do. A `display` declaration follows CSS: `!important` wins, and an invalid value is ignored.
 
@@ -6910,3 +6916,6 @@ Live on `mcp-gee-sweet-kit` at 24877225, after `/mcp reconnect` (OAuth, Shared D
 - Step 4: "important hidden" and "invalid hidden" appear nowhere
 
 **Cleanup:** `delete_file` the two docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 3 (Kit)**
+Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all four steps. Step 2 exports `# Demo`, `## Install` and "Run the thing.". Step 4 exports, in order, "before canvas fallback after", an image, an image linked to `https://example.com/logo`, a 2×2 table reading a/b then c/d (after the usual empty paragraph before a table), and "shown block". "important hidden" and "invalid hidden" appear nowhere. Step 3 returned both images with no `error`. Cleanup: the two docs trashed.
