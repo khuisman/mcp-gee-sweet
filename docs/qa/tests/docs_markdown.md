@@ -57,7 +57,7 @@ Markdown describes HTML, and Docs has no direct equivalent for some constructs. 
 | C4 | Task item | Bullet item whose text starts with `☐` (unchecked) or `☑` (checked); no literal `[ ]`/`[x]` | — |
 | C5 | Inline code | Courier New on exactly the code characters | `textStyle.weightedFontFamily.fontFamily == "Courier New"` on that run only |
 | C6 | Code block (fenced or indented) | One Courier New block; each source line on its own visual line; leading indentation and blank lines kept; no Markdown inside it interpreted | one paragraph (lines joined by soft breaks), all runs Courier New |
-| C7 | Blockquote, depth N | Indented N steps with a gray left border; content inside keeps its own formatting (lists stay lists, headings stay headings) | `paragraphStyle.indentStart` = 36pt × N and `borderLeft` set |
+| C7 | Blockquote, depth N | Indented N steps with a gray left border; content inside keeps its own formatting (lists stay lists, headings stay headings) | `paragraphStyle.indentStart` = 36pt × N and `borderLeft` set. A quoted list item: `indentStart` = the list level's indent + 36pt × N, so its bar sits right of the quote paragraphs' bar ([known limitation](../../known-limitations.md#a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes), #1242) |
 | C8 | Thematic break | A visible horizontal line across the page; never an empty-looking gap | — |
 | C9 | Hard break (two trailing spaces, `\`) | Line break inside the same paragraph: no extra blank line, no paragraph spacing between the two lines | one paragraph containing a `\v` (soft line break) |
 | C10 | Soft break (a plain newline inside a paragraph) | The lines join into one paragraph, separated by a space | one paragraph |
@@ -116,6 +116,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD002: Project plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -134,6 +136,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD003: Spec / PRD ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -149,6 +153,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1093, #1095, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD004: README ⚠️ destructive
 **Prompt**
@@ -171,6 +177,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (usage notes 1–4, code under item 3, item 4 is 4.). The Note quote splits at its soft break (#1230), and the SVG badge isn't embedded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2, F3 (#1113). Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD005: Status report ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -187,6 +195,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD006: How-to with numbered steps and code ⚠️ destructive
 **Prompt**
@@ -213,6 +223,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — identical to round 1: #1094 checks pass, soft breaks #1230. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -226,6 +238,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD008: Research summary with quotes and links ⚠️ destructive
 **Prompt**
@@ -243,6 +257,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072, #1095. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD009: Changelog ⚠️ destructive
 **Prompt**
@@ -262,6 +278,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (the code block under "Added" stays under it). Version-heading links not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD010: Checklist-heavy task plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -279,6 +297,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD011: Incident postmortem ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -295,6 +315,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive
 **Prompt**
@@ -314,6 +336,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD013: API reference ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -330,6 +354,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: code blocks and inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD014: Study notes ⚠️ destructive
 **Prompt**
@@ -348,6 +374,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
 ### TC-MD015: Travel itinerary ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -364,6 +392,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1072, #1095. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
@@ -383,6 +413,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
 ## Phase 2 — Syntax coverage
 
@@ -640,7 +672,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | BQ-01 | One quoted paragraph (C7, depth 1) |
 | BQ-02 | Two quoted paragraphs, both depth 1 |
 | BQ-03 | "Outer level." depth 1, "Inner level." depth 2, "Third level." depth 3 |
-| BQ-04 | Inside the quote: paragraph, 2-item bullet list, 2-item numbered list 1. 2. |
+| BQ-04 | Inside the quote: paragraph, 2-item bullet list, 2-item numbered list 1. 2. Each list item's bar sits at the item's own indent, right of the paragraph's bar (C7) |
 | BQ-05 | Inside the quote: paragraph and a Courier New code block |
 | BQ-06 | Inside the quote: a Heading 2, then a paragraph |
 | BQ-07 | One quoted paragraph containing both lines joined by a space |
