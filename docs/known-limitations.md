@@ -331,8 +331,13 @@ use this server's converter instead. The same Markdown comes out differently:
 - **Numbered lists** use `1.` numbering at every level, not `a.` / `i.` for nested levels. A
   `1)` list keeps the `)`. A top-level item after a nested numbered sub-list can repeat the
   previous number (1, 2, 2).
-- **Code blocks** (fenced or indented) aren't monospace: each line becomes its own Arial
-  paragraph, with paragraph spacing between lines.
+- **Fenced code blocks** become a gray rounded monospace box with syntax colors and a language
+  label, with each source line as its own 9pt paragraph. A fence with no language, or one Drive
+  doesn't recognize, is labeled "None", a word that isn't in the source.
+- **A fenced code block in a list item** sits at the page margin at full width, not at the item's
+  text. The list continues correctly after it.
+- **Indented code blocks** haven't been rechecked since Drive changed fenced ones. They last
+  rendered as one Arial paragraph per line, with paragraph spacing between lines.
 - **Inline code** is green monospace rather than Courier New, so `get_doc_as_markdown` reads it
   back as plain text, without backticks.
 - **Blockquotes** are indented but have no left border.
@@ -351,8 +356,10 @@ use this server's converter instead. The same Markdown comes out differently:
 **Why:** The rendering is Drive's, not this server's. These tools upload the file and set a Google
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (`docs/qa/results/2026-10-18-markdown.md`,
-`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`); the `www.` scheme in
-PR #1298's QA round 1. Routing these tools through this server's converter is a design question
+`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`,
+`2026-11-05-markdown.md`); the `www.` scheme in PR #1298's QA round 1. Drive can change this
+rendering without a release of this server: fenced code blocks looked different in the 2026-10-18
+and 2026-11-05 baselines. Routing these tools through this server's converter is a design question
 (#1113).
 
 **Workaround:** For a single file, use `create_doc_from_file`, and `update_doc_from_file` to
