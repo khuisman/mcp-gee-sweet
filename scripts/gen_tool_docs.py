@@ -227,6 +227,7 @@ SUBSETS = [
             "create_doc",
             "create_doc_from_file",
             "get_doc_content",
+            "get_doc_as_markdown",
             "get_doc_structure",
             "find_in_doc",
             "write_doc_content",
