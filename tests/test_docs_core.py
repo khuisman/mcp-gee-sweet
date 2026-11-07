@@ -34,6 +34,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _inserted_table_length,
     _physical_to_ast_indices,
     _run_group_fill_requests,
+    _strip_bullet_leading_tabs,
     _text_offset_since_last_table,
     ast_to_requests,
     extract_images,
@@ -2125,6 +2126,18 @@ class TestListMarkerStyle:
         assert self._guards(requests) == []
         assert len(self._styles(requests)) == 2
 
+    def test_strip_removes_tabs_opening_every_line_across_runs(self):
+        image = Image(src="x")
+        runs = [Run("\ta\n"), image, Run("\t\tb"), Run("\tc\n\t")]
+        stripped = _strip_bullet_leading_tabs(runs)
+        assert [r.text if isinstance(r, Run) else r for r in stripped] == [
+            "a\n",
+            image,
+            "b",
+            "\tc\n",
+        ]
+        assert runs[0].text == "\ta\n"  # the caller's runs are untouched
+
     def test_whole_nested_item_guard_sits_past_the_consumed_tabs(self):
         requests, _ = ast_to_requests(
             [BulletItem(runs=[Run("top")]), BulletItem(runs=[Run("bold", bold=True)], depth=1)]
@@ -2165,6 +2178,65 @@ class TestListMarkerStyle:
         )
         assert len(self._guards(requests)) == 1
         assert self._position(requests, "insertInlineImage") == len(requests) - 1
+
+    @staticmethod
+    def _final_text(requests):
+        """The body text once every request through the bullet pass has run: the
+        inserted text with tabs createParagraphBullets consumes removed, which with no
+        authored tabs left in an item is every tab."""
+        text = next(r for r in requests if "insertText" in r)["insertText"]["text"]
+        return text.replace("\t", "")
+
+    def test_pretty_printed_html_item_styles_land_on_their_text(self):
+        # PR #1399 QA round 1: "\n\t\t" inside an item's text made a later style
+        # range overrun the body and the whole batch 400.
+        nodes = html_to_ast("<ul>\n\t<li>\n\t\t<b>one</b>\n\t</li>\n\t<li>two <i>x</i></li>\n</ul>")
+        requests, _ = ast_to_requests(nodes)
+        text = self._final_text(requests)
+        body_end = 1 + len(text)
+        for style in self._styles(requests):
+            rng = style["range"]
+            assert rng["endIndex"] <= body_end - 1
+            styled = text[rng["startIndex"] - 1 : rng["endIndex"] - 1]
+            if style["textStyle"].get("bold"):
+                assert styled == "one"
+            if style["textStyle"].get("italic"):
+                assert styled == "x"
+
+    def test_pretty_printed_tabs_never_reach_the_inserted_text(self):
+        nodes = html_to_ast("<ul>\n\t<li>\n\t\t<b>one</b>\n\t</li>\n</ul>")
+        requests, _ = ast_to_requests(nodes)
+        assert "\t" not in next(r for r in requests if "insertText" in r)["insertText"]["text"]
+
+    def test_quoted_pretty_printed_item_style_stays_in_the_body(self):
+        nodes = html_to_ast(
+            "<blockquote><ul>\n\t<li>\n\t\t<b>one</b>\n\t</li>\n\t<li>two</li>\n</ul></blockquote>"
+        )
+        requests, _ = ast_to_requests(nodes)
+        body_end = 1 + len(self._final_text(requests))
+        for r in requests:
+            for key in ("updateParagraphStyle", "updateTextStyle"):
+                if key in r:
+                    assert r[key]["range"]["endIndex"] <= body_end
+
+    def test_a_run_that_is_one_paragraph_of_the_item_gets_its_own_guard(self):
+        # <li><b>bold</b>\n</li>: "bold" is all of the item's first paragraph.
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("bold", bold=True), Run("\n")])])
+        assert [g["location"]["index"] for g in self._guards(requests)] == [5]
+        assert self._styles(requests)[0]["range"] == {"startIndex": 1, "endIndex": 5}
+
+    def test_a_run_spanning_a_newline_is_styled_per_paragraph(self):
+        # <li><b>bold\nmore</b></li>: two paragraphs, two guarded pieces, no newline.
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("bold\nmore", bold=True)])])
+        assert [g["location"]["index"] for g in self._guards(requests)] == [5, 10]
+        assert [s["range"] for s in self._styles(requests)] == [
+            {"startIndex": 1, "endIndex": 5},
+            {"startIndex": 6, "endIndex": 10},
+        ]
+
+    def test_a_run_ending_in_a_newline_guards_its_paragraph_not_the_empty_one(self):
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("bold\n", bold=True)])])
+        assert [g["location"]["index"] for g in self._guards(requests)] == [5]
 
     def test_paragraph_runs_keep_their_place_before_the_bullet_pass(self):
         requests, _ = ast_to_requests(
