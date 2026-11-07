@@ -1613,8 +1613,13 @@ use this server's converter instead. The same Markdown comes out differently:</p
 <li><strong>Numbered lists</strong> use <code>1.</code> numbering at every level, not <code>a.</code> / <code>i.</code> for nested levels. A
   <code>1)</code> list keeps the <code>)</code>. A top-level item after a nested numbered sub-list can repeat the
   previous number (1, 2, 2).</li>
-<li><strong>Code blocks</strong> (fenced or indented) aren't monospace: each line becomes its own Arial
-  paragraph, with paragraph spacing between lines.</li>
+<li><strong>Fenced code blocks</strong> become a gray rounded monospace box with syntax colors and a language
+  label, with each source line as its own 9pt paragraph. A fence with no language, or one Drive
+  doesn't recognize, is labeled "None", a word that isn't in the source.</li>
+<li><strong>A fenced code block in a list item</strong> sits at the page margin at full width, not at the item's
+  text. The list continues correctly after it.</li>
+<li><strong>Indented code blocks</strong> haven't been rechecked since Drive changed fenced ones. They last
+  rendered as one Arial paragraph per line, with paragraph spacing between lines.</li>
 <li><strong>Inline code</strong> is green monospace rather than Courier New, so <code>get_doc_as_markdown</code> reads it
   back as plain text, without backticks.</li>
 <li><strong>Blockquotes</strong> are indented but have no left border.</li>
@@ -1633,8 +1638,10 @@ use this server's converter instead. The same Markdown comes out differently:</p
 <p><strong>Why:</strong> The rendering is Drive's, not this server's. These tools upload the file and set a Google
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (<code>docs/qa/results/2026-10-18-markdown.md</code>,
-<code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>); the <code>www.</code> scheme in
-PR #1298's QA round 1. Routing these tools through this server's converter is a design question
+<code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>,
+<code>2026-11-05-markdown.md</code>); the <code>www.</code> scheme in PR #1298's QA round 1. Drive can change this
+rendering without a release of this server: fenced code blocks looked different in the 2026-10-18
+and 2026-11-05 baselines. Routing these tools through this server's converter is a design question
 (#1113).</p>
 <p><strong>Workaround:</strong> For a single file, use <code>create_doc_from_file</code>, and <code>update_doc_from_file</code> to
 refresh it. They render <code>.md</code> the same way as the other Docs tools. There's no equivalent for a
