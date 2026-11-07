@@ -1528,6 +1528,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Cleanup:** trash the Docs.
 
+**Result (2026-11-07, PR #1406 QA round 1 @ 66938bb6, Sky) ⚠️ PARTIAL — the fixture passes at EP-3, with one defect found outside it; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows `spaceBelow` 10 on exactly the paragraphs LG-01 to LG-05 name, no empty paragraph added, and NORMAL_TEXT `spacingMode: COLLAPSE_LISTS`. On screen, LG-01 to LG-04 match every check, and LG-05's heading item and code block keep their own spacing. LG-05's quote shows no gap. Its bar steps right at "quoted item", at that item's own indent, which is how a quoted list already renders and isn't changed by this PR. `apply_theme(NORMAL_TEXT space_below 20)` sent 11 requests and left no explicit 10pt `spaceBelow` on any paragraph, list items included. `get_doc_as_markdown` returns the fixture's structure. **Defect:** a paragraph inside the last item of one list, followed directly by a different list (`- a`, `  p inside a`, `1. b`, via `create_doc` markdown), gets no gap. "p inside a" sits tight against "1. b" both on screen and in `documents().get()`, while an intro line in the same place gets the gap. Sent back in the round 1 comment.
+
 ---
 
 ## Known gaps and not-applicable
