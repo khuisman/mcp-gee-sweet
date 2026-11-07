@@ -6871,3 +6871,19 @@ Live on `mcp-gee-sweet-sky` at 5619ff36, after `/mcp reconnect` (OAuth, Shared D
 
 **Result (2026-11-07) ✅ PASS — PR #1400 round 1 (Kit)**
 Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. Step 2 exports the five paragraphs in order, then `> quoted in a div`. Step 4's first paragraph is `**Bold** and [linked](https://example.com) on two source lines` with nothing before it, then one empty paragraph, "after a blank line", "Summary" and "Details body"; no title, style or script text anywhere. Step 6 is "Before", "raw html block", "After". The case passes, but the round was sent back for code-review findings outside its inputs. Two were confirmed in a live probe doc: a pretty-printed `<div>` around a multi-line `<a>` gets an extra empty paragraph after the link, and an unclosed `<video>` in a `<div>` drops every later paragraph while `create_doc` still reports success. Cleanup: the three docs and the probe doc trashed.
+
+### TC-DOC250: An end tag closes everything left open inside it, and hidden elements add nothing to the Doc (#1391) ⚠️ requires-oauth
+**Purpose:** PR #1400's first version tracked open tags as counters, so an unclosed `<video>` or `<canvas>` hid the rest of the document while `create_doc` reported success, a stray `</section>` closed the wrong container, and a hidden element still left an empty heading, table or image behind. The parser now keeps a stack of open elements: an end tag closes the element it names and everything opened inside it, an end tag naming nothing open is ignored, and nothing inside a hidden element (a `<script>`, `<noscript>`, `hidden` attribute, `display:none` style, or unopened `<dialog>`) reaches the Doc.
+
+**Steps**
+1. `create_doc(title="TC-DOC250 unclosed", folder_id={FOLDER_ID}, content="<div><video src='x.mp4'></div><p>visible one</p><p><canvas></p><p>visible two</p><table><tr><td><audio src='x.mp3'></td><td>cell text</td></tr></table><div>a<p>b</div>c<div>d</section>e</div><section><ul><li>item</section>after list<blockquote><b>quoted bold</blockquote>after quote")` → record `docId` as `{UNCLOSED}`
+2. `get_doc_as_markdown(doc_id={UNCLOSED})`
+3. `create_doc(title="TC-DOC250 hidden", folder_id={FOLDER_ID}, content="<p>shown<span style='display:none'> preheader</span></p><h1><script>var x = 1;</script></h1><noscript><table><tr><td>no script</td></tr></table><img src='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png'></noscript><div hidden>hidden div</div><dialog>closed dialog</dialog><dialog open>open dialog</dialog><p>end</p>")` → record `docId` as `{HIDDEN}`
+4. `get_doc_as_markdown(doc_id={HIDDEN})`
+
+**Checks**
+- Steps 1 and 3 return a `docId` with no `error`
+- Step 2: in order, "visible one", "visible two", a table whose first cell is empty and whose second cell is "cell text", then "a", "b", "c" and "de" as separate paragraphs, a bullet "item", a paragraph "after list", `> **quoted bold**`, and "after quote" outside the quote and not bold
+- Step 4: exactly three paragraphs, "shown", "open dialog" and "end", with no heading, table or image anywhere. "preheader", "var x", "no script", "hidden div" and "closed dialog" appear nowhere
+
+**Cleanup:** `delete_file` the two docs

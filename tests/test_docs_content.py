@@ -4,6 +4,7 @@ import inspect
 import io
 import json
 import threading
+import time
 from functools import partial
 from pathlib import Path
 from typing import ClassVar
@@ -847,8 +848,12 @@ class TestBareTopLevelText:
 # ---------------------------------------------------------------------------
 
 
+def _node_text(node) -> str:
+    return "".join(r.text for r in node.runs if isinstance(r, Run))
+
+
 def _para_texts(html: str) -> list[str]:
-    return ["".join(r.text for r in n.runs if isinstance(r, Run)) for n in html_to_ast(html)]
+    return [_node_text(n) for n in html_to_ast(html)]
 
 
 class TestContainerText:
@@ -870,12 +875,56 @@ class TestContainerText:
             "only this paragraph",
         ]
 
-    @pytest.mark.parametrize("tag", sorted(html_parser._CONTAINER_TAGS - {"plaintext"}))
+    @pytest.mark.parametrize("tag", sorted(html_parser._CONTAINER_TAGS))
     def test_every_container_keeps_its_text(self, tag):
-        assert _para_texts(f"<{tag}>kept</{tag}>") == ["kept"]
+        start = "dialog open" if tag == "dialog" else tag
+        assert _para_texts(f"<{start}>kept</{tag}>") == ["kept"]
 
-    def test_plaintext_has_no_end_tag(self):
-        assert _para_texts("<plaintext>kept") == ["kept"]
+    @pytest.mark.parametrize("tag", ["listing", "xmp"])
+    def test_obsolete_preformatted_tags_keep_their_lines(self, tag):
+        nodes = html_to_ast(f"<{tag}>a\n  b</{tag}>after")
+        assert nodes[0].runs[0].text == "a\n  b"
+        assert nodes[0].runs[0].font_family == "Courier New"
+        assert nodes[1].runs[0].text == "after"
+
+    def test_plaintext_is_preformatted_to_the_end(self):
+        nodes = html_to_ast("<plaintext>a\n  b")
+        assert nodes[0].runs[0].text.startswith("a\n  b")
+        assert nodes[0].runs[0].font_family == "Courier New"
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<blockquote><b>x</blockquote><p>after</p>",
+            "<div><ul><b>x</ul><p>after</p></div>",
+        ],
+    )
+    def test_quote_or_list_end_resets_a_containers_inline_state(self, html):
+        # PR #1400 QA round 1: these end tags close the paragraph through
+        # _resume_interrupted_block, not the container end tag.
+        nodes = html_to_ast(html)
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [("x", True), ("after", None)]
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<blockquote>\n  text\n</blockquote>",
+            "<div><ul>text\n</ul></div>",
+            "<div><b>text\n</b></div>",
+        ],
+    )
+    def test_trailing_source_line_break_is_trimmed_however_the_paragraph_ends(self, html):
+        assert _para_texts(html) == ["text"]
+
+    def test_pretty_printed_link_has_no_trailing_line_break(self):
+        nodes = html_to_ast("<div>\n  <a href='https://x.test'>\n    link\n  </a>\n</div>")
+        assert [(r.text, r.link_url) for r in nodes[0].runs] == [("link", "https://x.test")]
+
+    def test_image_and_its_caption_share_a_paragraph(self):
+        nodes = html_to_ast("<div><img src='a.png'> caption</div>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0].runs[0], Image)
+        assert nodes[0].runs[1].text == " caption"
 
     def test_a_quote_holding_only_a_div(self):
         nodes = html_to_ast("<blockquote><div>quoted</div></blockquote>")
@@ -992,7 +1041,7 @@ class TestContainerText:
         # The containers are an allowlist: #343's policy for inline tags is unchanged.
         assert html_to_ast("<span>no blocks</span>") == []
 
-    @pytest.mark.parametrize("tag", sorted(html_parser._HIDDEN_TEXT_TAGS))
+    @pytest.mark.parametrize("tag", sorted(html_parser._HIDDEN_TAGS))
     def test_hidden_text_stays_hidden_in_a_container(self, tag):
         assert _para_texts(f"<div><{tag}>hidden</{tag}>shown</div>") == ["shown"]
 
@@ -1004,6 +1053,99 @@ class TestContainerText:
 
     def test_head_with_no_end_tag_hides_nothing(self):
         assert _para_texts("<head><meta charset='utf-8'><p>a</p>") == ["a"]
+
+    # PR #1400 QA round 1: an end tag closes the element it names and everything
+    # opened inside it, through the open-element stack.
+
+    @pytest.mark.parametrize(
+        ("html", "texts"),
+        [
+            ("<div><video src='x'></div><p>visible</p><p>more</p>", ["visible", "more"]),
+            ("<p><canvas></p><p>visible</p>", ["visible"]),
+            ("<p>a<object>b</p><p>visible</p>", ["a", "visible"]),
+        ],
+    )
+    def test_unclosed_hidden_element_ends_with_its_parent(self, html, texts):
+        assert _para_texts(html) == texts
+
+    def test_unclosed_hidden_element_ends_with_its_cell(self):
+        nodes = html_to_ast(
+            "<table><tr><td><audio src=x></td><td>cell</td></tr></table><p>after</p>"
+        )
+        cells = nodes[0].rows[0].cells
+        assert cells[0].children == []
+        assert cells[1].children[0].text == "cell"
+        assert nodes[1].runs[0].text == "after"
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<h1><script>x</script></h1>",
+            "<p><style>x</style></p>",
+            "<template><ul><li>x</li></ul></template>",
+            "<noscript><table><tr><td>x</td></tr></table></noscript>",
+            "<noscript><img src='https://x.test/pixel.gif'></noscript>",
+            "<p><img src='https://x.test/pixel.gif' style='display:none'></p>",
+            "<div><img hidden src='a.png'></div>",
+            "<dialog>closed</dialog>",
+            "<div hidden>x</div>",
+            "<div style='color: red; display : none !important'>x</div>",
+        ],
+    )
+    def test_hidden_content_adds_nothing(self, html):
+        assert html_to_ast(html) == []
+
+    def test_hidden_inline_text_is_left_out_of_its_block(self):
+        assert _para_texts("<p>shown<span style='display:none'> preheader</span></p>") == ["shown"]
+
+    def test_open_dialog_and_display_block_are_shown(self):
+        assert _para_texts(
+            "<dialog open>a</dialog><div style='display:none;display:block'>b</div>"
+        ) == [
+            "a",
+            "b",
+        ]
+
+    @pytest.mark.parametrize(
+        ("html", "texts"),
+        [
+            ("<div>a<p>b</div>c", ["a", "b", "c"]),
+            ("<div><p>one</div><div>two</div>", ["one", "two"]),
+            ("<div>a</section>b</div>", ["ab"]),
+        ],
+    )
+    def test_container_end_closes_what_is_open_inside_it(self, html, texts):
+        assert _para_texts(html) == texts
+
+    def test_container_end_closes_an_open_list(self):
+        nodes = html_to_ast("<section><ul><li>a</section>b<ul><li>c</li></ul>")
+        assert [(type(n), _node_text(n)) for n in nodes] == [
+            (BulletItem, "a"),
+            (Paragraph, "b"),
+            (BulletItem, "c"),
+        ]
+        assert nodes[2].depth == 0
+
+    def test_block_end_closes_inline_tags_left_open_in_it(self):
+        nodes = html_to_ast("<p><b>x</p>after")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [("x", True), ("after", None)]
+
+    def test_quote_end_restores_bare_text(self):
+        assert _para_texts("<blockquote><b>x</blockquote>after") == ["x", "after"]
+
+    def test_container_start_ends_bare_text_before_it(self):
+        assert _para_texts("bare\n<div>boxed</div>") == ["bare", "boxed"]
+
+    def test_end_tag_in_a_cell_never_closes_past_the_table(self):
+        nodes = html_to_ast("<div>a<table><tr><td>c</div>d</td></tr></table>e</div>")
+        assert _node_text(nodes[0]) == "a"
+        assert [r.text for r in nodes[1].rows[0].cells[0].children] == ["cd"]
+        assert _node_text(nodes[2]) == "e"
+
+    def test_stack_lookups_are_linear(self):
+        start = time.perf_counter()
+        html_to_ast("<table><tr><td>" + "<p>x" * 20000 + "</div>" * 20000)
+        assert time.perf_counter() - start < 5
 
     async def test_create_doc_writes_container_text(self):
         drive_svc = MagicMock()
