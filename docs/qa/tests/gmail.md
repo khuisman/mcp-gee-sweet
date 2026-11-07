@@ -1406,6 +1406,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Declined, cancelled, accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with a `draft_id` and the Drafts note. Playwright (Gmail search `in:drafts`) listed all three. Nothing sent; drafts deleted.
 
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. Declined, cancelled, accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with a `draft_id` and the Drafts note. Playwright (`#drafts`, after a full page load) listed all three. `in:sent` found nothing for `tc-gm57`. Drafts deleted.
+
 ---
 
 ### TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter
@@ -1437,6 +1440,9 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, sky
 **Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset), with the new Setup: `get_thread` on `{TEST_THREAD_ID}` gave three non-trashed messages, and M1 is the `[mcp-qa:thread]` opener. The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the TC-GM58 reply draft inline in the thread, after a full page load: going to the same Gmail hash doesn't reload the page, and it kept showing an already deleted draft. `in:sent` found no new reply. Draft deleted, fixture untouched.
 
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. M1 is the `[mcp-qa:thread]` opener, among three non-trashed messages. The form showed the `outside_organization` flag first, then `To: {SENDER}` and `Subject: Re: [mcp-qa:thread] two-party thread`. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the reply draft inline in the thread after a full page load. Gmail shows only one reply draft on a message: with TC-GM65's reply draft also on M1, only TC-GM65's showed, even after Expand all, though the Drafts list counted two. It showed once TC-GM65's draft was deleted, so check each case's draft on its own. No new sent reply in the thread. Draft deleted, fixture untouched.
+
 ---
 
 ### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
@@ -1458,6 +1464,9 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and `get_draft` still found the draft. Accepted: `sent: true` with `SENT`. Trashed.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and the still-in-Drafts note; `get_draft` still found the draft. Accepted: `sent: true`, label_ids `SENT`. Message trashed; it's the only message sent in this run.
 
 ---
 
@@ -1485,6 +1494,12 @@ Re-run after the fix commit's refactor (`_draft_then_confirm`): same outcomes as
 
 **Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
 Same outcomes as rounds 1 and 2: `no_elicitation` on every call, the reply kept its thread, and the 2026-07-28 callback was called 0 times.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh interpreter from Aziz's worktree (`GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft kept the original's `thread_id`. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `get_draft` found all five drafts, and `in:sent` found nothing for `tc-gm60`. Drafts deleted.
+
+**Result (2026-11-07) ✅ PASS — PR #1395 QA round 1 (Rio, @ 9a1b46b7)**
+Fresh interpreter per the case, rio slot, `GMAIL_SEND` unset, started from this head. Same outcomes as the result above: on the legacy client `send_message`, `reply_to_message` and `send_draft` each returned a tool result with `sent: false`, `reason: no_elicitation` and a `draft_id`, and the reply kept the original's `thread_id`; on the 2026-07-28 client `send_message` and `send_draft` returned the same, and the always-accept callback was called 0 times. `get_draft` found all five, and `in:sent` found nothing for `tc-gm60`. Drafts deleted; `list_drafts` for `tc-gm60` returned none.
 
 ---
 
@@ -1582,6 +1597,9 @@ Run from a Claude Code session on the slot's own tools, not the harness: this is
 **Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
 Rio slot's own tools, Claude Code 2.1.318, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply draft (Gmail search `in:drafts tc-gm65`), and the fixture's conversation shows the unsent reply inline. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Didn't run: step 5 and its check (no person with Claude Desktop).
 
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+`mcp-gee-sweet-oauth` tools (main checkout, same source), Claude Code 2.1.319, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply in `#drafts`, and the conversation shows the reply draft inline. Step 5, run by a person in Claude Desktop 4.23118.0 on the Chat tab, on the bundle from TC-I68 and signed in as `{QA}`: no form appeared, and the result was `sent: false`, `reason: no_elicitation`. So it doesn't ask here either. Before the tool ran, the Desktop's own permission prompt showed To, Subject and Body; that's its layer, not this server's confirmation, and allowing it sent nothing. A draft to `{QA+tc-gm65}` was held. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Run step 5 on the Chat tab: the Code tab uses Claude Code's own servers, so a first attempt there reached a different server and account, and that attempt isn't counted here.
+
 ---
 
 ### TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter
@@ -1608,6 +1626,9 @@ Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25,
 
 **Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
 Same harness, reworded case, with the callback logging its cancellation. Both forms opened at about 2 s. At 602 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. Both calls concurrent on one client. Both forms opened at about 3 s. At 603 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
 
 ---
 
