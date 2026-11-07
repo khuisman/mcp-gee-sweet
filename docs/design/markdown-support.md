@@ -220,7 +220,9 @@ text, not a quote, a rule, an empty line or a code block (`_is_block_paragraph`)
 by Courier New and its 8pt on both sides, since a Doc set in Courier by hand is body text. Its
 spacing leaves out 8pt and 10pt (`_body_style_entry`), which also covers a paragraph beside a
 quoted table: that has the quote's 8pt and no border. A Doc with no body text at all takes
-NORMAL_TEXT from its first block with text, font but not those values.
+NORMAL_TEXT from its first block with text, font but not those values. The first paragraph of a
+style decides even with no explicit style, and a text field counts only when every run in it
+shares that field, or one run's inline bold or code span would read as the Doc's body text.
 
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).

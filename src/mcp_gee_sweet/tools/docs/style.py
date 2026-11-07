@@ -60,11 +60,31 @@ def _is_block_paragraph(para: dict) -> bool:
     )
 
 
+def _text_fields(run: dict) -> dict:
+    ts = run.get("textStyle", {})
+    fields: dict = {}
+    ff = ts.get("weightedFontFamily", {}).get("fontFamily")
+    if ff:
+        fields["font_family"] = ff
+    fs = ts.get("fontSize", {}).get("magnitude")
+    if fs is not None:
+        fields["font_size"] = fs
+    if "bold" in ts:
+        fields["bold"] = ts["bold"]
+    if "italic" in ts:
+        fields["italic"] = ts["italic"]
+    rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
+    if rgb:
+        fields["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+    return fields
+
+
 def _body_style_entry(style_type: str, para: dict) -> dict:
     """The theme entry a body paragraph gives its named style. On NORMAL_TEXT, the
     spacing the emitter writes around a block or between paragraphs isn't read: that's
     what those values are on a server-written doc, and a theme carrying one would set it
-    across the whole doc."""
+    across the whole doc. A text field counts only when every run shares it: a bold
+    lead-in or a code span is that run's own style, not the paragraph's."""
 
     def spacing(field_name: str) -> float | None:
         value = _magnitude(ps, field_name)
@@ -81,22 +101,10 @@ def _body_style_entry(style_type: str, para: dict) -> dict:
     space_below = spacing("spaceBelow")
     if space_below is not None:
         entry["space_below"] = space_below
-    runs = _text_runs(para)
-    if runs:  # first non-empty run only
-        ts = runs[0].get("textStyle", {})
-        ff = ts.get("weightedFontFamily", {}).get("fontFamily")
-        if ff:
-            entry["font_family"] = ff
-        fs = ts.get("fontSize", {}).get("magnitude")
-        if fs is not None:
-            entry["font_size"] = fs
-        if "bold" in ts:
-            entry["bold"] = ts["bold"]
-        if "italic" in ts:
-            entry["italic"] = ts["italic"]
-        rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
-        if rgb:
-            entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+    run_fields = [_text_fields(run) for run in _text_runs(para)]
+    if run_fields:
+        first, *rest = run_fields
+        entry.update({k: v for k, v in first.items() if all(other.get(k) == v for other in rest)})
     return entry
 
 
@@ -109,31 +117,33 @@ def _read_body_styles(doc: dict) -> dict:
     the same namedStyleType with different styles are ignored (treated as intentional
     individual overrides outside the theme system).
 
+    The first occurrence decides, explicit style or not: moving past an unstyled
+    paragraph read one run's inline bold as the doc's body text (PR #1388 QA round 3).
+
     What the emitter writes for a block or a paragraph break isn't a theme value (PR #1388
     QA rounds 1 and 2). So NORMAL_TEXT comes from body text, not a block
     (_is_block_paragraph), and doesn't read that spacing (_body_style_entry). Only a doc
     with no body text at all takes NORMAL_TEXT from its first block with text.
     """
     theme: dict = {}
-    has_body_text = False
+    seen: set[str] = set()
     first_block: dict | None = None
     for elem in doc.get("body", {}).get("content", []):
         para = elem.get("paragraph")
         if not para:
             continue
         style_type = para.get("paragraphStyle", {}).get("namedStyleType")
-        if style_type not in _NAMED_STYLE_TYPES or style_type in theme:
+        if style_type not in _NAMED_STYLE_TYPES or style_type in seen:
             continue
-        if style_type == "NORMAL_TEXT":
-            if _is_block_paragraph(para):
-                if first_block is None and _text_runs(para):
-                    first_block = para
-                continue
-            has_body_text = True
+        if style_type == "NORMAL_TEXT" and _is_block_paragraph(para):
+            if first_block is None and _text_runs(para):
+                first_block = para
+            continue
+        seen.add(style_type)
         entry = _body_style_entry(style_type, para)
         if entry:
             theme[style_type] = entry
-    if first_block is not None and not has_body_text:
+    if first_block is not None and "NORMAL_TEXT" not in seen:
         entry = _body_style_entry("NORMAL_TEXT", first_block)
         if entry:
             theme["NORMAL_TEXT"] = entry
@@ -1108,16 +1118,17 @@ def register(tool):
 
         Scans the document body and reads the style of the first paragraph found for
         each named style type (NORMAL_TEXT, HEADING_1 through HEADING_6, TITLE, SUBTITLE).
-        Text-level fields (font_family, font_size, bold, italic, color) come from the
-        first non-empty text run in that paragraph; paragraph-level fields (line_spacing,
-        space_above, space_below) come from the paragraph's paragraphStyle. A named style
-        type that doesn't appear in the body, or whose paragraph has no explicit style,
-        is left out.
+        Text-level fields (font_family, font_size, bold, italic, color) are the ones every
+        non-empty text run in that paragraph shares, so a bold lead-in isn't reported;
+        paragraph-level fields (line_spacing, space_above, space_below) come from the
+        paragraph's paragraphStyle. A named style type that doesn't appear in the body, or
+        whose first paragraph has no explicit style, is left out.
 
-        NORMAL_TEXT comes from the first paragraph of body text: a quote, a rule, a code
-        block or an empty line is skipped, unless the doc has no body text. Its
-        space_above and space_below leave out 8pt and 10pt, the spacing a Markdown or
-        HTML write puts around blocks and between paragraphs.
+        NORMAL_TEXT's first paragraph is the first of body text: a quote, a rule, a code
+        block or an empty line is skipped, unless the doc has no body text, and then the
+        first of them with text is used. Its space_above and space_below leave out 8pt
+        and 10pt, the spacing a Markdown or HTML write puts around blocks and between
+        paragraphs.
 
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.

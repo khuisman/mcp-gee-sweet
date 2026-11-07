@@ -1867,6 +1867,50 @@ class TestApplyThemeTool:
             }
         }
 
+    def test_unstyled_first_paragraph_decides_over_a_later_bold_lead_in(self):
+        """One run's bold isn't the doc's body text (PR #1388 QA round 3)."""
+        lead_in = self._body_paragraph({}, "Lead-in.")
+        lead_in["paragraph"]["elements"] = [
+            {"textRun": {"content": "Lead-in.", "textStyle": {"bold": True}}},
+            {"textRun": {"content": " The rest.\n", "textStyle": {}}},
+        ]
+        doc = {"body": {"content": [self._body_paragraph({}, "plain\n"), lead_in]}}
+        assert _read_body_styles(doc) == {}
+
+    def test_opening_bold_or_code_run_is_not_the_paragraphs_style(self):
+        para = self._body_paragraph({}, "x")
+        para["paragraph"]["elements"] = [
+            {
+                "textRun": {
+                    "content": "pip",
+                    "textStyle": {
+                        "bold": True,
+                        "weightedFontFamily": {"fontFamily": "Courier New"},
+                        "fontSize": {"magnitude": 12, "unit": "PT"},
+                    },
+                }
+            },
+            {
+                "textRun": {
+                    "content": " fails\n",
+                    "textStyle": {"fontSize": {"magnitude": 12, "unit": "PT"}},
+                }
+            },
+        ]
+        assert _read_body_styles({"body": {"content": [para]}})["NORMAL_TEXT"] == {"font_size": 12}
+
+    def test_first_heading_decides_for_its_style_too(self):
+        def heading(text_style):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                    "elements": [{"textRun": {"content": "h\n", "textStyle": text_style}}],
+                }
+            }
+
+        doc = {"body": {"content": [heading({}), heading({"italic": True})]}}
+        assert _read_body_styles(doc) == {}
+
     def test_body_theme_reads_a_doc_set_in_courier(self):
         """Courier New alone isn't a code block (PR #1388 QA round 2)."""
         doc = {
