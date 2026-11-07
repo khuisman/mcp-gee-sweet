@@ -249,6 +249,8 @@ Confirmation needs a client that connects with the 2025-11-25 `initialize` hands
 
 **Claude Code currently connects on 2026-07-28** (2.1.310, checked 2026-10-26). So under `confirm`, every send from Claude Code is held as a draft: `send_message` and `reply_to_message` return `sent: false`, and `send_draft` refuses. Send the drafts from Gmail's Drafts folder, or set `GMAIL_SEND=direct` to send at once.
 
+**Claude Desktop holds sends too.** On the Chat tab, Claude Desktop 4.23118.0 (checked 2026-11-07) showed no confirmation: `send_message` returned `reason: no_elicitation` and left the email as a draft. Which protocol version Claude Desktop connects on hasn't been checked, so #1235 may not change this. Send the draft from Gmail's Drafts folder, or set `GMAIL_SEND=direct` to send at once.
+
 **A client hook that auto-accepts elicitations with a yes makes `confirm` behave like `direct`.** The server can't tell a hook's answer from the user's.
 
 `GMAIL_SEND=direct` restores immediate delivery for all three tools, with no draft step and no confirmation. Their only guard is then `destructiveHint`, which clients treat as a hint and skip once a tool is auto-approved.
