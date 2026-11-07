@@ -109,9 +109,9 @@ get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadshe
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns,import_csv_to_sheet
 ```
 
-**Docs essentials** (12 tools):
+**Docs essentials** (13 tools):
 ```
-create_doc,create_doc_from_file,get_doc_content,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
+create_doc,create_doc_from_file,get_doc_content,get_doc_as_markdown,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
 ```
 
 **Calendar only** (17 tools):
