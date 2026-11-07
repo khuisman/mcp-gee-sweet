@@ -1489,6 +1489,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1388 QA round 3 @ d4adbebd, Sky) ❌ FAIL — `get_doc_theme` only; the gap's code didn't change this round, so round 2's gap results stand. Passes: a Courier New body reports its font; a paragraph beside a quoted table reports nothing; the gaps fixture reports `{}`; a code-only Doc reports only the font. Fails: r06 reports `{"NORMAL_TEXT": {"bold": true}}`, and so does a Doc of one plain paragraph and one with a bold lead-in. `develop` has the same fallthrough, so it isn't a regression from this PR.**
 
+**Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ⚠️ PARTIAL — every check passes; the second run covers only the gaps fixture at EP-3. `get_doc_theme` at this head: r06, the gaps fixture, a paragraph opening with bold and one opening with a code span all report `{}`; a paragraph beside a quoted table reports `{}`; a Courier New body and a code-only Doc report the font; a first paragraph entirely in bold reports bold, as the docstring says. Rerun at this head by structure: a font-only theme after keeps all 7 gaps of the extended fixture; a font-only theme before EP-2 keeps the gap; a spacing theme before EP-2 leaves no 10pt; round trip identical with and without the gaps. The gap's own code is unchanged since round 2, so PG-01 to PG-07 and r06 on screen stand from there.**
+
 ---
 
 ## Known gaps and not-applicable
