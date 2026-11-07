@@ -1530,6 +1530,20 @@ class TestBlockSeparation:
         # "a\n" [1,3), "p\n" [3,5).
         assert self._spacing(requests) == {2: {"spaceBelow": 10}, 4: {"spaceBelow": 10}}
 
+    def test_paragraph_in_one_lists_last_item_gets_the_gap_before_a_literal_list(self):
+        """A stand-in (#1118) keeps its own list's id, so a separate literal list isn't
+        read as the next item of the paragraph's list (PR #1406 QA round 2)."""
+        requests, _ = _to_doc_requests("- a\n\n  p inside a\n\n3. c\n", "markdown")
+        assert self._inserted_text(requests) == "a\np inside a\n3.\tc\n"
+        # "a\n" [1,3), "p inside a\n" [3,14).
+        assert self._spacing(requests) == {2: {"spaceBelow": 10}, 13: {"spaceBelow": 10}}
+
+    def test_paragraph_in_a_literal_item_and_its_next_item_get_no_gap(self):
+        requests, _ = _to_doc_requests("3. a\n\n   p\n\n4. b\n", "markdown")
+        assert self._inserted_text(requests) == "3.\ta\np\n4.\tb\n"
+        # "3.\ta\n" [1,6): only the item's own gap.
+        assert self._spacing(requests) == {5: {"spaceBelow": 10}}
+
     def test_paragraph_gets_the_gap_before_a_fragment_list_of_another_list(self):
         """A list whose parents were dropped (#714) is deeper, but not nested in the
         paragraph's item (PR #1406 QA round 1)."""

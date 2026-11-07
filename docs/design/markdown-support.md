@@ -208,7 +208,8 @@ below the paragraph before its first item, an intro line ("Install the headers:"
 and below its last item, or the plain paragraph that ends that item. Drive's import leaves an
 empty line in both places, and a browser's paragraph margin does the same. "Outside" is by list
 place: a paragraph inside an item gets the gap before a sublist under that item, and before
-a different list at any depth (`_starts_list_outside`, by `list_path` ids), while the item's
+a different list at any depth, a literal one included (`_starts_list_outside`, by the item's
+own list ids: a stand-in keeps its item's as `literal_item_path`), while the item's
 own text before its sublist, and a paragraph inside an item before the next item of a list it
 sits in, keep the list's spacing. A list item
 that's a heading, and a code block, table or rule at the list's edge, keep their own spacing.

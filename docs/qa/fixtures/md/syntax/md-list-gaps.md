@@ -73,3 +73,15 @@ Paragraph after the code block.
     Paragraph inside c1.
 
   - c2
+
+### LG-07 — a paragraph in one list's last item, then a list starting at 3
+
+- d
+
+  Paragraph inside d.
+
+3. literal list starting at 3
+
+   Paragraph inside 3.
+
+4. next literal item

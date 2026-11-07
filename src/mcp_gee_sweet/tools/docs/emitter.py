@@ -524,6 +524,7 @@ def _literal_item(item: BulletItem) -> Paragraph | Heading:
         "list_path": item.list_path[:-1],
         "literal_item_level": depth,
         "literal_item_gap": _literal_item_gap(marker, item.heading_level),
+        "literal_item_path": item.list_path,
     }
     runs = [Run(text), *item.runs]
     if item.heading_level is not None:
@@ -1677,27 +1678,29 @@ def _is_list_item(node: DocNode) -> bool:
 
 
 def _item_place(node: DocNode) -> tuple[int, tuple[int, ...]]:
-    """The depth and enclosing list ids of a list item (_is_list_item). A stand-in's
-    list_path stops at its parent list, so it's one id short of a BulletItem's."""
+    """The depth and enclosing list ids of a list item (_is_list_item), its own list's
+    id last. A stand-in's list_path stops at its parent list, so its item's own path is
+    literal_item_path."""
     if isinstance(node, BulletItem):
         return node.depth, node.list_path
     assert isinstance(node, Paragraph) and node.literal_item_level is not None
-    return node.literal_item_level, node.list_path
+    return node.literal_item_level, node.literal_item_path
 
 
 def _starts_list_outside(item: DocNode, place: tuple[int, tuple[int, ...]] | None) -> bool:
     """Whether list item `item` (_is_list_item) belongs to a list that a paragraph at
     `place` isn't inside: a sublist nested in the paragraph's item, or another list,
     at any depth (PR #1406 QA round 1). Not the next item of a list the paragraph sits
-    in, which keeps the list's spacing. A BulletItem's list_path ends with its own
-    list's id, so its list is one the paragraph sits in exactly when that path is a
-    prefix of the paragraph's. A stand-in's path doesn't name its own list, and an
-    item may have no ids at all: those fall back to depth (_deeper_than)."""
+    in, which keeps the list's spacing. An item's path (_item_place) ends with its own
+    list's id, a stand-in's included (PR #1406 QA round 2), so its list is one the
+    paragraph sits in exactly when that path is a prefix of the paragraph's. An item
+    with no ids falls back to depth (_deeper_than)."""
     if place is None:
         return True
-    if isinstance(item, BulletItem) and item.list_path and place[1]:
-        return place[1][: len(item.list_path)] != item.list_path
-    return _deeper_than(_item_place(item), place)
+    item_place = _item_place(item)
+    if item_place[1] and place[1]:
+        return place[1][: len(item_place[1])] != item_place[1]
+    return _deeper_than(item_place, place)
 
 
 def _deeper_than(
