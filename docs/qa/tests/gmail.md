@@ -1498,6 +1498,9 @@ Same outcomes as rounds 1 and 2: `no_elicitation` on every call, the reply kept 
 **Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
 Fresh interpreter from Aziz's worktree (`GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft kept the original's `thread_id`. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `get_draft` found all five drafts, and `in:sent` found nothing for `tc-gm60`. Drafts deleted.
 
+**Result (2026-11-07) ✅ PASS — PR #1395 QA round 1 (Rio, @ 9a1b46b7)**
+Fresh interpreter per the case, rio slot, `GMAIL_SEND` unset, started from this head. Same outcomes as the result above: on the legacy client `send_message`, `reply_to_message` and `send_draft` each returned a tool result with `sent: false`, `reason: no_elicitation` and a `draft_id`, and the reply kept the original's `thread_id`; on the 2026-07-28 client `send_message` and `send_draft` returned the same, and the always-accept callback was called 0 times. `get_draft` found all five, and `in:sent` found nothing for `tc-gm60`. Drafts deleted; `list_drafts` for `tc-gm60` returned none.
+
 ---
 
 ### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
