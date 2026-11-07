@@ -1477,13 +1477,15 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - PG-05: no doubled space beside the code block, and none added beside the spacer line.
 - PG-06: the quoted item and the paragraphs inside it show no vertical break in the quote bar.
 - PG-07: the literal `3.` item and the paragraph inside it show the same gap as PG-04.
-- Theme read: `get_doc_theme` on a Doc written through EP-1 doesn't report the 10pt gap as `NORMAL_TEXT`'s `space_below`.
+- Theme read: `get_doc_theme` on a Doc written through EP-1 doesn't report the 10pt gap as `NORMAL_TEXT`'s `space_below`, nor an 8pt from a paragraph beside a quoted table. On a Doc whose whole body is Courier New, it still reports that font.
 - Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand. Nothing in the export shows the gap.
 - Theme after: on a Doc written through EP-1, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. `spaceBelow` is absent from the gap paragraphs in `documents().get()`, and on screen every body paragraph has the theme's 20pt, list items included. The code block and the quote-edge paragraphs keep their explicit 8pt, which isn't a gap.
 - Theme before: run the same `apply_theme` on a blank Doc, then write through EP-2 and, on a second Doc, EP-4. No paragraph carries an explicit 10pt, and on screen the theme's 20pt stands.
 - A theme with no spacing, `{"NORMAL_TEXT": {"font_family": "Georgia"}}`, leaves the gaps in place in either order.
 
 **Result (2026-11-07, PR #1388 QA round 1 @ 4584c813, Sky) ❌ FAIL — one run, before PG-06, PG-07 and the theme-read check were added. Passes: r06's Troubleshooting on screen (EP-3), with a 10pt `spaceBelow` by structure; PG-01 to PG-05 on screen at EP-3; EP-2 and EP-4 identical to each other paragraph by paragraph; round trip identical with and without the gaps; theme after clears all five gaps (on an EP-3 Doc, list items at 20pt on screen); theme before leaves no explicit 10pt at EP-2 and EP-4 (structure only); a font-only theme keeps the gaps in both orders. Fails: a quoted list item's bar shows a 10pt hole below the item (the PG-06 shape), a literal `3.` item has no gap (the PG-07 shape), and `get_doc_theme` returns `{"NORMAL_TEXT": {"space_below": 10}}`. Not run: r06 on screen at EP-1, EP-2 and EP-4, and EP-1's structure. The PR comment has the send-back list.**
+
+**Result (2026-11-07, PR #1388 QA round 2 @ c7e551c3, Sky) ❌ FAIL — the gap passes, `get_doc_theme` fails. Passes: r06's Troubleshooting on screen at EP-1 to EP-4; both fixtures identical paragraph by paragraph across EP-1 to EP-4 (gaps also at EP-8 and a second EP-3 run); PG-06 with no vertical break in the bar and PG-07 with its gap, on screen at EP-1; `get_doc_theme` leaves out the gap and the quote and code spacing on the gaps fixture; theme after leaves no explicit 10pt; theme before at EP-4 reports no explicit 10pt (structure only). Fails: a Doc with a Courier New body returns `{}` instead of its font, and a paragraph beside a quoted table returns `{"NORMAL_TEXT": {"space_above": 8}}`. Not rerun at this head: theme before at EP-2, the font-only theme and the round trip, whose code this fix didn't change.**
 
 ---
 
