@@ -443,7 +443,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, `configuration.md` subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) ([#1214](https://github.com/khuisman/mcp-gee-sweet/issues/1214)) (docs landed in PR #1254; VS Code + Copilot and Cursor live checks still open)
 - [x] Accept `ENABLED_TOOLS=all` and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change ([#1363](https://github.com/khuisman/mcp-gee-sweet/issues/1363)) (PR #1365)
 - [x] `release.md` step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob ([#1366](https://github.com/khuisman/mcp-gee-sweet/issues/1366)) (PR #1373)
-- [ ] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) ([#1343](https://github.com/khuisman/mcp-gee-sweet/issues/1343))
+- [x] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) ([#1343](https://github.com/khuisman/mcp-gee-sweet/issues/1343)) (PR #1344)
 
 **Fill** _(rank order, locked 2026-10-18)_
 
