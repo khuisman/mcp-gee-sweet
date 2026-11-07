@@ -790,8 +790,10 @@ def _leading_tabs(seg: _SegmentMeta) -> list[tuple[int, int]]:
 
 
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
-    """Return `runs` with literal leading tab character(s) removed from the
-    start of its own text, without mutating the caller's Run/Image objects —
+    """Return `runs` with the literal tab character(s) that open each line of its
+    text removed: the start of its text and the start after each "\n", since each
+    line is a paragraph createParagraphBullets reads (PR #1399 QA round 1). It never
+    mutates the caller's Run/Image objects —
     the AST is caller-owned and this function must stay side-effect-free on it
     (contrast html_parser.py's `_make_bullet_item`, which mutates in place, but
     only ever on a list it just built from its own fresh buffer, never on an
@@ -801,23 +803,28 @@ def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
     `_make_bullet_item`'s own `runs.pop(0)` after its checkbox-marker strip —
     so a leading tab spanning more than one run (e.g. a tab-only run followed
     by a run whose own text also starts with a tab) is still fully consumed.
-    Stops at the first run with any remaining text; an Image in between
-    contributes no text and can't itself carry a leading tab, so it's passed
-    through unchanged without stopping the scan.
+    A line's tabs end at its first other character. An Image contributes no
+    text, and at createParagraphBullets time it isn't in the doc yet, so it's
+    passed through unchanged without ending the line's tabs.
     """
     result: list[Run | Image] = []
-    for i, item in enumerate(runs):
+    at_line_start = True
+    for item in runs:
         if not isinstance(item, Run):
             result.append(item)
             continue
-        new_text = item.text.lstrip("\t")
-        if not new_text:
-            continue  # fully consumed — drop and keep scanning
-        if new_text != item.text:
-            item = replace(item, text=new_text)
-        result.append(item)
-        result.extend(runs[i + 1 :])
-        break
+        kept: list[str] = []
+        for char in item.text:
+            if char == "\t" and at_line_start:
+                continue
+            kept.append(char)
+            at_line_start = char == "\n"
+        new_text = "".join(kept)
+        if new_text == item.text:
+            result.append(item)
+        elif new_text:
+            result.append(replace(item, text=new_text))
+        # else fully consumed: dropped
     return result
 
 
@@ -1007,7 +1014,14 @@ def ast_to_requests(
             # insertInlineImage request below, exactly like a Table.
             offset_runs = node.runs
             run_text = "".join(r.text for r in node.runs if isinstance(r, Run))
-            if isinstance(node, BulletItem) and run_text.startswith("\t"):
+            if isinstance(node, BulletItem) and (run_text.startswith("\t") or "\n\t" in run_text):
+                # Every line of an item's text is a paragraph in its list's
+                # createParagraphBullets range, so a tab opening a later line (the
+                # indentation of pretty-printed HTML, #1229's "\n\t\t" shape) is
+                # read and consumed the same way and is stripped too (PR #1399 QA
+                # round 1): left in, it went uncounted by tabs_through, and every
+                # style or insert mapped past the bullet pass landed short.
+                #
                 # A literal leading tab in the item's own source text (e.g.
                 # hand-formatted HTML/markdown) is indistinguishable, once
                 # concatenated with `tabs` above, from our own synthesized
@@ -1114,6 +1128,8 @@ def ast_to_requests(
 
         spacing = _block_spacing(nodes, separators)
         top_lists = _bullet_lists(segment_meta, continuing)
+        # Every BulletItem's inline styles, sent after the bullet pass (#1383).
+        item_run_styles: list[dict] = []
         # The blocks between a list and the list that continues it (#1118): outside
         # every item, but bulleted and taken back out like a block inside one.
         between_lists = {
@@ -1203,7 +1219,11 @@ def ast_to_requests(
             # node.runs's own unstripped text here would overrun every offset by however
             # many tab characters were stripped but never actually inserted (the
             # regression PR #768's QA round 2 caught in finding 1's own first version).
+            #
+            # A BulletItem's run styles wait for the bullet pass (#1383), or its marker
+            # would take any style its whole text shares.
             offset = seg.skip_len
+            item_paragraphs = _item_paragraph_spans(seg) if isinstance(node, BulletItem) else []
             for item_order, item in enumerate(seg.runs, start=1):
                 if isinstance(item, Image):
                     uri = image_uris.get(id(item))
@@ -1217,7 +1237,11 @@ def ast_to_requests(
                         )
                     continue
                 run_len = utf16_len(item.text)
-                if run_len > 0:
+                if run_len > 0 and isinstance(node, BulletItem):
+                    item_run_styles.extend(
+                        _item_run_style_requests(item, seg, offset, run_len, item_paragraphs)
+                    )
+                elif run_len > 0:
                     style_reqs = _run_style_requests(
                         item, doc_start + offset, doc_start + offset + run_len
                     )
@@ -1249,6 +1273,8 @@ def ast_to_requests(
         # anchor insert/delete pair).
         for _, grouped in sorted(bullet_run_requests, key=lambda item: item[0], reverse=True):
             requests.extend(grouped)
+
+        requests.extend(item_run_styles)
 
         # Blockquote styling for quoted list items (#1056) runs after the whole bullet
         # pass: createParagraphBullets overwrites both paragraph indents. Every tab has
@@ -2045,6 +2071,65 @@ def image_fallback_requests(image: Image, position: int, text: str | None = None
             }
         },
     ]
+
+
+# Holds a list paragraph open past a run while it's styled, then goes (#1383).
+_MARKER_GUARD = "\u200b"
+
+
+def _item_paragraph_spans(seg: _SegmentMeta) -> list[tuple[int, int]]:
+    """Each paragraph of a BulletItem's text as (start, end) offsets from
+    `seg.doc_start`, its newline excluded. Every one has a marker: an item's text
+    holding a "\n" is several paragraphs in the same list (PR #1399 QA round 1). The
+    first starts past the depth-tabs and includes the checkbox glyph."""
+    text = "".join(run.text for run in seg.runs if isinstance(run, Run))
+    spans: list[tuple[int, int]] = []
+    start = seg.own_tabs
+    position = seg.skip_len
+    for line in text.split("\n"):
+        position += utf16_len(line)
+        spans.append((start, position))
+        position += 1
+        start = position
+    return spans
+
+
+def _item_run_style_requests(
+    run: Run, seg: _SegmentMeta, offset: int, length: int, paragraphs: list[tuple[int, int]]
+) -> list[dict]:
+    """The style requests for a BulletItem's run `length` long at `offset` in `seg`, for
+    after the bullet pass, so every position is past the item's consumed tabs (#1383).
+    `paragraphs` is _item_paragraph_spans(seg).
+
+    A marker takes its look from two moments, both confirmed live. createParagraphBullets
+    gives it every style the paragraph's whole text shares, which is why this waits for
+    that call. After it, an updateTextStyle whose range covers all of the paragraph's text
+    restyles the marker too, whether or not the range reaches the newline. So the run is
+    styled one paragraph at a time, newlines left out, and a piece that is a paragraph's
+    whole text is styled while a throwaway character holds the paragraph open past it.
+    Runs that only add up to a whole paragraph need nothing: no one request covers it.
+    The first paragraph is never covered when it opens with a checkbox glyph, which
+    isn't a run. A heading item's marker still follows its named style."""
+    requests: list[dict] = []
+    run_start, run_end = offset, offset + length
+    for para_start, para_end in paragraphs:
+        start, end = max(run_start, para_start), min(run_end, para_end)
+        if start >= end:
+            continue
+        doc_start = _after_bullet_pass(seg.doc_start + start, seg.tabs_through)
+        doc_end = doc_start + end - start
+        style = _run_style_requests(run, doc_start, doc_end)
+        if not style:
+            return []
+        if (start, end) == (para_start, para_end):
+            requests.append({"insertText": {"location": {"index": doc_end}, "text": _MARKER_GUARD}})
+            requests.extend(style)
+            requests.append(
+                {"deleteContentRange": {"range": {"startIndex": doc_end, "endIndex": doc_end + 1}}}
+            )
+        else:
+            requests.extend(style)
+    return requests
 
 
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:

@@ -1491,6 +1491,24 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ⚠️ PARTIAL — every check passes; the second run covers only the gaps fixture at EP-3. `get_doc_theme` at this head: r06, the gaps fixture, a paragraph opening with bold and one opening with a code span all report `{}`; a paragraph beside a quoted table reports `{}`; a Courier New body and a code-only Doc report the font; a first paragraph entirely in bold reports bold, as the docstring says. Rerun at this head by structure: a font-only theme after keeps all 7 gaps of the extended fixture; a font-only theme before EP-2 keeps the gap; a spacing theme before EP-2 leaves no 10pt; round trip identical with and without the gaps. The gap's own code is unchanged since round 2, so PG-01 to PG-07 and r06 on screen stand from there.**
 
+### TC-MD507: A list's markers look the same whatever its items' text looks like
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/realistic/r06-howto.md` and `docs/qa/fixtures/md/syntax/md-list-marker-styles.md` through EP-1 to EP-4. #1383's done-when.
+
+**Checks**
+- r06: step numbers 1 to 5 are all regular weight on screen, and the step text keeps its bold, including step 3's bold lead-in and plain tail.
+- Fixture, on screen: every marker in each list is regular weight, roman, black and body size, whatever its item holds: whole-item bold, italic, code, link and strikethrough, a one-character item, a single emoji, a bold lead-in, a bold ending, two adjacent styled runs, nested items, a checkbox item and a quoted item. Each item's text keeps its own style.
+- `get_doc_structure` shows no `\u200b` left in any item's text.
+- The heading item's marker is heading-sized. That's the named style, not a defect.
+- `get_doc_as_markdown` returns the same list text, with every emphasis marker in place.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-07, PR #1399 QA round 1 @ 8e41d4e5, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run this round. Both fixtures through `create_doc_from_file`: on screen every marker is regular weight, roman and black, r06's step numbers 1 to 5 included, and each item keeps its own style; the heading item's marker is heading-sized. The raw `paragraph.bullet.textStyle` of every list paragraph is `{"underline": false}` alone. No `\u200b` in any item's text. `get_doc_as_markdown` matches the fixture line for line. Also through EP-1 (`create_doc`, Markdown): a `#slug` TOC list and a list whose only item content is an unfetchable linked SVG badge (written as its alt text) both keep black markers. Two failures outside this case's checks: pretty-printed HTML (`<li>\n\t\t<b>one</b>\n\t</li>`) now fails `create_doc` with a 400, and `create_paragraph_bullets` on one item of the fixture's first list gives its neighbours' markers bold, italic, Courier New and strikethrough (see the round's PR comment).**
+
+**Result (2026-11-07, PR #1399 QA round 2 @ f51e67cf, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run. The fixture through `create_doc_from_file`: every marker plain on screen and `{"underline": false}` alone in `paragraph.bullet.textStyle`, every item keeping its own style, no `\u200b` in any item text. Round 1's HTML failure is fixed: `create_doc` with a pretty-printed HTML list (`<li>\n\t\t<b>one</b>\n\t</li>`, an `<li><b>bold</b>\n</li>`, and the same shape inside a `<blockquote>`) succeeds, bold and italic land on exactly their own characters, every marker is plain and the quote bar spans its list. The empty bulleted paragraphs that shape still makes are #1229.**
+
 ---
 
 ## Known gaps and not-applicable
