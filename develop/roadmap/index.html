@@ -2204,6 +2204,8 @@
 <li>[x] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1122">#1122</a>) (PR #1359)</li>
 <li>[x] A relative link becomes <code>http://./guide.md</code> — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1120">#1120</a>) (PR #1149)</li>
 <li>[x] Blank paragraph before a table keeps the preceding heading's style — community PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1092">#1092</a>) (PR #1138)</li>
+<li>[ ] Adjacent paragraphs have no gap on our converter, so two paragraphs read as one — <code>wrong/common</code>; #1044 Phase 1 re-run finding, must land before the cut; #1044's later phases wait on it — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1382">#1382</a>)</li>
+<li>[ ] List markers vary in boldness within one list — <code>wrong/narrow, observed</code>; #1044 Phase 1 re-run finding — lane A (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1383">#1383</a>)</li>
 </ul>
 <p><strong>Feature set: Gmail sending safety</strong></p>
 <ul>
@@ -2213,7 +2215,7 @@
 <p><strong>Feature set: launch readiness</strong></p>
 <ul>
 <li>[x] Ship an MCP Bundle (.mcpb) for one-click install; the Smithery listing was dropped, since Smithery ends its CLI and connection services 2026-10-31 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1036">#1036</a>) (PR #1255)</li>
-<li>[ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)</li>
+<li>[x] Demo screenshot or GIF for the README: a before/after image of a Markdown file and the Doc it produces (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>) (PR #1384)</li>
 <li>[ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of <code>backlog</code> 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled <code>planned: ornithomimus</code> 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/585">#585</a>)</li>
 <li>[x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1212">#1212</a>) (PR #1222)</li>
 <li>[x] Make Lint and test 3.14/3.15 required status checks on <code>develop</code> and <code>main</code> — #1212 review follow-up, a branch-protection settings change with no PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1224">#1224</a>)</li>
@@ -2221,7 +2223,7 @@
 <li>[ ] Docs for client tool limits: VS Code's 128-tools-per-request cap breaks a default install on the first call. README note, <code>configuration.md</code> subsets framed around client limits, per-client snippets, a known-limitations entry; VS Code and Cursor checks may be Aziz's. Added 2026-10-24 (maintainer) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1214">#1214</a>) (docs landed in PR #1254; VS Code + Copilot and Cursor live checks still open)</li>
 <li>[x] Accept <code>ENABLED_TOOLS=all</code> and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1363">#1363</a>) (PR #1365)</li>
 <li>[x] <code>release.md</code> step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1366">#1366</a>) (PR #1373)</li>
-<li>[ ] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1343">#1343</a>)</li>
+<li>[x] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1343">#1343</a>) (PR #1344)</li>
 </ul>
 <p><strong>Fill</strong> <em>(rank order, locked 2026-10-18)</em></p>
 <ul>
