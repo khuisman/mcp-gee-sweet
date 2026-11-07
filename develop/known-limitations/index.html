@@ -1503,6 +1503,18 @@ margins. See <code>docs/design/list-start-numbers.md</code>.</p>
 <p><strong>Workaround:</strong> To get a real list, start it at 1, or write it through Drive's import
 (<code>upload_local_file(convert=True)</code>), which creates a new Doc.</p>
 <hr />
+<h3 id="the-gap-between-paragraphs-is-set-on-each-paragraph">The gap between paragraphs is set on each paragraph<a class="headerlink" href="#the-gap-between-paragraphs-is-set-on-each-paragraph" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>, and
+<code>upload_file</code> (Markdown source) put 10pt below a paragraph that another paragraph follows, in the
+paragraph's own style rather than in NORMAL_TEXT, so a change to NORMAL_TEXT in the Docs UI doesn't
+reach those paragraphs. <code>apply_theme</code> with a NORMAL_TEXT <code>space_above</code> or <code>space_below</code> does: it
+removes the 10pt from every NORMAL_TEXT body paragraph that has exactly that value, including one
+a person set by hand. A doc whose NORMAL_TEXT has nonzero spacing gets no gaps when it's written,
+but a NORMAL_TEXT set to 0 can't be told from the default, so that doc gets them.</p>
+<p><code>get_doc_theme</code> leaves 8pt and 10pt out of NORMAL_TEXT's <code>space_above</code> and <code>space_below</code>, since
+that's what those values are on a server-written doc, so it also misses them on a paragraph set
+to one by hand.</p>
+<hr />
 <h3 id="a-horizontal-rule-is-a-bordered-paragraph-not-a-docs-horizontal-line">A horizontal rule is a bordered paragraph, not a Docs horizontal line<a class="headerlink" href="#a-horizontal-rule-is-a-bordered-paragraph-not-a-docs-horizontal-line" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A Markdown thematic break (<code>---</code>, <code>***</code>, <code>___</code>) or an HTML <code>&lt;hr&gt;</code> written by <code>create_doc</code>,
 <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>, or <code>upload_file</code> (Markdown

@@ -1538,6 +1538,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a test doc created with <code>create_doc</code> (markdown content — inherited styles): returned <code>{}</code>. Called on the same doc after <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT): returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. <code>font_size</code> and <code>bold</code> are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 get_doc_theme on inherited-style doc returned {} — expected, no error.</p>
+<p><strong>Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS</strong> Inherited-style Markdown Doc returned <code>{}</code>, no error. After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) it returned both entries. The first paragraph of a style now decides, so a Doc with an unstyled first paragraph reports nothing for that style even if later ones are hand-styled.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
 <hr />
@@ -1605,6 +1606,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 <p><strong>Result (2026-06-20) ✅ PASS</strong> After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. Applying that theme back → <code>requests: 2</code> (one <code>updateNamedStyle</code> per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 round-tripped Georgia/Roboto fonts render distinctly</p>
+<p><strong>Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS</strong> <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>; applying it back with <code>overwrite=True</code> returned <code>requests &gt; 0</code> and no error. Not checked on screen.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
 <hr />
