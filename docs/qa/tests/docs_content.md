@@ -6868,3 +6868,6 @@ Live on `mcp-gee-sweet-sky` at 5619ff36, after `/mcp reconnect` (OAuth, Shared D
 - Step 6: "Before", "raw html block" and "After" are three paragraphs
 
 **Cleanup:** `delete_file` the three docs
+
+**Result (2026-11-07) ✅ PASS — PR #1400 round 1 (Kit)**
+Live on `mcp-gee-sweet-kit` at a98790f8, after `/mcp reconnect` (OAuth, Shared Drive fixture folder), all six steps. Step 2 exports the five paragraphs in order, then `> quoted in a div`. Step 4's first paragraph is `**Bold** and [linked](https://example.com) on two source lines` with nothing before it, then one empty paragraph, "after a blank line", "Summary" and "Details body"; no title, style or script text anywhere. Step 6 is "Before", "raw html block", "After". The case passes, but the round was sent back for code-review findings outside its inputs. Two were confirmed in a live probe doc: a pretty-printed `<div>` around a multi-line `<a>` gets an extra empty paragraph after the link, and an unclosed `<video>` in a `<div>` drops every later paragraph while `create_doc` still reports success. Cleanup: the three docs and the probe doc trashed.
