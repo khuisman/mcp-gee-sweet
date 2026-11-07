@@ -197,7 +197,9 @@ A blank line between two paragraphs is 10pt of `spaceBelow` on the first (#1382)
 own "Add space after paragraph" adds, close to the 8pt around code blocks and quotes. Drive's
 import makes the same gap with an empty paragraph instead, which would read back as content.
 The gap goes between two plain paragraphs in the same quote depth and list item, and between
-an item's text and a paragraph inside that item. A spacer line (`&nbsp;`) is a gap already, and a
+an item's text and a paragraph inside that item, a literal item's included. Inside a quote, an
+item's text gets none: the paragraph has a different indent, so Docs leaves the gap out of the
+bar. A spacer line (`&nbsp;`) is a gap already, and a
 list, a heading or a table keeps its own look next to a paragraph. A paragraph in a table cell
 gets none: cells stay compact, and Markdown can't write one.
 
@@ -206,11 +208,15 @@ NORMAL_TEXT for the whole Doc, lists and table cells included. A value on a para
 named style, so a theme's spacing has to win some other way, in either order:
 
 - A Doc that already has NORMAL_TEXT spacing gets no gaps: `_replace_doc_content` reads it
-  (`has_own_paragraph_spacing`) and drops them from the converted requests
+  (`_has_own_paragraph_spacing`) and drops them from the converted requests
   (`without_paragraph_gaps`). Spacing of exactly 0 can't be told from the default.
 - `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` hands the gap paragraphs back to
   the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT`, which
   no other spacing the emitter writes uses.
+
+`get_doc_theme` leaves the gap out of a body-derived theme, and doesn't take NORMAL_TEXT from
+a quote, a rule, a code block or an empty line (`_is_block_paragraph`): applying a theme that
+carried their spacing would set it across the target Doc, lists and cells included.
 
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).

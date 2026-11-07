@@ -37,7 +37,6 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _text_offset_since_last_table,
     ast_to_requests,
     extract_images,
-    has_own_paragraph_spacing,
     without_paragraph_gaps,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
@@ -1448,6 +1447,41 @@ class TestBlockSeparation:
         assert min(gaps) > last_bullet_call
         assert self._spacing(requests).keys() == {2, 4}
 
+    def test_literal_item_gets_the_gap_like_any_other_item(self):
+        """A list that can't start at its number is literal text (#1118), and its
+        item's paragraph is no less a paragraph (PR #1388 QA round 1)."""
+        requests, _ = _to_doc_requests("3. a\n\n   b\n\n   c\n\n4. d\n", "markdown")
+        assert self._inserted_text(requests) == "3.\ta\nb\nc\n4.\td\n"
+        # "3.\ta\n" [1,6), "b\n" [6,8), "c\n" [8,10).
+        assert self._spacing(requests) == {5: {"spaceBelow": 10}, 7: {"spaceBelow": 10}}
+
+    def test_literal_item_gets_no_gap_before_a_paragraph_outside_it(self):
+        requests, _ = _to_doc_requests("3. a\n\nb\n", "markdown")
+        assert self._spacing(requests) == {}
+
+    @pytest.mark.parametrize(
+        "markdown",
+        ["> - a\n>\n>   b\n", "> 3. a\n>\n>    b\n"],
+        ids=["bullet", "literal"],
+    )
+    def test_quoted_item_text_gets_no_gap_its_bar_would_not_cover(self, markdown):
+        """The item and its paragraph have different indents, so Docs doesn't join
+        their borders across a gap (PR #1388 QA round 1)."""
+        requests, _ = _to_doc_requests(markdown, "markdown")
+        assert not any(style.get("spaceBelow") == 10 for style in self._spacing(requests).values())
+
+    def test_paragraphs_inside_a_quoted_item_keep_the_gap(self):
+        """Same border and indent, so the bar covers it."""
+        requests, _ = _to_doc_requests("> - a\n>\n>   b\n>\n>   c\n", "markdown")
+        gaps = [s for s in self._spacing(requests).values() if s.get("spaceBelow") == 10]
+        assert len(gaps) == 1
+
+    def test_orphan_item_gets_no_gap(self):
+        """An <li> outside any list has no list place, which isn't the same place as a
+        paragraph outside every list (PR #1388 QA round 1)."""
+        requests, _ = _html_to_doc_requests("<li>a</li><p>b</p>")
+        assert self._spacing(requests) == {}
+
     def test_paragraphs_in_different_items_get_no_gap(self):
         requests, _ = _html_to_doc_requests("<ul><li><p>a</p></li><li><p>b</p></li></ul>")
         assert self._spacing(requests) == {}
@@ -1460,28 +1494,6 @@ class TestBlockSeparation:
         assert len(kept) == len(requests) - 1
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
         assert any(style.get("spaceBelow") == 8 for style in self._spacing(kept).values())
-
-    @pytest.mark.parametrize(
-        "paragraph_style, own",
-        [
-            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, False),
-            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, True),
-            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, True),
-        ],
-    )
-    def test_has_own_paragraph_spacing_reads_normal_text(self, paragraph_style, own):
-        doc = {
-            "namedStyles": {
-                "styles": [
-                    {
-                        "namedStyleType": "HEADING_1",
-                        "paragraphStyle": {"spaceAbove": {"magnitude": 20, "unit": "PT"}},
-                    },
-                    {"namedStyleType": "NORMAL_TEXT", "paragraphStyle": paragraph_style},
-                ]
-            }
-        }
-        assert has_own_paragraph_spacing(doc) is own
 
     def test_nested_quote_continuing_its_outer_quote_not_separated(self):
         requests, _ = _html_to_doc_requests(

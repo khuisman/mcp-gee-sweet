@@ -1576,24 +1576,44 @@ def _is_plain_paragraph(node: DocNode) -> bool:
     return plain and _has_visible_content(node)
 
 
+def _is_text_of_item_holding(first: DocNode, second: DocNode) -> bool:
+    """Whether `first` is a list item's own text, or the stand-in for it (#1118), and
+    `second` sits inside that item."""
+    place = _list_place(second)
+    if place is None:
+        return False
+    if isinstance(first, BulletItem):
+        return (
+            first.heading_level is None
+            and _has_visible_content(first)
+            and _list_place(first) == place
+        )
+    # A stand-in's list_path stops at its parent list: it's a block in the parent item.
+    depth, path = place
+    return (
+        isinstance(first, Paragraph)
+        and first.literal_item_level == depth
+        and first.list_path == path[:-1]
+    )
+
+
 def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
     """Whether a paragraph break between two adjacent nodes needs PARAGRAPH_GAP_PT
-    (#1382): `second` is a plain paragraph in the same place as `first`, which is one
-    too or the text of the list item `second` sits in. Same place means the same quote
-    at the same depth, whose bar covers the gap (a neighbour with another border leaves
-    the gap unbarred, PR #1326 QA round 1), and the same list item."""
-    first_is_text = (
-        first.heading_level is None and _has_visible_content(first)
-        if isinstance(first, BulletItem)
-        else _is_plain_paragraph(first)
-    )
-    return (
-        first_is_text
-        and _is_plain_paragraph(second)
-        and first.blockquote_depth == second.blockquote_depth
-        and first.blockquote_path == second.blockquote_path
-        and _list_place(first) == _list_place(second)
-    )
+    (#1382): `second` is a plain paragraph in the same quote and at the same quote depth
+    as `first`, which is a plain paragraph in the same list item, or that item's text.
+
+    Docs covers the gap with the quote bar only between paragraphs with the same border
+    and indent. So a quoted paragraph gets no gap beside a nested quote's, or beside its
+    item's text, whose indent differs: the bar broke there (PR #1388 QA round 1)."""
+    if (
+        not _is_plain_paragraph(second)
+        or first.blockquote_depth != second.blockquote_depth
+        or first.blockquote_path != second.blockquote_path
+    ):
+        return False
+    if _is_plain_paragraph(first):
+        return _list_place(first) == _list_place(second)
+    return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
 
 
 def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
@@ -1705,12 +1725,7 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
-        following = nodes[i + 1] if i + 1 < len(nodes) else None
-        if (
-            following is not None
-            and id(following) not in separators
-            and _paragraph_gap_between(node, following)
-        ):
+        if i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
             below = PARAGRAPH_GAP_PT
         if above or below:
             spacing[i] = (above, below)
@@ -1738,19 +1753,6 @@ def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
                 }
             )
     return requests
-
-
-def has_own_paragraph_spacing(doc: dict) -> bool:
-    """Whether a `documents().get()` response's NORMAL_TEXT has spacing of its own, as
-    a theme gives it, which a paragraph gap would override."""
-    for style in doc.get("namedStyles", {}).get("styles", []):
-        if style.get("namedStyleType") == "NORMAL_TEXT":
-            paragraph_style = style.get("paragraphStyle", {})
-            return any(
-                paragraph_style.get(field_name, {}).get("magnitude")
-                for field_name in ("spaceAbove", "spaceBelow")
-            )
-    return False
 
 
 def without_paragraph_gaps(requests: list[dict]) -> list[dict]:

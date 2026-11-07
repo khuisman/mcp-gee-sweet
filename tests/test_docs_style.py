@@ -20,6 +20,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
 from mcp_gee_sweet.tools.docs.style import (
     _add_or_clear_field,
     _build_named_style_requests,
+    _has_own_paragraph_spacing,
     _read_body_styles,
     _read_named_styles,
     _text_style_and_fields,
@@ -1834,11 +1835,70 @@ class TestApplyThemeTool:
         assert any("updateNamedStyle" in r for r in reqs)
         assert any("updateTextStyle" in r for r in reqs)
 
+    @pytest.mark.parametrize(
+        "paragraph_style, own",
+        [
+            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, False),
+            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, True),
+            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, True),
+        ],
+    )
+    def test_has_own_paragraph_spacing_reads_normal_text(self, paragraph_style, own):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "paragraphStyle": {"spaceAbove": {"magnitude": 20, "unit": "PT"}},
+                    },
+                    {"namedStyleType": "NORMAL_TEXT", "paragraphStyle": paragraph_style},
+                ]
+            }
+        }
+        assert _has_own_paragraph_spacing(doc) is own
+
+    def test_body_theme_leaves_out_the_paragraph_gap_and_block_spacing(self):
+        """A theme carrying them would space a whole doc (PR #1388 QA round 1)."""
+        theme = _read_body_styles(self._paragraph_gap_doc())
+        assert "NORMAL_TEXT" not in theme
+        # A heading at the same value is that heading's own style.
+        assert theme["HEADING_1"]["space_below"] == 10
+
+    @pytest.mark.parametrize(
+        "block_style, runs",
+        [
+            ({"borderLeft": {"width": {"magnitude": 3, "unit": "PT"}}}, ["quote\n"]),
+            ({"borderBottom": {"width": {"magnitude": 1, "unit": "PT"}}}, ["\n"]),
+            ({}, ["\n"]),
+        ],
+        ids=["quote", "rule", "empty"],
+    )
+    def test_body_theme_skips_a_block_for_the_first_body_text(self, block_style, runs):
+        def paragraph(style, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        spacing = {"spaceAbove": {"magnitude": 8, "unit": "PT"}}
+        doc = {
+            "body": {
+                "content": [
+                    paragraph({**spacing, **block_style}, runs[0]),
+                    paragraph({"spaceBelow": {"magnitude": 4, "unit": "PT"}}, "body\n"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"space_below": 4}
+
     @staticmethod
     def _paragraph_gap_doc():
         """A gap paragraph, a code block with its 8pt, and a heading at the gap's value."""
 
-        def paragraph(start, end, named_style, space_below):
+        def paragraph(start, end, named_style, space_below, font=None):
+            text_style = {"weightedFontFamily": {"fontFamily": font}} if font else {}
             return {
                 "startIndex": start,
                 "endIndex": end,
@@ -1847,7 +1907,7 @@ class TestApplyThemeTool:
                         "namedStyleType": named_style,
                         "spaceBelow": {"magnitude": space_below, "unit": "PT"},
                     },
-                    "elements": [],
+                    "elements": [{"textRun": {"content": "x\n", "textStyle": text_style}}],
                 },
             }
 
@@ -1856,7 +1916,7 @@ class TestApplyThemeTool:
                 "content": [
                     {"endIndex": 1, "sectionBreak": {}},
                     paragraph(1, 3, "NORMAL_TEXT", 10),
-                    paragraph(3, 5, "NORMAL_TEXT", 8),
+                    paragraph(3, 5, "NORMAL_TEXT", 8, font="Courier New"),
                     paragraph(5, 7, "HEADING_1", 10),
                 ]
             }
@@ -1889,7 +1949,7 @@ class TestApplyThemeTool:
         "theme",
         [{"NORMAL_TEXT": {"font_family": "Georgia"}}, {"HEADING_1": {"space_below": 20}}],
     )
-    async def test_theme_without_body_spacing_keeps_the_paragraph_gap(self, theme):
+    async def test_theme_without_body_spacing_leaves_the_doc_alone(self, theme):
         tools = self._setup()
         mock_docs = MagicMock()
         mock_docs.documents().batchUpdate().execute.return_value = {}

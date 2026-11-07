@@ -5,7 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
-from .emitter import PARAGRAPH_GAP_PT
+from .emitter import PARAGRAPH_GAP_PT, _border_width
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
 
@@ -27,6 +27,25 @@ _NAMED_STYLE_TYPES = frozenset(
 )
 
 
+def _is_block_paragraph(para: dict) -> bool:
+    """Whether a NORMAL_TEXT paragraph is a block rather than body text: a quote or a
+    rule (a left or bottom border), a code block (all Courier New), or an empty line."""
+    paragraph_style = para.get("paragraphStyle", {})
+    if _border_width(paragraph_style, "borderLeft") or _border_width(
+        paragraph_style, "borderBottom"
+    ):
+        return True
+    runs = [
+        element["textRun"]
+        for element in para.get("elements", [])
+        if element.get("textRun", {}).get("content", "").strip()
+    ]
+    return all(
+        run.get("textStyle", {}).get("weightedFontFamily", {}).get("fontFamily") == "Courier New"
+        for run in runs
+    )
+
+
 def _read_body_styles(doc: dict) -> dict:
     """Derive a theme dict from body paragraph styles — first occurrence per named style type.
 
@@ -34,7 +53,11 @@ def _read_body_styles(doc: dict) -> dict:
     setting namedStyles defaults. This function reads the actual applied styles from the body
     so the returned theme reflects what the document looks like. Subsequent paragraphs of
     the same namedStyleType with different styles are ignored (treated as intentional
-    individual overrides outside the theme system).
+    individual overrides outside the theme system). What the emitter writes for a
+    block or a paragraph break isn't a theme value: a theme carrying it would set
+    NORMAL_TEXT across a whole doc, lists and table cells included. So a NORMAL_TEXT
+    paragraph that's a block's (_is_block_paragraph) doesn't count as its first
+    occurrence, and the paragraph gap (#1382) isn't read.
     """
     theme: dict = {}
     for elem in doc.get("body", {}).get("content", []):
@@ -44,6 +67,8 @@ def _read_body_styles(doc: dict) -> dict:
         style_type = para.get("paragraphStyle", {}).get("namedStyleType")
         if style_type not in _NAMED_STYLE_TYPES or style_type in theme:
             continue
+        if style_type == "NORMAL_TEXT" and _is_block_paragraph(para):
+            continue
         entry: dict = {}
         ps = para.get("paragraphStyle", {})
         if "lineSpacing" in ps:
@@ -52,7 +77,8 @@ def _read_body_styles(doc: dict) -> dict:
         if space_above is not None:
             entry["space_above"] = space_above
         space_below = ps.get("spaceBelow", {}).get("magnitude")
-        if space_below is not None:
+        is_paragraph_gap = style_type == "NORMAL_TEXT" and space_below == PARAGRAPH_GAP_PT
+        if space_below is not None and not is_paragraph_gap:
             entry["space_below"] = space_below
         for element in para.get("elements", []):
             tr = element.get("textRun")
@@ -118,6 +144,13 @@ def _read_named_styles(doc: dict) -> dict:
         if entry:
             theme[style_type] = entry
     return theme
+
+
+def _has_own_paragraph_spacing(doc: dict) -> bool:
+    """Whether a doc's NORMAL_TEXT has spacing of its own, as a theme gives it, which a
+    paragraph gap (#1382) would override."""
+    normal_text = _read_named_styles(doc).get("NORMAL_TEXT", {})
+    return bool(normal_text.get("space_above") or normal_text.get("space_below"))
 
 
 def _clear_paragraph_gap_requests(doc: dict) -> list[dict]:

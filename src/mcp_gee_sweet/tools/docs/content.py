@@ -38,7 +38,6 @@ from .emitter import (
     ast_to_requests,
     extract_images,
     fill_tables,
-    has_own_paragraph_spacing,
     heading_image_ids,
     iter_cell_leaves,
     unstorable_link_urls,
@@ -57,7 +56,7 @@ from .images import (
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 from .markdown_export import _discard_temp_doc
 from .md_to_html import _md_to_html
-from .style import _add_or_clear_field
+from .style import _add_or_clear_field, _has_own_paragraph_spacing
 
 logger = logging.getLogger(__name__)
 
@@ -777,7 +776,7 @@ async def _replace_doc_content(
                 "docId": doc_id,
             }
     doc, end_index = await _doc_end_index(docs_service, doc_id)
-    if has_own_paragraph_spacing(doc):
+    if _has_own_paragraph_spacing(doc):
         converted.requests = without_paragraph_gaps(converted.requests)
 
     backup: dict[str, Any] = {}
