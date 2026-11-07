@@ -1114,6 +1114,8 @@ def ast_to_requests(
 
         spacing = _block_spacing(nodes, separators)
         top_lists = _bullet_lists(segment_meta, continuing)
+        # Every BulletItem's inline styles, sent after the bullet pass (#1383).
+        item_run_styles: list[dict] = []
         # The blocks between a list and the list that continues it (#1118): outside
         # every item, but bulleted and taken back out like a block inside one.
         between_lists = {
@@ -1203,6 +1205,9 @@ def ast_to_requests(
             # node.runs's own unstripped text here would overrun every offset by however
             # many tab characters were stripped but never actually inserted (the
             # regression PR #768's QA round 2 caught in finding 1's own first version).
+            #
+            # A BulletItem's run styles wait for the bullet pass (#1383), or its marker
+            # would take any style its whole text shares.
             offset = seg.skip_len
             for item_order, item in enumerate(seg.runs, start=1):
                 if isinstance(item, Image):
@@ -1217,7 +1222,9 @@ def ast_to_requests(
                         )
                     continue
                 run_len = utf16_len(item.text)
-                if run_len > 0:
+                if run_len > 0 and isinstance(node, BulletItem):
+                    item_run_styles.extend(_item_run_style_requests(item, seg, offset, run_len))
+                elif run_len > 0:
                     style_reqs = _run_style_requests(
                         item, doc_start + offset, doc_start + offset + run_len
                     )
@@ -1249,6 +1256,8 @@ def ast_to_requests(
         # anchor insert/delete pair).
         for _, grouped in sorted(bullet_run_requests, key=lambda item: item[0], reverse=True):
             requests.extend(grouped)
+
+        requests.extend(item_run_styles)
 
         # Blockquote styling for quoted list items (#1056) runs after the whole bullet
         # pass: createParagraphBullets overwrites both paragraph indents. Every tab has
@@ -2044,6 +2053,35 @@ def image_fallback_requests(image: Image, position: int, text: str | None = None
                 "fields": "link",
             }
         },
+    ]
+
+
+# Holds a list paragraph open past a run while it's styled, then goes (#1383).
+_MARKER_GUARD = "\u200b"
+
+
+def _item_run_style_requests(run: Run, seg: _SegmentMeta, offset: int, length: int) -> list[dict]:
+    """The style requests for a BulletItem's run `length` long at `offset` in `seg`, for
+    after the bullet pass, so every position is past the item's consumed tabs (#1383).
+
+    A marker takes its look from two moments, both confirmed live. createParagraphBullets
+    gives it every style the paragraph's whole text shares, which is why this waits for
+    that call. After it, an updateTextStyle whose range covers all of the paragraph's text
+    restyles the marker too, whether or not the range reaches the newline. So a run that
+    is the item's whole text is styled while a throwaway character holds the paragraph
+    open past it. Runs that only add up to the whole text need nothing: no one request
+    covers it. An item's text with a checkbox glyph is never covered, since the glyph
+    isn't a run. A heading item's marker still follows its named style."""
+    start = _after_bullet_pass(seg.doc_start + offset, seg.tabs_through)
+    end = start + length
+    style = _run_style_requests(run, start, end)
+    is_whole_text = offset == seg.own_tabs and seg.doc_start + offset + length == seg.doc_end - 1
+    if not style or not is_whole_text:
+        return style
+    return [
+        {"insertText": {"location": {"index": end}, "text": _MARKER_GUARD}},
+        *style,
+        {"deleteContentRange": {"range": {"startIndex": end, "endIndex": end + 1}}},
     ]
 
 

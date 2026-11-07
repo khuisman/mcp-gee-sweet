@@ -1491,6 +1491,20 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ⚠️ PARTIAL — every check passes; the second run covers only the gaps fixture at EP-3. `get_doc_theme` at this head: r06, the gaps fixture, a paragraph opening with bold and one opening with a code span all report `{}`; a paragraph beside a quoted table reports `{}`; a Courier New body and a code-only Doc report the font; a first paragraph entirely in bold reports bold, as the docstring says. Rerun at this head by structure: a font-only theme after keeps all 7 gaps of the extended fixture; a font-only theme before EP-2 keeps the gap; a spacing theme before EP-2 leaves no 10pt; round trip identical with and without the gaps. The gap's own code is unchanged since round 2, so PG-01 to PG-07 and r06 on screen stand from there.**
 
+### TC-MD507: A list's markers look the same whatever its items' text looks like
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/realistic/r06-howto.md` and `docs/qa/fixtures/md/syntax/md-list-marker-styles.md` through EP-1 to EP-4. #1383's done-when.
+
+**Checks**
+- r06: step numbers 1 to 5 are all regular weight on screen, and the step text keeps its bold, including step 3's bold lead-in and plain tail.
+- Fixture, on screen: every marker in each list is regular weight, roman, black and body size, whatever its item holds: whole-item bold, italic, code, link and strikethrough, a one-character item, a single emoji, a bold lead-in, a bold ending, two adjacent styled runs, nested items, a checkbox item and a quoted item. Each item's text keeps its own style.
+- `get_doc_structure` shows no `\u200b` left in any item's text.
+- The heading item's marker is heading-sized. That's the named style, not a defect.
+- `get_doc_as_markdown` returns the same list text, with every emphasis marker in place.
+
+**Cleanup:** trash the Docs.
+
 ---
 
 ## Known gaps and not-applicable

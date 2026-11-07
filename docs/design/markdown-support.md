@@ -227,6 +227,22 @@ shares that field, or one run's inline bold or code span would read as the Doc's
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).
 
+A list marker stays plain whatever style its item's text has (#1383), as it does in a browser,
+so one list's markers match. A marker's look is `paragraph.bullet.textStyle`, which matches the
+screen. Checked live, what sets it:
+
+| Moment | What the marker takes |
+|---|---|
+| `createParagraphBullets` | Every style the paragraph's whole text shares, however many requests set it: a bold item in two runs still gets a bold marker. The newline's own style doesn't matter, and clearing it before or after changes nothing. |
+| A later `updateTextStyle` | That request's style, if its range covers all of the paragraph's text, with or without the newline. Two requests that only add up to the whole text leave the marker alone. |
+
+So a `BulletItem`'s run styles go after the whole bullet pass (`_item_run_style_requests`), and
+a run that is the item's whole text is styled with a throwaway zero-width space after it, deleted
+by the next request, because no split works for a one-character item. A heading item's marker
+keeps its heading's size and weight: that comes from the named style, not from a run. This
+corrects #1383's own reading that a marker follows the last run: r06's step 3 differs because it's
+the only step not bold throughout, and an item that's plain then bold had a plain marker already.
+
 Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.
 

@@ -1956,9 +1956,9 @@ class TestNestedBulletDepthEmitsIndentation:
         full_text = insert["insertText"]["text"]
         assert ranges[0] == {"startIndex": 1, "endIndex": 1 + len(full_text)}
 
-    def test_run_style_offset_skips_leading_tabs(self):
-        # A styled run inside a nested item must not have the leading tab(s) folded
-        # into its style range.
+    def test_run_style_offset_allows_for_consumed_tabs(self):
+        # A styled run inside a nested item is styled after the bullet pass (#1383), so
+        # its range starts where the run sits once the leading tabs are gone.
         requests, _ = ast_to_requests([BulletItem(runs=[Run("bold", bold=True)], depth=2)])
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "\t\tbold\n"
@@ -1968,7 +1968,7 @@ class TestNestedBulletDepthEmitsIndentation:
             if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
         )
         rng = bold_req["updateTextStyle"]["range"]
-        assert rng == {"startIndex": 3, "endIndex": 7}  # skips the 2 leading tabs
+        assert rng == {"startIndex": 1, "endIndex": 5}
 
     def test_bullet_run_request_applied_after_sibling_requests(self):
         # A grouped bullet-run's createParagraphBullets call consumes characters
@@ -2062,6 +2062,118 @@ class TestNestedBulletDepthEmitsIndentation:
         requests, _ = _to_doc_requests(html)
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "Parent\n\tChild\n"
+
+
+class TestListMarkerStyle:
+    """A marker looks the same whatever style its item's text has (#1383).
+    createParagraphBullets gives a marker the styles the whole paragraph shares, and a
+    later updateTextStyle covering all of the paragraph's text restyles it."""
+
+    @staticmethod
+    def _position(requests, key):
+        return next(i for i, r in enumerate(requests) if key in r)
+
+    @staticmethod
+    def _styles(requests):
+        return [r["updateTextStyle"] for r in requests if "updateTextStyle" in r]
+
+    @staticmethod
+    def _guards(requests):
+        return [
+            r["insertText"] for r in requests if r.get("insertText", {}).get("text") == "\u200b"
+        ]
+
+    def test_a_run_that_is_the_whole_item_is_styled_behind_a_guard(self):
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("bold", bold=True)], ordered=True), BulletItem(runs=[Run("b")])]
+        )
+        bullets = self._position(requests, "createParagraphBullets")
+        guard = next(
+            i for i, r in enumerate(requests) if r.get("insertText", {}).get("text") == "\u200b"
+        )
+        assert guard > bullets
+        assert requests[guard]["insertText"]["location"] == {"index": 5}
+        assert requests[guard + 1]["updateTextStyle"]["range"] == {"startIndex": 1, "endIndex": 5}
+        assert requests[guard + 2] == {
+            "deleteContentRange": {"range": {"startIndex": 5, "endIndex": 6}}
+        }
+
+    def test_item_ending_in_plain_text_has_no_guard_and_styles_after_bullets(self):
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("lead", bold=True), Run(" rest")], ordered=True)]
+        )
+        assert self._guards(requests) == []
+        assert self._position(requests, "updateTextStyle") > self._position(
+            requests, "createParagraphBullets"
+        )
+        assert self._styles(requests)[0]["range"] == {"startIndex": 1, "endIndex": 5}
+
+    def test_item_ending_in_bold_has_no_guard_and_styles_after_bullets(self):
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("rest "), Run("end", bold=True)], ordered=True)]
+        )
+        assert self._guards(requests) == []
+        assert self._position(requests, "updateTextStyle") > self._position(
+            requests, "createParagraphBullets"
+        )
+        assert self._styles(requests)[0]["range"] == {"startIndex": 6, "endIndex": 9}
+
+    def test_runs_adding_up_to_the_whole_item_need_no_guard(self):
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("two ", bold=True), Run("runs", bold=True, italic=True)])]
+        )
+        assert self._guards(requests) == []
+        assert len(self._styles(requests)) == 2
+
+    def test_whole_nested_item_guard_sits_past_the_consumed_tabs(self):
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("top")]), BulletItem(runs=[Run("bold", bold=True)], depth=1)]
+        )
+        # "top\n" is 1-5; the nested item's one tab is gone by then.
+        assert [g["location"]["index"] for g in self._guards(requests)] == [9]
+        assert self._styles(requests)[0]["range"] == {"startIndex": 5, "endIndex": 9}
+
+    def test_every_earlier_items_tabs_count_toward_the_position(self):
+        requests, _ = ast_to_requests(
+            [
+                BulletItem(runs=[Run("top")]),
+                BulletItem(runs=[Run("kid")], depth=2),
+                BulletItem(runs=[Run("end", bold=True)]),
+            ]
+        )
+        assert self._styles(requests)[0]["range"] == {"startIndex": 9, "endIndex": 12}
+
+    def test_astral_text_keeps_its_guard_past_the_surrogate_pair(self):
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("😀", bold=True)])])
+        assert [g["location"]["index"] for g in self._guards(requests)] == [3]
+        assert self._styles(requests)[0]["range"] == {"startIndex": 1, "endIndex": 3}
+
+    def test_checkbox_glyph_keeps_a_run_from_covering_the_item(self):
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("done", bold=True)], checked=True)])
+        assert self._guards(requests) == []
+        assert len(self._styles(requests)) == 1
+
+    def test_unstyled_item_gets_neither_style_nor_guard(self):
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("plain")])])
+        assert self._guards(requests) == []
+        assert self._styles(requests) == []
+
+    def test_image_after_the_run_still_lands_after_the_guard(self):
+        image = Image(src="https://example.com/x.png")
+        requests, _ = ast_to_requests(
+            [BulletItem(runs=[Run("bold", bold=True), image])], image_uris={id(image): "u"}
+        )
+        assert len(self._guards(requests)) == 1
+        assert self._position(requests, "insertInlineImage") == len(requests) - 1
+
+    def test_paragraph_runs_keep_their_place_before_the_bullet_pass(self):
+        requests, _ = ast_to_requests(
+            [Paragraph(runs=[Run("para", bold=True)]), BulletItem(runs=[Run("item")])]
+        )
+        assert self._guards(requests) == []
+        assert self._position(requests, "updateTextStyle") < self._position(
+            requests, "createParagraphBullets"
+        )
 
 
 class TestBulletDepthEdgeCases:
