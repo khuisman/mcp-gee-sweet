@@ -424,6 +424,8 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding — lane A ([#1122](https://github.com/khuisman/mcp-gee-sweet/issues/1122)) (PR #1359)
 - [x] A relative link becomes `http://./guide.md` — community PR ([#1120](https://github.com/khuisman/mcp-gee-sweet/issues/1120)) (PR #1149)
 - [x] Blank paragraph before a table keeps the preceding heading's style — community PR ([#1092](https://github.com/khuisman/mcp-gee-sweet/issues/1092)) (PR #1138)
+- [ ] Adjacent paragraphs have no gap on our converter, so two paragraphs read as one — `wrong/common`; #1044 Phase 1 re-run finding, must land before the cut; #1044's later phases wait on it — lane A ([#1382](https://github.com/khuisman/mcp-gee-sweet/issues/1382))
+- [ ] List markers vary in boldness within one list — `wrong/narrow, observed`; #1044 Phase 1 re-run finding — lane A ([#1383](https://github.com/khuisman/mcp-gee-sweet/issues/1383))
 
 **Feature set: Gmail sending safety**
 
@@ -433,7 +435,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 **Feature set: launch readiness**
 
 - [x] Ship an MCP Bundle (.mcpb) for one-click install; the Smithery listing was dropped, since Smithery ends its CLI and connection services 2026-10-31 ([#1036](https://github.com/khuisman/mcp-gee-sweet/issues/1036)) (PR #1255)
-- [ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
+- [x] Demo screenshot or GIF for the README: a before/after image of a Markdown file and the Doc it produces ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589)) (PR #1384)
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled `planned: ornithomimus` 2026-10-24 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 - [x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 ([#1212](https://github.com/khuisman/mcp-gee-sweet/issues/1212)) (PR #1222)
 - [x] Make Lint and test 3.14/3.15 required status checks on `develop` and `main` — #1212 review follow-up, a branch-protection settings change with no PR ([#1224](https://github.com/khuisman/mcp-gee-sweet/issues/1224))
