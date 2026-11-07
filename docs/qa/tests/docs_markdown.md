@@ -683,6 +683,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 28/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (BQ-07), quoted-list border offset (BQ-04; F3, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-07, PR #1385 QA round 1 @ 8177ba22, Rio) ⚠️ PARTIAL — C7 and BQ-04 as amended for #1293 only, EP-3, two runs, identical on screen and in `documents().get()`. BQ-04 passes: "Shopping:" has `indentStart` 36 and its bar at the quote's indent; the four list items have `indentStart` 72 (list level 36 + quote 36), `indentFirstLine` 54 and `borderLeft` set, and their bar sits right of the paragraph's. Every other quoted paragraph has `indentStart` 36 × N and `borderLeft` set. Skipped: EP-1, EP-2 and EP-4 to EP-8, and the on-screen grade of BQ-06 to BQ-09.**
+
 ### TC-MD111: Links ⚠️ destructive
 **Prompt**
 **Playwright: required**
