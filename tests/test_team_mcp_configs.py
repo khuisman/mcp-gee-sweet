@@ -8,7 +8,11 @@ to one without the others fails here instead of at the next `make team-<name>`.
 import json
 import os
 import re
+import shutil
+import socket
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -60,11 +64,18 @@ def _makefile_scoped_roles() -> list[str]:
     return re.findall(r"\$\(call team_mcp,(\w+)\)", _MAKEFILE.read_text())
 
 
-def _run(root: Path, roles: list[str], *args: str) -> subprocess.CompletedProcess:
+def _run(
+    root: Path, roles: list[str], *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     for role in roles:
         (root / ".claude" / "worktrees" / role).mkdir(parents=True, exist_ok=True)
     argv = list(args) if args else [str(root), *roles]
-    return subprocess.run(["bash", str(_WRITER), *argv], capture_output=True, text=True)
+    return subprocess.run(
+        ["bash", str(_WRITER), *argv],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
 
 
 def _load(path: Path) -> dict:
@@ -160,15 +171,7 @@ def test_shard_playwright_servers_attach_to_the_shared_browser(written):
 def test_shared_browser_endpoint_is_loopback_and_honors_the_port_override(tmp_path):
     assert _qa_browser("endpoint", QA_BROWSER_PORT="9333") == "http://127.0.0.1:9333"
     assert _qa_browser("endpoint", QA_BROWSER_PORT="9444") == "http://127.0.0.1:9444"
-    roles = _setup_team_roles()
-    for role in roles:
-        (tmp_path / ".claude" / "worktrees" / role).mkdir(parents=True)
-    result = subprocess.run(
-        ["bash", str(_WRITER), str(tmp_path), *roles],
-        capture_output=True,
-        text=True,
-        env={**os.environ, "QA_BROWSER_PORT": "9444"},
-    )
+    result = _run(tmp_path, _setup_team_roles(), env={"QA_BROWSER_PORT": "9444"})
     assert result.returncode == 0, result.stderr
     team = _load(tmp_path / ".claude/mcp-configs/team.mcp.json")
     assert team["playwright-1"]["args"][-1] == "http://127.0.0.1:9444"
@@ -178,6 +181,180 @@ def test_qa_browser_rejects_an_unknown_command():
     result = subprocess.run(["bash", str(_QA_BROWSER), "bogus"], capture_output=True, text=True)
     assert result.returncode == 2
     assert "usage:" in result.stderr
+
+
+# A stand-in for Chrome: answers CDP's /json/version on --remote-debugging-port
+# until killed, so start/status/stop run their real code without a browser.
+_FAKE_CHROME = """\
+import http.server, sys
+port = int(next(a.split("=", 1)[1] for a in sys.argv if a.startswith("--remote-debugging-port=")))
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"{}")
+    def log_message(self, *a):
+        pass
+http.server.HTTPServer(("127.0.0.1", port), H).serve_forever()
+"""
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture
+def browser_env(tmp_path):
+    """A copy of qa_browser.sh under tmp_path/scripts (so its repo root, and the
+    .mcp.json it reads, is tmp_path), a fake Chrome, and a private cache dir.
+    Runs from tmp_path, so a relative cache path can't land in the checkout."""
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    script = scripts / "qa_browser.sh"
+    shutil.copy(_QA_BROWSER, script)
+    fake = tmp_path / "fake-chrome"
+    fake.write_text(f"#!{sys.executable}\n{_FAKE_CHROME}")
+    fake.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {
+        "HOME": str(home),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "QA_BROWSER_CHROME": str(fake),
+    }
+    started: list[dict[str, str]] = []
+
+    def run(*args: str, **extra: str) -> subprocess.CompletedProcess:
+        full = {**os.environ, **env, **extra}
+        if args[:1] == ("start",):
+            started.append(full)
+        return subprocess.run(
+            ["bash", str(script), *args], capture_output=True, text=True, env=full, cwd=tmp_path
+        )
+
+    yield run, tmp_path
+    for full in started:
+        subprocess.run(["bash", str(script), "stop"], capture_output=True, env=full, cwd=tmp_path)
+    # Backstop: a broken `stop` (the bug these tests catch) mustn't leak servers.
+    subprocess.run(["pkill", "-f", str(fake)], capture_output=True)
+
+
+def _profile(tmp_path: Path, name: str) -> str:
+    return str(tmp_path / "profiles" / name)
+
+
+def test_status_and_start_report_only_a_browser_on_their_own_port(browser_env):
+    # Kit's round-1 repro: a browser on one port made `start`/`status` on the
+    # default port report "running" there.
+    # Kit's case had a different Chrome answering on the default port.
+    run, tmp = browser_env
+    a, other = _free_port(), _free_port()
+    result = run("start", QA_BROWSER_PORT=str(a), QA_BROWSER_PROFILE=_profile(tmp, "a"))
+    assert result.returncode == 0, result.stderr
+    assert (
+        run("status", QA_BROWSER_PORT=str(a), QA_BROWSER_PROFILE=_profile(tmp, "a")).returncode == 0
+    )
+    stray = subprocess.Popen(
+        [str(tmp / "fake-chrome"), f"--remote-debugging-port={other}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        for _ in range(50):
+            with socket.socket() as s:
+                if s.connect_ex(("127.0.0.1", other)) == 0:
+                    break
+            time.sleep(0.1)
+        env_other = {"QA_BROWSER_PORT": str(other), "QA_BROWSER_PROFILE": _profile(tmp, "a")}
+        status = run("status", **env_other)
+        assert status.returncode == 1
+        assert "not running" in status.stdout
+        start = run("start", **env_other)
+        assert "already running" not in start.stdout
+        assert start.returncode == 1
+    finally:
+        stray.kill()
+        stray.wait()
+
+
+def test_a_second_port_keeps_its_own_record_and_each_stops(browser_env):
+    # Kit's round-1 repro: a second browser overwrote the one pid file, so
+    # neither could be stopped.
+    run, tmp = browser_env
+    a, b = _free_port(), _free_port()
+    env_a = {"QA_BROWSER_PORT": str(a), "QA_BROWSER_PROFILE": _profile(tmp, "a")}
+    env_b = {"QA_BROWSER_PORT": str(b), "QA_BROWSER_PROFILE": _profile(tmp, "b")}
+    assert run("start", **env_a).returncode == 0
+    assert run("start", **env_b).returncode == 0
+    stop_a = run("stop", **env_a)
+    assert stop_a.stdout.strip() == "QA browser stopped"
+    assert run("status", **env_a).returncode == 1
+    assert run("status", **env_b).returncode == 0
+    assert run("stop", **env_b).stdout.strip() == "QA browser stopped"
+
+
+def test_a_profile_prefix_is_not_mistaken_for_its_own(browser_env):
+    run, tmp = browser_env
+    port = _free_port()
+    assert (
+        run("start", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "qa2")).returncode
+        == 0
+    )
+    status = run("status", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "qa"))
+    assert status.returncode == 1
+
+
+def test_start_on_a_port_another_browser_holds_says_to_rerun_setup(browser_env):
+    run, tmp = browser_env
+    port = _free_port()
+    assert (
+        run("start", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "a")).returncode
+        == 0
+    )
+    clash = run("start", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "b"))
+    assert clash.returncode == 1
+    assert "setup_team.sh" in clash.stderr
+
+
+def test_start_warns_when_the_mcp_config_names_another_port(browser_env):
+    run, tmp = browser_env
+    port = _free_port()
+    (tmp / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "playwright-1": {"args": ["-y", "x", "--cdp-endpoint", "http://127.0.0.1:1"]}
+                }
+            }
+        )
+    )
+    started = run("start", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "a"))
+    assert started.returncode == 0
+    assert "attach to http://127.0.0.1:1, not" in started.stderr
+    (tmp / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "playwright-1": {
+                        "args": ["-y", "x", "--cdp-endpoint", f"http://127.0.0.1:{port}"]
+                    }
+                }
+            }
+        )
+    )
+    status = run("status", QA_BROWSER_PORT=str(port), QA_BROWSER_PROFILE=_profile(tmp, "a"))
+    assert status.returncode == 0
+    assert "warning" not in status.stderr
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS uses ~/Library/Caches, not XDG")
+def test_a_relative_xdg_cache_home_is_ignored(browser_env):
+    run, tmp = browser_env
+    port = _free_port()
+    result = run("start", QA_BROWSER_PORT=str(port), XDG_CACHE_HOME="relative/cache")
+    assert result.returncode == 0, result.stderr
+    assert f"profile {tmp / 'home' / '.cache' / 'mcp-gee-sweet' / 'qa-browser'}" in result.stdout
+    assert not (tmp / "relative").exists()
 
 
 def test_root_and_worktree_mcp_json_are_the_combined_config(written):

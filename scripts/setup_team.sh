@@ -43,8 +43,13 @@ done
 
 # Install the pinned @playwright/mcp once, before a session starts several
 # Playwright servers at the same moment: concurrent `npx -y` runs on a cold
-# cache corrupt the install (#1410).
-echo "Installing $("$REPO_ROOT/scripts/qa_browser.sh" mcp-package) into the npx cache"
-"$REPO_ROOT/scripts/qa_browser.sh" install >/dev/null
+# cache corrupt the install (#1410). A failure (no Node, offline) only warns:
+# every role's launch runs this script, and most roles never use Playwright.
+playwright_mcp="$("$REPO_ROOT/scripts/qa_browser.sh" mcp-package)"
+echo "Installing $playwright_mcp into the npx cache"
+if ! "$REPO_ROOT/scripts/qa_browser.sh" install >/dev/null; then
+  echo "warning: couldn't install $playwright_mcp; Playwright servers may fail to start" \
+    "until 'scripts/qa_browser.sh install' succeeds" >&2
+fi
 
 echo "Ready. Launch with: make claude-team"

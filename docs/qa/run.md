@@ -77,12 +77,12 @@ Each parallel shard gets its own server, `playwright-1` … `playwright-4` (in t
 
 They share one browser rather than each signing in its own because the fixture account's Google session is tied to the browser it was signed into. A session exported with `--storage-state` and loaded into other browsers is revoked on first use (live spike on #1410), so each would need its own manual sign-in.
 
-- **Start it:** `scripts/qa_browser.sh start` (no-op if running; `status` and `stop` too). Its profile is in the user's cache directory, outside the repo. The first time, sign it into the fixture-owning account in the window it opens; the sign-in persists in that profile.
+- **Start it:** `scripts/qa_browser.sh start` (no-op if running; `status` and `stop` too). Its profile is in the user's cache directory, outside the repo. The first time, sign it into the fixture-owning account in the window it opens; the sign-in persists in that profile. It listens on port 9333. To use another port, set `QA_BROWSER_PORT` for both `scripts/setup_team.sh` (which writes the port into the `playwright-<k>` servers' config) and `start`, then relaunch the sessions; `start` and `status` warn when the two disagree.
 - **Stop it** when no pass needs it: its debugging port is loopback-only, but any local process can drive the signed-in browser through it.
 - **Each shard's first Playwright call is `browser_tabs` with `action: "new"`.** Until it does, a server drives whichever tab the browser hands it, which can be another shard's (verified: four servers without this step all drove one tab).
 - **Never call `browser_close`, and never close a tab by index.** `browser_close` closes only the shard's own tab, but the server's next call then attaches to some *other* shard's tab (verified). The tab list is shared, so an index can name another shard's tab. If a shard does lose its tab (a `browser_close`, a server reconnect, or a "No open tabs" result), its next call is `browser_tabs` `new` again.
 - **Then run the account check above in that tab**, before the shard's first `**Playwright: required**` case.
-- **One server per shard.** Assign each Playwright-using shard its own `playwright-<k>` and tell it to call only that prefix. With more than four Playwright shards, the extras share a server and use the mutex below for it.
+- **One server per shard.** Assign each Playwright-using shard its own `playwright-<k>` and tell it to call only that prefix. While a shard runs, nothing else calls its server, the parent session included: a server has one current tab, so another caller's new tab or navigation lands on the shard's. With more than four Playwright shards, the extras share a server and use the mutex below for it.
 
 #### The mutex, for a shared server
 
