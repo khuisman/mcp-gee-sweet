@@ -108,7 +108,9 @@ our_pid() {
 configured_endpoint() {
   local config="$REPO_ROOT/.mcp.json"
   [ -f "$config" ] || return 0
-  grep -o '"--cdp-endpoint", "[^"]*"' "$config" | head -n 1 | sed 's/.*, "\(.*\)"/\1/'
+  # No match is normal (a config written before the playwright-<k> servers);
+  # without `|| true`, pipefail turns grep's 1 into the script's exit status.
+  { grep -o '"--cdp-endpoint", "[^"]*"' "$config" || true; } | head -n 1 | sed 's/.*, "\(.*\)"/\1/'
 }
 
 warn_if_config_differs() {

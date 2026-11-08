@@ -347,6 +347,20 @@ def test_start_warns_when_the_mcp_config_names_another_port(browser_env):
     assert "warning" not in status.stderr
 
 
+@pytest.mark.parametrize("config", [None, {"mcpServers": {}}], ids=["no-mcp-json", "no-endpoint"])
+def test_start_and_status_succeed_when_the_config_names_no_endpoint(browser_env, config):
+    # Kit's round-2 repro: a .mcp.json written before playwright-<k> existed
+    # made every start/status exit 1 after reporting success.
+    run, tmp = browser_env
+    if config is not None:
+        (tmp / ".mcp.json").write_text(json.dumps(config))
+    env = {"QA_BROWSER_PORT": str(_free_port()), "QA_BROWSER_PROFILE": _profile(tmp, "a")}
+    for command in ("start", "start", "status"):
+        result = run(command, **env)
+        assert result.returncode == 0, (command, result.stdout, result.stderr)
+        assert "warning" not in result.stderr
+
+
 @pytest.mark.skipif(sys.platform == "darwin", reason="macOS uses ~/Library/Caches, not XDG")
 def test_a_relative_xdg_cache_home_is_ignored(browser_env):
     run, tmp = browser_env
