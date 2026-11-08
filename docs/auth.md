@@ -35,20 +35,35 @@ Best for headless or automated environments. Credentials don't expire.
 
 Authenticates as you — gives full access to your personal Drive. Requires a one-time browser login.
 
-1. Configure an OAuth consent screen in GCP Console → APIs & Services → OAuth consent screen.
-2. Create an OAuth Client ID credential (type: Desktop app) and download the JSON.
-3. Set environment variables:
+All of steps 1–4 happen in the [Google Cloud console](https://console.cloud.google.com/), signed in with the Google account the server should act as.
+
+1. **Create a project.** Go to **Menu → IAM & Admin → Create a Project**, enter a project name, and click **Create**. Make sure the new project is the one selected in the project picker at the top of the console before you go on.
+2. **Turn on the APIs.** Go to **Menu → APIs & Services → Library**. Search for each API in [Required Google APIs](#required-google-apis) below, open it, and click **Enable**.
+3. **Set up the consent screen.** Go to **Menu → Google Auth Platform → Branding** and click **Get started**.
+   - **App Information:** enter an app name (it's shown on the consent page) and choose your email as the user support email. Click **Next**.
+   - **Audience:** choose **External**. (If your account belongs to a Google Workspace organization and only people in it will use the server, **Internal** also works and skips the test-user step below.) Click **Next**.
+   - **Contact Information:** enter your email. Click **Next**.
+   - **Finish:** agree to the Google API Services User Data Policy, click **Continue**, then **Create**.
+   - **Test users (External only):** go to **Audience**, click **Add users** under **Test users**, enter your own Google account's address, and click **Save**. While the app is in testing, only test users can sign in.
+4. **Create the OAuth client.** Go to **Google Auth Platform → Clients** and click **Create Client**. Choose **Application type → Desktop app**, give it a name, and click **Create**. Download the client's JSON file, either from the dialog that confirms it was created or with the download button next to it in the **Clients** list. This is your OAuth client file.
+5. Set environment variables:
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
-   - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`). Use an absolute path: the default is relative to the working directory, and an MCP client may start the server somewhere other than your shell's directory.
-4. Log in once from a terminal, with the same `CREDENTIALS_PATH`, `TOKEN_PATH` and `ENABLED_TOOLS` the server will use:
+   - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`). Its folder must already exist. Use an absolute path: the default is relative to the working directory, and an MCP client may start the server somewhere other than your shell's directory.
+6. Log in once from a terminal, with the same `CREDENTIALS_PATH`, `TOKEN_PATH` and `ENABLED_TOOLS` the server will use. Pick the command that matches how you run the server:
 
    ```bash
-   mcp-gee-sweet auth              # cloned repo: uv run mcp-gee-sweet auth
-   uvx mcp-gee-sweet auth          # PyPI install
-   mcp-gee-sweet auth --no-browser # print the URL instead of opening a browser
+   uvx mcp-gee-sweet auth                      # PyPI install, stable
+   uvx --prerelease=allow mcp-gee-sweet auth   # PyPI install, develop builds
+   uv run mcp-gee-sweet auth                   # cloned repo, run from its folder
    ```
 
+   Add `--no-browser` to any of them to print the consent URL instead of opening a browser. (`uvx` doesn't put an `mcp-gee-sweet` command on your `PATH`, so a bare `mcp-gee-sweet auth` works only after an install that does, such as `uv tool install mcp-gee-sweet`.)
+
    This opens the Google consent page, waits for you to finish, and writes the token to `TOKEN_PATH`, replacing any token already there. It requests the scopes the registered tools need, so `--include-tools` / `ENABLED_TOOLS` narrow it the same way they narrow the server.
+
+   On the way, Google shows a "Google hasn't verified this app" warning, because the app is yours and in testing. Click **Advanced**, then **Go to** your app's name, to continue. If the consent page lists the access as checkboxes, tick all of them: `auth` fails if one the tools need is left unticked.
+
+**A token from a testing app lasts 7 days.** Google expires the refresh token of an **External** app in testing after 7 days. After that, the next tool call offers the consent link again (see **Re-authorizing from the client** below), or you rerun the step 6 command. An **Internal** app's token doesn't expire this way.
 
 **Without a usable token, a stdio server doesn't open a browser itself.** Under stdio, stdout is the protocol channel and the client gives up on a slow start, so the server can't show a consent prompt. It starts without Google access instead, and `server://auth-status` reports `auth_method: "none"` with an `oauth_not_authorized` limitation. In the waterfall, the server first tries a service account and ADC, and only starts without access if neither is available. If a service account or ADC was configured on purpose (`SERVICE_ACCOUNT_PATH` or `GOOGLE_APPLICATION_CREDENTIALS` set) but wasn't usable, the error says why. An expired token whose refresh Google rejects at startup (for example, a revoked refresh token) is handled the same way. If Google simply can't be reached at startup (say, the network isn't up yet), the server keeps the token and refreshes it on the first tool call.
 
@@ -70,7 +85,7 @@ Over SSE, the server still runs the browser consent itself when there's no usabl
 - **Only the Gmail scope is missing** (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and `server://auth-status` lists the Gmail tools under a `gmail_not_authorized` limitation.
 - **Any other scope is missing:** under stdio, startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.) Over SSE, the server keeps running and the connection starts without Google access: every tool returns that error, with the instructions to re-authorize. The same applies to any other authentication failure over SSE.
 
-Either way, run `mcp-gee-sweet auth` (see step 4 above) and restart the server to re-authorize. A tool call doesn't offer the consent link for a missing scope.
+Either way, run the `auth` command (see step 6 above) and restart the server to re-authorize. A tool call doesn't offer the consent link for a missing scope.
 
 **Gmail scope is only requested when a Gmail tool is registered.** With no `ENABLED_TOOLS` filter every tool is registered, so the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
 
