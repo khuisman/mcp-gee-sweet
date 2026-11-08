@@ -6,6 +6,7 @@ to one without the others fails here instead of at the next `make team-<name>`.
 """
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 _WRITER = _SCRIPTS / "write_team_mcp_configs.sh"
+_QA_BROWSER = _SCRIPTS / "qa_browser.sh"
 _MAKEFILE = _SCRIPTS.parent / "Makefile"
 
 _ALL_SERVERS = [
@@ -27,6 +29,10 @@ _ALL_SERVERS = [
     "mcp-gee-sweet-oauth",
     "mcp-gee-sweet-sa",
     "playwright",
+    "playwright-1",
+    "playwright-2",
+    "playwright-3",
+    "playwright-4",
 ]
 
 # None: no role config; `make team-<name>` launches without --strict-mcp-config.
@@ -116,6 +122,62 @@ def test_lane_server_points_at_its_own_worktree(written):
     worktree = str(root / ".claude/worktrees/jay")
     assert entry["args"] == ["run", "--directory", worktree, "mcp-gee-sweet"]
     assert entry["env"]["TOKEN_PATH"] == f"{worktree}/token.json"
+
+
+def _qa_browser(*args: str, **env: str) -> str:
+    result = subprocess.run(
+        ["bash", str(_QA_BROWSER), *args],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **env},
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def test_every_playwright_server_uses_one_pinned_package(written):
+    # A range or @latest lets each `npx` resolve on its own, and the shards' tab
+    # protocol was verified against one specific version (#1410).
+    root, _ = written
+    package = _qa_browser("mcp-package")
+    assert re.fullmatch(r"@playwright/mcp@\d+\.\d+\.\d+", package)
+    team = _load(root / ".claude/mcp-configs/team.mcp.json")
+    for key in [k for k in team if k.startswith("playwright")]:
+        assert team[key]["command"] == "npx"
+        assert team[key]["args"][:2] == ["-y", package]
+
+
+def test_shard_playwright_servers_attach_to_the_shared_browser(written):
+    root, _ = written
+    endpoint = _qa_browser("endpoint")
+    team = _load(root / ".claude/mcp-configs/team.mcp.json")
+    for k in range(1, 5):
+        assert team[f"playwright-{k}"]["args"][2:] == ["--cdp-endpoint", endpoint]
+    # The default server keeps its own per-directory profile.
+    assert team["playwright"]["args"][2:] == []
+
+
+def test_shared_browser_endpoint_is_loopback_and_honors_the_port_override(tmp_path):
+    assert _qa_browser("endpoint", QA_BROWSER_PORT="9333") == "http://127.0.0.1:9333"
+    assert _qa_browser("endpoint", QA_BROWSER_PORT="9444") == "http://127.0.0.1:9444"
+    roles = _setup_team_roles()
+    for role in roles:
+        (tmp_path / ".claude" / "worktrees" / role).mkdir(parents=True)
+    result = subprocess.run(
+        ["bash", str(_WRITER), str(tmp_path), *roles],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "QA_BROWSER_PORT": "9444"},
+    )
+    assert result.returncode == 0, result.stderr
+    team = _load(tmp_path / ".claude/mcp-configs/team.mcp.json")
+    assert team["playwright-1"]["args"][-1] == "http://127.0.0.1:9444"
+
+
+def test_qa_browser_rejects_an_unknown_command():
+    result = subprocess.run(["bash", str(_QA_BROWSER), "bogus"], capture_output=True, text=True)
+    assert result.returncode == 2
+    assert "usage:" in result.stderr
 
 
 def test_root_and_worktree_mcp_json_are_the_combined_config(written):

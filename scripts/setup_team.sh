@@ -41,4 +41,10 @@ done
 "$REPO_ROOT/scripts/sync_slot_config.sh" "$REPO_ROOT" "${WORKTREE_ROLES[@]}"
 "$REPO_ROOT/scripts/write_team_mcp_configs.sh" "$REPO_ROOT" "${WORKTREE_ROLES[@]}"
 
+# Install the pinned @playwright/mcp once, before a session starts several
+# Playwright servers at the same moment: concurrent `npx -y` runs on a cold
+# cache corrupt the install (#1410).
+echo "Installing $("$REPO_ROOT/scripts/qa_browser.sh" mcp-package) into the npx cache"
+"$REPO_ROOT/scripts/qa_browser.sh" install >/dev/null
+
 echo "Ready. Launch with: make claude-team"
