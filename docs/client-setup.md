@@ -6,7 +6,7 @@ Install the MCP Bundle, or add a block under `mcpServers` in `claude_desktop_con
 
 ### Install as a bundle
 
-A [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, under its assets. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first: the bundle runs the server with it. Then download the `.mcpb` file and double-click it, or install it from Claude Desktop's **Settings → Extensions**, to install the server on macOS without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.
+Starting with the first release after 0.9.5, each [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, under its assets. 0.9.5 and earlier have none; with them, follow the `uvx` setup in the [README's Quick start](https://github.com/khuisman/mcp-gee-sweet#quick-start) (Option A). Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first: the bundle runs the server with it. Then download the `.mcpb` file and double-click it, or install it from Claude Desktop's **Settings → Extensions**, to install the server on macOS without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.
 
 The install dialog asks for:
 
@@ -73,9 +73,9 @@ claude mcp add mcp-gee-sweet \
   -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
 ```
 
-`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx --prerelease=allow mcp-gee-sweet`: stable 0.9.5 reads `all` as a tool name and registers no tools, so with `uvx mcp-gee-sweet` leave the `ENABLED_TOOLS` line out until the next release.
 
-Before the first connection, log in once from a terminal with the same paths and the same `ENABLED_TOOLS`, which decides the scopes: `CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`, or `... uvx mcp-gee-sweet auth` for a PyPI install.
+Before the first connection, log in once from a terminal with the same paths and the same `ENABLED_TOOLS`, which decides the scopes: `CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`, or `... uvx --prerelease=allow mcp-gee-sweet auth` for a PyPI install (on stable 0.9.5, `CREDENTIALS_PATH=... TOKEN_PATH=... uvx mcp-gee-sweet auth`, with no `ENABLED_TOOLS`).
 
 ## Claude Code (this project's own MCP config)
 

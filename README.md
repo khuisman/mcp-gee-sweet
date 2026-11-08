@@ -162,7 +162,7 @@ Service accounts (recommended for headless server deployments, see Option C abov
 
 ## MCP client config
 
-**Claude Desktop — one-click bundle:** download `mcp-gee-sweet-<version>.mcpb` from the latest [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases/latest), then double-click it, or install it from Claude Desktop's **Settings → Extensions**. It needs `uv` installed first (step 1 of Quick start's Option A). It asks for your OAuth client file and needs no config editing ([details](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/client-setup.md#install-as-a-bundle)).
+**Claude Desktop — one-click bundle:** starting with the first release after 0.9.5 (until then, use Quick start's Option A), download `mcp-gee-sweet-<version>.mcpb` from the latest [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases/latest), then double-click it, or install it from Claude Desktop's **Settings → Extensions**. It needs `uv` installed first (step 1 of Quick start's Option A). It asks for your OAuth client file and needs no config editing ([details](https://github.com/khuisman/mcp-gee-sweet/blob/main/docs/client-setup.md#install-as-a-bundle)).
 
 **Claude Desktop — stdio (PyPI install):** see step 5 of Quick start's Option A.
 
@@ -191,7 +191,7 @@ claude mcp add mcp-gee-sweet \
   -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
 ```
 
-`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`. Run the `auth` command from Configuration above with the same `ENABLED_TOOLS`, since it decides the scopes.
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set. For a PyPI install, replace everything after `--` with `uvx --prerelease=allow mcp-gee-sweet`: stable 0.9.5 reads `all` as a tool name and registers no tools, so with `uvx mcp-gee-sweet` leave the `ENABLED_TOOLS` line out until the next release. Run the `auth` command from Configuration above with the same `ENABLED_TOOLS`, since it decides the scopes.
 
 **Claude Desktop — SSE (Docker):**
 ```json
@@ -223,7 +223,7 @@ Some MCP clients cap how many tools they accept, and with every tool registered 
 
 On these clients, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
 
-> **Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`, which registers every tool today as well.
+> **Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`, which registers every tool today as well, on a `develop` build. Stable 0.9.5 doesn't recognize `all` and registers no tools with it: leave `ENABLED_TOOLS` unset there, which already registers every tool.
 
 ---
 
