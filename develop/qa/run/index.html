@@ -1089,6 +1089,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Coordinating Playwright across parallel shards">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-tab-per-shard-the-shared-qa-browser-1410" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One tab per shard: the shared QA browser (#1410)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mutex-for-a-shared-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The mutex, for a shared server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1689,20 +1717,33 @@
 <li><strong>Charts left on the Sales sheet</strong> — every <code>add_chart</code> case in <code>docs/qa/tests/sheets_charts.md</code> now has a <strong>Cleanup</strong> step that deletes its chart with <code>deleteEmbeddedObject</code>, so a full run leaves no chart behind (the v0.9.2 pass deleted all 13 it created). Before that cleanup existed, charts piled up over rows 1–22 of Sales and hid cells from screenshots. If a run is interrupted before its cleanup, delete the leftover chart the same way before relying on a screenshot of that region. For exact geometry or borders, <code>get_sheet_data(..., range=&lt;affected range&gt;, include_grid_data=True)</code> is more precise than a screenshot in any case: <code>rowMetadata</code>/<code>columnMetadata</code> give each row's and column's <code>pixelSize</code>, and each cell's <code>userEnteredFormat.borders</code>/<code>effectiveFormat.borders</code> gives the style and color of each edge.</li>
 </ul>
 <h3 id="verifying-playwright-is-signed-into-the-right-account">Verifying Playwright is signed into the right account<a class="headerlink" href="#verifying-playwright-is-signed-into-the-right-account" title="Permanent link">&para;</a></h3>
-<p>"Connected," "signed in," and "signed in <em>as the account that owns the fixtures</em>" are three different states, and only the third makes <code>**Playwright: required**</code> cases meaningful. Playwright MCP keeps a separate persistent browser profile per working directory — the main checkout, each <code>.claude/worktrees/*</code> slot, and every other project on the machine each get their own login. Any one of them can be signed into a Google account that isn't the one owning the <code>mcp-gee-sweet-shared</code> Shared Drive fixtures (see <code>setup.md</code>), or into none at all.</p>
-<p>The check, run once before the first <code>**Playwright: required**</code> case in any QA pass (lane QA or release pass):</p>
+<p>"Connected," "signed in," and "signed in <em>as the account that owns the fixtures</em>" are three different states, and only the third makes <code>**Playwright: required**</code> cases meaningful. The default <code>playwright</code> server keeps a separate persistent browser profile per working directory — the main checkout, each <code>.claude/worktrees/*</code> slot, and every other project on the machine each get their own login. The <code>playwright-1</code>…<code>playwright-4</code> servers instead share the one QA browser below, so they share its one login. Any of these profiles can be signed into a Google account that isn't the one owning the <code>mcp-gee-sweet-shared</code> Shared Drive fixtures (see <code>setup.md</code>), or into none at all.</p>
+<p>The check, run before the first <code>**Playwright: required**</code> case in any QA pass (lane QA or release pass), and by each parallel shard in its own tab:</p>
 <ol>
 <li>Get the fixture doc's real title via this role's own <code>get_file_metadata(TEST_DOC_ID)</code>.</li>
-<li><code>browser_navigate</code> to <code>https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit</code> (under the Playwright mutex below, if other shards may be running).</li>
+<li><code>browser_navigate</code> to <code>https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit</code>: on a <code>playwright-&lt;k&gt;</code> server, in the tab the shard opened for itself; on the default <code>playwright</code> server, under the mutex below if other shards may be running.</li>
 <li><strong>Pass</strong> only if the page title contains that exact document name.</li>
 <li><strong>Fail</strong> on either:</li>
 <li>a redirect to <code>accounts.google.com</code> — the profile isn't signed in;</li>
 <li>the URL staying on <code>docs.google.com</code> but the page showing "You need access" / "Request access," or a generic "Google Docs" title — the profile is signed into the <strong>wrong account</strong>. This one is easy to misread as a pass, since there's no sign-in redirect; it's what the old "not a sign-in page" check let through (confirmed 2026-09-23: a lane QA session's browser opened on the personal account instead of the Workspace-org one that owns the fixtures).</li>
 </ol>
-<p>On a fail, stop and tell the user which session's browser needs signing in, and to which account (the one that owns the Shared Drive fixtures). Then wait. The sign-in persists in that slot's profile, so this is a one-time fix per slot. Don't fall back to API-only verification for Playwright-required cases unless the user explicitly says to — that's the silent degradation <code>retro-v0.9.0.md</code> describes. Once the user says it's fixed, re-run the check before continuing.</p>
+<p>On a fail, stop and tell the user which session's browser needs signing in, and to which account (the one that owns the Shared Drive fixtures). Then wait. The sign-in persists in that slot's profile, so this is a one-time fix per slot. For a <code>playwright-&lt;k&gt;</code> server it's the QA browser's window (<code>scripts/qa_browser.sh start</code>), one sign-in for every shard. Don't fall back to API-only verification for Playwright-required cases unless the user explicitly says to — that's the silent degradation <code>retro-v0.9.0.md</code> describes. Once the user says it's fixed, re-run the check before continuing.</p>
 <h3 id="coordinating-playwright-across-parallel-shards">Coordinating Playwright across parallel shards<a class="headerlink" href="#coordinating-playwright-across-parallel-shards" title="Permanent link">&para;</a></h3>
-<p>A single Playwright MCP instance is one browser tab. If a QA run is split across multiple agents (e.g. one per domain), any two shards that both hit <code>**Playwright: required**</code> cases at the same time will fight over that tab — one shard's navigation clobbers the snapshot the other was about to take. Spinning up a second authenticated Playwright instance to get true parallelism is possible but costly: the browser profile needs its own logged-in Google session (see <code>playwright_oauth.md</code>), so a second instance means cloning that profile rather than just adding a server entry.</p>
-<p>Cheaper fix: a filesystem mutex around Playwright usage, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).</p>
+<p>A Playwright MCP server drives one tab at a time. If a QA run is split across multiple agents (e.g. one per domain) that share one server, any two shards that both hit <code>**Playwright: required**</code> cases at the same time fight over that tab: one shard's navigation clobbers the snapshot the other was about to take. Subagents inherit their parent session's server processes, so shards in one session share them unless each is given its own.</p>
+<h4 id="one-tab-per-shard-the-shared-qa-browser-1410">One tab per shard: the shared QA browser (#1410)<a class="headerlink" href="#one-tab-per-shard-the-shared-qa-browser-1410" title="Permanent link">&para;</a></h4>
+<p>Each parallel shard gets its own server, <code>playwright-1</code> … <code>playwright-4</code> (in the combined <code>.mcp.json</code> that <code>scripts/setup_team.sh</code> writes, so a release-pass session has them). All four attach to one Chrome, the <strong>QA browser</strong>, through its remote-debugging endpoint, and each drives its own tab in it. No lock is needed between them.</p>
+<p>They share one browser rather than each signing in its own because the fixture account's Google session is tied to the browser it was signed into. A session exported with <code>--storage-state</code> and loaded into other browsers is revoked on first use (live spike on #1410), so each would need its own manual sign-in.</p>
+<ul>
+<li><strong>Start it:</strong> <code>scripts/qa_browser.sh start</code> (no-op if running; <code>status</code> and <code>stop</code> too). Its profile is in the user's cache directory, outside the repo. The first time, sign it into the fixture-owning account in the window it opens; the sign-in persists in that profile. It listens on port 9333. To use another port, set <code>QA_BROWSER_PORT</code> for both <code>scripts/setup_team.sh</code> (which writes the port into the <code>playwright-&lt;k&gt;</code> servers' config) and <code>start</code>, then relaunch the sessions; <code>start</code> and <code>status</code> warn when the two disagree.</li>
+<li><strong>Stop it</strong> when no pass needs it: its debugging port is loopback-only, but any local process can drive the signed-in browser through it.</li>
+<li><strong>Each shard's first Playwright call is <code>browser_tabs</code> with <code>action: "new"</code>.</strong> Until it does, a server drives whichever tab the browser hands it, which can be another shard's (verified: four servers without this step all drove one tab).</li>
+<li><strong>Never call <code>browser_close</code>, and never close a tab by index.</strong> <code>browser_close</code> closes only the shard's own tab, but the server's next call then attaches to some <em>other</em> shard's tab (verified). The tab list is shared, so an index can name another shard's tab. If a shard does lose its tab (a <code>browser_close</code>, a server reconnect, or a "No open tabs" result), its next call is <code>browser_tabs</code> <code>new</code> again.</li>
+<li><strong>Then run the account check above in that tab</strong>, before the shard's first <code>**Playwright: required**</code> case.</li>
+<li><strong>One server per shard.</strong> Assign each Playwright-using shard its own <code>playwright-&lt;k&gt;</code> and tell it to call only that prefix. While a shard runs, nothing else calls its server, the parent session included: a server has one current tab, so another caller's new tab or navigation lands on the shard's. With more than four Playwright shards, the extras share a server and use the mutex below for it.</li>
+<li><strong>If a <code>playwright-&lt;k&gt;</code> call can't reach the QA browser</strong> (a connection-refused error), stop the shard's Playwright cases and report it to the conductor. Don't start the browser yourself, and don't switch to the default <code>playwright</code>. The conductor restarts it (<code>aziz.md</code> step 4). The server reconnects on its next call with no relaunch, and the browser keeps its sign-in, but the shard's tab is gone (observed live): once the conductor says it's back, open a new tab and re-run the account check before the next case.</li>
+</ul>
+<h4 id="the-mutex-for-a-shared-server">The mutex, for a shared server<a class="headerlink" href="#the-mutex-for-a-shared-server" title="Permanent link">&para;</a></h4>
+<p>Where shards do share a server (the default <code>playwright</code>, or more shards than <code>playwright-&lt;k&gt;</code> servers), wrap each use in a filesystem mutex, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).</p>
 <ul>
 <li><strong>Lock path:</strong> <code>/tmp/mcp-gee-sweet-playwright.lock</code> (a directory, not a file — <code>mkdir</code> is atomic on POSIX, so no separate locking library is needed).</li>
 <li><strong>Acquire:</strong> before a Playwright tool call, attempt <code>mkdir /tmp/mcp-gee-sweet-playwright.lock</code>. Success means the lock is held — proceed. Failure (already exists) means another shard holds it — back off (a few seconds) and retry.</li>
@@ -1710,7 +1751,7 @@
 <li><strong>Stale-lock recovery:</strong> if the lock directory's mtime is older than ~120s, treat it as abandoned (the shard that created it likely crashed or was killed) — remove it and re-acquire rather than waiting forever.</li>
 <li><strong>When it's not needed:</strong> a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.</li>
 </ul>
-<p>Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.</p>
+<p>Give each parallel shard's conductor prompt its protocol explicitly (its <code>playwright-&lt;k&gt;</code> prefix and the tab rules, or the lock's path, acquire/release commands, backoff and staleness threshold) rather than assuming priority ordering or hoping timing works out.</p>
 <hr />
 <h2 id="running-true-concurrency-test-cases">Running true-concurrency test cases<a class="headerlink" href="#running-true-concurrency-test-cases" title="Permanent link">&para;</a></h2>
 <p>A single MCP client session awaits each tool result before issuing the next, so it can never hold two requests to one server process in flight at once. A handful of test cases need genuinely simultaneous requests and are otherwise perpetually skipped:</p>
