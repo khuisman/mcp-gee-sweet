@@ -83,6 +83,7 @@ They share one browser rather than each signing in its own because the fixture a
 - **Never call `browser_close`, and never close a tab by index.** `browser_close` closes only the shard's own tab, but the server's next call then attaches to some *other* shard's tab (verified). The tab list is shared, so an index can name another shard's tab. If a shard does lose its tab (a `browser_close`, a server reconnect, or a "No open tabs" result), its next call is `browser_tabs` `new` again.
 - **Then run the account check above in that tab**, before the shard's first `**Playwright: required**` case.
 - **One server per shard.** Assign each Playwright-using shard its own `playwright-<k>` and tell it to call only that prefix. While a shard runs, nothing else calls its server, the parent session included: a server has one current tab, so another caller's new tab or navigation lands on the shard's. With more than four Playwright shards, the extras share a server and use the mutex below for it.
+- **If a `playwright-<k>` call can't reach the QA browser** (a connection-refused error), stop the shard's Playwright cases and report it to the conductor. Don't start the browser yourself, and don't switch to the default `playwright`. The conductor restarts it (`aziz.md` step 4). The server reconnects on its next call with no relaunch, and the browser keeps its sign-in, but the shard's tab is gone (observed live): once the conductor says it's back, open a new tab and re-run the account check before the next case.
 
 #### The mutex, for a shared server
 
