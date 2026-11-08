@@ -25,8 +25,15 @@ REPO_ROOT="$1"
 shift
 WORKTREE_ROLES=("$@")
 CONFIG_DIR="$REPO_ROOT/.claude/mcp-configs"
+# playwright-1..4 attach to the shared QA browser (scripts/qa_browser.sh), one per
+# parallel release-pass shard, each driving its own tab (#1410). They go only in
+# the combined config: Aziz's shards are subagents and inherit his servers.
 ALL_SERVERS=(mcp-gee-sweet-ash mcp-gee-sweet-sky mcp-gee-sweet-jay mcp-gee-sweet-kit mcp-gee-sweet-rio
-  mcp-gee-sweet-kai-oauth mcp-gee-sweet-kai-sa mcp-gee-sweet-oauth mcp-gee-sweet-sa playwright)
+  mcp-gee-sweet-kai-oauth mcp-gee-sweet-kai-sa mcp-gee-sweet-oauth mcp-gee-sweet-sa playwright
+  playwright-1 playwright-2 playwright-3 playwright-4)
+QA_BROWSER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/qa_browser.sh"
+PLAYWRIGHT_MCP_PACKAGE="$("$QA_BROWSER" mcp-package)"
+QA_BROWSER_ENDPOINT="$("$QA_BROWSER" endpoint)"
 
 oauth_server() {
   local key="$1" dir="$2"
@@ -70,7 +77,17 @@ server_entry() {
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["@playwright/mcp@latest"],
+      "args": ["-y", "$PLAYWRIGHT_MCP_PACKAGE"],
+      "env": {}
+    }
+JSON
+      ;;
+    playwright-[1-4])
+      cat <<JSON
+    "$1": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "$PLAYWRIGHT_MCP_PACKAGE", "--cdp-endpoint", "$QA_BROWSER_ENDPOINT"],
       "env": {}
     }
 JSON
