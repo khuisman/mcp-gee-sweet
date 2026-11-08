@@ -1509,6 +1509,32 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1399 QA round 2 @ f51e67cf, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run. The fixture through `create_doc_from_file`: every marker plain on screen and `{"underline": false}` alone in `paragraph.bullet.textStyle`, every item keeping its own style, no `\u200b` in any item text. Round 1's HTML failure is fixed: `create_doc` with a pretty-printed HTML list (`<li>\n\t\t<b>one</b>\n\t</li>`, an `<li><b>bold</b>\n</li>`, and the same shape inside a `<blockquote>`) succeeds, bold and italic land on exactly their own characters, every marker is plain and the quote bar spans its list. The empty bulleted paragraphs that shape still makes are #1229.**
 
+### TC-MD508: A gap on both sides of a list ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-list-gaps.md` and `docs/qa/fixtures/md/realistic/r06-howto.md` through EP-1 to EP-4. #1389's done-when. Then, on the fixture's EP-1 Doc, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`.
+
+**Checks**
+- LG-01: a gap about two thirds of a line below "Install the headers:" and below "two", the same as between two paragraphs (TC-MD506). "one" and "two" sit at their usual list spacing.
+- LG-02: the gap is below "nested last", not inside the list.
+- LG-03: gaps below "first", "Paragraph inside first." and "sub item". None below "Back in first.": "2. second" sits at list spacing.
+- LG-04: gaps on both sides of "Between the list and its continuation.", and the list still numbers 1, 2.
+- LG-05: no extra gap below the heading item or the code block, which keep their own spacing; a gap below "Paragraph after the heading item.", which leads into a list. The quote is one continuous bar, with no gap beside "quoted item".
+- LG-06: a gap below "Paragraph inside a." before "1. b starts a new list", the same as an intro line's. None below "Paragraph inside c1.": "c2" sits at list spacing.
+- LG-07: the `3.` list is written as literal text (#1118). A gap below "Paragraph inside d." before "3. literal list starting at 3", and below the `3.` line before "Paragraph inside 3.". None below "Paragraph inside 3.": "4. next literal item" sits at list spacing.
+- r06: each list has the same gap from its intro line and from the paragraph after it.
+- Structure: in `documents().get()`, each gap is `spaceBelow` 10pt on one paragraph, and no empty paragraph was added. NORMAL_TEXT's `spacingMode` is the Doc's own (`COLLAPSE_LISTS` on a new Doc).
+- Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceBelow`, list items included, and on screen each place that had a 10pt gap shows the theme's 20pt instead.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-07, PR #1406 QA round 1 @ 66938bb6, Sky) ⚠️ PARTIAL — the fixture passes at EP-3, with one defect found outside it; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows `spaceBelow` 10 on exactly the paragraphs LG-01 to LG-05 name, no empty paragraph added, and NORMAL_TEXT `spacingMode: COLLAPSE_LISTS`. On screen, LG-01 to LG-04 match every check, and LG-05's heading item and code block keep their own spacing. LG-05's quote shows no gap. Its bar steps right at "quoted item", at that item's own indent, which is how a quoted list already renders and isn't changed by this PR. `apply_theme(NORMAL_TEXT space_below 20)` sent 11 requests and left no explicit 10pt `spaceBelow` on any paragraph, list items included. `get_doc_as_markdown` returns the fixture's structure. **Defect:** a paragraph inside the last item of one list, followed directly by a different list (`- a`, `  p inside a`, `1. b`, via `create_doc` markdown), gets no gap. "p inside a" sits tight against "1. b" both on screen and in `documents().get()`, while an intro line in the same place gets the gap. Sent back in the round 1 comment.
+
+**Result (2026-11-07, PR #1406 QA round 2 @ a4ff4fbf, Sky) ⚠️ PARTIAL — round 1's defect is fixed for a BulletItem list but not for a literal (stand-in) list; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` matches every check in LG-01 to LG-05 as in round 1. For LG-06, "Paragraph inside a." has `spaceBelow` 10 before "1. b starts a new list", and "Paragraph inside c1." has none before "c2". **Defect:** in a `create_doc` markdown probe, `- a` / `  p inside a` / `3. literal list starting at 3` (an ordered list that becomes literal text, #1118) gives "p inside a" no `spaceBelow` before the literal `3.` line, while "After literal." and "p inside x" before a separate bulleted list each get 10. Structure only: the gap shown on screen for a 10pt `spaceBelow` was confirmed in round 1. Sent back in the round 2 comment.
+
+**Result (2026-11-07, PR #1406 QA round 3 @ b4932412, Sky) ⚠️ PARTIAL — every check run passes at EP-3, and round 2's defect is fixed; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows LG-01 to LG-06 as in rounds 1 and 2. LG-07 has `spaceBelow` 10 on "Paragraph inside d." before the literal "3." line and none on "Paragraph inside 3." before "4.", and the screen shows the same. A `create_doc` markdown probe (`- a` / `  p inside a` / `3. …` / `   p inside literal 3` / `4. …`, then a separate ordered list and bulleted list) gives the gap before each other list and none before the same literal list's next item. `apply_theme(NORMAL_TEXT space_below 20)` on the probe sent 9 requests and left no 10pt `spaceBelow`, the literal items included. `get_doc_as_markdown` returns the fixture's structure, LG-07 included.
+
 ---
 
 ## Known gaps and not-applicable

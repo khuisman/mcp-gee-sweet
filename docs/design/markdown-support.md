@@ -200,8 +200,23 @@ The gap goes between two plain paragraphs in the same quote depth and list item,
 an item's text and a paragraph inside that item, a literal item's included. Inside a quote, an
 item's text gets none: the paragraph has a different indent, so Docs leaves the gap out of the
 bar. A spacer line (`&nbsp;`) is a gap already, and a
-list, a heading or a table keeps its own look next to a paragraph. A paragraph in a table cell
+heading or a table keeps its own look next to a paragraph. A paragraph in a table cell
 gets none: cells stay compact, and Markdown can't write one.
+
+A list gets the same gap on both sides where it meets a plain paragraph outside it (#1389):
+below the paragraph before its first item, an intro line ("Install the headers:") included,
+and below its last item, or the plain paragraph that ends that item. Drive's import leaves an
+empty line in both places, and a browser's paragraph margin does the same. "Outside" is by list
+place: a paragraph inside an item gets the gap before a sublist under that item, and before
+a different list at any depth, a literal one included (`_starts_list_outside`, by the item's
+own list ids: a stand-in keeps its item's as `literal_item_path`), while the item's
+own text before its sublist, and a paragraph inside an item before the next item of a list it
+sits in, keep the list's spacing. A list item
+that's a heading, and a code block, table or rule at the list's edge, keep their own spacing.
+A quoted list gets none, for the same reason as a quoted item's text. Docs' default NORMAL_TEXT
+`spacingMode` is `COLLAPSE_LISTS`, which drops spacing only between two list items: a 10pt
+`spaceBelow` on a list's last item, or on the paragraph before its first, shows on the page
+(measured in an exported PDF, 2026-11-07).
 
 The gap is set on each paragraph, and the API has no other way to write it short of changing
 NORMAL_TEXT for the whole Doc, lists and table cells included. A value on a paragraph beats the

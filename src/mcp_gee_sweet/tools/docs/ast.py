@@ -157,6 +157,9 @@ class Table:
 # hanging indent. None for every other node. Never set by html_parser.
 # literal_item_gap is the room its marker needs before its text, in points: a list
 # level's own gap, or more for a marker that wouldn't clear the tab stop.
+# literal_item_path is the item's own BulletItem.list_path, ending with its own list's
+# id; list_path, one id shorter, places the stand-in as a block in its parent item. The
+# emitter tells a stand-in's list from another by it (#1389).
 
 
 # The glyph and space a task item's text starts with, in the Doc: a literal prefix, not
@@ -177,6 +180,7 @@ class Heading:
     # #1118, see above Heading
     literal_item_level: int | None = field(default=None, compare=False)
     literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
 
 
 @dataclass
@@ -190,6 +194,7 @@ class Paragraph:
     # #1118, see above Heading
     literal_item_level: int | None = field(default=None, compare=False)
     literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
     # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
     # draws as a horizontal line, since the Docs API can't insert a horizontalRule
     # element. doc_to_ast.py reads both that stand-in and a native horizontal line back

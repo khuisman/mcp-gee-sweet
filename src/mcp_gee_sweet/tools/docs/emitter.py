@@ -524,6 +524,7 @@ def _literal_item(item: BulletItem) -> Paragraph | Heading:
         "list_path": item.list_path[:-1],
         "literal_item_level": depth,
         "literal_item_gap": _literal_item_gap(marker, item.heading_level),
+        "literal_item_path": item.list_path,
     }
     runs = [Run(text), *item.runs]
     if item.heading_level is not None:
@@ -1627,10 +1628,13 @@ def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
     """Whether a paragraph break between two adjacent nodes needs PARAGRAPH_GAP_PT
     (#1382): `second` is a plain paragraph in the same quote and at the same quote depth
     as `first`, which is a plain paragraph in the same list item, or that item's text.
+    Or a list meets a paragraph outside it (#1389, _list_gap_between).
 
     Docs covers the gap with the quote bar only between paragraphs with the same border
     and indent. So a quoted paragraph gets no gap beside a nested quote's, or beside its
     item's text, whose indent differs: the bar broke there (PR #1388 QA round 1)."""
+    if _list_gap_between(first, second):
+        return True
     if (
         not _is_plain_paragraph(second)
         or first.blockquote_depth != second.blockquote_depth
@@ -1640,6 +1644,79 @@ def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
     if _is_plain_paragraph(first):
         return _list_place(first) == _list_place(second)
     return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
+
+
+def _list_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether `first` and `second` are where a list meets a paragraph outside it
+    (#1389): a plain paragraph followed by the first item of a list it isn't inside
+    (_starts_list_outside), or a list's last item, or a plain paragraph inside
+    that item, followed by a plain paragraph shallower than it. Drive's import leaves an
+    empty line on both sides of a list, an intro line's included.
+
+    Unquoted only: a quoted list item's indent differs from the paragraph beside it, so
+    the quote bar wouldn't cover the gap (PR #1388 QA round 1). A list item that is a
+    heading keeps its named style's spacing, and a table, code block or rule at the edge
+    of a list keeps its own look. Under COLLAPSE_LISTS, Docs' default spacingMode, the
+    gap still shows between a list item and a paragraph that isn't one (checked live)."""
+    if first.blockquote_depth or second.blockquote_depth:
+        return False
+    if _is_plain_paragraph(first) and _is_list_item(second):
+        return _starts_list_outside(second, _list_place(first))
+    if not _is_plain_paragraph(second):
+        return False
+    if _is_list_item(first):
+        return _deeper_than(_item_place(first), _list_place(second))
+    return _is_plain_paragraph(first) and _deeper_than(_list_place(first), _list_place(second))
+
+
+def _is_list_item(node: DocNode) -> bool:
+    """A list item's own line, not a heading: a BulletItem or the stand-in for one
+    (#1118)."""
+    if isinstance(node, BulletItem):
+        return node.heading_level is None
+    return isinstance(node, Paragraph) and node.literal_item_level is not None
+
+
+def _item_place(node: DocNode) -> tuple[int, tuple[int, ...]]:
+    """The depth and enclosing list ids of a list item (_is_list_item), its own list's
+    id last. A stand-in's list_path stops at its parent list, so its item's own path is
+    literal_item_path."""
+    if isinstance(node, BulletItem):
+        return node.depth, node.list_path
+    assert isinstance(node, Paragraph) and node.literal_item_level is not None
+    return node.literal_item_level, node.literal_item_path
+
+
+def _starts_list_outside(item: DocNode, place: tuple[int, tuple[int, ...]] | None) -> bool:
+    """Whether list item `item` (_is_list_item) belongs to a list that a paragraph at
+    `place` isn't inside: a sublist nested in the paragraph's item, or another list,
+    at any depth (PR #1406 QA round 1). Not the next item of a list the paragraph sits
+    in, which keeps the list's spacing. An item's path (_item_place) ends with its own
+    list's id, a stand-in's included (PR #1406 QA round 2), so its list is one the
+    paragraph sits in exactly when that path is a prefix of the paragraph's. An item
+    with no ids falls back to depth (_deeper_than)."""
+    if place is None:
+        return True
+    item_place = _item_place(item)
+    if item_place[1] and place[1]:
+        return place[1][: len(item_place[1])] != item_place[1]
+    return _deeper_than(item_place, place)
+
+
+def _deeper_than(
+    inner: tuple[int, tuple[int, ...]] | None, outer: tuple[int, tuple[int, ...]] | None
+) -> bool:
+    """Whether the list place `inner` is nested in `outer` (None: outside every list),
+    deeper than it. The ids decide when both sides have them, so a separate list at the
+    same depth isn't read as nested."""
+    if inner is None:
+        return False
+    if outer is None:
+        return True
+    (inner_depth, inner_path), (outer_depth, outer_path) = inner, outer
+    if inner_depth <= outer_depth:
+        return False
+    return not inner_path or not outer_path or inner_path[: len(outer_path)] == outer_path
 
 
 def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
