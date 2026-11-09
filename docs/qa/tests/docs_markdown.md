@@ -395,6 +395,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
 
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-3 and EP-4; other checks, EP-1, EP-2, EP-5 to EP-8 and run 2 not run.** On a fresh Doc, "**Hotel:**" has `spaceAbove` 10 and sits clear of the Flights table on screen. EP-4 into a Doc whose NORMAL_TEXT has `space_below` 20 (from `apply_theme`) gives "Hotel:" no `spaceAbove`, and it sits on the table's bottom border again, which is #1427's defect (sent back on the PR).
+
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1552,6 +1554,11 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
 
 **Cleanup:** trash the Docs.
+
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ❌ FAIL — EP-1 to EP-4, one run; EP-5 for comparison.** Passing: in `documents().get()`, EP-3 and EP-4 are identical. A paragraph after an unquoted table has `spaceAbove` 10, one before it has `spaceBelow` 10, and no empty paragraph was added. On screen, TG-01 to TG-03 and r15 show the gap. TG-05 is unchanged. The theme on EP-1 leaves no 10pt value and gives the result the case expects. The round-trip export is identical with the gaps removed by hand. Failing:
+- TG-04's list item sits on table G's bottom border, where Drive's import (EP-5) leaves a gap. It's #1427's defect for a list item.
+- `apply_theme(NORMAL_TEXT space_below 20)` also cleared a user's 10pt `spaceAbove` set on "Plain paragraph after that.", which doesn't follow a table.
+- EP-4 of r15 into a Doc with NORMAL_TEXT `space_below` only put "Hotel:" back on the table.
 
 ---
 
