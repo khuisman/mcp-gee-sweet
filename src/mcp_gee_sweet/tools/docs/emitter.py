@@ -1646,6 +1646,25 @@ def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
     return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
 
 
+def _table_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether a table and a plain paragraph meet across `first` and `second`, either
+    way round, so the paragraph takes PARAGRAPH_GAP_PT on the table's side (#1427): a
+    table can't take spacing, and without it the paragraph sat on the table's border.
+    Drive's import leaves the same gap there.
+
+    Unquoted only, both sides: beside a quoted table's wrapper, the existing quote-edge
+    spacing applies (_block_spacing), and inside one quote a gap would break the bar
+    between the wrapper and the paragraph. A table with no row or column isn't inserted,
+    so nothing sits on it."""
+    if first.blockquote_depth or second.blockquote_depth:
+        return False
+    if isinstance(first, Table):
+        return _is_insertable_table(first) and _is_plain_paragraph(second)
+    if isinstance(second, Table):
+        return _is_insertable_table(second) and _is_plain_paragraph(first)
+    return False
+
+
 def _list_gap_between(first: DocNode, second: DocNode) -> bool:
     """Whether `first` and `second` are where a list meets a paragraph outside it
     (#1389): a plain paragraph followed by the first item of a list it isn't inside
@@ -1788,7 +1807,9 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
     gets no spacing.
 
     A paragraph break gets PARAGRAPH_GAP_PT below the first paragraph (#1382), so two
-    paragraphs don't read as one with a line break (_paragraph_gap_between).
+    paragraphs don't read as one with a line break (_paragraph_gap_between). A plain
+    paragraph beside a table takes it on the table's side, above or below (#1427,
+    _table_gap_between).
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
@@ -1828,7 +1849,11 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
-        if i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
+        if i > 0 and isinstance(nodes[i - 1], Table) and _table_gap_between(nodes[i - 1], node):
+            above = PARAGRAPH_GAP_PT
+        if i + 1 < len(nodes) and (
+            _paragraph_gap_between(node, nodes[i + 1]) or _table_gap_between(node, nodes[i + 1])
+        ):
             below = PARAGRAPH_GAP_PT
         if above or below:
             spacing[i] = (above, below)
@@ -1865,8 +1890,13 @@ def without_paragraph_gaps(requests: list[dict]) -> list[dict]:
 
 
 def _is_paragraph_gap(request: dict) -> bool:
+    """A gap is spaceBelow, or spaceAbove after a table (#1427). _spacing_requests sends
+    each field as its own request, so a gap request never carries other spacing."""
     style = request.get("updateParagraphStyle", {}).get("paragraphStyle", {})
-    return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
+    return any(
+        style.get(field, {}).get("magnitude") == PARAGRAPH_GAP_PT
+        for field in ("spaceAbove", "spaceBelow")
+    )
 
 
 def _collapse_paragraph_requests(rng: dict) -> list[dict]:

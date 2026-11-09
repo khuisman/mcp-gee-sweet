@@ -1535,6 +1535,24 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-07, PR #1406 QA round 3 @ b4932412, Sky) ⚠️ PARTIAL — every check run passes at EP-3, and round 2's defect is fixed; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows LG-01 to LG-06 as in rounds 1 and 2. LG-07 has `spaceBelow` 10 on "Paragraph inside d." before the literal "3." line and none on "Paragraph inside 3." before "4.", and the screen shows the same. A `create_doc` markdown probe (`- a` / `  p inside a` / `3. …` / `   p inside literal 3` / `4. …`, then a separate ordered list and bulleted list) gives the gap before each other list and none before the same literal list's next item. `apply_theme(NORMAL_TEXT space_below 20)` on the probe sent 9 requests and left no 10pt `spaceBelow`, the literal items included. `get_doc_as_markdown` returns the fixture's structure, LG-07 included.
 
+### TC-MD509: A gap between a table and the paragraphs beside it ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-table-gaps.md` and `docs/qa/fixtures/md/realistic/r15-travel-itinerary.md` through EP-1 to EP-4. #1427's done-when. Then, on the fixture's EP-1 Doc, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`.
+
+**Checks**
+- r15: "**Hotel:**" sits clear of the Flights table's bottom border, with a gap about two thirds of a line, the same as between two paragraphs (TC-MD506). Compare with r15 through EP-5, Drive's own import.
+- TG-01: the same gap between "Intro before the table." and the table, and between the table and "**Hotel:** the paragraph right after the table.". The gap below "Hotel:" before "Plain paragraph after that." is unchanged.
+- TG-02: "Between the two tables." has a gap on both sides.
+- TG-03: a gap between each item's table and the paragraph after it, inside the item and outside the list. The list still reads as one list: "last item" is item 2, at list spacing from the paragraph above it.
+- TG-04: the heading, the code block and the list item right after a table keep their own spacing. Nothing extra is added beside them.
+- TG-05: the quote is unchanged from `develop`: the quoted paragraphs beside the quoted table show the quote's bar as before, with no new gap, and "Unquoted paragraph after the quote." keeps the quote's 8pt edge.
+- Structure: in `documents().get()`, a paragraph after a table has `spaceAbove` 10pt, one before a table `spaceBelow` 10pt, and no empty paragraph was added. The collapsed empty paragraph before each table is still collapsed.
+- Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceAbove` or `spaceBelow`. On screen a paragraph before a table shows the theme's 20pt below it. A paragraph after a table takes the theme's `space_above`, which this theme doesn't set, so it sits on the table again: the theme's spacing wins, as intended.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
 ---
 
 ## Known gaps and not-applicable

@@ -202,20 +202,25 @@ def _has_own_paragraph_spacing(doc: dict) -> bool:
 def _clear_paragraph_gap_requests(doc: dict) -> list[dict]:
     """Requests that hand NORMAL_TEXT body paragraphs carrying the emitter's paragraph
     gap (#1382) back to the named style: a value set on the paragraph beats the style,
-    so a theme's spacing wouldn't reach them. Fields named, values absent, resets it."""
+    so a theme's spacing wouldn't reach them. The gap is spaceBelow, or spaceAbove on a
+    paragraph after a table (#1427). Fields named, values absent, resets it."""
     requests = []
     for elem in doc.get("body", {}).get("content", []):
         paragraph_style = elem.get("paragraph", {}).get("paragraphStyle", {})
-        if (
-            paragraph_style.get("namedStyleType") == "NORMAL_TEXT"
-            and paragraph_style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
-        ):
+        if paragraph_style.get("namedStyleType") != "NORMAL_TEXT":
+            continue
+        fields = [
+            field
+            for field in ("spaceAbove", "spaceBelow")
+            if paragraph_style.get(field, {}).get("magnitude") == PARAGRAPH_GAP_PT
+        ]
+        if fields:
             requests.append(
                 {
                     "updateParagraphStyle": {
                         "range": {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]},
                         "paragraphStyle": {},
-                        "fields": "spaceBelow",
+                        "fields": ",".join(fields),
                     }
                 }
             )

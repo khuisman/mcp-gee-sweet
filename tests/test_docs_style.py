@@ -20,6 +20,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
 from mcp_gee_sweet.tools.docs.style import (
     _add_or_clear_field,
     _build_named_style_requests,
+    _clear_paragraph_gap_requests,
     _has_own_paragraph_spacing,
     _read_body_styles,
     _read_named_styles,
@@ -2096,6 +2097,54 @@ class TestApplyThemeTool:
         ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
         await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx)
         mock_docs.documents().get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("paragraph_style", "fields"),
+        [
+            ({"spaceAbove": {"magnitude": 10, "unit": "PT"}}, "spaceAbove"),
+            (
+                {
+                    "spaceAbove": {"magnitude": 10, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 10, "unit": "PT"},
+                },
+                "spaceAbove,spaceBelow",
+            ),
+            (
+                {
+                    "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 10, "unit": "PT"},
+                },
+                "spaceBelow",
+            ),
+        ],
+        ids=["above", "both", "below-beside-a-quote-edge"],
+    )
+    def test_gap_above_a_paragraph_after_a_table_is_cleared_too(self, paragraph_style, fields):
+        """#1427: a paragraph after a table carries the gap as spaceAbove. Only the
+        gap's own fields are reset, never another spacing value."""
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 4,
+                        "endIndex": 6,
+                        "paragraph": {
+                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **paragraph_style},
+                            "elements": [{"textRun": {"content": "x\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        assert _clear_paragraph_gap_requests(doc) == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 4, "endIndex": 6},
+                    "paragraphStyle": {},
+                    "fields": fields,
+                }
+            }
+        ]
 
     async def test_overwrite_spacing_lands_after_the_gap_is_cleared(self):
         reqs = await self._run_theme({"NORMAL_TEXT": {"space_below": 20}}, overwrite=True)
