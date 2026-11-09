@@ -1402,11 +1402,13 @@ items, a table, an image, and heading links.</p>
   <code>_stabilize_internal_links</code> rewrites a heading link to <code>#&lt;slug&gt;</code>, using anchors.py's GitHub-style
   slug with <code>-1</code>/<code>-2</code> duplicate suffixes, so the link survives a round trip through the write
   side's anchor resolver. The slug list holds only paragraphs that render as Markdown headings,
-  classified by <code>doc_to_ast._paragraph_to_node</code> itself (<code>Heading</code>, or a TITLE/SUBTITLE
-  <code>NamedBlock</code>): a bulleted heading renders as a list item and a heading in a table cell as cell
-  text, and counting them shifted every later duplicate's suffix onto the wrong heading (PR #988
-  QA round 1). A link to a heading that doesn't render as one is dropped, following the project's
-  rule that a wrong link is worse than none.</li>
+  classified by <code>doc_to_ast._paragraph_to_node</code> itself (<code>Heading</code>, a TITLE/SUBTITLE
+  <code>NamedBlock</code>, or a <code>BulletItem</code> with <code>heading_level</code>: a bulleted <code>HEADING_N</code> that isn't a task
+  item renders as a heading inside its item, <code>- ## Title</code>, and counts, #1302). A heading in a
+  table cell renders as cell text, a bulleted task-item heading as task text, and a bulleted
+  TITLE/SUBTITLE as a plain list item; counting them shifted every later duplicate's suffix onto
+  the wrong heading (PR #988 QA round 1). A link to a heading that doesn't render as one is
+  dropped, following the project's rule that a wrong link is worse than none.</li>
 <li><strong>Bookmark links are dropped.</strong> A bookmark has no text to name it, and any <code>#fragment</code> made up
   for one can be fuzzy-matched by <code>anchors.py</code> to a heading when the Markdown is written back
   (<code>#bookmark-1</code> → the second heading titled "Bookmark"; PR #988 QA round 1).</li>
