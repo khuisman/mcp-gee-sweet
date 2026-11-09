@@ -1624,29 +1624,58 @@ Related: project memory <code>service_account_limit</code>.</p>
 Docs tools (<code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>)
 use this server's converter instead. The same Markdown comes out differently:</p>
 <ul>
-<li><strong>Bullets</strong> use a <code>-</code> glyph at every level, not ● / ○ / ■.</li>
+<li><strong>Bullets</strong> show the source's own marker: a <code>-</code> list shows <code>-</code> at every level, a top-level
+  <code>+</code> list <code>+</code>, and a top-level <code>*</code> list ●. This server's converter uses ● / ○ / ■ by level,
+  whatever the marker.</li>
 <li><strong>Numbered lists</strong> use <code>1.</code> numbering at every level, not <code>a.</code> / <code>i.</code> for nested levels. A
   <code>1)</code> list keeps the <code>)</code>. A top-level item after a nested numbered sub-list can repeat the
-  previous number (1, 2, 2).</li>
+  previous number (1, 2, 2). A numbered list can also join the numbered sub-list before it,
+  even across a heading, so it continues that sub-list's count (2., 3., 4.) instead of starting
+  at 1.</li>
+<li><strong>Numbers of 100 or more</strong> don't line up: an item's wrapped line starts left of its first
+  line's text, and a paragraph under the item doesn't line up with the item's text.</li>
 <li><strong>Fenced code blocks</strong> become a gray rounded monospace box with syntax colors and a language
   label, with each source line as its own 9pt paragraph. A fence with no language, or one Drive
   doesn't recognize, is labeled "None", a word that isn't in the source.</li>
-<li><strong>A fenced code block in a list item</strong> sits at the page margin at full width, not at the item's
-  text. The list continues correctly after it.</li>
-<li><strong>Indented code blocks</strong> haven't been rechecked since Drive changed fenced ones. They last
-  rendered as one Arial paragraph per line, with paragraph spacing between lines.</li>
+<li><strong>A fenced code block in a list item or a blockquote</strong> sits at the page margin at full width,
+  outside the item or the quote (seen one and two quotes deep). A list continues correctly after
+  it.</li>
+<li><strong>Indented code blocks</strong> render as the same gray box as a fence with no language, labeled
+  "None".</li>
 <li><strong>Inline code</strong> is green monospace rather than Courier New, so <code>get_doc_as_markdown</code> reads it
   back as plain text, without backticks.</li>
 <li><strong>Blockquotes</strong> are indented but have no left border.</li>
 <li><strong>Task lists</strong> become native Docs checklists rather than <code>☐</code> / <code>☑</code> text. A numbered task list
-  loses its numbers.</li>
-<li><strong>Sub-lists indented by 2 spaces</strong> under a numbered item don't nest; 3 or more spaces do.</li>
+  loses its numbers, and a plain item after its task items restarts at 1. A task list two quotes
+  deep isn't a checklist at all: it shows dash bullets with the literal <code>[ ]</code> / <code>[x]</code> text (one
+  quote deep it's a checklist).</li>
+<li><strong>Sub-lists indented by 2 spaces</strong> under a numbered item don't nest; 3 or more spaces do. A
+  list nested under such a sub-list is joined onto its parent item's text as literal text ("Child
+  one 1. Grandchild one 2. Grandchild two"), and the items after it are renumbered.</li>
+<li><strong>A pipe table right under a list item or a quote line</strong>, with no blank line between them,
+  becomes literal text on the end of that line. After a paragraph or a heading, the table is
+  built.</li>
+<li><strong>A paragraph between two items of an HTML list</strong> (<code>&lt;ol&gt;&lt;li&gt;…&lt;/li&gt;&lt;p&gt;…&lt;/p&gt;&lt;li&gt;…&lt;/li&gt;&lt;/ol&gt;</code>)
+  is joined onto the start of the next item's text, with no space ("Loose in the listLoose two").</li>
 <li><strong>Extra empty paragraphs</strong> appear around paragraphs, rules, lists, and tables. A table gets a
   visible empty line above it when it starts the document, and between it and a paragraph
   directly before it.</li>
-<li><strong><code>&lt;del&gt;</code> and <code>&lt;mark&gt;</code></strong> inline HTML isn't rendered as strikethrough or highlight.</li>
+<li><strong>Inline HTML:</strong> <code>&lt;del&gt;</code> and <code>&lt;mark&gt;</code> aren't rendered as strikethrough or highlight, and a
+  <code>&lt;br&gt;</code> splits its paragraph in two, with an empty paragraph between, instead of starting a new
+  line in the same paragraph.</li>
 <li><strong>Images</strong> with a local path or <code>drive:</code> source aren't embedded. Only this server's converter
-  uploads and shares those.</li>
+  uploads and shares those. A local path with a space in it shows as the literal
+  <code>![alt](path)</code> text.</li>
+<li><strong>An image Docs can't display</strong>, such as an SVG badge from shields.io, leaves an empty line or
+  a gap in the sentence, with no alt text, linked or not. This server's converter writes its alt
+  text in its place (#1099), except in a heading, where it leaves the image out so the heading's
+  text and its link target stay as written.</li>
+<li><strong>A protocol-relative image</strong> (<code>//host/image.png</code>) shows nothing. This server's converter
+  fetches it over <code>https://</code> (#1180).</li>
+<li><strong>Relative and <code>#anchor</code> links</strong> don't work. A relative link such as <code>./guide.md</code> points to
+  <code>http://./guide.md</code>, and a link to a heading (<code>#section</code>) opens nothing. This server's
+  converter drops a relative link's target, keeping its text, and points an anchor link at its
+  heading, or drops it when no heading matches.</li>
 <li><strong><code>www.</code> links</strong>, bare (<code>www.example.com</code>) or written (<code>[x](www.example.com)</code>), point to
   <code>http://</code>. This server's converter gives both <code>https://</code> (#1180, #1281).</li>
 </ul>
@@ -1654,10 +1683,11 @@ use this server's converter instead. The same Markdown comes out differently:</p
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (<code>docs/qa/results/2026-10-18-markdown.md</code>,
 <code>2026-10-18-markdown-phase2.md</code>, <code>2026-10-22-markdown-boundaries-state.md</code>,
-<code>2026-11-05-markdown.md</code>); the <code>www.</code> scheme in PR #1298's QA round 1. Drive can change this
-rendering without a release of this server: fenced code blocks looked different in the 2026-10-18
-and 2026-11-05 baselines. Routing these tools through this server's converter is a design question
-(#1113).</p>
+<code>2026-11-05-markdown.md</code>, <code>2026-11-08-markdown.md</code>, #1429); the <code>www.</code> scheme in PR #1298's QA
+round 1. Drive can change this rendering without a release of this server: fenced code blocks
+looked different in the 2026-10-18 and 2026-11-05 baselines, and the bullet-glyph and
+indented-code entries above were corrected from the 2026-11-08 pass. Routing these tools through
+this server's converter is a design question (#1113).</p>
 <p><strong>Workaround:</strong> For a single file, use <code>create_doc_from_file</code>, and <code>update_doc_from_file</code> to
 refresh it. They render <code>.md</code> the same way as the other Docs tools. There's no equivalent for a
 whole folder or for <code>sync_folder</code>'s change tracking yet. Related: <code>get_doc_as_markdown</code> exports a
