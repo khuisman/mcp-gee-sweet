@@ -285,9 +285,10 @@ as `get_doc_as_markdown`, with these differences and gaps:
 
 1. A link to a heading renders as a GitHub-style `#slug` anchor, not as a docs.google.com URL.
    A link to a bookmark, or to a heading that doesn't render as one (a heading in a table
-   cell), is dropped and leaves its text. An image renders as
-   `image:sha256-<hash>`, with no viewable URL: the temporary Doc's image URLs stop working
-   once it's deleted, so an old revision's images can't be viewed this way.
+   cell, a bulleted task-item heading, or a bulleted Title/Subtitle), is dropped and leaves its
+   text. An image renders as `image:sha256-<hash>`, with no viewable URL: the temporary Doc's
+   image URLs stop working once it's deleted, so an old revision's images can't be viewed this
+   way.
 2. The export doesn't include comments, which aren't part of a revision.
 3. A revision ID from `list_revisions` can stop existing: Docs folds a recent revision into the
    next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
