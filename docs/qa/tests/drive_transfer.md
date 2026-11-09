@@ -2589,9 +2589,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 - Call 1's `markdown` contains `[Jump](#setup)` and `[back](#setup-1)`, and no
   `docs.google.com` URL.
 - Call 2's `markdown` is identical to call 1's.
-- Call 3's `markdown` renders the first `Setup` as a list item (`- Setup`), leaves "Jump" as
-  plain text (its target doesn't render as a heading), and contains `[back](#setup)`: the
-  bulleted heading takes no slug (PR #988 round 1).
+- Call 3's `markdown` renders the first `Setup` as a heading inside a list item
+  (`- ## Setup`) and contains `[Jump](#setup)` and `[back](#setup-1)`: the bulleted heading
+  renders as a heading, so it takes a slug (#1302, #1419).
 
 **Teardown:** `delete_file` on both Docs.
 

@@ -284,8 +284,8 @@ raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-t
 as `get_doc_as_markdown`, with these differences and gaps:
 
 1. A link to a heading renders as a GitHub-style `#slug` anchor, not as a docs.google.com URL.
-   A link to a bookmark, or to a heading that doesn't render as one (a bulleted heading, or one
-   in a table cell), is dropped and leaves its text. An image renders as
+   A link to a bookmark, or to a heading that doesn't render as one (a heading in a table
+   cell), is dropped and leaves its text. An image renders as
    `image:sha256-<hash>`, with no viewable URL: the temporary Doc's image URLs stop working
    once it's deleted, so an old revision's images can't be viewed this way.
 2. The export doesn't include comments, which aren't part of a revision.
