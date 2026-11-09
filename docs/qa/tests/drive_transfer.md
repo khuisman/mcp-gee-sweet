@@ -2602,6 +2602,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08, PR #1433 round 1, `a9e5d20`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth) against the rewritten call-3 checks (#1419). The earlier results above checked the old call-3 expectation (link dropped). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Calls 1 and 2 (revision 4) both returned `# Top\n\n## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`, byte-identical, no `docs.google.com` URL. Call 3 (`qa-959-bullet`, revision 5) returned `# Top\n\n- ## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`: the bulleted heading renders as a heading inside its item and takes the `#setup` slug. Both Docs trashed.
+
 ---
 
 ### TC-D282: Doc revision `local_path`, and arguments that don't apply to the file's type (issue #959) ⚠️ local-filesystem ⚠️ requires-oauth
