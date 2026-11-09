@@ -347,20 +347,22 @@ Related: project memory `service_account_limit`.
 Docs tools (`create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file`)
 use this server's converter instead. The same Markdown comes out differently:
 
-- **Bullets** show the source's own marker at every level: a `-` list shows `-`, a `+` list
-  `+`, and a `*` list ●. This server's converter uses ● / ○ / ■ by level, whatever the marker.
+- **Bullets** show the source's own marker: a `-` list shows `-` at every level, a top-level
+  `+` list `+`, and a top-level `*` list ●. This server's converter uses ● / ○ / ■ by level,
+  whatever the marker.
 - **Numbered lists** use `1.` numbering at every level, not `a.` / `i.` for nested levels. A
   `1)` list keeps the `)`. A top-level item after a nested numbered sub-list can repeat the
   previous number (1, 2, 2). A numbered list can also join the numbered sub-list before it,
-  even across a quote and a heading, so it continues that sub-list's count (2., 3., 4.) instead
-  of starting at 1.
+  even across a heading, so it continues that sub-list's count (2., 3., 4.) instead of starting
+  at 1.
 - **Numbers of 100 or more** don't line up: an item's wrapped line starts left of its first
   line's text, and a paragraph under the item doesn't line up with the item's text.
 - **Fenced code blocks** become a gray rounded monospace box with syntax colors and a language
   label, with each source line as its own 9pt paragraph. A fence with no language, or one Drive
   doesn't recognize, is labeled "None", a word that isn't in the source.
 - **A fenced code block in a list item or a blockquote** sits at the page margin at full width,
-  outside the item or the quote, at any quote depth. A list continues correctly after it.
+  outside the item or the quote (seen one and two quotes deep). A list continues correctly after
+  it.
 - **Indented code blocks** render as the same gray box as a fence with no language, labeled
   "None".
 - **Inline code** is green monospace rather than Courier New, so `get_doc_as_markdown` reads it
@@ -389,7 +391,8 @@ use this server's converter instead. The same Markdown comes out differently:
   `![alt](path)` text.
 - **An image Docs can't display**, such as an SVG badge from shields.io, leaves an empty line or
   a gap in the sentence, with no alt text, linked or not. This server's converter writes its alt
-  text in its place (#1099).
+  text in its place (#1099), except in a heading, where it leaves the image out so the heading's
+  text and its link target stay as written.
 - **A protocol-relative image** (`//host/image.png`) shows nothing. This server's converter
   fetches it over `https://` (#1180).
 - **Relative and `#anchor` links** don't work. A relative link such as `./guide.md` points to
@@ -406,8 +409,8 @@ the #1044 Markdown baselines (`docs/qa/results/2026-10-18-markdown.md`,
 `2026-11-05-markdown.md`, `2026-11-08-markdown.md`, #1429); the `www.` scheme in PR #1298's QA
 round 1. Drive can change this rendering without a release of this server: fenced code blocks
 looked different in the 2026-10-18 and 2026-11-05 baselines, and the bullet-glyph and
-indented-code entries above were corrected from the 2026-11-08 pass. Routing these tools through this server's
-converter is a design question (#1113).
+indented-code entries above were corrected from the 2026-11-08 pass. Routing these tools through
+this server's converter is a design question (#1113).
 
 **Workaround:** For a single file, use `create_doc_from_file`, and `update_doc_from_file` to
 refresh it. They render `.md` the same way as the other Docs tools. There's no equivalent for a
