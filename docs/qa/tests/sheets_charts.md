@@ -37,6 +37,8 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `add_chart(COLUMN, A1:D5)` returned a chartId with `chartType` COLUMN; chart deleted. API checks only (no Playwright in this re-check).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_chart(COLUMN, A1:D5, "Sales by Quarter")` → chartId 1097585336, basicChart.chartType COLUMN. Playwright (copy C URL checked) `.playwright-mcp/S4/2026-11-08-tc-c01.png`: "Sales by Quarter" column chart on Sales, Q1/Q2/Q3 grouped by Widget/Gadget/Donut/Gizmo. Deleted.
+
 ---
 
 ### TC-C02: BAR chart
@@ -58,6 +60,8 @@ add_chart(BAR, A1:D5) → chartId 82345835, chartType BAR. Deleted after
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — chartId 460565049, chartType BAR. Deleted.
+
 ---
 
 ### TC-C03: LINE chart
@@ -77,6 +81,8 @@ add_chart(LINE, A1:D5) → chartId 1210688378, chartType LINE. Deleted after
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — chartId 758338615, chartType LINE. Deleted.
+
 ---
 
 ### TC-C04: AREA chart
@@ -95,6 +101,8 @@ add_chart(AREA, A1:D5) → chartId 1920190609, chartType AREA. Deleted after
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — chartId 437275636, chartType AREA. Deleted.
 
 ---
 
@@ -116,6 +124,8 @@ add_chart(PIE, A1:B5) → chartId 132308391, response uses "pieChart" key (dedic
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `PIE, A1:B5` → chartId 937917322, spec uses `pieChart` (single domain col 0, single series col 1; no axis). Deleted.
+
 ---
 
 ### TC-C06: SCATTER chart
@@ -134,6 +144,8 @@ add_chart(SCATTER, B1:C5) → chartId 1210711819, chartType SCATTER. Deleted aft
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `SCATTER, B1:C5` → chartId 1968051945, chartType SCATTER. Deleted.
 
 ---
 
@@ -154,6 +166,8 @@ add_chart(COMBO, A1:D5) → chartId 1496649436, chartType COMBO, per-series "typ
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — chartId 612816217, chartType COMBO, series types COLUMN/COLUMN/LINE. Deleted.
+
 ---
 
 ### TC-C08: HISTOGRAM chart
@@ -173,6 +187,8 @@ add_chart(HISTOGRAM, B2:B5) → chartId 2013613202, "histogramChart" key. Delete
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `HISTOGRAM, B2:B5` → chartId 162167517, `histogramChart` key. Deleted.
+
 ---
 
 ### TC-C09: Invalid chart type
@@ -190,6 +206,8 @@ add_chart(chart_type="DONUT") → {"error":"Invalid chart type 'DONUT'. Must be 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"error": "Invalid chart type 'DONUT'. Must be one of: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM"}`, no chartId.
 
 ---
 
@@ -210,6 +228,8 @@ add_chart(chart_type="column" lowercase) → succeeded, chartId 148233447, norma
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `chart_type="column"` → chartId 1998082987, chartType COLUMN. Deleted.
+
 ---
 
 ### TC-C11: Sheet not found
@@ -226,6 +246,8 @@ add_chart(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found in sp
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"error": "Sheet 'NoSuchSheet' not found in spreadsheet"}`, no chart.
 
 ---
 
@@ -248,6 +270,8 @@ add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `LINE, A1:D5, x=100, y=200, 400x300` → chartId 1566204555, overlayPosition {offsetXPixels 100, offsetYPixels 200, widthPixels 400, heightPixels 300}. Product decision: pixels. Playwright `.playwright-mcp/S4/2026-11-08-tc-c12.png`: a 400x300 line chart offset ~100 px right / 200 px down from A1 (top edge at row 10), and the earlier 8 charts gone. Deleted.
+
 ---
 
 ### TC-C13: Range with no end column is rejected (#954)
@@ -265,6 +289,8 @@ add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `B2:5` → `{"error": "data_range 'B2:5' has no end column; add_chart needs explicit column bounds (e.g. 'A1:C10' or 'A:C')"}`; `1:5` → same naming '1:5'. No chartId/result in either.
 
 ---
 
@@ -288,6 +314,8 @@ add_chart(COLUMN, data_range="A:D") → chartId 915893384; domains = col 0, seri
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `A:D` → chartId 1484793642; domains = 1 source (col 0), series = 3 (cols 1, 2, 3), rows 0–996. Deleted.
+
 
 ---
 
@@ -306,6 +334,8 @@ add_chart(PIE, "A1:D5") → {"error":"data_range 'A1:D5' spans 4 column(s); a PI
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `A1:D5` → "data_range 'A1:D5' spans 4 column(s); a PIE chart needs exactly 2 (labels, then values)"; `B1:B5` → "... spans 1 column(s) ...". No chartId/result. (A1:B5 PIE success shown in TC-C05.)
 
 ---
 
@@ -326,3 +356,7 @@ add_chart(COLUMN, "B2:B5") → {"error":"data_range 'B2:B5' spans 1 column; a CO
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — COLUMN `B2:B5` → "data_range 'B2:B5' spans 1 column; a COLUMN chart needs at least 2 (...)", no chartId. HISTOGRAM `B2:B5` → chartId 492374035, `histogramChart.series` = 1 source (col 1, rows 1–5). Deleted.
+
+Cleanup: run folder QA-orn-S4-2026-11-08 trashed (delete_file, not permanent); nothing kept. Playwright tab closed via page.close().

@@ -32,6 +32,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `update_cells(Sales, A7:D7)` updated 4 cells, rows 1–6 unchanged, `Marked all sheet data dirty` logged.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — On copy W, `update_cells(Sales, A7:D7, [[Test,A,B,C]])` updated 4 cells, no error. Re-read: row 7 = Test/A/B/C, rows 1–6 unchanged.
+
 ---
 
 ### TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
@@ -50,6 +52,8 @@ Prompt formula `=A2&' '&A3` (single-quote string delims) → E2 = `#ERROR!` "For
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — On copy W, `update_cells(Sales, E2, [['=A2&" "&A3']])`; E2 reads "Widget Gadget" and `get_sheet_formulas` returns the formula `=A2&" "&A3` (stored as a formula, so USER_ENTERED).
 
 ---
 
@@ -71,6 +75,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — 4 values into A8:A9 returned `{"error": "<HttpError 400 ... Requested writing within range [Sales!A8:A9], but tried writing to row [10]>"}` (clean error dict). Re-read: A8:A9 empty, nothing written. Product decision: tool passes through to the API rather than truncating.
+
 ---
 
 ### TC-W04: Cache invalidated after write
@@ -91,6 +97,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): after a warm summary, `update_cells(A7)` logged `Marked all sheet data dirty`, and the next summary re-fetched (`Cached sheet data …`) and showed the new value. Stale wording: the summary needs `rows_to_fetch` ≥ 7 to reach A7 (10 used); the default 5 doesn't.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Warmed with `get_multiple_spreadsheet_summary(rows_to_fetch=10)` (row 7 = "Test"), then `update_cells(A7, CacheTest)`, then the same summary showed row 7 = "CacheTest", not stale. mark_dirty inferred from the fresh read (server log not inspected).
+
 ---
 
 ### TC-W05: Non-existent sheet name
@@ -109,6 +117,8 @@ Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; n
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Returned a clean `{"error": "<HttpError 400 ... Unable to parse range: NoSuchSheet!A1>"}`; no sheet created (list_sheets still Sales / Notes & Misc / Empty).
 
 ---
 
@@ -132,6 +142,8 @@ F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — F2 stringValue "See the docs"; textFormatRuns `[{"format":{}}, {"startIndex":4, format.link.uri "https://example.com"}]`; userEnteredFormat.hyperlinkDisplayType LINKED. Playwright (copy W, Sales, URL ID checked) `.playwright-mcp/S4/2026-11-08-tc-w33.png`: only "the docs" is blue/underlined, "See " plain (copy has no chart, so the grid was visible).
 
 ---
 
@@ -160,6 +172,8 @@ Return = {values_update:{...responses:[{updatedRange:"Sales!F3"}]}, rich_text_up
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — One call returned `{"values_update": {...responses:[{updatedRange:"Sales!F3"}]}, "rich_text_update": {replies:[{}]}}`, both present; plain write scoped to F3 only. Read-back: F3 "PlainValue" (PLAIN_TEXT); G3 "Link", hyperlinkDisplayType LINKED, hyperlink https://example.com/g3. Same screenshot (tc-w33.png): G3 blue/underlined, F3 plain.
+
 ---
 
 ### TC-W35: Rich-text run missing "text" key returns an error
@@ -178,6 +192,8 @@ Run `{"hyperlink":...}` no text → {"error":"Rich-text cell runs must be dicts 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Returned `{"error": "Rich-text cell runs must be dicts with a string 'text' key, ..."}`; F4 empty on read-back.
 
 ---
 
@@ -209,6 +225,8 @@ The spot-check was recorded as pending in `docs_content.md`'s v0.9.2 record. TC-
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `oauth`: Run in a throwaway spreadsheet in the run folder, not the fixture. `update_cells` F5 [🚀, link→example.com]; `get_sheet_data(include_grid_data)` showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — F5 stringValue "🚀link"; textFormatRuns[1].startIndex 2 with link.uri https://example.com. Same screenshot (tc-w33.png): the underline starts at "link", the 🚀 is not underlined.
+
 ---
 
 ### TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash
@@ -227,6 +245,8 @@ The spot-check was recorded as pending in `docs_content.md`'s v0.9.2 record. TC-
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"text": null, ...}` → `{"error": "...string 'text' key..."}`, no crash; F6 empty.
 
 ---
 
@@ -247,6 +267,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `[[[]]]` → `{"error": "Rich-text cell runs list cannot be empty"}`; F7 empty.
+
 ---
 
 ### TC-W39: Empty `data` returns an error, not a silent no-op
@@ -266,6 +288,8 @@ data=[] → {"error":"data cannot be empty"}; no write
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `data=[]` → `{"error": "data cannot be empty"}`; F8 empty.
+
 ---
 
 ### TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)
@@ -283,6 +307,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `range="Sheet1!F9"` mixed call → `{"error": "Invalid A1 notation: 'Sheet1!F9'"}`; F9 empty. (Check text shows the range quoted, which now matches.)
 
 ---
 
@@ -304,6 +330,8 @@ Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — F10000000 → `{"error": "<HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28>"}`; nothing written.
+
 ---
 
 ### TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)
@@ -321,6 +349,8 @@ Not written as a live prompt: reliably forcing one specific branch to fail while
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Unit-level: `uv run python -m pytest tests/sheets/test_data.py -k "mixed_cells_rich_text_httperror_preserves_plain_success or mixed_cells_plain_httperror_still_attempts_rich_text"` in Aziz's worktree: 2 passed.
 
 ---
 
@@ -347,6 +377,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): one `batch_update_cells` call wrote A8=Batch1, A9=Batch2 (totalUpdatedCells 2).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — One `batch_update_cells({A8:[[Batch1]], A9:[[Batch2]]})` call, totalUpdatedCells 2; summary read showed A8=Batch1, A9=Batch2.
+
 ---
 
 ### TC-W07: Ranges on the same sheet
@@ -364,6 +396,8 @@ B8=999, C8=888 in one batch; no same-sheet conflict
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — One call B8=999, C8=888 (totalUpdatedCells 2); re-read shows both, no conflict.
+
 ---
 
 ### TC-W08: Empty ranges dict
@@ -380,6 +414,8 @@ Empty ranges {} → {"spreadsheetId":"..."} bare, no error, no values write (no-
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `ranges={}` → `{"spreadsheetId": "..."}`, no error (no-op). Product decision: no-op, not error.
 
 ---
 
@@ -399,6 +435,8 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Warmed summary showed A8 "Batch1"; `batch_update_cells(A8=dirty)`; next summary showed "dirty". mark_dirty inferred from the fresh read.
+
 ### TC-W10: Trailing empty-array rows are normalized
 
 **Prompt**
@@ -411,6 +449,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_rows(Sales, 1)` → row 1 blank, "Product" header now row 2. inheritFromBefore=False per code (structure.py:896, `start_row is not None and start_row > 0`); not separately observable live.
 
 ---
 
@@ -431,6 +471,10 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"!!!BadRange!!!": [["x"]]}` → `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!!>"}`; sheet data unchanged on re-read.
+
+(Between add_rows/add_columns cases the inserted rows/columns were removed with a raw deleteDimension so each case started from the canonical layout.)
 
 ---
 
@@ -465,6 +509,8 @@ add 1 row start_row=3 → inserted, data shifted, formulas auto-adjusted; rowCou
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_rows(count=1, start_row=3)` → row 4 blank, Donut/Gizmo/Totals shifted to rows 5–7.
+
 ---
 
 ### TC-W12: start_row=0 — inheritFromBefore=False
@@ -483,6 +529,8 @@ add 1 row start_row=0 → inserted at top, same as no-position. inheritFromBefor
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `start_row=0` → blank row 1, header to row 2: same result as no position. inheritFromBefore=False per code (structure.py:896). Product decision: start_row=0 and None behave identically.
+
 ---
 
 ### TC-W13: start_row=1 — inheritFromBefore=True
@@ -499,6 +547,8 @@ add 1 row start_row=1 → inserted at index 1; inheritFromBefore=True request sh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `start_row=1` → blank row 2. Live evidence of inheritance: new B2 has userEnteredFormat horizontalAlignment LEFT (from header B1), while the Widget row's B has RIGHT + number format, so the row inherited from the row above.
 
 ---
 
@@ -517,6 +567,8 @@ add 5 rows start_row=1004 (end) → rowCount 1004→1009; existing data unshifte
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_rows(count=5, start_row=996)` (end) → rowCount 996→1001; data rows unchanged.
+
 ---
 
 ### TC-W15: Invalid sheet name
@@ -534,6 +586,8 @@ add row to "NoSuchSheet" → {"error":"Sheet 'NoSuchSheet' not found"}, no API c
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"error": "Sheet 'NoSuchSheet' not found"}`, no exception.
+
 ---
 
 ### TC-W16: Large count value
@@ -550,6 +604,8 @@ add 1000 rows → succeeds, no cap enforced, no API-limit error. Tool does not c
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_rows(count=1000, start_row=1001)` succeeded (rowCount → 2001), no cap, no API error. Inserted at the end rather than the default top to keep the copy usable. Product decision: tool doesn't cap count.
 
 ---
 
@@ -570,6 +626,8 @@ add 1 col, no position → blank col A; Product shifted to B
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_columns(Sales, 1)` → A blank, Product in B.
+
 ---
 
 ### TC-W18: start_column=0 — inheritFromBefore=False
@@ -586,6 +644,8 @@ add 1 col start_column=0 → inserted leftmost
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `start_column=0` → another blank leftmost column (Product moved to C). inheritFromBefore=False per code (structure.py:962).
 
 ---
 
@@ -604,6 +664,8 @@ add 1 col start_column=1 → inserted after A; inheritFromBefore request shape u
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — (after restoring) `start_column=1` → blank B, Q1 in C. Live evidence: new B2 has no number format/RIGHT alignment (C2 "100" has both) and B's width is 52 px like A's, so it inherited from the column before.
+
 ---
 
 ### TC-W20: Add multiple columns
@@ -620,6 +682,8 @@ add 3 cols start_column=2 → 3 blank cols inserted, data shifted right (Product
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `add_columns(count=3, start_column=2)` → C, D, E blank; Q1/Q2/Q3 moved to F/G/H.
 
 ---
 
@@ -640,6 +704,8 @@ raw addSheet "RawAdded" → created; reply has full properties (sheetId 91422653
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — raw addSheet "RawAdded" → reply carries full properties (sheetId 334791919, title, index 3, gridProperties); list_sheets includes it.
+
 ---
 
 ### TC-W22: Rename a sheet via raw request
@@ -657,6 +723,8 @@ raw updateSheetProperties rename Empty(sheetId 1225372232)→RawRenamed; list_sh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — raw updateSheetProperties (sheetId 547522895, fields title) Empty → RawRenamed; list_sheets right after shows "RawRenamed" (structure cache invalidated).
+
 ---
 
 ### TC-W23: Insert dimension via raw request
@@ -673,6 +741,8 @@ raw insertDimension 2 ROWS at index 1 in Sales → replies [{}]; data shifted do
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — raw insertDimension ROWS 1–3 → rows 2–3 blank, Widget moved to row 4. Rows removed again afterwards.
 
 ---
 
@@ -692,6 +762,8 @@ raw deleteDimension row 7 (ROWS 6:7) → replies [{}]; subsequent list_sheets re
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — After a warm summary (row 7 = CacheTest), raw deleteDimension ROWS 6–7 → replies [{}]; list_sheets returned the current sheet list and the next summary no longer had CacheTest (row 7 now "hello/world"), so the data cache was invalidated too. Cache-call confirmation inferred from fresh reads; server log not inspected.
+
 ---
 
 ### TC-W25: Empty requests list
@@ -708,6 +780,8 @@ requests=[] → {"error":"requests list cannot be empty"}, no API call
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"error": "requests list cannot be empty"}`.
 
 ---
 
@@ -726,6 +800,8 @@ requests=["notadict"] → MCP pydantic schema validation error ("Input should be
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `requests=["notadict"]` refused by the MCP schema layer ("Input should be a valid dictionary"); not forwarded to the API. (A tool error rather than an `error` field, same as prior passes.)
+
 ---
 
 ### TC-W27: Invalid request structure
@@ -742,6 +818,8 @@ requests=[{"unknownKey":{}}] → HttpError 400 from Sheets API "Unknown name 'un
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `[{"unknownKey": {}}]` → Sheets API HttpError 400 `Unknown name "unknownKey" at 'requests[0]': Cannot find field.` propagated as a tool error; server kept serving. Note: unlike the #757 tools in data.py, `batch_update` raises the HttpError rather than returning `{"error": ...}`; the case's checks accept that.
 
 ---
 
@@ -760,6 +838,8 @@ raw addSheet "CacheCheck" then list_sheets includes it AND summary reflects it �
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — raw addSheet "CacheCheck", then list_sheets includes CacheCheck and the summary lists a CacheCheck sheet (both caches were warm beforehand).
 
 ---
 
@@ -785,6 +865,8 @@ clear A1:C5 of Sales → A1:C5 empty; col D + row 6 untouched; B6/C6 SUM formula
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — Before: B2 = 100 with numberFormat NUMBER "0" + RIGHT alignment. `clear_values(Sales, A1:C5)` → clearedRange "Sales!A1:C5", no error. After: A1:C5 empty, column D and row 6 intact (B6/C6 SUMs now 0, D6 705); B2 keeps numberFormat "0" and RIGHT alignment.
+
 ---
 
 ### TC-W30: Clear entire sheet ⚠️ destructive
@@ -805,6 +887,8 @@ Full-sheet clear of 'Notes & Misc' via explicit range A1:Z1000 (no-range form bl
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `clear_values("Notes & Misc")` with no range → clearedRange "'Notes & Misc'!A1:Z1000", no error; sheet now has no values. The sheet and its grid/column widths remain (not deleted); it had no explicit cell formatting to preserve (compared against the untouched charts copy), so format preservation rests on TC-W29.
+
 ---
 
 ### TC-W31: Clear values — sheet name with spaces
@@ -824,6 +908,8 @@ clear B2:D4 of 'Notes & Misc' → clearedRange "'Notes & Misc'!B2:D4" (sheet nam
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — clearedRange "'Notes & Misc'!B2:D4" (quoted); "Setup complete" in B2 cleared, A2 kept.
+
 ---
 
 ### TC-W32: Clear non-existent range — API behaviour
@@ -841,6 +927,8 @@ clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bound
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — `{"clearedRange": "Sales!Z100:Z200"}`, no error.
 
 ---
 
@@ -861,4 +949,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — clean `{"error": "<HttpError 400 ... Unable to parse range ... BadRange ...>"}`, not a raw exception; nothing cleared.
+
+--- sheets_charts.md (all on copy C; every created chart deleted with deleteEmbeddedObject, replies all [{}]) ---
 
