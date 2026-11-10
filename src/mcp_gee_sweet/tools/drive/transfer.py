@@ -2848,8 +2848,8 @@ def register(tool):
         differences from get_doc_as_markdown's output:
           - A link to a heading in the document renders as "#slug" (GitHub
             style), not a docs.google.com URL. A link to a bookmark, or to a
-            heading that doesn't render as one (e.g. a bulleted heading), is
-            dropped, leaving its text.
+            heading that doesn't render as one (e.g. a heading in a table
+            cell), is dropped, leaving its text.
           - An image renders as "image:sha256-<hash of its bytes>", so an
             unchanged image doesn't show up in a diff. No viewable URL is
             returned: the temporary Doc's image URLs stop working once it's

@@ -425,6 +425,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-11-08) ❌ FAIL — 3/8 case×EP cells pass; failures: #1427: no gap between the Flights table and the paragraph after it (EP-1–4, EP-8) — ornithomimus release pass, shard M2**
 
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-3 and EP-4; other checks, EP-1, EP-2, EP-5 to EP-8 and run 2 not run.** On a fresh Doc, "**Hotel:**" has `spaceAbove` 10 and sits clear of the Flights table on screen. EP-4 into a Doc whose NORMAL_TEXT has `space_below` 20 (from `apply_theme`) gives "Hotel:" no `spaceAbove`, and it sits on the table's bottom border again, which is #1427's defect (sent back on the PR).
+
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-4; other checks, other EPs and run 2 not run.** "Hotel:" keeps `spaceAbove` 10 (sits clear of the Flights table) on a replace into a Doc whose NORMAL_TEXT sets only `space_below`. Into a Doc that also sets `space_above`, the doc's own spacing takes over.
+
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -435,6 +439,7 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows `1. Q4 results` etc. as literal monospace lines, not a list.
 - Logistics table intact.
+- EP-1 to EP-4 and EP-8: the Doc is one page; the table ends page 1 and there's no blank second page (#1100). Check in the Docs editor's page view, or count the pages of the PDF from `download_file(file_id=<doc>, local_path=<scratch dir>, export_format='pdf')`.
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
@@ -447,6 +452,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
 **Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The PDF export of the EP-3 Doc is 1 page. A copy of it with the trailing paragraph's `spaceAbove`/`spaceBelow`/`lineSpacing` reset exports 2 pages, so the collapse is what removes the blank page. On that copy, spacing 0 alone and spacing 0 with a 1pt font both still export 2 pages: only `lineSpacing` 1 removes it. Other checks, other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The EP-3 Doc's PDF export is 1 page again, and its final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own. Other checks, other EPs and run 2 not run.
 
 ## Phase 2 — Syntax coverage
 
@@ -1335,7 +1344,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | DS-05 | `ds-05-starts-quote.md` | The quote first, then the paragraph |
 | DS-06 | `ds-06-starts-image.md` | The image first, then the paragraph |
 | DS-07 | `ds-07-starts-rule.md` | A horizontal line first, then the paragraph |
-| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one |
+| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no visible paragraph after the table. EP-1 to EP-4 and EP-8: Docs' mandatory final paragraph is collapsed (`lineSpacing` 1, no space above or below in `documents().get()`), so it takes no height (#1100) |
 | DS-09 | `ds-09-ends-list.md` | The list's last item is the last visible line; no empty bulleted line after it |
 | DS-10 | `ds-10-empty.md` | The call succeeds and leaves an empty Doc (EP-2/EP-4: the Doc's previous content is cleared) |
 | DS-11 | `ds-11-whitespace-only.md` | Same as DS-10 |
@@ -1354,6 +1363,10 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 **Result (2026-10-30, PR #1303 @ ad1ef994, round 2) ❌ FAIL — DS-14 to DS-16 only, one run (Kit): 19/24 case×EP cells pass. DS-14 and DS-16 pass at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md) §"Round 2"**
 
 **Result (2026-11-08) ⚠️ PARTIAL — 125/128 (3 not run) case×EP cells pass; failures: none; DS-13 (CRLF) at EP-1/2/8 not run: this client can't send CRLF inline, as on 2026-10-22 — ornithomimus release pass, shard M7**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** The table is the last visible block. In `documents().get()` the final paragraph after it has `lineSpacing` 1 and 0pt above and below. Not part of DS-08's check: two lines added after the table with `insert_doc_text` overprint each other and the table's last row on screen (the trade-off kept by the maintainer, 2026-11-09). Other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** Same as round 1: the final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own; the PDF export is 1 page. The documented workaround, `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` on round 1's Doc, put both added lines back on their own lines below the table on screen. Other EPs and run 2 not run.
 
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
@@ -1638,6 +1651,37 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Result (2026-11-07, PR #1406 QA round 3 @ b4932412, Sky) ⚠️ PARTIAL — every check run passes at EP-3, and round 2's defect is fixed; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows LG-01 to LG-06 as in rounds 1 and 2. LG-07 has `spaceBelow` 10 on "Paragraph inside d." before the literal "3." line and none on "Paragraph inside 3." before "4.", and the screen shows the same. A `create_doc` markdown probe (`- a` / `  p inside a` / `3. …` / `   p inside literal 3` / `4. …`, then a separate ordered list and bulleted list) gives the gap before each other list and none before the same literal list's next item. `apply_theme(NORMAL_TEXT space_below 20)` on the probe sent 9 requests and left no 10pt `spaceBelow`, the literal items included. `get_doc_as_markdown` returns the fixture's structure, LG-07 included.
 
 **Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+### TC-MD509: A gap between a table and the paragraphs beside it ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-table-gaps.md` and `docs/qa/fixtures/md/realistic/r15-travel-itinerary.md` through EP-1 to EP-4. #1427's done-when. Then run the theme and own-spacing checks below on the fixture.
+
+**Checks**
+- r15: "**Hotel:**" sits clear of the Flights table's bottom border, with a gap about two thirds of a line, the same as between two paragraphs (TC-MD506). Compare with r15 through EP-5, Drive's own import.
+- TG-01: the same gap between "Intro before the table." and the table, and between the table and "**Hotel:** the paragraph right after the table.". The gap below "Hotel:" before "Plain paragraph after that." is unchanged.
+- TG-02: "Between the two tables." has a gap on both sides.
+- TG-03: a gap between each item's text and its table, and between each table and the paragraph after it, inside the item and outside the list. The list still reads as one list: "last item" is item 2, at list spacing from the paragraph above it.
+- TG-04: "a list item right after a table" has the same gap from table G, as Drive's import (EP-5) leaves one. The heading and the code block right after a table keep their own spacing, with nothing extra added.
+- TG-05: the quote is unchanged from `develop`: the quoted paragraphs beside the quoted table show the quote's bar as before, with no new gap, and "Unquoted paragraph after the quote." keeps the quote's 8pt edge.
+- Structure: in `documents().get()`, a paragraph or list item after a table has `spaceAbove` 10pt, one before a table `spaceBelow` 10pt, and no empty paragraph was added. The collapsed empty paragraph before each table is still collapsed.
+- Theme, below only: on the fixture's EP-1 Doc, set a 10pt `spaceAbove` by hand on "Plain paragraph after that." (`batch_update`-style `updateParagraphStyle` through a fresh interpreter, or the Docs UI), then run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. Every 10pt `spaceBelow` is cleared, the ones before a table included, and on screen a paragraph before a table shows the theme's 20pt. Each paragraph or list item right after a table keeps its 10pt `spaceAbove`, since this theme sets nothing above, and stays clear of the table. The hand-set `spaceAbove` on "Plain paragraph after that." is still there.
+- Theme, above only: on a second EP-1 Doc, `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_above": 20}})` clears the `spaceAbove` after each table and every plain paragraph gap, and keeps the 10pt `spaceBelow` on a paragraph or item right before a table.
+- Own spacing: `update_doc_from_file` (EP-4) r15 into a Doc whose NORMAL_TEXT has `space_below` 20 and no `space_above` (`apply_theme` it first). "**Hotel:**" still has `spaceAbove` 10 and sits clear of the Flights table; no paragraph has a 10pt `spaceBelow`.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ❌ FAIL — EP-1 to EP-4, one run; EP-5 for comparison.** Passing: in `documents().get()`, EP-3 and EP-4 are identical. A paragraph after an unquoted table has `spaceAbove` 10, one before it has `spaceBelow` 10, and no empty paragraph was added. On screen, TG-01 to TG-03 and r15 show the gap. TG-05 is unchanged. The theme on EP-1 leaves no 10pt value and gives the result the case expects. The round-trip export is identical with the gaps removed by hand. Failing:
+- TG-04's list item sits on table G's bottom border, where Drive's import (EP-5) leaves a gap. It's #1427's defect for a list item.
+- `apply_theme(NORMAL_TEXT space_below 20)` also cleared a user's 10pt `spaceAbove` set on "Plain paragraph after that.", which doesn't follow a table.
+- EP-4 of r15 into a Doc with NORMAL_TEXT `space_below` only put "Hotel:" back on the table.
+
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ✅ PASS for every check run; EP-3 and EP-4 only, one run.** I didn't repeat EP-1 and EP-2, which go through the same converter as EP-3 (round 1 found them identical to EP-3), and the theme checks used EP-3 Docs in place of EP-1. I didn't repeat the round trip either, since the fix changes nothing on the read side.
+- Structure and screen (EP-3): TG-01 and TG-02 are as in round 1. In TG-03, each item's text has `spaceBelow` 10 before its table, and the paragraph after each table has `spaceAbove` 10. On screen, both items sit clear of their tables, and the list reads as one. In TG-04, "a list item right after a table" has `spaceAbove` 10 and sits clear of table G on screen. The heading and the code block are unchanged, and so is TG-05.
+- Theme, below only: I set a 10pt `spaceAbove` by hand on "Plain paragraph after that.", then ran `apply_theme(space_below 20)`. It cleared every 10pt `spaceBelow` and kept `spaceAbove` 10 on each paragraph or item after a table. The hand-set value stayed. A later `apply_theme(space_above 12)` on the same Doc cleared each after-table `spaceAbove` and still left the hand-set one.
+- Theme, above only: on a fresh Doc, `apply_theme(space_above 20)` cleared each after-table `spaceAbove` and kept `spaceBelow` 10 on the two paragraphs and two items right before a table.
+- Own spacing (EP-4): r15 into a Doc whose NORMAL_TEXT sets only `space_below` 20 keeps "Hotel:" at `spaceAbove` 10, with no 10pt `spaceBelow` anywhere. Into a Doc whose NORMAL_TEXT also sets `space_above` 12, "Hotel:" takes no 10pt.
 
 ---
 

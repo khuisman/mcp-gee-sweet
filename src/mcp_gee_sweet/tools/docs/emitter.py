@@ -914,6 +914,7 @@ def ast_to_requests(
     image_uris: dict[int, str] | None = None,
     *,
     image_links: dict[int, dict] | None = None,
+    table_gaps: dict[int, str] | None = None,
 ) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
 
@@ -949,6 +950,10 @@ def ast_to_requests(
     updateTextStyle request that links that image (#977), so a caller that drops a
     failed image request can drop its link request too, by identity rather than by
     matching request shapes.
+
+    table_gaps: if given, filled with id(request) -> "spaceAbove" or "spaceBelow" for
+    each paragraph gap set beside a table (#1427), so without_paragraph_gaps can keep
+    it for a doc whose own spacing doesn't set that field.
 
     Returns (requests, tables) where tables is the list of Table AST nodes in document
     order.
@@ -1209,7 +1214,7 @@ def ast_to_requests(
             if id(node) in separators:
                 requests.extend(_collapse_paragraph_requests(rng))
             elif seg.order in spacing and not deferred:
-                requests.extend(_spacing_requests(rng, *spacing[seg.order]))
+                requests.extend(_spacing_requests(rng, spacing[seg.order], table_gaps))
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
@@ -1305,7 +1310,7 @@ def ast_to_requests(
                 if isinstance(node, Paragraph) and node.rule:
                     requests.extend(_rule_requests(rng, quoted=node.blockquote_depth > 0))
             if seg.order in spacing and id(node) not in separators:
-                requests.extend(_spacing_requests(rng, *spacing[seg.order]))
+                requests.extend(_spacing_requests(rng, spacing[seg.order], table_gaps))
 
         # Each table's placeholder, reset to plain after the bullet pass, since a table
         # between two same-preset list items sits inside their one createParagraphBullets
@@ -1535,7 +1540,8 @@ _BLOCK_SPACING_PT = 8
 # space after paragraph" adds, so a blank line in the source reads as a break. It's
 # explicit paragraph styling, which beats the doc's NORMAL_TEXT, so a doc with spacing of
 # its own doesn't take it: see without_paragraph_gaps and apply_theme, which finds it by
-# this value. Keep it different from every other spacing the emitter writes.
+# this value (a gap beside a table also by place, #1427). Keep it different from every
+# other spacing the emitter writes.
 PARAGRAPH_GAP_PT = 10
 
 
@@ -1644,6 +1650,35 @@ def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
     if _is_plain_paragraph(first):
         return _list_place(first) == _list_place(second)
     return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
+
+
+def _gap_after_table(prev: DocNode, node: DocNode) -> bool:
+    """Whether `node` takes PARAGRAPH_GAP_PT above it because `prev` is a table
+    (#1427): a table can't take spacing, and without it the paragraph or list item sat
+    on the table's bottom border. Drive's import leaves an empty line there."""
+    return _is_unquoted_table(prev) and _takes_table_gap(node)
+
+
+def _gap_before_table(node: DocNode, following: DocNode) -> bool:
+    """Whether `node` takes PARAGRAPH_GAP_PT below it because `following` is a table
+    (#1427), the mirror of _gap_after_table."""
+    return _is_unquoted_table(following) and _takes_table_gap(node)
+
+
+def _is_unquoted_table(node: DocNode) -> bool:
+    """An unquoted table that gets inserted: one with no row or column doesn't, so
+    nothing sits on it. Beside a quoted table's wrapper the quote-edge spacing applies
+    instead (_block_spacing), and inside one quote a gap would break the bar between
+    the wrapper and the paragraph."""
+    return isinstance(node, Table) and node.blockquote_depth == 0 and _is_insertable_table(node)
+
+
+def _takes_table_gap(node: DocNode) -> bool:
+    """An unquoted plain paragraph or list item (_is_list_item), the blocks Drive's
+    import puts an empty line between and a table (PR #1434 QA round 1: a list item
+    sat on the table too). A heading, rule, spacer or code block keeps its own
+    spacing."""
+    return node.blockquote_depth == 0 and (_is_plain_paragraph(node) or _is_list_item(node))
 
 
 def _list_gap_between(first: DocNode, second: DocNode) -> bool:
@@ -1779,8 +1814,19 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     return result, separators
 
 
-def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tuple[int, int]]:
-    """Map a node's index in `nodes` to the (spaceAbove, spaceBelow) it needs (#1098):
+@dataclass(frozen=True)
+class _Spacing:
+    """A node's spaceAbove and spaceBelow (0: none), and which of the two fields is a
+    gap beside a table (#1427), which a Doc's own spacing replaces only when it sets
+    that same field (without_paragraph_gaps)."""
+
+    above: int = 0
+    below: int = 0
+    table_gap_fields: frozenset[str] = frozenset()
+
+
+def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, _Spacing]:
+    """Map a node's index in `nodes` to the spacing it needs (#1098):
     a code block gets both, and a quoted node gets space on each side where its quote
     meets content outside it (an unquoted node, an unquoted table, or the edge). Nodes
     inside one quote get none between them, a quoted table included (#1122), so the
@@ -1788,7 +1834,9 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
     gets no spacing.
 
     A paragraph break gets PARAGRAPH_GAP_PT below the first paragraph (#1382), so two
-    paragraphs don't read as one with a line break (_paragraph_gap_between).
+    paragraphs don't read as one with a line break (_paragraph_gap_between). A plain
+    paragraph or list item beside a table takes it on the table's side, above or below
+    (#1427, _gap_after_table, _gap_before_table).
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
@@ -1811,11 +1859,12 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
             return count_separator or (i > 0 and isinstance(nodes[i - 1], Table))
         return not _in_quote(nodes[i])
 
-    spacing: dict[int, tuple[int, int]] = {}
+    spacing: dict[int, _Spacing] = {}
     for i, node in enumerate(nodes):
         if isinstance(node, Table) or id(node) in separators:
             continue
         above = below = 0
+        table_gap_fields: set[str] = set()
         if _is_code_paragraph(node):
             above = below = _BLOCK_SPACING_PT
         if _quoted(node) and not _has_named_spacing(node):
@@ -1828,72 +1877,104 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if quoted_table(i + 1):
                 below = _BLOCK_SPACING_PT
-        if i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
+        if i > 0 and _gap_after_table(nodes[i - 1], node):
+            above = PARAGRAPH_GAP_PT
+            table_gap_fields.add("spaceAbove")
+        if i + 1 < len(nodes) and _gap_before_table(node, nodes[i + 1]):
+            below = PARAGRAPH_GAP_PT
+            table_gap_fields.add("spaceBelow")
+        elif i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
             below = PARAGRAPH_GAP_PT
         if above or below:
-            spacing[i] = (above, below)
+            spacing[i] = _Spacing(above, below, frozenset(table_gap_fields))
     return spacing
 
 
-def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
+def _spacing_requests(
+    rng: dict, spacing: _Spacing, table_gaps: dict[int, str] | None = None
+) -> list[dict]:
     """spaceAbove on the first paragraph of a node's range and spaceBelow on its last.
     A node whose text holds a "\\n" becomes several Docs paragraphs (#1093); spacing the
-    whole range put a gap inside it (confirmed live)."""
+    whole range put a gap inside it (confirmed live). Each request that sets a gap
+    beside a table is recorded in `table_gaps`, id(request) -> its field."""
     start, end = rng["startIndex"], rng["endIndex"]
     requests = []
     for style_field, magnitude, sub_range in (
-        ("spaceAbove", above, {"startIndex": start, "endIndex": start + 1}),
-        ("spaceBelow", below, {"startIndex": end - 1, "endIndex": end}),
+        ("spaceAbove", spacing.above, {"startIndex": start, "endIndex": start + 1}),
+        ("spaceBelow", spacing.below, {"startIndex": end - 1, "endIndex": end}),
     ):
         if magnitude:
-            requests.append(
-                {
-                    "updateParagraphStyle": {
-                        "range": sub_range,
-                        "paragraphStyle": {style_field: {"magnitude": magnitude, "unit": "PT"}},
-                        "fields": style_field,
-                    }
+            request = {
+                "updateParagraphStyle": {
+                    "range": sub_range,
+                    "paragraphStyle": {style_field: {"magnitude": magnitude, "unit": "PT"}},
+                    "fields": style_field,
                 }
-            )
+            }
+            if table_gaps is not None and style_field in spacing.table_gap_fields:
+                table_gaps[id(request)] = style_field
+            requests.append(request)
     return requests
 
 
-def without_paragraph_gaps(requests: list[dict]) -> list[dict]:
-    """`requests` without the paragraph gaps (#1382), for a doc whose own spacing should
-    stand. The gaps are paragraph styling, so nothing else's position moves."""
-    return [request for request in requests if not _is_paragraph_gap(request)]
+def without_paragraph_gaps(
+    requests: list[dict], table_gaps: dict[int, str], own_fields: set[str]
+) -> list[dict]:
+    """`requests` without the paragraph gaps (#1382), for a doc whose NORMAL_TEXT has
+    spacing of its own (`own_fields`: "spaceAbove", "spaceBelow"), which should stand.
+    A gap beside a table (`table_gaps`, from ast_to_requests, #1427) goes only when the
+    doc sets that same field: a table takes no spacing, so a doc spaced only below its
+    paragraphs would leave the paragraph after a table on its border (PR #1434 QA
+    round 1). The gaps are paragraph styling, so nothing else's position moves."""
+    kept = []
+    for request in requests:
+        field = table_gaps.get(id(request))
+        if field is not None:
+            if field not in own_fields:
+                kept.append(request)
+        elif not _is_paragraph_gap(request):
+            kept.append(request)
+    return kept
 
 
 def _is_paragraph_gap(request: dict) -> bool:
+    """A paragraph break's gap: PARAGRAPH_GAP_PT of spaceBelow. _spacing_requests sends
+    each field as its own request, so a gap request never carries other spacing. A gap
+    beside a table is told apart by identity instead (without_paragraph_gaps)."""
     style = request.get("updateParagraphStyle", {}).get("paragraphStyle", {})
     return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
 
 
-def _collapse_paragraph_requests(rng: dict) -> list[dict]:
-    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, 1pt
-    font. Shared by the quote separators (#1098) and the blank paragraph before a
-    table."""
+def _collapse_paragraph_requests(rng: dict, *, font_size: bool = True) -> list[dict]:
+    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, and
+    (with `font_size`) a 1pt font. Shared by the quote separators (#1098), the blank
+    paragraph before a table, and, without the font, the empty paragraph after a doc's
+    final table (#1100)."""
     paragraph_style = {
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
         "spaceBelow": {"magnitude": 0, "unit": "PT"},
         "lineSpacing": 1,
     }
-    return [
+    requests = [
         {
             "updateParagraphStyle": {
                 "range": rng,
                 "paragraphStyle": paragraph_style,
                 "fields": ",".join(paragraph_style),
             }
-        },
-        {
-            "updateTextStyle": {
-                "range": rng,
-                "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
-                "fields": "fontSize",
-            }
-        },
+        }
     ]
+    if font_size:
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
+    return requests
 
 
 # A thematic break (#1096). The Docs API can't insert a horizontalRule element, so a
@@ -2278,7 +2359,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     """Fill table cells and apply inline styles using live cell indices.
 
     Phases:
-      1. Re-fetch → get cell positions
+      1. Re-fetch → get cell positions; collapse the blank paragraph before each table
+         and, when the doc ends in a table, the empty paragraph after it (#1100)
       2. If any colspan/rowspan > 1: emit mergeTableCells, re-fetch
       3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
       4. Fill cells with a nested table, segment by segment (see
@@ -2327,7 +2409,13 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    blank_collapses = _build_blank_para_before_table_collapses(live_doc, tables)
+    # The empty paragraph after a final table is collapsed in the same batch (#1100). Both
+    # builders compute their ranges from this one fetch, which holds only because no
+    # request in the batch inserts or deletes anything: an index-shifting request added
+    # here would leave every range after it stale.
+    blank_collapses = _build_blank_para_before_table_collapses(
+        live_doc, tables
+    ) + _build_trailing_para_after_table_collapse(live_doc)
     if blank_collapses:
         await execute_in_thread(
             docs_service.documents()
@@ -3313,6 +3401,32 @@ def _build_blank_para_before_table_collapses(
             continue
         requests.extend(_collapse_paragraph_requests(rng))
     return requests
+
+
+def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
+    """Collapse the empty paragraph Docs keeps after a doc's final table (#1100).
+
+    A body always ends in a paragraph, so a doc ending in a table has an empty one after
+    it. When the table reaches the bottom margin, that paragraph spills onto a page of
+    its own: a blank last page. Spacing 0 and 1% line spacing take its height away
+    (checked live by the PDF export's page count); a 1pt font alone doesn't, so the font
+    is left alone, and text later typed there keeps the doc's size. That text still
+    takes the 1% line spacing and overlaps the table until it's reset, which
+    docs/known-limitations.md names. A rewrite clears it: _replace_doc_content resets
+    the final paragraph mark's style before the clear.
+    """
+    content = live_doc.get("body", {}).get("content", [])
+    if len(content) < 2 or "table" not in content[-2]:
+        return []
+    last = content[-1]
+    paragraph = last.get("paragraph")
+    if paragraph is None:
+        return []
+    text = "".join(el.get("textRun", {}).get("content", "") for el in paragraph.get("elements", []))
+    start, end = last.get("startIndex"), last.get("endIndex")
+    if text != "\n" or start is None or end is None:
+        return []
+    return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
 
 
 def _table_start_index(doc_table: dict) -> int | None:

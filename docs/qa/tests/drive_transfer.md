@@ -2801,9 +2801,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 - Call 1's `markdown` contains `[Jump](#setup)` and `[back](#setup-1)`, and no
   `docs.google.com` URL.
 - Call 2's `markdown` is identical to call 1's.
-- Call 3's `markdown` renders the first `Setup` as a list item (`- Setup`), leaves "Jump" as
-  plain text (its target doesn't render as a heading), and contains `[back](#setup)`: the
-  bulleted heading takes no slug (PR #988 round 1).
+- Call 3's `markdown` renders the first `Setup` as a heading inside a list item
+  (`- ## Setup`) and contains `[Jump](#setup)` and `[back](#setup-1)`: the bulleted heading
+  renders as a heading, so it takes a slug (#1302, #1419).
 
 **Teardown:** `delete_file` on both Docs.
 
@@ -2815,6 +2815,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-11-08) ❌ FAIL — ornithomimus release pass, shard F2 on `kai-sa`** — Links set by headingId via an SA scratch script. Calls 1 and 2 identical: `[Jump](#setup) here and [back](#setup-1) here.`, no docs.google.com URL (pass). Call 3 (first `## Setup` bulleted): got `- ## Setup` and `[Jump](#setup) here and [back](#setup-1) here.` Expected "Jump" plain and `[back](#setup)`. Since #1302 (PR #1311) a bulleted heading exports as `- ## Setup`, which GitHub does render as a heading with slug `setup`, so the links now point at the right headings; but the export_revision docstring still says a bulleted heading's link is dropped, and the case still expects that. Behavior vs. docs disagree; filed as #1419: the docstring and this case are stale, not the code (Aziz checked against #1302; was: decide whether the docstring/case or the code is wrong).
+
+**Result (2026-11-08, PR #1433 round 1, `a9e5d20`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth) against the rewritten call-3 checks (#1419). The earlier results above checked the old call-3 expectation (link dropped). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Calls 1 and 2 (revision 4) both returned `# Top\n\n## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`, byte-identical, no `docs.google.com` URL. Call 3 (`qa-959-bullet`, revision 5) returned `# Top\n\n- ## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`: the bulleted heading renders as a heading inside its item and takes the `#setup` slug. Both Docs trashed.
 
 ---
 
