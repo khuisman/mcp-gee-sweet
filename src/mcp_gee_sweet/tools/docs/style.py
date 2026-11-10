@@ -192,34 +192,81 @@ def _read_named_styles(doc: dict) -> dict:
     return theme
 
 
-def _has_own_paragraph_spacing(doc: dict) -> bool:
-    """Whether a doc's NORMAL_TEXT has spacing of its own, as a theme gives it, which a
-    paragraph gap (#1382) would override."""
-    normal_text = _read_named_styles(doc).get("NORMAL_TEXT", {})
-    return bool(normal_text.get("space_above") or normal_text.get("space_below"))
+def _own_paragraph_spacing_fields(doc: dict) -> set[str]:
+    """The paragraph spacing fields ("spaceAbove", "spaceBelow") a doc's NORMAL_TEXT
+    sets, as a theme gives them, which a paragraph gap (#1382) would override."""
+    return _spacing_fields(_read_named_styles(doc).get("NORMAL_TEXT", {}))
 
 
-def _clear_paragraph_gap_requests(doc: dict) -> list[dict]:
+def _spacing_fields(entry: dict, *, explicit_zero: bool = False) -> set[str]:
+    """The Docs fields a theme entry's space_above/space_below name: non-zero ones, or
+    with `explicit_zero` (a theme a caller passes, where 0 is a value it asked for) any
+    present. Read from a doc, 0 can't be told from the default."""
+    return {
+        api_field
+        for key, api_field in (("space_above", "spaceAbove"), ("space_below", "spaceBelow"))
+        if (key in entry if explicit_zero else entry.get(key))
+    }
+
+
+def _clear_paragraph_gap_requests(doc: dict, theme_fields: set[str]) -> list[dict]:
     """Requests that hand NORMAL_TEXT body paragraphs carrying the emitter's paragraph
-    gap (#1382) back to the named style: a value set on the paragraph beats the style,
-    so a theme's spacing wouldn't reach them. Fields named, values absent, resets it."""
+    gap (#1382) back to the named style, for a theme that sets NORMAL_TEXT spacing
+    (`theme_fields`: "spaceAbove", "spaceBelow"): a value set on the paragraph beats the
+    style, so the theme's spacing wouldn't reach them. Fields named, values absent,
+    resets it.
+
+    A gap beside a table (#1427) is cleared only when the theme sets that same field: a
+    table takes no spacing, so a theme spaced only below its paragraphs would leave the
+    paragraph after a table on its border (PR #1434 QA round 1). It's found by place, as
+    the emitter writes it: spaceAbove on the paragraph right after a table, spaceBelow
+    on the one before a table's empty paragraph. A 10pt spaceAbove anywhere else isn't
+    the emitter's, and stays."""
+    content = doc.get("body", {}).get("content", [])
     requests = []
-    for elem in doc.get("body", {}).get("content", []):
+    for i, elem in enumerate(content):
         paragraph_style = elem.get("paragraph", {}).get("paragraphStyle", {})
+        if paragraph_style.get("namedStyleType") != "NORMAL_TEXT":
+            continue
+        fields = []
         if (
-            paragraph_style.get("namedStyleType") == "NORMAL_TEXT"
-            and paragraph_style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
+            _magnitude(paragraph_style, "spaceAbove") == PARAGRAPH_GAP_PT
+            and i > 0
+            and "table" in content[i - 1]
+            and "spaceAbove" in theme_fields
         ):
+            fields.append("spaceAbove")
+        if _magnitude(paragraph_style, "spaceBelow") == PARAGRAPH_GAP_PT and (
+            "spaceBelow" in theme_fields or not _precedes_table(content, i)
+        ):
+            fields.append("spaceBelow")
+        if fields:
             requests.append(
                 {
                     "updateParagraphStyle": {
                         "range": {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]},
                         "paragraphStyle": {},
-                        "fields": "spaceBelow",
+                        "fields": ",".join(fields),
                     }
                 }
             )
     return requests
+
+
+def _precedes_table(content: list[dict], i: int) -> bool:
+    """Whether body element `i` comes right before a table: next to it, or with only the
+    empty paragraph Docs keeps before a table between them."""
+    following = content[i + 1 : i + 3]
+    if following and "table" in following[0]:
+        return True
+    return len(following) == 2 and "table" in following[1] and _paragraph_text(following[0]) == "\n"
+
+
+def _paragraph_text(elem: dict) -> str | None:
+    paragraph = elem.get("paragraph")
+    if paragraph is None:
+        return None
+    return "".join(el.get("textRun", {}).get("content", "") for el in paragraph.get("elements", []))
 
 
 def _add_or_clear_field(
@@ -1283,7 +1330,8 @@ def register(tool):
 
         # Before the overwrite pass, whose own space_below on a paragraph must win.
         if sets_paragraph_spacing and doc:
-            requests.extend(_clear_paragraph_gap_requests(doc))
+            theme_fields = _spacing_fields(normal_text, explicit_zero=True)
+            requests.extend(_clear_paragraph_gap_requests(doc, theme_fields))
 
         # When overwrite=True, also apply styles directly to all existing paragraphs
         if overwrite and named_style_keys and doc:
