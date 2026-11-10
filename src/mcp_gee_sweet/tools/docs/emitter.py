@@ -1945,31 +1945,36 @@ def _is_paragraph_gap(request: dict) -> bool:
     return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
 
 
-def _collapse_paragraph_requests(rng: dict) -> list[dict]:
-    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, 1pt
-    font. Shared by the quote separators (#1098) and the blank paragraph before a
-    table."""
+def _collapse_paragraph_requests(rng: dict, *, font_size: bool = True) -> list[dict]:
+    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, and
+    (with `font_size`) a 1pt font. Shared by the quote separators (#1098), the blank
+    paragraph before a table, and, without the font, the empty paragraph after a doc's
+    final table (#1100)."""
     paragraph_style = {
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
         "spaceBelow": {"magnitude": 0, "unit": "PT"},
         "lineSpacing": 1,
     }
-    return [
+    requests = [
         {
             "updateParagraphStyle": {
                 "range": rng,
                 "paragraphStyle": paragraph_style,
                 "fields": ",".join(paragraph_style),
             }
-        },
-        {
-            "updateTextStyle": {
-                "range": rng,
-                "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
-                "fields": "fontSize",
-            }
-        },
+        }
     ]
+    if font_size:
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
+    return requests
 
 
 # A thematic break (#1096). The Docs API can't insert a horizontalRule element, so a
@@ -2404,8 +2409,10 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    # The empty paragraph after a final table is collapsed in the same batch (#1100); it
-    # comes after every table, so no index above shifts.
+    # The empty paragraph after a final table is collapsed in the same batch (#1100). Both
+    # builders compute their ranges from this one fetch, which holds only because no
+    # request in the batch inserts or deletes anything: an index-shifting request added
+    # here would leave every range after it stale.
     blank_collapses = _build_blank_para_before_table_collapses(
         live_doc, tables
     ) + _build_trailing_para_after_table_collapse(live_doc)
@@ -3419,20 +3426,7 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     start, end = last.get("startIndex"), last.get("endIndex")
     if text != "\n" or start is None or end is None:
         return []
-    paragraph_style = {
-        "spaceAbove": {"magnitude": 0, "unit": "PT"},
-        "spaceBelow": {"magnitude": 0, "unit": "PT"},
-        "lineSpacing": 1,
-    }
-    return [
-        {
-            "updateParagraphStyle": {
-                "range": {"startIndex": start, "endIndex": end},
-                "paragraphStyle": paragraph_style,
-                "fields": ",".join(paragraph_style),
-            }
-        }
-    ]
+    return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
 
 
 def _table_start_index(doc_table: dict) -> int | None:
