@@ -133,13 +133,18 @@ Per iteration, the two subagents rendezvous at a filesystem barrier so both `.ex
 - **The watcher as a script.** The worktree-isolation guard refuses a shell loop over `$i`, so write the watcher as a Python file in your scratch dir and run it with `python3 -I <path> <N> 3600` in the background (v0.9.6, 20 iterations each for TC-I24 and TC-I02):
   ```python
   import os, sys, time
+
   D, N = "/tmp/mcp-gee-sweet-qa-barrier", int(sys.argv[1])
   deadline = time.time() + int(sys.argv[2])
+
+
   def wait(*names):
       while not all(os.path.exists(os.path.join(D, n)) for n in names):
           if time.time() > deadline:
               sys.exit(f"timeout waiting for {names}")
           time.sleep(0.005)
+
+
   for i in range(1, N + 1):
       wait(f"ready-a-{i}", f"ready-b-{i}")
       open(os.path.join(D, f"go-{i}"), "w").close()
