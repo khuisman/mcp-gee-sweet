@@ -31,6 +31,27 @@ Related: #190.
 
 ---
 
+### Text typed after a document's final table overlaps it
+
+**What:** When content written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text added after that
+table later (typed in the Docs editor, or written by `insert_doc_text` at the document's end) is
+drawn over the table's last row.
+
+**Why:** A Docs body always ends in a paragraph, so a document ending in a table has an empty one
+after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
+of its own. The emitter collapses it (`spaceAbove/spaceBelow = 0`, `lineSpacing = 1`, #1100), so
+the document stays on one page, and text added there inherits the 1% line spacing. Its font size
+is left alone, so the text keeps the document's size.
+
+**Workaround:** In the Docs editor, select the added text and set its line spacing back
+(Format > Line & paragraph spacing > Single). No tool sets a paragraph's line spacing, so from
+the tools, write the added text as part of the content instead: `write_doc_content` or
+`update_doc_from_file` rewrites the document, and the paragraph after the table is collapsed
+again only if the new content still ends in a table.
+
+---
+
 ### A quoted table is a table inside a 1x1 wrapper table
 
 **What:** A table inside a blockquote (Markdown `> | a | b |`, or HTML `<blockquote><table>`)

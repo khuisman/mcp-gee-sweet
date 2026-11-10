@@ -409,6 +409,7 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows `1. Q4 results` etc. as literal monospace lines, not a list.
 - Logistics table intact.
+- EP-1 to EP-4 and EP-8: the Doc is one page; the table ends page 1 and there's no blank second page (#1100). Check in the Docs editor's page view, or count the pages of the PDF from `download_file(file_id=<doc>, local_path=<scratch dir>, export_format='pdf')`.
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
@@ -1265,7 +1266,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | DS-05 | `ds-05-starts-quote.md` | The quote first, then the paragraph |
 | DS-06 | `ds-06-starts-image.md` | The image first, then the paragraph |
 | DS-07 | `ds-07-starts-rule.md` | A horizontal line first, then the paragraph |
-| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one |
+| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no visible paragraph after the table. EP-1 to EP-4 and EP-8: Docs' mandatory final paragraph is collapsed (`lineSpacing` 1, no space above or below in `documents().get()`), so it takes no height (#1100) |
 | DS-09 | `ds-09-ends-list.md` | The list's last item is the last visible line; no empty bulleted line after it |
 | DS-10 | `ds-10-empty.md` | The call succeeds and leaves an empty Doc (EP-2/EP-4: the Doc's previous content is cleared) |
 | DS-11 | `ds-11-whitespace-only.md` | Same as DS-10 |

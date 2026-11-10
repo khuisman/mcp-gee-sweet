@@ -31,6 +31,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _build_merge_requests,
     _build_phantom_set,
     _build_quote_bar_requests,
+    _build_trailing_para_after_table_collapse,
     _build_width_requests,
     _inserted_table_length,
     _physical_to_ast_indices,
@@ -3466,6 +3467,80 @@ class TestBuildBlankParaBeforeTableCollapses:
                 }
             },
         ]
+
+
+class TestBuildTrailingParaAfterTableCollapse:
+    """#1100: the empty paragraph Docs keeps after a doc's final table spilled onto a
+    blank last page when the table reached the bottom margin. Spacing and line spacing
+    are collapsed; the font isn't (a 1pt font alone kept the blank page, checked live),
+    so text typed there later keeps its size."""
+
+    _doc = TestBuildBlankParaBeforeTableCollapses._doc
+    _blank_para = TestBuildBlankParaBeforeTableCollapses._blank_para
+    _text_para = TestBuildBlankParaBeforeTableCollapses._text_para
+    _table_elem = TestBuildBlankParaBeforeTableCollapses._table_elem
+
+    @staticmethod
+    def _collapse() -> dict:
+        return {
+            "updateParagraphStyle": {
+                "range": {"startIndex": 10, "endIndex": 11},
+                "paragraphStyle": {
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    "lineSpacing": 1,
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        }
+
+    def test_empty_paragraph_after_final_table_collapsed(self):
+        doc = self._doc([self._blank_para(1, 2), self._table_elem(2), self._blank_para(10, 11)])
+        assert _build_trailing_para_after_table_collapse(doc) == [self._collapse()]
+
+    def test_font_size_left_alone(self):
+        doc = self._doc([self._table_elem(1), self._blank_para(10, 11)])
+        result = _build_trailing_para_after_table_collapse(doc)
+        assert not any("updateTextStyle" in request for request in result)
+
+    def test_doc_ending_in_text_untouched(self):
+        doc = self._doc(
+            [self._blank_para(1, 2), self._table_elem(2), self._text_para(10, 15, "Done\n")]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_empty_paragraph_after_text_untouched(self):
+        """Only the paragraph right after a table: an empty last line after text is
+        content the source asked for."""
+        doc = self._doc(
+            [self._table_elem(1), self._text_para(10, 15, "Done\n"), self._blank_para(15, 16)]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_empty_paragraph_between_tables_untouched(self):
+        """Not the doc's last element: the paragraph between two tables keeps its height
+        (#1098)."""
+        doc = self._doc(
+            [
+                self._table_elem(1),
+                self._blank_para(9, 10),
+                self._table_elem(10),
+                self._text_para(20, 25, "Done\n"),
+            ]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_no_tables_or_empty_body(self):
+        assert _build_trailing_para_after_table_collapse(self._doc([])) == []
+        assert _build_trailing_para_after_table_collapse({}) == []
+        doc = self._doc([self._blank_para(1, 2)])
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_missing_indices_skipped(self):
+        doc = self._doc(
+            [self._table_elem(1), {"paragraph": {"elements": [{"textRun": {"content": "\n"}}]}}]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
 
 
 class TestImagePositionalInserts:
