@@ -382,7 +382,9 @@ Security hotfix cut from the v0.9.4 tag, with nothing else from `develop` (maint
 
 - [x] Require `certifi>=2026.10.19` and ship it as the v0.9.5 hotfix. `severe/narrow` — lane A, after #1069 ([#1217](https://github.com/khuisman/mcp-gee-sweet/issues/1217)) (PR #1218; shipped in v0.9.5 via PR #1219)
 
-### ornithomimus — launch release: Markdown fidelity, Gmail sending safety, launch readiness _(queued, label [`planned: ornithomimus`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22); gets a number when it goes in flight)_
+### v0.9.6 — Ornithomimus: launch release, Markdown fidelity, Gmail sending safety, launch readiness _(target: [v0.9.6](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.6))_
+
+**In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged 2026-11-09; the targeted re-run decides the cut.
 
 Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in [#1085](https://github.com/khuisman/mcp-gee-sweet/issues/1085). The release ships when the feature set is done and passes release QA. **Locked 2026-10-18**, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way.
 
@@ -424,8 +426,15 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] Tables, rules and nested quotes inside a blockquote render outside it — #1044 Phase 2 finding — lane A ([#1122](https://github.com/khuisman/mcp-gee-sweet/issues/1122)) (PR #1359)
 - [x] A relative link becomes `http://./guide.md` — community PR ([#1120](https://github.com/khuisman/mcp-gee-sweet/issues/1120)) (PR #1149)
 - [x] Blank paragraph before a table keeps the preceding heading's style — community PR ([#1092](https://github.com/khuisman/mcp-gee-sweet/issues/1092)) (PR #1138)
-- [ ] Adjacent paragraphs have no gap on our converter, so two paragraphs read as one — `wrong/common`; #1044 Phase 1 re-run finding, must land before the cut; #1044's later phases wait on it — lane A ([#1382](https://github.com/khuisman/mcp-gee-sweet/issues/1382))
-- [ ] List markers vary in boldness within one list — `wrong/narrow, observed`; #1044 Phase 1 re-run finding — lane A ([#1383](https://github.com/khuisman/mcp-gee-sweet/issues/1383))
+- [x] Adjacent paragraphs have no gap on our converter, so two paragraphs read as one — `wrong/common`; #1044 Phase 1 re-run finding, must land before the cut; #1044's later phases wait on it — lane A ([#1382](https://github.com/khuisman/mcp-gee-sweet/issues/1382)) (PR #1388)
+- [x] List markers vary in boldness within one list — `wrong/narrow, observed`; #1044 Phase 1 re-run finding — lane A ([#1383](https://github.com/khuisman/mcp-gee-sweet/issues/1383)) (PR #1399)
+- [x] A list sits tight against the paragraphs around it — `wrong/common`; #1382 review follow-up — lane A ([#1389](https://github.com/khuisman/mcp-gee-sweet/issues/1389)) (PR #1406)
+- [x] HTML: text inside `<div>`, `<section>` or `<dl>` is silently dropped from the Doc — #1044 re-run finding — lane B ([#1391](https://github.com/khuisman/mcp-gee-sweet/issues/1391)) (PR #1400)
+- [x] A paragraph right after a table has no gap — #1044 release-pass finding (TC-MD015), held the cut — lane A ([#1427](https://github.com/khuisman/mcp-gee-sweet/issues/1427)) (PR #1434)
+- [x] A document ending in a table can get a blank last page — #1044 release-pass finding (TC-MD016), held the cut; moved from ankylosaurus 2026-11-08 (maintainer) — lane A ([#1100](https://github.com/khuisman/mcp-gee-sweet/issues/1100)) (PR #1438)
+- [x] Docs: update what Drive's Markdown import does to code blocks ([#1390](https://github.com/khuisman/mcp-gee-sweet/issues/1390)) (PR #1392)
+- [x] Drive's Markdown import: name the differences the release pass found in known-limitations — held the cut — Amy ([#1429](https://github.com/khuisman/mcp-gee-sweet/issues/1429)) (PR #1432)
+- [x] export_revision docstring: a bulleted heading's link is now kept, not dropped — held the cut — lane B ([#1419](https://github.com/khuisman/mcp-gee-sweet/issues/1419)) (PR #1433)
 
 **Feature set: Gmail sending safety**
 
@@ -436,7 +445,6 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 - [x] Ship an MCP Bundle (.mcpb) for one-click install; the Smithery listing was dropped, since Smithery ends its CLI and connection services 2026-10-31 ([#1036](https://github.com/khuisman/mcp-gee-sweet/issues/1036)) (PR #1255)
 - [x] Demo screenshot or GIF for the README: a before/after image of a Markdown file and the Doc it produces ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589)) (PR #1384)
-- [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Labeled `planned: ornithomimus` 2026-10-24 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 - [x] CI tests Python 3.11–3.13 only; add 3.14 and 3.15, and fold in #1171's Python 3.10 leftovers. Added 2026-10-24 ([#1212](https://github.com/khuisman/mcp-gee-sweet/issues/1212)) (PR #1222)
 - [x] Make Lint and test 3.14/3.15 required status checks on `develop` and `main` — #1212 review follow-up, a branch-protection settings change with no PR ([#1224](https://github.com/khuisman/mcp-gee-sweet/issues/1224))
 - [x] A next-release label so contributors can find what ships next. Added 2026-10-24 (maintainer) ([#1185](https://github.com/khuisman/mcp-gee-sweet/issues/1185)) (PR #1253)
@@ -444,6 +452,9 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] Accept `ENABLED_TOOLS=all` and warn, at startup and in the README, that the default tool set will shrink in an upcoming release. Pairs with #1214. Joined the locked fill 2026-11-02 (maintainer's explicit approval), since the warning has to ship a release ahead of the change ([#1363](https://github.com/khuisman/mcp-gee-sweet/issues/1363)) (PR #1365)
 - [x] `release.md` step 5: an "Upcoming change" slot in the release notes, needed before the ornithomimus cut — Bob ([#1366](https://github.com/khuisman/mcp-gee-sweet/issues/1366)) (PR #1373)
 - [x] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) ([#1343](https://github.com/khuisman/mcp-gee-sweet/issues/1343)) (PR #1344)
+- [x] Docs: say that Claude Desktop holds Gmail sends too ([#1394](https://github.com/khuisman/mcp-gee-sweet/issues/1394)) (PR #1396)
+- [x] README: close the known quickstart gaps for `uvx` and Claude Desktop — Amy ([#1408](https://github.com/khuisman/mcp-gee-sweet/issues/1408)) (PR #1409)
+- [x] QA harness: one Playwright browser per parallel shard instead of a single mutex-guarded tab — lane B, maintainer's call 2026-11-07 ([#1410](https://github.com/khuisman/mcp-gee-sweet/issues/1410)) (PR #1413)
 
 **Fill** _(rank order, locked 2026-10-18)_
 
@@ -517,7 +528,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Moved from v0.9.3 at the lock, 2026-10-18**
 
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
-- [ ] A document ending in a table can get a blank last page ([#1100](https://github.com/khuisman/mcp-gee-sweet/issues/1100))
 
 **Triaged in 2026-10-18**
 
@@ -558,6 +568,17 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-11-04**
 
 - [ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round `InputRequiredResult` flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) ([#1235](https://github.com/khuisman/mcp-gee-sweet/issues/1235))
+
+**Triaged in 2026-11-07**
+
+- [ ] HTML: inline text with no block around it is silently dropped — `wrong/common`; #1391 follow-up, `decision-needed` (reverses #343's policy) ([#1401](https://github.com/khuisman/mcp-gee-sweet/issues/1401))
+- [ ] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402))
+- [ ] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403))
+- [ ] HTML: a block container inside `<a>` or `<b>` loses the link or bold — `wrong/narrow`; #1391 follow-up ([#1404](https://github.com/khuisman/mcp-gee-sweet/issues/1404))
+- [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 follow-up, maintainer's call ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
+- [ ] Markdown: a loose list's items sit as tight as a tight list's — `wrong/narrow`; #1389 follow-up ([#1407](https://github.com/khuisman/mcp-gee-sweet/issues/1407))
+- [ ] Docs: `upload_local_file` should say how to get a converted Doc's title without `.md`; after community PR #1361 ([#1411](https://github.com/khuisman/mcp-gee-sweet/issues/1411))
+- [ ] `upload_local_file(convert=True)`: a dotted title is read as a file extension — `loud/narrow`; after community PR #1361 ([#1412](https://github.com/khuisman/mcp-gee-sweet/issues/1412))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
@@ -668,6 +689,7 @@ Moved out of ankylosaurus on 2026-11-01 (maintainer): no release depends on thes
 - [ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass ([#1067](https://github.com/khuisman/mcp-gee-sweet/issues/1067))
 - [ ] Track release-QA spend across releases so passes can be sized ahead of time ([#1068](https://github.com/khuisman/mcp-gee-sweet/issues/1068))
 - [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise ([#520](https://github.com/khuisman/mcp-gee-sweet/issues/520))
+- [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Moved to Unversioned 2026-11-08, out of v0.9.6 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 
 ### Decisions Needed — blocking backlog _(no assigned version)_
 
