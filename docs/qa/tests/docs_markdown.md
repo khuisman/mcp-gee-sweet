@@ -423,6 +423,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The PDF export of the EP-3 Doc is 1 page. A copy of it with the trailing paragraph's `spaceAbove`/`spaceBelow`/`lineSpacing` reset exports 2 pages, so the collapse is what removes the blank page. On that copy, spacing 0 alone and spacing 0 with a 1pt font both still export 2 pages: only `lineSpacing` 1 removes it. Other checks, other EPs and run 2 not run.
 
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The EP-3 Doc's PDF export is 1 page again, and its final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own. Other checks, other EPs and run 2 not run.
+
 ## Phase 2 — Syntax coverage
 
 Each TC renders one fixture; the cases are the `###` sections inside it. "Expected" is what a reader sees, per the conventions above.
@@ -1287,6 +1289,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 **Result (2026-10-30, PR #1303 @ ad1ef994, round 2) ❌ FAIL — DS-14 to DS-16 only, one run (Kit): 19/24 case×EP cells pass. DS-14 and DS-16 pass at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md) §"Round 2"**
 
 **Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** The table is the last visible block. In `documents().get()` the final paragraph after it has `lineSpacing` 1 and 0pt above and below. Not part of DS-08's check: two lines added after the table with `insert_doc_text` overprint each other and the table's last row on screen (the trade-off kept by the maintainer, 2026-11-09). Other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** Same as round 1: the final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own; the PDF export is 1 page. The documented workaround, `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` on round 1's Doc, put both added lines back on their own lines below the table on screen. Other EPs and run 2 not run.
 
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
