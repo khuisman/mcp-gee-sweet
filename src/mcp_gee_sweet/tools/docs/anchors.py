@@ -43,8 +43,18 @@ def _github_style_slugify(text: str) -> str:
 # hand-rolled. Order doesn't affect correctness — a real match must land in
 # exactly one scheme's slug list for a well-formed document — only which
 # scheme wins a pathological tie.
+#
+# The two schemes also disagree on a heading's hard break (`<br>` / a Markdown
+# "\"), which #1230 stores inside the heading text as a "\v": GitHub's slug
+# ignores the break — it adds no text and no separator ("Heading one<br>heading
+# two" slugs to "heading-oneheading-two", #1357) — while GitLab's Comrak-based
+# anchor collects the break as a plain space and slugifies it to a single
+# hyphen (comrak's collect_text_append pushes " " for LineBreak | SoftBreak,
+# and anchorize maps it to "-"), which this collapsed scheme already
+# reproduces via python-markdown's slugify. So only the GitHub scheme drops
+# "\v"; the GitLab one keeps turning it into a separator.
 _SLUGIFY_FUNCS = [
-    _github_style_slugify,
+    lambda text: _github_style_slugify(text.replace("\v", "")),
     lambda text: _markdown_toc_slugify(text, "-"),
 ]
 
