@@ -397,6 +397,8 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-3 and EP-4; other checks, EP-1, EP-2, EP-5 to EP-8 and run 2 not run.** On a fresh Doc, "**Hotel:**" has `spaceAbove` 10 and sits clear of the Flights table on screen. EP-4 into a Doc whose NORMAL_TEXT has `space_below` 20 (from `apply_theme`) gives "Hotel:" no `spaceAbove`, and it sits on the table's bottom border again, which is #1427's defect (sent back on the PR).
 
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-4; other checks, other EPs and run 2 not run.** "Hotel:" keeps `spaceAbove` 10 (sits clear of the Flights table) on a replace into a Doc whose NORMAL_TEXT sets only `space_below`. Into a Doc that also sets `space_above`, the doc's own spacing takes over.
+
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1561,6 +1563,12 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 - TG-04's list item sits on table G's bottom border, where Drive's import (EP-5) leaves a gap. It's #1427's defect for a list item.
 - `apply_theme(NORMAL_TEXT space_below 20)` also cleared a user's 10pt `spaceAbove` set on "Plain paragraph after that.", which doesn't follow a table.
 - EP-4 of r15 into a Doc with NORMAL_TEXT `space_below` only put "Hotel:" back on the table.
+
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ✅ PASS for every check run; EP-3 and EP-4 only, one run.** I didn't repeat EP-1 and EP-2, which go through the same converter as EP-3 (round 1 found them identical to EP-3), and the theme checks used EP-3 Docs in place of EP-1. I didn't repeat the round trip either, since the fix changes nothing on the read side.
+- Structure and screen (EP-3): TG-01 and TG-02 are as in round 1. In TG-03, each item's text has `spaceBelow` 10 before its table, and the paragraph after each table has `spaceAbove` 10. On screen, both items sit clear of their tables, and the list reads as one. In TG-04, "a list item right after a table" has `spaceAbove` 10 and sits clear of table G on screen. The heading and the code block are unchanged, and so is TG-05.
+- Theme, below only: I set a 10pt `spaceAbove` by hand on "Plain paragraph after that.", then ran `apply_theme(space_below 20)`. It cleared every 10pt `spaceBelow` and kept `spaceAbove` 10 on each paragraph or item after a table. The hand-set value stayed. A later `apply_theme(space_above 12)` on the same Doc cleared each after-table `spaceAbove` and still left the hand-set one.
+- Theme, above only: on a fresh Doc, `apply_theme(space_above 20)` cleared each after-table `spaceAbove` and kept `spaceBelow` 10 on the two paragraphs and two items right before a table.
+- Own spacing (EP-4): r15 into a Doc whose NORMAL_TEXT sets only `space_below` 20 keeps "Hotel:" at `spaceAbove` 10, with no 10pt `spaceBelow` anywhere. Into a Doc whose NORMAL_TEXT also sets `space_above` 12, "Hotel:" takes no 10pt.
 
 ---
 
