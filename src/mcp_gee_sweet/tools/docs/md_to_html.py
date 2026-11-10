@@ -648,9 +648,18 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # CommonMark plus GFM's table and strikethrough extensions. Raw HTML passes through
     # to html_to_ast, as it did under Python-Markdown. Task-list items stay literal
     # "[ ] "/"[x] " text, which html_to_ast turns into checkbox items.
-    md = MarkdownIt("commonmark", {"html": True, "maxNesting": _MAX_NESTING}).enable(
-        ["table", "strikethrough"]
-    )
+    # strikethrough_single_tilde widens the strikethrough rule to GFM's full form:
+    # `~x~` strikes like `~~x~~`, the opening and closing runs must have the same
+    # width, and a run of three or more tildes stays literal text (#1335). Upstream
+    # option, available in the pinned markdown-it-py 4.2.0.
+    md = MarkdownIt(
+        "commonmark",
+        {
+            "html": True,
+            "maxNesting": _MAX_NESTING,
+            "strikethrough_single_tilde": True,
+        },
+    ).enable(["table", "strikethrough"])
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")
     # that _resolve_image_source opens as-is. validateLink still screens schemes.

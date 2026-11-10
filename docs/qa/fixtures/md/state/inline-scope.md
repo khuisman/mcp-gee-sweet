@@ -1,6 +1,6 @@
 ### IS-01 — strike
 
-~~x~~ and <del>y</del>; <s>h<del>i</del>j</s>k.
+~~x~~ and <del>y</del>; <s>h<del>i</del>j</s>k. ~v~ and ~~~w~~~; ~q~~.
 
 ### IS-02 — sub and sup
 

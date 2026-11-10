@@ -117,6 +117,29 @@ class TestStrikethrough:
             (" now", None),
         ]
 
+    def test_single_tilde_strikes_through(self):
+        # GFM accepts one or two tildes: `~gone~` strikes like `~~gone~~` (#1335).
+        (para,) = _ast("This is ~gone~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ", None),
+            ("gone", True),
+            (" now", None),
+        ]
+
+    def test_three_tildes_stay_literal(self):
+        # A run of three or more tildes is not strikethrough in GFM (#1335).
+        (para,) = _ast("This is ~~~gone~~~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ~~~gone~~~ now", None),
+        ]
+
+    def test_mismatched_tilde_widths_do_not_strike(self):
+        # The opening and closing runs must have the same width (#1335).
+        (para,) = _ast("This is ~gone~~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ~gone~~ now", None),
+        ]
+
 
 class TestGfmAutolinks:
     @pytest.mark.parametrize(

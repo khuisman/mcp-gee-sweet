@@ -1406,7 +1406,7 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 > Render `docs/qa/fixtures/md/state/inline-scope.md` through EP-1 to EP-4 and EP-8 (#1231). Also run TC-MD116's HT-01, HT-02 and HT-07 through EP-1 to EP-4 and EP-8: #1077's and #1119's done-when. Two runs, with an on-screen check.
 
 **Checks**
-- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not.
+- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not. "v" (`~`) struck like "x" — GFM takes one or two tildes; "~~~w~~~" and "~q~~" not struck — a run of three or more tildes stays literal, and mismatched widths don't strike (#1335).
 - IS-02: the "2" in "H2O" subscript, the "2" in "mc2" superscript, the rest of that text normal; in "abcd", "a" and "c" superscript, "b" subscript, "d" normal.
 - IS-03: "hi" highlighted yellow and bold, the text around it plain.
 - IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; the second cell's "w" highlighted; the last row's cells plain.
