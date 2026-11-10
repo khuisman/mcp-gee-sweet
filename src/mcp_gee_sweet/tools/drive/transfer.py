@@ -931,7 +931,11 @@ async def _upload_local_file(
         lmtime = _local_mtime_dt(path)
         lmtime_str = _drive_time_str(lmtime)
         metadata["modifiedTime"] = lmtime_str
-        convert_md = convert_mime is not None and Path(file_name).suffix.lower() == ".md"
+        # The resolved conversion suffix, not Path(file_name).suffix: with an
+        # extension-less name= over a .md source ("Q3 report" over report.md)
+        # the conversion is Markdown, so the front matter must be stripped
+        # before import and the #814 change-detection properties stamped.
+        convert_md = convert_mime is not None and convert_suffix == ".md"
         if convert_md:
             # sync_folder's change-detection references for this Doc (#814).
             metadata["properties"] = {
@@ -971,38 +975,6 @@ async def _upload_local_file(
         restamp_failure = await _restamp_modified_time(drive_service, result["id"], lmtime_str)
         if restamp_failure is not None:
             return restamp_failure
-        # Drive's importer keeps the source extension in some converted types'
-        # display names (.md) while it strips it from others (CSV, TC-D215). The
-        # skip_if_exists stem lookup and the convert markers already expect the
-        # stripped name (#769, #414), so drop a kept extension here instead of
-        # leaving every converted file one rename_file call short (#1307, #1309).
-        created_name = result.get("name") or ""
-        if convert_suffix and created_name.lower().endswith(convert_suffix):
-            stripped_name = str(Path(created_name).with_suffix(""))
-            try:
-                renamed = await execute_in_thread(
-                    drive_service.files()
-                    .update(
-                        fileId=result["id"],
-                        body={"name": stripped_name},
-                        supportsAllDrives=True,
-                        fields="name",
-                    )
-                    .execute,
-                    drive_service,
-                )
-                if isinstance(renamed, dict) and renamed.get("name"):
-                    result["name"] = renamed["name"]
-            except Exception as e:
-                # The upload itself succeeded; a display name that kept its
-                # extension is cosmetic, not a failure worth an error result.
-                logger.debug(
-                    "Converted file %s kept its extension in its display name "
-                    "and the rename to %r failed: %s",
-                    result["id"],
-                    stripped_name,
-                    e,
-                )
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     uploaded = {
