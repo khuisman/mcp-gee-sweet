@@ -1945,31 +1945,36 @@ def _is_paragraph_gap(request: dict) -> bool:
     return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
 
 
-def _collapse_paragraph_requests(rng: dict) -> list[dict]:
-    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, 1pt
-    font. Shared by the quote separators (#1098) and the blank paragraph before a
-    table."""
+def _collapse_paragraph_requests(rng: dict, *, font_size: bool = True) -> list[dict]:
+    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, and
+    (with `font_size`) a 1pt font. Shared by the quote separators (#1098), the blank
+    paragraph before a table, and, without the font, the empty paragraph after a doc's
+    final table (#1100)."""
     paragraph_style = {
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
         "spaceBelow": {"magnitude": 0, "unit": "PT"},
         "lineSpacing": 1,
     }
-    return [
+    requests = [
         {
             "updateParagraphStyle": {
                 "range": rng,
                 "paragraphStyle": paragraph_style,
                 "fields": ",".join(paragraph_style),
             }
-        },
-        {
-            "updateTextStyle": {
-                "range": rng,
-                "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
-                "fields": "fontSize",
-            }
-        },
+        }
     ]
+    if font_size:
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
+    return requests
 
 
 # A thematic break (#1096). The Docs API can't insert a horizontalRule element, so a
@@ -2354,7 +2359,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     """Fill table cells and apply inline styles using live cell indices.
 
     Phases:
-      1. Re-fetch → get cell positions
+      1. Re-fetch → get cell positions; collapse the blank paragraph before each table
+         and, when the doc ends in a table, the empty paragraph after it (#1100)
       2. If any colspan/rowspan > 1: emit mergeTableCells, re-fetch
       3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
       4. Fill cells with a nested table, segment by segment (see
@@ -2403,7 +2409,13 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    blank_collapses = _build_blank_para_before_table_collapses(live_doc, tables)
+    # The empty paragraph after a final table is collapsed in the same batch (#1100). Both
+    # builders compute their ranges from this one fetch, which holds only because no
+    # request in the batch inserts or deletes anything: an index-shifting request added
+    # here would leave every range after it stale.
+    blank_collapses = _build_blank_para_before_table_collapses(
+        live_doc, tables
+    ) + _build_trailing_para_after_table_collapse(live_doc)
     if blank_collapses:
         await execute_in_thread(
             docs_service.documents()
@@ -3389,6 +3401,32 @@ def _build_blank_para_before_table_collapses(
             continue
         requests.extend(_collapse_paragraph_requests(rng))
     return requests
+
+
+def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
+    """Collapse the empty paragraph Docs keeps after a doc's final table (#1100).
+
+    A body always ends in a paragraph, so a doc ending in a table has an empty one after
+    it. When the table reaches the bottom margin, that paragraph spills onto a page of
+    its own: a blank last page. Spacing 0 and 1% line spacing take its height away
+    (checked live by the PDF export's page count); a 1pt font alone doesn't, so the font
+    is left alone, and text later typed there keeps the doc's size. That text still
+    takes the 1% line spacing and overlaps the table until it's reset, which
+    docs/known-limitations.md names. A rewrite clears it: _replace_doc_content resets
+    the final paragraph mark's style before the clear.
+    """
+    content = live_doc.get("body", {}).get("content", [])
+    if len(content) < 2 or "table" not in content[-2]:
+        return []
+    last = content[-1]
+    paragraph = last.get("paragraph")
+    if paragraph is None:
+        return []
+    text = "".join(el.get("textRun", {}).get("content", "") for el in paragraph.get("elements", []))
+    start, end = last.get("startIndex"), last.get("endIndex")
+    if text != "\n" or start is None or end is None:
+        return []
+    return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
 
 
 def _table_start_index(doc_table: dict) -> int | None:

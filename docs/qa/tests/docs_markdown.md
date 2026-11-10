@@ -409,6 +409,7 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows `1. Q4 results` etc. as literal monospace lines, not a list.
 - Logistics table intact.
+- EP-1 to EP-4 and EP-8: the Doc is one page; the table ends page 1 and there's no blank second page (#1100). Check in the Docs editor's page view, or count the pages of the PDF from `download_file(file_id=<doc>, local_path=<scratch dir>, export_format='pdf')`.
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
@@ -419,6 +420,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
 **Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The PDF export of the EP-3 Doc is 1 page. A copy of it with the trailing paragraph's `spaceAbove`/`spaceBelow`/`lineSpacing` reset exports 2 pages, so the collapse is what removes the blank page. On that copy, spacing 0 alone and spacing 0 with a 1pt font both still export 2 pages: only `lineSpacing` 1 removes it. Other checks, other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The EP-3 Doc's PDF export is 1 page again, and its final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own. Other checks, other EPs and run 2 not run.
 
 ## Phase 2 — Syntax coverage
 
@@ -1265,7 +1270,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | DS-05 | `ds-05-starts-quote.md` | The quote first, then the paragraph |
 | DS-06 | `ds-06-starts-image.md` | The image first, then the paragraph |
 | DS-07 | `ds-07-starts-rule.md` | A horizontal line first, then the paragraph |
-| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one |
+| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no visible paragraph after the table. EP-1 to EP-4 and EP-8: Docs' mandatory final paragraph is collapsed (`lineSpacing` 1, no space above or below in `documents().get()`), so it takes no height (#1100) |
 | DS-09 | `ds-09-ends-list.md` | The list's last item is the last visible line; no empty bulleted line after it |
 | DS-10 | `ds-10-empty.md` | The call succeeds and leaves an empty Doc (EP-2/EP-4: the Doc's previous content is cleared) |
 | DS-11 | `ds-11-whitespace-only.md` | Same as DS-10 |
@@ -1282,6 +1287,10 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 **Result (2026-10-30, PR #1303 @ 0c94c64d) ❌ FAIL — DS-14 and DS-15 only, one run (Kit): 11/16 case×EP cells pass. DS-14 passes at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md)**
 
 **Result (2026-10-30, PR #1303 @ ad1ef994, round 2) ❌ FAIL — DS-14 to DS-16 only, one run (Kit): 19/24 case×EP cells pass. DS-14 and DS-16 pass at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md) §"Round 2"**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** The table is the last visible block. In `documents().get()` the final paragraph after it has `lineSpacing` 1 and 0pt above and below. Not part of DS-08's check: two lines added after the table with `insert_doc_text` overprint each other and the table's last row on screen (the trade-off kept by the maintainer, 2026-11-09). Other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** Same as round 1: the final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own; the PDF export is 1 page. The documented workaround, `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` on round 1's Doc, put both added lines back on their own lines below the table on screen. Other EPs and run 2 not run.
 
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
