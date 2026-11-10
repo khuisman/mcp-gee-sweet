@@ -1540,17 +1540,19 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 ### TC-MD509: A gap between a table and the paragraphs beside it ⚠️ destructive
 **Prompt**
 **Playwright: required**
-> Render `docs/qa/fixtures/md/syntax/md-table-gaps.md` and `docs/qa/fixtures/md/realistic/r15-travel-itinerary.md` through EP-1 to EP-4. #1427's done-when. Then, on the fixture's EP-1 Doc, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`.
+> Render `docs/qa/fixtures/md/syntax/md-table-gaps.md` and `docs/qa/fixtures/md/realistic/r15-travel-itinerary.md` through EP-1 to EP-4. #1427's done-when. Then run the theme and own-spacing checks below on the fixture.
 
 **Checks**
 - r15: "**Hotel:**" sits clear of the Flights table's bottom border, with a gap about two thirds of a line, the same as between two paragraphs (TC-MD506). Compare with r15 through EP-5, Drive's own import.
 - TG-01: the same gap between "Intro before the table." and the table, and between the table and "**Hotel:** the paragraph right after the table.". The gap below "Hotel:" before "Plain paragraph after that." is unchanged.
 - TG-02: "Between the two tables." has a gap on both sides.
-- TG-03: a gap between each item's table and the paragraph after it, inside the item and outside the list. The list still reads as one list: "last item" is item 2, at list spacing from the paragraph above it.
-- TG-04: the heading, the code block and the list item right after a table keep their own spacing. Nothing extra is added beside them.
+- TG-03: a gap between each item's text and its table, and between each table and the paragraph after it, inside the item and outside the list. The list still reads as one list: "last item" is item 2, at list spacing from the paragraph above it.
+- TG-04: "a list item right after a table" has the same gap from table G, as Drive's import (EP-5) leaves one. The heading and the code block right after a table keep their own spacing, with nothing extra added.
 - TG-05: the quote is unchanged from `develop`: the quoted paragraphs beside the quoted table show the quote's bar as before, with no new gap, and "Unquoted paragraph after the quote." keeps the quote's 8pt edge.
-- Structure: in `documents().get()`, a paragraph after a table has `spaceAbove` 10pt, one before a table `spaceBelow` 10pt, and no empty paragraph was added. The collapsed empty paragraph before each table is still collapsed.
-- Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceAbove` or `spaceBelow`. On screen a paragraph before a table shows the theme's 20pt below it. A paragraph after a table takes the theme's `space_above`, which this theme doesn't set, so it sits on the table again: the theme's spacing wins, as intended.
+- Structure: in `documents().get()`, a paragraph or list item after a table has `spaceAbove` 10pt, one before a table `spaceBelow` 10pt, and no empty paragraph was added. The collapsed empty paragraph before each table is still collapsed.
+- Theme, below only: on the fixture's EP-1 Doc, set a 10pt `spaceAbove` by hand on "Plain paragraph after that." (`batch_update`-style `updateParagraphStyle` through a fresh interpreter, or the Docs UI), then run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. Every 10pt `spaceBelow` is cleared, the ones before a table included, and on screen a paragraph before a table shows the theme's 20pt. Each paragraph or list item right after a table keeps its 10pt `spaceAbove`, since this theme sets nothing above, and stays clear of the table. The hand-set `spaceAbove` on "Plain paragraph after that." is still there.
+- Theme, above only: on a second EP-1 Doc, `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_above": 20}})` clears the `spaceAbove` after each table and every plain paragraph gap, and keeps the 10pt `spaceBelow` on a paragraph or item right before a table.
+- Own spacing: `update_doc_from_file` (EP-4) r15 into a Doc whose NORMAL_TEXT has `space_below` 20 and no `space_above` (`apply_theme` it first). "**Hotel:**" still has `spaceAbove` 10 and sits clear of the Flights table; no paragraph has a 10pt `spaceBelow`.
 - Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
 
 **Cleanup:** trash the Docs.

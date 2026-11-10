@@ -21,7 +21,7 @@ from mcp_gee_sweet.tools.docs.style import (
     _add_or_clear_field,
     _build_named_style_requests,
     _clear_paragraph_gap_requests,
-    _has_own_paragraph_spacing,
+    _own_paragraph_spacing_fields,
     _read_body_styles,
     _read_named_styles,
     _text_style_and_fields,
@@ -1839,12 +1839,12 @@ class TestApplyThemeTool:
     @pytest.mark.parametrize(
         "paragraph_style, own",
         [
-            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, False),
-            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, True),
-            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, True),
+            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, set()),
+            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, {"spaceBelow"}),
+            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, {"spaceAbove"}),
         ],
     )
-    def test_has_own_paragraph_spacing_reads_normal_text(self, paragraph_style, own):
+    def test_own_paragraph_spacing_fields_reads_normal_text(self, paragraph_style, own):
         doc = {
             "namedStyles": {
                 "styles": [
@@ -1856,7 +1856,7 @@ class TestApplyThemeTool:
                 ]
             }
         }
-        assert _has_own_paragraph_spacing(doc) is own
+        assert _own_paragraph_spacing_fields(doc) == own
 
     @staticmethod
     def _body_paragraph(style, text, font=None):
@@ -2098,53 +2098,95 @@ class TestApplyThemeTool:
         await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx)
         mock_docs.documents().get.assert_not_called()
 
-    @pytest.mark.parametrize(
-        ("paragraph_style", "fields"),
-        [
-            ({"spaceAbove": {"magnitude": 10, "unit": "PT"}}, "spaceAbove"),
-            (
-                {
-                    "spaceAbove": {"magnitude": 10, "unit": "PT"},
-                    "spaceBelow": {"magnitude": 10, "unit": "PT"},
+    @staticmethod
+    def _table_gap_doc():
+        """As the emitter writes "a", "b", a table, "c", then "d" with a 10pt
+        spaceAbove set by hand: a [1,3) and c [16,18) carry plain paragraph gaps below,
+        b [3,5) the gap before the table's empty paragraph [5,6), c the gap after it."""
+
+        def paragraph(start, text, **spacing):
+            style: dict = {"namedStyleType": "NORMAL_TEXT"}
+            style.update({k: {"magnitude": v, "unit": "PT"} for k, v in spacing.items()})
+            return {
+                "startIndex": start,
+                "endIndex": start + len(text),
+                "paragraph": {
+                    "paragraphStyle": style,
+                    "elements": [{"textRun": {"content": text}}],
                 },
-                "spaceAbove,spaceBelow",
-            ),
-            (
-                {
-                    "spaceAbove": {"magnitude": 8, "unit": "PT"},
-                    "spaceBelow": {"magnitude": 10, "unit": "PT"},
-                },
-                "spaceBelow",
-            ),
-        ],
-        ids=["above", "both", "below-beside-a-quote-edge"],
-    )
-    def test_gap_above_a_paragraph_after_a_table_is_cleared_too(self, paragraph_style, fields):
-        """#1427: a paragraph after a table carries the gap as spaceAbove. Only the
-        gap's own fields are reset, never another spacing value."""
-        doc = {
+            }
+
+        return {
             "body": {
                 "content": [
-                    {
-                        "startIndex": 4,
-                        "endIndex": 6,
-                        "paragraph": {
-                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **paragraph_style},
-                            "elements": [{"textRun": {"content": "x\n"}}],
-                        },
-                    }
+                    paragraph(1, "a\n", spaceBelow=10),
+                    paragraph(3, "b\n", spaceBelow=10),
+                    paragraph(5, "\n", spaceAbove=0, spaceBelow=0),
+                    {"startIndex": 6, "endIndex": 16, "table": {}},
+                    paragraph(16, "c\n", spaceAbove=10, spaceBelow=10),
+                    paragraph(18, "d\n", spaceAbove=10),
                 ]
             }
         }
-        assert _clear_paragraph_gap_requests(doc) == [
-            {
-                "updateParagraphStyle": {
-                    "range": {"startIndex": 4, "endIndex": 6},
-                    "paragraphStyle": {},
-                    "fields": fields,
-                }
-            }
+
+    @pytest.mark.parametrize(
+        ("theme_fields", "cleared"),
+        [
+            # PR #1434 QA round 1: a theme spaced only below leaves the gap after the
+            # table, or "c" would sit on it.
+            ({"spaceBelow"}, {1: "spaceBelow", 3: "spaceBelow", 16: "spaceBelow"}),
+            ({"spaceAbove"}, {1: "spaceBelow", 16: "spaceAbove,spaceBelow"}),
+            (
+                {"spaceAbove", "spaceBelow"},
+                {1: "spaceBelow", 3: "spaceBelow", 16: "spaceAbove,spaceBelow"},
+            ),
+        ],
+        ids=["below", "above", "both"],
+    )
+    def test_a_table_gap_is_cleared_only_for_the_themes_own_field(self, theme_fields, cleared):
+        """#1427. The plain paragraph gaps go whatever the theme sets, as before, and
+        "d"'s 10pt spaceAbove, which doesn't follow a table, is never the emitter's
+        (PR #1434 QA round 1)."""
+        requests = _clear_paragraph_gap_requests(self._table_gap_doc(), theme_fields)
+        assert {
+            r["updateParagraphStyle"]["range"]["startIndex"]: r["updateParagraphStyle"]["fields"]
+            for r in requests
+        } == cleared
+        assert all(r["updateParagraphStyle"]["paragraphStyle"] == {} for r in requests)
+
+    async def test_apply_theme_keeps_the_gap_after_a_table_for_a_below_only_theme(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._table_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](
+            doc_id="doc123", theme={"NORMAL_TEXT": {"space_below": 20}}, ctx=ctx
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        cleared = {
+            r["updateParagraphStyle"]["range"]["startIndex"]: r["updateParagraphStyle"]["fields"]
+            for r in reqs
+            if "updateParagraphStyle" in r
+        }
+        assert cleared == {1: "spaceBelow", 3: "spaceBelow", 16: "spaceBelow"}
+
+    async def test_an_explicit_zero_in_the_theme_counts_as_setting_the_field(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._table_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](
+            doc_id="doc123", theme={"NORMAL_TEXT": {"space_above": 0}}, ctx=ctx
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        fields = [
+            r["updateParagraphStyle"]["fields"]
+            for r in reqs
+            if r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 16
         ]
+        assert fields == ["spaceAbove,spaceBelow"]
 
     async def test_overwrite_spacing_lands_after_the_gap_is_cleared(self):
         reqs = await self._run_theme({"NORMAL_TEXT": {"space_below": 20}}, overwrite=True)

@@ -18,6 +18,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
+    _convert_doc_content,
     _html_to_doc_requests,
     _md_to_html,
     _to_doc_requests,
@@ -1573,7 +1574,7 @@ class TestBlockSeparation:
     def test_list_gaps_go_with_the_other_paragraph_gaps(self):
         """A doc with spacing of its own drops them all (without_paragraph_gaps)."""
         requests, _ = _to_doc_requests("p\n\n- a\n\nq\n", "markdown")
-        kept = without_paragraph_gaps(requests)
+        kept = without_paragraph_gaps(requests, {}, {"spaceBelow"})
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
 
     @pytest.mark.parametrize(
@@ -1609,7 +1610,7 @@ class TestBlockSeparation:
         requests, _ = _html_to_doc_requests(
             "<p>a</p><p>b</p><pre><code>c</code></pre><blockquote><p>q</p></blockquote>"
         )
-        kept = without_paragraph_gaps(requests)
+        kept = without_paragraph_gaps(requests, {}, {"spaceBelow"})
         assert len(kept) == len(requests) - 1
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
         assert any(style.get("spaceBelow") == 8 for style in self._spacing(kept).values())
@@ -4324,15 +4325,42 @@ class TestParagraphGapBesideATable:
             "<h2>h</h2><table><tr><td>x</td></tr></table>",
             "<table><tr><td>x</td></tr></table><hr>",
             "<table><tr><td>x</td></tr></table><p>&nbsp;</p>",
-            "<table><tr><td>x</td></tr></table><ul><li>item</li></ul>",
+            "<table><tr><td>x</td></tr></table><blockquote><p>q</p></blockquote>",
+            "<table><tr><td>x</td></tr></table><ul><li><h2>h</h2></li></ul>",
         ],
-        ids=["heading-after", "heading-before", "rule", "spacer", "list-item"],
+        ids=["heading-after", "heading-before", "rule", "spacer", "quote", "heading-item"],
     )
-    def test_no_gap_beside_a_block_that_is_not_a_plain_paragraph(self, html):
-        """A heading keeps its named style's spacing, a rule and a spacer their own
-        look; a list item beside a table is outside #1427."""
+    def test_no_gap_beside_a_block_that_keeps_its_own_spacing(self, html):
+        """A heading (a heading item too) keeps its named style's spacing, a rule and a
+        spacer their own look, a quote its 8pt edge."""
         requests, _ = _html_to_doc_requests(html)
         assert not any(10 in style.values() for style in self._gaps(requests).values())
+
+    def test_list_item_after_a_table_gets_the_gap_above(self):
+        """PR #1434 QA round 1: the item sat on the table, where Drive's import leaves an
+        empty line. Sent after the bullet pass, like the rest of the item's styling."""
+        requests, _ = _html_to_doc_requests(
+            "<table><tr><td>x</td></tr></table><ul><li>item</li><li>next</li></ul>"
+        )
+        # placeholder [1,2), "item\n" [2,7), "next\n" [7,12): none between the items.
+        assert self._gaps(requests) == {2: {"spaceAbove": 10}}
+        gap = next(
+            i
+            for i, r in enumerate(requests)
+            if r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).get("spaceAbove")
+        )
+        bullets = max(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert gap > bullets
+
+    @pytest.mark.parametrize(
+        "markdown",
+        ["- last\n\n| A |\n|---|\n| 1 |\n", "3. literal\n\n| A |\n|---|\n| 1 |\n"],
+        ids=["bullet", "literal"],
+    )
+    def test_list_item_before_a_table_gets_the_gap_below(self, markdown):
+        requests, _ = _to_doc_requests(markdown, "markdown")
+        gaps = self._gaps(requests)
+        assert [style for style in gaps.values() if 10 in style.values()] == [{"spaceBelow": 10}]
 
     def test_code_block_after_a_table_keeps_its_own_spacing(self):
         requests, _ = _html_to_doc_requests(
@@ -4368,13 +4396,44 @@ class TestParagraphGapBesideATable:
 
     def test_paragraph_after_a_table_that_ends_a_list(self):
         requests, _ = _to_doc_requests("- item\n\n  | A |\n  |---|\n  | 1 |\n\nafter\n", "markdown")
-        assert any(style.get("spaceAbove") == 10 for style in self._gaps(requests).values())
+        # "item\n" [1,6), its table's placeholder [6,7), "after\n" [7,13): the item's
+        # text before its table, and "after" after it.
+        assert self._gaps(requests) == {5: {"spaceBelow": 10}, 7: {"spaceAbove": 10}}
 
-    def test_without_paragraph_gaps_drops_the_gap_above_too(self):
-        requests, _ = _html_to_doc_requests("<p>a</p><table><tr><td>x</td></tr></table><p>b</p>")
-        kept = without_paragraph_gaps(requests)
-        assert len(kept) == len(requests) - 2
-        assert self._gaps(kept) == {}
+    _AROUND = "<p>a</p><p>b</p><table><tr><td>x</td></tr></table><p>c</p>"
+
+    @classmethod
+    def _without_gaps(cls, own_fields: set[str]) -> dict[int, dict[str, int]]:
+        converted = _convert_doc_content(cls._AROUND, "html", True)
+        return cls._gaps(
+            without_paragraph_gaps(converted.requests, converted.table_gaps, own_fields)
+        )
+
+    def test_table_gaps_are_recorded_by_field(self):
+        converted = _convert_doc_content(self._AROUND, "html", True)
+        assert sorted(converted.table_gaps.values()) == ["spaceAbove", "spaceBelow"]
+        # "a\n" [1,3), "b\n" [3,5), placeholder [5,6), "c\n" [6,8).
+        assert self._gaps(converted.requests) == {
+            2: {"spaceBelow": 10},
+            4: {"spaceBelow": 10},
+            6: {"spaceAbove": 10},
+        }
+
+    @pytest.mark.parametrize(
+        ("own_fields", "kept"),
+        [
+            # A doc spaced below its paragraphs: "b" before the table is spaced by it,
+            # "c" after the table isn't (PR #1434 QA round 1).
+            ({"spaceBelow"}, {6: {"spaceAbove": 10}}),
+            # Spaced above: "c" is, "b" before the table isn't.
+            ({"spaceAbove"}, {4: {"spaceBelow": 10}}),
+            ({"spaceAbove", "spaceBelow"}, {}),
+        ],
+        ids=["below", "above", "both"],
+    )
+    def test_a_docs_own_spacing_drops_a_table_gap_only_for_its_own_field(self, own_fields, kept):
+        """The plain paragraph gap ("a" to "b") goes whatever the doc sets."""
+        assert self._without_gaps(own_fields) == kept
 
 
 class TestEmptyListItemIsABullet:

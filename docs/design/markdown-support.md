@@ -203,12 +203,12 @@ bar. A spacer line (`&nbsp;`) is a gap already, and a
 heading keeps its own look next to a paragraph. A paragraph in a table cell
 gets none: cells stay compact, and Markdown can't write one.
 
-A table can't take spacing, so a plain paragraph beside one takes the gap on the table's side
-(#1427): `spaceAbove` on a paragraph right after a table, `spaceBelow` on one right before it.
-Without it the paragraph after sat on the table's bottom border, where Drive's import leaves a
-gap. Unquoted only: beside a quoted table the quote-edge 8pt applies, and inside one quote a gap
-would break the bar between the table's wrapper and the paragraph. A list item, heading, rule
-or code block beside a table keeps its own spacing.
+A table can't take spacing, so a plain paragraph or list item beside one takes the gap on the
+table's side (#1427): `spaceAbove` right after a table, `spaceBelow` right before it. Without it
+the block after sat on the table's bottom border. Drive's import leaves an empty line on both
+sides of a table, list items included. Unquoted only: beside a quoted table the quote-edge 8pt
+applies, and inside one quote a gap would break the bar between the table's wrapper and the
+paragraph. A heading, rule, spacer line or code block beside a table keeps its own spacing.
 
 A list gets the same gap on both sides where it meets a plain paragraph outside it (#1389):
 below the paragraph before its first item, an intro line ("Install the headers:") included,
@@ -230,11 +230,18 @@ NORMAL_TEXT for the whole Doc, lists and table cells included. A value on a para
 named style, so a theme's spacing has to win some other way, in either order:
 
 - A Doc that already has NORMAL_TEXT spacing gets no gaps: `_replace_doc_content` reads it
-  (`_has_own_paragraph_spacing`) and drops them from the converted requests
+  (`_own_paragraph_spacing_fields`) and drops them from the converted requests
   (`without_paragraph_gaps`). Spacing of exactly 0 can't be told from the default.
 - `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` hands the gap paragraphs back to
-  the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT` in
-  `spaceBelow`, or in `spaceAbove` after a table, which no other spacing the emitter writes uses.
+  the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT`, which
+  no other spacing the emitter writes uses.
+
+A gap beside a table is the exception in both: it goes only when the Doc or theme sets that same
+field. Nothing else spaces a paragraph from a table, so a Doc spaced only below its paragraphs
+would put the paragraph after a table back on its border (PR #1434 QA round 1). The replace path
+knows these gaps by identity (`ConvertedContent.table_gaps`, filled by `ast_to_requests`), and
+`apply_theme` by place: a 10pt `spaceAbove` right after a table, a 10pt `spaceBelow` right before
+a table's empty paragraph. A 10pt `spaceAbove` anywhere else isn't the emitter's and stays.
 
 `get_doc_theme` must not report what the emitter wrote as the Doc's theme: applying it would
 set that spacing across the target Doc, lists and cells included. So NORMAL_TEXT comes from body
