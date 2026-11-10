@@ -384,7 +384,7 @@ Security hotfix cut from the v0.9.4 tag, with nothing else from `develop` (maint
 
 ### v0.9.6 — Ornithomimus: launch release, Markdown fidelity, Gmail sending safety, launch readiness _(target: [v0.9.6](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.6))_
 
-**In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged 2026-11-09; the targeted re-run decides the cut.
+**In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged by 2026-11-09; the targeted re-run decides the cut.
 
 Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in [#1085](https://github.com/khuisman/mcp-gee-sweet/issues/1085). The release ships when the feature set is done and passes release QA. **Locked 2026-10-18**, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way.
 
@@ -454,7 +454,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 - [x] Release notes close with a hedged "Next up" section naming the next queued version; first use is this release's notes, teasing ankylosaurus (maintainer, 2026-11-01) ([#1343](https://github.com/khuisman/mcp-gee-sweet/issues/1343)) (PR #1344)
 - [x] Docs: say that Claude Desktop holds Gmail sends too ([#1394](https://github.com/khuisman/mcp-gee-sweet/issues/1394)) (PR #1396)
 - [x] README: close the known quickstart gaps for `uvx` and Claude Desktop — Amy ([#1408](https://github.com/khuisman/mcp-gee-sweet/issues/1408)) (PR #1409)
-- [x] QA harness: one Playwright browser per parallel shard instead of a single mutex-guarded tab — lane B, maintainer's call 2026-11-07 ([#1410](https://github.com/khuisman/mcp-gee-sweet/issues/1410)) (PR #1413)
+- [x] QA harness: one shared Playwright browser with a tab per parallel shard, instead of a single mutex-guarded tab — lane B, maintainer's call 2026-11-07 ([#1410](https://github.com/khuisman/mcp-gee-sweet/issues/1410)) (PR #1413)
 
 **Fill** _(rank order, locked 2026-10-18)_
 
@@ -575,8 +575,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402))
 - [ ] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403))
 - [ ] HTML: a block container inside `<a>` or `<b>` loses the link or bold — `wrong/narrow`; #1391 follow-up ([#1404](https://github.com/khuisman/mcp-gee-sweet/issues/1404))
-- [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 follow-up, maintainer's call ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
-- [ ] Markdown: a loose list's items sit as tight as a tight list's — `wrong/narrow`; #1389 follow-up ([#1407](https://github.com/khuisman/mcp-gee-sweet/issues/1407))
+- [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 review follow-up (bar 2) ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
+- [ ] Markdown: a loose list's items sit as tight as a tight list's — `wrong/uncommon` (as filed); #1389 follow-up ([#1407](https://github.com/khuisman/mcp-gee-sweet/issues/1407))
 - [ ] Docs: `upload_local_file` should say how to get a converted Doc's title without `.md`; after community PR #1361 ([#1411](https://github.com/khuisman/mcp-gee-sweet/issues/1411))
 - [ ] `upload_local_file(convert=True)`: a dotted title is read as a file extension — `loud/narrow`; after community PR #1361 ([#1412](https://github.com/khuisman/mcp-gee-sweet/issues/1412))
 
