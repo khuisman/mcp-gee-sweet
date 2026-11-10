@@ -1807,12 +1807,15 @@
 - Agenda: items <strong>1, 2, 3, 4</strong> at level 0 (no restart after the sub-bullets), each with its 2-space sub-bullets nested at level 1 (D1). No literal <code>-</code> text anywhere.
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows <code>1. Q4 results</code> etc. as literal monospace lines, not a list.
-- Logistics table intact.</p>
+- Logistics table intact.
+- EP-1 to EP-4 and EP-8: the Doc is one page; the table ends page 1 and there's no blank second page (#1100). Check in the Docs editor's page view, or count the pages of the PDF from <code>download_file(file_id=&lt;doc&gt;, local_path=&lt;scratch dir&gt;, export_format='pdf')</code>.</p>
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
 <hr />
 <p><strong>Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: <a href="../../results/2026-10-18-markdown/"><code>results/2026-10-18-markdown.md</code></a>.</strong></p>
 <p><strong>Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the <code>get_doc_as_markdown</code> export and the raw <code>documents().get()</code> body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.</strong></p>
 <p><strong>Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: <a href="../../results/2026-11-05-markdown/"><code>results/2026-11-05-markdown.md</code></a></strong></p>
+<p><strong>Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.</strong> The PDF export of the EP-3 Doc is 1 page. A copy of it with the trailing paragraph's <code>spaceAbove</code>/<code>spaceBelow</code>/<code>lineSpacing</code> reset exports 2 pages, so the collapse is what removes the blank page. On that copy, spacing 0 alone and spacing 0 with a 1pt font both still export 2 pages: only <code>lineSpacing</code> 1 removes it. Other checks, other EPs and run 2 not run.</p>
+<p><strong>Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.</strong> The EP-3 Doc's PDF export is 1 page again, and its final paragraph has <code>lineSpacing</code> 1, 0pt above and below, and no font size of its own. Other checks, other EPs and run 2 not run.</p>
 <h2 id="phase-2-syntax-coverage">Phase 2 — Syntax coverage<a class="headerlink" href="#phase-2-syntax-coverage" title="Permanent link">&para;</a></h2>
 <p>Each TC renders one fixture; the cases are the <code>###</code> sections inside it. "Expected" is what a reader sees, per the conventions above.</p>
 <h3 id="tc-md101-headings-destructive">TC-MD101: Headings ⚠️ destructive<a class="headerlink" href="#tc-md101-headings-destructive" title="Permanent link">&para;</a></h3>
@@ -4877,7 +4880,7 @@
 <tr>
 <td>DS-08</td>
 <td><code>ds-08-ends-table.md</code></td>
-<td>Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one</td>
+<td>Heading, paragraph, table; no visible paragraph after the table. EP-1 to EP-4 and EP-8: Docs' mandatory final paragraph is collapsed (<code>lineSpacing</code> 1, no space above or below in <code>documents().get()</code>), so it takes no height (#1100)</td>
 </tr>
 <tr>
 <td>DS-09</td>
@@ -4925,6 +4928,8 @@
 <p><strong>Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — DS-14 only (re-run scope): 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1173, #1093. Grid: <a href="../../results/2026-10-25-markdown/"><code>results/2026-10-25-markdown.md</code></a></strong></p>
 <p><strong>Result (2026-10-30, PR #1303 @ 0c94c64d) ❌ FAIL — DS-14 and DS-15 only, one run (Kit): 11/16 case×EP cells pass. DS-14 passes at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: <a href="../../results/2026-10-30-markdown-pr1303/"><code>results/2026-10-30-markdown-pr1303.md</code></a></strong></p>
 <p><strong>Result (2026-10-30, PR #1303 @ ad1ef994, round 2) ❌ FAIL — DS-14 to DS-16 only, one run (Kit): 19/24 case×EP cells pass. DS-14 and DS-16 pass at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: <a href="../../results/2026-10-30-markdown-pr1303/"><code>results/2026-10-30-markdown-pr1303.md</code></a> §"Round 2"</strong></p>
+<p><strong>Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.</strong> The table is the last visible block. In <code>documents().get()</code> the final paragraph after it has <code>lineSpacing</code> 1 and 0pt above and below. Not part of DS-08's check: two lines added after the table with <code>insert_doc_text</code> overprint each other and the table's last row on screen (the trade-off kept by the maintainer, 2026-11-09). Other EPs and run 2 not run.</p>
+<p><strong>Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.</strong> Same as round 1: the final paragraph has <code>lineSpacing</code> 1, 0pt above and below, and no font size of its own; the PDF export is 1 page. The documented workaround, <code>apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)</code> on round 1's Doc, put both added lines back on their own lines below the table on screen. Other EPs and run 2 not run.</p>
 <h3 id="tc-md302-long-document-destructive">TC-MD302: Long document ⚠️ destructive<a class="headerlink" href="#tc-md302-long-document-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
 <strong>Playwright: required</strong></p>

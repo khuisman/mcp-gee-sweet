@@ -1374,6 +1374,28 @@ except that one between two quoted tables in the same quote takes the quote's in
 bar (#1122).
 Related: #190.</p>
 <hr />
+<h3 id="text-typed-after-a-documents-final-table-overlaps-it">Text typed after a document's final table overlaps it<a class="headerlink" href="#text-typed-after-a-documents-final-table-overlaps-it" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> When content written by <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>,
+<code>update_doc_from_file</code>, or <code>upload_file</code>'s Markdown Doc ends in a table, text added after that
+table later (typed in the Docs editor, or written by <code>insert_doc_text</code> at the document's end) is
+drawn over the table's last row. Each line added there overprints the one before it too: every
+paragraph started from that text, by Enter or a <code>"\n"</code>, takes the same spacing. This applies to
+every document that ends in a table, not only one whose table reaches the bottom margin.</p>
+<p><strong>Why:</strong> A Docs body always ends in a paragraph, so a document ending in a table has an empty one
+after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
+of its own. Since the emitter can't tell whether a table reaches the margin, it collapses that
+paragraph in every document ending in a table (<code>spaceAbove/spaceBelow = 0</code>, <code>lineSpacing = 1</code>,</p>
+<h1 id="1100-and-text-added-there-inherits-the-1-line-spacing-its-font-size-is-left-alone-so-the">1100), and text added there inherits the 1% line spacing. Its font size is left alone, so the<a class="headerlink" href="#1100-and-text-added-there-inherits-the-1-line-spacing-its-font-size-is-left-alone-so-the" title="Permanent link">&para;</a></h1>
+<p>text keeps the document's size.</p>
+<p><strong>Workaround:</strong> In the Docs editor, select the added text and set its line spacing back
+(Format &gt; Line &amp; paragraph spacing &gt; Single). From the tools,
+<code>apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)</code> sets single spacing
+on every <code>NORMAL_TEXT</code> paragraph, the collapsed ones included. That gives the paragraph after the
+table its height back, so the blank last page can return, and gives the collapsed blank
+paragraph before each table (see above) a 1pt line's height. Or write the added text
+as part of the content: <code>write_doc_content</code> or <code>update_doc_from_file</code> rewrites the document, and
+the paragraph after the table is collapsed again only if the new content still ends in a table.</p>
+<hr />
 <h3 id="a-quoted-table-is-a-table-inside-a-1x1-wrapper-table">A quoted table is a table inside a 1x1 wrapper table<a class="headerlink" href="#a-quoted-table-is-a-table-inside-a-1x1-wrapper-table" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A table inside a blockquote (Markdown <code>&gt; | a | b |</code>, or HTML <code>&lt;blockquote&gt;&lt;table&gt;</code>)
 is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
