@@ -299,6 +299,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc "QA-orn-D theme53" (h1 + p); theme HEADING_1 + NORMAL_TEXT → `{"docId", "requests": 2}` = key count, no error.
 
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — On a fixture copy, the HEADING_1 + NORMAL_TEXT theme returned `requests: 2`, equal to the key count, with no error; a raw read shows NORMAL_TEXT Verdana/11 and HEADING_1 Georgia/22.
+
 ---
 
 ### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
@@ -323,6 +325,8 @@ Georgia 22pt heading / Verdana body confirmed both visually and via toolbar read
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc "QA-orn-D theme54": wrote `<h1>Heading One</h1><p>Normal body text.</p>`, applied the theme with overwrite=True → `requests: 5` (> 2 keys), no error. Raw read: heading run Georgia, body runs Verdana. Playwright: heading shows Georgia/22 in the toolbar; body renders in Verdana (shot tc-doc54).
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — With `overwrite=True` the theme returned `requests: 5`, no error. The heading run reads Georgia and the body run Verdana; on screen the toolbar shows Georgia/22 and the body renders in Verdana.
 
 ---
 
@@ -349,6 +353,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc with a 2-row table; table theme → `requests: 2`, no error. Raw read: all cells 0.5pt SOLID black borders and 3.6pt padding, row 0 background 0.953. Playwright: thin black borders, grey header row (shot tc-doc55).
 
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `requests: 2`, no error; every cell has 0.5pt solid black borders and 3.6pt padding, and the header row is grey, in the raw read and on screen. Extra #1427 check: a table-only theme kept the paragraph gaps on both sides of the table; a later `apply_theme({"NORMAL_TEXT": {"space_below": 4}})` cleared the gap below the paragraph before the table and kept the gap above the paragraph after it.
+
 ---
 
 ### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
@@ -373,6 +379,8 @@ round-tripped Georgia/Roboto fonts render distinctly
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — On TC-DOC54's doc (explicit Georgia/Verdana run fonts): `get_doc_theme` → `{"HEADING_1":{"font_family":"Georgia"},"NORMAL_TEXT":{"font_family":"Verdana"}}`; applying it back with overwrite=True → `requests: 5`, no error in either.
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `get_doc_theme` returned Georgia/Verdana; applying it back with `overwrite=True` returned `requests: 5`; neither call errored.
 
 ---
 
@@ -437,6 +445,8 @@ apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -> {
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc with a 2×2 table; the exact theme → `requests: 2`, no error. Raw read: row 0 all edges 0.5pt; row 1 top/left/right 0.5pt and borderBottom 2pt. Black reads back as `{}`, so I repeated it with uniform color blue: every edge, including the 2pt last-row bottom, carried blue (inherited). Playwright shows the thick blue bottom edge (shot tc-doc147, blue probe state).
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `requests: 2`, no error; the last row's bottom border is 2pt and every other edge 0.5pt, inheriting the uniform colour (confirmed with a blue probe, since black reads back as `{}`).
 
 ---
 
