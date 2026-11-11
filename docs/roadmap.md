@@ -569,6 +569,17 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round `InputRequiredResult` flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) ([#1235](https://github.com/khuisman/mcp-gee-sweet/issues/1235))
 
+**Triaged in 2026-11-07**
+
+- [ ] HTML: inline text with no block around it is silently dropped — `wrong/common`; #1391 follow-up, `decision-needed` (reverses #343's policy) ([#1401](https://github.com/khuisman/mcp-gee-sweet/issues/1401))
+- [ ] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402))
+- [ ] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403))
+- [ ] HTML: a block container inside `<a>` or `<b>` loses the link or bold — `wrong/narrow`; #1391 follow-up ([#1404](https://github.com/khuisman/mcp-gee-sweet/issues/1404))
+- [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 review follow-up (bar 2) ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
+- [ ] Markdown: a loose list's items sit as tight as a tight list's — `wrong/uncommon` (as filed); #1389 follow-up ([#1407](https://github.com/khuisman/mcp-gee-sweet/issues/1407))
+- [ ] Docs: `upload_local_file` should say how to get a converted Doc's title without `.md`; after community PR #1361 ([#1411](https://github.com/khuisman/mcp-gee-sweet/issues/1411))
+- [ ] `upload_local_file(convert=True)`: a dotted title is read as a file extension — `loud/narrow`; after community PR #1361 ([#1412](https://github.com/khuisman/mcp-gee-sweet/issues/1412))
+
 **Triaged in 2026-11-10** _(v0.9.6 release-pass findings, placed here by the maintainer 2026-11-08; #1439 and #1440 by the maintainer 2026-11-10)_
 
 - [ ] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414))
@@ -581,17 +592,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430))
 - [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
 - [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
-
-**Triaged in 2026-11-07**
-
-- [ ] HTML: inline text with no block around it is silently dropped — `wrong/common`; #1391 follow-up, `decision-needed` (reverses #343's policy) ([#1401](https://github.com/khuisman/mcp-gee-sweet/issues/1401))
-- [ ] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402))
-- [ ] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403))
-- [ ] HTML: a block container inside `<a>` or `<b>` loses the link or bold — `wrong/narrow`; #1391 follow-up ([#1404](https://github.com/khuisman/mcp-gee-sweet/issues/1404))
-- [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 review follow-up (bar 2) ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
-- [ ] Markdown: a loose list's items sit as tight as a tight list's — `wrong/uncommon` (as filed); #1389 follow-up ([#1407](https://github.com/khuisman/mcp-gee-sweet/issues/1407))
-- [ ] Docs: `upload_local_file` should say how to get a converted Doc's title without `.md`; after community PR #1361 ([#1411](https://github.com/khuisman/mcp-gee-sweet/issues/1411))
-- [ ] `upload_local_file(convert=True)`: a dotted title is read as a file extension — `loud/narrow`; after community PR #1361 ([#1412](https://github.com/khuisman/mcp-gee-sweet/issues/1412))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
