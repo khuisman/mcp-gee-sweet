@@ -569,6 +569,19 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] Gmail: confirm sends on MCP 2026-07-28 connections, the two-round `InputRequiredResult` flow, so Claude Code gets a one-step confirmation instead of a held draft. Placed 2026-11-04 (maintainer) ([#1235](https://github.com/khuisman/mcp-gee-sweet/issues/1235))
 
+**Triaged in 2026-11-10** _(v0.9.6 release-pass findings, placed here by the maintainer 2026-11-08; #1439 and #1440 by the maintainer 2026-11-10)_
+
+- [ ] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414))
+- [ ] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive ([#1415](https://github.com/khuisman/mcp-gee-sweet/issues/1415))
+- [ ] `upload_local_folder` on a large folder: no progress, uploads one at a time, and a failed file isn't logged — observed, TC-D300 ([#1416](https://github.com/khuisman/mcp-gee-sweet/issues/1416))
+- [ ] HTML input: `<pre>` inside a table cell isn't styled as code ([#1417](https://github.com/khuisman/mcp-gee-sweet/issues/1417))
+- [ ] HTML input: the space after a nested table in a cell is kept, indenting the next line ([#1418](https://github.com/khuisman/mcp-gee-sweet/issues/1418))
+- [ ] QA: Gmail purges the spam/trash fixtures after 30 days; check them before a pass — Aziz ([#1420](https://github.com/khuisman/mcp-gee-sweet/issues/1420))
+- [ ] An inline image whose one-off fetch fails isn't retried, so the same Markdown renders differently between runs ([#1428](https://github.com/khuisman/mcp-gee-sweet/issues/1428))
+- [ ] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430))
+- [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
+- [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
+
 **Triaged in 2026-11-07**
 
 - [ ] HTML: inline text with no block around it is silently dropped — `wrong/common`; #1391 follow-up, `decision-needed` (reverses #343's policy) ([#1401](https://github.com/khuisman/mcp-gee-sweet/issues/1401))
