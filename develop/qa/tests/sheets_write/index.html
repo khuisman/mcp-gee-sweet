@@ -2025,6 +2025,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <code>kai-sa</code>: <code>update_cells(Sales, A7:D7, [[Test,A,B,C]])</code> updated 4 cells with no error. Re-read: row 7 = Test/A/B/C, rows 1–6 unchanged.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>update_cells(Sales, A7:D7)</code> updated 4 cells, rows 1–6 unchanged, <code>Marked all sheet data dirty</code> logged.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — On copy W, <code>update_cells(Sales, A7:D7, [[Test,A,B,C]])</code> updated 4 cells, no error. Re-read: row 7 = Test/A/B/C, rows 1–6 unchanged.</p>
 <hr />
 <h3 id="tc-w02-write-a-formula-via-user_entered-destructive">TC-W02: Write a formula via USER_ENTERED ⚠️ destructive<a class="headerlink" href="#tc-w02-write-a-formula-via-user_entered-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2039,6 +2040,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Prompt formula <code>=A2&amp;' '&amp;A3</code> (single-quote string delims) → E2 = <code>#ERROR!</code> "Formula parse error"; expected computed "Widget Gadget". Root cause = test-case bug: Google Sheets requires DOUBLE quotes for string literals. USER_ENTERED mode itself IS confirmed (userEnteredValue.formulaValue stored, not stringValue); re-ran with corrected <code>=A2&amp;" "&amp;A3</code> → E2 = "Widget Gadget". Recommend fixing the test prompt to use double quotes</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — On copy W, <code>update_cells(Sales, E2, [['=A2&amp;" "&amp;A3']])</code>; E2 reads "Widget Gadget" and <code>get_sheet_formulas</code> returns the formula <code>=A2&amp;" "&amp;A3</code> (stored as a formula, so USER_ENTERED).</p>
 <hr />
 <h3 id="tc-w03-range-smaller-than-data-provided">TC-W03: Range smaller than data provided<a class="headerlink" href="#tc-w03-range-smaller-than-data-provided" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Exercises <code>update_cells</code>' plain-only fast path (<code>values().update()</code>, issue #757) — the same call site TC-W05 covers, via an oversized <code>data</code> array instead of an invalid <code>sheet</code> name. Same fix (<code>try/except HttpError</code>, now <code>_execute_or_error</code>) applies; the dated Result below predates the fix and shows the pre-fix raw-<code>HttpError</code> behavior.</p>
@@ -2054,6 +2056,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 4 values into A8:A9 → HttpError 400 "tried writing to row [10]"; no partial write. Tool passes to API rather than pre-truncating</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — 4 values into A8:A9 returned <code>{"error": "&lt;HttpError 400 ... Requested writing within range [Sales!A8:A9], but tried writing to row [10]&gt;"}</code> (clean error dict). Re-read: A8:A9 empty, nothing written. Product decision: tool passes through to the API rather than truncating.</p>
 <hr />
 <h3 id="tc-w04-cache-invalidated-after-write">TC-W04: Cache invalidated after write<a class="headerlink" href="#tc-w04-cache-invalidated-after-write" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run TC-R16 or TC-R17 first to warm the cache, then run this)</p>
@@ -2069,6 +2072,7 @@ A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalida
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): after a warm summary, <code>update_cells(A7)</code> logged <code>Marked all sheet data dirty</code>, and the next summary re-fetched (<code>Cached sheet data …</code>) and showed the new value. Stale wording: the summary needs <code>rows_to_fetch</code> ≥ 7 to reach A7 (10 used); the default 5 doesn't.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Warmed with <code>get_multiple_spreadsheet_summary(rows_to_fetch=10)</code> (row 7 = "Test"), then <code>update_cells(A7, CacheTest)</code>, then the same summary showed row 7 = "CacheTest", not stale. mark_dirty inferred from the fresh read (server log not inspected).</p>
 <hr />
 <h3 id="tc-w05-non-existent-sheet-name">TC-W05: Non-existent sheet name<a class="headerlink" href="#tc-w05-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> The 2026-09-04 result below found <code>update_cells</code>' plain-only branch leaked a raw <code>HttpError</code> instead of the <code>{"error": ...}</code> shape every other validation failure in these tools returns — this is <code>update_cells</code>' own instance of issue #757 (no local validation on the raw range string handed to the plain-cells <code>values().update()</code> call). Fixed via <code>try/except HttpError</code> around that call — see TC-W41 for the sibling <code>clear_values</code> fix. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.</p>
@@ -2083,6 +2087,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; no silent success, no sheet created</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Returned a clean <code>{"error": "&lt;HttpError 400 ... Unable to parse range: NoSuchSheet!A1&gt;"}</code>; no sheet created (list_sheets still Sales / Notes &amp; Misc / Empty).</p>
 <hr />
 <h3 id="tc-w33-partial-rich-text-hyperlink-in-a-single-cell-destructive">TC-W33: Partial (rich-text) hyperlink in a single cell ⚠️ destructive<a class="headerlink" href="#tc-w33-partial-rich-text-hyperlink-in-a-single-cell-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -2101,6 +2106,7 @@ F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (chart-covered grid).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — F2 stringValue "See the docs"; textFormatRuns <code>[{"format":{}}, {"startIndex":4, format.link.uri "https://example.com"}]</code>; userEnteredFormat.hyperlinkDisplayType LINKED. Playwright (copy W, Sales, URL ID checked) <code>.playwright-mcp/S4/2026-11-08-tc-w33.png</code>: only "the docs" is blue/underlined, "See " plain (copy has no chart, so the grid was visible).</p>
 <hr />
 <h3 id="tc-w34-mixed-plain-and-rich-text-cells-in-the-same-call-destructive">TC-W34: Mixed plain and rich-text cells in the same call ⚠️ destructive<a class="headerlink" href="#tc-w34-mixed-plain-and-rich-text-cells-in-the-same-call-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -2121,6 +2127,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Return = {values_update:{...responses:[{updatedRange:"Sales!F3"}]}, rich_text_update:{...}} — both present; F3 "PlainValue"/PLAIN_TEXT via per-cell values.batchUpdate; G3 "Link"/LINKED, link.uri "https://example.com/g3". Visual blocked by chart pollution</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — One call returned <code>{"values_update": {...responses:[{updatedRange:"Sales!F3"}]}, "rich_text_update": {replies:[{}]}}</code>, both present; plain write scoped to F3 only. Read-back: F3 "PlainValue" (PLAIN_TEXT); G3 "Link", hyperlinkDisplayType LINKED, hyperlink https://example.com/g3. Same screenshot (tc-w33.png): G3 blue/underlined, F3 plain.</p>
 <hr />
 <h3 id="tc-w35-rich-text-run-missing-text-key-returns-an-error">TC-W35: Rich-text run missing "text" key returns an error<a class="headerlink" href="#tc-w35-rich-text-run-missing-text-key-returns-an-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2135,6 +2142,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Run <code>{"hyperlink":...}</code> no text → {"error":"Rich-text cell runs must be dicts with a string 'text' key..."}; F4 not written (came back as empty cell entry)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Returned <code>{"error": "Rich-text cell runs must be dicts with a string 'text' key, ..."}</code>; F4 empty on read-back.</p>
 <hr />
 <h3 id="tc-w36-rich-text-run-offsets-after-an-astral-plane-character-emoji-destructive">TC-W36: Rich-text run offsets after an astral-plane character (emoji) ⚠️ destructive<a class="headerlink" href="#tc-w36-rich-text-run-offsets-after-an-astral-plane-character-emoji-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Sheets API <code>TextFormatRun.startIndex</code> counts UTF-16 code units, not Python characters — an emoji outside the Basic Multilingual Plane is 2 units. A run offset computed with plain <code>len()</code> would land the hyperlink one character early.</p>
@@ -2156,6 +2164,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 The spot-check was recorded as pending in <code>docs_content.md</code>'s v0.9.2 record. TC-W36 itself passed in the same pass (Run 2, kai-oauth, above), and the 2026-10-19 result below covers the spot-check.</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
 <code>oauth</code>: Run in a throwaway spreadsheet in the run folder, not the fixture. <code>update_cells</code> F5 [🚀, link→example.com]; <code>get_sheet_data(include_grid_data)</code> showed stringValue "🚀link" and textFormatRuns[1].startIndex 2 with link.uri set. Visual check not done. Sheet trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — F5 stringValue "🚀link"; textFormatRuns[1].startIndex 2 with link.uri https://example.com. Same screenshot (tc-w33.png): the underline starts at "link", the 🚀 is not underlined.</p>
 <hr />
 <h3 id="tc-w37-rich-text-run-with-a-wrong-typed-text-value-returns-an-error-not-a-crash">TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash<a class="headerlink" href="#tc-w37-rich-text-run-with-a-wrong-typed-text-value-returns-an-error-not-a-crash" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2170,6 +2179,7 @@ The spot-check was recorded as pending in <code>docs_content.md</code>'s v0.9.2 
 <code>{"text": null,...}</code> → {"error":"...string 'text' key..."}; no crash; F6 untouched</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"text": null, ...}</code> → <code>{"error": "...string 'text' key..."}</code>, no crash; F6 empty.</p>
 <hr />
 <h3 id="tc-w38-empty-rich-text-run-list-returns-an-error-not-a-silent-blank">TC-W38: Empty rich-text run list returns an error, not a silent blank<a class="headerlink" href="#tc-w38-empty-rich-text-run-list-returns-an-error-not-a-silent-blank" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2184,6 +2194,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <code>[]</code> as cell value → {"error":"Rich-text cell runs list cannot be empty"}; F7 untouched</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>[[[]]]</code> → <code>{"error": "Rich-text cell runs list cannot be empty"}</code>; F7 empty.</p>
 <hr />
 <h3 id="tc-w39-empty-data-returns-an-error-not-a-silent-no-op">TC-W39: Empty <code>data</code> returns an error, not a silent no-op<a class="headerlink" href="#tc-w39-empty-data-returns-an-error-not-a-silent-no-op" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2198,6 +2209,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 data=[] → {"error":"data cannot be empty"}; no write</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>data=[]</code> → <code>{"error": "data cannot be empty"}</code>; F8 empty.</p>
 <hr />
 <h3 id="tc-w40-invalid-a1-notation-range-returns-a-clean-error-not-a-raw-exception-issue-747">TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)<a class="headerlink" href="#tc-w40-invalid-a1-notation-range-returns-a-clean-error-not-a-raw-exception-issue-747" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2212,6 +2224,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p><strong>Cleanup:</strong> none — no write occurred.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>range="Sheet1!F9"</code> mixed call → <code>{"error": "Invalid A1 notation: 'Sheet1!F9'"}</code>; F9 empty. (Check text shows the range quoted, which now matches.)</p>
 <hr />
 <h3 id="tc-w43-out-of-bounds-rich-text-index-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W43: Out-of-bounds rich-text index returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w43-out-of-bounds-rich-text-index-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_parse_a1_notation_or_error</code> (TC-W40) only validates A1 <em>syntax</em> — it can't know the sheet's real grid bounds. Unlike the values API (which auto-expands the grid on write), <code>updateCells</code>' <code>range</code> request field doesn't, so a syntactically-valid but out-of-bounds row/column still reaches the API raw. QA round 1 on PR #764 found this branch's <code>spreadsheets().batchUpdate()</code> call was left unwrapped.</p>
@@ -2226,6 +2239,7 @@ Error text now repr-quotes the range ('Sheet1!F9'); TC wording stale.</p>
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>update_cells(spreadsheet_id, sheet="Sales", range="F10000000", data=[[[{"text": "x"}]]])</code> returned <code>{"error": "&lt;HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28 ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — F10000000 → <code>{"error": "&lt;HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28&gt;"}</code>; nothing written.</p>
 <hr />
 <h3 id="tc-w44-mixed-call-one-branchs-httperror-doesnt-drop-the-other-branchs-result-issue-757-unit-test">TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)<a class="headerlink" href="#tc-w44-mixed-call-one-branchs-httperror-doesnt-drop-the-other-branchs-result-issue-757-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> A mixed call makes two independent API calls (issue #380's own design — neither result should be silently dropped if the other fails). QA round 1 on PR #764 flagged that a naive fix wrapping each branch (returning the failing branch's error immediately) would have violated that exact contract by dropping the <em>other</em> branch's already-successful result. Fixed by storing each branch's outcome under its own <code>values_update</code>/<code>rich_text_update</code> key instead of short-circuiting — the plain-cell batchUpdate and rich-text <code>updateCells</code> batchUpdate are now each independently caught, and the branch that follows still runs regardless of whether the one before it failed.</p>
@@ -2237,6 +2251,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>uv run python -m pytest tests/sheets/test_data.py -q</code>: both unit tests pass, confirming neither branch's result is dropped in either direction.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Unit-level: <code>uv run python -m pytest tests/sheets/test_data.py -k "mixed_cells_rich_text_httperror_preserves_plain_success or mixed_cells_plain_httperror_still_attempts_rich_text"</code> in Aziz's worktree: 2 passed.</p>
 <hr />
 <h2 id="batch_update_cells"><code>batch_update_cells</code><a class="headerlink" href="#batch_update_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w06-multiple-ranges-in-one-call">TC-W06: Multiple ranges in one call<a class="headerlink" href="#tc-w06-multiple-ranges-in-one-call" title="Permanent link">&para;</a></h3>
@@ -2255,6 +2270,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <code>kai-sa</code>: One <code>batch_update_cells(Sales, {A8:[[Batch1]], A9:[[Batch2]]})</code> call updated both cells (totalUpdatedCells 2). Re-read: A8=Batch1, A9=Batch2.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): one <code>batch_update_cells</code> call wrote A8=Batch1, A9=Batch2 (totalUpdatedCells 2).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — One <code>batch_update_cells({A8:[[Batch1]], A9:[[Batch2]]})</code> call, totalUpdatedCells 2; summary read showed A8=Batch1, A9=Batch2.</p>
 <hr />
 <h3 id="tc-w07-ranges-on-the-same-sheet">TC-W07: Ranges on the same sheet<a class="headerlink" href="#tc-w07-ranges-on-the-same-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2268,6 +2284,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 B8=999, C8=888 in one batch; no same-sheet conflict</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — One call B8=999, C8=888 (totalUpdatedCells 2); re-read shows both, no conflict.</p>
 <hr />
 <h3 id="tc-w08-empty-ranges-dict">TC-W08: Empty ranges dict<a class="headerlink" href="#tc-w08-empty-ranges-dict" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2281,6 +2298,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Empty ranges {} → {"spreadsheetId":"..."} bare, no error, no values write (no-op)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>ranges={}</code> → <code>{"spreadsheetId": "..."}</code>, no error (no-op). Product decision: no-op, not error.</p>
 <hr />
 <h3 id="tc-w09-cache-invalidated-after-batch-write">TC-W09: Cache invalidated after batch write<a class="headerlink" href="#tc-w09-cache-invalidated-after-batch-write" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2294,6 +2312,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 batch A8="dirty" then summary reflects "dirty" — mark_dirty fired</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Warmed summary showed A8 "Batch1"; <code>batch_update_cells(A8=dirty)</code>; next summary showed "dirty". mark_dirty inferred from the fresh read.</p>
 <h3 id="tc-w10-trailing-empty-array-rows-are-normalized">TC-W10: Trailing empty-array rows are normalized<a class="headerlink" href="#tc-w10-trailing-empty-array-rows-are-normalized" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
@@ -2305,6 +2324,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 - No duplicate row appended after the write</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_rows(Sales, 1)</code> → row 1 blank, "Product" header now row 2. inheritFromBefore=False per code (structure.py:896, <code>start_row is not None and start_row &gt; 0</code>); not separately observable live.</p>
 <hr />
 <h3 id="tc-w42-malformed-range-key-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W42: Malformed range key returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w42-malformed-range-key-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> QA round 1 on PR #764 found <code>batch_update_cells</code> had the identical unvalidated-raw-range-string gap as the rest of <code>data.py</code> — the ranges dict's own keys are handed straight to <code>values().batchUpdate()</code> with no local validation, left unwrapped by the PR's first pass since the issue's own list didn't name this tool explicitly.</p>
@@ -2319,6 +2339,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>batch_update_cells(spreadsheet_id, sheet="Sales", ranges={"!!!BadRange!!!": [["x"]]})</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"!!!BadRange!!!": [["x"]]}</code> → <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!!&gt;"}</code>; sheet data unchanged on re-read.</p>
+<p>(Between add_rows/add_columns cases the inserted rows/columns were removed with a raw deleteDimension so each case started from the canonical layout.)</p>
 <hr />
 <h2 id="add_rows"><code>add_rows</code><a class="headerlink" href="#add_rows" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w10-add-row-at-beginning-no-position-specified">TC-W10: Add row at beginning (no position specified)<a class="headerlink" href="#tc-w10-add-row-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
@@ -2344,6 +2366,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 row start_row=3 → inserted, data shifted, formulas auto-adjusted; rowCount +1</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_rows(count=1, start_row=3)</code> → row 4 blank, Donut/Gizmo/Totals shifted to rows 5–7.</p>
 <hr />
 <h3 id="tc-w12-start_row0-inheritfrombeforefalse">TC-W12: start_row=0 — inheritFromBefore=False<a class="headerlink" href="#tc-w12-start_row0-inheritfrombeforefalse" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2358,6 +2381,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 row start_row=0 → inserted at top, same as no-position. inheritFromBefore request shape unit-level</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>start_row=0</code> → blank row 1, header to row 2: same result as no position. inheritFromBefore=False per code (structure.py:896). Product decision: start_row=0 and None behave identically.</p>
 <hr />
 <h3 id="tc-w13-start_row1-inheritfrombeforetrue">TC-W13: start_row=1 — inheritFromBefore=True<a class="headerlink" href="#tc-w13-start_row1-inheritfrombeforetrue" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2371,6 +2395,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 row start_row=1 → inserted at index 1; inheritFromBefore=True request shape unit-level (reply is {replies:[{}]})</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>start_row=1</code> → blank row 2. Live evidence of inheritance: new B2 has userEnteredFormat horizontalAlignment LEFT (from header B1), while the Widget row's B has RIGHT + number format, so the row inherited from the row above.</p>
 <hr />
 <h3 id="tc-w14-add-multiple-rows-at-once">TC-W14: Add multiple rows at once<a class="headerlink" href="#tc-w14-add-multiple-rows-at-once" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2384,6 +2409,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 5 rows start_row=1004 (end) → rowCount 1004→1009; existing data unshifted</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_rows(count=5, start_row=996)</code> (end) → rowCount 996→1001; data rows unchanged.</p>
 <hr />
 <h3 id="tc-w15-invalid-sheet-name">TC-W15: Invalid sheet name<a class="headerlink" href="#tc-w15-invalid-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2397,6 +2423,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add row to "NoSuchSheet" → {"error":"Sheet 'NoSuchSheet' not found"}, no API call, no exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"error": "Sheet 'NoSuchSheet' not found"}</code>, no exception.</p>
 <hr />
 <h3 id="tc-w16-large-count-value">TC-W16: Large count value<a class="headerlink" href="#tc-w16-large-count-value" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2410,6 +2437,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1000 rows → succeeds, no cap enforced, no API-limit error. Tool does not cap count</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_rows(count=1000, start_row=1001)</code> succeeded (rowCount → 2001), no cap, no API error. Inserted at the end rather than the default top to keep the copy usable. Product decision: tool doesn't cap count.</p>
 <hr />
 <h2 id="add_columns"><code>add_columns</code><a class="headerlink" href="#add_columns" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w17-add-column-at-beginning-no-position-specified">TC-W17: Add column at beginning (no position specified)<a class="headerlink" href="#tc-w17-add-column-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
@@ -2424,6 +2452,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 col, no position → blank col A; Product shifted to B</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_columns(Sales, 1)</code> → A blank, Product in B.</p>
 <hr />
 <h3 id="tc-w18-start_column0-inheritfrombeforefalse">TC-W18: start_column=0 — inheritFromBefore=False<a class="headerlink" href="#tc-w18-start_column0-inheritfrombeforefalse" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2437,6 +2466,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 col start_column=0 → inserted leftmost</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>start_column=0</code> → another blank leftmost column (Product moved to C). inheritFromBefore=False per code (structure.py:962).</p>
 <hr />
 <h3 id="tc-w19-start_column1-inheritfrombeforetrue">TC-W19: start_column=1 — inheritFromBefore=True<a class="headerlink" href="#tc-w19-start_column1-inheritfrombeforetrue" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2450,6 +2480,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 1 col start_column=1 → inserted after A; inheritFromBefore request shape unit-level</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — (after restoring) <code>start_column=1</code> → blank B, Q1 in C. Live evidence: new B2 has no number format/RIGHT alignment (C2 "100" has both) and B's width is 52 px like A's, so it inherited from the column before.</p>
 <hr />
 <h3 id="tc-w20-add-multiple-columns">TC-W20: Add multiple columns<a class="headerlink" href="#tc-w20-add-multiple-columns" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2463,6 +2494,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 add 3 cols start_column=2 → 3 blank cols inserted, data shifted right (Product ended at col G after W17–W20)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_columns(count=3, start_column=2)</code> → C, D, E blank; Q1/Q2/Q3 moved to F/G/H.</p>
 <hr />
 <h2 id="batch_update-raw-passthrough"><code>batch_update</code> (raw passthrough)<a class="headerlink" href="#batch_update-raw-passthrough" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w21-add-a-sheet-via-raw-request">TC-W21: Add a sheet via raw request<a class="headerlink" href="#tc-w21-add-a-sheet-via-raw-request" title="Permanent link">&para;</a></h3>
@@ -2477,6 +2509,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 raw addSheet "RawAdded" → created; reply has full properties (sheetId 914226533, title, index)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — raw addSheet "RawAdded" → reply carries full properties (sheetId 334791919, title, index 3, gridProperties); list_sheets includes it.</p>
 <hr />
 <h3 id="tc-w22-rename-a-sheet-via-raw-request">TC-W22: Rename a sheet via raw request<a class="headerlink" href="#tc-w22-rename-a-sheet-via-raw-request" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2490,6 +2523,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 raw updateSheetProperties rename Empty(sheetId 1225372232)→RawRenamed; list_sheets reflects it</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — raw updateSheetProperties (sheetId 547522895, fields title) Empty → RawRenamed; list_sheets right after shows "RawRenamed" (structure cache invalidated).</p>
 <hr />
 <h3 id="tc-w23-insert-dimension-via-raw-request">TC-W23: Insert dimension via raw request<a class="headerlink" href="#tc-w23-insert-dimension-via-raw-request" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2503,6 +2537,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 raw insertDimension 2 ROWS at index 1 in Sales → replies [{}]; data shifted down</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — raw insertDimension ROWS 1–3 → rows 2–3 blank, Widget moved to row 4. Rows removed again afterwards.</p>
 <hr />
 <h3 id="tc-w24-delete-dimension-structure-cache-invalidated-destructive">TC-W24: Delete dimension — structure cache invalidated ⚠️ destructive<a class="headerlink" href="#tc-w24-delete-dimension-structure-cache-invalidated-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2517,6 +2552,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 raw deleteDimension row 7 (ROWS 6:7) → replies [{}]; subsequent list_sheets returns current state (no stale cache)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — After a warm summary (row 7 = CacheTest), raw deleteDimension ROWS 6–7 → replies [{}]; list_sheets returned the current sheet list and the next summary no longer had CacheTest (row 7 now "hello/world"), so the data cache was invalidated too. Cache-call confirmation inferred from fresh reads; server log not inspected.</p>
 <hr />
 <h3 id="tc-w25-empty-requests-list">TC-W25: Empty requests list<a class="headerlink" href="#tc-w25-empty-requests-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2530,6 +2566,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 requests=[] → {"error":"requests list cannot be empty"}, no API call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"error": "requests list cannot be empty"}</code>.</p>
 <hr />
 <h3 id="tc-w26-non-dict-item-in-requests">TC-W26: Non-dict item in requests<a class="headerlink" href="#tc-w26-non-dict-item-in-requests" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2543,6 +2580,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 requests=["notadict"] → MCP pydantic schema validation error ("Input should be a valid dictionary"); not forwarded to API. Caught at schema layer, not tool body</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>requests=["notadict"]</code> refused by the MCP schema layer ("Input should be a valid dictionary"); not forwarded to the API. (A tool error rather than an <code>error</code> field, same as prior passes.)</p>
 <hr />
 <h3 id="tc-w27-invalid-request-structure">TC-W27: Invalid request structure<a class="headerlink" href="#tc-w27-invalid-request-structure" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2556,6 +2594,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 requests=[{"unknownKey":{}}] → HttpError 400 from Sheets API "Unknown name 'unknownKey'"; propagates, no server crash</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>[{"unknownKey": {}}]</code> → Sheets API HttpError 400 <code>Unknown name "unknownKey" at 'requests[0]': Cannot find field.</code> propagated as a tool error; server kept serving. Note: unlike the #757 tools in data.py, <code>batch_update</code> raises the HttpError rather than returning <code>{"error": ...}</code>; the case's checks accept that.</p>
 <hr />
 <h3 id="tc-w28-both-caches-marked-dirty">TC-W28: Both caches marked dirty<a class="headerlink" href="#tc-w28-both-caches-marked-dirty" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2570,6 +2609,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 raw addSheet "CacheCheck" then list_sheets includes it AND summary reflects it — both structure + data caches invalidated</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — raw addSheet "CacheCheck", then list_sheets includes CacheCheck and the summary lists a CacheCheck sheet (both caches were warm beforehand).</p>
 <hr />
 <h2 id="clear_values"><code>clear_values</code><a class="headerlink" href="#clear_values" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w29-clear-a-specific-range-destructive">TC-W29: Clear a specific range ⚠️ destructive<a class="headerlink" href="#tc-w29-clear-a-specific-range-destructive" title="Permanent link">&para;</a></h3>
@@ -2587,6 +2627,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 clear A1:C5 of Sales → A1:C5 empty; col D + row 6 untouched; B6/C6 SUM formulas recalc to 0, D6 still 705</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — Before: B2 = 100 with numberFormat NUMBER "0" + RIGHT alignment. <code>clear_values(Sales, A1:C5)</code> → clearedRange "Sales!A1:C5", no error. After: A1:C5 empty, column D and row 6 intact (B6/C6 SUMs now 0, D6 705); B2 keeps numberFormat "0" and RIGHT alignment.</p>
 <hr />
 <h3 id="tc-w30-clear-entire-sheet-destructive">TC-W30: Clear entire sheet ⚠️ destructive<a class="headerlink" href="#tc-w30-clear-entire-sheet-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2602,6 +2643,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 Full-sheet clear of 'Notes &amp; Misc' via explicit range A1:Z1000 (no-range form blocked by Claude Code's local auto-mode classifier — harness gate, not the MCP tool). clearedRange returned, no error, formatting preserved</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>clear_values("Notes &amp; Misc")</code> with no range → clearedRange "'Notes &amp; Misc'!A1:Z1000", no error; sheet now has no values. The sheet and its grid/column widths remain (not deleted); it had no explicit cell formatting to preserve (compared against the untouched charts copy), so format preservation rests on TC-W29.</p>
 <hr />
 <h3 id="tc-w31-clear-values-sheet-name-with-spaces">TC-W31: Clear values — sheet name with spaces<a class="headerlink" href="#tc-w31-clear-values-sheet-name-with-spaces" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2616,6 +2658,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 clear B2:D4 of 'Notes &amp; Misc' → clearedRange "'Notes &amp; Misc'!B2:D4" (sheet name single-quoted correctly)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — clearedRange "'Notes &amp; Misc'!B2:D4" (quoted); "Setup complete" in B2 cleared, A2 kept.</p>
 <hr />
 <h3 id="tc-w32-clear-non-existent-range-api-behaviour">TC-W32: Clear non-existent range — API behaviour<a class="headerlink" href="#tc-w32-clear-non-existent-range-api-behaviour" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2629,6 +2672,7 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bounds accepted, no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"clearedRange": "Sales!Z100:Z200"}</code>, no error.</p>
 <hr />
 <h3 id="tc-w41-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W41: Malformed range returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w41-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>clear_values</code> had the same gap as TC-W05 — no local validation on the raw caller-supplied <code>range</code> string before handing it to <code>values().clear()</code>.</p>
@@ -2643,6 +2687,8 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>clear_values(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — clean <code>{"error": "&lt;HttpError 400 ... Unable to parse range ... BadRange ...&gt;"}</code>, not a raw exception; nothing cleared.</p>
+<p>--- sheets_charts.md (all on copy C; every created chart deleted with deleteEmbeddedObject, replies all [{}]) ---</p>
 
 
 

@@ -1374,6 +1374,7 @@ Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual n
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — "P12 style test" [88,103] styled HEADING_2 → <code>requests: 1</code>; re-fetch <code>namedStyleType: HEADING_2</code> with a headingId. Playwright: renders as a Heading 2 and appears in the outline (shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive">TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive<a class="headerlink" href="#tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
@@ -1392,6 +1393,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyle only).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [103,116] bold+italic+red → <code>requests: 1</code>; run <code>bold: true, italic: true</code>, paragraph still NORMAL_TEXT. Playwright: "P13 bold test" renders bold italic red (shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive">TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive<a class="headerlink" href="#tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1407,6 +1409,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [117,128] HEADING_3 + bold → <code>requests: 2</code>; re-fetch HEADING_3 and run <code>bold: true</code>.</p>
 <hr />
 <h3 id="tc-doc15-no-recognised-style-fields-returns-error">TC-DOC15: No recognised style fields returns error<a class="headerlink" href="#tc-doc15-no-recognised-style-fields-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1421,6 +1424,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 Range with no style fields -&gt; {"error":"no recognised style fields in any range"}.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — range [117,128] with no style fields → <code>{"error":"no recognised style fields in any range"}</code>.</p>
 <hr />
 <h2 id="style_doc_table_cells"><code>style_doc_table_cells</code><a class="headerlink" href="#style_doc_table_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc18-apply-grey-header-row-background-destructive">TC-DOC18: Apply grey header row background ⚠️ destructive<a class="headerlink" href="#tc-doc18-apply-grey-header-row-background-destructive" title="Permanent link">&para;</a></h3>
@@ -1440,6 +1444,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 grey background visible</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — 2×2 table, row 0 background 0.953 with column_span 2 → <code>requests: 1</code>. Playwright: header row grey across both cells; raw read shows both row-0 cells backgroundColor 0.953.</p>
 <hr />
 <h3 id="tc-doc19-apply-borders-and-padding-destructive">TC-DOC19: Apply borders and padding ⚠️ destructive<a class="headerlink" href="#tc-doc19-apply-borders-and-padding-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1457,6 +1462,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 borders visible on all 4 cells; padding not independently visible (empty cells) but no rendering issue</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — all 4 cells black 0.5pt SOLID + 3.6pt padding → <code>requests: 4</code>, no error. Raw read: every cell has all four borders at 0.5pt SOLID and 3.6pt padding (untouched tables show 5pt). Playwright: thin black borders visible.</p>
 <hr />
 <h3 id="tc-doc20-empty-cells-list-returns-error">TC-DOC20: Empty cells list returns error<a class="headerlink" href="#tc-doc20-empty-cells-list-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1471,6 +1477,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 Empty cells list -&gt; {"error":"cells list is empty"}.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — <code>cells=[]</code> → <code>{"error":"cells list is empty"}</code>.</p>
 <hr />
 <h3 id="tc-doc21-cell-with-no-style-fields-is-skipped">TC-DOC21: Cell with no style fields is skipped<a class="headerlink" href="#tc-doc21-cell-with-no-style-fields-is-skipped" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table; pass one valid cell and one cell with no style fields</p>
@@ -1487,6 +1494,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 One styled cell + one no-style cell; requests:1 (no-style cell skipped).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [0,0] background red + [0,1] with no fields → <code>requests: 1</code>. Raw read: only [0,0] has a background; Playwright shows one red cell.</p>
 <hr />
 <h3 id="tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive">TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive<a class="headerlink" href="#tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_table_cells</code> was fixed (removed top-level <code>tableStartLocation</code> that conflicted with the <code>tableRange</code> oneof) but the fix was <strong>never re-tested live</strong>. This is the confirmation test.</p>
@@ -1507,6 +1515,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 light blue background visible, distinct from TC-DOC18's grey</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [0,0] background 0.8/0.9/1.0 → <code>requests: 1</code>, no oneof 400. Playwright: cell [0,0] light blue, clearly distinct from TC-DOC18's grey.</p>
 <hr />
 <h2 id="get_doc_theme-get_doc_named_styles-apply_theme"><code>get_doc_theme</code> / <code>get_doc_named_styles</code> / <code>apply_theme</code><a class="headerlink" href="#get_doc_theme-get_doc_named_styles-apply_theme" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui">TC-DOC75: <code>get_doc_named_styles</code> reads named style defaults set via the Docs UI<a class="headerlink" href="#tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" title="Permanent link">&para;</a></h3>
@@ -1524,6 +1533,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 get_doc_named_styles returned Google default entries (9 keys), no error key — expected for standard doc.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Read-only on the fixture doc: returned 9 entries (NORMAL_TEXT Arial 11, HEADING_1–6, TITLE, SUBTITLE at Google defaults), no <code>error</code> key.</p>
 <hr />
 <h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>
@@ -1541,6 +1551,7 @@ get_doc_theme on inherited-style doc returned {} — expected, no error.</p>
 <p><strong>Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS</strong> Inherited-style Markdown Doc returned <code>{}</code>, no error. After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) it returned both entries. The first paragraph of a style now decides, so a Doc with an unstyled first paragraph reports nothing for that style even if later ones are hand-styled.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Fixture doc (inherited styles) → <code>{}</code>, no error. On a doc after <code>apply_theme overwrite=True</code> (TC-DOC56's doc) it returned <code>{"HEADING_1":{"font_family":"Georgia"},"NORMAL_TEXT":{"font_family":"Verdana"}}</code>.</p>
 <hr />
 <h3 id="tc-doc53-apply_theme-updates-named-style-definitions-destructive">TC-DOC53: <code>apply_theme</code> updates named style definitions ⚠️ destructive<a class="headerlink" href="#tc-doc53-apply_theme-updates-named-style-definitions-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> Default mode (<code>overwrite=False</code>) emits <code>updateNamedStyle</code> requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use <code>overwrite=True</code> to also apply directly to all existing paragraphs.</p>
@@ -1557,6 +1568,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 apply_theme HEADING_1+NORMAL_TEXT -&gt; {docId, requests:2} = key count; no error.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc "QA-orn-D theme53" (h1 + p); theme HEADING_1 + NORMAL_TEXT → <code>{"docId", "requests": 2}</code> = key count, no error.</p>
+<p><strong>Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on <code>kai-sa</code></strong> — On a fixture copy, the HEADING_1 + NORMAL_TEXT theme returned <code>requests: 2</code>, equal to the key count, with no error; a raw read shows NORMAL_TEXT Verdana/11 and HEADING_1 Georgia/22.</p>
 <hr />
 <h3 id="tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive">TC-DOC54: <code>apply_theme</code> with <code>overwrite=True</code> also patches existing paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1575,6 +1588,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 Georgia 22pt heading / Verdana body confirmed both visually and via toolbar readout</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc "QA-orn-D theme54": wrote <code>&lt;h1&gt;Heading One&lt;/h1&gt;&lt;p&gt;Normal body text.&lt;/p&gt;</code>, applied the theme with overwrite=True → <code>requests: 5</code> (&gt; 2 keys), no error. Raw read: heading run Georgia, body runs Verdana. Playwright: heading shows Georgia/22 in the toolbar; body renders in Verdana (shot tc-doc54).</p>
+<p><strong>Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on <code>kai-sa</code></strong> — With <code>overwrite=True</code> the theme returned <code>requests: 5</code>, no error. The heading run reads Georgia and the body run Verdana; on screen the toolbar shows Georgia/22 and the body renders in Verdana.</p>
 <hr />
 <h3 id="tc-doc55-apply_theme-with-table-styling-destructive">TC-DOC55: <code>apply_theme</code> with table styling ⚠️ destructive<a class="headerlink" href="#tc-doc55-apply_theme-with-table-styling-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
@@ -1592,6 +1607,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 grey header row, black borders, visible padding</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc with a 2-row table; table theme → <code>requests: 2</code>, no error. Raw read: all cells 0.5pt SOLID black borders and 3.6pt padding, row 0 background 0.953. Playwright: thin black borders, grey header row (shot tc-doc55).</p>
+<p><strong>Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on <code>kai-sa</code></strong> — <code>requests: 2</code>, no error; every cell has 0.5pt solid black borders and 3.6pt padding, and the header row is grey, in the raw read and on screen. Extra #1427 check: a table-only theme kept the paragraph gaps on both sides of the table; a later <code>apply_theme({"NORMAL_TEXT": {"space_below": 4}})</code> cleared the gap below the paragraph before the table and kept the gap above the paragraph after it.</p>
 <hr />
 <h3 id="tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive">TC-DOC56: <code>get_doc_theme</code> → <code>apply_theme</code> round-trip on an AI-generated doc ⚠️ destructive<a class="headerlink" href="#tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, <code>get_doc_theme</code> returns <code>{}</code> and <code>apply_theme</code> with an empty theme returns an error.</p>
@@ -1609,6 +1626,8 @@ round-tripped Georgia/Roboto fonts render distinctly</p>
 <p><strong>Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ✅ PASS</strong> <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>; applying it back with <code>overwrite=True</code> returned <code>requests &gt; 0</code> and no error. Not checked on screen.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — On TC-DOC54's doc (explicit Georgia/Verdana run fonts): <code>get_doc_theme</code> → <code>{"HEADING_1":{"font_family":"Georgia"},"NORMAL_TEXT":{"font_family":"Verdana"}}</code>; applying it back with overwrite=True → <code>requests: 5</code>, no error in either.</p>
+<p><strong>Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on <code>kai-sa</code></strong> — <code>get_doc_theme</code> returned Georgia/Verdana; applying it back with <code>overwrite=True</code> returned <code>requests: 5</code>; neither call errored.</p>
 <hr />
 <h2 id="style_doc_table_cells-apply_theme-per-edge-table-border-override-issue-403"><code>style_doc_table_cells</code> / <code>apply_theme</code> — per-edge table border override (issue #403)<a class="headerlink" href="#style_doc_table_cells-apply_theme-per-edge-table-border-override-issue-403" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive">TC-DOC146: <code>style_doc_table_cells</code> per-edge border override — signature-line (bottom-only border) ⚠️ destructive<a class="headerlink" href="#tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive" title="Permanent link">&para;</a></h3>
@@ -1631,6 +1650,7 @@ style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the per-edge border wasn't checked by any means.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Black 1pt equals the default border, so the API omits it; verified with a non-default red 1.5pt border. TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — 2×1 table, [0,0] <code>border_bottom</code> red 1.5 → <code>requests: 1</code>, no error. Raw read: [0,0] has <code>borderBottom</code> red, 1.5pt SOLID, with no borderTop/Left/Right ([1,0] reports the same shared edge as its <code>borderTop</code>). Playwright: red line between the two rows.</p>
 <hr />
 <h3 id="tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive">TC-DOC147: <code>apply_theme</code> table styling with per-edge border override ⚠️ destructive<a class="headerlink" href="#tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> #403 — <code>apply_theme</code>'s <code>table</code> key had the same uniform-border-only limitation as <code>style_doc_table_cells</code>. Confirms <code>border_top</code>/<code>border_right</code>/<code>border_bottom</code>/<code>border_left</code> overrides on the theme's table styling, combined with the existing uniform <code>border_width</code> for the untouched edges.</p>
@@ -1650,6 +1670,8 @@ Black 1pt equals the default border, so the API omits it; verified with a non-de
 apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -&gt; {docId, requests:3}; no error. Also verified {"border_bottom":null} -&gt; clean {"error":...}, no raise. Raw struct read unavailable via MCP.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc with a 2×2 table; the exact theme → <code>requests: 2</code>, no error. Raw read: row 0 all edges 0.5pt; row 1 top/left/right 0.5pt and borderBottom 2pt. Black reads back as <code>{}</code>, so I repeated it with uniform color blue: every edge, including the 2pt last-row bottom, carried blue (inherited). Playwright shows the thick blue bottom edge (shot tc-doc147, blue probe state).</p>
+<p><strong>Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on <code>kai-sa</code></strong> — <code>requests: 2</code>, no error; the last row's bottom border is 2pt and every other edge 0.5pt, inheriting the uniform colour (confirmed with a blue probe, since black reads back as <code>{}</code>).</p>
 <hr />
 <h2 id="style_doc_range-additional-coverage"><code>style_doc_range</code> — additional coverage<a class="headerlink" href="#style_doc_range-additional-coverage" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc28-apply-strikethrough-destructive">TC-DOC28: Apply strikethrough ⚠️ destructive<a class="headerlink" href="#tc-doc28-apply-strikethrough-destructive" title="Permanent link">&para;</a></h3>
@@ -1667,6 +1689,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [129,144] strikethrough → <code>requests: 1</code>; run <code>strikethrough: true</code> (also visibly struck through in shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc29-apply-font_size-destructive">TC-DOC29: Apply font_size ⚠️ destructive<a class="headerlink" href="#tc-doc29-apply-font_size-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph; note its range</p>
@@ -1684,6 +1707,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [145,158] font_size 18 → <code>requests: 1</code>; run <code>font_size: 18</code>. Playwright: "P29 size test" is visibly larger than the body text (shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc30-apply-link_url-destructive">TC-DOC30: Apply link_url ⚠️ destructive<a class="headerlink" href="#tc-doc30-apply-link_url-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph 'Visit example\n'; note the range covering 'example'</p>
@@ -1703,6 +1727,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 link_url https://example.com on "example" [7,14]; requests:1; run split — "Visit "(null), "example"(link_url set, underline:true auto), "\n"(null).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — "example" [165,172] linked → <code>requests: 1</code>; runs split "Visit "(null) / "example"(https://example.com, underline auto-added) / "\n"(null). Playwright: blue underlined hyperlink (shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive">TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive<a class="headerlink" href="#tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_range</code> was never called live during initial testing. This is the first live verification.</p>
@@ -1724,6 +1749,7 @@ style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test h
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
 <code>kai-sa</code>: On the fresh doc: inserted "Style-test heading\n" at [1,20], then <code>style_doc_range</code> HEADING_1 returned <code>requests: 1</code>. <code>get_doc_structure</code>: HEADING_1 (headingId set), text unchanged. Cleanup done (restyled NORMAL_TEXT, deleted).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — "Style-test heading" [187,206] HEADING_1 → <code>requests: 1</code>; re-fetch HEADING_1 with headingId, text unchanged.</p>
 <hr />
 <h3 id="tc-doc24-style_doc_range-text-styles-round-trip-destructive">TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive<a class="headerlink" href="#tc-doc24-style_doc_range-text-styles-round-trip-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify bold/italic/underline are readable back via get_doc_structure runs.</p>
@@ -1745,6 +1771,7 @@ style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType 
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
 <code>kai-sa</code>: Inserted "Bold-italic test\n" at [1,18], then <code>style_doc_range([1,17], bold, italic)</code> returned <code>requests: 1</code>. The run reads <code>bold: true, italic: true</code>, and namedStyleType stayed NORMAL_TEXT. Paragraph deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — [206,222] bold+italic → <code>requests: 1</code>; run <code>bold: true, italic: true</code>; namedStyleType stayed NORMAL_TEXT.</p>
 <hr />
 <h3 id="tc-doc230-font_family-sets-the-font-through-style_doc_range-and-insert_softbreak_paragraph-720-destructive">TC-DOC230: <code>font_family</code> sets the font through <code>style_doc_range</code> and <code>insert_softbreak_paragraph</code> (#720) ⚠️ destructive<a class="headerlink" href="#tc-doc230-font_family-sets-the-font-through-style_doc_range-and-insert_softbreak_paragraph-720-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> the first live check of <code>font_family</code> (#720, PR #1026). Both tools build run styles through the shared <code>_text_style_and_fields</code>, so both take the field. <code>get_doc_structure</code> doesn't report a run's font, so the font box in the Docs toolbar is the check.</p>
@@ -1763,6 +1790,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 <p><strong>Cleanup:</strong> <code>delete_file</code> the doc.</p>
 <p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
 <code>kai-sa</code>: Step 1 returned <code>requests: 3</code>, no error. Step 2 returned line_ranges [18,26] and [27,35], no error. Playwright, reading the toolbar after clicking into each word: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial. <code>get_doc_as_markdown</code> gives "Alpha `Beta` <em>Gamma</em>\n\nLine one<br>Line two", so only Beta is inline code. Structure shows "Line one\vLine two" as one paragraph [18,36]. Screenshot <code>2026-10-19-tc-doc230.png</code>. Doc trashed. Side note: <code>insert_softbreak_paragraph</code>'s docstring still doesn't list <code>font_family</code> (tracked, #1037).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Setup as written (doc in run folder). Step 1 → <code>requests: 3</code>, no error; step 2 → line_ranges [18,26] and [27,35], no error. Playwright, mouse-clicking into each word and reading the toolbar: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial, shown on adjacent lines with no paragraph gap (shot tc-doc230). Raw read: "Line one\vLine two" is one paragraph. <code>get_doc_as_markdown</code> gives "Alpha `Beta` <em>Gamma</em>\n\nLine one<br>Line two", so only Beta is inline code. (Keyboard ArrowRight didn't move the Docs cursor in the shared browser; mouse clicks did.)</p>
 <h3 id="tc-doc238-font_family-keeps-the-ranges-other-text-styles-and-a-call-without-it-keeps-the-font-720-destructive">TC-DOC238: <code>font_family</code> keeps the range's other text styles, and a call without it keeps the font (#720) ⚠️ destructive<a class="headerlink" href="#tc-doc238-font_family-keeps-the-ranges-other-text-styles-and-a-call-without-it-keeps-the-font-720-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> TC-DOC230 checks that the font lands. This case checks what a <code>font_family</code> call leaves alone: bold already on the range, the other fields in the same call, and an existing font when a later call omits <code>font_family</code>. <code>get_doc_structure</code> doesn't report a run's font, so the checks read the raw <code>documents().get()</code> <code>textStyle</code>.</p>
 <p><strong>Setup:</strong> <code>create_doc(title="QA-TC-DOC238", folder_id={FOLDER_ID})</code>, then <code>insert_doc_text(doc_id=&lt;it&gt;, insertions=[{"index": 1, "text": "Alpha Beta Gamma Delta\n"}])</code>. "Alpha" is [1, 6), "Beta" [7, 11), "Gamma" [12, 17), "Delta" [18, 23).</p>
@@ -1779,6 +1807,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 <p><strong>Cleanup:</strong> <code>delete_file</code> the doc.</p>
 <p><strong>Result (2026-10-27) ❌ FAIL — Beta loses its bold (#1273)</strong>
 Run against PR #1026's merge in an isolated service-account sandbox on a Shared Drive. Steps 1 and 2 returned <code>requests: 2</code> and <code>requests: 4</code>, no error. Raw read: Alpha <code>{"weightedFontFamily": {"fontFamily": "Roboto Mono", "weight": 400}}</code>, with plain spaces around it. Gamma <code>bold: true</code>, <code>fontSize</code> 18pt, Georgia. Delta <code>italic: true</code>, Courier New. <strong>Beta</strong> is <code>{"weightedFontFamily": {"fontFamily": "Georgia", "weight": 400}}</code> with no <code>bold</code>. Re-bolding Beta and then sending <code>font_family: "Courier New"</code> alone cleared it again. The request's field mask is only <code>weightedFontFamily</code>, so the Docs API clears <code>bold</code> on its own. Docs UI rendering wasn't checked here (TC-DOC230 covers the font on screen). Doc trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Step 1 → <code>requests: 2</code>; step 2 → <strong><code>requests: 5</code></strong> (the case says 4). The fifth is the #1273 fix's bold-restore <code>updateTextStyle</code> on Beta (<code>style.py</code> ~L541, PR #1279), so the case's count is stale wording, not a defect. Raw read: Alpha Roboto Mono, with plain spaces on each side; Beta Georgia <strong>and <code>bold: true</code></strong> (the 2026-10-27 FAIL is fixed; #1273 closed 2026-10-31); Gamma bold + 18pt + Georgia; Delta italic + Courier New.</p>
 <hr />
 <h2 id="style_doc_range-link_url-null-now-actually-clears-a-link-issue-408"><code>style_doc_range</code>: <code>link_url: null</code> now actually clears a link (issue #408)<a class="headerlink" href="#style_doc_range-link_url-null-now-actually-clears-a-link-issue-408" title="Permanent link">&para;</a></h2>
 <p><strong>Background:</strong> TC-DOC30 above covers <em>setting</em> a link. Clearing one (<code>link_url: null</code>, documented in the tool's own docstring as the way to do it) always failed with <code>HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."</code> instead. <code>_text_style_and_fields</code> (<code>style.py</code>, shared with <code>insert_softbreak_paragraph</code> in <code>editing.py</code>) built the clearing request as <code>textStyle.link = {}</code> — the Docs API rejects an empty <code>Link</code> object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the <code>link</code> key from <code>textStyle</code> entirely while still naming <code>"link"</code> in the <code>fields</code> mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own <code>if text_style: requests.append(...)</code> guard also had to change to <code>if fields:</code>: a link-clear-only call now legitimately produces an empty <code>text_style</code> dict alongside a non-empty <code>fields</code> list (<code>["link"]</code>), and the old guard would have silently dropped the request rather than sending it.</p>
@@ -1802,6 +1831,7 @@ link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Clearing the link also cleared the auto-added underline; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Second "Visit example": linked [179,186], then <code>link_url: null</code> → <code>requests: 1</code>, no HttpError. Re-fetch: "example" run <code>link_url: null</code>, <code>underline: null</code>. Playwright: second line renders as plain black text, not a link (shot tc-doc12).</p>
 <hr />
 <h3 id="tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper">TC-DOC140: <code>insert_softbreak_paragraph</code>'s <code>link_url: null</code> also clears rather than erroring (shared helper)<a class="headerlink" href="#tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> none — the line is inserted fresh by the call under test.</p>
@@ -1819,6 +1849,8 @@ Clearing the link also cleared the auto-added underline; TC wording stale.</p>
 insert_softbreak_paragraph index 1, line link_url:null; no error; line_ranges 1 entry; inserted run link_url:null.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — index 1, one line, link_url null → no error, <code>line_ranges: [{1,20}]</code>; the run's <code>link_url: null</code>. As in the 2026-07-27 note, the text joined the "Test Document" paragraph and the default NORMAL_TEXT restyled it (documented behaviour, throwaway copy).</p>
+<p>Table cases DOC18/19/20/21/25/146 ran on one fresh doc "QA-orn-D tables" (1wN9rY...), one table per case, top-to-bottom 18, 19, 21, 25, 146; shared screenshot <code>shardD-2026-11-08-tc-doc18.png</code>, plus a raw <code>documents().get()</code> read (scratch script <code>tmp/D/rawget.py</code>, run from Aziz's worktree with its own token, read-only).</p>
 <hr />
 <h2 id="paragraph-bullet-inspection-and-repair-get_doc_structures-bullet-field-create_paragraph_bulletsdelete_paragraph_bullets-issue-334">Paragraph bullet inspection and repair — <code>get_doc_structure</code>'s <code>bullet</code> field, <code>create_paragraph_bullets</code>/<code>delete_paragraph_bullets</code> (issue #334)<a class="headerlink" href="#paragraph-bullet-inspection-and-repair-get_doc_structures-bullet-field-create_paragraph_bulletsdelete_paragraph_bullets-issue-334" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc155-get_doc_structure-surfaces-bulletlistidbulletnestinglevel-for-list-paragraphs-destructive">TC-DOC155: <code>get_doc_structure</code> surfaces <code>bullet.listId</code>/<code>bullet.nestingLevel</code> for list paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc155-get_doc_structure-surfaces-bulletlistidbulletnestinglevel-for-list-paragraphs-destructive" title="Permanent link">&para;</a></h3>
@@ -1839,6 +1871,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 write md (4-space nested); both list items bullet non-null, share listId kix.io6il1p3p40e; "Top level" nestingLevel 0, "Nested" nestingLevel 1.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc, <code>write_doc_content</code> with the 4-space Markdown: both items share listId <code>kix.m8npadf4rly</code>; "Top level item" nestingLevel 0, "Nested item" nestingLevel 1.</p>
 <hr />
 <h3 id="tc-doc156-create_paragraph_bullets-repairs-a-flat-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334-destructive">TC-DOC156: <code>create_paragraph_bullets</code> repairs a flat list by promoting specific paragraphs to a deeper nesting level (#334) ⚠️ destructive<a class="headerlink" href="#tc-doc156-create_paragraph_bullets-repairs-a-flat-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> issue #334: <code>create_doc</code>'s Markdown conversion used to flatten an indented sub-list under a numbered item into the same single-level list, and there was no way to fix that after the fact short of delete-and-retype. Since #1228 (markdown-it, plan rule D1) that sub-list nests correctly, so #334's own repro no longer produces a flat list. This case builds the flat list directly instead, writing the three settings as top-level numbered items, and exercises the repair: <code>get_doc_structure</code>'s <code>bullet</code> field to see the flat list, then <code>create_paragraph_bullets</code> to nest the settings.</p>
@@ -1864,6 +1897,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 1./2./3. + nested a./b./c., "Click Restore" still "3." — #334 fix holds</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc. First structure: all 6 items share one listId at level 0. <code>create_paragraph_bullets([45,99] nesting 1)</code> → <code>requests: 6</code>, no error. Second structure: Select/Configure/Click Restore at 0; the three settings at 1; one shared listId; text unchanged, no tab leaked. Playwright: 1./2. with a./b./c. nested under Configure, and "Click Restore" is 3. (shot tc-doc156).</p>
 <hr />
 <h3 id="tc-doc157-delete_paragraph_bullets-removes-list-membership-from-a-range-leaving-paragraph-text-untouched-destructive">TC-DOC157: <code>delete_paragraph_bullets</code> removes list membership from a range, leaving paragraph text untouched ⚠️ destructive<a class="headerlink" href="#tc-doc157-delete_paragraph_bullets-removes-list-membership-from-a-range-leaving-paragraph-text-untouched-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> none — list created fresh by the call under test.</p>
@@ -1884,6 +1918,7 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 3-item list; delete_paragraph_bullets "Second item" [12,24] -&gt; requests:1; First/Third keep bullet, Second bullet:null, Second text "Second item\n" unchanged.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc. Deleting [12,24] → <code>requests: 1</code>. First/Third keep listId <code>kix.f9edw1oie4w</code>; Second <code>bullet: null</code>, text "Second item\n" unchanged.</p>
 <hr />
 <h3 id="tc-doc191-create_paragraph_bullets-an-all-nesting_level1-run-renders-the-correct-nested-glyph-not-the-disc-713-destructive">TC-DOC191: <code>create_paragraph_bullets</code> — an all-<code>nesting_level&gt;=1</code> run renders the correct nested glyph, not the disc (#713) ⚠️ destructive<a class="headerlink" href="#tc-doc191-create_paragraph_bullets-an-all-nesting_level1-run-renders-the-correct-nested-glyph-not-the-disc-713-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> issue #713 — <code>create_paragraph_bullets</code> (<code>style.py</code>) has the same collapse-to-<code>nestingLevel 0</code> bug that <code>emitter.py</code> had under #439 (fixed in PR #711, covered by <code>docs_content.md</code> TC-DOC190). <code>createParagraphBullets</code> assigns each covered paragraph <code>nestingLevel = (its leading-tab count) − (the minimum leading-tab count across the whole call's range)</code>, so a formed run in which every paragraph sits at <code>nesting_level &gt;= 1</code> — no level-0 member to anchor the inference — collapsed entirely to <code>nestingLevel 0</code>: the per-level indent was bumped so it <em>looked</em> nested, but the rendered glyph was the depth-0 disc (●) instead of the depth-1 circle (○). Reachable either by passing only <code>nesting_level &gt;= 1</code> ranges, or when the same-<code>listId</code> contiguous-neighbour expansion pulls in only paragraphs already at level &gt;= 1. Fixed by wrapping such a run with a throwaway 0-tab anchor paragraph (<code>insertText "\n"</code> at <code>run_start</code> → <code>createParagraphBullets</code> over the range extended by 1 → <code>deleteContentRange</code> the anchor), mirroring <code>emitter.py</code>'s #439 fix — the insert (+1) and delete (−1) cancel, so positions outside the run are unaffected.</p>
@@ -1909,6 +1944,7 @@ First <code>get_doc_structure</code>: "Alpha"(1-7)/"Beta"(7-12)/"Gamma"(12-18) s
 <p><strong>Cleanup:</strong> write fixture content back to the documented baseline (<code>docs/qa/setup.md</code>), NOT the Alpha/Beta/Gamma test content used above — an earlier version of this line told the next run to restore Alpha/Beta/Gamma itself, which would have permanently overwritten the real fixture baseline: <code>write_doc_content(doc_id={DOC_ID}, content='&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;')</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc. Alpha/Beta/Gamma started on one listId at level 0. <code>create_paragraph_bullets([1,18] nesting 1)</code> → <code>requests: 8</code>, no error (one more than the 7 recorded earlier, consistent with #1069's indent reset). After: all three on one new listId at nestingLevel 1, text/indices unchanged, no anchor left behind, trailing paragraph <code>bullet: null</code>. Raw read: nestingLevels[1] glyph ○ vs [0] ●, and indents 72/54. Playwright: three ○ items at one indented level (shot tc-doc191).</p>
 <hr />
 <h3 id="tc-doc234-create_paragraph_bullets-sets-nesting_level-absolutely-on-already-listed-paragraphs-1069-destructive">TC-DOC234: <code>create_paragraph_bullets</code> sets <code>nesting_level</code> absolutely on already-listed paragraphs (#1069) ⚠️ destructive<a class="headerlink" href="#tc-doc234-create_paragraph_bullets-sets-nesting_level-absolutely-on-already-listed-paragraphs-1069-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> issue #1069. <code>deleteParagraphBullets</code> leaves a level-N item indented 36pt × N, and <code>createParagraphBullets</code> counts that leftover indent as depth on top of the tabs the tool inserts. So on a paragraph that was already a list item, the tool added the requested level to the current one: re-running the same 0/1/2 call gave 0/2/4, and a call naming one paragraph moved its untouched expanded neighbours too. Fixed by zeroing <code>indentStart</code>/<code>indentFirstLine</code> over each run after its <code>deleteParagraphBullets</code> and before the tab inserts, so the tabs alone set the level.</p>
@@ -1930,6 +1966,9 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 - Every <code>create_paragraph_bullets</code> call returns no error, and after each one all three paragraphs share one <code>listId</code>, with no leaked tab in any <code>text</code> field and no extra empty paragraph.</p>
 <p><strong>Cleanup:</strong> write fixture content back to the documented baseline (<code>docs/qa/setup.md</code>): <code>write_doc_content(doc_id={DOC_ID}, content='&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;')</code>.</p>
 <p><strong>Result (2026-10-24) ✅ PASS (PR #1216 round 1, head <code>5de64c4</code>, Sky)</strong> — Run on a throwaway doc (created via <code>create_doc</code>, trashed afterward) instead of the shared fixture, so no fixture cleanup was needed. All steps as written: the first numbered call gave 0/1/2 on one <code>listId</code>; the repeated call gave 0/1/2 (not 0/2/4); the Beta-only call gave 0/1/2 with Gamma kept at 2; flattening Gamma gave 0/1/1, and putting it back gave 0/1/2 (not 3). Every call returned 5 requests and no error. No tab leaked into any <code>text</code>, and no paragraph was added: the trailing empty paragraph came from the markdown write and was there before the first call. Extra probes: (a) an emitter-written 0/1/2 list (<code>- pa</code> / 4-space <code>- pb</code> / 8-space <code>- pc</code>), re-bulleting only <code>pb</code> at level 1, gave 0/1/2, and a raw <code>documents().get()</code> showed the preset indents 36/18, 72/54, 108/90, so the explicit 0pt reset doesn't survive the bullet. (b) <code>delete_paragraph_bullets</code> over the three left <code>pa</code> with no indent and <code>pb</code>/<code>pc</code> at 36/36 and 72/72, as the new docstring says. Then <code>create_paragraph_bullets</code> on <code>pb</code>@1 + <code>pc</code>@2 (the #713 anchor path, starting from leftover indent) gave 1/2, with the anchor removed (7 requests), and the same result again on a repeat. (c) A quoted list item (72/54 + <code>borderLeft</code>) came out at 36/18 with the border kept; that's the pre-existing #1090, not this PR. <code>get_doc_as_markdown</code> still printed the <code>&gt;</code>. Note for the next run: this markdown parser needs 4-space list nesting, and a 2-space nested item is written flat at level 0, quoted or not.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on <code>mcp-gee-sweet-ash</code></strong> — Throwaway doc. First numbered call → 0/1/2 on one listId; the repeat stays 0/1/2 (indents 36/72/108, not doubled); Beta-only → 0/1/2 with Gamma kept at 2; flattening Gamma → 0/1/1, back to 2 → 0/1/2. Every call returned <code>requests: 5</code> and no error, with one shared listId each time, no leaked tab and no extra paragraph. Intermediate states read through a raw <code>documents().get()</code>, the last two through <code>get_doc_structure</code>.</p>
+<hr />
+<p>Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with every doc in it. No case failed, so nothing was kept. The fixture doc was only read. Totals: 31 PASS, 0 FAIL, 0 PARTIAL, 0 SKIP.</p>
 <hr />
 
 

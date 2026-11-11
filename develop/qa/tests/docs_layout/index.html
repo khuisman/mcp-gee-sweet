@@ -1372,6 +1372,7 @@ create_header (no content) -&gt; {docId, headerId:"kix.4yrlc2k9cy3n"} non-empty;
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>create_header</code> (no content) → <code>{docId, headerId: "kix.q91epycxj9xf"}</code>, no error. An empty header draws nothing on the page, so the visual check was done two ways: double-clicking the top margin opened the "Header / Different first page / Options" bar (<code>2026-11-08-tc-doc68.png</code>), and DOC74's text inserted into that exact returned headerId renders in the page header (<code>2026-11-08-tc-doc74.png</code>), which shows the returned ID is the doc's rendered header.</p>
 <hr />
 <h3 id="tc-doc69-create-a-header-with-content-destructive">TC-DOC69: Create a header with content ⚠️ destructive<a class="headerlink" href="#tc-doc69-create-a-header-with-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1390,6 +1391,7 @@ create_header content "Confidential — Internal Only" -&gt; {docId, headerId} (
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — On a fresh copy (no header), <code>create_header(content="Confidential — Internal Only")</code> → <code>{docId, headerId: "kix.q3tykthh2fi"}</code>, no error/warning key. Screenshot <code>2026-11-08-tc-doc69.png</code> shows "Confidential — Internal Only" in the page header, em dash intact.</p>
 <hr />
 <h3 id="tc-doc70-create-a-default-page-footer-destructive">TC-DOC70: Create a default page footer ⚠️ destructive<a class="headerlink" href="#tc-doc70-create-a-default-page-footer-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1407,6 +1409,7 @@ create_footer (no content) -&gt; {docId, footerId:"kix.khcu7s4gsbju"} non-empty;
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>create_footer</code> (no content) → <code>{docId, footerId: "kix.rfo0h8lxe0ct"}</code>. Empty footer isn't drawn; double-clicking the bottom margin opened the Footer edit bar (DOM shows "Footer"/"Different first page"; the screenshot <code>2026-11-08-tc-doc70.png</code> caught the page after Docs scrolled, so it doesn't show the bar). To check it, I inserted "S3 footer probe" into the returned footerId with <code>insert_doc_text</code>, and it renders at the page bottom (<code>2026-11-08-tc-doc70-probe.png</code>).</p>
 <hr />
 <h3 id="tc-doc71-create-a-footer-with-content-destructive">TC-DOC71: Create a footer with content ⚠️ destructive<a class="headerlink" href="#tc-doc71-create-a-footer-with-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1424,6 +1427,7 @@ create_footer content "Page 1" -&gt; {docId, footerId}; no error/warning. Visual
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — On the fresh copy, <code>create_footer(content="Page 1")</code> → <code>{docId, footerId: "kix.1e3axnnat04v"}</code>, no warning. Screenshot <code>2026-11-08-tc-doc71.png</code> shows "Page 1" in the footer at the bottom of page 1.</p>
 <hr />
 <h3 id="tc-doc72-invalid-header_type-returns-error">TC-DOC72: Invalid header_type returns error<a class="headerlink" href="#tc-doc72-invalid-header_type-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1437,6 +1441,7 @@ Run 2 (sa) on a throwaway doc.</p>
 create_header header_type='INVALID' -&gt; {"error":"Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}; no API call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>create_header(header_type="INVALID")</code> → <code>{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}</code>.</p>
 <hr />
 <h3 id="tc-doc73-invalid-footer_type-returns-error">TC-DOC73: Invalid footer_type returns error<a class="headerlink" href="#tc-doc73-invalid-footer_type-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1450,6 +1455,7 @@ Run 2 (sa) on a throwaway doc.</p>
 create_footer footer_type='INVALID' -&gt; {"error":"Invalid footer_type 'INVALID'. Use DEFAULT or FIRST_PAGE_FOOTER"}; no API call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>create_footer(footer_type="INVALID")</code> → <code>{"error": "Invalid footer_type 'INVALID'. Use DEFAULT or FIRST_PAGE_FOOTER"}</code>.</p>
 <hr />
 <h3 id="tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive">TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive<a class="headerlink" href="#tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> call <code>create_header</code> first to get a <code>headerId</code></p>
@@ -1469,6 +1475,7 @@ insert_doc_text index 0, segment_id headerId -&gt; {docId, insertions:1}; no API
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>insert_doc_text([{index: 0, text: "Header text via insert_doc_text", segment_id: "kix.q91epycxj9xf"}])</code> (the DOC68 headerId) → <code>{docId, insertions: 1}</code>, no error. Screenshot <code>2026-11-08-tc-doc74.png</code> shows the text in the page header.</p>
 <hr />
 
 

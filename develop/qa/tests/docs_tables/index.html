@@ -1376,6 +1376,7 @@
 insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), tableEndIndex=18, rows:2, columns:3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty para at 1, table at 2.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — On my fixture copy, <code>insert_doc_table(index=1, rows=2, columns=3)</code> returned precedingParagraphIndex=1, tableStartIndex=2, tableEndIndex=18, rows 2, columns 3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty paragraph at 1 (inherits HEADING_1 from the paragraph it was split from, expected Docs behavior), table at 2. Screenshot <code>.playwright-mcp/S3/2026-11-08-tc-doc16.png</code> (URL-checked) shows a 2×3 table above "Test Document".</p>
 <hr />
 <h3 id="tc-doc17-cell-indices-usable-for-insert_doc_text-destructive">TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive<a class="headerlink" href="#tc-doc17-cell-indices-usable-for-insert_doc_text-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table (TC-DOC16); use the returned <code>cells[0].paragraphStartIndex</code></p>
@@ -1393,6 +1394,7 @@ Run 2 (sa) on a throwaway doc.</p>
 insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text "Cell content"; no index errors.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>insert_doc_text</code> at cells[0].paragraphStartIndex=5 → insertions 1; re-fetch cell [0,0] text "Cell content", other cells empty, no index error. Cleanup delete [1,30] succeeded.</p>
 <hr />
 <h2 id="insert_table_row-delete_table_row-insert_table_column-delete_table_column-146"><code>insert_table_row</code> / <code>delete_table_row</code> / <code>insert_table_column</code> / <code>delete_table_column</code> (#146)<a class="headerlink" href="#insert_table_row-delete_table_row-insert_table_column-delete_table_column-146" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc61-insert-a-row-below-an-existing-row-destructive">TC-DOC61: Insert a row below an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc61-insert-a-row-below-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
@@ -1412,6 +1414,7 @@ Run 2 (sa) on a throwaway doc.</p>
 insert_table_row row_index=0 insert_below=True on 2x2 -&gt; {docId, table_start_index:2, row_index:0}; re-fetch 3 rows.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 2×2 table at tableStartIndex 2; <code>insert_table_row(row_index=0)</code> → <code>{docId, table_start_index: 2, row_index: 0}</code>, no error. Re-fetch: rows 3. Screenshot <code>2026-11-08-tc-doc61.png</code> (URL-checked) shows a 3-row × 2-col table.</p>
 <hr />
 <h3 id="tc-doc62-insert-a-row-above-an-existing-row-destructive">TC-DOC62: Insert a row above an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc62-insert-a-row-above-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1430,6 +1433,7 @@ Run 2 (sa) on a throwaway doc.</p>
 insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — Fresh 2×2 with "orig0"/"orig1" in col 0; <code>insert_table_row(row_index=1, insert_below=False)</code> → no error. Re-fetch: 3 rows, row 0 "orig0", row 1 empty (new), row 2 "orig1". Screenshot <code>2026-11-08-tc-doc62.png</code> shows the empty row between orig0 and orig1.</p>
 <hr />
 <h3 id="tc-doc63-delete-a-row-destructive">TC-DOC63: Delete a row ⚠️ destructive<a class="headerlink" href="#tc-doc63-delete-a-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 3-row table; note its <code>tableStartIndex</code></p>
@@ -1448,6 +1452,7 @@ Run 2 (sa) on a throwaway doc.</p>
 delete_table_row row_index=1 on 3-row -&gt; {docId, table_start_index:2, row_index:1}; re-fetch 2 rows.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 3×2 table labeled r0/r1/r2; <code>delete_table_row(row_index=1)</code> → <code>{docId, table_start_index: 2, row_index: 1}</code>. Re-fetch: 2 rows, "r0" and "r2". Screenshot <code>2026-11-08-tc-doc63.png</code> shows r0/r2 only.</p>
 <hr />
 <h3 id="tc-doc64-insert-a-column-to-the-right-destructive">TC-DOC64: Insert a column to the right ⚠️ destructive<a class="headerlink" href="#tc-doc64-insert-a-column-to-the-right-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1466,6 +1471,7 @@ Run 2 (sa) on a throwaway doc.</p>
 insert_table_column column_index=0 insert_right=True on 2x2 -&gt; {docId, table_start_index:2, column_index:0}; re-fetch 3 columns.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 2×2 labeled c0/c1 in row 0; <code>insert_table_column(column_index=0)</code> → <code>{docId, table_start_index: 2, column_index: 0}</code>. Re-fetch: 3 columns, row 0 = c0, (new empty), c1. Screenshot <code>2026-11-08-tc-doc64.png</code> matches.</p>
 <hr />
 <h3 id="tc-doc65-insert-a-column-to-the-left-destructive">TC-DOC65: Insert a column to the left ⚠️ destructive<a class="headerlink" href="#tc-doc65-insert-a-column-to-the-left-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1483,6 +1489,7 @@ Run 2 (sa) on a throwaway doc.</p>
 insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 2×2 labeled c0/c1; <code>insert_table_column(column_index=1, insert_right=False)</code> → no error. Re-fetch: 3 columns, row 0 = c0, (new empty), c1. Screenshot <code>2026-11-08-tc-doc65.png</code> matches.</p>
 <hr />
 <h3 id="tc-doc66-delete-a-column-destructive">TC-DOC66: Delete a column ⚠️ destructive<a class="headerlink" href="#tc-doc66-delete-a-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×3 table; note its <code>tableStartIndex</code></p>
@@ -1501,6 +1508,7 @@ Run 2 (sa) on a throwaway doc.</p>
 delete_table_column column_index=1 on 2x3 -&gt; {docId, table_start_index:2, column_index:1}; re-fetch 2 columns.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 2×3 labeled c0/c1/c2; <code>delete_table_column(column_index=1)</code> → <code>{docId, table_start_index: 2, column_index: 1}</code>. Re-fetch: 2 columns, row 0 = c0, c2. Screenshot <code>2026-11-08-tc-doc66.png</code> matches.</p>
 <hr />
 <h3 id="tc-doc67-api-error-returned-gracefully-out-of-bounds-row">TC-DOC67: API error returned gracefully (out of bounds row)<a class="headerlink" href="#tc-doc67-api-error-returned-gracefully-out-of-bounds-row" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1516,6 +1524,7 @@ Run 2 (sa) on a throwaway doc.</p>
 delete_table_row row_index=99 -&gt; {"error":"<HttpError 400 ... row index 99 should be less than the total number of rows 2>"}; no exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — On a 2×2 table, <code>delete_table_row(row_index=99)</code> returned <code>{"error": "&lt;HttpError 400 ... deleteTableRow: The row index 99 should be less than the total number of rows 2.&gt;"}</code>; no exception.</p>
 <hr />
 <h2 id="merge_table_cells-150"><code>merge_table_cells</code> (#150)<a class="headerlink" href="#merge_table_cells-150" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive">TC-DOC91: Merge a horizontal range of cells (colspan) ⚠️ destructive<a class="headerlink" href="#tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive" title="Permanent link">&para;</a></h3>
@@ -1537,6 +1546,7 @@ merge_table_cells row0/col0 span 1x2 on 2x3 -&gt; response matches exactly; re-f
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (browser not signed in).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 2×3 table; <code>merge_table_cells(0,0,row_span=1,column_span=2)</code> → exactly <code>{docId, table_start_index: 2, row_index: 0, column_index: 0, row_span: 1, column_span: 2}</code>. Screenshot <code>2026-11-08-tc-doc91.png</code>: row 0's first two columns render as one wide cell, row 1 keeps three cells. Re-fetch still reports 3 physical cells in row 0 (indices 4/6/8).</p>
 <h3 id="tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive">TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive<a class="headerlink" href="#tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 3×2 table; note its <code>tableStartIndex</code></p>
 <p><strong>Prompt</strong>
@@ -1555,6 +1565,8 @@ merge_table_cells row0/col0 span 2x1 on 3x2 -&gt; response matches exactly. Visu
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — 3×2 table; <code>merge_table_cells(0,0,row_span=2,column_span=1)</code> → exactly <code>{..., row_span: 2, column_span: 1}</code>. Screenshot <code>2026-11-08-tc-doc92.png</code>: column 0 rows 0–1 render as one tall cell, column 1 keeps two separate cells, row 2 unaffected. Table deleted after.</p>
+<p>Layout cases ran on "S3 layout copy" (<copy doc id>: DOC68/70/74) and a second fixture copy "S3 layout content copy" (<copy doc id>: DOC69/71/72/73), so the content variants exercise the fresh-create path, not the "already exists" fallback.</p>
 <h3 id="tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds">TC-DOC93: API error returned gracefully (merge range exceeds table bounds)<a class="headerlink" href="#tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
 <p><strong>Prompt</strong></p>
@@ -1570,6 +1582,7 @@ Run 2 (sa) on a throwaway doc.</p>
 merge_table_cells span 1x99 -&gt; {"error":"<HttpError 400 ... table range extends outside the bounds of the table>"}; no exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (sa) on a throwaway doc.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — Same 2×2 table, <code>merge_table_cells(0,0,row_span=1,column_span=99)</code> returned <code>{"error": "&lt;HttpError 400 ... mergeTableCells: The table range extends outside the bounds of the table.&gt;"}</code>; no exception. Table deleted afterwards. (Run before DOC91/92 to reuse the 2×2.)</p>
 <hr />
 
 

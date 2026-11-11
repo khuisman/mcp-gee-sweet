@@ -1624,6 +1624,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 <code>kai-sa</code>: <code>add_chart(COLUMN, A1:D5, "Sales by Quarter")</code> returned chartId 516837778 with <code>basicChart.chartType</code> COLUMN. Playwright screenshot <code>2026-10-19-tc-c01.png</code> shows the column chart on Sales (Q1/Q2/Q3 grouped by product). Chart then deleted with <code>deleteEmbeddedObject</code>.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>add_chart(COLUMN, A1:D5)</code> returned a chartId with <code>chartType</code> COLUMN; chart deleted. API checks only (no Playwright in this re-check).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>add_chart(COLUMN, A1:D5, "Sales by Quarter")</code> → chartId 1097585336, basicChart.chartType COLUMN. Playwright (copy C URL checked) <code>.playwright-mcp/S4/2026-11-08-tc-c01.png</code>: "Sales by Quarter" column chart on Sales, Q1/Q2/Q3 grouped by Widget/Gadget/Donut/Gizmo. Deleted.</p>
 <hr />
 <h3 id="tc-c02-bar-chart">TC-C02: BAR chart<a class="headerlink" href="#tc-c02-bar-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1639,6 +1640,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(BAR, A1:D5) → chartId 82345835, chartType BAR. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — chartId 460565049, chartType BAR. Deleted.</p>
 <hr />
 <h3 id="tc-c03-line-chart">TC-C03: LINE chart<a class="headerlink" href="#tc-c03-line-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1653,6 +1655,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(LINE, A1:D5) → chartId 1210688378, chartType LINE. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — chartId 758338615, chartType LINE. Deleted.</p>
 <hr />
 <h3 id="tc-c04-area-chart">TC-C04: AREA chart<a class="headerlink" href="#tc-c04-area-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1667,6 +1670,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(AREA, A1:D5) → chartId 1920190609, chartType AREA. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — chartId 437275636, chartType AREA. Deleted.</p>
 <hr />
 <h3 id="tc-c05-pie-chart">TC-C05: PIE chart<a class="headerlink" href="#tc-c05-pie-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1682,6 +1686,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(PIE, A1:B5) → chartId 132308391, response uses "pieChart" key (dedicated pie code path, not basicChart w/ axis/domain splitting). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>PIE, A1:B5</code> → chartId 937917322, spec uses <code>pieChart</code> (single domain col 0, single series col 1; no axis). Deleted.</p>
 <hr />
 <h3 id="tc-c06-scatter-chart">TC-C06: SCATTER chart<a class="headerlink" href="#tc-c06-scatter-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1696,6 +1701,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(SCATTER, B1:C5) → chartId 1210711819, chartType SCATTER. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>SCATTER, B1:C5</code> → chartId 1968051945, chartType SCATTER. Deleted.</p>
 <hr />
 <h3 id="tc-c07-combo-chart">TC-C07: COMBO chart<a class="headerlink" href="#tc-c07-combo-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1710,6 +1716,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(COMBO, A1:D5) → chartId 1496649436, chartType COMBO, per-series "type" field (COLUMN/COLUMN/LINE). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — chartId 612816217, chartType COMBO, series types COLUMN/COLUMN/LINE. Deleted.</p>
 <hr />
 <h3 id="tc-c08-histogram-chart">TC-C08: HISTOGRAM chart<a class="headerlink" href="#tc-c08-histogram-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1724,6 +1731,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(HISTOGRAM, B2:B5) → chartId 2013613202, "histogramChart" key. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>HISTOGRAM, B2:B5</code> → chartId 162167517, <code>histogramChart</code> key. Deleted.</p>
 <hr />
 <h3 id="tc-c09-invalid-chart-type">TC-C09: Invalid chart type<a class="headerlink" href="#tc-c09-invalid-chart-type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1738,6 +1746,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(chart_type="DONUT") → {"error":"Invalid chart type 'DONUT'. Must be one of: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM"}, no chart created</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"error": "Invalid chart type 'DONUT'. Must be one of: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM"}</code>, no chartId.</p>
 <hr />
 <h3 id="tc-c10-lowercase-chart-type-input">TC-C10: Lowercase chart type input<a class="headerlink" href="#tc-c10-lowercase-chart-type-input" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1752,6 +1761,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(chart_type="column" lowercase) → succeeded, chartId 148233447, normalized to COLUMN. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>chart_type="column"</code> → chartId 1998082987, chartType COLUMN. Deleted.</p>
 <hr />
 <h3 id="tc-c11-sheet-not-found">TC-C11: Sheet not found<a class="headerlink" href="#tc-c11-sheet-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1765,6 +1775,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found in spreadsheet"}, no chart created</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>{"error": "Sheet 'NoSuchSheet' not found in spreadsheet"}</code>, no chart.</p>
 <hr />
 <h3 id="tc-c12-custom-position-and-size">TC-C12: Custom position and size<a class="headerlink" href="#tc-c12-custom-position-and-size" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1781,6 +1792,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(LINE, position_x=100,position_y=200,width=400,height=300) → chartId 1652849479, overlayPosition={offsetXPixels:100,offsetYPixels:200,widthPixels:400,heightPixels:300} — confirms values are pixels (field names say so directly). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>LINE, A1:D5, x=100, y=200, 400x300</code> → chartId 1566204555, overlayPosition {offsetXPixels 100, offsetYPixels 200, widthPixels 400, heightPixels 300}. Product decision: pixels. Playwright <code>.playwright-mcp/S4/2026-11-08-tc-c12.png</code>: a 400x300 line chart offset ~100 px right / 200 px down from A1 (top edge at row 10), and the earlier 8 charts gone. Deleted.</p>
 <hr />
 <h3 id="tc-c13-range-with-no-end-column-is-rejected-954">TC-C13: Range with no end column is rejected (#954)<a class="headerlink" href="#tc-c13-range-with-no-end-column-is-rejected-954" title="Permanent link">&para;</a></h3>
 <p><strong>Tool calls</strong>
@@ -1793,6 +1805,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(data_range="B2:5") → {"error":"data_range 'B2:5' has no end column; add_chart needs explicit column bounds (e.g. 'A1:C10' or 'A:C')"}; add_chart(data_range="1:5") → same error naming '1:5'. Neither response carries a chartId</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>B2:5</code> → <code>{"error": "data_range 'B2:5' has no end column; add_chart needs explicit column bounds (e.g. 'A1:C10' or 'A:C')"}</code>; <code>1:5</code> → same naming '1:5'. No chartId/result in either.</p>
 <hr />
 <h3 id="tc-c14-column-only-range-still-charts-every-column-954">TC-C14: Column-only range still charts every column (#954)<a class="headerlink" href="#tc-c14-column-only-range-still-charts-every-column-954" title="Permanent link">&para;</a></h3>
 <p><strong>Tool calls</strong>
@@ -1807,6 +1820,7 @@ add_chart(COLUMN, data_range="A:D") → chartId 563506711; spec.basicChart.domai
 add_chart(COLUMN, data_range="A:D") → chartId 915893384; domains = col 0, series = cols 1, 2, 3. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>A:D</code> → chartId 1484793642; domains = 1 source (col 0), series = 3 (cols 1, 2, 3), rows 0–996. Deleted.</p>
 <hr />
 <h3 id="tc-c15-pie-range-without-exactly-2-columns-is-rejected-pr-983">TC-C15: PIE range without exactly 2 columns is rejected (PR #983)<a class="headerlink" href="#tc-c15-pie-range-without-exactly-2-columns-is-rejected-pr-983" title="Permanent link">&para;</a></h3>
 <p><strong>Tool calls</strong>
@@ -1819,6 +1833,7 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(PIE, "A1:D5") → {"error":"data_range 'A1:D5' spans 4 column(s); a PIE chart needs exactly 2 (labels, then values)"}; add_chart(PIE, "B1:B5") → same error with "spans 1 column(s)". No chartId in either. Regression: add_chart(PIE, "A1:B5") still succeeds (chartId 774316831, domain col 0, series col 1). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — <code>A1:D5</code> → "data_range 'A1:D5' spans 4 column(s); a PIE chart needs exactly 2 (labels, then values)"; <code>B1:B5</code> → "... spans 1 column(s) ...". No chartId/result. (A1:B5 PIE success shown in TC-C05.)</p>
 <hr />
 <h3 id="tc-c16-single-column-range-for-a-domain-based-chart-is-rejected-histogram-still-accepts-one-pr-983">TC-C16: Single-column range for a domain-based chart is rejected; HISTOGRAM still accepts one (PR #983)<a class="headerlink" href="#tc-c16-single-column-range-for-a-domain-based-chart-is-rejected-histogram-still-accepts-one-pr-983" title="Permanent link">&para;</a></h3>
 <p><strong>Tool calls</strong>
@@ -1832,6 +1847,8 @@ Run 2 (kai-oauth): every chart type and error case matched; all 13 charts delete
 add_chart(COLUMN, "B2:B5") → {"error":"data_range 'B2:B5' spans 1 column; a COLUMN chart needs at least 2 (the first column is the domain, the rest are series)"}, no chartId. add_chart(HISTOGRAM, "B2:B5") → chartId 1594431116, spec.histogramChart.series = 1 source (col 1, rows 1–5). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every chart type and error case matched; all 13 charts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on <code>jay</code></strong> — COLUMN <code>B2:B5</code> → "data_range 'B2:B5' spans 1 column; a COLUMN chart needs at least 2 (...)", no chartId. HISTOGRAM <code>B2:B5</code> → chartId 492374035, <code>histogramChart.series</code> = 1 source (col 1, rows 1–5). Deleted.</p>
+<p>Cleanup: run folder QA-orn-S4-2026-11-08 trashed (delete_file, not permanent); nothing kept. Playwright tab closed via page.close().</p>
 
 
 

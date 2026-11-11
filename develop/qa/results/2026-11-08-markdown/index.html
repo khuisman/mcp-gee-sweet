@@ -1,0 +1,3398 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-11-08-markdown/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Markdown rendering — ornithomimus release pass (Run 2) — 2026-11-08 (#1044) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#markdown-rendering-ornithomimus-release-pass-run-2-2026-11-08-1044" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Markdown rendering — ornithomimus release pass (Run 2) — 2026-11-08 (#1044)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="markdown-rendering-ornithomimus-release-pass-run-2-2026-11-08-1044">Markdown rendering — ornithomimus release pass (Run 2) — 2026-11-08 (#1044)<a class="headerlink" href="#markdown-rendering-ornithomimus-release-pass-run-2-2026-11-08-1044" title="Permanent link">&para;</a></h1>
+<p>The full <code>docs_markdown.md</code> suite: every TC (Phase 1, Phase 2 syntax and matrices, document boundaries, document state, conversion reporting, inline styles, line breaks), through all eight entry points, twice.</p>
+<p><strong>Result: 36 of 52 TCs pass. Our converter (EP-1 to EP-4, EP-8) fails two TCs: TC-MD015 (no gap after a table, #1427) and TC-MD016 (#1100). Every other failure is Drive's own Markdown import (EP-5 to EP-7, D4), tracked under #1113, with the renderings the known-limitations list doesn't name collected in #1429. Determinism (TC-MD404) fails on one cell: a one-off image fetch failure in Run 2 (#1428). TC-MD301 is PARTIAL (three CRLF cells can't be sent inline).</strong></p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Code under test:</strong> <code>develop</code> <code>f98c67b7</code>.</li>
+<li><strong>Servers:</strong> main-checkout <code>kai-oauth</code>, <code>oauth</code>, <code>kai-sa</code>, <code>sa</code>; lane <code>ash</code>, <code>jay</code>, <code>kit</code> (their worktrees' <code>src/</code>, <code>pyproject.toml</code> and <code>uv.lock</code> identical to <code>f98c67b7</code>).</li>
+<li><strong>Shards:</strong> M1 TC-MD001–008 (<code>kai-oauth</code>), M2 TC-MD009–016 (<code>oauth</code>), M3 TC-MD101–109 (<code>kai-sa</code>), M4 TC-MD110–117 (<code>sa</code>), M5 TC-MD201, 204 (<code>ash</code>), M6 TC-MD202, 203 (<code>jay</code>), M7 TC-MD301–303, 401–403, 501–508 (<code>kit</code>). Retakes R3, R4a, R4b, R6 (below). TC-MD404 judged by Aziz from every shard's Run 1 vs Run 2.</li>
+<li><strong>Fixtures:</strong> <code>docs/qa/fixtures/md/</code> at <code>f98c67b7</code>; <code>qa_gen_md_fixtures.py --check</code> clean.</li>
+<li><strong>Folders:</strong> <code>QA-MD-2026-11-08-&lt;shard&gt;-run1/-run2</code> under <code>TEST_FOLDER_ID</code>, trashed after recording. Kept: TC-MD202 AJ-099's EP-8 Run 2 Doc (evidence for #1428) and shard M2's Run 2 folder (TC-MD015/016 evidence).</li>
+<li><strong>Method:</strong> as the 2026-11-05 baseline: one 1400×2200 capture per page; EP-1 and EP-5 of Run 1 read by eye; EP-2/3/4/8 pixel-compared with EP-1, EP-6/7 with EP-5, Run 2 with Run 1 (Docs chrome, outline pane and caret masked); negative controls in every shard reported DIFFERENT. Every capture graded from was checked against its Doc ID in the page URL.</li>
+</ul>
+<h2 id="results-by-tc">Results by TC<a class="headerlink" href="#results-by-tc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Result</th>
+<th>Cells</th>
+<th>Failures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MD001–003, 005–014</td>
+<td>✅</td>
+<td>8/8 each</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MD004</td>
+<td>❌</td>
+<td>5/8</td>
+<td>#1113: SVG badge (EP-5–7)</td>
+</tr>
+<tr>
+<td>MD015</td>
+<td>❌</td>
+<td>3/8</td>
+<td>#1427: no gap after a table (EP-1–4, EP-8)</td>
+</tr>
+<tr>
+<td>MD016</td>
+<td>❌</td>
+<td>3/8</td>
+<td>#1100: blank last page (EP-1–4, EP-8)</td>
+</tr>
+<tr>
+<td>MD101–104, 107</td>
+<td>✅</td>
+<td>64, 64, 48, 80, 88</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MD105</td>
+<td>❌</td>
+<td>61/64</td>
+<td>#1113: LM-01</td>
+</tr>
+<tr>
+<td>MD106</td>
+<td>❌</td>
+<td>125/128</td>
+<td>#1113: LN-04</td>
+</tr>
+<tr>
+<td>MD108</td>
+<td>❌</td>
+<td>180/192</td>
+<td>#1113: LX-14, 21, 22, 24</td>
+</tr>
+<tr>
+<td>MD109</td>
+<td>❌</td>
+<td>45/48</td>
+<td>#1113: TK-04</td>
+</tr>
+<tr>
+<td>MD110</td>
+<td>❌</td>
+<td>69/72</td>
+<td>#1113: BQ-05</td>
+</tr>
+<tr>
+<td>MD111</td>
+<td>❌</td>
+<td>141/144</td>
+<td>#1113: LK-12</td>
+</tr>
+<tr>
+<td>MD112</td>
+<td>❌</td>
+<td>96/111</td>
+<td>#1113: IM-10 to IM-14</td>
+</tr>
+<tr>
+<td>MD113–115, 117</td>
+<td>✅</td>
+<td>96, 144, 112, 56</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MD116</td>
+<td>❌</td>
+<td>106/112</td>
+<td>#1113: HT-03</td>
+</tr>
+<tr>
+<td>MD201</td>
+<td>❌</td>
+<td>631/640</td>
+<td>#1113: CT-66, CT-75, CT-76</td>
+</tr>
+<tr>
+<td>MD202</td>
+<td>❌</td>
+<td>787/800</td>
+<td>#1113: AJ-028/038/048/068; #1428: AJ-099 EP-8 Run 2</td>
+</tr>
+<tr>
+<td>MD203, 204</td>
+<td>✅</td>
+<td>800, 256</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MD301</td>
+<td>⚠️</td>
+<td>125/128</td>
+<td>DS-13 (CRLF) at EP-1/2/8 not run</td>
+</tr>
+<tr>
+<td>MD302</td>
+<td>❌</td>
+<td>5/8</td>
+<td>#1113: SVG badge</td>
+</tr>
+<tr>
+<td>MD303, 401–403, 501–508</td>
+<td>✅</td>
+<td>all</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MD404</td>
+<td>❌</td>
+<td>—</td>
+<td>#1428: one cell differs between runs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rulings">Rulings<a class="headerlink" href="#rulings" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>C7 offset quote bars</strong> (TC-MD201 CT-63/64/65/73/74/75 and TC-MD108 LX-23, our converter): graded ✅ against C7 as amended for #1293, as the 2026-11-05 baseline did. #1242 is closed as a limitation.</li>
+<li><strong>TC-MD015</strong>: graded ❌. The 2026-11-05 baseline saw the same gap (its O3) and graded ✅; under Rule 6 and the #1044 audit's verdict rule it's a FAIL.</li>
+<li><strong>Drive-import renderings not named by the known-limitations list</strong>: graded ❌ under #1113 until the maintainer decides each row of #1429.</li>
+<li><strong>Changes since 2026-11-05:</strong> its F1 and F2 are now named in <code>docs/known-limitations.md</code>, so TC-MD003, 006, 009, 011, 013 and 016's EP-5–7 cells pass under D4.</li>
+</ul>
+<h2 id="method-gaps-found">Method gaps found<a class="headerlink" href="#method-gaps-found" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The agent tool channel NFC-normalizes U+0301 and turns U+00A0/U+2009 into plain spaces, so content passed inline (EP-1/2/8) can't carry them. TC-MD117 UN-04/05 at EP-1/2/8 were rendered by a script from the fixture's bytes and read back raw. Earlier passes that passed this content inline didn't test those code points.</li>
+<li>Stale wording: TC-MD112 IM-05/10/15 should be N/A at EP-8; TC-MD402's r02 has no code or adjacent body paragraphs; TC-MD505's heading has a space after <code>1.</code>, not a tab; IN-23 (heading 6) can't be "italic only on its own letter", since Docs' Heading 6 style is italic.</li>
+</ul>
+<h2 id="incidents">Incidents<a class="headerlink" href="#incidents" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Shards M1/M2, M3/M4 and M5/M6 each shared a Playwright server under a lock whose 180 s staleness was shorter than a capture batch; locks were broken and captures crossed. Every crossed capture was caught by the Doc-ID check and retaken. Playwright servers 1–4 then hung and disconnected (~14:00); 128 captures were retaken after a reconnect, one server per shard (R3, R4a, R4b, R6).</li>
+<li>Shard M7 started nine helper agents (about 1.8M tokens) that its prompt didn't forbid.</li>
+<li>Docs API per-user write quota (429) hit a few times across shards; each retried once and succeeded.</li>
+</ul>
+<hr />
+<h1 id="shard-records-as-reported-ids-and-local-paths-removed">Shard records (as reported; IDs and local paths removed)<a class="headerlink" href="#shard-records-as-reported-ids-and-local-paths-removed" title="Permanent link">&para;</a></h1>
+<p>"UNFILED" below is as each shard wrote it, before filing: G1 (TC-MD015) is #1427, AJ-099 (TC-MD202 EP-8 Run 2) is #1428, and every Drive-import (EP-5 to EP-7) finding is a row of #1429.</p>
+<h2 id="shard-m1">Shard M1<a class="headerlink" href="#shard-m1" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m1-docs_markdownmd-tc-md001tc-md008-phase-1-ep-1ep-8-run-1-run-2-prefix-kai-oauth-playwright-1-shared-with-m2">Shard M1 — docs_markdown.md TC-MD001–TC-MD008 (Phase 1), EP-1…EP-8, Run 1 + Run 2 — prefix kai-oauth, playwright-1 (shared with M2)<a class="headerlink" href="#shard-m1-docs_markdownmd-tc-md001tc-md008-phase-1-ep-1ep-8-run-1-run-2-prefix-kai-oauth-playwright-1-shared-with-m2" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M1-run1 (<id>), QA-MD-2026-11-08-M1-run2 (<id>)</p>
+<h3 id="log">Log<a class="headerlink" href="#log" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Run folders + EP-5/6/7 child folders created (approved write OK).</li>
+<li>Playwright-1 contention: at ~11:27 the lock dir was &gt;180 s old and was removed as stale per rules; M2 was evidently still driving the shared tab, and my EP-5 batch got M2's docs (MD-r12…r16) in 5 of 8 captures (discarded, URL check caught it). Later the lock went missing / was stale again while the tab kept navigating. Raised my stale threshold to 420 s and added a URL check before each capture.</li>
+<li>Run 1: all 64 Docs created (one transient Docs write-quota 429 on EP-3 r08's first create_doc_from_file; the half-written Doc was trashed and the call retried OK). All 64 captured (1400x2200 JPEG, p1+p2 per doc).</li>
+<li>Run 1 read by eye: EP-1 r01–r08 all match their checks; EP-5 r01–r08 all match D4 except r04 (badge: empty line, no "Build" alt text).</li>
+<li>Run 1 pixel compare (chrome/outline/caret/scrollbar masked; negative controls r01-vs-r02 and EP1-vs-EP5 both DIFFERENT): EP-2/3/4/8 vs EP-1 and EP-6/7 vs EP-5 all SAME except three pairs that were looked at by eye and are UI noise only: r04 EP-3 and r04 EP-8 (spell-check squiggles on "fastqueue"/"acks"), r06 EP-8 (a Docs tab context menu was open over the outline pane). Content identical.</li>
+<li>Link targets checked at EP-1 and EP-5 via get_doc_as_markdown: all correct (oncall, search-arch, dash with no title shown, ci, contributing, localhost:8000, arch, appendix, checklists, bare URL).</li>
+<li>Run 2: all 64 Docs created and captured (one transient screenshot timeout on the run2 EP-6 batch, retried OK). Pixel compare Run 2 vs Run 1: 64/64 cells same in content. The only DIFFERENT pairs (r02 and r07 p2, 52–82 px at x≈1021–1041) are Docs' table drag-handle hover widget beside a table corner, plus the run-1 spell-check/menu noise above; checked by eye.</li>
+</ul>
+<p>Stale case wording: none that changes a verdict. Note for Aziz: the 2026-11-05 baseline's F1 (Drive code-block box with language label/"None") and F2 (fenced block in a list item at the page margin) are now named in docs/known-limitations.md "Converting <code>.md</code> on upload…", so under D4 those EP-5–EP-7 cells now PASS (TC-MD003, TC-MD006, and those parts of TC-MD004).</p>
+<h3 id="grid-run-1-run-2-in-every-cell">Grid (Run 1 = Run 2 in every cell)<a class="headerlink" href="#grid-run-1-run-2-in-every-cell" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Fixture</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-MD001</td>
+<td>r01 meeting notes</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD002</td>
+<td>r02 project plan</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD003</td>
+<td>r03 spec / PRD</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD004</td>
+<td>r04 README</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ badge missing, #1113</td>
+<td>❌ same, #1113</td>
+<td>❌ same, #1113</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD005</td>
+<td>r05 status report</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD006</td>
+<td>r06 how-to</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD007</td>
+<td>r07 comparison</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD008</td>
+<td>r08 research summary</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md001-meeting-notes">TC-MD001: Meeting notes<a class="headerlink" href="#tc-md001-meeting-notes" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="tc-md002-project-plan">TC-MD002: Project plan<a class="headerlink" href="#tc-md002-project-plan" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="tc-md003-spec-prd">TC-MD003: Spec / PRD<a class="headerlink" href="#tc-md003-spec-prd" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong> (EP-5–7's "None"-labelled code box is now a known-limitations item, so D4 passes it.)</p>
+<h3 id="tc-md004-readme">TC-MD004: README<a class="headerlink" href="#tc-md004-readme" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; failures: #1113 — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="tc-md005-status-report">TC-MD005: Status report<a class="headerlink" href="#tc-md005-status-report" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="tc-md006-how-to-with-numbered-steps-and-code">TC-MD006: How-to with numbered steps and code<a class="headerlink" href="#tc-md006-how-to-with-numbered-steps-and-code" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong> (EP-5–7 code boxes at the page margin inside steps are now a known-limitations item.)</p>
+<h3 id="tc-md007-comparison-with-tables">TC-MD007: Comparison with tables<a class="headerlink" href="#tc-md007-comparison-with-tables" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="tc-md008-research-summary-with-quotes-and-links">TC-MD008: Research summary with quotes and links<a class="headerlink" href="#tc-md008-research-summary-with-quotes-and-links" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M1 on <code>kai-oauth</code></strong></p>
+<h3 id="findings">Findings<a class="headerlink" href="#findings" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>F-M1-1 (TC-MD004, EP-5/6/7, both runs): the "Build" badge leaves an empty line.</strong> Fixture r04 line 5 <code>[![Build](https://img.shields.io/badge/...)](https://example.com/ci)</code>. On screen there's a blank gap between "A small, dependency-free job queue…" and "Features", with no "Build" alt text (C16 expects link-styled "Build" → https://example.com/ci, as EP-1–4/8 show). Structurally Drive did insert an inline image object linked to /ci (get_doc_as_markdown shows <code>[![Build](https://lh3.googleusercontent.com/…)](https://example.com/ci)</code>), but it renders as nothing visible. known-limitations names only local/<code>drive:</code> images, not URL images, so D4 doesn't cover it; the TC itself says FAIL until #1113 (OPEN).</li>
+</ul>
+<h3 id="observations-no-verdict-impact">Observations (no verdict impact)<a class="headerlink" href="#observations-no-verdict-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Our converter (EP-1–4, 8): #1382 paragraph gaps and #1383 plain list markers both visible as intended (r06 step numbers all regular weight; r01/r04/r06/r07 paragraphs separated). No defects seen in any of the 8 documents read top to bottom.</li>
+<li>Drive import (EP-5–7): a table that crosses a page break repeats its header row on the next page (r01, r03, r05, r08); our converter's tables don't. A Docs pinned-header-row behavior, not a content defect; not in known-limitations.</li>
+<li>Throughput: one Docs API 429 (write quota 60/min/user) on a burst of create_doc_from_file calls; the tool returned {"error","docId"} with a half-written Doc, as documented. Not a defect.</li>
+<li>Playwright: shared-tab contention with M2 early on (described in the Log); a stale-lock removal under the 180 s rule let both shards drive tab 3 at once for a few minutes. Every capture used in the verdict was URL-verified.</li>
+<li>Both run folders trashed (not permanent). No Drive files kept: the one FAIL (#1113 badge) is reproducible from the fixture, and its screenshots stay at .playwright-mcp/M1/run{1,2}/EP{5,6,7}/r04-p*.jpg in Aziz's worktree.</li>
+</ul>
+<h2 id="shard-m2">Shard M2<a class="headerlink" href="#shard-m2" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m2-docs_markdownmd-tc-md009tc-md016-run-2-markdown-prefix-oauth-playwright-1-shared-with-m1">Shard M2 — docs_markdown.md TC-MD009–TC-MD016 (Run 2 markdown) — prefix oauth, playwright 1 (shared with M1)<a class="headerlink" href="#shard-m2-docs_markdownmd-tc-md009tc-md016-run-2-markdown-prefix-oauth-playwright-1-shared-with-m1" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M2-run1 (<id>), QA-MD-2026-11-08-M2-run2 (<id>)</p>
+<h3 id="progress-log">Progress log<a class="headerlink" href="#progress-log" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Run 1 rendered all 64 cells (8 fixtures x EP-1..EP-8). One transient: EP-8 r16 <code>upload_file</code> returned a Docs 429 (WriteRequestsPerMinutePerUser, quota shared with other shards); the half-written Doc (14Bige3v…) was trashed and the call retried cleanly a minute later.</li>
+<li>Run 1 captures: <code>.playwright-mcp/M2/run1/&lt;EP&gt;/&lt;rNN&gt;-p&lt;k&gt;.jpg</code> (viewport 1400x2200; p1 = top, p2 = scrolled to bottom).</li>
+<li>Run 1 pixel compare (chrome, outline pane, caret masked; threshold 150 changed px): EP-2/3/4/8 vs EP-1 SAME for all 8 fixtures; EP-6/7 vs EP-5 SAME for all 8. Negative control EP-1 vs EP-5 (r09, r14): DIFFERENT (43k–87k px).</li>
+<li>
+<p>Playwright incident: shard M1 and I share playwright-1's single current tab. Twice my lock was gone mid-batch or M1's lock was &gt;180 s old, and M1 navigated the tab during my captures (one batch got M1's r01/r05–r08 pages under my names). My capture loop now checks the page URL before and after every screenshot and recaptures; the bad captures were all redone and verified.</p>
+</li>
+<li>
+<p>Run 2 rendered all 64 cells with no errors. Run 2 captures under <code>.playwright-mcp/M2/run2/</code>.</p>
+</li>
+<li><strong>Capture audit (after Aziz's note about M1):</strong> every capture used for grading was taken by a loop that checks <code>page.url()</code> contains the intended Doc ID before and after each screenshot, and retries on a mismatch. The only captures taken without that check (run 1 EP-1 first pass, run 1 EP-5) were all retaken with the check; the EP-1 files were overwritten by a verified pass and run 1 EP-5 was recaptured after M1 finished. Run 1 EP-8 r09–r12 had a mismatch (M1 navigated mid-capture) and were recaptured cleanly. Final state: 128/128 docs captured with URL verified, 0 unverified.</li>
+<li>Pixel comparison (all pairs, final captures): run1 and run2 each: EP-2/3/4/8 vs EP-1 SAME for all 8; EP-6/7 vs EP-5 SAME for all 8. Run 1 vs run 2, every EP: SAME for all 8 (deterministic). Negative control run1 EP-1 vs EP-5: DIFFERENT for all 8 (41k–103k px; r10 page count 1 vs 2). The only sub-threshold diffs (≤50 px) are the blinking caret at the top of the scrolled p2 frame.</li>
+<li>Link targets checked at EP-1 (<code>get_doc_as_markdown</code>): r09 <code>[2.4.0]</code>/<code>[2.3.1]</code>/<code>[2.3.0]</code> link to their compare URLs, Keep a Changelog / Semantic Versioning correct; r14 raft.github.io linked. At EP-5 the same version-heading links are visible on screen, no brackets, no definition lines.</li>
+<li>Disk: 89 GiB free at start of run 2. Run folder <code>-run1</code> trashed; <code>-run2</code> (<id>) kept as evidence for the TC-MD015/TC-MD016 failures.</li>
+</ul>
+<h3 id="stale-case-wording-noticed-not-defects">Stale case wording noticed (not defects)<a class="headerlink" href="#stale-case-wording-noticed-not-defects" title="Permanent link">&para;</a></h3>
+<ul>
+<li>None found. The 2026-11-05 F1 (Drive's code box with a "None" label) and F2 (fenced block in a list item at the page margin) are now named in <code>docs/known-limitations.md</code>, so under D4 they no longer fail EP-5–EP-7. That's why r09/r11/r13/r16 EP-5–7 pass here when they failed on 2026-11-05.</li>
+</ul>
+<h3 id="grid-rows-phase-1-docs-one-case-per-file-run-2-identical-to-run-1-in-every-cell">Grid (rows = Phase 1 docs; one case per file). Run 2 identical to Run 1 in every cell.<a class="headerlink" href="#grid-rows-phase-1-docs-one-case-per-file-run-2-identical-to-run-1-in-every-cell" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Fixture</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-MD009</td>
+<td>r09 changelog</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD010</td>
+<td>r10 task plan</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD011</td>
+<td>r11 postmortem</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD012</td>
+<td>r12 interview guide</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD013</td>
+<td>r13 API reference</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD014</td>
+<td>r14 study notes</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD015</td>
+<td>r15 travel itinerary</td>
+<td>❌ G1 UNFILED</td>
+<td>❌ G1</td>
+<td>❌ G1</td>
+<td>❌ G1</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ G1</td>
+</tr>
+<tr>
+<td>TC-MD016</td>
+<td>r16 planning notes</td>
+<td>❌ #1100</td>
+<td>❌ #1100</td>
+<td>❌ #1100</td>
+<td>❌ #1100</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ #1100</td>
+</tr>
+</tbody>
+</table>
+<p>EP-5–7 judged under D4 against <code>docs/known-limitations.md</code> (dash bullets, <code>1.</code> nested numbering, green inline code, labeled code boxes incl. "None", code box at margin in a list item, borderless quotes, native checklists, numbered task list losing numbers, 2-space sub-lists not nesting, extra empty paragraphs).</p>
+<h3 id="tc-md009-changelog">TC-MD009: Changelog<a class="headerlink" href="#tc-md009-changelog" title="Permanent link">&para;</a></h3>
+<p>Version headings are Heading 2 with "2.4.0" etc. as links to the compare URLs, no brackets, no definition lines; the python block stays under the "New <code>timeout</code> option" bullet (EP-1–4, 8; at EP-5–7 it's Drive's box at the margin, listed); <strong>Breaking:</strong> bold.
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md010-checklist-heavy-task-plan">TC-MD010: Checklist-heavy task plan<a class="headerlink" href="#tc-md010-checklist-heavy-task-plan" title="Permanent link">&para;</a></h3>
+<p>Nested ☐/☑ at level 1 under "Accessibility pass" and "Performance budget met"; RC list 1–4 with ☐, nested task bullets under 3, item 4 numbered 4; quote keeps its bullet list inside (list bar offset right of the quote bar, as C7 states, #1242); <code>5% → 20% → 50% → 100%</code> bold. EP-5–7: native checklists, the numbered task list loses its numbers, quote without border, an empty line in the quote between the bold line and the list: all listed.
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md011-incident-postmortem">TC-MD011: Incident postmortem<a class="headerlink" href="#tc-md011-incident-postmortem" title="Permanent link">&para;</a></h3>
+<p>Severity/Duration/Impact join into one paragraph (C10); both tables intact, <code>pool_size × replicas</code> monospace in its cell; yaml block keeps indentation and comments; Lessons 1–2 with three nested bullets under 2. EP-5–7: yaml fence labeled "None" (listed).
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md012-interview-guide">TC-MD012: Interview guide<a class="headerlink" href="#tc-md012-interview-guide" title="Permanent link">&para;</a></h3>
+<p>Prompts 1–3 with a–c under each, no restart, list markers plain (zoomed); nested bullets under "Discusses trade-offs"; scorecard 6×5 with empty cells; After-the-interview 1–3, <strong>one hour</strong> bold; résumé renders. EP-5–7 show the top-level numbers as <strong>1, 2, 2</strong> (third prompt "Rate limiter" numbered 2) in both runs: that's the listed Drive difference ("A top-level item after a nested numbered sub-list can repeat the previous number (1, 2, 2)"), so it passes under D4. Note the 2026-11-05 baseline passed EP-5–7 here without mentioning it.
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md013-api-reference">TC-MD013: API reference<a class="headerlink" href="#tc-md013-api-reference" title="Permanent link">&para;</a></h3>
+<p>Inline-code-only paragraphs monospace in normal paragraphs; bash <code>\</code> continuation and json indentation kept; <code>items</code> with two level-1 bullets; Required column centered. EP-5–7: green monospace inline code, "Shell"/"JSON" labeled boxes, borderless quote (listed).
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md014-study-notes">TC-MD014: Study notes<a class="headerlink" href="#tc-md014-study-notes" title="Permanent link">&para;</a></h3>
+<p>Raft 1–3 with nested bullets; the wrapped "A follower that hears nothing…" bullet is one item; <em>f</em>, <em>n</em>, <em>2f + 1</em> italic; ⌊5/2⌋ renders; table with empty top-left header cell; Questions 1–3; raft.github.io linked.
+<strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md015-travel-itinerary">TC-MD015: Travel itinerary<a class="headerlink" href="#tc-md015-travel-itinerary" title="Permanent link">&para;</a></h3>
+<p>All listed checks pass on every EP (Thursday 1–4, Friday 1–2 with 3-space nested bullets, Saturday nested level under Afternoon, packing task list, budget table right-aligned with bold Total row, Portuguese accents).
+<strong>G1 (UNFILED), EP-1–4 and EP-8:</strong> the "<strong>Hotel:</strong> Casa do Bairro…" paragraph sits directly against the Flights table's bottom border, with no gap at all (screenshot <code>run1/EP1/r15-p1.jpg</code>, y≈458–462). In the source it's a separate block after a blank line; a reader sees it glued to the table. Drive's import (EP-5–7) leaves a normal gap. This is O3 from the 2026-11-05 run, recorded there as an observation with the cell ✅ and never filed. #1382 and #1389 added gaps between paragraphs and around lists, but nothing covers a paragraph after a table. I graded it ❌ under the "output shows a defect" rule. If Aziz rules it cosmetic, these cells flip to ✅ and the TC passes.
+<strong>Result (2026-11-08) ❌ FAIL — 3/8 case×EP cells pass, identical in both runs; failures: UNFILED (no gap between a table and the paragraph after it) — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="tc-md016-planning-notes">TC-MD016: Planning notes<a class="headerlink" href="#tc-md016-planning-notes" title="Permanent link">&para;</a></h3>
+<p>Agenda 1–4 at level 0 with 2-space sub-bullets nested at level 1 (D1), no restart, no literal <code>-</code>; ☐/☑ glyphs; the unlabeled fence shows <code>1. Q4 results</code> etc. as literal monospace; Logistics table intact. EP-5–7: 2-space sub-bullets don't nest and the fence is labeled "None" (both listed).
+<strong>#1100 (open), EP-1–4 and EP-8:</strong> the Doc ends in a table and shows a <strong>blank second page</strong>. The structure has only the trailing empty paragraph (626–627) after the table, which Docs pushes onto page 2. The 2026-11-05 run noted this as O3 with the cells ✅. Under Rule 3 a known failure is a FAIL, linked to open #1100.
+<strong>Result (2026-11-08) ❌ FAIL — 3/8 case×EP cells pass, identical in both runs; failures: #1100 — ornithomimus release pass, shard M2 on <code>oauth</code></strong></p>
+<h3 id="other-observations-not-graded">Other observations (not graded)<a class="headerlink" href="#other-observations-not-graded" title="Permanent link">&para;</a></h3>
+<ul>
+<li>r12/r13/r10/r15 (all EPs): a heading at the bottom of page 1 moves to page 2 with its content, leaving ~150 px empty. That's Docs' keep-with-next pagination, not a converter issue.</li>
+<li>r16 EP-5–7: the 4-row Logistics table splits across the page break with its header row repeated. That's Drive/Docs pagination.</li>
+</ul>
+<h2 id="shard-m3">Shard M3<a class="headerlink" href="#shard-m3" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m3-docs_markdownmd-tc-md101tc-md109-phase-2-syntax-ep-1ep-8-run-1-run-2-prefix-kai-sa-playwright-shared-2-with-m4">Shard M3 — docs_markdown.md TC-MD101–TC-MD109 (Phase 2 syntax), EP-1–EP-8, Run 1 + Run 2 — prefix kai-sa, playwright shared-2 (with M4)<a class="headerlink" href="#shard-m3-docs_markdownmd-tc-md101tc-md109-phase-2-syntax-ep-1ep-8-run-1-run-2-prefix-kai-sa-playwright-shared-2-with-m4" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M3-run1 (<id>), QA-MD-2026-11-08-M3-run2 (<id>)</p>
+<h3 id="method-notes">Method notes<a class="headerlink" href="#method-notes" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Docs created 2026-11-08 ~11:00–11:20 PST on <code>kai-sa</code>; one render per fixture per EP (EP-5/6/7 each with own empty child folder per run; EP-6/EP-7 temp dirs held only F).</li>
+<li>Capture: playwright-2 (shared with M4, mutex), viewport 1400×2200, the <code>.kix-appview-editor</code> pane clipped, scrolled by <code>scrollTop</code> (re-set 3× per step), cursor hidden by CSS, JPEG under <code>.playwright-mcp/M3/run&lt;N&gt;/&lt;EP&gt;/&lt;fixture&gt;-p&lt;k&gt;.jpg</code> (Aziz's worktree). Pixel compare script <code>tmp/M3/cmp.py</code>: grayscale, outline pane (x&lt;300) and right gutter (x&gt;1320, Docs' transient "n of N" page tooltip) masked, threshold 60, IDENTICAL if &lt;40 px differ. Negative control (EP1 emphasis vs EP3 inline-code) → DIFFERENT (35 614 px).</li>
+<li>Structural support: <code>get_doc_structure</code> / <code>get_doc_as_markdown</code> on kai-sa, plus a read-only <code>documents().get</code> summary script (<code>tmp/M3/docsum.py</code>, Aziz's worktree OAuth token) for listIds/levels/glyphs.</li>
+<li>Playwright incidents: (1) lock collisions with M4 at ~11:29–11:37 (my lock dir removed while held; two navigations of mine interrupted) → added owner file + URL-recheck around every screenshot; affected captures were re-taken. (2) 12:00–12:55: <code>playwright-2</code> <code>browser_run_code_unsafe</code> hung twice for the full 30-min idle timeout (the EP-8 batch finished writing all its files at 12:00, then the call never returned; a trivial <code>return page.url()</code> probe also hung).</li>
+</ul>
+<h3 id="run-1-ep-12348-our-converter">Run 1 — EP-1/2/3/4/8 (our converter)<a class="headerlink" href="#run-1-ep-12348-our-converter" title="Permanent link">&para;</a></h3>
+<p>EP-1 read by eye top to bottom for all nine fixtures. EP-2, EP-3, EP-4, EP-8 vs EP-1: 36/36 fixture pairs pixel-IDENTICAL (all pages).
+Link targets at EP-1: HD-06 <code>https://example.com/h</code> (structure). LM-01 three listIds, LM-07 two (structure). LX-05 two listIds; LX-11 Paren one and Paren child each their own list; LX-12 Restarted child its own list; LX-14, LX-17, LX-18, LX-24 items share one listId (docsum). <code>get_doc_as_markdown</code> EP-1: LX-20 table at margin; LX-22 paragraph stays in item 100; LX-23 Quote roman written <code>&gt; &gt; &gt; &gt; iii.\tQuote roman</code> (plain paragraph with marker — documented).</p>
+<h3 id="run-1-ep-567-drive-import-d4">Run 1 — EP-5/6/7 (Drive import, D4)<a class="headerlink" href="#run-1-ep-567-drive-import-d4" title="Permanent link">&para;</a></h3>
+<p>EP-5 read by eye top to bottom, all nine fixtures. EP-6/EP-7 vs EP-5 pixel-compared (see determinism section).
+Structural: docsum of every run-1 and run-2 Doc — EP-1/2/3/4/8 identical to each other per fixture, EP-5/6/7 identical to each other per fixture, in both runs (paragraph style, list level/glyph/start, indent, border, text).</p>
+<h3 id="determinism-pixel-comparison-summary">Determinism / pixel comparison summary<a class="headerlink" href="#determinism-pixel-comparison-summary" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Run 1, ours: EP-2/3/4/8 vs EP-1 — 36/36 fixture pairs IDENTICAL.</li>
+<li>Run 1, Drive: EP-6/7 vs EP-5 — 18/18 IDENTICAL (one 18-px spell-check mark on boundaries p1).</li>
+<li>Run 2 vs Run 1 EP-1: EP-1/2/3/4 — 35/35 captured pairs IDENTICAL (run2 EP-4 tasks not captured).</li>
+<li>Every capture after 11:40 was taken with a URL re-check around each screenshot; the earlier EP-1/EP-3 captures are pixel-identical to later URL-checked ones, so they show the intended Docs.</li>
+<li>Structural (docsum, all 144 Docs): every Run 2 Doc identical to its Run 1 counterpart; ours EPs identical to each other, Drive EPs identical to each other.</li>
+<li>NOT captured (playwright-2 disconnected 14:02, Aziz said stop): Run 2 EP-4 tasks, and Run 2 EP-5, EP-6, EP-7, EP-8 for all nine fixtures (37 Docs; IDs in <code>tmp/M3/ids-run2.txt</code>).</li>
+</ul>
+<h3 id="grid-run-1-run-2-identical-wherever-captured">Grid (Run 1; Run 2 identical wherever captured)<a class="headerlink" href="#grid-run-1-run-2-identical-wherever-captured" title="Permanent link">&para;</a></h3>
+<p>Cells: ✅ pass; ❌ fail. EP-1–4 and EP-8 share one column group (all pixel-identical); EP-5–7 likewise.</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HD-01…HD-08</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>EM-01…EM-08</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>IC-01…IC-06</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (green mono, D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CB-01…CB-10</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (gray box + label, D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LM-01</td>
+<td>✅ (3 listIds)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ <code>+</code> list shows <code>+</code> glyph, <code>*</code> list ●; D4 list names only <code>-</code> — UNFILED (#1113 open umbrella)</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LM-02…LM-08</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (<code>1)</code> kept, D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LN-01…LN-03, LN-05…LN-16</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4: <code>-</code>, <code>1.</code> all levels, 2-sp non-nest)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LN-04</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ grandchildren merged into Child one's text as literal "1. Grandchild one 2. Grandchild two"; Child two/Top two/Top three numbered 3./4./5. — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LB-01…LB-11</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4: code box at margin, quotes no bar)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-01…LX-13, LX-15…LX-20</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-14</td>
+<td>✅ (one listId)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ shows 2. Resume one, 3., 4.: Drive put LX-13's numbered sublist and LX-14's items in one Docs list across the heading — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-21</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ wrapped line of 100. starts left of its first-line text — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-22</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ 100.'s text and the paragraph under it don't line up — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-23</td>
+<td>❌ three staggered quote bars (Quote one / Quote bullet / Quote roman each its own bar), not "one quote" — documented limitation, #1242 CLOSED, no open issue</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ (D4: no bars; 3. for iii.)</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>LX-24</td>
+<td>✅ (one listId)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ "Loose in the list" glued onto item 2 ("Loose in the listLoose two"), no paragraph — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TK-01…TK-03, TK-05, TK-06</td>
+<td>✅ (link → example.com/task)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (native checklist, D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TK-04</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ "Plain numbered item" shows 1. not 3. (D4 names only the task items losing numbers) — UNFILED</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p>Link targets: EP-1 HD-06 https://example.com/h, TK-05 https://example.com/task; EP-5 same (get_doc_as_markdown).</p>
+<h3 id="tc-summary-lines">TC summary lines<a class="headerlink" href="#tc-summary-lines" title="Permanent link">&para;</a></h3>
+<p><strong>TC-MD101 — Result (2026-11-08) ⚠️ PARTIAL — 64/64 Run-1 cells pass; Run 2: EP-1–4 identical, EP-5–8 not captured (playwright-2 disconnected) — ornithomimus release pass, shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD102 — Result (2026-11-08) ⚠️ PARTIAL — 64/64 Run-1 cells pass; Run 2 EP-5–8 not captured — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD103 — Result (2026-11-08) ⚠️ PARTIAL — 48/48 Run-1 cells pass; Run 2 EP-5–8 not captured — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD104 — Result (2026-11-08) ⚠️ PARTIAL — 80/80 Run-1 cells pass; Run 2 EP-5–8 not captured — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD105 — Result (2026-11-08) ❌ FAIL — 61/64 Run-1 cells pass; failures: LM-01 EP-5–7 (UNFILED, <code>+</code> glyph; #1113) — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD106 — Result (2026-11-08) ❌ FAIL — 125/128 Run-1 cells pass; failures: LN-04 EP-5–7 (UNFILED; #1113) — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD107 — Result (2026-11-08) ⚠️ PARTIAL — 88/88 Run-1 cells pass; Run 2 EP-5–8 not captured — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD108 — Result (2026-11-08) ❌ FAIL — 175/192 Run-1 cells pass; failures: LX-23 EP-1–4,8 (#1242 closed, no open issue), LX-14/21/22/24 EP-5–7 (UNFILED; #1113) — shard M3 on <code>kai-sa</code></strong>
+<strong>TC-MD109 — Result (2026-11-08) ❌ FAIL — 45/48 Run-1 cells pass; failures: TK-04 EP-5–7 (UNFILED; #1113) — shard M3 on <code>kai-sa</code></strong></p>
+<h3 id="stale-caselimitation-wording">Stale case/limitation wording<a class="headerlink" href="#stale-caselimitation-wording" title="Permanent link">&para;</a></h3>
+<ul>
+<li>known-limitations "Converting <code>.md</code>…": "Bullets use a <code>-</code> glyph at every level" — Drive now keeps the source marker (<code>-</code>→<code>-</code>, <code>*</code>→●, <code>+</code>→<code>+</code>). "Indented code blocks haven't been rechecked… one Arial paragraph per line" — they now render as the same gray box labelled "None" (CB-04 EP-5).</li>
+<li>C7 itself documents the offset quote bars LX-23 shows; Aziz to decide whether LX-23's "in one quote" means one bar.</li>
+</ul>
+<h3 id="kept-files">Kept files<a class="headerlink" href="#kept-files" title="Permanent link">&para;</a></h3>
+<p>Run folders NOT trashed: Run 2 still needs 37 captures (retake), and Run 1 Drive Docs are FAIL evidence (EP-5 lists-markers 1gmmRsJ…, lists-nesting 1Wa3ejFP…, tasks 1Ty1-xR7…, lists-boundaries 1DJg__3-…; EP-1 lists-boundaries 1NWBzj8C… for LX-23).</p>
+<h2 id="shard-m4">Shard M4<a class="headerlink" href="#shard-m4" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m4-docs_markdownmd-tc-md110tc-md117-prefix-mcp-gee-sweet-sa-playwright-2-shared-with-m3-then-4-dedicated-briefly">Shard M4 — docs_markdown.md TC-MD110–TC-MD117 — prefix mcp-gee-sweet-sa, playwright 2 (shared with M3), then 4 (dedicated, briefly)<a class="headerlink" href="#shard-m4-docs_markdownmd-tc-md110tc-md117-prefix-mcp-gee-sweet-sa-playwright-2-shared-with-m3-then-4-dedicated-briefly" title="Permanent link">&para;</a></h2>
+<p>Run folders (KEPT, per Aziz, for retakes): QA-MD-2026-11-08-M4-run1 (<id>), QA-MD-2026-11-08-M4-run2 (<id>). Doc IDs: <job tmp dir>/M4/run1.json, run2.json. Captures: {REPO}/.playwright-mcp/M4/run<N>/EP-<k>/<TC>-p<n>.jpg. Compare script: tmp/M4/cmp.py (chrome/outline/caret masked; negative controls MD110 EP-1 vs EP-5 and MD112-EP5 vs MD113-EP6 both DIFFERENT).</p>
+<h3 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Renders: ALL done, both runs (8 fixtures x EP-1..8 + md-links autolink_urls=False x EP-1..4 = 68 per run, no tool errors). Plus a 1-line probe doc "M4-char-probe" in the run1 folder (see N2).</li>
+<li>Captures: Run 1 complete and graded except the retakes listed below. Run 2: NO valid captures (playwright-2 then playwright-4 disconnected mid-pass); Rule 4 determinism NOT checked. Every TC is therefore ⚠️ PARTIAL.</li>
+</ul>
+<h3 id="captures-still-missing-retake-after-reconnect-ids-also-in-run1jsonrun2json">Captures still missing (retake after reconnect; IDs also in run1.json/run2.json)<a class="headerlink" href="#captures-still-missing-retake-after-reconnect-ids-also-in-run1jsonrun2json" title="Permanent link">&para;</a></h3>
+<p>Run 1 (playwright-2 captures not confirmable by Doc ID):
+- MD110 EP-1 <id>, EP-2 <id>, EP-3 <id>, EP-4 <id>, EP-8 <id> (first batch, title checked only after the doc; files exist, all 0-px identical).
+- MD114 EP-5 <id>, EP-6 <id>, EP-7 <id>
+- MD115 EP-5 <id>, EP-6 <id>, EP-7 <id>
+- MD116 EP-5 <id>, EP-6 <id>, EP-7 <id>
+- MD117 EP-5 <id>, EP-6 <id>, EP-7 <id>
+  (these 12 were captured on playwright-2 with a title check, but EP-5/6/7 share titles, so the Doc ID is unconfirmed; files deleted for retake. Their grades below rest on those captures plus get_doc_as_markdown of EP-5.)
+Run 2: all 68 Docs in run2.json (EP-1..8 x MD110..MD117, MD111n EP-1..4). Any run2 jpgs from playwright-2 were deleted.
+Retaken and confirmed by Doc ID on playwright-4: Run 1 EP-5/6/7 for MD110, MD111, MD112, MD113 (pixel-identical to each other).</p>
+<h3 id="run-1-grid-run-2-pending-for-every-cell">Run 1 grid (Run 2 pending for every cell)<a class="headerlink" href="#run-1-grid-run-2-pending-for-every-cell" title="Permanent link">&para;</a></h3>
+<p>✅ = pass on screen; ❌ = fail; N/A as noted. EP-2/3/4/8 pixel-compared to EP-1 (all 0-31 px diff = SAME except expected input-driven diffs noted); EP-6/7 to EP-5 (all SAME). Link targets checked at EP-1 and EP-5 via get_doc_as_markdown.</p>
+<h4 id="tc-md110-blockquotes">TC-MD110 Blockquotes<a class="headerlink" href="#tc-md110-blockquotes" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BQ-01..04, 06..09</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>BQ-05</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-A</td>
+<td>❌ F-A</td>
+<td>❌ F-A</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 69/72 case×EP cells pass; failures: #1113 (F-A); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="tc-md111-links-autolink_urlsfalse-on-ep-14">TC-MD111 Links (+ autolink_urls=False on EP-1..4)<a class="headerlink" href="#tc-md111-links-autolink_urlsfalse-on-ep-14" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+<th>noauto EP-1..4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LK-01..11</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LK-12</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-B</td>
+<td>❌ F-B</td>
+<td>❌ F-B</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>EP-1 targets: all as expected; LK-06 https://www.example.com/www; LK-12 plain (dropped_links no_scheme + no_matching_heading reported). EP-5 LK-06 http:// (D4 OK).</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 141/144 case×EP cells pass; failures: #1113 (F-B); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="tc-md112-images">TC-MD112 Images<a class="headerlink" href="#tc-md112-images" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IM-01..03, 07..09</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>IM-04, IM-06</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 empty line)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>IM-05, IM-15</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>N/A (N1)</td>
+</tr>
+<tr>
+<td>IM-10</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-C literal <code>![…](…)</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>N/A (N1)</td>
+</tr>
+<tr>
+<td>IM-11, IM-12</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-C nothing shown</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>IM-13</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-C dead <code>#badge-heading</code> link</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>IM-14</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F-C nothing shown</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>EP-1/2/8 <code>images</code> results: IM-04/06 fileId, no error; IM-11/12 error + fallback_text; IM-13 error, no fallback; IM-14 no error. IM-13 link -&gt; #heading=h.… (EP-1 export). EP-3/4 embed IM-05/10/15 (pixel diff vs EP-1 confined to those rows, expected).</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 96/111 applicable case×EP cells pass; failures: #1113 (F-C, 15 cells); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="tc-md113-tables-all-12-cases-on-all-8-eps-ep-57-green-code-and-gap-before-tb-08s-table-are-d4-named">TC-MD113 Tables — all 12 cases ✅ on all 8 EPs (EP-5..7 green code and gap before TB-08's table are D4-named).<a class="headerlink" href="#tc-md113-tables-all-12-cases-on-all-8-eps-ep-57-green-code-and-gap-before-tb-08s-table-are-d4-named" title="Permanent link">&para;</a></h4>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 96/96 case×EP cells pass; Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></p>
+<h4 id="tc-md114-breaks-and-rules-all-9-cases-on-all-8-eps-ep-1-br-09-2-paragraphs-first-has-spacebelow-10pt-read-via-docs-api-since-a-page-break-hides-the-gap-ep-57-retake-pending">TC-MD114 Breaks and rules — all 9 cases ✅ on all 8 EPs (EP-1 BR-09: 2 paragraphs, first has spaceBelow 10pt, read via Docs API since a page break hides the gap; EP-5..7 retake pending).<a class="headerlink" href="#tc-md114-breaks-and-rules-all-9-cases-on-all-8-eps-ep-1-br-09-2-paragraphs-first-has-spacebelow-10pt-read-via-docs-api-since-a-page-break-hides-the-gap-ep-57-retake-pending" title="Permanent link">&para;</a></h4>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 72/72 case×EP cells pass (EP-5..7 to be reconfirmed); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></p>
+<h4 id="tc-md115-escapes-all-7-cases-on-all-8-eps-ep-57-retake-pending">TC-MD115 Escapes — all 7 cases ✅ on all 8 EPs (EP-5..7 retake pending).<a class="headerlink" href="#tc-md115-escapes-all-7-cases-on-all-8-eps-ep-57-retake-pending" title="Permanent link">&para;</a></h4>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 56/56 case×EP cells pass; Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></p>
+<h4 id="tc-md116-inline-html">TC-MD116 Inline HTML<a class="headerlink" href="#tc-md116-inline-html" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1..4, EP-8</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HT-01..02, 04..07</td>
+<td>✅</td>
+<td>✅ (del/mark D4-named)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>HT-03</td>
+<td>✅</td>
+<td>❌ F-D</td>
+<td>❌ F-D</td>
+<td>❌ F-D</td>
+</tr>
+<tr>
+<td><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 53/56 case×EP cells pass; failures: #1113 (F-D); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="tc-md117-unicode-un-0103-06-07-on-all-eps-un-04un-05-on-ep-37-not-run-on-ep-128-n2-un-06-offsets-exact-on-ep-135">TC-MD117 Unicode — UN-01..03, 06, 07 ✅ on all EPs; UN-04/UN-05 ✅ on EP-3..7, NOT RUN on EP-1/2/8 (N2). UN-06 offsets exact on EP-1/3/5.<a class="headerlink" href="#tc-md117-unicode-un-0103-06-07-on-all-eps-un-04un-05-on-ep-37-not-run-on-ep-128-n2-un-06-offsets-exact-on-ep-135" title="Permanent link">&para;</a></h4>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — Run 1: 50/50 run cells pass, 6 cells not run (UN-04/05 on EP-1/2/8, N2); Run 2 not captured — ornithomimus release pass, shard M4 on <code>mcp-gee-sweet-sa</code></strong></p>
+<h3 id="findings-all-drives-import-ep-57-same-in-ep-567-differences-the-d4-list-in-known-limitationsmd-does-not-name-fail-tracked-by-open-1113-a-list-entry-for-each-is-unfiled">Findings (all Drive's import, EP-5..7; same in EP-5/6/7; differences the D4 list in known-limitations.md does not name → FAIL, tracked by open #1113; a list entry for each is UNFILED)<a class="headerlink" href="#findings-all-drives-import-ep-57-same-in-ep-567-differences-the-d4-list-in-known-limitationsmd-does-not-name-fail-tracked-by-open-1113-a-list-entry-for-each-is-unfiled" title="Permanent link">&para;</a></h3>
+<ul>
+<li>F-A md-blockquotes BQ-05: the fenced code box sits at the page margin, outside the quote (quote text indented above it). The list names only "fenced code block in a list item" at the margin.</li>
+<li>F-B md-links LK-12: "the guide" is link-styled to <code>http://./guide.md</code> (broken) and "an anchor" to a bare <code>#lk-01</code> that opens nothing. Expected plain text or a working heading link.</li>
+<li>F-C md-images: IM-10 shows the literal <code>![Spaced accented pixel](../../qa fixture pixel é.png)</code>; IM-11 shows an empty line (no "Build status"); IM-12 "Before   after." with no fallback text; IM-13 "Go to Badge heading" links to dead <code>#badge-heading</code>; IM-14 (protocol-relative public URL) shows nothing. Export shows lh3 image elements for IM-11/12/13/14 that render blank.</li>
+<li>F-D md-inline-html HT-03: <code>Line one&lt;br&gt;Line two</code> becomes two paragraphs with an empty paragraph between (C9 expects one paragraph with a line break).</li>
+</ul>
+<h3 id="notes-stale-wording-incidents">Notes / stale wording / incidents<a class="headerlink" href="#notes-stale-wording-incidents" title="Permanent link">&para;</a></h3>
+<ul>
+<li>N1 (stale wording): IM-05/IM-10/IM-15 are N/A on EP-1/EP-2 "content string, no file"; EP-8 (upload_file content) is the same situation and gets the same "No file found" fallback; the case should list EP-8 as N/A too. Also the Entry-points note says EP-8 IM-04..06 "expect the embedded image, as on EP-1", but EP-1's IM-05 is N/A.</li>
+<li>N2 (method gap, not a product defect): the agent's tool-call channel cannot deliver U+0301 (it arrives NFC-normalized) or U+00A0/U+2009 (they arrive as plain spaces), proven with a probe doc; so EP-1/2/8 never received UN-04's decomposed é or UN-05's special spaces. Those 6 cells need a scripted run (content read from the file) to be tested. Earlier passes' EP-1/2/8 UN-04/05 results may have the same blind spot.</li>
+<li>Lock incidents on playwright-2: (1) my first MD110 batch held the lock &gt;180 s, so M3 took it and its navigations made my EP-5..7 shots of that batch show M3's docs (discarded, retaken). (2) My stale-lock check used <code>stat -f %m</code>, which is GNU stat on this PATH, so ~11:34–11:53 it repeatedly rmdir'd M3's lock as "stale" (M3 had an owner file, so most attempts failed; at least one at 11:34 succeeded). Fixed to a python mtime check. M3's batches may have been disturbed in that window. (3) playwright-2 hung 30 min (12:06–12:36) on a read-only evaluate; later disconnected; playwright-4 disconnected after one batch.</li>
+<li>md-images.local.md created for the run and deleted at the end. No tracked file touched.</li>
+</ul>
+<h2 id="shard-m5">Shard M5<a class="headerlink" href="#shard-m5" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m5-docs_markdownmd-tc-md201-tc-md204-run-1-run-2-ep-1ep-8-prefix-mcp-gee-sweet-ash-playwright-3-shared-with-m6">Shard M5 — docs_markdown.md TC-MD201, TC-MD204 (Run 1 + Run 2, EP-1…EP-8) — prefix mcp-gee-sweet-ash, playwright 3 (shared with M6)<a class="headerlink" href="#shard-m5-docs_markdownmd-tc-md201-tc-md204-run-1-run-2-ep-1ep-8-prefix-mcp-gee-sweet-ash-playwright-3-shared-with-m6" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M5-run1 (<id>), QA-MD-2026-11-08-M5-run2 (<id>)</p>
+<p>Method: one 1400x2200 JPEG per editor viewport (scrollTop stepped by clientHeight, layout forced to full height first), under <code>.playwright-mcp/M5/run&lt;N&gt;/&lt;EP&gt;/&lt;CT|IN&gt;-p&lt;k&gt;.jpg</code> in Aziz's worktree. EP-1 and EP-5 of Run 1 read by eye page by page. EP-2/3/4/8 vs EP-1 and EP-6/7 vs EP-5 compared by pixel (page column x 300-1118, y 129-2200; outline pane, chrome, right rail and caret column x 385-405 masked; per-pixel gray delta &gt;48 counts, &lt;=60 px tolerated): <code>&lt;job tmp dir&gt;/M5/pixcmp.py</code>. Negative controls: CT-EP1-p1 vs IN-EP1-p1 = 89009 px DIFFERENT; CT-EP1-p1 vs CT-EP5-p1 = 82409 px DIFFERENT. Supporting evidence: get_doc_as_markdown of all 16 docs per run, diffed (image URLs normalized): EP-2/3/4/8 identical to EP-1, EP-6/7 identical to EP-5, both fixtures. Link targets: IN-EP1 and IN-EP5 all 28 link runs -&gt; https://example.com/inline (export + get_doc_structure at EP-1).</p>
+<h3 id="run-1-folder-qa-md-2026-11-08-m5-run1">Run 1 (folder QA-MD-2026-11-08-M5-run1)<a class="headerlink" href="#run-1-folder-qa-md-2026-11-08-m5-run1" title="Permanent link">&para;</a></h3>
+<p>Pixel comparison Run 1: EP-2, EP-3, EP-4, EP-8 vs EP-1 SAME on every page (0 differing px) for CT (9 pages) and IN (3 pages). EP-6, EP-7 vs EP-5 SAME on every page (CT 10 pages, IN 3 pages). (A first EP-8 CT capture was misaligned because Docs jumped the scroll after load; recaptured with a scroll-position check, then SAME.)</p>
+<h4 id="tc-md201-run-1-grid">TC-MD201 Run 1 grid<a class="headerlink" href="#tc-md201-run-1-grid" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CT-01–CT-65</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CT-66</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ code box at page margin, outside the quote (D4 names this only for list items) UNFILED</td>
+<td>❌ same</td>
+<td>❌ same</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CT-67–CT-74</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CT-75</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ literal <code>- [ ] Task A</code> / <code>- [x] Task B</code> dash-bullet text, not a checklist UNFILED</td>
+<td>❌ same</td>
+<td>❌ same</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CT-76</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ code box at page margin, outside the depth-2 quote UNFILED</td>
+<td>❌ same</td>
+<td>❌ same</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CT-77–CT-80</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p>Run 1: 631/640 cells pass.</p>
+<h4 id="tc-md204-run-1-grid">TC-MD204 Run 1 grid<a class="headerlink" href="#tc-md204-run-1-grid" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IN-01–IN-32</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4: green inline code, <code>-</code> bullets, <code>1.</code> at every level, native checklist, borderless quote)</td>
+<td>✅ (D4)</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p>Run 1: 256/256 cells pass.</p>
+<h3 id="run-2-folder-qa-md-2026-11-08-m5-run2">Run 2 (folder QA-MD-2026-11-08-M5-run2)<a class="headerlink" href="#run-2-folder-qa-md-2026-11-08-m5-run2" title="Permanent link">&para;</a></h3>
+<p>Same 16 renders in a fresh folder, captured the same way (with a scroll-position check on every shot). Pixel comparison: EP-2/3/4/8 vs EP-1 and EP-6/7 vs EP-5 SAME on every page, both fixtures. <strong>Run 2 vs Run 1: SAME on every page of every EP for both fixtures</strong> (CT 9 or 10 pages, IN 3 pages). The only non-zero counts (37 px, IN page 1 on EP-2/EP-4/EP-8 in some pairs) are Docs' spellcheck squiggle under the word "inside" in the IN-05 heading, inspected by eye (<code>&lt;job tmp dir&gt;/M5/in37.png</code>); it's editor UI, not rendering. Grids for Run 2 are identical to Run 1's above (same three failing cases on EP-5/6/7, everything else ✅). Determinism: no cell differs between runs.</p>
+<h3 id="summary-lines">Summary lines<a class="headerlink" href="#summary-lines" title="Permanent link">&para;</a></h3>
+<p>TC-MD201: <strong>Result (2026-11-08) ❌ FAIL — 631/640 case×EP cells pass, identical in both runs; failures: CT-66, CT-75, CT-76 on EP-5/EP-6/EP-7 (Drive import, differences not named in the D4 list; UNFILED, umbrella #1113 open) — ornithomimus release pass, shard M5 on <code>mcp-gee-sweet-ash</code></strong></p>
+<p>TC-MD204: <strong>Result (2026-11-08) ✅ PASS — 256/256 case×EP cells pass, identical in both runs; failures: none — ornithomimus release pass, shard M5 on <code>mcp-gee-sweet-ash</code></strong></p>
+<h3 id="findings_1">Findings<a class="headerlink" href="#findings_1" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>CT-75 (task list inside a depth-2 blockquote), EP-5/6/7, both runs — UNFILED.</strong> Drive's import renders the two items as dash bullets with literal text <code>[ ] Task A</code> and <code>[x] Task B</code> (run1/EP5/CT-p10.jpg). D4's list says task lists "become native Docs checklists"; at depth 1 (CT-65) and in list items they do, so this is an unnamed difference: literal task markers shown to the reader. Expected: ☐/☑ (or native checklist per D4). Ours (EP-1–4, 8) is correct.</li>
+<li><strong>CT-66 and CT-76 (fenced code block inside a blockquote, depth 1 and 2), EP-5/6/7, both runs — UNFILED.</strong> The gray "None" code box sits at the page margin at full width, left of the quote's indented text, so the code reads as outside the quote (run1/EP5/CT-p9.jpg, CT-p10.jpg). D4's list names "a fenced code block in a list item sits at the page margin", not one in a blockquote. Judged FAIL on the strict reading; if Aziz reads the list-item bullet as covering any container, these 6 cells per run become D4 passes and the known-limitations text should say "list item or blockquote".</li>
+<li>Everything else in EP-5/6/7 matched the D4 list: <code>-</code> bullets, <code>1.</code> at every level (no repeated top-level number seen), native checklists, borderless quotes, green inline code, gray "None" code boxes, extra empty paragraphs around loose-list paragraphs/tables/images/rules/nested quotes.</li>
+</ol>
+<h3 id="stale-case-wording-judgment-calls-not-defects">Stale case wording / judgment calls (not defects)<a class="headerlink" href="#stale-case-wording-judgment-calls-not-defects" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>C7 / CT-63, 64, 65, 73, 74, 75 on our engine:</strong> a list inside a quote draws its bar at the list indent, right of the quote paragraphs' bar. C7 writes that offset into the expected rendering and links #1242, which is CLOSED (decided as a documented limitation, <code>docs/known-limitations.md</code> "A list inside a blockquote draws its own quote bar…"). Judged ✅ per C7. If Aziz applies "a known limitation is a FAIL naming an open issue", those 6 cases × 5 our-engine EPs fail with no open issue.</li>
+<li><strong>IN-23 (heading 6):</strong> Docs' HEADING_6 named style is italic, so the whole heading is italic and "I italic, each style only on its own letter" can't hold visually; the converter leaves the I run's italic to the style (structure: <code>" I "</code> run italic=null). Judged ✅ (the heading-6 style renders correctly; every other letter's style is right). The expected wording should except the italic check for H6.</li>
+<li>IN-13–16 code text and IN-29 header row checked on screen; link targets of all 28 link runs at EP-1 and EP-5 are <code>https://example.com/inline</code>.</li>
+</ul>
+<h3 id="incidents_1">Incidents<a class="headerlink" href="#incidents_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Shared Playwright (playwright-3) coordination:</strong> during one of my locked capture batches the shared current tab was navigated to M6's <code>MD-AB-EP3</code> doc mid-run (my script errored on a missing editor). After that I verified the doc ID in the URL before and after every screenshot and retried on mismatch; no later capture needed a retry, and every pixel comparison came out SAME, so no capture was polluted. My mutex acquire also found the lock dir over 180 s old three times and removed it per the protocol, and twice my release found the dir already gone, so the other shard either isn't holding the mutex or is holding it longer than 180 s.</li>
+<li>A first EP-8 CT capture in Run 1 was misaligned (Docs jumped the scroll after load, following the <code>#heading=</code> it adds to the URL); recaptured with a scroll-position check.</li>
+<li>Disk: 86 GiB free at start. No connection errors.</li>
+</ul>
+<h3 id="cleanup">Cleanup<a class="headerlink" href="#cleanup" title="Permanent link">&para;</a></h3>
+<p>Both run folders trashed (<code>delete_file</code>, not permanent): QA-MD-2026-11-08-M5-run1 and -run2. Evidence kept: screenshots under <code>.playwright-mcp/M5/run{1,2}/EP{1..8}/</code> in Aziz's worktree (gitignored); the failing cells are in <code>run1/EP5/CT-p9.jpg</code> and <code>CT-p10.jpg</code> (also EP6/EP7 and run2 equivalents). The Drive-import docs are cheap to regenerate (<code>upload_local_file(convert=True)</code> on <code>docs/qa/fixtures/md/syntax/md-containment.md</code>).</p>
+<h2 id="shard-m6">Shard M6<a class="headerlink" href="#shard-m6" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m6-docs_markdownmd-tc-md202-tc-md203-release-pass-run-2-markdown-prefix-mcp-gee-sweet-jay-playwright-3-shared-with-m5">Shard M6 — docs_markdown.md TC-MD202, TC-MD203 (release pass Run 2: Markdown) — prefix mcp-gee-sweet-jay, playwright-3 (shared with M5)<a class="headerlink" href="#shard-m6-docs_markdownmd-tc-md202-tc-md203-release-pass-run-2-markdown-prefix-mcp-gee-sweet-jay-playwright-3-shared-with-m5" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M6-run1 (<id>), QA-MD-2026-11-08-M6-run2 (<id>)</p>
+<h3 id="method-notes_1">Method notes<a class="headerlink" href="#method-notes_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Docs created on <code>mcp-gee-sweet-jay</code> (OAuth, develop f98c67b7). EP-1/2/8 content pasted inline from the fixture; EP-3/4 from the fixture path; EP-5 from the fixture path; EP-6/EP-7 from temp dirs under tmp/M6/run<N>/ holding only the fixture.</li>
+<li>Capture: playwright-3 under the mutex, but each batch drove its <strong>own page</strong> (<code>page.context().newPage()</code>, closed at the end of the batch). Reason: the shared tab was also being navigated by M5 (a lock older than 180 s was removed as stale per the rules at 11:34, and M5's docs then appeared in my first two batches); all captures taken before the switch were discarded and retaken. Viewport 1400×2200, scroll container <code>.kix-appview-editor</code> stepped by clientHeight−100 px, JPEG per step, under <code>.playwright-mcp/M6/run&lt;N&gt;/&lt;EP&gt;/&lt;AJ|AB&gt;-p&lt;k&gt;.jpg</code>.</li>
+<li>Pixel compare (<code>tmp/M6/cmp.py</code>, PIL): crop to the page column x 300–1120, y ≥ 135 (masks chrome, outline pane, scrollbar), caret column masked on p1, |Δ|&gt;60 counted, page SAME if &lt;40 px differ. Negative control: run1 EP-1 AJ-p1 vs EP-1 AB-p1 → DIFFERENT (78,456 px).</li>
+</ul>
+<h3 id="run-1-2026-11-08-folder-qa-md-2026-11-08-m6-run1">Run 1 (2026-11-08, folder QA-MD-2026-11-08-M6-run1)<a class="headerlink" href="#run-1-2026-11-08-folder-qa-md-2026-11-08-m6-run1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>By eye: EP-1 AJ (9 pages), EP-1 AB (10), EP-5 AJ (11), EP-5 AB (11) read top to bottom against each case's Expected.</li>
+<li>Pixel: EP-2/3/4/8 vs EP-1 → SAME for both fixtures, every page. EP-6/7 vs EP-5: AJ EP-7 SAME; AJ EP-6 p8 differs by 268 px = the Docs table hover handles (mouse position), content identical by eye; AB EP-6 and EP-7 p6 differ from EP-5 p6 = EP-5's capture landed at a different scroll offset (Docs re-anchored during lazy layout), content identical where both show it; EP-6 vs EP-7 AB SAME. EP-5 AB's own render of AB-054–AB-057 was not in any Run 1 frame (scroll jitter); recaptured below.</li>
+<li>Export check (EP-1, <code>get_doc_as_markdown</code>): 100 <code>###</code> case headings and 20 <code>#### Inner heading</code> per fixture (HEADING_4 as expected). The fixtures contain no links, so there are no link targets to check.</li>
+</ul>
+<h3 id="run-2-2026-11-08-folder-qa-md-2026-11-08-m6-run2">Run 2 (2026-11-08, folder QA-MD-2026-11-08-M6-run2)<a class="headerlink" href="#run-2-2026-11-08-folder-qa-md-2026-11-08-m6-run2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All 16 Docs created (EP-1…EP-8 × 2 fixtures). One tool-level event: <strong>EP-8 AJ (<code>upload_file</code>, Run 2) returned image #20 (AJ-099) with <code>error: "insertInlineImage: There was a problem retrieving the image…"</code> and <code>fallback_text: "pixel"</code></strong> — the same public gstatic PNG embedded fine in the other 19 places in that call and in every other Doc of both runs.</li>
+<li>Captured before playwright-3 hung: AJ at EP-1/2/3/4/5/8. Pixel: run2 EP-2/3/4 vs run2 EP-1 SAME; run2 vs run1 SAME at EP-1/2/3/4/5; <strong>EP-8 run2 differs from run1 (and from run2 EP-1) on p9 only: AJ-099 shows the word "pixel" in place of the image</strong> (checked by eye, crop tmp/M6/d2.png).</li>
+<li><strong>playwright-3 hung</strong>: the capture batch started 12:15 (3 Docs) wrote all its frames by 12:19 but the tool call never returned (30-min MCP idle timeout); a follow-up 1-line <code>browser_run_code_unsafe</code> (closing my own leftover page by URL) also hit the 30-min timeout. The QA browser's CDP endpoint (port 9333) still answered <code>/json/version</code> at 13:17, so the browser is up and the playwright-3 server process is what's stuck (possibly queued behind a shared-server call). Not retried further, per the rules.</li>
+<li>Retried playwright-3 at 13:19 (<code>browser_tabs list</code> answered). The next batch (run2 AJ EP-6/EP-7) wrote all its frames by 13:20, then the call hung 30 min again. Frames compared: run2 EP-6/EP-7 vs run2 EP-5 SAME; vs run1 SAME (run1 EP-6 p8 again only the table hover handles).</li>
+<li>13:49: one batch for the 9 remaining Docs (run2 AB × 8, run1 EP-5 AB re-shoot) with the lock released by a background timer at 8 min: run2 AB EP-1 and EP-2 captured (both SAME as run1 AB EP-1 and each other), then <code>page.screenshot: Timeout 30000ms exceeded</code> on EP-3. 13:58: next batch → <strong><code>Connection closed</code>; playwright-3 then reported as failed to connect.</strong> Playwright stopped here per the rules; not restarted.</li>
+<li>Structural fallback for what wasn't captured (supporting evidence only, not a verdict): <code>get_doc_as_markdown</code> exports, image URLs normalized. run2 AB EP-1/2/3/4/8 identical to each other and to run1 AB EP-1; run1 EP-5 AB = run2 EP-5/6/7 AB; run2 EP-5 AJ = run2 EP-6/7 AJ.</li>
+</ul>
+<h3 id="grid-tc-md202-md-adjacency-noblankmd">Grid — TC-MD202 (md-adjacency-noblank.md)<a class="headerlink" href="#grid-tc-md202-md-adjacency-noblankmd" title="Permanent link">&para;</a></h3>
+<p>Rows not listed are ✅ at every EP in both runs. EP-1…EP-4: every page SAME across EPs and runs and read by eye (Run 1).</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AJ-028 bullet list → table</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ D2: table becomes literal text on the last item "Bullet B | K | V | |---|---| | k1 | v1 |" (#1113, UNFILED as a defect)</td>
+<td>❌ same</td>
+<td>❌ same</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>AJ-038 numbered list → table</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ same, on "2. Number B" (#1113)</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>AJ-048 task list → table</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ same, on "☑ Task B" (#1113)</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>AJ-068 blockquote → table</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ same, joined to "Quoted line" (#1113)</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>AJ-099 rule → image</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ Run 2 only: the word "pixel" (alt text) instead of the image; Run 1 shows the image → Rule 4 nondeterminism (UNFILED)</td>
+</tr>
+</tbody>
+</table>
+<p>EP-5/6/7 identical between runs (pixel SAME). Everything else on EP-5/6/7 matches C1–C16 or a difference D4's list names (<code>-</code> bullets, native checklists, "None" code boxes, borderless quotes, extra empty paragraphs).</p>
+<p><strong>Result (2026-11-08) ❌ FAIL — 787/800 case×EP cells pass; failures: #1113 (AJ-028/038/048/068 at EP-5/6/7, D2 on Drive's import, no defect issue names it), UNFILED (AJ-099 EP-8 Run 2 image-fetch fallback, Rule 4) — ornithomimus release pass, shard M6 on <code>mcp-gee-sweet-jay</code></strong></p>
+<h3 id="grid-tc-md203-md-adjacency-blankmd">Grid — TC-MD203 (md-adjacency-blank.md)<a class="headerlink" href="#grid-tc-md203-md-adjacency-blankmd" title="Permanent link">&para;</a></h3>
+<p>No case failed anywhere it was seen on screen.</p>
+<table>
+<thead>
+<tr>
+<th>EP</th>
+<th>Run 1 (screen)</th>
+<th>Run 2 (screen)</th>
+<th>Cell status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EP-1</td>
+<td>✅ all 100 (read by eye)</td>
+<td>✅ pixel SAME as Run 1</td>
+<td>✅ 100</td>
+</tr>
+<tr>
+<td>EP-2</td>
+<td>✅ pixel SAME as EP-1</td>
+<td>✅ pixel SAME as Run 1 / run2 EP-1</td>
+<td>✅ 100</td>
+</tr>
+<tr>
+<td>EP-3</td>
+<td>✅ pixel SAME as EP-1</td>
+<td>not captured (playwright-3 died); export identical</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+<tr>
+<td>EP-4</td>
+<td>✅ pixel SAME as EP-1</td>
+<td>not captured; export identical</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+<tr>
+<td>EP-5</td>
+<td>✅ all 100 by eye (AB-054–057 not in an EP-5 frame: scroll jitter; seen on EP-6/EP-7, which are pixel-SAME to EP-5 on every other page, and the exports match)</td>
+<td>not captured; export identical to Run 1</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+<tr>
+<td>EP-6</td>
+<td>✅ (p6 vs EP-5 differs only by EP-5's scroll offset; SAME as EP-7)</td>
+<td>not captured; export identical</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+<tr>
+<td>EP-7</td>
+<td>✅ same as EP-6</td>
+<td>not captured; export identical</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+<tr>
+<td>EP-8</td>
+<td>✅ pixel SAME as EP-1</td>
+<td>not captured; export identical</td>
+<td>⚠️ PARTIAL 100</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — 200/800 case×EP cells pass on screen in both runs, 0 fail; the other 600 (EP-3/4/5/6/7/8) pass on screen in Run 1 but Run 2 wasn't captured (playwright-3 hung, then disconnected) — ornithomimus release pass, shard M6 on <code>mcp-gee-sweet-jay</code></strong></p>
+<h3 id="findings_2">Findings<a class="headerlink" href="#findings_2" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Drive's Markdown import (EP-5/6/7) turns a pipe table directly under a list item or quote line into literal text</strong> (AJ-028, AJ-038, AJ-048, AJ-068; both runs, all three EPs). Fixture <code>md-adjacency-noblank.md</code>. On screen: the last item's / quote's line reads "Bullet B | K | V | |---|---|  | k1 | v1 |" (resp. "2. Number B …", "☑ Task B …", "Quoted line …"); no table. Expected (D2, which D4 leaves in force): the item/quote, then a separate 2×2 table. After a plain paragraph (AJ-008) and a heading (AJ-018) Drive does build the table. <code>docs/known-limitations.md</code>'s Drive-import list doesn't name this, so it isn't covered by D4. Open issue that would fix it: #1113 (route EP-5–7 through our converter); no defect issue tracks it — <strong>UNFILED</strong> (needs a ticket or a known-limitations entry + decision).</li>
+<li><strong>A public image that Docs fails to fetch once is written as alt text with no retry, so the same Markdown renders differently between runs</strong> (Rule 4). EP-8 (<code>upload_file</code>, markdown → Doc), Run 2, <code>md-adjacency-noblank.md</code> AJ-099: the call's <code>images[19]</code> = <code>{"error": "doc edit failed: insertInlineImage: There was a problem retrieving the image. The provided image should be publicly accessible, within size limit, and in supported formats.", "fallback_text": "pixel"}</code>; on screen "pixel" as plain text under the rule. The same URL (gstatic docs_48dp.png) embedded in the other 19 positions of that call and in all 19 other converter Docs of both runs (380 embeds). Expected (C11): the image. The #1099 fallback works as designed; the defect is treating a transient fetch failure as permanent. <strong>UNFILED</strong> (no open issue found: searched "image fetch", "problem retrieving the image", "insertInlineImage transient").</li>
+</ol>
+<h3 id="not-a-defect-harness-notes">Not a defect / harness notes<a class="headerlink" href="#not-a-defect-harness-notes" title="Permanent link">&para;</a></h3>
+<ul>
+<li>EP-6 table hover handles and EP-5 scroll jitter were capture artifacts (checked by eye).</li>
+<li>No stale case wording noticed in TC-MD202/203.</li>
+</ul>
+<h3 id="cleanup_1">Cleanup<a class="headerlink" href="#cleanup_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Trashed QA-MD-2026-11-08-M6-run1. <strong>Kept QA-MD-2026-11-08-M6-run2</strong> (<id>) as evidence: <code>md-adjacency-noblank.md</code> at its root is the EP-8 Doc with AJ-099's fallback text (<id>); EP5/EP6/EP7 subfolders hold the Drive-import Docs showing finding 1; the run2 AB Docs are there for whoever re-captures Run 2 on screen.</li>
+<li>Possibly left behind in the QA browser: one <code>about:blank</code> or Docs tab my last batches opened (they couldn't run their close step before playwright-3 died).</li>
+<li>Screenshots: <code>.playwright-mcp/M6/run1/</code>, <code>.playwright-mcp/M6/run2/</code> in Aziz's worktree (~200 JPEGs, ~40 MB).</li>
+</ul>
+<h2 id="shard-m7">Shard M7<a class="headerlink" href="#shard-m7" title="Permanent link">&para;</a></h2>
+<h2 id="shard-m7-docs_markdownmd-tc-md301303-401403-501508-run-1-run-2-prefix-mcp-gee-sweet-kit-playwright-4-dedicated">Shard M7 — docs_markdown.md TC-MD301–303, 401–403, 501–508 (Run 1 + Run 2) — prefix mcp-gee-sweet-kit, playwright 4 (dedicated)<a class="headerlink" href="#shard-m7-docs_markdownmd-tc-md301303-401403-501508-run-1-run-2-prefix-mcp-gee-sweet-kit-playwright-4-dedicated" title="Permanent link">&para;</a></h2>
+<p>Run folders: QA-MD-2026-11-08-M7-run1 (<id>), QA-MD-2026-11-08-M7-run2 (<id>)
+Account check (playwright-4, new tab): fixture doc title "mcp-gee-sweet-qa-fixtures-doc" — OK.
+Method: renders made through the kit MCP tools (by M7 render helpers, manifests in tmp/M7/<run>/manifest-*.tsv); captures 1400×2200 JPEG via playwright-4 under .playwright-mcp/M7/run<N>/<EP>/; pixel compare cropped to the page column with the caret hidden (tmp/M7/cmp.py).
+Deviation noted: TC-MD301 EP-6/EP-7 used one temp dir holding all 16 docstart files (one upload_local_folder / sync_folder call per run) instead of one dir per file; each file still converts to its own Doc.
+TC-MD404 skipped here by assignment: Aziz judges determinism from every shard's Run 1 vs Run 2 (this shard's comparison is below).
+Playwright note: playwright-4 was assigned as dedicated, but other tabs on that browser were being navigated by other sessions throughout (tab titles like MD-r14-EP1, md-containment.md). My captures ran in my own new tab; each capture checked the page URL held the expected doc ID (no mismatch).
+Negative controls: DS01 vs DS02 (EP-1) and r06 vs paragraph-gaps (EP-1) both reported DIFFERENT. 1,005 automated pairs (EP-2/3/4/8 vs EP-1, EP-6/7 vs EP-5, Run 2 vs Run 1, every page of the long doc): 996 SAME, 9 DIFFERENT = the 2 controls + 7 capture artifacts checked by eye (run1 EP-2 DS07: Docs chrome composited into the lower viewport; long-doc EP-8 p3/p15 run2: spell-check squiggles on "fastqueue"; MD501-SECOND run1 vs run2: Docs' link-preview card loaded its favicon in one run only). Content identical in all 7.
+Exports (<code>get_doc_as_markdown</code>) are byte-identical across every EP and both runs for every fixture (DL, WS, IS, HT, LB, XREF, LMLX, R06, PG, MS, LG, LONG); the long-doc exports also confirm the ~50 KB inline EP-1/2/8 content matched the file.
+Incident: the Docs write quota (60 writes/min/user, shared with other shards) returned 429 on 10 render calls in Run 1 (none in Run 2, which ran 2 helpers at a time); each was retried once after 60 s and succeeded (the failed partial Docs stay unused in the run folder). Not a product defect: the tools returned <code>{"error", "docId"}</code> as documented.</p>
+<p>Stale case wording (not defects):
+- TC-MD402: r02 has no code and no adjacent body paragraphs, so the Courier New check and the "10pt gap between adjacent paragraphs" check have nothing to act on (the unthemed reference has no 10pt gap either).
+- TC-MD505 hand-numbered heading: the case names a HEADING_2 "1.<tab>Introduction"; Markdown input gives "1. Introduction" (space). I used that; its <code>#1-introduction</code> link resolved to the heading.
+- TC-MD301 DS13 (CRLF) through EP-1/2/8 still can't be sent inline by this client (as in 2026-10-22); those 3 cells are pending in both runs.</p>
+<h3 id="grid-every-cell-identical-in-run-1-and-run-2">Grid (every cell identical in Run 1 and Run 2)<a class="headerlink" href="#grid-every-cell-identical-in-run-1-and-run-2" title="Permanent link">&para;</a></h3>
+<h4 id="tc-md301-docstart">TC-MD301 (docstart)<a class="headerlink" href="#tc-md301-docstart" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DS-01 bullets first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 <code>-</code>)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-02 numbered first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-03 table first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 empty line above)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-04 code first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 "None" box)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-05 quote first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 no border)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-06 image first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-07 rule first</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-08 ends table</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4 empty line before table)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-09 ends list</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-10 empty</td>
+<td>✅</td>
+<td>✅ (cleared)</td>
+<td>✅</td>
+<td>✅ (cleared)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-11 whitespace</td>
+<td>✅</td>
+<td>✅ (cleared)</td>
+<td>✅</td>
+<td>✅ (cleared)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-12 no trailing NL</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-13 CRLF</td>
+<td>pending</td>
+<td>pending</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>pending</td>
+</tr>
+<tr>
+<td>DS-14 front matter</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-15 rule + setext</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DS-16 FM lists</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Structure (EP-1): DS-01's first element is the bullet (no empty paragraph above); DS-03's paragraph before the table is the collapsed placeholder, invisible; after DS-09's list only Docs' unbulleted final paragraph; DS-15 = rule paragraph, HEADING_2, paragraph.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="tc-md301-documents-that-start-or-end-with-a-non-paragraph-block-and-degenerate-input">TC-MD301: Documents that start or end with a non-paragraph block, and degenerate input<a class="headerlink" href="#tc-md301-documents-that-start-or-end-with-a-non-paragraph-block-and-degenerate-input" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — 125/128 case×EP cells pass in each run, 3 pending (DS-13 EP-1/2/8: CRLF can't be sent inline), none fail; identical across runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — EP-5–7 differ from EP-1 only in D4-named ways; EP-2/EP-4 cleared the prior content for DS-10/11.</p>
+<h3 id="tc-md302-long-document">TC-MD302: Long document<a class="headerlink" href="#tc-md302-long-document" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ F3 #1113</td>
+<td>❌ F3 #1113</td>
+<td>❌ F3 #1113</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result (2026-11-08) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; failures: #1113 — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — Every call completed (no timeout); 24 viewports (~45 pages) captured per Doc. Second copies of r06 (steps 1–5, code under steps, step-4 sub-bullets) and r16 render like the first; every <code>***</code> between documents is a visible line. EP-1–4/8 write the unfetchable shields.io badge as its alt text "Build" (C16; <code>images</code> has error + fallback_text). EP-5–7: in both r04 copies the badge leaves an empty line, no alt text (the 2026-11-05 baseline's F3; not in the D4 list, so FAIL, #1113 OPEN). Fenced-code boxes and list-item fences at the margin are now named in the D4 list, so they pass.</p>
+<h3 id="tc-md303-a-md-file-with-a-long-name-through-the-drive-import-entry-points">TC-MD303: A <code>.md</code> file with a long name through the Drive-import entry points<a class="headerlink" href="#tc-md303-a-md-file-with-a-long-name-through-the-drive-import-entry-points" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>EP-3</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>110-byte ASCII</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>45 CJK chars (138 bytes)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — No error, failed entry or propertyLengthLimitExceeded; <code>list_files</code> shows exactly 1 Doc per name in ep5/ep6/ep7; a second identical <code>sync_folder</code> reported both names <code>skipped</code>. EP-3 renders r01 per TC-MD001; EP-5–7 per D4 (dash bullets, borderless quote, native checklist). Both names render pixel-identically.</p>
+<h3 id="tc-md401-replacing-a-doc-that-already-has-content">TC-MD401: Replacing a Doc that already has content<a class="headerlink" href="#tc-md401-replacing-a-doc-that-already-has-content" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 2/2 cells (EP-2, EP-4) pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — r06 written over an r07 Doc is pixel-identical to r06 written into a blank Doc (TC-MD506's EP-2/EP-4 renders) in both runs; no table, list or styled empty paragraph of r07 left. The r06 render passes TC-MD006 on screen.</p>
+<h3 id="tc-md402-writing-into-a-doc-with-a-theme-and-non-default-named-styles">TC-MD402: Writing into a Doc with a theme and non-default named styles<a class="headerlink" href="#tc-md402-writing-into-a-doc-with-a-theme-and-non-default-named-styles" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 2/2 cells (EP-2, EP-4) pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — H1/H2 Montserrat blue bold, H3 Montserrat gray italic, body and table cells Georgia (table cells no longer take the heading look); lists, nested <code>a.</code>–<code>c.</code>, item 4 and the timeline table match the unthemed r02 reference. Code and 10pt-gap checks can't be exercised with r02 (see stale wording).</p>
+<h3 id="tc-md403-update_doc_from_file-twice-in-a-row">TC-MD403: <code>update_doc_from_file</code> twice in a row<a class="headerlink" href="#tc-md403-update_doc_from_file-twice-in-a-row" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 1/1 cells pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — A copy frozen after the first update and the Doc after the second are pixel-identical; <code>documents().get()</code> element lists identical (34 elements, same styles and nesting, list IDs aside). r10 renders per TC-MD010. Run 1: the first update hit a 429 and was retried, so that Doc saw 3 updates; still identical.</p>
+<h3 id="tc-md404-determinism-across-runs">TC-MD404: Determinism across runs<a class="headerlink" href="#tc-md404-determinism-across-runs" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ⏭️ SKIP — judged by Aziz from all shards. For this shard's cases every Run 2 capture matched Run 1 (differences were only the capture artifacts listed above).</strong></p>
+<h3 id="tc-md501-dropped-links-are-reported-in-the-response-host-links-get-https">TC-MD501: Dropped links are reported in the response, host links get https<a class="headerlink" href="#tc-md501-dropped-links-are-reported-in-the-response-host-links-get-https" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 4/4 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — EP-1–4 each returned exactly <code>[./guide.md no_scheme, /guide.md no_scheme, cell.md no_scheme, #no-such-heading no_matching_heading]</code>, <code>./guide.md</code> once. On screen "the guide", "the root guide", "jump nowhere", "the guide again" and "cell file" are plain; "the host" → https://example.com/host, "the www site" → https://www.example.com/www; kept site/mail linked; "jump to the heading" → the Doc's own <code>#heading=</code> URL. Second call: no <code>dropped_links</code> key.</p>
+<h3 id="tc-md502-a-bare-www-autolink-gets-https-like-a-written-www-link">TC-MD502: A bare <code>www.</code> autolink gets https, like a written <code>www.</code> link<a class="headerlink" href="#tc-md502-a-bare-www-autolink-gets-https-like-a-written-www-link" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 5/5 case×EP cells pass, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — EP-1–4/8 all store <code>https://www.example.com</code> (bare and written) and <code>https://www.example.com:8443/x</code>; no <code>http://</code>; no <code>dropped_links</code>.</p>
+<h3 id="tc-md503-inline-strike-subsup-and-highlight">TC-MD503: Inline strike, sub/sup and highlight<a class="headerlink" href="#tc-md503-inline-strike-subsup-and-highlight" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass (IS and HT-01/02/07 × EP-1–4/8), identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — On screen IS-01–04 and HT-01/02/07 as listed (sub/sup, yellow bold "hi", table-cell x/y/z/w). Export <code>~~x~~ and ~~y~~; ~~hij~~k.</code>, IS-04 <code>x ~~y~~ z</code>, sub/sup/highlight as plain text.</p>
+<h3 id="tc-md504-line-breaks-inside-headings-list-items-and-quotes">TC-MD504: Line breaks inside headings, list items and quotes<a class="headerlink" href="#tc-md504-line-breaks-inside-headings-list-items-and-quotes" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 45/45 case×EP cells pass (LB-01–04 × EP-1–4/8, BR-01–03/HT-03/LX-04/BQ-07 × EP-1–4, round trip), identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — Structure: HEADING_2 "Heading one\vheading two"; items 1–3 in one list, item 2 "Second item\vafter a hard break", level-1 "nested\vitem"; one quoted paragraph with <code>\v</code>; "[IMG] continues the same paragraph."; BR-02/03 and HT-03 one paragraph with <code>\v</code>; LX-04 one bullet; BQ-07 one quoted paragraph. The round-trip Doc has the same structure.</p>
+<h3 id="tc-md505-a-lists-start-number-survives-every-docs-entry-point">TC-MD505: A list's start number survives every Docs entry point<a class="headerlink" href="#tc-md505-a-lists-start-number-survives-every-docs-entry-point" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass (LM-04, LX-09 × EP-1–4/8) plus the existing-Doc, HTML, heading-link and round-trip checks, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — LM-04: 3. 4. 5. on screen; unbulleted "3.\tThree"… with indentFirstLine 18 / indentStart 36. LX-09: 1., code at the margin (no bullet, no indent), 2.; the items share one listId. Existing Doc (EP-2 and EP-4): header "M7 header" and NORMAL_TEXT Georgia kept. HTML: <code>reversed start=3</code> shows 3. 2. 1., <code>value=5</code> shows 5. 6. The <code>#1-introduction</code> link resolved to its heading. Export: <code>3. Three</code>…, <code>1.</code>, fence, <code>2.</code>.</p>
+<h3 id="tc-md506-a-gap-between-paragraphs-on-its-own-and-under-a-theme">TC-MD506: A gap between paragraphs, on its own and under a theme<a class="headerlink" href="#tc-md506-a-gap-between-paragraphs-on-its-own-and-under-a-theme" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass (r06, paragraph-gaps × EP-1–4) plus the theme checks, identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — r06 Troubleshooting is two paragraphs with the gap; PG-01–07 on screen as listed (PG-06's bar is vertically continuous; the item's bar sits left of its inner paragraphs', the C7 offset decided in #1242). PG: 7×10pt + 3×8pt <code>spaceBelow</code>, no added empty paragraphs. <code>get_doc_theme</code>: PG <code>{}</code>, r06 <code>{}</code>, Courier-only Doc <code>{"NORMAL_TEXT":{"font_family":"Courier New"}}</code>, quoted-table Doc <code>{}</code>. Theme after (copy of EP-1, 8 requests) and theme before (EP-2, EP-4): no 10pt left, 8pt kept, 20pt on screen. A font-only theme keeps all 7 gaps in both orders. Round trip: the export of the gap-free (themed) copy is byte-identical to the EP-1 export. Observation: under the 20pt NORMAL_TEXT theme, PG-03's nested quote sits 20pt below the outer quote, so the bar breaks there; that's the theme's own spacing on a paragraph with no explicit spacing, not the 10pt gap.</p>
+<h3 id="tc-md507-a-lists-markers-look-the-same-whatever-its-items-text-looks-like">TC-MD507: A list's markers look the same whatever its items' text looks like<a class="headerlink" href="#tc-md507-a-lists-markers-look-the-same-whatever-its-items-text-looks-like" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass (r06, marker-styles × EP-1–4), identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — Every marker regular, roman, black (checked zoomed); items keep their own style; r06 step numbers 1–5 regular; the heading item's marker is heading-sized; no <code>​</code> in any item text; the export matches the fixture line for line.</p>
+<h3 id="tc-md508-a-gap-on-both-sides-of-a-list">TC-MD508: A gap on both sides of a list<a class="headerlink" href="#tc-md508-a-gap-on-both-sides-of-a-list" title="Permanent link">&para;</a></h3>
+<p><strong>Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass (list-gaps, r06 × EP-1–4), identical in both runs — ornithomimus release pass, shard M7 on <code>mcp-gee-sweet-kit</code></strong> — <code>spaceBelow</code> 10 on exactly the paragraphs LG-01–07 name (none on "Back in first.", "Paragraph inside c1." or "Paragraph inside 3."), no empty paragraph added, NORMAL_TEXT <code>COLLAPSE_LISTS</code>. LG-05's quote is vertically continuous (item bar offset per C7). Theme (copy of EP-1, 17 requests): no 10pt left, list items included; 20pt on screen. The export of the themed copy is byte-identical to EP-1's.</p>
+<h3 id="findings_3">Findings<a class="headerlink" href="#findings_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>TC-MD302 EP-5/6/7 (both runs): the shields.io SVG badge in both r04 copies leaves an empty line with no alt text (C16). The D4 list doesn't name this, so FAIL, tracked by #1113 (OPEN).</li>
+<li>No UNFILED defects.</li>
+</ul>
+<p>Cleanup: both run folders (and their ep5/ep6/ep7 children) trashed with <code>delete_file</code>. Nothing kept in Drive: the one FAIL is #1113 and its evidence is the captures under <code>.playwright-mcp/M7/run{1,2}/EP-5|6|7/MD302-LONG-p3.jpg</code> (and later pages).</p>
+<h2 id="shard-r3">Shard R3<a class="headerlink" href="#shard-r3" title="Permanent link">&para;</a></h2>
+<h2 id="shard-r3-retake-of-m3-docs_markdownmd-tc-md101tc-md109-run-2-missing-captures-prefix-kai-sa-not-needed-playwright-1-dedicated">Shard R3 — retake of M3 (docs_markdown.md TC-MD101–TC-MD109), Run 2 missing captures — prefix kai-sa (not needed), playwright-1 (dedicated)<a class="headerlink" href="#shard-r3-retake-of-m3-docs_markdownmd-tc-md101tc-md109-run-2-missing-captures-prefix-kai-sa-not-needed-playwright-1-dedicated" title="Permanent link">&para;</a></h2>
+<h3 id="retake-2026-11-08-evening">Retake (2026-11-08 evening)<a class="headerlink" href="#retake-2026-11-08-evening" title="Permanent link">&para;</a></h3>
+<h4 id="what-was-captured">What was captured<a class="headerlink" href="#what-was-captured" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Account check: new tab on playwright-1, fixture doc title "mcp-gee-sweet-qa-fixtures-doc" confirmed.</li>
+<li>37 Docs from <code>tmp/M3/ids-run2.txt</code>, one Doc per Playwright call: Run 2 EP-4 tasks, and Run 2 EP-5, EP-6, EP-7, EP-8 for all nine fixtures. No new renders; no Doc missing.</li>
+<li>Method identical to M3 (M3's <code>run2-06.js</code> template, retargeted): viewport 1400×2200, <code>.kix-appview-editor</code> clipped, scrollTop paging, caret hidden, JPEG. Every screenshot is wrapped in a page-URL check for the Doc ID before and after (throws and retakes on mismatch); none tripped. All 37 captures URL-verified.</li>
+<li>Files: <code>{aziz worktree}/.playwright-mcp/R3/run2/EP&lt;k&gt;/&lt;fixture&gt;-p&lt;n&gt;.jpg</code>; scripts <code>.playwright-mcp/R3/batches/</code>.</li>
+<li>No timeouts, no disconnects, no retries. Disk 93 GB free.</li>
+</ul>
+<h4 id="pixel-comparison-tmpr3cmppy-m3s-script-outline-pane-and-right-gutter-masked-threshold-60-identical-40-px">Pixel comparison (<code>tmp/R3/cmp.py</code> = M3's script: outline pane and right gutter masked, threshold 60, IDENTICAL &lt; 40 px)<a class="headerlink" href="#pixel-comparison-tmpr3cmppy-m3s-script-outline-pane-and-right-gutter-masked-threshold-60-identical-40-px" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Run 2 vs Run 1, Drive: EP-5 9/9, EP-6 9/9, EP-7 9/9 IDENTICAL.</li>
+<li>Run 2 vs Run 1, ours: EP-8 9/9, EP-4 tasks 1/1 IDENTICAL.</li>
+<li>Within Run 2: EP-6 vs EP-5 9/9, EP-7 vs EP-5 9/9, EP-8 vs EP-1 9/9, EP-4 tasks vs EP-1 IDENTICAL.</li>
+<li>Largest nonzero diffs: lists-boundaries p1, 18 px (EP-5/EP-6) and 29 px (EP-8), each a 1–2 px-high stroke at x≈145–183 (the same spell-check mark M3 saw in Run 1).</li>
+<li>Negative controls: Run 2 EP-5 emphasis vs inline-code DIFFERENT (33 518 px); Run 2 EP-8 emphasis vs inline-code DIFFERENT (35 614 px).</li>
+<li><strong>Determinism: Run 2 renders identically to Run 1 at every case×EP cell (Rule 4 met for all 9 TCs).</strong> Combined with M3's results, all 144 Docs (both runs) are now captured.</li>
+</ul>
+<h4 id="rulings-applied-aziz">Rulings applied (Aziz)<a class="headerlink" href="#rulings-applied-aziz" title="Permanent link">&para;</a></h4>
+<ul>
+<li>LX-23 EP-1–4, EP-8: graded against C7 as amended for #1293 → ✅. Note: our converter draws three staggered quote bars (Quote one / Quote bullet / Quote roman), which the amended C7 accepts.</li>
+<li>Drive-import (EP-5–7) differences that docs/known-limitations.md doesn't name: ❌ "#1113; aggregate issue pending" (#1113 checked OPEN 2026-11-08).</li>
+</ul>
+<h4 id="final-grid-cells-changed-all-else-as-in-results-m3md-run-1-run-2">Final grid cells changed (all else as in results-M3.md, Run 1 = Run 2)<a class="headerlink" href="#final-grid-cells-changed-all-else-as-in-results-m3md-run-1-run-2" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>EP-1</th>
+<th>EP-2</th>
+<th>EP-3</th>
+<th>EP-4</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+<th>EP-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LM-01</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ <code>+</code> list shows <code>+</code> glyph, <code>*</code> list ● — #1113; aggregate issue pending</td>
+<td>❌ same</td>
+<td>❌ same</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LN-04</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ grandchildren merged into Child one's text; later items renumbered 3./4./5. — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-14</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ LX-13's sublist and LX-14 joined into one list across the heading (2., 3., 4.) — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-21</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ wrapped line of 100. starts left of its text — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-22</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ 100.'s text and the paragraph under it misaligned — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-23</td>
+<td>✅ (C7 amended for #1293; staggered bars accepted)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (D4)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>LX-24</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ "Loose in the list" glued onto item 2 — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TK-04</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌ "Plain numbered item" shows 1. not 3. — #1113; aggregate issue pending</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Every Run 2 cell for EP-5–8 (and EP-4 tasks) now matches its Run 1 cell; no "Run 2 not captured" remains.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="final-per-tc-summary-lines">Final per-TC summary lines<a class="headerlink" href="#final-per-tc-summary-lines" title="Permanent link">&para;</a></h4>
+<p><strong>TC-MD101 — Result (2026-11-08) ✅ PASS — 64/64 case×EP cells pass; failures: none — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD102 — Result (2026-11-08) ✅ PASS — 64/64 case×EP cells pass; failures: none — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD103 — Result (2026-11-08) ✅ PASS — 48/48 case×EP cells pass; failures: none — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD104 — Result (2026-11-08) ✅ PASS — 80/80 case×EP cells pass; failures: none — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD105 — Result (2026-11-08) ❌ FAIL — 61/64 case×EP cells pass; failures: #1113 (aggregate issue pending: LM-01 EP-5–7) — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD106 — Result (2026-11-08) ❌ FAIL — 125/128 case×EP cells pass; failures: #1113 (aggregate issue pending: LN-04 EP-5–7) — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD107 — Result (2026-11-08) ✅ PASS — 88/88 case×EP cells pass; failures: none — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD108 — Result (2026-11-08) ❌ FAIL — 180/192 case×EP cells pass; failures: #1113 (aggregate issue pending: LX-14, LX-21, LX-22, LX-24 EP-5–7) — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong>
+<strong>TC-MD109 — Result (2026-11-08) ❌ FAIL — 45/48 case×EP cells pass; failures: #1113 (aggregate issue pending: TK-04 EP-5–7) — ornithomimus release pass, shard M3/R3 on <code>kai-sa</code></strong></p>
+<h4 id="stale-wording-carried-from-m3-unchanged">Stale wording (carried from M3, unchanged)<a class="headerlink" href="#stale-wording-carried-from-m3-unchanged" title="Permanent link">&para;</a></h4>
+<ul>
+<li>known-limitations "Converting <code>.md</code>…": Drive now keeps the source bullet marker (<code>+</code> → <code>+</code>, <code>*</code> → ●) rather than <code>-</code> everywhere; indented code blocks now render as the gray "None"-labelled box, not one Arial paragraph per line.</li>
+</ul>
+<h4 id="cleanup_2">Cleanup<a class="headerlink" href="#cleanup_2" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Trashed (not permanent) M3's run folders QA-MD-2026-11-08-M3-run1 (<id>) and -run2 (<id>). Evidence for the FAIL cells is the local Run 1 and Run 2 EP-5–7 screenshots, kept under <code>.playwright-mcp/M3/</code> and <code>.playwright-mcp/R3/</code>. Local captures not deleted.</li>
+</ul>
+<h2 id="shard-r4a">Shard R4a<a class="headerlink" href="#shard-r4a" title="Permanent link">&para;</a></h2>
+<h2 id="shard-r4a-retake-of-m4s-tc-md110113-run-1-retakes-run-2-and-run-1-ep-567-for-tc-md114117-no-mcp-calls-renders-are-m4s-on-mcp-gee-sweet-sa-playwright-2-dedicated">Shard R4a — retake of M4's TC-MD110–113 (Run 1 retakes + Run 2) and Run 1 EP-5/6/7 for TC-MD114–117 — no MCP calls (renders are M4's, on <code>mcp-gee-sweet-sa</code>), playwright-2 (dedicated)<a class="headerlink" href="#shard-r4a-retake-of-m4s-tc-md110113-run-1-retakes-run-2-and-run-1-ep-567-for-tc-md114117-no-mcp-calls-renders-are-m4s-on-mcp-gee-sweet-sa-playwright-2-dedicated" title="Permanent link">&para;</a></h2>
+<h3 id="retake-2026-11-08-evening_1">Retake (2026-11-08 evening)<a class="headerlink" href="#retake-2026-11-08-evening_1" title="Permanent link">&para;</a></h3>
+<p><strong>Setup.</strong> playwright-2, own new tab; account check: fixture doc title "mcp-gee-sweet-qa-fixtures-doc" OK. Disk 93 GiB free. No new renders (all Docs present). Method identical to M4's (viewport 1400x2200, JPEG q90, p1 = scrollTop 0, p2 = bottom of <code>.kix-appview-editor</code>); verified by re-shooting run1 MD111 EP-1 and run1 MD110 EP-1: both 0 px vs M4's captures. One Doc per Playwright call; <strong>every capture checked the Doc ID in the URL before and after each screenshot: all 53 Docs URL-verified, no mismatch, no timeout, no disconnect.</strong> Captures: <code>{REPO}/.playwright-mcp/R4a/run&lt;N&gt;/&lt;EP&gt;/&lt;TC&gt;-p&lt;n&gt;.jpg</code>; scripts <code>.playwright-mcp/R4a/js/</code>, compare <code>tmp/R4a/cmp_r4a.py</code> (wraps M4's <code>cmp.py</code>, same masks/thresholds). Run 1 grading for MD111–113 and MD110 EP-5/6/7 uses M4's Doc-ID-confirmed captures.</p>
+<p><strong>Captured (53 Docs):</strong> Run 1 MD110 EP-1/2/3/4/8; Run 1 MD114/115/116/117 EP-5/6/7 (12, confirmed by Doc ID); Run 2 MD110/111/112/113 EP-1..8 + MD111n EP-1..4 (36).</p>
+<p><strong>Pixel results.</strong>
+- Run 1 MD110 EP-2/3/4/8 vs EP-1: SAME (0 px). EP-6/7 vs EP-5 (M4): SAME.
+- Run 2 within-run, all of MD110/111/111n/112/113: EP-2/3/4/8 vs EP-1 and EP-6/7 vs EP-5 SAME, except MD112 EP-3/EP-4 vs EP-1 DIFFERENT (~1.1k px, bbox x406-544, the IM-05/10/15 rows: EP-3/4 embed the local images, EP-1 can't; the expected input-driven difference M4 recorded for Run 1, identical in Run 1).
+- <strong>Determinism (Rule 4): Run 2 vs Run 1 SAME at every EP for MD110, MD111, MD111n, MD112, MD113 (36/36 pairs, max 31 px = caret/JPEG noise).</strong>
+- Negative controls: run2 MD110 EP-1 vs EP-5 DIFFERENT (41k px); run2 MD112 EP-1 vs MD113 EP-1 DIFFERENT (118k px).
+- Run 1 MD114/115/116/117 EP-6/7 vs EP-5: SAME (0 px), all 8 pairs.</p>
+<p><strong>Grid cells changed.</strong> TC-MD110 Run 1 EP-1/2/3/4/8: now confirmed by Doc ID (unchanged values: ✅ all 9 cases). Every MD110–113 cell: Run 2 now captured and identical to Run 1 (no cell value changes). TC-MD112 EP-8 IM-05/IM-10/IM-15 stay N/A (content string, no file — stale wording, see M4 N1: case should list EP-8 N/A like EP-1/2).</p>
+<p><strong>Final per-TC summary lines (replace M4's ⚠️ PARTIAL lines):</strong></p>
+<p><strong>Result (2026-11-08) ❌ FAIL — 69/72 case×EP cells pass, identical in both runs; failures: #1113 (BQ-05 at EP-5/6/7: fenced code box at the page margin, outside the quote) — ornithomimus release pass, shards M4 + R4a on <code>mcp-gee-sweet-sa</code></strong> (TC-MD110)</p>
+<p><strong>Result (2026-11-08) ❌ FAIL — 141/144 case×EP cells pass, identical in both runs; failures: #1113 (LK-12 at EP-5/6/7: <code>http://./guide.md</code> and bare <code>#lk-01</code> links) — ornithomimus release pass, shards M4 + R4a on <code>mcp-gee-sweet-sa</code></strong> (TC-MD111)</p>
+<p><strong>Result (2026-11-08) ❌ FAIL — 96/111 case×EP cells pass, identical in both runs; failures: #1113 (IM-10..14 at EP-5/6/7, 15 cells) — ornithomimus release pass, shards M4 + R4a on <code>mcp-gee-sweet-sa</code></strong> (TC-MD112; 9 cells N/A: IM-05/10/15 at EP-1/2/8)</p>
+<p><strong>Result (2026-11-08) ✅ PASS — 96/96 case×EP cells pass, identical in both runs — ornithomimus release pass, shards M4 + R4a on <code>mcp-gee-sweet-sa</code></strong> (TC-MD113)</p>
+<h1 id="1113-checked-open-design-route-drives-markdown-import-paths-ep-5-to-ep-7-through-our-converter-the-f-af-bf-c-differences-arent-named-in-the-known-limitations-d4-list-so-linked-to-1113-aggregate-issue-pending-a-list-entry-for-each-is-unfiled-as-m4-reported">1113 checked: OPEN ("Design: route Drive's Markdown import paths (EP-5 to EP-7) through our converter"). The F-A/F-B/F-C differences aren't named in the known-limitations D4 list, so ❌ linked to #1113 ("aggregate issue pending"); a list entry for each is UNFILED (as M4 reported).<a class="headerlink" href="#1113-checked-open-design-route-drives-markdown-import-paths-ep-5-to-ep-7-through-our-converter-the-f-af-bf-c-differences-arent-named-in-the-known-limitations-d4-list-so-linked-to-1113-aggregate-issue-pending-a-list-entry-for-each-is-unfiled-as-m4-reported" title="Permanent link">&para;</a></h1>
+<h4 id="run-1-ep-567-cells-for-tc-md114117-for-r4b-aziz-to-combine-doc-id-confirmed-ep-5-read-by-eye-ep-67-pixel-same-as-ep-5">Run 1 EP-5/6/7 cells for TC-MD114–117 (for R4b / Aziz to combine; Doc-ID-confirmed; EP-5 read by eye; EP-6/7 pixel SAME as EP-5)<a class="headerlink" href="#run-1-ep-567-cells-for-tc-md114117-for-r4b-aziz-to-combine-doc-id-confirmed-ep-5-read-by-eye-ep-67-pixel-same-as-ep-5" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Case</th>
+<th>EP-5</th>
+<th>EP-6</th>
+<th>EP-7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MD114</td>
+<td>BR-01..BR-09</td>
+<td>✅ (BR-04/05/06/08 lines shown; BR-07 Heading 2, no line; BR-09 two paragraphs with a visible gap, D4 empty paragraph)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>MD115</td>
+<td>ES-01..ES-07</td>
+<td>✅ (32 punctuation chars, no backslashes; ES-04 three plain paragraphs; ES-05 entities incl. nbsp; ES-07 backslashes kept)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>MD116</td>
+<td>HT-01, 02, 04..07</td>
+<td>✅ (del/mark per D4, as M4 graded)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>MD116</td>
+<td>HT-03</td>
+<td>❌ F-D #1113: "Line one" / empty paragraph / "Line two" (C9 expects one paragraph with a line break)</td>
+<td>❌ F-D</td>
+<td>❌ F-D</td>
+</tr>
+<tr>
+<td>MD117</td>
+<td>UN-01..UN-07</td>
+<td>✅ (emoji, ZWJ, CJK, RTL, é forms, spaces, UN-06 styles on exact spans, flags in table)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p>Docs: MD114 1DgYBs…/1WRFj2…/1bGs-s…; MD115 1Fn_OG…/1TmIdc…/1Zu_FZ…; MD116 1-YPUp…/1fDx-B…/18s1Fm…; MD117 12dKBY…/1P4zJK…/19MUef… (full IDs in tmp/M4/run1.json). These confirm M4's Run 1 grades for these cells unchanged.</p>
+<p><strong>Cleanup:</strong> M4's run folders NOT trashed (per Aziz: R4b trashes after both shards finish). Local captures kept. No tracked file touched; no MCP calls made.</p>
+<h2 id="shard-r4b">Shard R4b<a class="headerlink" href="#shard-r4b" title="Permanent link">&para;</a></h2>
+<h2 id="shard-r4b-docs_markdownmd-tc-md114tc-md117-run-2-captures-retake-of-m4-prefix-mcp-gee-sweet-sa-unused-playwright-3-dedicated">Shard R4b — docs_markdown.md TC-MD114–TC-MD117, Run 2 captures (retake of M4) — prefix mcp-gee-sweet-sa (unused), playwright-3 (dedicated)<a class="headerlink" href="#shard-r4b-docs_markdownmd-tc-md114tc-md117-run-2-captures-retake-of-m4-prefix-mcp-gee-sweet-sa-unused-playwright-3-dedicated" title="Permanent link">&para;</a></h2>
+<p>Run folders: M4's QA-MD-2026-11-08-M4-run1 / -run2 (kept, not trashed per Aziz). Doc IDs: tmp/M4/run2.json.</p>
+<h3 id="retake-2026-11-08-evening_2">Retake (2026-11-08 evening)<a class="headerlink" href="#retake-2026-11-08-evening_2" title="Permanent link">&para;</a></h3>
+<p>Method: own tab on playwright-3 (account check: fixture doc title <code>mcp-gee-sweet-qa-fixtures-doc</code> OK). One run_code call per Doc: viewport 1400x2200, goto /edit, wait for editor + 5 s, viewport JPEG (q90) to <code>.playwright-mcp/R4b/run2/EP-&lt;k&gt;/&lt;TC&gt;-p1.jpg</code>. Doc ID checked in page URL before and after every screenshot: all 32 URL-verified (MD114/115/116/117 x EP-1..8). One page per Doc: p1 at this viewport shows the whole Doc for all four fixtures (M4's MD114-p2 is a 140-px rescroll of the same content, so not retaken). Method check: run2 EP-1 MD114 vs M4 run1 EP-1 = 0 px.
+Compare: tmp/R4b/cmp.py (M4's script, same masks/thresholds), driver tmp/R4b/all.py. Negative controls: MD114 EP-1 vs EP-5 DIFFERENT (45012 px); MD115 vs MD116 EP-1 DIFFERENT (29756 px).</p>
+<p>Results (px = differing pixels, limit 40):
+- Within Run 2: EP-2/3/4/8 vs EP-1 and EP-6/7 vs EP-5 SAME (0 px; MD115 EP-6 31 px) for MD114, MD115, MD116. MD117 EP-3/EP-4 vs EP-1 DIFFERENT 892 px, bbox confined to the UN-05 line (thin/ideographic spaces): EP-1 got plain spaces (M4 note N2), identical in Run 1. EP-2/8 SAME as EP-1.
+- Run 1 vs Run 2 (Rule 4): EP-1/2/3/4/8 vs M4 run1 captures SAME, 0 px, all four TCs. EP-5/6/7 vs R4a's run1 captures (<code>.playwright-mcp/R4a/run1/EP-5..7</code>, present on disk) SAME, 0 px (MD115 EP-6 31 px), all four TCs. R4a's results file did not exist when I finished, so these three columns are SAME by pixels but wait on R4a stating its captures were URL-verified.
+- By eye, Run 2: EP-1 (via the identical EP-2/3/4/8) and EP-5 match M4's Run 1 reading: MD114 all 9 ✅ (EP-5 rules with D4 spacing); MD115 all 7 ✅; MD116 HT-03 EP-5 shows <code>Line one</code> / empty paragraph / <code>Line two</code> (F-D, ❌ #1113 open), rest ✅ (del not struck, mark not highlighted, D4-named per M4); MD117 all ✅ on EP-5 (UN-01 <code>-</code> bullets: D4-named, known-limitations.md:350).</p>
+<h4 id="final-grid-cells-changed-run-2-column-now-filled-run-2-run-1-everywhere">Final grid cells changed (Run 2 column now filled; Run 2 = Run 1 everywhere)<a class="headerlink" href="#final-grid-cells-changed-run-2-column-now-filled-run-2-run-1-everywhere" title="Permanent link">&para;</a></h4>
+<ul>
+<li>TC-MD114: all 9 cases ✅ EP-1..EP-8, Run 2 (EP-5..7 also reconfirm Run 1 via R4a pixels).</li>
+<li>TC-MD115: all 7 cases ✅ EP-1..EP-8, Run 2.</li>
+<li>TC-MD116: HT-01..02, 04..07 ✅ all EPs; HT-03 ❌ F-D on EP-5/6/7 (#1113), ✅ elsewhere — Run 2 same as Run 1.</li>
+<li>TC-MD117: UN-01..03, 06, 07 ✅ all EPs; UN-04/UN-05 ✅ EP-3..7, EP-1/2/8 "see R6" (both runs).</li>
+</ul>
+<h4 id="final-per-tc-summary-lines_1">Final per-TC summary lines<a class="headerlink" href="#final-per-tc-summary-lines_1" title="Permanent link">&para;</a></h4>
+<p><strong>Result (2026-11-08) ✅ PASS — 144/144 case×EP cells pass (both runs; Run 1 EP-5..7 pending R4a's URL-verification note) — ornithomimus release pass, shard R4b on <code>mcp-gee-sweet-sa</code></strong> (TC-MD114)
+<strong>Result (2026-11-08) ✅ PASS — 112/112 case×EP cells pass (both runs; Run 1 EP-5..7 pending R4a's URL-verification note) — ornithomimus release pass, shard R4b on <code>mcp-gee-sweet-sa</code></strong> (TC-MD115)
+<strong>Result (2026-11-08) ❌ FAIL — 106/112 case×EP cells pass; failures: #1113 (F-D, HT-03 EP-5/6/7 both runs) — ornithomimus release pass, shard R4b on <code>mcp-gee-sweet-sa</code></strong> (TC-MD116)
+<strong>Result (2026-11-08) ⚠️ PARTIAL — 100/100 run cells pass; 12 cells (UN-04/05 x EP-1/2/8 x 2 runs) see R6 — ornithomimus release pass, shard R4b on <code>mcp-gee-sweet-sa</code></strong> (TC-MD117)</p>
+<p>Determinism (Rule 4): Run 2 = Run 1 on all 32 Doc pairs. No new findings. No incidents; playwright-3 stable. No MCP calls made. Run folders and captures kept.</p>
+<h2 id="shard-r6">Shard R6<a class="headerlink" href="#shard-r6" title="Permanent link">&para;</a></h2>
+<h2 id="shard-r6-docs_markdownmd-tc-md203-run-2-captures-retake-of-m6-tc-md117-un-04un-05-on-ep-128-scripted-prefix-mcp-gee-sweet-jay-drive-listmovetrash-only-playwright-4-dedicated">Shard R6 — docs_markdown.md TC-MD203 Run 2 captures (retake of M6) + TC-MD117 UN-04/UN-05 on EP-1/2/8 (scripted) — prefix mcp-gee-sweet-jay (Drive list/move/trash only), playwright-4 (dedicated)<a class="headerlink" href="#shard-r6-docs_markdownmd-tc-md203-run-2-captures-retake-of-m6-tc-md117-un-04un-05-on-ep-128-scripted-prefix-mcp-gee-sweet-jay-drive-listmovetrash-only-playwright-4-dedicated" title="Permanent link">&para;</a></h2>
+<p>Run folder (part B): QA-MD-2026-11-08-R6 (<id>), subfolders run1 (<id>), run2 (<id>). Trashed after recording.</p>
+<h3 id="retake-2026-11-08-evening_3">Retake (2026-11-08 evening)<a class="headerlink" href="#retake-2026-11-08-evening_3" title="Permanent link">&para;</a></h3>
+<h4 id="method">Method<a class="headerlink" href="#method" title="Permanent link">&para;</a></h4>
+<ul>
+<li>playwright-4: <code>browser_tabs new</code>, account check in that tab (fixture doc title "mcp-gee-sweet-qa-fixtures-doc - Google Docs"). One Doc per <code>browser_run_code_unsafe</code> call (generated from <code>tmp/R6/mkcap.py</code>), M6's capture method unchanged so frames compare with M6's: viewport 1400×2200, <code>.kix-appview-editor</code> scrolled by clientHeight−100, JPEG per step, <code>page.url()</code> checked to contain the Doc ID before and after every screenshot. <strong>Every capture below is URL-verified</strong> (all <code>urlOk: true</code>). Frames: <code>.playwright-mcp/R6/run&lt;N&gt;/EP&lt;k&gt;/&lt;AB|UN&gt;-p&lt;n&gt;.jpg</code> in Aziz's worktree.</li>
+<li>Pixel compare: <code>tmp/R6/cmp.py</code>, M6's parameters (crop x 300–1120, y ≥ 135; caret column masked on p1; |Δ|&gt;60; SAME if &lt;40 px).</li>
+<li>Disk: 93 GB free at start. No timeouts, hangs or disconnects on playwright-4.</li>
+</ul>
+<h4 id="a-tc-md203-md-adjacency-blankmd-run-2-at-ep-3ep-8">A. TC-MD203 (md-adjacency-blank.md), Run 2 at EP-3…EP-8<a class="headerlink" href="#a-tc-md203-md-adjacency-blankmd-run-2-at-ep-3ep-8" title="Permanent link">&para;</a></h4>
+<p>Run 2 Docs in kept folder QA-MD-2026-11-08-M6-run2 (EP-3 1EvvCJ1w…, EP-4 12T8NSHa…, EP-5/6/7 in EP5/EP6/EP7 subfolders, EP-8 = <code>md-adjacency-blank.md</code> 1C75D2_A…). No re-render; all present.
+- Run 2 vs Run 1 (M6's run1 frames): EP-3 SAME, EP-4 SAME, EP-6 SAME, EP-7 SAME, EP-8 SAME (all 10/11 pages). EP-5: SAME except p6 (53,049 px): by eye, M6's Run 1 EP-5 p6 sits at an earlier scroll offset (AB-044…053) while Run 2's p6 shows AB-050…058 — the scroll jitter M6 noted, not content. Run 2 EP-5 is pixel-SAME as Run 1 EP-6 and Run 1 EP-7 on every page.
+- Run 1 EP-5's AB-054–AB-057 (never in an M6 frame): re-shot the trashed Run 1 EP-5 Doc (1rxHubvb…, URL-verified). Docs overlays a "File is in trash" dialog; hid it with a page-local CSS rule (no Doc change); the dim backdrop stayed. Brightness-normalized compare vs Run 2 EP-5: 32–281 px per page (dimming/JPEG noise; negative controls are 58k–90k), and by eye p6 shows AB-054 (code box, then 1./2. list), AB-055 (code, ☐/☑ list), AB-056 (two code boxes), AB-057 (code, indented "Quoted line") exactly as Run 2. All match D4 (Drive's "None" code-box label, borderless quote).
+- Within Run 2: EP-3/EP-4/EP-8 vs EP-1 (M6 run2 EP-1) SAME; EP-6/EP-7 vs EP-5 SAME.
+- Negative control: run2 EP-3 AB vs run2 EP-1 AJ → DIFFERENT on every page (58k–90k px, page count 10 vs 9).</p>
+<p>Final grid cells changed (TC-MD203): EP-3, EP-4, EP-5, EP-6, EP-7, EP-8 Run 2 "not captured / ⚠️ PARTIAL" → ✅ (pixel SAME as Run 1, Run 1 read by eye); EP-5 AB-054–057 Run 1 → ✅ seen on screen. Every cell ✅ in both runs.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — 800/800 case×EP cells pass in both runs — ornithomimus release pass, shard M6 + R6 on <code>mcp-gee-sweet-jay</code></strong></p>
+<h4 id="b-tc-md117-un-04-un-05-at-ep-1-ep-2-ep-8-scripted-from-the-fixtures-bytes">B. TC-MD117 UN-04 / UN-05 at EP-1, EP-2, EP-8 (scripted from the fixture's bytes)<a class="headerlink" href="#b-tc-md117-un-04-un-05-at-ep-1-ep-2-ep-8-scripted-from-the-fixtures-bytes" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Script <code>tmp/R6/un_render.py</code>, run with <code>uv run python3</code> from Aziz's worktree (fresh interpreter, <code>auth._oauth_creds()</code> in place, Docs/Drive built with <code>googleapiclient</code>). Content = <code>md-unicode.md</code> read as bytes and decoded (asserted to contain U+0301, U+0302, U+00A0, U+2009, U+3000). EP-1 = <code>_create_doc_with_content(lc, "MD-MD117-EP1", md, "markdown", folder, autolink_urls=True, revoke_sharing=True, auto_downscale=False)</code> (create_doc's body); EP-2 = blank Doc then <code>_replace_doc_content(..., allow_no_backup=False)</code> (write_doc_content's body); EP-8 = <code>_create_doc_with_content(lc, "md-unicode.md", md, "markdown", folder, autolink_urls=True, revoke_sharing=True, ...)</code>, exactly upload_file's markdown+convert_to_doc branch (the tool closure itself isn't importable). Whole fixture rendered, one Doc per EP per run. No <code>error</code> in any result.</li>
+<li>Raw read-back (<code>documents().get()</code>), both runs, all three EPs: the UN-04 paragraph equals the source line exactly ("Precomposed é and decomposed é; Zalgo-light ã̂."), the UN-05 paragraph equals the source ("Non-breaking 100 km, thin space 10 000, ideographic space「　」."); one each of U+0301/U+0302/U+00A0/U+2009/U+3000 in the Doc, as in the source. Output: <code>tmp/R6/un-run1.json</code>, <code>un-run2.json</code>.</li>
+<li>Screen (Run 1 EP-1 read by eye, zoomed): UN-04 the two é look identical, ã with the circumflex stacked above the tilde; UN-05 "100 km" on one line, the thin space in "10 000" visibly narrower than a space, the ideographic space a full-width gap between 「 」. Rest of the Doc (UN-01…03, 06, 07) as M4 graded.</li>
+<li>Pixel: Run 1 EP-2/EP-8 vs EP-1 SAME; Run 2 EP-1/2/8 vs Run 1 SAME; Run 2 EP-2/8 vs Run 2 EP-1 SAME. Also SAME as M4's Run 1 EP-3 (from file). Targeted negative control: vs M4's Run 1 EP-1 (channel-normalized content) DIFFERENT, 895 px confined to bbox (636,681)–(836,696) = the UN-05 line's thin/ideographic spaces — the comparison sees exactly this difference. Negative control vs an unrelated Doc (M6 AB EP-1): DIFFERENT 70,514 px.</li>
+</ul>
+<p>Final grid cells changed (TC-MD117): UN-04 and UN-05 × EP-1, EP-2, EP-8 → ✅ in Run 1 and Run 2 (were "not run, N2" in M4 / "see R6" in R4b). With M4 (Run 1) and R4b (Run 2) every TC-MD117 cell passes in both runs.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — 56/56 case×EP cells pass in both runs (UN-04/05 at EP-1/2/8 scripted from the fixture's bytes, R6) — ornithomimus release pass, shards M4 + R4b + R6</strong></p>
+<h4 id="unchanged-not-regraded-here">Unchanged (not regraded here)<a class="headerlink" href="#unchanged-not-regraded-here" title="Permanent link">&para;</a></h4>
+<ul>
+<li>TC-MD202 stays ❌: AJ-028/038/048/068 EP-5–7 ❌ #1113 ("aggregate issue pending"); AJ-099 EP-8 Run 2 ❌ (Rule 4) "issue pending".</li>
+</ul>
+<h4 id="cleanup_3">Cleanup<a class="headerlink" href="#cleanup_3" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Moved AJ-099's EP-8 Run 2 Doc (<code>md-adjacency-noblank.md</code>, <id>, shows "pixel" alt text in place of the image) out to TEST_FOLDER_ID root and <strong>kept it</strong> as evidence for the pending Rule-4 issue. Then trashed QA-MD-2026-11-08-M6-run2 (with the EP-5/6/7 Drive-import Docs inside) and QA-MD-2026-11-08-R6.</li>
+<li>Local captures kept (<code>.playwright-mcp/R6/</code>, ~70 JPEGs, plus generated <code>cap-*.js</code>). One tab left open in the shared QA browser (playwright-4's, last on the R6 run2 EP-8 Doc, now trashed).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

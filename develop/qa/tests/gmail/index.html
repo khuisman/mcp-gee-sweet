@@ -2424,6 +2424,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <code>kit</code>: <code>list_labels</code> confirmed the Gmail scope. <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages (19 fixtures; threads hold the rest) including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}, each with id and thread_id; no next_page_token; no error.</p>
 <p><strong>Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-oauth</code> (OAuth): <code>list_labels</code> confirmed the Gmail scope; <code>list_messages("label:mcp-qa-fixture", 50)</code> returned 21 messages including <code>{TEST_MESSAGE_ID}</code>, no next_page_token, no error. <code>TEST_GMAIL_LATIN1_ID</code> isn't a key in Aziz's worktree <code>.env</code>, so that ID wasn't checked.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — 21 messages, including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}; each has id and thread_id; no next_page_token; no error.</p>
 <hr />
 <h3 id="tc-gm02-invalid-label-filter-returns-api-error">TC-GM02: Invalid label filter returns API error<a class="headerlink" href="#tc-gm02-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2433,6 +2434,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - The error text comes from the Gmail API (mentions the label)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — returned <code>{"error": "&lt;HttpError 400 ... Invalid label: TOTALLY_INVALID_LABEL_XYZ ...&gt;"}</code>, no exception.</p>
 <hr />
 <h3 id="tc-gm34-pagination-and-max_results-clamping-list_messages-list_threads">TC-GM34: Pagination and <code>max_results</code> clamping (<code>list_messages</code> + <code>list_threads</code>)<a class="headerlink" href="#tc-gm34-pagination-and-max_results-clamping-list_messages-list_threads" title="Permanent link">&para;</a></h3>
 <p>The 7 <code>page-N</code> fixtures share the subject prefix <code>[mcp-qa:page]</code>, and each is its own thread. Confirmed live 2026-09-26 that this query matches exactly those 7.</p>
@@ -2453,6 +2455,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, #795's shared <code>_list_kwargs</code>/<code>_list_page</code>)</strong>: via <code>mcp-gee-sweet-kit</code>. <code>list_messages</code> and <code>list_threads</code> both paged 3/3/1 with <code>next_page_token</code> on the first two pages only, and the 7 IDs were distinct. Thread items carry <code>id</code>, <code>snippet</code>, and <code>history_id</code>. <code>max_results: 0</code> returned exactly 1 message, and <code>9999</code> returned all 7 with no token.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>list_messages</code> and <code>list_threads</code> both paged 3/3/1 with <code>next_page_token</code> on the first two pages only; 7 distinct IDs; thread items carry id, snippet, history_id. <code>max_results: 0</code> returned exactly 1 message, no error; <code>9999</code> returned all 7 with no token.</p>
 <hr />
 <h3 id="tc-gm35-spam-and-trash-are-excluded-unless-asked-for">TC-GM35: Spam and trash are excluded unless asked for<a class="headerlink" href="#tc-gm35-spam-and-trash-are-excluded-unless-asked-for" title="Permanent link">&para;</a></h3>
 <p>The <code>spam</code> and <code>trash</code> fixtures are inserted already labeled <code>SPAM</code> / <code>TRASH</code>.</p>
@@ -2468,6 +2471,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p>(Steps 1–2 confirmed live 2026-09-26 while writing this case: 0 then 1.)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard E on <code>kit</code></strong> — prerequisite fixtures missing: all four steps returned <code>messages: []</code> (steps 2 and 4 too, with <code>include_spam_trash: true</code>), and the fixture <code>status</code> command reports <code>spam</code> and <code>trash</code> as <code>missing</code> (30-day Spam/Trash purge). Not a product result; Aziz needs to reseed (<code>qa_gmail_fixtures.py seed</code>, which writes <code>.env</code>, so not run from this shard). Process gap, filed as #1420: release passes can lose these two fixtures to Gmail's auto-purge.</p>
 <hr />
 <h2 id="get_message"><code>get_message</code><a class="headerlink" href="#get_message" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm03-fetch-the-plain-fixture">TC-GM03: Fetch the plain fixture<a class="headerlink" href="#tc-gm03-fetch-the-plain-fixture" title="Permanent link">&para;</a></h3>
@@ -2482,6 +2486,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>error</code> or <code>body_decode_errors</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — subject <code>[mcp-qa:plain] plain text</code>, from {SENDER}, to {QA}, message_id non-empty, body_plain <code>mcp-gee-sweet plain fixture.</code>, body_html null, attachments [], label_ids include Label_1, no error keys.</p>
 <hr />
 <h3 id="tc-gm04-non-existent-message-id">TC-GM04: Non-existent message ID<a class="headerlink" href="#tc-gm04-non-existent-message-id" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2490,6 +2495,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "&lt;HttpError 400 ... Invalid id value&gt;"}</code>.</p>
 <hr />
 <h3 id="tc-gm26-non-utf-8-labeled-bodies-still-decode-correctly-issue-792-requires-oauth">TC-GM26: Non-UTF-8-labeled bodies still decode correctly (issue #792) ⚠️ requires-oauth<a class="headerlink" href="#tc-gm26-non-utf-8-labeled-bodies-still-decode-correctly-issue-792-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #792 assumed <code>get_message</code>/<code>get_thread</code> garble ISO-8859-1 / Windows-1252 / Shift_JIS mail because they decode <code>body.data</code> as UTF-8 regardless of the part's <code>Content-Type</code> charset. PR #816 round 1 showed live that the premise is false. The Gmail API already transcodes every text part's <code>body.data</code> to UTF-8 but keeps the original charset label, so the UTF-8-only decode is correct and decoding with the declared charset garbles. This case now guards that: a part labeled with a non-UTF-8 charset must still come back as the right text. The fixtures are built from raw bytes, not <code>MIMEText</code>. <code>MIMEText(..., 'shift_jis')</code> silently emits <code>charset="iso-2022-jp"</code>, which never exercised Shift_JIS. The fixtures are <em>inserted</em> (not sent), so nothing leaves the QA mailbox.</p>
@@ -2543,6 +2549,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result</strong> (2026-09-26, PR #816 round 2 at <code>1daec0a</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Step 1: <code>body_plain</code> = <code>Café crème, naïve</code>, <code>body_html</code> = <code>&lt;p&gt;こんにちは世界&lt;/p&gt;</code>. Step 2: the one message has identical bodies. Step 3: <code>body_plain</code> = <code>“Smart quotes” – 5</code>. No mojibake, no <code>�</code>, and no <code>error</code> or <code>body_decode_errors</code> field in any response. Both fixtures trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — fixtures inserted with the documented script from Aziz's worktree (token = {QA}). A: body_plain <code>Café crème, naïve</code>, body_html <code>&lt;p&gt;こんにちは世界&lt;/p&gt;</code>; get_thread's one message identical; B: <code>“Smart quotes” – 5</code>. No mojibake, no �, no error keys. Both trashed.</p>
 <hr />
 <h3 id="tc-gm27-unicode-subject-and-bodies-decode-intact">TC-GM27: Unicode subject and bodies decode intact<a class="headerlink" href="#tc-gm27-unicode-subject-and-bodies-decode-intact" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2555,6 +2562,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>error</code> or <code>body_decode_errors</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "<em>Zürich</em>". The TC's expected value is stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — subject <code>[mcp-qa:alt-unicode] Ünïcødé ✓ 🎉 subject</code>; body_plain <code>Grüße aus *Zürich* — naïve café, 日本語, emoji 🎉🚀.</code>; body_html contains <code>Grüße aus &lt;b&gt;Zürich&lt;/b&gt; — ...</code>; no mojibake or �; no error keys.</p>
 <hr />
 <h3 id="tc-gm28-attachment-metadata-including-a-nameless-inline-image">TC-GM28: Attachment metadata, including a nameless inline image<a class="headerlink" href="#tc-gm28-attachment-metadata-including-a-nameless-inline-image" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2568,6 +2576,7 @@ Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "<em>Zü
 - Step 2: <code>attachments</code> has one entry with <code>mime_type: "image/png"</code>, <code>filename: null</code>, and a non-null <code>attachment_id</code>. Gmail stores the nameless inline image by <code>attachmentId</code> (plan §5 P3, live 2026-09-26), so it is listed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — attachments fixture: body_plain as expected, exactly <code>mcp-qa.pdf</code> (application/pdf, 191) and <code>mcp-qa.csv</code> (text/csv, 27) with attachment_ids, CSV not in body. Inline fixture: body_html has <code>cid:mcp-qa-inline-png</code>; one attachment <code>image/png</code>, filename null, attachment_id set.</p>
 <hr />
 <h3 id="tc-gm29-a-forwarded-message-doesnt-replace-the-outer-body">TC-GM29: A forwarded message doesn't replace the outer body<a class="headerlink" href="#tc-gm29-a-forwarded-message-doesnt-replace-the-outer-body" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2579,6 +2588,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p>Depends on how Gmail stores delivered mail (plan §5 P2). In a release pass, repeat on a second, freshly sent seed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — body_plain <code>outer body — the forwarder's own note.</code> (no <code>inner body</code>); attachment <code>forwarded.eml</code> <code>message/rfc822</code>; no error. (Second-seed repeat not run.)</p>
 <hr />
 <h3 id="tc-gm30-large-bodies-gmail-delivers-by-attachmentid-are-fetched-capped-and-writable-via-local_path-issue-825-requires-oauth">TC-GM30: Large bodies Gmail delivers by <code>attachmentId</code> are fetched, capped, and writable via <code>local_path</code> (issue #825) ⚠️ requires-oauth<a class="headerlink" href="#tc-gm30-large-bodies-gmail-delivers-by-attachmentid-are-fetched-capped-and-writable-via-local_path-issue-825-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Gmail returns a large text body (somewhere between ~400 KB and 3 MB) from <code>messages.get(format=full)</code> as a nameless part carrying <code>body.attachmentId</code>, with no inline <code>data</code>. Before #825, <code>get_message</code>/<code>get_thread</code> listed such parts as nameless attachments and returned <code>body_plain</code>/<code>body_html</code> as <code>null</code>. The fix fetches them with <code>users.messages.attachments.get</code>. That endpoint returns the part's raw bytes in its declared charset, unlike inline <code>body.data</code>, which Gmail transcodes to UTF-8 (TC-GM26), so the fetched bytes decode with the part's own charset. A ~6 MB message exceeds the default <code>MAX_TOOL_RESPONSE_CHARS</code>, so it hits the normal size-cap error, and <code>local_path</code> bypasses the cap. The parts' own decoded sizes are a lower bound on the response, so without <code>local_path</code> the error is raised before anything is downloaded (PR #829 round 2). Round 2 also remaps two common charset mislabels before decoding a fetched body: <code>us-ascii</code> is decoded as UTF-8 and <code>iso-8859-1</code> as windows-1252. Step 7 checks that. The early size check counts only parts whose charset guarantees at least one serialized character per byte, so a UTF-16 part over 1,000,000 bytes that serializes under the cap still comes back inline (PR #829 round 3); step 8 checks that. Fetch-failure reporting (<code>attachment_id</code> in <code>body_fetch_errors</code>, errors copied into the <code>local_path</code> manifest, a later inline part used as the fallback), a missing <code>data</code> field, and the bounded fetch concurrency can't be forced against the live API; unit tests cover them. Steps 1–4 use the seeded <code>large-body</code> fixture (<code>TEST_GMAIL_LARGE_ID</code>, a real delivery: both its 3 MB <code>text/plain</code> and <code>text/html</code> parts arrive by <code>attachmentId</code>; check with <code>uv run python scripts/qa_gmail_fixtures.py inspect</code>). Steps 5 and 7 use <em>inserted</em> fixtures: <code>messages.insert</code> produces the same <code>attachmentId</code> layout, confirmed live on #825.</p>
@@ -2662,6 +2672,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result</strong> (2026-09-26, PR #829 round 3 at <code>dca6ce4</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Scoped re-verification of the size-floor fix: steps 1, 3, 7 and 8 were re-run. Steps 2, 4, 5 and 6 are unaffected by the fix's diff and passed in round 2. Steps 1 and 3: <code>would be at least 6037989 characters</code>, so the floor still fires for the ASCII fixture. Step 7: <code>“Smart” – quotes</code> and <code>&lt;p&gt;Café “UTF-8”</code>, with no C1 controls, <code>Ã</code>/<code>â€</code>, <code>�</code> or error keys (decoding now goes through <code>_codec_for</code>). Step 8: the UTF-16 fixture returned <strong>inline</strong> (589,674 characters, no size-cap error). <code>body_plain</code> is 570,000 characters and starts <code>UTF-16 body line for TC-GM30.</code>, with no <code>�</code> and no error keys. Both inserted fixtures trashed and <code>{OUT_DIR}</code> deleted.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 1: <code>get_message: the response would be at least 6037989 characters ... Pass local_path</code>, immediate. Step 2: manifest <code>{local_path, bytes_written: 6190675, message_id}</code>, file <code>message_{TEST_GMAIL_LARGE_ID}.json</code>; body_plain 3,000,002 / body_html 3,037,987 with expected prefixes, attachments [], no error keys. Step 3: same floor error naming get_thread. Step 4: thread_id matches, message_count 1, body_plain 3,000,002. Step 5: <code>Café crème brûlée TC-GM30.</code> / <code>&lt;p&gt;こんにちは TC-GM30&lt;/p&gt;</code>, no Ã/�, attachments []. Step 6: PDF+CSV still listed (TC-GM28 call). Step 7: <code>“Smart” – quotes TC-GM30.</code> / <code>&lt;p&gt;Café “UTF-8” TC-GM30&lt;/p&gt;</code>, no C1/Ã/â€/�, no error keys. Step 8: inline (589,673 chars, no size-cap error; Claude Code spilled it to a file), body_plain 570,000 chars starting <code>UTF-16 body line for TC-GM30.</code>, no �. Three inserted fixtures trashed, OUT_DIR deleted.</p>
 <hr />
 <h3 id="tc-gm32-latin-1-body-decodes-correctly-seeded-companion-to-tc-gm26">TC-GM32: Latin-1 body decodes correctly (seeded companion to TC-GM26)<a class="headerlink" href="#tc-gm32-latin-1-body-decodes-correctly-seeded-companion-to-tc-gm26" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #792 closed with the finding that Gmail transcodes every text part's <code>body.data</code> to UTF-8 (see TC-GM26). The <code>latin1</code> fixture is a <code>charset=iso-8859-1</code> part that needs no setup script, so this case is a cheap regression check for the same behavior. Expected to <strong>pass</strong>.</p>
@@ -2672,6 +2683,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No mojibake (<code>CafÃ©</code>), no <code>�</code>, no <code>body_decode_errors</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — body_plain <code>Café, niño, façade - ISO-8859-1 body (#792).</code>, no mojibake, no error keys.</p>
 <hr />
 <h3 id="tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793">TC-GM46: <code>include_body: false</code> returns headers without body or attachments (issue #793)<a class="headerlink" href="#tc-gm46-include_body-false-returns-headers-without-body-or-attachments-issue-793" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>include_body: false</code> fetches with Gmail's <code>format='metadata'</code>, which returns headers but no payload parts (confirmed live 2026-10-04). So the result omits attachment metadata as well as the body.</p>
@@ -2685,6 +2697,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS (regression)</strong>. The output matches round 1 field for field. The fix's <code>metadataHeaders</code> filter can't be seen through shaping, so it was checked against the raw API instead (see TC-GM31's round 2 result).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — id, thread_id, snippet, label_ids, internal_date, size_estimate 7893; subject <code>[mcp-qa:attachments] PDF + CSV</code>, from {SENDER}, message_id set; no body/attachments/error keys.</p>
 <hr />
 <h2 id="list_threads"><code>list_threads</code><a class="headerlink" href="#list_threads" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm05-list-the-fixture-threads">TC-GM05: List the fixture threads<a class="headerlink" href="#tc-gm05-list-the-fixture-threads" title="Permanent link">&para;</a></h3>
@@ -2696,6 +2709,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>next_page_token</code>, no <code>error</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — 17 threads including {TEST_THREAD_ID} and {TEST_GMAIL_BIG_THREAD_ID}; each has id, snippet, history_id; no token, no error.</p>
 <hr />
 <h3 id="tc-gm06-invalid-label-filter-returns-api-error">TC-GM06: Invalid label filter returns API error<a class="headerlink" href="#tc-gm06-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2704,6 +2718,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "... Invalid label: TOTALLY_INVALID_LABEL_XYZ"}</code>.</p>
 <hr />
 <h2 id="get_thread"><code>get_thread</code><a class="headerlink" href="#get_thread" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm07-fetch-the-thread-fixture">TC-GM07: Fetch the thread fixture<a class="headerlink" href="#tc-gm07-fetch-the-thread-fixture" title="Permanent link">&para;</a></h3>
@@ -2715,6 +2730,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>error</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — id {TEST_THREAD_ID}, 5 messages (3 fixture + 2 trashed earlier-run replies), each with the get_message shape; no error.</p>
 <hr />
 <h3 id="tc-gm08-non-existent-thread-id">TC-GM08: Non-existent thread ID<a class="headerlink" href="#tc-gm08-non-existent-thread-id" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2723,6 +2739,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "... Invalid id value"}</code>.</p>
 <hr />
 <h3 id="tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793">TC-GM31: An over-cap thread returns the size-cap error, and <code>include_body: false</code> lists it (issue #793)<a class="headerlink" href="#tc-gm31-an-over-cap-thread-returns-the-size-cap-error-and-include_body-false-lists-it-issue-793" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> the <code>over-cap-thread</code> fixture is 3 messages of ~400 KB each, which is over the default <code>MAX_TOOL_RESPONSE_CHARS</code> in full format but under it per message. The full fetch should refuse cleanly rather than drop the connection or truncate. Since #793, <code>include_body: false</code> fetches only metadata, which is small enough to list the thread's message IDs.</p>
@@ -2740,6 +2757,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result</strong> (2026-10-04, PR #885 round 2 at <code>48bf23f</code>, <code>mcp-gee-sweet-kit</code>, OAuth token with <code>gmail.modify</code>): <strong>PASS</strong>. Steps 1–3 matched round 1 exactly (1,275,124-character cap error with the <code>include_body=False</code> hint; 3 metadata-only messages; step 3 via <code>local_path</code>, 424,899 bytes). The <code>metadataHeaders</code> filter was checked with a fresh-interpreter raw <code>threads.get</code> on the same thread using this slot's token. Plain <code>format=metadata</code> returned 24,591 bytes and 88 headers (ARC-<em>, DKIM-Signature, Received, X-Gm-</em>, and others). <code>_get_format_kwargs(False)</code> returned 3,003 bytes and 19 headers, all from the shaped set (Date, From, In-Reply-To, Message-ID, References, Subject, To).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 1: tool error <code>get_thread: the response is 1275124 characters, over the 1000000-character safety cap</code>, hint names include_body=False then get_message; no partial thread; next call worked. Step 2: 3 metadata messages with id, thread_id, snippet, label_ids, size_estimate (~412 KB each), headers with <code>[mcp-qa:over-cap-thread]</code>; no body keys; ~3 KB. Step 3 (via local_path, 424,899 bytes): body_plain starts <code>mcp-gee-sweet over-cap-thread message 1.</code>.</p>
 <hr />
 <h3 id="tc-gm33-thread-order-and-reply-headers">TC-GM33: Thread order and reply headers<a class="headerlink" href="#tc-gm33-thread-order-and-reply-headers" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2754,6 +2772,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - M3 <code>headers.in_reply_to</code> equals M2 <code>headers.message_id</code>, and M3 <code>headers.references</code> contains both M1's and M2's <code>message_id</code>, in that order</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — ignoring 2 TRASH replies (earlier TC-GM43/67 runs), 3 messages M1/M2/M3 with expected bodies, non-decreasing internal_date (M2=M3); M1/M3 from {SENDER}, M2 from {QA} with SENT; M1 in_reply_to null; M2→M1, M3→M2; M3 references M1 then M2.</p>
 <hr />
 <h2 id="list_labels"><code>list_labels</code><a class="headerlink" href="#list_labels" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm09-list-system-and-user-labels">TC-GM09: List system and user labels<a class="headerlink" href="#tc-gm09-list-system-and-user-labels" title="Permanent link">&para;</a></h3>
@@ -2766,11 +2785,13 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>error</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — INBOX, UNREAD, SENT, DRAFT, TRASH, SPAM all <code>type: system</code>; <code>mcp-qa-fixture</code> is <code>type: user</code>, id <code>Label_1</code> = {TEST_GMAIL_LABEL_ID}; every item has id/name/type; no error. (Also served as the Gmail-scope check.)</p>
 <hr />
 <h3 id="tc-gm10-retired">TC-GM10: (retired)<a class="headerlink" href="#tc-gm10-retired" title="Permanent link">&para;</a></h3>
 <p>Retired by #822. The Gmail-scope failure path is covered deterministically by TC-I32 (<code>infra.md</code>), which uses a scope-less token copy. Don't reuse this ID.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ⏭️ SKIP — retired by #822 (covered by TC-I32 in infra.md).</strong></p>
 <hr />
 <h3 id="tc-gm36-add-and-remove-a-user-label-by-id-destructive">TC-GM36: Add and remove a user label by ID ⚠️ destructive<a class="headerlink" href="#tc-gm36-add-and-remove-a-user-label-by-id-destructive" title="Permanent link">&para;</a></h3>
 <p>Uses a throwaway, not a fixture: removing <code>mcp-qa-fixture</code> from a fixture would hide it from every read case.</p>
@@ -2785,6 +2806,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM36_ID}</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — Label_1 added, then removed.</p>
 <hr />
 <h2 id="send_message"><code>send_message</code><a class="headerlink" href="#send_message" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm11-send-to-a-plus-address-destructive">TC-GM11: Send to a plus-address ⚠️ destructive<a class="headerlink" href="#tc-gm11-send-to-a-plus-address-destructive" title="Permanent link">&para;</a></h3>
@@ -2804,6 +2826,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <code>kai-oauth</code> (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): <code>send_message</code> to the QA plus-address returned id/thread_id with <code>SENT</code> in label_ids; <code>list_messages</code> found it; trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — sent message has SENT; list_messages finds it.</p>
 <hr />
 <h3 id="tc-gm12-invalid-recipient-returns-an-error">TC-GM12: Invalid recipient returns an error<a class="headerlink" href="#tc-gm12-invalid-recipient-returns-an-error" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2813,6 +2836,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 - If it returns an <code>id</code> instead, record FAIL and trash that ID</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — under <code>confirm</code> the call fails at the draft step: <code>{"error": "&lt;HttpError 400 ... /drafts ... Invalid To header&gt;"}</code>, no <code>id</code>, no draft left (<code>list_drafts</code> for tc-gm12 empty).</p>
 <hr />
 <h3 id="tc-gm38-html-body-with-attachments-from-both-sources-destructive-local-filesystem">TC-GM38: HTML body with attachments from both sources ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-gm38-html-body-with-attachments-from-both-sources-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> <code>printf 'name,qty\nwidget,3\n' &gt; /tmp/mcp-qa-tc-gm38.csv</code> on the machine running the server.</p>
@@ -2830,6 +2854,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-07, PR #928 round 2) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code> at <code>1d3c7cf</code>. Both bodies matched. There were 2 attachments: <code>mcp-qa-tc-gm38.csv</code> (<code>text/csv</code>, 18 bytes) and <code>note.txt</code> (<code>text/plain</code>, guessed, 18 bytes). The message was trashed and the local file deleted.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — body_plain/body_html match; attachments mcp-qa-tc-gm38.csv (text/csv, 18) and note.txt (text/plain, 18).</p>
 <hr />
 <h3 id="tc-gm39-cc-and-bcc-as-lists-destructive">TC-GM39: <code>cc</code> and <code>bcc</code> as lists ⚠️ destructive<a class="headerlink" href="#tc-gm39-cc-and-bcc-as-lists-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2842,6 +2867,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — cc lists both addresses; bcc kept on the sender's copy.</p>
 <hr />
 <h3 id="tc-gm40-a-newline-in-the-subject-is-rejected-header-injection-destructive">TC-GM40: A newline in the subject is rejected (header injection) ⚠️ destructive<a class="headerlink" href="#tc-gm40-a-newline-in-the-subject-is-rejected-header-injection-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2854,6 +2880,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> none expected. If step 3 finds anything, record FAIL and trash it.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 1 <code>{"error": "header value appears to contain an embedded header: ..."}</code>, step 2 <code>{"error": "folded header contains newline: ..."}</code>, no ids; step 3 <code>list_messages(subject:(mcp-qa tc-gm40), include_spam_trash)</code> empty; no drafts either.</p>
 <hr />
 <h3 id="tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive">TC-GM47: An attachment without <code>mime_type</code> gets its type from the filename extension (issue #802) ⚠️ destructive<a class="headerlink" href="#tc-gm47-an-attachment-without-mime_type-gets-its-type-from-the-filename-extension-issue-802-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> an attachment passed without <code>mime_type</code> used to go out as <code>application/octet-stream</code> whatever its name, so recipients' clients couldn't preview it. #802 guesses the type from the filename's extension, using Python's built-in table only, so the result doesn't depend on the server host's own MIME database. A compressed file (<code>.gz</code>) gets the compression type, not the type of what's inside it. PR #928 round 2 added two rules. A guessed <code>message/*</code> type (<code>.eml</code>, <code>.mht</code>) falls back to <code>application/octet-stream</code>, since base64, which every attachment uses, is forbidden on <code>message/rfc822</code>. A guessed <code>text/*</code> type gets <code>charset=utf-8</code> when its bytes are valid UTF-8, and falls back to <code>application/octet-stream</code> when they aren't. <code>get_message</code> doesn't show the charset, so that part is unit-tested only (<code>TestBuildRawMessageAttachments</code>).</p>
@@ -2882,6 +2909,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-07, PR #928 after the <code>develop</code> merge <code>548e691</code>) ✅ PASS</strong>: via <code>mcp-gee-sweet-kit</code>, after reconnecting to the merge, which brought in #925's OAuth re-authorization. All 6 attachments came back with the same <code>mime_type</code>s as before, with no <code>error</code>. The message was trashed.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — all 6 MIME types as expected.</p>
 <hr />
 <h2 id="create_draft"><code>create_draft</code><a class="headerlink" href="#create_draft" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm13-create-a-draft-destructive">TC-GM13: Create a draft ⚠️ destructive<a class="headerlink" href="#tc-gm13-create-a-draft-destructive" title="Permanent link">&para;</a></h3>
@@ -2894,6 +2922,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> TC-GM15 sends this draft. If TC-GM15 isn't run, <code>delete_draft</code> it.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — returned draft <code>id</code> and <code>message.id</code>, no error; <code>get_message</code> label_ids <code>["DRAFT"]</code> (no SENT). Deleted (TC-GM15 not runnable here).</p>
 <hr />
 <h3 id="tc-gm14-invalid-attachment-shape">TC-GM14: Invalid attachment shape<a class="headerlink" href="#tc-gm14-invalid-attachment-shape" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2903,6 +2932,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, error now raised inside <code>_compose_raw</code>'s thread)</strong>: returned <code>{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}</code>, with no draft <code>id</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}</code>, no draft id.</p>
 <hr />
 <h3 id="tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive">TC-GM41: Draft with HTML and an attachment survives <code>send_draft</code> ⚠️ destructive<a class="headerlink" href="#tc-gm41-draft-with-html-and-an-attachment-survives-send_draft-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2921,6 +2951,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — sent copy's bodies and attachment equal the draft's; SENT, no DRAFT.</p>
 <hr />
 <h2 id="send_draft"><code>send_draft</code><a class="headerlink" href="#send_draft" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm15-send-an-existing-draft-destructive">TC-GM15: Send an existing draft ⚠️ destructive<a class="headerlink" href="#tc-gm15-send-an-existing-draft-destructive" title="Permanent link">&para;</a></h3>
@@ -2938,6 +2969,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — fresh draft; send_draft gave SENT, subject matched; second send_draft returned a 404 error.</p>
 <hr />
 <h3 id="tc-gm16-non-existent-draft">TC-GM16: Non-existent draft<a class="headerlink" href="#tc-gm16-non-existent-draft" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2948,6 +2980,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "&lt;HttpError 404 ... drafts/totally-invalid-draft-id-xyz ... not found&gt;", "draft_id": ...}</code>, no exception (confirm path reads the draft before asking).</p>
 <hr />
 <h2 id="list_drafts-get_draft-update_draft-delete_draft"><code>list_drafts</code>, <code>get_draft</code>, <code>update_draft</code>, <code>delete_draft</code><a class="headerlink" href="#list_drafts-get_draft-update_draft-delete_draft" title="Permanent link">&para;</a></h2>
 <p>None of these sends mail. Each case checks that afterwards with <code>list_messages</code> on <code>query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""</code>, which must return no messages.</p>
@@ -2969,6 +3002,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <code>sky</code> (OAuth, QA mailbox). Step 3 listed both drafts, newest first; <code>{GM48_A}</code>'s entry had matching <code>message_id</code>/<code>thread_id</code>, <code>to</code>, <code>cc</code>, <code>subject</code>, <code>date</code>, and <code>snippet</code>, and <code>{GM48_B}</code>'s <code>cc</code> was null. Steps 4 and 5 each returned one different draft. API quirk, not a defect: with <code>max_results: 1</code>, Gmail reported <code>result_size_estimate: 201</code> and still returned a <code>next_page_token</code> on step 5's last real page. Following it returned <code>drafts: []</code>. No mail sent; both drafts deleted.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
 <code>sky</code> (OAuth). Rerun for the new <code>{id, message}</code> shape. Step 3: <code>{GM48_A}</code>'s <code>message</code> was identical to <code>get_draft(include_body=false)</code>'s, with matching <code>id</code>/<code>thread_id</code>, <code>to</code>, <code>cc</code>, <code>subject</code>, <code>date</code>, and <code>snippet</code>. No header outside the shaped set (no <code>received</code>). Steps 4 and 5 each returned one different draft, with the same <code>result_size_estimate: 201</code> / trailing <code>next_page_token</code> quirk as round 1. No mail sent; drafts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 3: exactly the two drafts (newest first); A's entry <code>{id, message}</code> identical to <code>get_draft(include_body=false)</code>'s message (id/thread_id = step 1's, to, cc, subject, date, snippet; no extra headers). Step 4: one draft + <code>next_page_token</code>; step 5: the other draft (Gmail again returned a trailing token, the known API quirk). No mail sent; drafts deleted.</p>
 <hr />
 <h3 id="tc-gm49-get_draft-has-the-same-shape-as-get_message-issue-1205-destructive">TC-GM49: <code>get_draft</code> has the same shape as <code>get_message</code> (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm49-get_draft-has-the-same-shape-as-get_message-issue-1205-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -2986,6 +3020,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <p><strong>Cleanup:</strong> <code>delete_draft</code> the draft; remove the scratch directory.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
 <code>sky</code> (OAuth). Step 2 matched step 3 field for field except <code>attachment_id</code>, with <code>gm49.txt</code> <code>text/plain</code> size 18, <code>DRAFT</code> label, and both bodies. Step 4 had headers only. Step 5 wrote <code>draft_&lt;id&gt;.json</code> (1165 bytes) holding step 2's subject, both bodies, and the attachment. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 2 message equals step 3's except attachment_id; <code>gm49.txt</code> text/plain 18, DRAFT label. Step 4 headers only. Step 5 wrote <code>draft_&lt;id&gt;.json</code> (1164 bytes) holding step 2's result. No mail sent; draft and scratch dir deleted.</p>
 <hr />
 <h3 id="tc-gm50-update_draft-replaces-content-and-keeps-the-draft-id-issue-1205-destructive">TC-GM50: <code>update_draft</code> replaces content and keeps the draft ID (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm50-update_draft-replaces-content-and-keeps-the-draft-id-issue-1205-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3005,6 +3040,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <code>sky</code> (OAuth). Step 2 kept the draft ID with a new <code>message.id</code>. Step 3 had the new <code>to</code> and subject, <code>cc</code> null, the new <code>body_plain</code>, <code>body_html</code> null, and <code>attachments: []</code>. Step 4 returned a 404 <code>{"error"}</code>. Step 5 listed exactly <code>{GM50_ID}</code>. The updated message kept the original <code>thread_id</code> (update_draft passes it back), which is expected. No mail sent; draft deleted.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
 <code>sky</code> (OAuth). Regression rerun after the compose rework, checking steps 2–4. Same outcome as round 1: new <code>to</code> and subject, <code>cc</code> and <code>body_html</code> null, <code>attachments: []</code>, and the old message a 404. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — same draft id, new message.id; get_draft: to <code>+tc-gm50-new</code>, subject <code>after</code>, cc null, new body_plain, body_html null, attachments []; old message 404; list_drafts exactly that draft. No mail sent; deleted.</p>
 <hr />
 <h3 id="tc-gm51-update_draft-with-keep_attachments-issue-1205-destructive">TC-GM51: <code>update_draft</code> with <code>keep_attachments</code> (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm51-update_draft-with-keep_attachments-issue-1205-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3020,6 +3056,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <code>sky</code> (OAuth). Step 3: <code>attachments</code> was <code>kept.txt</code> (12) then <code>new.txt</code> (11), and <code>body_plain</code> was the new text. Extra, outside the case: 12 MB and 18 MB <code>application/octet-stream</code> attachments on script-made drafts also survived <code>keep_attachments: true</code>, so re-sending kept bytes inline in <code>raw</code> isn't size-limited below Gmail's 25 MB attachment cap. No mail sent; drafts deleted.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
 <code>sky</code> (OAuth). Regression rerun: <code>kept.txt</code> (12) then <code>new.txt</code> (11), new <code>body_plain</code>. Extra: <code>update_draft</code> on <code>totally-invalid-draft-id-xyz</code> with <code>attachments: [{"local_path": &lt;missing file&gt;}]</code> returned the <code>No such file or directory</code> error, not the 404, so new attachments are read before any API call. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — attachments <code>kept.txt</code> (12) then <code>new.txt</code> (11); body_plain <code>mcp-gee-sweet TC-GM51 after</code>. No mail sent; deleted.</p>
 <hr />
 <h3 id="tc-gm52-an-updated-reply-draft-stays-in-its-thread-issue-1205-destructive">TC-GM52: An updated reply draft stays in its thread (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm52-an-updated-reply-draft-stays-in-its-thread-issue-1205-destructive" title="Permanent link">&para;</a></h3>
 <p>No tool creates a reply draft yet (#1081 will), so the setup makes one with the Gmail API directly.</p>
@@ -3038,6 +3075,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM52_ID}</code>.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
 <code>sky</code> (OAuth). Setup's draft landed in <code>{GM52_THREAD}</code>. Step 1 kept the ID and thread. Step 2 had <code>in_reply_to</code>/<code>references</code> equal to <code>{GM52_MID}</code> and the new <code>to</code>. Step 3's thread included the updated message. The fixture kept <code>Label_1</code> and <code>INBOX</code>. Observation: Gmail kept the draft in the thread even though its subject (<code>Re: [mcp-qa:tc-gm52] …</code>) doesn't match the thread's (<code>[mcp-qa:reply-to] …</code>), so for drafts the threadId alone was enough here. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — setup draft (script from Aziz's worktree) landed in the reply-to fixture's thread. update_draft kept id and thread_id; get_draft in_reply_to/references = fixture's message_id, to <code>+tc-gm52-new</code>; get_thread lists the updated message. Fixture labels unchanged (<code>Label_1, INBOX</code>). No mail sent; deleted.</p>
 <hr />
 <h3 id="tc-gm53-delete_draft-removes-the-draft-for-good-issue-1205-destructive">TC-GM53: <code>delete_draft</code> removes the draft for good (issue #1205) ⚠️ destructive<a class="headerlink" href="#tc-gm53-delete_draft-removes-the-draft-for-good-issue-1205-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Playwright: required</strong> (step 7, signed into the QA mailbox <code>{QA}</code>)</p>
@@ -3059,6 +3097,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <p><strong>Cleanup:</strong> none.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8</strong>
 <code>sky</code> (OAuth). Playwright sign-in check passed (fixture doc title matched; Gmail tab titled for the QA mailbox). Step 2 returned <code>{"id", "action": "deleted"}</code>. Steps 3 and 5 returned 404 <code>{"error"}</code>s, and step 4 was empty. Step 6: all three returned 404 <code>{"error"}</code>s, the <code>update_draft</code> one from its <code>format=metadata</code> pre-fetch, so nothing was written, and the <code>[mcp-qa:tc-gm53] x</code> query was empty. Step 7: the Drafts search showed "No messages matched your search". The Trash search pane had no result rows, though the snapshot showed no explicit empty-state text, so <code>list_messages(in:trash subject:"[mcp-qa:tc-gm53]", include_spam_trash=true)</code> confirmed it was empty. No mail sent (<code>in:sent newer_than:1d</code> empty).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — step 2 <code>{"id": ..., "action": "deleted"}</code>; steps 3 and 5 404 <code>{"error"}</code>; step 4 empty; step 6 get/update/delete on the invalid id each a 404 <code>{"error"}</code> (update from its metadata pre-fetch), and the <code>[mcp-qa:tc-gm53] x</code> query was empty. Step 7 (playwright-4, Gmail tab titled for {QA}): <code>in:drafts subject:"[mcp-qa:tc-gm53]"</code> showed "No messages matched your search"; Trash checked via <code>list_messages(in:trash ..., include_spam_trash)</code> = empty. Screenshot <code>E/shots/2026-11-08-tc-gm53.png</code>. No mail sent.</p>
 <hr />
 <h3 id="tc-gm54-update_draft-keeps-a-non-ascii-from-name-on-both-paths-issue-1205-pr-1227-qa-round-1-destructive">TC-GM54: <code>update_draft</code> keeps a non-ASCII From name on both paths (issue #1205, PR #1227 QA round 1) ⚠️ destructive<a class="headerlink" href="#tc-gm54-update_draft-keeps-a-non-ascii-from-name-on-both-paths-issue-1205-pr-1227-qa-round-1-destructive" title="Permanent link">&para;</a></h3>
 <p>No tool sets a draft's From, so the setup makes the drafts with the Gmail API directly, the way TC-GM52 does.</p>
@@ -3076,6 +3115,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <p><strong>Cleanup:</strong> <code>delete_draft</code> both drafts.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
 <code>sky</code> (OAuth). <code>{GM54_FROM}</code> was <code>"José Pérez" &lt;{QA}&gt;</code>. Steps 3 and 4 both returned exactly that, so both the metadata path and the <code>keep_attachments</code> raw path kept it. Round 1 @ 99acc3e8 had replaced it with the account default on the metadata path. No mail sent; drafts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — {GM54_FROM} = <code>"José Pérez" &lt;{QA}&gt;</code>; after update (metadata path and keep_attachments path) both drafts return exactly that From. No mail sent; deleted.</p>
 <hr />
 <h3 id="tc-gm55-keep_attachments-keeps-an-inline-image-inline-with-the-new-html-issue-1205-pr-1227-qa-round-1-destructive">TC-GM55: <code>keep_attachments</code> keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive<a class="headerlink" href="#tc-gm55-keep_attachments-keeps-an-inline-image-inline-with-the-new-html-issue-1205-pr-1227-qa-round-1-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -3092,6 +3132,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 <p><strong>Cleanup:</strong> <code>delete_draft</code> <code>{GM55_ID}</code>.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2</strong>
 <code>sky</code> (OAuth). Setup step 2 listed one nameless <code>image/png</code> of size 70. Step 2: the new <code>body_plain</code>, <code>body_html</code> <code>&lt;p&gt;after &lt;img src="cid:gm55@mcp-qa"&gt;&lt;/p&gt;</code>, and one nameless <code>image/png</code> of size 70. Step 3's tree was <code>multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=&lt;gm55@mcp-qa&gt;]]</code>. No mail sent; draft deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — setup: one nameless image/png size 70. After update: new body_plain, body_html <code>&lt;p&gt;after &lt;img src="cid:gm55@mcp-qa"&gt;&lt;/p&gt;</code>, one nameless image/png size 70. Raw tree <code>multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=&lt;gm55@mcp-qa&gt;]]</code>. No mail sent; deleted.</p>
 <hr />
 <h2 id="reply_to_message"><code>reply_to_message</code><a class="headerlink" href="#reply_to_message" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm17-reply-in-thread-with-correct-threading-headers-destructive">TC-GM17: Reply in-thread with correct threading headers ⚠️ destructive<a class="headerlink" href="#tc-gm17-reply-in-thread-with-correct-threading-headers-destructive" title="Permanent link">&para;</a></h3>
@@ -3114,6 +3155,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — same thread_id, no warning; In-Reply-To and References = original's Message-ID; one "Re: "; to is +tc-gm17.</p>
 <hr />
 <h3 id="tc-gm18-reply-to-non-existent-message">TC-GM18: Reply to non-existent message<a class="headerlink" href="#tc-gm18-reply-to-non-existent-message" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3124,6 +3166,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "&lt;HttpError 400 ... Invalid id value&gt;"}</code>.</p>
 <hr />
 <h3 id="tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth">TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>reply_to_message</code> used to always reply to <code>From</code>, so mail with a <code>Reply-To</code> (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves <code>Reply-To</code> over <code>From</code>, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is <em>inserted</em> (not sent) with a fake <code>From</code> and a <code>Reply-To</code> pointing at a plus-address of the QA mailbox itself.</p>
@@ -3162,6 +3205,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>. Seeded <code>reply-to</code> fixture; only the replies trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness</strong> — Seeded fixture {TEST_GMAIL_REPLYTO_ID}: reply_to <code>{QA+tc-gm23}</code>, from <code>noreply@example.invalid</code>. Plain reply: to = <code>{QA+tc-gm23}</code> only, cc null, same thread_id as fixture, labels UNREAD/SENT/INBOX. Reply-all: to = <code>{QA+tc-gm23}</code> only (bare mailbox excluded), noreply nowhere, same thread. Both <code>sent: true</code>. Both replies trashed; fixture left in place (labels Label_1, INBOX unchanged).</p>
 <hr />
 <h3 id="tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth">TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> a plain reply (<code>reply_all: false</code>) to a message the mailbox itself sent used to set <code>To</code> to the mailbox's own address. #791 replies to that message's original <code>To</code> instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.</p>
@@ -3181,6 +3225,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness</strong> — Own-sent fixture labels UNREAD/SENT/INBOX (SENT present). Reply to = <code>{QA+tc-gm24}</code> (not bare {QA}); reply thread_id equals the fixture's. Both trashed.</p>
 <hr />
 <h3 id="tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth">TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+x</code> replied to both, so you got a copy of your own reply. A <code>Cc</code>-only message (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's <code>Cc</code> when nobody else is in <code>To</code>. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases. Steps 1 and 6 also send to the bare <code>{QA}</code> address on purpose, since the case needs the mailbox's own address among the recipients. That's an exception to the file's address convention, and it's still the QA mailbox, so nothing leaves it.</p>
@@ -3218,6 +3263,7 @@ Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</cod
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Direct mode: sky slot with <code>GMAIL_SEND=direct</code> in its <code>.env</code> (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries <code>sent: true</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness</strong> — Empty-subject original → reply subject exactly <code>Re:</code>. <code>RE: [mcp-qa:tc-gm42] upper-case prefix</code> original → reply subject unchanged (no <code>Re: RE:</code>). Each reply shares its original's thread_id. All four messages trashed by ID.</p>
 <hr />
 <h3 id="tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive">TC-GM43: Reply from the middle of a thread chains References ⚠️ destructive<a class="headerlink" href="#tc-gm43-reply-from-the-middle-of-a-thread-chains-references-destructive" title="Permanent link">&para;</a></h3>
 <p>Run after TC-GM33. The middle message (M2) was sent by the QA mailbox, so the reply goes to its original <code>To</code>: the sender mailbox. That's an allowed recipient (plan §3.1).</p>
@@ -3253,6 +3299,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Result (2026-10-06, PR #928 round 1) ✅ PASS (regression, <code>modify_labels</code> message branch via <code>_message_summary</code>)</strong>: the message branch returned <code>id</code>, <code>thread_id</code>, and <code>label_ids</code>. <code>UNREAD</code> was added, then removed. On the thread, <code>STARRED</code> was added to every message, then removed from every message. There was no <code>error</code> in any response. The fixture started <code>UNREAD</code>, and <code>UNREAD</code> was restored.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — fixture started UNREAD. Add UNREAD → present; remove → gone; thread add STARRED → all 5 messages (incl. 2 trashed earlier-run replies) STARRED; remove → none. No errors. UNREAD restored; final labels <code>UNREAD, Label_1, CATEGORY_PERSONAL, INBOX</code>.</p>
 <hr />
 <h3 id="tc-gm20-validation-errors">TC-GM20: Validation errors<a class="headerlink" href="#tc-gm20-validation-errors" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3265,6 +3312,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - <code>{TEST_MESSAGE_ID}</code>'s labels are unchanged (no API call was made)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — steps 1 and 2: <code>Provide exactly one of message_id or thread_id.</code>; step 3: <code>Provide at least one of add_label_ids or remove_label_ids.</code>; fixture labels unchanged afterward.</p>
 <hr />
 <h2 id="trash_message"><code>trash_message</code><a class="headerlink" href="#trash_message" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm21-trash-a-throwaway-destructive">TC-GM21: Trash a throwaway ⚠️ destructive<a class="headerlink" href="#tc-gm21-trash-a-throwaway-destructive" title="Permanent link">&para;</a></h3>
@@ -3276,6 +3324,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - No <code>error</code> field</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — action: trashed, TRASH in label_ids.</p>
 <hr />
 <h3 id="tc-gm22-trash-non-existent-message">TC-GM22: Trash non-existent message<a class="headerlink" href="#tc-gm22-trash-non-existent-message" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3284,6 +3333,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 - Returns <code>{"error": "..."}</code>, not a tool exception</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code></strong> — <code>{"error": "&lt;HttpError 400 ... Invalid id value&gt;"}</code>.</p>
 <hr />
 <h3 id="tc-gm37-trash-twice-then-try-to-restore-by-label-destructive-product-decision">TC-GM37: Trash twice, then try to restore by label ⚠️ destructive 🔍 product decision<a class="headerlink" href="#tc-gm37-trash-twice-then-try-to-restore-by-label-destructive-product-decision" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> the tools have no <code>untrash</code>. Whether <code>modify_labels(remove_label_ids=["TRASH"])</code> restores a message is unverified (plan §2 item 3). This case records the answer. It isn't pass/fail on the restore question: record what happened and update plan §2 item 3 with it.</p>
@@ -3301,6 +3351,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 <p><strong>Cleanup:</strong> <code>trash_message</code> <code>{GM37_ID}</code> (a no-op if it's still in trash).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS (🔍) — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — second trash idempotent success; remove TRASH leaves UNREAD, SENT (no INBOX); message reappears in list_messages.</p>
 <hr />
 <h2 id="cross-mailbox-delivery">Cross-mailbox delivery<a class="headerlink" href="#cross-mailbox-delivery" title="Permanent link">&para;</a></h2>
 <p>These cases prove what the recipient actually receives, which plus-address cases can't show. The QA-side call is the one under test. Sender-side calls go through <code>mcp__mcp-gee-sweet__*</code> and only observe. Read, and afterwards trash, only the <code>[mcp-qa</code>-subject messages each case names in the sender mailbox.</p>
@@ -3353,6 +3404,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.</
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed From (the QA mailbox), To, Cc, Subject and the fenced body. The callback accepted with <code>send: true</code>: the result had <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>draft_id</code>, label_ids <code>SENT</code> (no <code>DRAFT</code>), and <code>recipient_flags: []</code>. <code>list_drafts</code> for <code>tc-gm56</code> returned 0. Message trashed.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). The form showed From, To, Cc, Subject and the fenced body. Accepted: <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, <code>draft_id</code>, label_ids <code>SENT</code> (no <code>DRAFT</code>), <code>recipient_flags: []</code>; <code>list_drafts</code> for <code>tc-gm56</code> returned 0. Trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — form: <code>From: {QA name} &lt;{QA}&gt;</code>, <code>To: {QA+tc-gm56}</code>, <code>Cc: {QA+tc-gm56-cc}</code>, <code>Subject: [mcp-qa:tc-gm56] confirm</code>, fenced body. Accepted: <code>sent: true</code>, id, thread_id, label_ids <code>UNREAD, SENT, INBOX</code>, draft_id, <code>recipient_flags: []</code>. get_message: no DRAFT; <code>list_drafts</code> tc-gm56 empty. Trashed.</p>
 <hr />
 <h3 id="tc-gm57-declining-or-dismissing-leaves-an-unsent-draft-in-the-drafts-folder-requires-fresh-interpreter">TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm57-declining-or-dismissing-leaves-an-unsent-draft-in-the-drafts-folder-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Playwright: required</strong> (step 4, signed into the QA mailbox <code>{QA}</code>)</p>
@@ -3372,6 +3424,7 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). Declined, cancelled, accepted-unchecked: <code>sent: false</code> with <code>declined</code>, <code>cancelled</code>, <code>declined</code>, each with a <code>draft_id</code> and the Drafts note. Playwright (Gmail search <code>in:drafts</code>) listed all three. Nothing sent; drafts deleted.</p>
 <p><strong>Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, <code>GMAIL_SEND</code> unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as <code>{QA}</code>. Declined, cancelled, accepted-unchecked: <code>sent: false</code> with <code>declined</code>, <code>cancelled</code>, <code>declined</code>, each with a <code>draft_id</code> and the Drafts note. Playwright (<code>#drafts</code>, after a full page load) listed all three. <code>in:sent</code> found nothing for <code>tc-gm57</code>. Drafts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — declined / cancelled / accepted-unchecked: <code>sent: false</code> with <code>declined</code>, <code>cancelled</code>, <code>declined</code>, each with draft_id and the Drafts note. Playwright (playwright-4, full load, <code>in:drafts tc-gm57</code>): all three <code>[mcp-qa:tc-gm57]</code> drafts listed (<code>E/shots/2026-11-08-tc-gm57.png</code>). Nothing sent (<code>in:sent</code> empty). Drafts deleted.</p>
 <hr />
 <h3 id="tc-gm58-a-held-reply-sits-in-the-original-thread-requires-fresh-interpreter">TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm58-a-held-reply-sits-in-the-original-thread-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Playwright: required</strong> (step 3, signed into the QA mailbox <code>{QA}</code>)</p>
@@ -3395,6 +3448,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, sky
 Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, <code>GMAIL_SEND</code> unset), with the new Setup: <code>get_thread</code> on <code>{TEST_THREAD_ID}</code> gave three non-trashed messages, and M1 is the <code>[mcp-qa:thread]</code> opener. The form showed <code>Subject: Re: [mcp-qa:thread] two-party thread</code> and <code>To:</code> the original's sender. Declined: <code>sent: false</code>, <code>reason: declined</code>, and <code>message.thread_id</code> equal to the original's; <code>in_reply_to</code> equals M1's <code>message_id</code>. Playwright shows the TC-GM58 reply draft inline in the thread, after a full page load: going to the same Gmail hash doesn't reload the page, and it kept showing an already deleted draft. <code>in:sent</code> found no new reply. Draft deleted, fixture untouched.</p>
 <p><strong>Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, <code>GMAIL_SEND</code> unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as <code>{QA}</code>. M1 is the <code>[mcp-qa:thread]</code> opener, among three non-trashed messages. The form showed the <code>outside_organization</code> flag first, then <code>To: {SENDER}</code> and <code>Subject: Re: [mcp-qa:thread] two-party thread</code>. Declined: <code>sent: false</code>, <code>reason: declined</code>, and <code>message.thread_id</code> equal to the original's; <code>in_reply_to</code> equals M1's <code>message_id</code>. Playwright shows the reply draft inline in the thread after a full page load. Gmail shows only one reply draft on a message: with TC-GM65's reply draft also on M1, only TC-GM65's showed, even after Expand all, though the Drafts list counted two. It showed once TC-GM65's draft was deleted, so check each case's draft on its own. No new sent reply in the thread. Draft deleted, fixture untouched.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — M1 = {TEST_THREAD_ID} opener (TC-GM33). Form: <code>⚠ ... outside your organization: {SENDER}</code>, <code>To: {SENDER}</code>, <code>Subject: Re: [mcp-qa:thread] two-party thread</code>, body. Declined: <code>sent: false</code>, <code>reason: declined</code>, <code>message.thread_id</code> = {TEST_THREAD_ID}; get_draft <code>in_reply_to</code> = M1's message_id. Playwright (full page load of the conversation): the unsent <code>mcp-gee-sweet TC-GM58 reply</code> draft shown inline under M1 (<code>E/shots/2026-11-08-tc-gm58.png</code>). No sent reply; draft deleted, fixture untouched.</p>
 <hr />
 <h3 id="tc-gm59-send_draft-asks-and-refuses-without-a-yes-destructive-requires-fresh-interpreter">TC-GM59: <code>send_draft</code> asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm59-send_draft-asks-and-refuses-without-a-yes-destructive-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3412,6 +3466,7 @@ Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, eve
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). <code>create_draft</code> opened no form. <code>send_draft</code> declined: <code>sent: false</code>, <code>reason: declined</code>, and <code>get_draft</code> still found the draft. Accepted: <code>sent: true</code> with <code>SENT</code>. Trashed.</p>
 <p><strong>Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, <code>GMAIL_SEND</code> unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as <code>{QA}</code>. <code>create_draft</code> opened no form. <code>send_draft</code> declined: <code>sent: false</code>, <code>reason: declined</code>, and the still-in-Drafts note; <code>get_draft</code> still found the draft. Accepted: <code>sent: true</code>, label_ids <code>SENT</code>. Message trashed; it's the only message sent in this run.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — create_draft opened no form (0 callback calls). send_draft declined: <code>sent: false</code>, <code>reason: declined</code>, still-in-Drafts note; get_draft still found it. send_draft accepted: <code>sent: true</code>, label_ids <code>UNREAD, SENT, INBOX</code>. Trashed.</p>
 <hr />
 <h3 id="tc-gm60-a-client-that-cant-ask-gets-drafts-only-requires-fresh-interpreter">TC-GM60: A client that can't ask gets drafts only ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm60-a-client-that-cant-ask-gets-drafts-only-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Action:</strong> in a fresh interpreter, start the slot's server with <code>mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", &lt;slot worktree&gt;, "mcp-gee-sweet"], env=&lt;the slot's MCP config env plus PATH and HOME&gt;), ...)</code> (<code>GMAIL_SEND</code> unset), and run each step on a new client:
@@ -3435,6 +3490,7 @@ Same outcomes as rounds 1 and 2: <code>no_elicitation</code> on every call, the 
 Fresh interpreter from Aziz's worktree (<code>GMAIL_SEND</code> unset). Legacy client with no elicitation: <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> each returned a tool result (not <code>is_error</code>) with <code>sent: false</code>, <code>reason: no_elicitation</code> and a <code>draft_id</code>. The reply draft kept the original's <code>thread_id</code>. 2026-07-28 client with an always-accept callback: <code>send_message</code> and <code>send_draft</code> both returned <code>no_elicitation</code>, and the callback was called 0 times. <code>get_draft</code> found all five drafts, and <code>in:sent</code> found nothing for <code>tc-gm60</code>. Drafts deleted.</p>
 <p><strong>Result (2026-11-07) ✅ PASS — PR #1395 QA round 1 (Rio, @ 9a1b46b7)</strong>
 Fresh interpreter per the case, rio slot, <code>GMAIL_SEND</code> unset, started from this head. Same outcomes as the result above: on the legacy client <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> each returned a tool result with <code>sent: false</code>, <code>reason: no_elicitation</code> and a <code>draft_id</code>, and the reply kept the original's <code>thread_id</code>; on the 2026-07-28 client <code>send_message</code> and <code>send_draft</code> returned the same, and the always-accept callback was called 0 times. <code>get_draft</code> found all five, and <code>in:sent</code> found nothing for <code>tc-gm60</code>. Drafts deleted; <code>list_drafts</code> for <code>tc-gm60</code> returned none.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — legacy client with no callback: send_message, reply_to_message, send_draft each a tool result (<code>is_error=False</code>) with <code>sent: false</code>, <code>reason: no_elicitation</code>, draft_id; reply draft thread_id = {TEST_THREAD_ID}. <code>mode="2026-07-28"</code> with always-accept callback: send_message and send_draft <code>no_elicitation</code>, callback called 0 times. get_draft found all five; <code>in:sent tc-gm60</code> empty. Drafts deleted.</p>
 <hr />
 <h3 id="tc-gm61-a-draft-edited-during-its-confirmation-isnt-sent-requires-fresh-interpreter">TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm61-a-draft-edited-during-its-confirmation-isnt-sent-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Action:</strong> fresh interpreter as in TC-GM60, <code>mode="legacy"</code>:
@@ -3451,6 +3507,7 @@ Fresh interpreter, legacy client. The elicitation callback's nested <code>update
 Re-run: <code>reason: changed</code>, and the draft kept the edited subject.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 <code>reason: changed</code>; the draft kept the edited subject.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — the callback's nested update_draft succeeded (new message id, same draft id), then accepted; send_draft returned <code>sent: false</code>, <code>reason: changed</code>. get_draft subject <code>[mcp-qa:tc-gm61] edited</code>. <code>in:sent</code> empty. Deleted.</p>
 <hr />
 <h3 id="tc-gm62-recipient-flags-show-first-in-the-form-and-in-the-result-requires-fresh-interpreter-cross-mailbox">TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox<a class="headerlink" href="#tc-gm62-recipient-flags-show-first-in-the-form-and-in-the-result-requires-fresh-interpreter-cross-mailbox" title="Permanent link">&para;</a></h3>
 <p>Needs the Workspace QA mailbox, with <code>{SENDER}</code> on a different domain. On a consumer QA mailbox, check instead that <code>outside_organization</code> never appears.</p>
@@ -3465,6 +3522,7 @@ Re-run: <code>reason: changed</code>, and the draft kept the edited subject.</p>
 Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets <code>no_elicitation</code> and can't show the form. So the form was driven from a fresh interpreter (<code>mcp.Client</code>, <code>mode="legacy"</code>, sky slot, <code>GMAIL_SEND</code> unset) with a scripted <code>elicitation_callback</code> in place of the human. The callback received the form text; how a real client displays it wasn't checked. Workspace QA mailbox, with <code>{SENDER}</code> on a consumer domain. The form's first lines, before <code>From:</code>, were a <code>⚠</code> outside-organization line naming <code>{SENDER}</code> and a <code>⚠</code> hidden-recipient line naming <code>{QA+tc-gm62-bcc}</code>. Declined: <code>sent: false</code>, <code>outside_organization</code> with <code>addresses</code> <code>{SENDER}</code> only, and <code>hidden_recipients</code> <code>count: 1</code>. Nothing sent; draft deleted.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). The form's first lines were <code>⚠</code> outside-organization (<code>{SENDER}</code>) and <code>⚠</code> hidden-recipient (<code>{QA+tc-gm62-bcc}</code>) lines. Declined: <code>outside_organization</code> <code>addresses</code> = <code>{SENDER}</code> only, <code>hidden_recipients</code> <code>count: 1</code>. Nothing sent.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — Workspace QA mailbox, {SENDER} consumer. Form's first lines before <code>From:</code>: <code>⚠ 1 recipient(s) outside your organization: {SENDER}</code> and <code>⚠ 1 hidden (Bcc) recipient(s): {QA+tc-gm62-bcc}</code>. Declined: <code>sent: false</code>, <code>outside_organization</code> addresses <code>[{SENDER}]</code> only, <code>hidden_recipients</code> count 1. Nothing sent (draft only, deleted).</p>
 <hr />
 <h3 id="tc-gm64-the-form-shows-the-html-part-decoded-names-and-a-fenced-body-pr-1249-qa-round-1-requires-fresh-interpreter">TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm64-the-form-shows-the-html-part-decoded-names-and-a-fenced-body-pr-1249-qa-round-1-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><strong>Action</strong>
@@ -3481,6 +3539,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, sky
 Driven from a fresh interpreter (legacy client, declining callback) for the reason under TC-GM56. <code>To:</code> read <code>José Ñúñez &lt;…&gt;</code>, with no <code>=?utf-8?</code>. <code>Body (84 characters):</code> was followed by the three body lines, each prefixed <code>│</code>. The HTML section read <code>│ HTML-ONLY-CONTENT</code>, with no <code>hidden()</code>. <code>sent: false</code>, <code>reason: declined</code>. All checks pass. A separate probe, <code>body_html="&lt;head&gt;&lt;p&gt;…&lt;/p&gt;"</code>, gave an empty HTML section that a browser renders as visible text (send-back on the PR, not this case's checks).</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, <code>GMAIL_SEND</code> unset). Step 1: <code>To: José Ñúñez &lt;…&gt;</code>, the fenced 3-line body, and <code>│ HTML-ONLY-CONTENT</code> with no <code>hidden()</code>. Step 2 (added this round for the round-2 fix): the HTML section read <code>│ HEAD-CONTENT</code>, <code>│ OUTLOOK-ONLY</code>, <code>│ END</code> on separate lines, and <code>plain comment</code> appeared nowhere. Both <code>declined</code>; drafts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — step 1: <code>To: José Ñúñez &lt;{QA+tc-gm64}&gt;</code> (no <code>=?utf-8?</code>), <code>Body (84 characters):</code> followed by three <code>│</code> lines, <code>HTML version, which most mail apps show, as text (17 characters):</code> <code>│ HTML-ONLY-CONTENT</code>, no <code>hidden()</code>. Step 2: HTML section <code>│ HEAD-CONTENT</code>, <code>│ OUTLOOK-ONLY</code>, <code>│ END</code> on separate lines, no <code>plain comment</code>. Both <code>declined</code>; nothing sent; drafts deleted.</p>
 <hr />
 <h3 id="tc-gm65-a-send-from-claude-code-lands-as-a-held-draft">TC-GM65: A send from Claude Code lands as a held draft<a class="headerlink" href="#tc-gm65-a-send-from-claude-code-lands-as-a-held-draft" title="Permanent link">&para;</a></h3>
 <p><strong>Playwright: required</strong> (step 4, signed into the QA mailbox <code>{QA}</code>)</p>
@@ -3502,6 +3561,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, sky
 Rio slot's own tools, Claude Code 2.1.318, <code>GMAIL_SEND</code> unset. <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> each returned <code>sent: false</code>, <code>reason: no_elicitation</code>, a <code>draft_id</code> and the Drafts note. The reply's <code>message.thread_id</code> equals the fixture's. Playwright listed both <code>[mcp-qa:tc-gm65]</code> drafts and the reply draft (Gmail search <code>in:drafts tc-gm65</code>), and the fixture's conversation shows the unsent reply inline. <code>in:sent</code> found nothing for <code>tc-gm65</code>, and the fixture has no new sent reply. Drafts deleted. Didn't run: step 5 and its check (no person with Claude Desktop).</p>
 <p><strong>Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)</strong>
 <code>mcp-gee-sweet-oauth</code> tools (main checkout, same source), Claude Code 2.1.319, <code>GMAIL_SEND</code> unset. <code>send_message</code>, <code>reply_to_message</code> and <code>send_draft</code> each returned <code>sent: false</code>, <code>reason: no_elicitation</code>, a <code>draft_id</code> and the Drafts note. The reply's <code>message.thread_id</code> equals the fixture's. Playwright listed both <code>[mcp-qa:tc-gm65]</code> drafts and the reply in <code>#drafts</code>, and the conversation shows the reply draft inline. Step 5, run by a person in Claude Desktop 4.23118.0 on the Chat tab, on the bundle from TC-I68 and signed in as <code>{QA}</code>: no form appeared, and the result was <code>sent: false</code>, <code>reason: no_elicitation</code>. So it doesn't ask here either. Before the tool ran, the Desktop's own permission prompt showed To, Subject and Body; that's its layer, not this server's confirmation, and allowing it sent nothing. A draft to <code>{QA+tc-gm65}</code> was held. <code>in:sent</code> found nothing for <code>tc-gm65</code>, and the fixture has no new sent reply. Drafts deleted. Run step 5 on the Chat tab: the Code tab uses Claude Code's own servers, so a first attempt there reached a different server and account, and that attempt isn't counted here.</p>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard E on <code>kit</code></strong> — Claude Code 2.1.319, kit slot, <code>GMAIL_SEND</code> unset. <code>send_message</code>, <code>reply_to_message</code> (on M1 <code>{TEST_THREAD_ID}</code>) and <code>send_draft</code> each returned <code>sent: false</code>, <code>reason: no_elicitation</code>, a <code>draft_id</code>, and the Drafts-folder note; the reply's <code>message.thread_id</code> = <code>{TEST_THREAD_ID}</code> (with an <code>outside_organization</code> flag for {SENDER}). Playwright: <code>in:drafts tc-gm65</code> listed <code>[mcp-qa:tc-gm65] send_draft</code>, <code>[mcp-qa:tc-gm65] held</code>, and the thread conversation with a Draft; the thread view (full page load) showed the unsent <code>mcp-gee-sweet TC-GM65 reply</code> draft inline under M1. <code>in:sent tc-gm65</code> empty; no new sent reply in the thread. Drafts deleted. Didn't run: step 5 and its check (needs a person with Claude Desktop).</p>
 <hr />
 <h3 id="tc-gm66-an-unanswered-confirmation-times-out-and-holds-the-draft-requires-fresh-interpreter">TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter<a class="headerlink" href="#tc-gm66-an-unanswered-confirmation-times-out-and-holds-the-draft-requires-fresh-interpreter" title="Permanent link">&para;</a></h3>
 <p><code>_CONFIRM_TIMEOUT_SECONDS</code> is 600 and has no setting, so this case takes just over 10 minutes. Run the two calls concurrently on one client.</p>
@@ -3522,6 +3582,7 @@ Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25,
 Same harness, reworded case, with the callback logging its cancellation. Both forms opened at about 2 s. At 602 s both callbacks raised <code>CancelledError</code> and neither accepted, and <code>send_message</code> and <code>send_draft</code> returned <code>sent: false</code>, <code>reason: timeout</code>, a <code>draft_id</code> and the Drafts note. <code>get_draft</code> found both, and <code>in:sent</code> found nothing for <code>tc-gm66</code>. Drafts deleted.</p>
 <p><strong>Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, <code>GMAIL_SEND</code> unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as <code>{QA}</code>. Both calls concurrent on one client. Both forms opened at about 3 s. At 603 s both callbacks raised <code>CancelledError</code> and neither accepted, and <code>send_message</code> and <code>send_draft</code> returned <code>sent: false</code>, <code>reason: timeout</code>, a <code>draft_id</code> and the Drafts note. <code>get_draft</code> found both, and <code>in:sent</code> found nothing for <code>tc-gm66</code>. Drafts deleted.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on <code>kit</code> (harness)</strong> — legacy client, both calls concurrent. Both forms opened at ~2 s; at 602 s both callbacks raised <code>CancelledError</code> (neither accepted), and send_message and send_draft returned at 602 s with <code>sent: false</code>, <code>reason: timeout</code>, draft_id, and the Drafts note. get_draft found both; <code>in:sent tc-gm66</code> empty. Drafts deleted.</p>
 <hr />
 <h3 id="tc-gm67-an-accepted-confirmation-sends-the-reply-destructive-requires-fresh-interpreter-cross-mailbox">TC-GM67: An accepted confirmation sends the reply ⚠️ destructive ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox<a class="headerlink" href="#tc-gm67-an-accepted-confirmation-sends-the-reply-destructive-requires-fresh-interpreter-cross-mailbox" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> take <code>{THREAD_MSG}</code> as in TC-GM58. M1 came from the sender mailbox, so the reply goes to <code>{SENDER}</code>.</p>
@@ -3540,6 +3601,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, <co
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy through <code>mcp__mcp-gee-sweet__trash_message</code>.</p>
 <p><strong>Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)</strong>
 Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, <code>GMAIL_SEND</code> unset). The form showed <code>Subject: Re: [mcp-qa:thread] two-party thread</code>, <code>To: {SENDER}</code> and the body text. Accepted: <code>sent: true</code>, <code>id</code>, <code>draft_id</code>, label_ids <code>SENT</code>, <code>thread_id</code> equal to <code>{TEST_THREAD_ID}</code>, plus the expected <code>outside_organization</code> flag. <code>get_message</code>: no <code>DRAFT</code>, and <code>in_reply_to</code> equals M1's <code>message_id</code>. <code>get_draft</code> on the <code>draft_id</code> returned a 404 error. Step 5 ran from Aziz's session, since Rio's has no sender-mailbox server: <code>list_messages</code> found the delivered reply on the first try, with the right subject and body. Both copies trashed.</p>
+<p><strong>Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard E</strong> — sends to {SENDER} (outside this shard's approved recipients, QA plus-addresses only) and step 5 needs the sender mailbox via <code>mcp__mcp-gee-sweet__*</code>, which this shard may not call. Deferred to Aziz.</p>
 <hr />
 <h3 id="tc-gm63-gmail_senddirect-sends-at-once">TC-GM63: <code>GMAIL_SEND=direct</code> sends at once<a class="headerlink" href="#tc-gm63-gmail_senddirect-sends-at-once" title="Permanent link">&para;</a></h3>
 <p>Run on the <code>GMAIL_SEND=direct</code> slot.</p>
@@ -3552,6 +3614,7 @@ Fresh-interpreter harness per the section (legacy client, scripted callback, rio
 <p><strong>Cleanup:</strong> <code>trash_message</code> the step-1 <code>id</code>.</p>
 <p><strong>Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)</strong>
 Run on the sky slot's own tools after a reconnect with <code>GMAIL_SEND=direct</code>: no form, <code>sent: true</code>, <code>id</code>, <code>thread_id</code>, label_ids <code>SENT</code>, no <code>draft_id</code>; <code>list_drafts</code> for <code>tc-gm63</code> returned 0. Trashed.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter <code>GMAIL_SEND=direct</code> server from Aziz's worktree</strong> — sent: true, no draft_id, no drafts left.</p>
 
 
 

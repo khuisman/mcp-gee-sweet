@@ -1,0 +1,1832 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/runs/v0.9.6/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>QA Run Gate — v0.9.6 (ornithomimus) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-gate-v096-ornithomimus" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run Gate — v0.9.6 (ornithomimus)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-gate-v096-ornithomimus">QA Run Gate — v0.9.6 (ornithomimus)<a class="headerlink" href="#qa-run-gate-v096-ornithomimus" title="Permanent link">&para;</a></h1>
+<p><strong>Release type:</strong> Stable
+<strong>Suite required:</strong> <strong>Full Regression</strong> (scoping audit below), including <code>docs_markdown.md</code>, the Markdown release gate (#1044)
+<strong>Status:</strong> ✅ <strong>Signed off 2026-11-11 by Aziz, on <code>develop</code> <code>4a86b88b</code></strong> (develop is now <code>04591fe2</code>, a roadmap-only change). Every suite ran live on <code>f98c67b7</code> on 2026-11-07/08; v0.9.6 was held for #1427, #1100, #1419 and #1429, and the targeted re-run on <code>4a86b88b</code> (2026-11-10/11, "Re-run" below) passes all four. Open FAILs, none blocking by the user's decisions: #1414 (the one regression since v0.9.5), TC-MD108's two Drive-import cells (#1113, #1444), and the rest listed under "Failures".</p>
+<p><strong>Results:</strong> inline <code>**Result (2026-11-08) … ornithomimus release pass**</code> entries in <code>docs/qa/tests/*.md</code>: 1,056 results, 967 PASS, 20 FAIL, 30 PARTIAL, 39 SKIP. Four Gmail cases have no result yet (TC-GM25, 43, 44, 45; see "Pending approvals"). The Markdown suite's grid is in <code>docs/qa/results/2026-11-08-markdown.md</code>.</p>
+<h2 id="sign-off-checklist">Sign-off checklist<a class="headerlink" href="#sign-off-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] Scoping audit: Full Regression (below)</li>
+<li>[x] Every test file run live: Run 1 (changed domains), Run 2 (<code>docs_markdown.md</code>), Run 3 (the rest, plus TC-I02/TC-I24 by the two-subagent barrier)</li>
+<li>[x] Failures filed: #1414–#1420, #1427–#1430</li>
+<li>[x] User decision on each open FAIL (below): hold for #1427, #1100, #1419, #1429 (docs); the rest go to the next release</li>
+<li>[x] Blocking fixes merged (#1427 PR #1434, #1100 PR #1438, #1419 PR #1433, #1429 PR #1432), then a targeted re-run on <code>4a86b88b</code>: TC-MD015, TC-MD016, every TC with a cell #1429 documents, TC-D281, plus the cases #1427 and #1100 touch ("Re-run" below)</li>
+<li>[x] User decision on the re-run's new FAIL (TC-MD108 LX-05/LX-24, Drive import): not blocking, docs ticket #1444 (2026-11-10)</li>
+<li>[x] Pending approvals (below): those cases left pending</li>
+<li>[ ] PR merged; Kai runs <code>/release</code></li>
+</ul>
+<hr />
+<h2 id="pre-flight">Pre-flight<a class="headerlink" href="#pre-flight" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Worktree:</strong> Aziz's worktree reset to <code>origin/develop</code> (<code>f98c67b7</code>) before the pass; <code>develop</code> didn't move during it.</li>
+<li><strong>Lanes:</strong> no lane mid-ticket (only community PRs open); no open PR touched the release-pass prompt files.</li>
+<li><strong>Fixture keys:</strong> this worktree's <code>.env</code> has every <code>TEST_*</code> key the main checkout has.</li>
+<li><strong>Credentials:</strong> this worktree's OAuth token and service-account key both read the fixture spreadsheet.</li>
+<li><strong>Playwright:</strong> the shared QA browser (#1410) verified signed into the fixture-owning account (fixture doc title matched) before any shard started, and again after it was restarted.</li>
+<li><strong>Approval (the user's words, this pass):</strong> "Approved on the six items in the write approval list" (fixture spreadsheet/doc/calendar writes; throwaway Shared Drive files; Gmail sends, drafts and labels to the QA mailbox's plus-addresses; shares to <code>TEST_PERMISSION_EMAIL</code> and <code>@example.com</code>; an anyone-with-link reader share; TC-D128's <code>role="owner"</code> call).</li>
+<li><strong>Budget:</strong> the user reported 64% of the session used before the pass, then a reset; Run 1 used about 20% of the next session.</li>
+</ul>
+<h2 id="scoping-audit-why-full-regression">Scoping audit — why Full Regression<a class="headerlink" href="#scoping-audit-why-full-regression" title="Permanent link">&para;</a></h2>
+<p><code>git log v0.9.5..f98c67b7</code>: 183 commits. Behavior changes touch:</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Changes (issue / PR)</th>
+<th>Domain files</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docs conversion</td>
+<td>markdown-it-py parser (#1116, #1071; PR #1228), ~25 Markdown/HTML fixes (#1072, #1073, #1075, #1094–#1098, #1102, #1118, #1122, #1173, #1180, #1208, #1230–#1232, #1240, #1241, #1281, #1302, #1382, #1383, #1389, #1391)</td>
+<td><code>docs_content</code>, <code>docs_markdown</code>, <code>docs_style</code>, <code>docs_tables</code></td>
+</tr>
+<tr>
+<td>Docs style</td>
+<td>#1069 (PR #1216), #1273 (PR #1279)</td>
+<td><code>docs_style</code></td>
+</tr>
+<tr>
+<td>Drive</td>
+<td>all-drives search (#1127), paged transfer listings (#1165), 404 handling (#1275), <code>upload_file</code> Markdown via our converter (#1102), escaped folder IDs (#1084), <code>transfer_ownership</code> notification guard (#1055)</td>
+<td><code>drive_files</code>, <code>drive_transfer</code>, <code>drive_sharing</code></td>
+</tr>
+<tr>
+<td>Gmail</td>
+<td>send confirmation by default (#1081), draft tools (#1205)</td>
+<td><code>gmail</code></td>
+</tr>
+<tr>
+<td>Infrastructure</td>
+<td>cache invalidation on cancelled/failed writes (#1030, #1032), socket timeout and &gt;100 MB resumable uploads (#1129), <code>ENABLED_TOOLS=all</code> (#1363), MCP Bundle (#1036), credential re-sync (#1223)</td>
+<td><code>infra</code></td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td>certifi, starlette, markdown, google-auth, oauthlib, pyasn1, filelock, virtualenv, opentelemetry-api</td>
+<td>Smoke-level</td>
+</tr>
+</tbody>
+</table>
+<p>9 of 16 domain files have behavior changes, over half, so <code>docs/qa/runs/README.md</code> §"Scoped gating" step 7 calls for Full Regression.</p>
+<h2 id="shard-plan">Shard plan<a class="headerlink" href="#shard-plan" title="Permanent link">&para;</a></h2>
+<p>Code under test: <code>f98c67b7</code> on every server. Main-checkout prefixes <code>kai-oauth</code>, <code>oauth</code>, <code>kai-sa</code>, <code>sa</code>. Lane prefixes <code>ash</code>, <code>jay</code>, <code>kit</code> were used because their worktrees' <code>src/</code>, <code>pyproject.toml</code> and <code>uv.lock</code> were identical to <code>f98c67b7</code>; <code>rio</code> and <code>sky</code> weren't and weren't used.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shard</th>
+<th>Prefix</th>
+<th>Cases</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A, B, C/C2</td>
+<td><code>kai-oauth</code>, <code>oauth</code>, <code>jay</code></td>
+<td><code>docs_content.md</code> in three ranges</td>
+</tr>
+<tr>
+<td>1</td>
+<td>D</td>
+<td><code>ash</code></td>
+<td><code>docs_style.md</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>E, E2</td>
+<td><code>kit</code>; a fresh-interpreter server with <code>GMAIL_SEND=direct</code> set on the process only</td>
+<td><code>gmail.md</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>F/F2</td>
+<td><code>kai-sa</code></td>
+<td><code>drive_transfer.md</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>G, H</td>
+<td><code>sa</code>, <code>ash</code> (OAuth-only cases)</td>
+<td><code>drive_files.md</code>, <code>drive_sharing.md</code>, <code>drive_activity.md</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>M1–M7, retakes R3, R4a, R4b, R6</td>
+<td>all seven</td>
+<td><code>docs_markdown.md</code> (see its results file)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>S1–S6</td>
+<td><code>kai-oauth</code>, <code>oauth</code>, <code>ash</code>, <code>jay</code>, <code>kai-sa</code>, <code>kit</code></td>
+<td><code>sheets_mgmt</code>, <code>calendar</code>, <code>docs_tables</code> + <code>docs_layout</code>, <code>sheets_write</code> + <code>sheets_charts</code>, <code>sheets_read</code>, <code>infra</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>barrier pairs</td>
+<td><code>kai-sa</code></td>
+<td>TC-I24, TC-I02 (N=20 each)</td>
+</tr>
+<tr>
+<td>all</td>
+<td>Aziz</td>
+<td><code>sa</code>, <code>kai-oauth</code></td>
+<td>TC-D137, TC-DOC58, TC-DOC163 (shards' shares refused by their session's safety check), TC-CAL04</td>
+</tr>
+</tbody>
+</table>
+<p>Each shard worked on its own copies of the fixture doc and spreadsheet in its own run folder; S2 alone owned the fixture calendar. Run folders are trashed, except evidence named in "Failures".</p>
+<h2 id="failures">Failures<a class="headerlink" href="#failures" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>What fails</th>
+<th>Issue</th>
+<th>Regression since v0.9.5?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-DOC242</td>
+<td>an <code>&lt;li&gt;</code> holding only a styled block gets an empty bullet before it</td>
+<td>#1414</td>
+<td><strong>Yes</strong>, from #1075 (PR #1322)</td>
+</tr>
+<tr>
+<td>TC-D281</td>
+<td><code>export_revision</code>'s docstring (and this case) say a bulleted heading's link is dropped; since #1302 it's kept</td>
+<td>#1419</td>
+<td><strong>Fixed</strong> (PR #1433); passes in the re-run</td>
+</tr>
+<tr>
+<td>TC-MD015</td>
+<td>no gap between a table and the paragraph after it (our converter)</td>
+<td><code>#1427</code></td>
+<td><strong>Fixed</strong> (PR #1434); passes in the re-run</td>
+</tr>
+<tr>
+<td>TC-MD404, TC-MD202 AJ-099</td>
+<td>one image's fetch failed once and wasn't retried, so one cell differed between runs</td>
+<td><code>#1428</code></td>
+<td>No: transient, #1099's fallback works as designed</td>
+</tr>
+<tr>
+<td>TC-D300</td>
+<td><code>upload_local_folder</code> of 1,005 files: no progress, serial uploads, client timeout at 1800 s; one file silently not uploaded</td>
+<td>#1416</td>
+<td>No evidence of one; first run at this size</td>
+</tr>
+<tr>
+<td>TC-D264/D265 (side observation)</td>
+<td>3 of 16 CSV→Sheet conversions kept the upload time as <code>modifiedTime</code></td>
+<td>#1415</td>
+<td>Unknown: intermittent; #818 had recorded it as ruled out</td>
+</tr>
+<tr>
+<td>TC-MD016</td>
+<td>blank last page after a closing table</td>
+<td>#1100</td>
+<td><strong>Fixed</strong> (PR #1438); passes in the re-run</td>
+</tr>
+<tr>
+<td>TC-DOC178</td>
+<td>nested-table placeholder runs into the cell text</td>
+<td>#893</td>
+<td>No</td>
+</tr>
+<tr>
+<td>TC-D01</td>
+<td><code>create_spreadsheet</code> returns no web link</td>
+<td>#693</td>
+<td>No</td>
+</tr>
+<tr>
+<td>TC-MD004, 105, 106, 108–112, 116, 201, 202, 302 (EP-5 to EP-7 only)</td>
+<td>Drive's own Markdown import renders differently in ways <code>docs/known-limitations.md</code> doesn't name</td>
+<td>#1113; rows listed in <code>#1429</code></td>
+<td><strong>Documented</strong> (PR #1432); all pass under D4 in the re-run except TC-MD108 (next row)</td>
+</tr>
+<tr>
+<td>TC-MD108 LX-05, LX-24 (EP-5 to EP-7 only; found in the re-run)</td>
+<td>Drive's import merges two lists separated by an HTML comment, and puts a loose list's last item in a list of its own; neither is in <code>docs/known-limitations.md</code></td>
+<td>#1113, #1444</td>
+<td>No: Drive's engine, not ours; our converter passes both</td>
+</tr>
+</tbody>
+</table>
+<p>Minor defects filed from side observations: #1417 (<code>&lt;pre&gt;</code> in a cell not code-styled), #1418 (space after a nested table kept). Gmail fixture purge: #1420.</p>
+<p>Also filed: #1430 (cosmetic wording in <code>get_sheet_data</code>'s cap error, found in <code>sheets_read.md</code>).</p>
+<p><strong>User decision (2026-11-08), on Aziz's recommendation:</strong> v0.9.6 is held until these land, then the affected cases are re-run:
+- <strong>#1427</strong> (no gap after a table) and <strong>#1100</strong> (blank last page): our converter's two failing cases in the Markdown release gate, which says the release ships when every case passes through every entry point.
+- <strong>#1419</strong>: <code>export_revision</code>'s docstring.
+- <strong>#1429</strong>: document Drive's import differences in <code>docs/known-limitations.md</code>, so those EP-5 to EP-7 cells pass under D4. Routing those paths through our converter (#1113) stays later.</p>
+<p><strong>User decision (2026-11-10), on Aziz's recommendation:</strong> TC-MD108's LX-05/LX-24 at EP-5 to EP-7 doesn't block v0.9.6; document it (#1444, next release).</p>
+<p>Not blocking, for the next release: #1414 (the regression: only an HTML list item whose sole content is a <code>data-style</code> paragraph; its wider design question is on the issue), #1415, #1416, #1417, #1418, #1420, #1428, #1430, and the older #693, #893.</p>
+<h2 id="re-run-2026-11-1011-develop-4a86b88b">Re-run (2026-11-10/11, <code>develop</code> <code>4a86b88b</code>)<a class="headerlink" href="#re-run-2026-11-1011-develop-4a86b88b" title="Permanent link">&para;</a></h2>
+<p><strong>Pre-flight:</strong> <code>git log f98c67b7..origin/develop</code>: the four fixes, the v0.9.6 retro (#1437, docs) and dev-only Dependabot bumps; nothing else. No lane mid-ticket. Both identities read the fixture; 104 GB free; the QA browser verified signed into the fixture-owning account. Aziz's branch merged <code>origin/develop</code> (<code>43894cfd</code>) before the run, so its <code>src/</code> and fixtures matched <code>4a86b88b</code>.</p>
+<p><strong>Approval (the user's words, this re-run):</strong> "do it", to Aziz's request naming two categories: throwaway files in the Shared Drive, and an anyone-with-link reader share (the Markdown image cases' temporary shares). No approval denials.</p>
+<p><strong>Scope, widened from the handoff:</strong> #1427 and #1100 also change how a replace and <code>apply_theme</code> clear paragraph gaps, and how a doc ending in a table is written, so the re-run added TC-MD509 (#1427's new case), TC-MD301 (DS-08 is #1100's done-when), TC-MD506, TC-MD508, TC-MD401–403 and <code>apply_theme</code>'s TC-DOC53–56 and TC-DOC147.</p>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Shard</th>
+<th>Prefix, Playwright</th>
+<th>Cases</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>R1</td>
+<td><code>oauth</code>, playwright-1</td>
+<td>TC-MD015, TC-MD016, EP-1 to EP-8</td>
+</tr>
+<tr>
+<td>1</td>
+<td>R2</td>
+<td><code>kai-oauth</code>, playwright-2</td>
+<td>TC-MD004, 105, 106, 108–112, 116, 201, 202, 302 at EP-5 to EP-7</td>
+</tr>
+<tr>
+<td>1</td>
+<td>R3</td>
+<td><code>sa</code>, playwright-3</td>
+<td>TC-MD509, 301, 506, 508</td>
+</tr>
+<tr>
+<td>1</td>
+<td>R4</td>
+<td><code>kai-sa</code>, playwright-4</td>
+<td>TC-D281, TC-MD401–403, TC-DOC53–56, TC-DOC147</td>
+</tr>
+<tr>
+<td>2</td>
+<td>F1</td>
+<td><code>oauth</code>, playwright-1</td>
+<td>TC-MD015, TC-MD016 at EP-1–4 and EP-8</td>
+</tr>
+<tr>
+<td>2</td>
+<td>F2</td>
+<td><code>sa</code>, playwright-3</td>
+<td>DS-08 and r15 at EP-1–4 (and DS-08 at EP-8), plus R3's missing Run 2 captures</td>
+</tr>
+</tbody>
+</table>
+<p>Every case ran twice (Run 1, Run 2) in fresh folders; each pixel comparison had a negative control reporting DIFFERENT.</p>
+<p><strong>Why a round 2.</strong> Round 1's four main-checkout servers had started (21:39–21:53) before #1100 merged (22:41), so they ran #1427's code but not #1100's. R1 caught it from the Docs themselves (no collapsed paragraph after a final table) and the process start times. Only Docs ending in a table differ, so round 1's cells for those (TC-MD015/016 at EP-1–4 and EP-8, DS-08, r15) were marked pending, not graded; every other round-1 cell stands. The servers restarted on <code>4a86b88b</code> after a session re-login, and round 2's shards each proved it first with a probe Doc ending in a table.</p>
+<p><strong>Results</strong> (inline <code>**Result (2026-11-10)</code> / <code>(2026-11-11) … v0.9.6 re-run</code> entries):</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-MD015 (#1427)</td>
+<td>✅ 8/8, both runs</td>
+</tr>
+<tr>
+<td>TC-MD016 (#1100)</td>
+<td>✅ 8/8, both runs: one page at every converter EP</td>
+</tr>
+<tr>
+<td>TC-MD004, 105, 106, 109–112, 116, 201, 302 (EP-5–7)</td>
+<td>✅ every cell, both runs</td>
+</tr>
+<tr>
+<td>TC-MD108 (EP-5–7)</td>
+<td>❌ 66/72: LX-05, LX-24 (#1113, #1444; not blocking)</td>
+</tr>
+<tr>
+<td>TC-MD202 (EP-5–7)</td>
+<td>✅ 300/300; the case stays ❌ for AJ-099 at EP-8 from 2026-11-08 (#1428, not re-run, not blocking)</td>
+</tr>
+<tr>
+<td>TC-MD301</td>
+<td>⚠️ 125/128: DS-08 passes #1100's done-when; DS-13 (CRLF) at EP-1/2/8 not run, as on 2026-11-08</td>
+</tr>
+<tr>
+<td>TC-MD401, 402, 403, 506, 508, 509</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-MD404</td>
+<td>✅ for the re-run's cases: every Run 2 render matched Run 1</td>
+</tr>
+<tr>
+<td>TC-D281 (#1419)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TC-DOC53, 54, 55, 56, 147</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Stale case wording</strong> reported by the shards, none changing a verdict (to file with the earlier list as one ticket): #1429's table calls IM-10 reference-style (it's a local path with a space); TC-MD112 IM-11's (and IM-12's) and TC-MD004 check 1's "FAIL until #1113" notes; TC-MD402 has no content a paragraph-gap check reaches; TC-D281's requires-oauth tag (it runs on the service account); TC-MD016 names <code>download_file(export_format='pdf')</code>; the <code>upload_local_file</code>/<code>upload_local_folder</code>/<code>sync_folder</code> docstrings and generated <code>docs/tools.md</code> still say "'-' bullets at every level", which <code>docs/known-limitations.md</code> now contradicts.</p>
+<p><strong>Incidents:</strong> a session login lapse (~23:00–07:10) hung R3's calls; R3 was resumed after <code>/login</code>. The QA browser stopped during that time and was restarted and re-verified before round 2. Three Drive HTTP 500s (an <code>export_revision</code> temp upload and two converted-upload restamps), each a one-off. Disk stayed above 98 GB free.</p>
+<p><strong>Evidence kept:</strong> <code>QA-rerun-2026-11-10-R2-run1</code> under <code>TEST_FOLDER_ID</code> (TC-MD108 LX-05/LX-24, #1444). Every other re-run folder is trashed.</p>
+<h2 id="re-run-handoff-written-2026-11-08-done-see-re-run-above">Re-run handoff (written 2026-11-08; done, see "Re-run" above)<a class="headerlink" href="#re-run-handoff-written-2026-11-08-done-see-re-run-above" title="Permanent link">&para;</a></h2>
+<p>The pass stopped here on 2026-11-08, held for the four fixes above. Kai tracks them (#1427 on lane A; #1100 queued behind it, since both change table spacing in the emitter; #1429 is Amy's PR #1432, Rio reviewing; #1419 unassigned at handoff) and messages Aziz when all four have merged. Then:</p>
+<ol>
+<li><strong>Sync and pre-flight</strong> as <code>aziz.md</code> step 1, on the new <code>develop</code> commit. Read its HEAD, and run <code>git log f98c67b7..origin/develop --oneline</code>: anything besides the four fixes and dev-only changes widens the re-run. Already known: dev-only Dependabot bumps (ruff, pytest, pytest-asyncio, setup-uv) merged after <code>f98c67b7</code>; anyio and certifi are held until after the cut.</li>
+<li><strong>Re-run</strong>, both runs, through every entry point each case names, one Playwright shard per <code>playwright-&lt;k&gt;</code> server (<code>docs/qa/run.md</code> §"Coordinating Playwright across parallel shards"):</li>
+<li>TC-MD015 (#1427) and TC-MD016 (#1100)</li>
+<li>every <code>docs_markdown.md</code> TC with a cell #1429 documents: TC-MD004, 105, 106, 108–112, 116, 201, 202, 302 (EP-5 to EP-7, graded against the updated <code>docs/known-limitations.md</code> under D4)</li>
+<li>TC-D281 (<code>drive_transfer.md</code>), with its call-3 checks updated for #1419</li>
+<li>TC-MD404 from those runs' Run 1 vs Run 2</li>
+<li><strong>Grading notes from Kai's review of #1432:</strong> #1429's table calls IM-10 a reference-style image, but the fixture's IM-10 is a local path containing a space. Grade it against the fixture. The cell notes that say "FAIL until #1113" (e.g. IM-11's EP-5–7 note) are updated wherever #1432 now documents that difference.</li>
+<li><strong>Record:</strong> a new <code>**Result (&lt;date&gt;) … v0.9.6 re-run**</code> entry under each re-run case, a re-run section here naming the commit, and an updated status line and checklist. TC-MD202's AJ-099 stays ❌ (#1428, not blocking).</li>
+<li><strong>Sign off:</strong> mark this file signed off, take the <code>parked</code> label off #1431, update its title and description, and tell Kai it's ready for <code>/release</code>.</li>
+</ol>
+<p><strong>Evidence kept in Drive, to trash after sign-off</strong> (by name, under <code>TEST_FOLDER_ID</code>): <code>QA-MD-2026-11-08-M2-run2</code> (TC-MD015/016), <code>md-adjacency-noblank.md</code> in the folder's root (AJ-099, #1428), and <code>QA-orn-F2-2026-11-08</code> with <code>qa-959-bullet</code>, <code>qa-265</code> and <code>qa-folder-264</code> (TC-D281, #1415).</p>
+<p><strong>Kept locally</strong> in Aziz's worktree, <code>.workspace/qa/v0.9.6-ornithomimus/</code> (gitignored): every shard's raw results, including the stale case wording they listed (still to be filed as one ticket), the shared shard rules, the merge script and the barrier watcher. Screenshots are under <code>.playwright-mcp/</code>.</p>
+<h2 id="pending-approvals-and-deferred-cases">Pending approvals and deferred cases<a class="headerlink" href="#pending-approvals-and-deferred-cases" title="Permanent link">&para;</a></h2>
+<p>Not covered by this pass's approval, so not run:
+- TC-D21 (a <code>role="owner"</code> call other than TC-D128's), TC-D233–D235 (<code>transfer_ownership</code>), TC-D135 and the domain entry of TC-D177/D259 (Workspace-domain shares), TC-D204/D205 (<code>empty_trash</code> on a whole trash).
+- TC-DOC224–226: each shares a throwaway My Drive folder with the service account.
+- TC-GM25 (a reply to the bare QA address), TC-GM43/44/45/67 (the personal-account sender server), TC-GM35 (needs the spam/trash fixtures reseeded, #1420).</p>
+<p>Deferred for other reasons: OAuth consent, ADC, <code>claude -p</code> and post-release infra cases (TC-I10, I11, I29, I32, I33, I37, I41, I42, I48–I54, I62, I63, I66, I68, I69); TC-R03e (server restart); TC-GM65 step 5 (Claude Desktop); TC-S133 call 6 and TC-MD117 UN-04/05 inline (the agent tool channel normalizes some Unicode; UN-04/05 were run by a script instead).</p>
+<h2 id="resource-usage">Resource usage<a class="headerlink" href="#resource-usage" title="Permanent link">&para;</a></h2>
+<p>Approximate subagent tokens (harness figures where reported):</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Shards</th>
+<th>Tokens</th>
+<th>Wall time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A, B, C, C2, D, E, E2, F, F2, G, H</td>
+<td>~4.6M</td>
+<td>00:15–00:40 and 09:45–10:30 (stopped overnight: disk full, ENOSPC)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>M1–M7</td>
+<td>~3.4M, plus ~1.8M in nine helper agents M7 started</td>
+<td>10:45–14:30 (Playwright servers disconnected ~14:00)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>R3, R4a, R4b, R6 retakes</td>
+<td>~1.0M</td>
+<td>19:30–20:15</td>
+</tr>
+<tr>
+<td>3</td>
+<td>S1–S6, two barrier pairs</td>
+<td>~2.3M</td>
+<td>20:45–21:40</td>
+</tr>
+<tr>
+<td>Re-run 1</td>
+<td>R1–R4</td>
+<td>~1.5M (R1 270k, R2 425k, R3 520k, R4 280k)</td>
+<td>2026-11-09 22:45 to 2026-11-10 07:30 (R3 hung ~8 h on a login lapse)</td>
+</tr>
+<tr>
+<td>Re-run 2</td>
+<td>F1, F2</td>
+<td>~480k</td>
+<td>2026-11-10 22:00–22:30</td>
+</tr>
+</tbody>
+</table>
+<p>Total about 15M subagent tokens. Budget events: the session started at 64% used and waited for a reset; the disk filled at ~00:40 (not from the pass, whose files stayed under 75 MB) and was freed by the user; the four Playwright MCP servers disconnected at ~14:00 and were reconnected by the user at ~19:30.</p>
+<h2 id="process-notes">Process notes<a class="headerlink" href="#process-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Playwright sharing (Run 2).</strong> Seven browser shards ran on four Playwright servers, two per server under a lock whose 180 s staleness was shorter than a capture batch. Locks were broken, captures crossed (all caught by a Doc-ID check and retaken), servers hung for 30 minutes at a time and then disconnected. The retakes ran one shard per server with no incident. To change in <code>aziz.md</code>/<code>run.md</code>: no more browser shards than <code>playwright-&lt;k&gt;</code> servers, no shared-server fallback, and ask for more servers before planning more.</li>
+<li><strong>Tab cleanup.</strong> <code>run.md</code> forbids closing tabs, so 16 accumulated. Run 3's shards closed their own tab as their last step; Aziz reset the browser to one tab after Run 2.</li>
+<li><strong>Sub-agent spending.</strong> Shard prompts didn't forbid starting agents; one shard started nine. Run 3's prompts forbid it.</li>
+<li><strong>Disk-full stop.</strong> Resumed shards lost their context (transcripts couldn't be written); their reported results were transcribed and the rest re-spawned.</li>
+<li><strong>Unicode through the tool channel.</strong> Combining marks, U+00A0, U+2009 and U+212A are normalized before a tool call; cases that depend on them need a script that reads the bytes.</li>
+<li><strong>Gmail fixtures.</strong> Gmail deleted the spam/trash fixtures after 30 days (#1420).</li>
+<li>Stale case wording found by shards is listed at the top of each shard's results; none changed a verdict.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

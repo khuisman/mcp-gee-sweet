@@ -3270,6 +3270,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <code>kai-sa</code>: <code>list_sheets</code> returned Sales / Notes &amp; Misc / Empty (3 tabs), no error.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): Sales / Notes &amp; Misc / Empty, no error.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>list_sheets</code> → Sales / Notes &amp; Misc / Empty, no error.</p>
 <hr />
 <h3 id="tc-s02-cache-hit-on-second-call">TC-S02: Cache hit on second call<a class="headerlink" href="#tc-s02-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice in the same session)</p>
@@ -3285,6 +3286,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): both calls logged <code>Cache hit: N sheets for &lt;copy&gt;</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Second call returned the same list; log shows <code>Cached 3 sheets</code> on the first and <code>Cache hit: 3 sheets for &lt;copy&gt;</code> on the second.</p>
 <hr />
 <h3 id="tc-s03-cache-invalidated-after-rename">TC-S03: Cache invalidated after rename<a class="headerlink" href="#tc-s03-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3300,6 +3302,7 @@ Empty→WasEmpty, list_sheets reflects rename immediately (mark_dirty confirmed)
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>rename_sheet(Empty→WasEmpty)</code> logged <code>Marked cache dirty</code>, and the next <code>list_sheets</code> re-fetched and showed WasEmpty. On <code>kai-oauth</code> (OAuth) that <code>list_sheets</code> took 9.8 s (every other one under 1 s); the log shows no cause, not reproduced.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>rename_sheet(Empty→WasEmpty)</code> then <code>list_sheets</code> → Sales / Notes &amp; Misc / WasEmpty; log shows <code>Marked cache dirty</code> after the rename and a fresh <code>Cached 3 sheets</code> on the list. Renamed back.</p>
 <hr />
 <h2 id="copy_sheet"><code>copy_sheet</code><a class="headerlink" href="#copy_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s04-copy-within-same-spreadsheet">TC-S04: Copy within same spreadsheet<a class="headerlink" href="#tc-s04-copy-within-same-spreadsheet" title="Permanent link">&para;</a></h3>
@@ -3315,6 +3318,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(dst_sheet="Sales Copy") → 'Sales Copy' created, data matches Sales 6x4 exactly, Sales unaffected</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>copy_sheet(dst_sheet="Sales Copy")</code> → copy created then renamed (response has <code>rename</code>); summary shows 'Sales Copy' identical to Sales (header + 5 rows, 4 cols); Sales unchanged.</p>
 <hr />
 <h3 id="tc-s05-copy-to-a-different-spreadsheet">TC-S05: Copy to a different spreadsheet<a class="headerlink" href="#tc-s05-copy-to-a-different-spreadsheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3329,6 +3333,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet accepted src_spreadsheet/dst_spreadsheet as distinct params (same ID value); completed without error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Tool takes <code>src_spreadsheet</code>/<code>dst_spreadsheet</code> separately; same-ID copy (TC-S04's call) completed without error. Cross-spreadsheet copy not exercised (per the case's own note).</p>
 <hr />
 <h3 id="tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered">TC-S06: Name differs from Google's auto-assigned name — rename triggered<a class="headerlink" href="#tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3342,6 +3347,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>copy_sheet(dst_sheet="My Custom Name")</code> → Google created "Copy of Sales 1", response includes <code>rename</code>, and <code>list_sheets</code> shows "My Custom Name".</p>
 <hr />
 <h3 id="tc-s07-name-matches-googles-auto-assigned-name-rename-skipped">TC-S07: Name matches Google's auto-assigned name — rename skipped<a class="headerlink" href="#tc-s07-name-matches-googles-auto-assigned-name-rename-skipped" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3355,6 +3361,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>copy_sheet(dst_sheet="Copy of Sales")</code> (no existing "Copy of Sales") → response has only <code>copy</code> (title "Copy of Sales"), no <code>rename</code> key.</p>
 <hr />
 <h3 id="tc-s08-source-sheet-not-found">TC-S08: Source sheet not found<a class="headerlink" href="#tc-s08-source-sheet-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3368,6 +3375,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Source sheet 'DoesNotExist' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s09-destination-spreadsheet-not-writable">TC-S09: Destination spreadsheet not writable<a class="headerlink" href="#tc-s09-destination-spreadsheet-not-writable" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3381,6 +3389,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(dst_spreadsheet="invalidid123xyz") → HttpError 400 "Invalid destinationSpreadsheetId", source unaffected</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Tool error: HttpError 400 "Invalid destinationSpreadsheetId [invalidid123xyz]"; Sales unchanged in the next summary.</p>
 <hr />
 <h3 id="tc-s10-cache-invalidated-after-copy-destructive">TC-S10: Cache invalidated after copy ⚠️ destructive<a class="headerlink" href="#tc-s10-cache-invalidated-after-copy-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3394,6 +3403,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>copy_sheet(dst_sheet="PostCopyCache")</code> then immediate <code>list_sheets</code> included PostCopyCache (log: <code>Marked cache dirty</code> after the copy). All copies deleted afterward with <code>delete_sheet</code>.</p>
 <hr />
 <h2 id="duplicate_sheet"><code>duplicate_sheet</code><a class="headerlink" href="#duplicate_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive">TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive<a class="headerlink" href="#tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive" title="Permanent link">&para;</a></h3>
@@ -3412,6 +3422,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 duplicate_sheet(sheet="Sales") → {"sheetId","title":"Copy of Sales","index":1,"spreadsheetId"}; data matches Sales 6x4; original unchanged. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>duplicate_sheet(sheet="Sales")</code> → <code>{sheetId, title:"Copy of Sales", index:1, spreadsheetId}</code>; its data equals Sales (6×4); Sales unchanged. Deleted after.</p>
 <hr />
 <h3 id="tc-s52-duplicate-with-a-custom-name-destructive">TC-S52: Duplicate with a custom name ⚠️ destructive<a class="headerlink" href="#tc-s52-duplicate-with-a-custom-name-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3427,6 +3438,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 duplicate_sheet(new_name="Sales Duplicate") → title="Sales Duplicate" directly in response (single-call newSheetName, no follow-up rename). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>duplicate_sheet(new_name="Sales Duplicate")</code> → title "Sales Duplicate" in the one response; code sets <code>newSheetName</code> on the same <code>duplicateSheet</code> request (structure.py:739), no follow-up rename.</p>
 <hr />
 <h3 id="tc-s53-default-position-lands-immediately-after-the-source-tab-destructive">TC-S53: Default position lands immediately after the source tab ⚠️ destructive<a class="headerlink" href="#tc-s53-default-position-lands-immediately-after-the-source-tab-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3444,6 +3456,7 @@ Re-ran after <code>_get_sheet_index</code>'s blanket <code>except Exception: ret
 duplicate_sheet() no insert_index → list_sheets shows "Copy of Sales" immediately after "Sales" (index 1). Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — After TC-S51's call <code>list_sheets</code> → Sales, Copy of Sales, Notes &amp; Misc, Empty (copy at index 1, right after Sales).</p>
 <hr />
 <h3 id="tc-s54-explicit-insert_index-is-honored-destructive">TC-S54: Explicit insert_index is honored ⚠️ destructive<a class="headerlink" href="#tc-s54-explicit-insert_index-is-honored-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3459,6 +3472,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 duplicate_sheet(insert_index=0) → "Copy of Sales" is first tab in list_sheets. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>duplicate_sheet(insert_index=0)</code> → index 0; <code>list_sheets</code> starts with "Copy of Sales". Deleted after.</p>
 <hr />
 <h3 id="tc-s55-source-sheet-not-found">TC-S55: Source sheet not found<a class="headerlink" href="#tc-s55-source-sheet-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3476,6 +3490,7 @@ Re-ran after <code>_get_sheet_id</code>'s blanket <code>except Exception: return
 duplicate_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'DoesNotExist' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s56-cache-invalidated-after-duplicate-destructive">TC-S56: Cache invalidated after duplicate ⚠️ destructive<a class="headerlink" href="#tc-s56-cache-invalidated-after-duplicate-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3491,6 +3506,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 duplicate_sheet(new_name="PostDuplicateCache") then immediate list_sheets includes it — mark_dirty confirmed. Deleted after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>duplicate_sheet(new_name="PostDuplicateCache")</code> then immediate <code>list_sheets</code> included it. Deleted after.</p>
 <hr />
 <h2 id="rename_sheet"><code>rename_sheet</code><a class="headerlink" href="#rename_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s11-rename-to-a-new-name-destructive">TC-S11: Rename to a new name ⚠️ destructive<a class="headerlink" href="#tc-s11-rename-to-a-new-name-destructive" title="Permanent link">&para;</a></h3>
@@ -3506,6 +3522,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 rename_sheet(Empty→Renamed) → no error; list_sheets shows "Renamed" not "Empty". Renamed back</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>rename_sheet(Empty→Renamed)</code> no error; <code>list_sheets</code> → Sales / Notes &amp; Misc / Renamed. Renamed back.</p>
 <hr />
 <h3 id="tc-s12-rename-to-the-same-name">TC-S12: Rename to the same name<a class="headerlink" href="#tc-s12-rename-to-the-same-name" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3520,6 +3537,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 rename_sheet(Sales→Sales same name) → succeeds, no error, round-trips to API (not a client no-op)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>rename_sheet(Sales→Sales)</code> → normal batchUpdate response (<code>replies:[{}]</code>), no error: it round-trips to the API rather than no-op locally. Sales still exists.</p>
 <hr />
 <h3 id="tc-s13-sheet-not-found">TC-S13: Sheet not found<a class="headerlink" href="#tc-s13-sheet-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3535,6 +3553,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 rename_sheet(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s14-cache-invalidated-after-rename">TC-S14: Cache invalidated after rename<a class="headerlink" href="#tc-s14-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3548,6 +3567,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 rename_sheet('Notes &amp; Misc'→'Notes') → list_sheets shows "Notes" not "Notes &amp; Misc" — mark_dirty confirmed. Renamed back</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>rename_sheet('Notes &amp; Misc'→'Notes')</code> then <code>list_sheets</code> → Sales / Notes / Empty. Renamed back.</p>
 <hr />
 <h2 id="create_sheet"><code>create_sheet</code><a class="headerlink" href="#create_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s15-create-a-new-tab">TC-S15: Create a new tab<a class="headerlink" href="#tc-s15-create-a-new-tab" title="Permanent link">&para;</a></h3>
@@ -3567,6 +3587,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <code>kai-sa</code>: <code>create_sheet("BrandNew")</code> returned sheetId 917700788, title, index 3 and spreadsheetId. The next <code>list_sheets</code> included BrandNew.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>create_sheet("BrandNew")</code> returned sheetId/title/index 3; <code>Marked cache dirty</code>, then the next <code>list_sheets</code> re-fetched 4 sheets.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>create_sheet("BrandNew")</code> → <code>{sheetId:1552166715, title, index:3, spreadsheetId}</code>; next <code>list_sheets</code> includes BrandNew.</p>
 <hr />
 <h3 id="tc-s16-duplicate-tab-title">TC-S16: Duplicate tab title<a class="headerlink" href="#tc-s16-duplicate-tab-title" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3580,6 +3601,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create_sheet(title="Sales", dup) → HttpError 400 "A sheet with the name \"Sales\" already exists." — errors cleanly, no auto-suffix, no silent duplicate</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — 🔍 Observed: tool error HttpError 400 "A sheet with the name "Sales" already exists." No auto-suffix, no duplicate.</p>
 <hr />
 <h3 id="tc-s17-long-title">TC-S17: Long title<a class="headerlink" href="#tc-s17-long-title" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3593,6 +3615,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create_sheet(150-char title) → HttpError 400 "The sheet name cannot be greater than 100 characters." — clear message with actual limit (100)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — 157-char title → HttpError 400 "The sheet name cannot be greater than 100 characters." Limit is 100.</p>
 <hr />
 <h3 id="tc-s18-response-shape">TC-S18: Response shape<a class="headerlink" href="#tc-s18-response-shape" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3606,6 +3629,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create_sheet(title="ShapeTest") → {sheetId(int), title(str), index(int), spreadsheetId(str)}, no missing fields</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>create_sheet("ShapeTest")</code> → sheetId 1365175700 (int), title (str), index 4 (int), spreadsheetId (str).</p>
 <hr />
 <h3 id="tc-s19-cache-updated-after-create">TC-S19: Cache updated after create<a class="headerlink" href="#tc-s19-cache-updated-after-create" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3619,6 +3643,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create_sheet(title="CacheNewSheet") then list_sheets includes it immediately — mark_dirty confirmed</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>create_sheet("CacheNewSheet")</code> then <code>list_sheets</code> → …, BrandNew, ShapeTest, CacheNewSheet.</p>
 <hr />
 <h2 id="add_rows-add_columns"><code>add_rows</code> / <code>add_columns</code><a class="headerlink" href="#add_rows-add_columns" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s104-non-positive-count-returns-error-unit-test">TC-S104: Non-positive count returns error (unit test)<a class="headerlink" href="#tc-s104-non-positive-count-returns-error-unit-test" title="Permanent link">&para;</a></h3>
@@ -3631,6 +3656,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_zero_count_returns_error_without_api_call</code> / <code>test_negative_count_returns_error_without_api_call</code> in <code>TestAddRows</code>/<code>TestAddColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>test_zero_count_…</code>/<code>test_negative_count_…</code> in TestAddRows/TestAddColumns pass (tests/sheets 448 passed). Live spot-check: <code>add_rows(count=0)</code> → <code>{"error":"count must be positive, got 0"}</code>.</p>
 <hr />
 <h3 id="tc-s112-add_rows-add_columns-negative-start-returns-error-unit-test">TC-S112: add_rows / add_columns — negative start returns error (unit test)<a class="headerlink" href="#tc-s112-add_rows-add_columns-negative-start-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3641,6 +3667,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>add_rows(start_row=-1, count=1)</code> and <code>add_columns(start_column=-1, count=1)</code> both returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Named unit tests pass. Live spot-check: <code>add_columns(start_column=-1, count=1)</code> → <code>{"error":"start_column must be non-negative, got -1"}</code>.</p>
 <hr />
 <h2 id="refresh_cache"><code>refresh_cache</code><a class="headerlink" href="#refresh_cache" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s20-refresh-by-spreadsheet-id-only">TC-S20: Refresh by spreadsheet ID only<a class="headerlink" href="#tc-s20-refresh-by-spreadsheet-id-only" title="Permanent link">&para;</a></h3>
@@ -3659,6 +3686,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <code>kai-sa</code>: <code>refresh_cache(spreadsheet_id)</code> returned <code>{"invalidated":["spreadsheet:&lt;id&gt;"]}</code>, and a following <code>list_sheets</code> returned the current tabs. Not run: the "next call is a cache miss in the logs" check, because the rules forbid reading logs.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>refresh_cache(spreadsheet_id)</code> → <code>invalidated: [spreadsheet:&lt;copy&gt;]</code>, both caches marked dirty, next <code>list_sheets</code> a miss (<code>Cached 4 sheets</code>).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"invalidated":["spreadsheet:&lt;copy&gt;"]}</code>; log: <code>Marked cache dirty</code> + <code>Marked all sheet data dirty</code>, then the next <code>list_sheets</code> logged <code>Cached 6 sheets</code> (a miss, not a hit).</p>
 <hr />
 <h3 id="tc-s21-refresh-by-doc-id-only">TC-S21: Refresh by doc ID only<a class="headerlink" href="#tc-s21-refresh-by-doc-id-only" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3672,6 +3700,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Requires {DOC_ID} fixture — not provided to this Sheets shard (only SPREADSHEET_ID/FOLDER_ID/SHARED_DRIVE_ID given)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Read-only on the fixture doc. <code>refresh_cache(doc_id)</code> → <code>{"invalidated":["doc:&lt;DOC_ID&gt;"]}</code>, log <code>Marked doc cache dirty</code>, and the next <code>get_doc_content</code> logged <code>Cached doc &lt;DOC_ID&gt;</code> (re-fetched).</p>
 <hr />
 <h3 id="tc-s22-refresh-both-spreadsheet-and-doc">TC-S22: Refresh both spreadsheet and doc<a class="headerlink" href="#tc-s22-refresh-both-spreadsheet-and-doc" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3685,6 +3714,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Requires {DOC_ID} fixture — not provided to this Sheets shard</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>invalidated: [spreadsheet:&lt;copy&gt;, doc:&lt;DOC_ID&gt;]</code>; both marked dirty in the log; next <code>list_sheets</code> and <code>get_doc_content</code> both re-fetched (<code>Cached 6 sheets</code>, <code>Cached doc</code>).</p>
 <hr />
 <h3 id="tc-s23-refresh-with-no-arguments-clears-all-caches">TC-S23: Refresh with no arguments — clears all caches<a class="headerlink" href="#tc-s23-refresh-with-no-arguments-clears-all-caches" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3700,6 +3730,7 @@ refresh_cache() no args → {"invalidated":"all"}</p>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account): <code>refresh_cache()</code> → <code>invalidated: all</code>; the log names all five caches (sheet_structure, sheet_data, drive_folder, doc_content, calendar), and the next <code>list_sheets</code>, <code>get_doc_content</code> and <code>list_files</code> each re-fetched. Stale wording: five caches now, not four.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"invalidated":"all"}</code>; log: <code>Invalidated all</code> sheet_structure, sheet_data, drive_folder, doc_content and calendar entries; next summary re-fetched. Stale wording: five caches, not four (already noted 2026-10-20).</p>
 <hr />
 <h3 id="tc-s24-cache-re-populated-after-refresh">TC-S24: Cache re-populated after refresh<a class="headerlink" href="#tc-s24-cache-re-populated-after-refresh" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3715,6 +3746,7 @@ refresh_cache(spreadsheet_id) then get_multiple_spreadsheet_summary → correct 
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account): after <code>refresh_cache(spreadsheet_id)</code> a summary re-fetched (<code>Cached 4 sheets</code>, then <code>Cached sheet data …</code> per tab) and returned current data.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — After the refresh, <code>get_multiple_spreadsheet_summary</code> returned the current 6 tabs and data; log shows <code>Cached 6 sheets</code> then <code>Cached sheet data …/0</code>, <code>…/456535548</code> (miss → store).</p>
 <hr />
 <h2 id="delete_sheet"><code>delete_sheet</code><a class="headerlink" href="#delete_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s25-delete-an-existing-sheet-tab-destructive">TC-S25: Delete an existing sheet tab ⚠️ destructive<a class="headerlink" href="#tc-s25-delete-an-existing-sheet-tab-destructive" title="Permanent link">&para;</a></h3>
@@ -3731,6 +3763,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 create TempTab, delete_sheet(TempTab) → no error; list_sheets confirms absent</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Created TempTab, <code>delete_sheet(TempTab)</code> → no error; <code>list_sheets</code> → Sales / Notes &amp; Misc / Empty.</p>
 <hr />
 <h3 id="tc-s26-delete-a-non-existent-sheet-returns-error">TC-S26: Delete a non-existent sheet returns error<a class="headerlink" href="#tc-s26-delete-a-non-existent-sheet-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3745,6 +3778,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'DoesNotExist' not found"}</code>.</p>
+<p>Note for request-shape checks below: request bodies aren't observable from the tool response, so each is checked against the code path (structure.py builds <code>updateDimensionProperties</code> with <code>{"hiddenByUser": True/False}</code> / <code>pixelSize</code> and the matching <code>fields</code>, <code>autoResizeDimensions</code> at :511) and against the resulting sheet state read back with a fresh-interpreter <code>spreadsheets().get(includeGridData, fields=rowMetadata/columnMetadata)</code> probe (<code>tmp/S1/scripts/probe.py</code>, Aziz's worktree token in place). Screenshots in <code>.playwright-mcp/S1/</code>.</p>
 <hr />
 <h2 id="delete_rows"><code>delete_rows</code><a class="headerlink" href="#delete_rows" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s27-delete-a-single-row-destructive">TC-S27: Delete a single row ⚠️ destructive<a class="headerlink" href="#tc-s27-delete-a-single-row-destructive" title="Permanent link">&para;</a></h3>
@@ -3761,6 +3796,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_rows(start_row=4) → Gizmo row removed; Totals (now row 5) recalculated to 350/360/415</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Sales was first restored to fixture values (Totals as <code>=SUM(B2:B5)</code> etc.; rows 4/5 = Gizmo/Totals). <code>delete_rows(start_row=4)</code> → Gizmo gone, Totals now row 5, recalculated to 350/360/415; other rows unchanged.</p>
 <hr />
 <h3 id="tc-s28-delete-a-range-of-rows-destructive">TC-S28: Delete a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s28-delete-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3775,6 +3811,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_rows(start_row=2,end_row=4) → 3 rows removed (Gadget/Donut/Totals); only header+Widget remain — confirms inclusive end_row=4 → exclusive endIndex=5</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Added marker rows After1/After2 below the data, then <code>delete_rows(2, end_row=4)</code> → Gadget, Donut and Totals removed (3 rows, indices 2–4 → exclusive end 5); After1/After2 shifted up to rows 3–4.</p>
 <hr />
 <h3 id="tc-s29-delete-rows-sheet-not-found-returns-error">TC-S29: Delete rows — sheet not found returns error<a class="headerlink" href="#tc-s29-delete-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3788,6 +3825,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s105-end_row-before-start_row-returns-error-unit-test">TC-S105: end_row before start_row returns error (unit test)<a class="headerlink" href="#tc-s105-end_row-before-start_row-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3796,6 +3834,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_end_row_before_start_row_returns_error_without_api_call</code> in <code>TestDeleteRows</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.</p>
 <hr />
 <h3 id="tc-s113-delete_rows-negative-start_row-returns-error-unit-test">TC-S113: delete_rows — negative start_row returns error (unit test)<a class="headerlink" href="#tc-s113-delete_rows-negative-start_row-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3805,6 +3844,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>delete_rows(start_row=-1)</code> returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.</p>
 <hr />
 <h2 id="delete_columns"><code>delete_columns</code><a class="headerlink" href="#delete_columns" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s30-delete-a-single-column-destructive">TC-S30: Delete a single column ⚠️ destructive<a class="headerlink" href="#tc-s30-delete-a-single-column-destructive" title="Permanent link">&para;</a></h3>
@@ -3821,6 +3861,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_columns(start_column=1) → Q1 removed, Q2/Q3 shift left, Totals recalc 670/705</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Header row Product,Q1,Q2,Q3,colE…colH; <code>delete_columns(start_column=1)</code> → Product,Q2,Q3,colE…: Q1 gone, C shifted to B.</p>
 <hr />
 <h3 id="tc-s31-delete-a-range-of-columns-destructive">TC-S31: Delete a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s31-delete-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3835,6 +3876,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_columns(start_column=2,end_column=4) on 3-col sheet → only Q3(idx2) existed in range, removed; Product/Q2 remain — clip-to-available confirmed</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>delete_columns(2, end_column=4)</code> → Product,Q2,colG,colH: three columns (Q3, colE, colF) removed, colG shifted from F to C.</p>
 <hr />
 <h3 id="tc-s32-delete-columns-sheet-not-found-returns-error">TC-S32: Delete columns — sheet not found returns error<a class="headerlink" href="#tc-s32-delete-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3848,6 +3890,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s106-end_column-before-start_column-returns-error-unit-test">TC-S106: end_column before start_column returns error (unit test)<a class="headerlink" href="#tc-s106-end_column-before-start_column-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3856,6 +3899,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_end_column_before_start_column_returns_error_without_api_call</code> in <code>TestDeleteColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.</p>
 <hr />
 <h3 id="tc-s114-delete_columns-negative-start_column-returns-error-unit-test">TC-S114: delete_columns — negative start_column returns error (unit test)<a class="headerlink" href="#tc-s114-delete_columns-negative-start_column-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3865,6 +3909,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>delete_columns(start_column=-1)</code> returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.</p>
 <hr />
 <h2 id="hide_rows-unhide_rows"><code>hide_rows</code> / <code>unhide_rows</code><a class="headerlink" href="#hide_rows-unhide_rows" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s63-hide-a-single-row-destructive">TC-S63: Hide a single row ⚠️ destructive<a class="headerlink" href="#tc-s63-hide-a-single-row-destructive" title="Permanent link">&para;</a></h3>
@@ -3884,6 +3929,7 @@ hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Pl
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the visual check wasn't run (API-only per shard instructions).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>hide_rows(start_row=4)</code> → <code>replies:[{}]</code>; probe: only rowMetadata[4] <code>hiddenByUser:true</code>. Playwright (tc-s63.png): row numbers go 4 → 6 with the show-row chevrons.</p>
 <hr />
 <h3 id="tc-s64-hide-a-range-of-rows-destructive">TC-S64: Hide a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s64-hide-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3900,6 +3946,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 hide_rows(start_row=2,end_row=4) → rowMetadata[2,3,4] all hiddenByUser=true</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>hide_rows(2, end_row=4)</code>; probe: rows 2,3,4 hidden, 5 not (exclusive end 5). Playwright (tc-s64.png): rows 1, 2, 6 visible, 3–5 collapsed.</p>
 <hr />
 <h3 id="tc-s65-hide-rows-sheet-not-found-returns-error">TC-S65: Hide rows — sheet not found returns error<a class="headerlink" href="#tc-s65-hide-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3914,6 +3961,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 hide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s66-unhide-a-previously-hidden-row-destructive">TC-S66: Unhide a previously hidden row ⚠️ destructive<a class="headerlink" href="#tc-s66-unhide-a-previously-hidden-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3931,6 +3979,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 unhide_rows(start_row=4) → row 4's hiddenByUser gone; rows 2,3 remained hidden (only targeted index affected)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — With rows 3–5 hidden, <code>unhide_rows(start_row=4)</code>; Playwright (tc-s66.png): row 5 (Gizmo) back, rows 3–4 still hidden — so only index 4 was unhidden. Then unhid 2–3 (probe: none hidden).</p>
 <hr />
 <h3 id="tc-s67-unhide-rows-sheet-not-found-returns-error">TC-S67: Unhide rows — sheet not found returns error<a class="headerlink" href="#tc-s67-unhide-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3945,6 +3994,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s107-hide_rows-unhide_rows-end_row-before-start_row-returns-error-unit-test">TC-S107: hide_rows / unhide_rows — end_row before start_row returns error (unit test)<a class="headerlink" href="#tc-s107-hide_rows-unhide_rows-end_row-before-start_row-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3954,6 +4004,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_end_row_before_start_row_returns_error_without_api_call</code> in <code>TestHideRows</code>/<code>TestUnhideRows</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestHideRows/TestUnhideRows exist and pass. TC-S107 ✅, TC-S115 ✅.</p>
 <hr />
 <h3 id="tc-s115-hide_rows-unhide_rows-negative-start_row-returns-error-unit-test">TC-S115: hide_rows / unhide_rows — negative start_row returns error (unit test)<a class="headerlink" href="#tc-s115-hide_rows-unhide_rows-negative-start_row-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -3964,6 +4015,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>hide_rows(start_row=-1)</code> and <code>unhide_rows(start_row=-1)</code> both returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestHideRows/TestUnhideRows exist and pass. TC-S107 ✅, TC-S115 ✅.</p>
 <hr />
 <h2 id="hide_columns-unhide_columns"><code>hide_columns</code> / <code>unhide_columns</code><a class="headerlink" href="#hide_columns-unhide_columns" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s68-hide-a-single-column-destructive">TC-S68: Hide a single column ⚠️ destructive<a class="headerlink" href="#tc-s68-hide-a-single-column-destructive" title="Permanent link">&para;</a></h3>
@@ -3982,6 +4034,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>hide_columns(start_column=1)</code>; probe: only columnMetadata[1] hidden. Playwright (tc-s68.png): headers A, C, D with chevrons; Q1 column gone.</p>
 <hr />
 <h3 id="tc-s69-hide-a-range-of-columns-destructive">TC-S69: Hide a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s69-hide-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3998,6 +4051,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 hide_columns(start_column=2,end_column=4) → columnMetadata[2,3,4] all hiddenByUser=true (C,D,E)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>hide_columns(2, end_column=4)</code>; probe: columns 2,3,4 hidden, 5 not. Playwright (tc-s69.png): A, B, then F.</p>
 <hr />
 <h3 id="tc-s70-hide-columns-sheet-not-found-returns-error">TC-S70: Hide columns — sheet not found returns error<a class="headerlink" href="#tc-s70-hide-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4012,6 +4066,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 hide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s71-unhide-a-previously-hidden-column-destructive">TC-S71: Unhide a previously hidden column ⚠️ destructive<a class="headerlink" href="#tc-s71-unhide-a-previously-hidden-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4029,6 +4084,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>unhide_columns(start_column=1)</code>; Playwright (tc-s71.png): A–D all back with Q1 values.</p>
 <hr />
 <h3 id="tc-s72-unhide-columns-sheet-not-found-returns-error">TC-S72: Unhide columns — sheet not found returns error<a class="headerlink" href="#tc-s72-unhide-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4043,6 +4099,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s108-hide_columns-unhide_columns-end_column-before-start_column-returns-error-unit-test">TC-S108: hide_columns / unhide_columns — end_column before start_column returns error (unit test)<a class="headerlink" href="#tc-s108-hide_columns-unhide_columns-end_column-before-start_column-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4052,6 +4109,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_end_column_before_start_column_returns_error_without_api_call</code> in <code>TestHideColumns</code>/<code>TestUnhideColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestHideColumns/TestUnhideColumns exist and pass. TC-S108 ✅, TC-S116 ✅.</p>
 <hr />
 <h3 id="tc-s116-hide_columns-unhide_columns-negative-start_column-returns-error-unit-test">TC-S116: hide_columns / unhide_columns — negative start_column returns error (unit test)<a class="headerlink" href="#tc-s116-hide_columns-unhide_columns-negative-start_column-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4062,6 +4120,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>hide_columns(start_column=-1)</code> and <code>unhide_columns(start_column=-1)</code> both returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestHideColumns/TestUnhideColumns exist and pass. TC-S108 ✅, TC-S116 ✅.</p>
 <hr />
 <h2 id="resize_rows-resize_columns"><code>resize_rows</code> / <code>resize_columns</code><a class="headerlink" href="#resize_rows-resize_columns" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s73-resize-a-single-row-to-an-explicit-pixel-height-destructive">TC-S73: Resize a single row to an explicit pixel height ⚠️ destructive<a class="headerlink" href="#tc-s73-resize-a-single-row-to-an-explicit-pixel-height-destructive" title="Permanent link">&para;</a></h3>
@@ -4079,6 +4138,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 moments later, expected)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Probe: rowMetadata[4].pixelSize 60, neighbours 21. Playwright (tc-s73.png): row 5 visibly taller.</p>
 <hr />
 <h3 id="tc-s74-resize-a-range-of-rows-destructive">TC-S74: Resize a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s74-resize-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4094,6 +4154,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixelSize=40</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>resize_rows(2, end_row=4, pixel_size=40)</code>; probe: rows 2–4 = 40, row 5 = 21. Playwright (tc-s74.png): rows 3–5 taller.</p>
 <hr />
 <h3 id="tc-s75-auto-resize-rows-to-fit-content-destructive">TC-S75: Auto-resize rows to fit content ⚠️ destructive<a class="headerlink" href="#tc-s75-auto-resize-rows-to-fit-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4110,6 +4171,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(start_row=4,auto_resize=True) → succeeded, no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Row 5 at 40px → <code>resize_rows(4, auto_resize=True)</code>; probe: row 4 index back to 21, rows 2–3 still 40. Playwright (tc-s75.png): Gizmo row back to normal height.</p>
 <hr />
 <h3 id="tc-s76-resize-rows-neither-pixel_size-nor-auto_resize-given-returns-error">TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error<a class="headerlink" href="#tc-s76-resize-rows-neither-pixel_size-nor-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4124,6 +4186,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(start_row=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Specify pixel_size or set auto_resize=True"}</code>; no-batchUpdate covered by unit tests (TestResizeRows) and no state change.</p>
 <hr />
 <h3 id="tc-s77-resize-rows-both-pixel_size-and-auto_resize-given-returns-error">TC-S77: Resize rows — both pixel_size and auto_resize given returns error<a class="headerlink" href="#tc-s77-resize-rows-both-pixel_size-and-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4138,6 +4201,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(pixel_size=50,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Specify only one of pixel_size or auto_resize"}</code>; row 0 unchanged (21px).</p>
 <hr />
 <h3 id="tc-s78-resize-rows-sheet-not-found-returns-error">TC-S78: Resize rows — sheet not found returns error<a class="headerlink" href="#tc-s78-resize-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4151,6 +4215,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s79-resize-a-single-column-to-an-explicit-pixel-width-destructive">TC-S79: Resize a single column to an explicit pixel width ⚠️ destructive<a class="headerlink" href="#tc-s79-resize-a-single-column-to-an-explicit-pixel-width-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4167,6 +4232,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=200</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Probe: columnMetadata[1].pixelSize 200. Playwright (tc-s79.png): column B visibly wide.</p>
 <hr />
 <h3 id="tc-s80-resize-a-range-of-columns-destructive">TC-S80: Resize a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s80-resize-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4182,6 +4248,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3,4] all pixelSize=50</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>resize_columns(2, end_column=4, pixel_size=50)</code>; probe: C–E = 50, F = 100. Playwright (tc-s80.png): C, D, E widened.</p>
 <hr />
 <h3 id="tc-s81-auto-resize-columns-to-fit-content-destructive">TC-S81: Auto-resize columns to fit content ⚠️ destructive<a class="headerlink" href="#tc-s81-auto-resize-columns-to-fit-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4198,6 +4265,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(start_column=1,auto_resize=True) → succeeded, no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Column B at 200 → <code>resize_columns(1, auto_resize=True)</code>; probe: back to 28. Playwright (tc-s81.png): B narrow around "100".</p>
 <hr />
 <h3 id="tc-s82-resize-columns-neither-pixel_size-nor-auto_resize-given-returns-error">TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error<a class="headerlink" href="#tc-s82-resize-columns-neither-pixel_size-nor-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4212,6 +4280,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(start_column=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Specify pixel_size or set auto_resize=True"}</code>.</p>
 <hr />
 <h3 id="tc-s83-resize-columns-both-pixel_size-and-auto_resize-given-returns-error">TC-S83: Resize columns — both pixel_size and auto_resize given returns error<a class="headerlink" href="#tc-s83-resize-columns-both-pixel_size-and-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4226,6 +4295,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(pixel_size=100,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Specify only one of pixel_size or auto_resize"}</code>; column A unchanged (52px).</p>
 <hr />
 <h3 id="tc-s84-resize-columns-sheet-not-found-returns-error">TC-S84: Resize columns — sheet not found returns error<a class="headerlink" href="#tc-s84-resize-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4239,6 +4309,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h3 id="tc-s109-resize_rows-resize_columns-non-positive-pixel_size-returns-error-unit-test">TC-S109: resize_rows / resize_columns — non-positive pixel_size returns error (unit test)<a class="headerlink" href="#tc-s109-resize_rows-resize_columns-non-positive-pixel_size-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4248,6 +4319,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_non_positive_pixel_size_returns_error_without_api_call</code> in <code>TestResizeRows</code>/<code>TestResizeColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.</p>
 <hr />
 <h3 id="tc-s110-resize_rows-resize_columns-end-index-before-start-index-returns-error-unit-test">TC-S110: resize_rows / resize_columns — end index before start index returns error (unit test)<a class="headerlink" href="#tc-s110-resize_rows-resize_columns-end-index-before-start-index-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4256,6 +4328,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_end_row_before_start_row_returns_error_without_api_call</code> / <code>test_end_column_before_start_column_returns_error_without_api_call</code> in <code>TestResizeRows</code>/<code>TestResizeColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.</p>
 <hr />
 <h3 id="tc-s111-resize_rows-resize_columns-sheet-lookup-now-precedes-pixel_sizeauto_resize-validation-unit-test">TC-S111: resize_rows / resize_columns — sheet lookup now precedes pixel_size/auto_resize validation (unit test)<a class="headerlink" href="#tc-s111-resize_rows-resize_columns-sheet-lookup-now-precedes-pixel_sizeauto_resize-validation-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4265,6 +4338,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_bad_sheet_name_reported_before_missing_params</code> in <code>TestResizeRows</code>/<code>TestResizeColumns</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.</p>
 <hr />
 <h3 id="tc-s117-resize_rows-resize_columns-negative-start-returns-error-unit-test">TC-S117: resize_rows / resize_columns — negative start returns error (unit test)<a class="headerlink" href="#tc-s117-resize_rows-resize_columns-negative-start-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4275,6 +4349,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-12) ✅</strong> — unit tests pass (155/155). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet (<code>Empty</code> sheet): <code>resize_rows(start_row=-1, pixel_size=50)</code> and <code>resize_columns(start_column=-1, pixel_size=80)</code> both returned the exact documented error with no <code>batchUpdate</code> call.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.</p>
 <hr />
 <h2 id="format_cells"><code>format_cells</code><a class="headerlink" href="#format_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s33-apply-bold-and-background-color-to-a-range-destructive">TC-S33: Apply bold and background color to a range ⚠️ destructive<a class="headerlink" href="#tc-s33-apply-bold-and-background-color-to-a-range-destructive" title="Permanent link">&para;</a></h3>
@@ -4293,6 +4368,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 format_cells(A1:D1, bold=true, bg light blue) → replies:[{}], no error. Reset bold=false/bg white/align LEFT after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>format_cells(A1:D1, bold=True, background_color={0.8,0.9,1.0})</code> → <code>replies:[{}]</code>. Probe: A1:D1 <code>textFormat.bold:true</code>, backgroundColor light blue. Code builds <code>repeatCell</code> with fields <code>userEnteredFormat.textFormat</code>+<code>userEnteredFormat.backgroundColor</code> (structure.py:1480/1484). Playwright (tc-s33.png): header row bold on light blue.</p>
 <hr />
 <h3 id="tc-s34-apply-number-format-to-a-column-destructive">TC-S34: Apply number format to a column ⚠️ destructive<a class="headerlink" href="#tc-s34-apply-number-format-to-a-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4309,6 +4385,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to NUMBER "0" after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>format_cells(B2:B100, number_format_type="CURRENCY", number_format_pattern="$#,##0.00")</code>; probe: B2 <code>numberFormat {type: CURRENCY, pattern: "$#,##0.00"}</code>, formatted "$100.00"; C unchanged. Fields include <code>userEnteredFormat.numberFormat</code> (:1501). Playwright (tc-s34.png): column B shows "$100…" (truncated by the narrow column).</p>
 <hr />
 <h3 id="tc-s35-set-horizontal-alignment-destructive">TC-S35: Set horizontal alignment ⚠️ destructive<a class="headerlink" href="#tc-s35-set-horizontal-alignment-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4324,6 +4401,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 format_cells(A1:F1, CENTER) → replies:[{}], no error. Reset to LEFT (header) after</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>format_cells(A1:F1, horizontal_alignment="CENTER")</code>; probe: A1:F1 <code>horizontalAlignment: CENTER</code>, and A1:D1's bold/background from TC-S33 kept (fields-scoped). Playwright (tc-s35.png): header centered.</p>
 <hr />
 <h3 id="tc-s36-no-formatting-params-returns-error">TC-S36: No formatting params returns error<a class="headerlink" href="#tc-s36-no-formatting-params-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4334,6 +4412,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 format_cells(A1:D1) no formatting params → {"error":"No formatting parameters provided"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestFormatCells passes (incl. <code>test_invalid_range_returns_error_without_api_call</code>). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.</p>
 <hr />
 <h3 id="tc-s37-format_cells-sheet-not-found-returns-error">TC-S37: format_cells — sheet not found returns error<a class="headerlink" href="#tc-s37-format_cells-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4343,6 +4422,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestFormatCells passes (incl. <code>test_invalid_range_returns_error_without_api_call</code>). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.</p>
 <hr />
 <h3 id="tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4351,6 +4431,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestFormatCells</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestFormatCells passes (incl. <code>test_invalid_range_returns_error_without_api_call</code>). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.</p>
 <hr />
 <h3 id="tc-s131-format_cells-unbounded-or-trailing-newline-range-is-rejected-without-formatting-anything-pr-922-destructive">TC-S131: format_cells — unbounded or trailing-newline range is rejected without formatting anything (PR #922) ⚠️ destructive<a class="headerlink" href="#tc-s131-format_cells-unbounded-or-trailing-newline-range-is-rejected-without-formatting-anything-pr-922-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_parse_a1_notation</code> used to accept a bare <code>:</code> (every group optional, so the regex matched with no bounds) and any range with a trailing newline (<code>$</code> matches before a final <code>\n</code>). For <code>format_cells</code>, <code>range=":"</code> produced a GridRange with only a <code>sheetId</code>, so <code>repeatCell</code> formatted the entire sheet. PR #922 switched to <code>re.fullmatch</code> and requires at least one row or column bound. Partial-bound forms (<code>A1:</code>, <code>A:</code>, <code>:B5</code>, <code>1:B</code>) are tracked separately in #926.</p>
@@ -4371,6 +4452,7 @@ Scratch spreadsheet with values in A1:E5, no formatting. Both calls returned the
 Fresh scratch spreadsheet (<code>create_spreadsheet</code>, then <code>update_cells</code> A1:E5 with <code>a1</code>…<code>e5</code>), via <code>mcp-gee-sweet-kit</code> running code that includes #922 (<code>6dd5e6a</code>). <code>range=":"</code> → <code>{"error":"Invalid A1 notation: :"}</code>; <code>range="A1\n"</code> → <code>{"error":"Invalid A1 notation: A1\n"}</code>. No <code>format_cells</code> call preceded these two, and <code>update_cells</code> writes values only, so the new sheet started with no bold; a grid-data read of A1:F8 (<code>include_grid_data=True</code>) afterward showed no bold cells. No separate "before" read was taken, so this rests on the fresh sheet's default formatting rather than a byte-identical before/after comparison.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Scratch spreadsheet <code>qa-tc-s131-scratch</code> in the run folder (A1:E5 text). <code>range=":"</code> → <code>{"error":"Invalid A1 notation: ':'"}</code>; <code>range="A1\n"</code> → <code>{"error":"Invalid A1 notation: 'A1\\n'"}</code>. Before/after A1:F8 grid-data reads byte-identical (cmp), no bold cell.</p>
 <hr />
 <h3 id="tc-s132-format_cells-bounded-and-open-ended-ranges-still-format-exactly-their-target-pr-922-regression-destructive">TC-S132: format_cells — bounded and open-ended ranges still format exactly their target (PR #922 regression) ⚠️ destructive<a class="headerlink" href="#tc-s132-format_cells-bounded-and-open-ended-ranges-still-format-exactly-their-target-pr-922-regression-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> TC-S131's scratch spreadsheet (values in A1:E5, no formatting). If TC-S131 didn't run, create one the same way. Data stops at row 5 and column E, so the A1:F8 read window shows whether an open-ended range extends past the data.</p>
@@ -4392,6 +4474,7 @@ Values in A1:E5, so a read window wider than the data shows whether open-ended f
 Same scratch spreadsheet as TC-S131's re-run (values in A1:E5), read A1:F8 after every call, reset with <code>format_cells(range="A:F", bold=False)</code> between ranges. Bold cells: <code>A1</code> → [A1]; <code>A1:B2</code> → [A1, B1, A2, B2]; <code>A:A</code> → [A1–A8]; <code>1:2</code> → [A1–F1, A2–F2]; <code>B2:D</code> → [B2–D8]. Every call returned <code>replies: [{}]</code>. The <code>A:F</code> reset doesn't clear the bold <code>1:2</code> applied from column G onward, and the A1:F8 window can't see past column F, so "no cell outside the target is bold" was confirmed only within A1:F8 (the 2026-10-06 run used the same window). Scratch spreadsheet trashed after both test cases.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Bold cells in A1:F8 after each call (reset with <code>A:Z</code> bold=False between): <code>A1</code>→A1; <code>A1:B2</code>→A1 B1 A2 B2; <code>A:A</code>→A1–A8; <code>1:2</code>→A1–F2; <code>B2:D</code>→B2–D8. Every call <code>replies:[{}]</code>, no error. Scratch spreadsheet trashed.</p>
 <hr />
 <h2 id="merge_cells-unmerge_cells"><code>merge_cells</code> / <code>unmerge_cells</code><a class="headerlink" href="#merge_cells-unmerge_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s38-merge-a-header-row-range-destructive">TC-S38: Merge a header row range ⚠️ destructive<a class="headerlink" href="#tc-s38-merge-a-header-row-range-destructive" title="Permanent link">&para;</a></h3>
@@ -4410,6 +4493,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 merge_cells(Empty!E1:G2, MERGE_ALL) → replies:[{}], no error (used Empty scratch region, not Sales)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>merge_cells(Empty, A1:D1)</code> (default MERGE_ALL) → <code>replies:[{}]</code>; probe <code>merges</code>: one range rows 0–1 × cols 0–4. Playwright (tc-s38.png): A1:D1 is one selected cell, name box "A1:D1".</p>
 <hr />
 <h3 id="tc-s39-merge-rows-independently-destructive">TC-S39: Merge rows independently ⚠️ destructive<a class="headerlink" href="#tc-s39-merge-rows-independently-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4425,6 +4509,7 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
 merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>merge_cells(Empty, A3:C5, merge_type="MERGE_ROWS")</code>; probe: three merges, one per row 3/4/5 spanning A–C. Playwright (tc-s39.png): rows 3–5 show no inner column gridlines in A–C. Unmerged afterward.</p>
 <hr />
 <h3 id="tc-s40-unmerge-a-previously-merged-range-destructive">TC-S40: Unmerge a previously merged range ⚠️ destructive<a class="headerlink" href="#tc-s40-unmerge-a-previously-merged-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4441,6 +4526,7 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
 unmerge_cells(Empty!E1:G2) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>unmerge_cells(Empty, A1:D1)</code> (and A3:C5) → no error; probe: no <code>merges</code> left. Playwright (tc-s40.png): plain grid.</p>
 <hr />
 <h3 id="tc-s41-merge_cells-sheet-not-found-returns-error">TC-S41: merge_cells — sheet not found returns error<a class="headerlink" href="#tc-s41-merge_cells-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4450,6 +4536,7 @@ Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.</p>
 merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestMergeCells/TestUnmergeCells pass, including <code>test_invalid_range_returns_error_without_api_call</code>. TC-S41 ✅, TC-S124 ✅.</p>
 <hr />
 <h3 id="tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4459,6 +4546,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestMergeCells</code> and <code>TestUnmergeCells</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestMergeCells/TestUnmergeCells pass, including <code>test_invalid_range_returns_error_without_api_call</code>. TC-S41 ✅, TC-S124 ✅.</p>
 <hr />
 <h2 id="update_borders"><code>update_borders</code><a class="headerlink" href="#update_borders" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive">TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive<a class="headerlink" href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" title="Permanent link">&para;</a></h3>
@@ -4477,6 +4565,7 @@ Error text now repr-quotes the range; TC wording stale.</p>
 update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>update_borders(A1:D5, top/bottom/left/right={SOLID, black})</code> → <code>replies:[{}]</code>; probe: top on row 1, bottom on row 5, left on A, right on D, nothing inside. Playwright (tc-s85.png): black box around A1:D5.</p>
 <hr />
 <h3 id="tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive">TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive<a class="headerlink" href="#tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4493,6 +4582,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>update_borders(A1:C3, inner_horizontal/inner_vertical={DASHED})</code>; probe: dashed between rows/columns inside A1:C3, outer edges keep TC-S85's solid (none added/removed). Playwright (tc-s86.png): dashed inner lines.</p>
 <hr />
 <h3 id="tc-s87-clear-an-existing-border-edge-with-style-none-destructive">TC-S87: Clear an existing border edge with style NONE ⚠️ destructive<a class="headerlink" href="#tc-s87-clear-an-existing-border-edge-with-style-none-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4508,6 +4598,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(A1:D5, right=NONE) → API-verified via grid data: column D cells show no "right" border key while top/bottom perimeter borders remain — only targeted edge cleared</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>update_borders(A1:D5, right={NONE})</code>; probe: D1–D5 no longer have <code>right</code>, other edges intact. Playwright (tc-s87.png): right edge gone.</p>
 <hr />
 <h3 id="tc-s88-update_borders-no-border-params-returns-error">TC-S88: update_borders — no border params returns error<a class="headerlink" href="#tc-s88-update_borders-no-border-params-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4518,6 +4609,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(A1:D1, no edge params) → {"error":"No border parameters provided"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s89-update_borders-border-spec-missing-style-returns-error">TC-S89: update_borders — border spec missing style returns error<a class="headerlink" href="#tc-s89-update_borders-border-spec-missing-style-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4527,6 +4619,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(top={"color":{"red":0}}) missing style → {"error":"Border spec for 'top' is missing required 'style' key"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s90-update_borders-invalid-style-value-returns-error">TC-S90: update_borders — invalid style value returns error<a class="headerlink" href="#tc-s90-update_borders-invalid-style-value-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4536,6 +4629,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(top={"style":"SQUIGGLY"}) → {"error":"Invalid border style 'SQUIGGLY' for 'top'. Must be one of: DOTTED, DASHED, SOLID, SOLID_MEDIUM, SOLID_THICK, DOUBLE, NONE"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s91-update_borders-sheet-not-found-returns-error">TC-S91: update_borders — sheet not found returns error<a class="headerlink" href="#tc-s91-update_borders-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4545,6 +4639,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash">TC-S92: update_borders — non-string style value returns error, does not crash<a class="headerlink" href="#tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4554,6 +4649,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' has a non-string 'style' value"}, no crash</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s118-update_borders-cheap-param-validation-now-runs-before-the-sheet-lookup-unit-test">TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)<a class="headerlink" href="#tc-s118-update_borders-cheap-param-validation-now-runs-before-the-sheet-lookup-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4563,6 +4659,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-09-13) ✅</strong> — unit tests pass (158/158). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet: <code>update_borders(sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})</code> returned <code>{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}</code>, not the sheet-not-found error — confirming validation still runs before the sheet lookup after PR #738 round 2's dedup fix (<code>_enum_value_error</code> now takes an explicit <code>context</code> string rather than auto-quoting).</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h3 id="tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4571,6 +4668,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestUpdateBorders</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateBorders passes (incl. <code>test_validation_runs_before_sheet_lookup</code>, <code>test_invalid_range_returns_error_without_api_call</code>). Each ID ✅.</p>
 <hr />
 <h2 id="add_data_validation-get_data_validation"><code>add_data_validation</code> / <code>get_data_validation</code><a class="headerlink" href="#add_data_validation-get_data_validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive">TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive<a class="headerlink" href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" title="Permanent link">&para;</a></h3>
@@ -4592,6 +4690,7 @@ add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the dropdown rendering wasn't checked.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>add_data_validation(Empty, A1:A5, ONE_OF_LIST, [Yes,No,Maybe])</code> → no error. <code>get_data_validation(A1:A5)</code> → 5 entries A1–A5, each <code>ONE_OF_LIST</code> with <code>userEnteredValue</code> Yes/No/Maybe, strict, showCustomUi. Playwright: dropdown arrows on A1–A5 (tc-s93.png); opening A1's shows exactly Yes / No / Maybe (tc-s93-dropdown.png, closed with Escape, nothing chosen). Teardown done.</p>
 <hr />
 <h3 id="tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive">TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive<a class="headerlink" href="#tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4608,6 +4707,7 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>add_data_validation(Empty, B1:B5, BOOLEAN)</code> → no error; <code>get_data_validation(B1:B5)</code> → <code>condition {"type":"BOOLEAN"}</code>, no <code>values</code>, each cell. Playwright (tc-s94.png): B1–B5 render checkboxes. Cells held FALSE; teardown cleared the rule and the values.</p>
 <hr />
 <h3 id="tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting">TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting<a class="headerlink" href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4622,6 +4722,7 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — No error; readback <code>NUMBER_BETWEEN</code> values <code>["1","10"]</code> with no <code>strict</code> key (API omits false, i.e. strict == false). Cleared.</p>
 <hr />
 <h3 id="tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules">TC-S96: get_data_validation returns an empty list for a range with no rules<a class="headerlink" href="#tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4636,6 +4737,7 @@ Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via A
 get_data_validation(Empty!D1:D5, no rules) → []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>get_data_validation(Sales, D1:D5)</code> → <code>{"result":[]}</code> (MCP wrapping of the list), no error.</p>
 <hr />
 <h3 id="tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test">TC-S97: add_data_validation — invalid condition_type returns error (unit test)<a class="headerlink" href="#tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4645,6 +4747,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 add_data_validation(condition_type="NOT_A_REAL_TYPE") → {"error":"Invalid condition_type ... Must be one of: ..."}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestAddDataValidation passes, every cited test present. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test">TC-S98: add_data_validation — sheet not found returns error (unit test)<a class="headerlink" href="#tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4654,6 +4757,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestAddDataValidation passes, every cited test present. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s122-add_data_validation-values-countshape-mismatch-per-condition_type-returns-a-local-error-unit-test">TC-S122: add_data_validation — values count/shape mismatch per condition_type returns a local error (unit test)<a class="headerlink" href="#tc-s122-add_data_validation-values-countshape-mismatch-per-condition_type-returns-a-local-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Issue #366 — before this, a mismatched <code>values</code> count reached the real Sheets API and got a clean 400 back (e.g. <code>NUMBER_BETWEEN</code> with 1 value: <code>"requires exactly two ConditionValues, but 1 value was supplied"</code>), which was already safe, just a round-trip later than necessary. Now caught locally via <code>_condition_value_count_error</code> before any API call, covering all five value-count shapes: zero-only (<code>DATE_IS_VALID</code>, <code>TEXT_IS_EMAIL</code>, <code>TEXT_IS_URL</code>; <code>BLANK</code>/<code>NOT_BLANK</code> were removed in PR #986 as unsupported by data validation, see TC-S134), zero-or-two (<code>BOOLEAN</code>), exactly-one (<code>NUMBER_GREATER</code>, <code>CUSTOM_FORMULA</code>, <code>ONE_OF_RANGE</code>, and the other single-value TEXT_<em>/DATE_</em>/NUMBER_* types), exactly-two (<code>NUMBER_BETWEEN</code>, <code>NUMBER_NOT_BETWEEN</code>, <code>DATE_BETWEEN</code>, <code>DATE_NOT_BETWEEN</code>), and at-least-one (<code>ONE_OF_LIST</code>).</p>
@@ -4669,6 +4773,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Re-verified (2026-09-13) ✅ PASS</strong> — after PR #750's KeyError-guard fix (commit 475e420): re-ran the same <code>NUMBER_BETWEEN</code> call against the reconnected server, still returns the clean local error with no regression.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestAddDataValidation passes, every cited test present. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding">TC-S99: <code>add_data_validation</code> ONE_OF_RANGE — the documented value format always fails ❌ code review finding<a class="headerlink" href="#tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>add_data_validation</code>'s own docstring documents <code>ONE_OF_RANGE</code>'s <code>values</code> as "one item, the source range in A1 notation, e.g. <code>["Sheet2!A:A"]</code>" — no leading <code>=</code>. Live-tested against the real Sheets API and confirmed this format is rejected outright.</p>
@@ -4685,6 +4790,7 @@ Deleted and recreated the <code>Empty</code> fixture sheet to clear the test rul
 add_data_validation(ONE_OF_RANGE, values=["Sales!A2:A5"], no leading =) → succeeded (auto-prepend fix confirmed live, no longer the TC-S99-documented HttpError); readback shows "=Sales!$A$2:$A$5"</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — The docstring's format <code>values=["Sales!A2:A5"]</code> on Empty!D1:D2 now succeeds and creates a range-sourced dropdown (fixed by PR #361; see TC-S101).</p>
 <hr />
 <h3 id="tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding">TC-S100: <code>get_data_validation</code> on a nonexistent sheet raises raw, not a clean error ❌ code review finding<a class="headerlink" href="#tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Every other <code>sheet</code>-taking tool in <code>structure.py</code> (~22 of them, including <code>add_data_validation</code>) checks sheet existence first and returns <code>{"error": "Sheet 'X' not found"}</code>. <code>get_data_validation</code> skips this check entirely.</p>
@@ -4699,6 +4805,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 get_data_validation(sheet="NonexistentSheetXYZ") → clean {"error":"Sheet 'NonexistentSheetXYZ' not found"} — confirms the documented fix is live, no raw HttpError</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error is nested as {"result":{"error":…}} (list-typed output schema); TC says {"error"}.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"result":{"error":"Sheet 'NonexistentSheetXYZ' not found"}}</code>, no raw HttpError (fixed; see TC-S102).</p>
 <hr />
 <h3 id="tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix">TC-S101: <code>add_data_validation</code> ONE_OF_RANGE auto-corrects a missing <code>=</code> (PR #361 review fix)<a class="headerlink" href="#tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-S99 found that <code>add_data_validation(condition_type="ONE_OF_RANGE", ...)</code> always failed with the docstring's own documented value format (a bare range reference, no leading <code>=</code>) — the real Sheets API rejects <code>userEnteredValue</code> without it. Fixed by auto-prepending <code>=</code> to each value when <code>condition_type</code> is <code>ONE_OF_RANGE</code> and the caller didn't already include one, instead of requiring callers to know this API quirk. Unit-tested deterministically (<code>TestAddDataValidation::test_one_of_range_auto_prepends_equals_when_missing</code>, <code>test_one_of_range_does_not_double_prepend_equals</code>); this live check re-runs TC-S99's exact failing call.</p>
@@ -4716,6 +4823,7 @@ Clear the test rule from the range used.</p>
 Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Call succeeded; readback <code>userEnteredValue: "=Sales!$A$2:$A$5"</code>. Cleared.</p>
 <hr />
 <h3 id="tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix">TC-S102: <code>get_data_validation</code> on a nonexistent sheet returns a clean error (PR #361 review fix)<a class="headerlink" href="#tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-S100 found that <code>get_data_validation</code> was missing the sheet-existence check every sibling tool in this file has, so a bad sheet name raised a raw <code>HttpError</code> instead of <code>{"error": ...}</code>. Fixed by adding the same <code>_get_sheet_id</code> check <code>add_data_validation</code> already has, before the grid-data fetch. Unit-tested (<code>TestGetDataValidation::test_sheet_not_found_returns_error_not_raw_http_error</code>); this live check re-runs TC-S100's exact failing call.</p>
@@ -4730,6 +4838,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error is nested as {"result":{"error":…}} (list-typed output schema); TC says {"error"}.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>{"result":{"error":"Sheet 'NonexistentSheetXYZ' not found"}}</code>.</p>
 <hr />
 <h3 id="tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4738,6 +4847,7 @@ Error is nested as {"result":{"error":…}} (list-typed output schema); TC says 
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestAddDataValidation</code> — exercises the shared <code>_apply_data_validation</code> helper's <code>_grid_range</code> call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestAddDataValidation passes, every cited test present. Each ID ✅.</p>
 <hr />
 <h2 id="clear_data_validation"><code>clear_data_validation</code><a class="headerlink" href="#clear_data_validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s119-clear_data_validation-removes-an-existing-rule-destructive">TC-S119: clear_data_validation removes an existing rule ⚠️ destructive<a class="headerlink" href="#tc-s119-clear_data_validation-removes-an-existing-rule-destructive" title="Permanent link">&para;</a></h3>
@@ -4762,6 +4872,7 @@ Ran live against the fixture spreadsheet. <code>add_data_validation</code> set t
 <p><strong>Re-verified (2026-09-13) ✅ PASS</strong> — after PR #745's <code>_apply_data_validation</code> dedup refactor (commit 931363a): re-ran the same set/clear/confirm sequence on G1:G5 directly against the reconnected server. <code>add_data_validation</code> still sets the rule correctly, <code>clear_data_validation</code> still clears it (<code>get_data_validation</code> → <code>[]</code> afterward) — no behavior change from the extraction.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Step 1 ONE_OF_LIST on Empty!E1:E5 → ok; step 2 clear → <code>replies:[{}]</code>; step 3 <code>get_data_validation(E1:E5)</code> → <code>[]</code>.</p>
 <hr />
 <h3 id="tc-s120-clear_data_validation-on-a-range-with-no-existing-rule-is-a-no-op">TC-S120: clear_data_validation on a range with no existing rule is a no-op<a class="headerlink" href="#tc-s120-clear_data_validation-on-a-range-with-no-existing-rule-is-a-no-op" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt (direct tool call)</strong></p>
@@ -4775,6 +4886,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Confirmed F1:F5 had no rule beforehand (<code>get_data_validation</code> → <code>[]</code>), then <code>clear_data_validation</code> returned no error, then <code>get_data_validation</code> still returned <code>[]</code>.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>clear_data_validation(Empty, F1:F5)</code> → no error; <code>get_data_validation(F1:F5)</code> → <code>[]</code>.</p>
 <hr />
 <h3 id="tc-s121-clear_data_validation-sheet-not-found-returns-error-unit-test">TC-S121: clear_data_validation — sheet not found returns error (unit test)<a class="headerlink" href="#tc-s121-clear_data_validation-sheet-not-found-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4782,6 +4894,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>TestClearDataValidation::test_returns_error_when_sheet_not_found</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestClearDataValidation passes. TC-S121 ✅, TC-S127 ✅.</p>
 <hr />
 <h3 id="tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4790,6 +4903,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestClearDataValidation</code> — exercises the same shared <code>_apply_data_validation</code> helper as TC-S126</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestClearDataValidation passes. TC-S121 ✅, TC-S127 ✅.</p>
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
@@ -4807,6 +4921,7 @@ Error text now repr-quotes the range; TC wording stale.</p>
 freeze(rows=1) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>freeze(Sales, rows=1)</code> → no error; probe <code>frozenRowCount:1</code>, no frozen column. Code sends <code>updateSheetProperties</code> with fields <code>gridProperties.frozenRowCount,gridProperties.frozenColumnCount</code> (structure.py:1899). Playwright (tc-s42.png): freeze bar under row 1.</p>
 <hr />
 <h3 id="tc-s43-freeze-first-row-and-first-column-destructive">TC-S43: Freeze first row and first column ⚠️ destructive<a class="headerlink" href="#tc-s43-freeze-first-row-and-first-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4821,6 +4936,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 freeze(rows=1,columns=1) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — probe <code>frozenRowCount:1, frozenColumnCount:1</code>. Playwright (tc-s43.png): freeze bars under row 1 and right of column A.</p>
 <hr />
 <h3 id="tc-s44-unfreeze-all-rows0-columns0-destructive">TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive<a class="headerlink" href="#tc-s44-unfreeze-all-rows0-columns0-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4834,6 +4950,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 freeze(rows=0,columns=0) → replies:[{}], no error (also serves as unfreeze teardown)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>freeze(rows=0, columns=0)</code> → no error; probe: neither frozen count present (0).</p>
 <hr />
 <h3 id="tc-s45-freeze-sheet-not-found-returns-error">TC-S45: freeze — sheet not found returns error<a class="headerlink" href="#tc-s45-freeze-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4843,6 +4960,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 freeze(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestFreeze passes.</p>
 <hr />
 <h2 id="update_sheet_properties"><code>update_sheet_properties</code><a class="headerlink" href="#update_sheet_properties" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s57-set-tab-color-destructive">TC-S57: Set tab color ⚠️ destructive<a class="headerlink" href="#tc-s57-set-tab-color-destructive" title="Permanent link">&para;</a></h3>
@@ -4861,6 +4979,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(tab_color red) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>update_sheet_properties(tab_color={1,0,0})</code> → no error; probe <code>tabColor {red:1}</code>; code appends field <code>tabColor</code> (:1958–1959). Playwright: <code>.docs-sheet-tab-color</code> for Sales <code>background: rgb(255, 0, 0)</code> (tc-s57.png).</p>
 <hr />
 <h3 id="tc-s57b-clear-tab-color-with-destructive">TC-S57b: Clear tab color with <code>{}</code> ⚠️ destructive<a class="headerlink" href="#tc-s57b-clear-tab-color-with-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4878,6 +4997,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(tab_color={}) → replies:[{}], no error (clears via tabColorStyle per known fix)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>tab_color={}</code> → no error; code sends <code>tabColorStyle: {}</code> with field <code>tabColorStyle</code> only (:1955–1956); probe: neither tabColor nor tabColorStyle left. Playwright: all three tab-color elements <code>background: transparent</code> (not black) (tc-s57b.png).</p>
 <hr />
 <h3 id="tc-s58-hide-gridlines-destructive">TC-S58: Hide gridlines ⚠️ destructive<a class="headerlink" href="#tc-s58-hide-gridlines-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4895,6 +5015,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(show_gridlines=false) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>show_gridlines=False</code> → probe <code>hideGridlines:true</code> (field <code>gridProperties.hideGridlines</code>, :1962–1963). Playwright (tc-s58.png): no gridlines in the cell area.</p>
 <hr />
 <h3 id="tc-s59-set-right-to-left-layout-destructive">TC-S59: Set right-to-left layout ⚠️ destructive<a class="headerlink" href="#tc-s59-set-right-to-left-layout-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4912,6 +5033,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(right_to_left=true) → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>right_to_left=True</code> → probe <code>rightToLeft:true</code> (field <code>rightToLeft</code>). Playwright (tc-s59.png): column A at the right, row headers on the right edge.</p>
 <hr />
 <h3 id="tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive">TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive<a class="headerlink" href="#tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -4928,6 +5050,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(tab_color=blue, show_gridlines=true, right_to_left=false) single call → replies:[{}], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — One call → <code>replies:[{}]</code> (a single <code>updateSheetProperties</code> request, code :1977–1980); probe: tabColor blue, hideGridlines gone (false), rightToLeft gone (false). Fields built from all three branches.</p>
 <hr />
 <h3 id="tc-s61-no-properties-provided-returns-error">TC-S61: No properties provided returns error<a class="headerlink" href="#tc-s61-no-properties-provided-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4938,6 +5061,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(no properties) → {"error":"No properties provided to update"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestUpdateSheetProperties passes; live: <code>{"error":"No properties provided to update"}</code>.</p>
 <hr />
 <h3 id="tc-s62-update_sheet_properties-sheet-not-found-returns-error">TC-S62: update_sheet_properties — sheet not found returns error<a class="headerlink" href="#tc-s62-update_sheet_properties-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -4948,6 +5072,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 update_sheet_properties(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Unit test passes; live: <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
 <hr />
 <h2 id="sort_range"><code>sort_range</code><a class="headerlink" href="#sort_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s46-sort-a-data-range-ascending-by-first-column-destructive">TC-S46: Sort a data range ascending by first column ⚠️ destructive<a class="headerlink" href="#tc-s46-sort-a-data-range-ascending-by-first-column-destructive" title="Permanent link">&para;</a></h3>
@@ -4964,6 +5089,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabetical order</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>sort_range(A2:D50)</code> (no sort_order) → <code>replies:[{}]</code>; rows became Donut, Gadget, Gizmo, Totals, Widget (A ascending), header untouched. Playwright (tc-s46.png) matches. (Totals is a SUM formula inside the sorted range, so its value moved with it, which is Sheets' own behaviour.)</p>
 <hr />
 <h3 id="tc-s47-sort-descending-by-a-non-first-column-destructive">TC-S47: Sort descending by a non-first column ⚠️ destructive<a class="headerlink" href="#tc-s47-sort-descending-by-a-non-first-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4978,6 +5104,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a tool bug — genuine Sheets sort semantics): "Totals" row's SUM formulas (referencing B2:B5 etc., a range within the sorted block) turned into #REF! after the sort moved the formula row relative to its own reference range. Reproducible, expected Google Sheets behavior when sorting a range containing formulas that reference other rows inside that same range — same as a human doing Data&gt;Sort would see. Worth a QA test-design note (exclude formula/footer rows from sort_range test ranges) but not a product defect</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>sort_order=[{column_index:2, order:DESCENDING}]</code> → rows by Q2 descending (Totals 550, Gizmo 310, Gadget 180, Widget 120, Donut 60). Playwright (tc-s47.png) matches. The Totals SUM row, moved above the rows it sums, shows #REF! — Sheets' own formula behaviour after sorting a formula into its own range, not a tool defect.</p>
 <hr />
 <h3 id="tc-s48-multi-column-sort-destructive">TC-S48: Multi-column sort ⚠️ destructive<a class="headerlink" href="#tc-s48-multi-column-sort-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4994,6 +5121,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 sort_range(A2:D50, col0 ASC + col2 DESC) → two sort specs applied correctly, primary key (Product) sorted ascending: Donut/Gadget/Gizmo/Totals/Widget</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Added two extra "Gadget" rows (Q2 5 and 999) so the secondary key matters; <code>sort_order=[{0,ASCENDING},{2,DESCENDING}]</code> → Donut, Gadget 999, Gadget 180, Gadget 5, Gizmo, Totals, Widget: A ascending, ties broken by C descending, so both specs reached the API in order. Playwright (tc-s48.png) matches.</p>
 <hr />
 <h3 id="tc-s49-column_index-offset-by-range-start-column">TC-S49: column_index offset by range start column<a class="headerlink" href="#tc-s49-column_index-offset-by-range-start-column" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -5003,6 +5131,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 column_index offset logic implicitly exercised/correct via TC-S46-48 (dimensionIndex correctly targeted col0/col2 within A-start range); no separate live call needed for this unit-level check</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestSortRange passes. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s50-sort_range-sheet-not-found-returns-error">TC-S50: sort_range — sheet not found returns error<a class="headerlink" href="#tc-s50-sort_range-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -5012,6 +5141,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 sort_range(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestSortRange passes. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash">TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash<a class="headerlink" href="#tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -5041,6 +5171,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → clean error; missing column_index → clean error; non-int column_index (string "0") → clean error; bool column_index → clean error (not silently accepted as int); invalid order enum "banana" → clean error naming valid values. No batchUpdate/data mutation in any case (confirmed via post-check read)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestSortRange passes. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
@@ -5049,6 +5180,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestSortRange</code></p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Error text now repr-quotes the range; TC wording stale.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — TestSortRange passes. Each ID ✅.</p>
 <hr />
 <h3 id="tc-s129-_parse_a1_notation-rejects-semantically-invalid-ranges-row-0-and-end-before-start-ordering-issue-747-qa-round-1-unit-test">TC-S129: <code>_parse_a1_notation</code> rejects semantically-invalid ranges — row 0, and end-before-start ordering (issue #747 QA round 1, unit test)<a class="headerlink" href="#tc-s129-_parse_a1_notation-rejects-semantically-invalid-ranges-row-0-and-end-before-start-ordering-issue-747-qa-round-1-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-S123–TC-S128 and TC-W40 cover <em>syntactically</em> malformed A1 notation (e.g. <code>Sheet1!A1</code>). QA round 1 on PR #756 found <code>_parse_a1_notation</code> also accepted <em>syntactically</em>-valid-but-<em>semantically</em>-invalid strings without raising: a row of <code>0</code> (regex-matched by the bare <code>\d+</code>, but not a valid 1-based A1 row) silently computed <code>startRowIndex = -1</code>, and an inverted range like <code>A5:A2</code> produced <code>endRowIndex &lt; startRowIndex</code> — both bypassed the try/except this PR added at every call site and would still surface as a raw Sheets API <code>HttpError</code>, the exact failure class #747 is about, just for different malformed inputs. Fixed directly in <code>_parse_a1_notation</code> (not per call site) — it now raises <code>ValueError</code> for a row below 1, or an end bound at or before its start bound, so the fix flows through the try/except infrastructure already in place everywhere.</p>
@@ -5063,6 +5195,7 @@ Error text now repr-quotes the range; TC wording stale.</p>
 - Covered by <code>test_row_zero_raises</code>, <code>test_end_row_zero_raises</code>, <code>test_inverted_row_range_raises</code>, <code>test_zero_width_row_range_raises</code>, <code>test_inverted_column_range_raises</code>, <code>test_zero_width_column_range_raises</code> in <code>TestParseA1Notation</code> (<code>tests/sheets/test_helpers.py</code>)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>test_row_zero_raises</code>, <code>test_inverted_column_range_raises</code>, <code>test_zero_width_column_range_raises</code> and siblings in TestParseA1Notation exist and pass.</p>
 <hr />
 <h3 id="tc-s130-a1-notation-error-handling-factored-into-a-shared-_or_error-helper-not-duplicated-per-call-site-issue-747-qa-round-1-unit-test">TC-S130: A1-notation error handling factored into a shared <code>_or_error</code> helper, not duplicated per call site (issue #747 QA round 1, unit test)<a class="headerlink" href="#tc-s130-a1-notation-error-handling-factored-into-a-shared-_or_error-helper-not-duplicated-per-call-site-issue-747-qa-round-1-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> QA round 1 also found the <code>try: ... except ValueError as e: return {"error": str(e)}</code> block this PR added was identically duplicated at 8 call sites (2 in <code>data.py</code>, 6 in <code>structure.py</code>), instead of factored into a shared helper matching this codebase's established error-or-None convention (<code>_enum_value_error</code>, <code>_positive_value_error</code>, <code>_non_negative_value_error</code>, <code>_resolve_end_index_or_error</code>). Fixed via <code>_parse_a1_notation_or_error</code> (<code>helpers.py</code>) and <code>_grid_range_or_error</code> (<code>structure.py</code>), each returning <code>(error, None)</code> on failure or <code>(None, result)</code> on success — every call site (<code>add_data_validation</code>/<code>clear_data_validation</code> via <code>_apply_data_validation</code>, <code>format_cells</code>, <code>update_borders</code>, <code>merge_cells</code>, <code>unmerge_cells</code>, <code>sort_range</code>, <code>add_chart</code>, and both <code>update_cells</code> sites) now calls the shared helper instead of wrapping the raw <code>_parse_a1_notation</code>/<code>_grid_range</code> itself — including <code>add_chart</code>, which had its own pre-existing inline try/except predating this PR.</p>
@@ -5073,6 +5206,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - <code>uv run python -m pytest tests/sheets/</code> passes in full</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — <code>grep 'except ValueError'</code> over data.py/structure.py/helpers.py: only structure.py:291 (inside <code>_grid_range_or_error</code>) and helpers.py:177 (inside <code>_parse_a1_notation_or_error</code>). <code>uv run python -m pytest tests/sheets/</code> → 448 passed.</p>
 <hr />
 <h3 id="tc-s133-gridrange-tools-reject-an-out-of-bounds-or-malformed-range-before-any-api-call-issue-955">TC-S133: GridRange tools reject an out-of-bounds or malformed range before any API call (issue #955)<a class="headerlink" href="#tc-s133-gridrange-tools-reject-an-out-of-bounds-or-malformed-range-before-any-api-call-issue-955" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_parse_a1_notation</code> had no upper limit on column letters or row numbers, so <code>ZZZZZZZZ1</code> or <code>A99999999999</code> reached the Sheets API and came back as a raw <code>HttpError</code>, and a row string over 4300 digits made <code>int()</code> raise without the <code>Invalid A1 notation</code> prefix. Separately, <code>sort_range</code>, <code>merge_cells</code>, <code>unmerge_cells</code>, <code>format_cells</code>, <code>update_borders</code>, <code>add_data_validation</code> and <code>clear_data_validation</code> resolved the sheet ID, which is an API call on a cold cache, before parsing the range. #955 rejects columns past <code>ZZZ</code> and rows past 10,000,000 (Sheets' grid limits) locally, and parses the range before the sheet lookup. The nonexistent spreadsheet ID and sheet name below prove the ordering: a build that looks up the sheet first returns a 404 or <code>Sheet 'NoSuchSheet' not found</code>, not the A1 error.</p>
@@ -5128,6 +5262,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - None of calls 1–5 or 7 returned a 404 or <code>Sheet ... not found</code> error.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — Calls 1–5, 7 and 8 matched exactly: 1 <code>column is beyond ZZZ: 'ZZZZZZZZ1'</code>, 2 <code>row is beyond 10,000,000: 'A99999999999'</code>, 3 <code>column is beyond ZZZ: 'A1:AAAA2'</code>, 4 <code>Invalid A1 notation: 'A:5'</code>, 5 <code>Invalid A1 notation: 'A:B5'</code>, 7 <code>row is beyond 10,000,000: 'A10000001'</code>, 8 (control <code>ZZZ10000000</code>) → HttpError 404 on the fake ID, so it reached the sheet lookup; none of 1–5/7 returned a 404. <strong>Not run live: call 6 (Kelvin sign U+212A).</strong> My tool calls sent an ASCII <code>K</code> both times (the result was the 404 an ASCII <code>K1</code> correctly gets), so the Kelvin-sign input never reached the server. Unit-level evidence: a fresh interpreter's <code>_parse_a1_notation('K1')</code> raises <code>Invalid A1 notation: 'K1'</code> (Kelvin sign shown), and <code>TestGridRangeToolsRejectMalformedRange</code> includes <code>"K1"</code> against all seven tools. Deferred to Aziz: re-run call 6 from a client that can send U+212A unchanged.</p>
 <hr />
 <h3 id="tc-s134-add_data_validation-rejects-condition-types-data-validation-doesnt-support-before-any-api-call-pr-986-qa-round-2">TC-S134: add_data_validation rejects condition types data validation doesn't support, before any API call (PR #986 QA round 2)<a class="headerlink" href="#tc-s134-add_data_validation-rejects-condition-types-data-validation-doesnt-support-before-any-api-call-pr-986-qa-round-2" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>add_data_validation</code> accepted <code>BLANK</code>, <code>NOT_BLANK</code>, <code>TEXT_STARTS_WITH</code> and <code>TEXT_ENDS_WITH</code>, but the Sheets API supports these only for conditional formatting and filters (each one's <code>BooleanCondition.type</code> enum description in the discovery doc omits data validation). Every call came back as <code>HttpError 400 … ConditionType '&lt;type&gt;' is not supported in data validation</code>. A fresh-interpreter probe of <code>setDataValidation</code> confirmed all four are rejected and <code>ONE_OF_LIST</code> is accepted. All four are now removed from <code>_VALID_CONDITION_TYPES</code> and <code>_CONDITION_SPECS</code>, so <code>_enum_value_error</code> rejects them locally. The nonexistent spreadsheet ID below shows the rejection is local: a build that still accepts them fails at the sheet lookup with a 404.</p>
@@ -5154,6 +5289,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 - The served <code>add_data_validation</code> description (re-fetched after the reconnect) lists <code>DATE_IS_VALID</code>, <code>TEXT_CONTAINS</code>/<code>TEXT_NOT_CONTAINS</code>/<code>TEXT_EQ</code>, <code>TEXT_IS_EMAIL</code>/<code>TEXT_IS_URL</code> and the rest, and none of the four removed types.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — BLANK, NOT_BLANK, TEXT_STARTS_WITH, TEXT_ENDS_WITH → each <code>Invalid condition_type '&lt;type&gt;'. Must be one of: …</code>, and the list has none of the four; no 404. Control DATE_IS_VALID → HttpError 404 on the fake ID (it reached the lookup). The served <code>add_data_validation</code> description (loaded schema) lists none of the four.</p>
 
 
 

@@ -2058,6 +2058,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <code>kai-sa</code>: <code>get_sheet_data(Sales)</code> returned 6 rows × 4 columns (Product/Q1/Q2/Q3). The Totals row came back computed as 650/670/705, not as formula strings. No error.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth), each on its own copy of the fixture spreadsheet: <code>Sales</code> header plus data rows, Totals computed as 650/670/705, no error.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>get_sheet_data(Sales)</code> returned 6 rows × 4 columns (Product/Q1/Q2/Q3). Totals came back computed as 650/670/705, not formula strings. No error.</p>
 <hr />
 <h3 id="tc-r02-explicit-range">TC-R02: Explicit range<a class="headerlink" href="#tc-r02-explicit-range" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2073,6 +2074,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 A1:C3 → 3×3, Product/Q1/Q2, Widget/100/120, Gadget/200/180</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>range="A1:C3"</code> returned 3×3: Product/Q1/Q2, Widget/100/120, Gadget/200/180.</p>
 <hr />
 <h3 id="tc-r03-grid-data-with-an-explicit-range">TC-R03: Grid data with an explicit range<a class="headerlink" href="#tc-r03-grid-data-with-an-explicit-range" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2087,6 +2089,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 rowData present; range A1:D6 honored; no auto-detect probe (range given)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>range="A1:D6", include_grid_data=True</code> was written to scratch via <code>local_path</code> (20,507 bytes, range <code>Sales!A1:D6</code>). <code>sheets[0].data[0].rowData</code> held 6 rows × 4 values, Totals formattedValue 650/670/705. The returned range is the one given.</p>
 <hr />
 <h3 id="tc-r03b-grid-data-without-a-range-auto-detects-the-used-range-issue-235">TC-R03b: Grid data without a range auto-detects the used range (issue #235)<a class="headerlink" href="#tc-r03b-grid-data-without-a-range-auto-detects-the-used-range-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2102,6 +2105,7 @@ Called live against the actual Sales fixture (<code>gridProperties: rowCount=301
 No range + grid data: rowData scoped to used 6×4 range only (grid is 1000×26); no error/truncation</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — With no <code>range</code>, the call returned range <code>Sales!A1:D6</code> (20,507 bytes, the same as TC-R03's explicit range). <code>rowData</code> covered only 6 rows × 4 columns, against the copy's real 996×28 grid. No error. The probe request itself isn't visible to the client; the scoped range shows it ran.</p>
 <hr />
 <h3 id="tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235">TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)<a class="headerlink" href="#tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2119,6 +2123,7 @@ Exact size (4,325,100 chars) confirms the fetch completed before the check ran, 
 Fetch succeeded; size check raised ValueError naming actual size 4,085,918 chars, cap 1,000,000, and narrow-range/local_path/MAX_TOOL_RESPONSE_CHARS options. Cap default is now 1,000,000 (#519); Setup text in test doc citing 40,000 is stale, behavior correct</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Ran on a scratch tab <code>S5-SizeScratch</code> on the copy, formatted A1:Z200 as in the Setup. <code>get_sheet_data(range="A1:Z200", include_grid_data=True)</code> raised: "the response is 4085944 characters, over the 1000000-character safety cap … Narrow the range, or Pass local_path … or set MAX_TOOL_RESPONSE_CHARS". The exact size shows the fetch completed before the check. Scratch tab deleted. Side observation (cosmetic, UNFILED): the message reads "Narrow the range, or Pass local_path" with a capital P mid-sentence. <code>data.py</code>'s hint ends "Narrow the range, or " and the shared <code>enforce_response_size_cap</code> text starts with "Pass".</p>
 <hr />
 <h3 id="tc-r03d-grid-data-with-local_path-writes-to-disk-instead-of-returning-inline-issue-235">TC-R03d: Grid data with local_path writes to disk instead of returning inline (issue #235)<a class="headerlink" href="#tc-r03d-grid-data-with-local_path-writes-to-disk-instead-of-returning-inline-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2133,6 +2138,7 @@ Same scratch-sheet setup as TC-R03c. Call returned <code>{"local_path": "/tmp/qa
 local_path set → returned {local_path, bytes_written 4,085,918, spreadsheet_id, sheet, range}; file on disk has rowData + formatting</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — The same call with <code>local_path=&lt;scratch&gt;/qa_grid_data.json</code> returned <code>{local_path, bytes_written: 4085944, spreadsheet_id, sheet, range}</code> and no error. <code>wc -c</code> on the file matched 4,085,944. It held 200×26 <code>rowData</code> with bold, background {0.898, 0.949, 1} and NUMBER format. File deleted afterward.</p>
 <hr />
 <h3 id="tc-r03e-max_tool_response_chars-raises-the-cap-issue-235">TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)<a class="headerlink" href="#tc-r03e-max_tool_response_chars-raises-the-cap-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2145,6 +2151,7 @@ Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the
 Requires server restart with changed MAX_TOOL_RESPONSE_CHARS env var — not possible this pass (pre-existing pending)</p>
 <p><strong>Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass</strong>
 Needs a server restart with a changed MAX_TOOL_RESPONSE_CHARS.</p>
+<p><strong>Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Needs a server restart with <code>MAX_TOOL_RESPONSE_CHARS=200000</code>; deferred to Aziz. Unit-level evidence: the tests the case names, <code>test_cap_is_configurable</code> (tests/sheets/test_data.py) and <code>test_env_var_sets_cap_at_import_time</code> (tests/test_response_limits.py), passed (2 passed) in Aziz's worktree @ f98c67b7.</p>
 <hr />
 <h3 id="tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519">TC-R38: Grid data over the old cap now succeeds under the raised default (issue #519)<a class="headerlink" href="#tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Issue #519 raised <code>MAX_TOOL_RESPONSE_CHARS</code>'s default from 40,000 to 1,000,000 after live-testing found the client-connection-death failure mode the cap defends against no longer reproduces at that scale for the primary MCP client (see <code>docs/decisions/decision-response-size-cap-reevaluation-519.md</code>). This test confirms a range that used to trip the <em>old</em> default now succeeds without needing <code>local_path</code> or a <code>MAX_TOOL_RESPONSE_CHARS</code> override.</p>
@@ -2161,6 +2168,7 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char response with NO server ValueError (between old 40k and new 1M default). Claude Code client-side cap wrote it to a file; rowData + bold:true confirmed present</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Scratch tab <code>S5-R38Scratch</code>, A1:Z23 formatted as in the Setup. The inline <code>get_sheet_data(include_grid_data=True)</code> raised no server ValueError. The response was 428,787 characters (between 40,000 and 1,000,000); Claude Code's own client cap spilled it to a file. <code>rowData</code> had 23×26 cells with effectiveFormat bold=true, background {0.898, 0.949, 1} and NUMBER format. Scratch tab deleted.</p>
 <hr />
 <h3 id="tc-r04-non-existent-sheet-name">TC-R04: Non-existent sheet name<a class="headerlink" href="#tc-r04-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> The 2026-09-04 result below found this call leaked a raw <code>HttpError</code> instead of the <code>{"error": ...}</code> shape every other validation failure in these tools returns — this is <code>get_sheet_data</code>'s own instance of the broader gap tracked as issue #757 (no local validation on the raw range string handed to the Sheets values API). Fixed by wrapping this call site (and its <code>include_grid_data=True</code> sibling — see TC-R41) in <code>try/except HttpError</code>. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.</p>
@@ -2175,6 +2183,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — clear error, names the sheet, not empty result (raw HttpError, not friendly {"error"})</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>{"error": "&lt;HttpError 400 … Unable to parse range: DoesNotExist …&gt;"}</code>, a clean error dict that names the sheet.</p>
 <hr />
 <h3 id="tc-r05-non-existent-spreadsheet-id">TC-R05: Non-existent spreadsheet ID<a class="headerlink" href="#tc-r05-non-existent-spreadsheet-id" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Exercises the same <code>get_sheet_data</code> non-grid call site as TC-R04 (<code>values().get()</code>, issue #757), via an invalid <code>spreadsheet_id</code> instead of an invalid <code>sheet</code> name — same defect, same fix (<code>try/except HttpError</code>, now <code>_execute_or_error</code>). The dated Result below predates the fix and shows the pre-fix raw-<code>HttpError</code> behavior; post-fix, this returns <code>{"error": "&lt;HttpError 404 ... Requested entity was not found ...&gt;"}</code> instead.</p>
@@ -2189,6 +2198,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Invalid spreadsheet ID → HttpError 404 "Requested entity was not found." — no crash, no silent empty</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>{"error": "&lt;HttpError 404 … Requested entity was not found. …&gt;"}</code>. No crash and no silent empty result.</p>
 <hr />
 <h3 id="tc-r06-range-beyond-data-bounds">TC-R06: Range beyond data bounds<a class="headerlink" href="#tc-r06-range-beyond-data-bounds" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2202,6 +2212,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 A100:Z200 → values: [], no error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>A100:Z200</code> returned <code>values: []</code> with no error.</p>
 <hr />
 <h3 id="tc-r07-sheet-name-with-spaces-and-special-characters">TC-R07: Sheet name with spaces and special characters<a class="headerlink" href="#tc-r07-sheet-name-with-spaces-and-special-characters" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2216,6 +2227,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 'Notes &amp; Misc' resolved (spaces + &amp;); 2 rows; date cell computed</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>Notes &amp; Misc</code> resolved (range <code>'Notes &amp; Misc'</code>). 2 rows: Date/Note, then <code>11/9/2026</code>/"Setup complete". The date is TODAY() computed in the spreadsheet's <code>Etc/GMT</code> time zone; it was already 11/9 in UTC at run time.</p>
 <hr />
 <h3 id="tc-r41-malformed-range-with-include_grid_datatrue-returns-a-clean-error-issue-757">TC-R41: Malformed range with include_grid_data=True returns a clean error (issue #757)<a class="headerlink" href="#tc-r41-malformed-range-with-include_grid_datatrue-returns-a-clean-error-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-R04 covers this same defect class on <code>get_sheet_data</code>'s non-grid (<code>values().get()</code>) call site. The <code>include_grid_data=True</code> path uses a separate call (<code>spreadsheets().get(..., includeGridData=True)</code>) and had the identical gap — no local validation on the raw caller-supplied <code>range</code> string, so a malformed one reached the client as an uncaught <code>HttpError</code>. Fixed in the same PR, same <code>try/except HttpError</code> pattern.</p>
@@ -2230,6 +2242,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_data(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!", include_grid_data=True)</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>{"error": "&lt;HttpError 400 … ?ranges=Sales!!!!BadRange!!!&amp;includeGridData=true … Unable to parse range: Sales!!!!BadRange!!!&gt;"}</code>, not a raw exception. No size-cap check fired.</p>
 <hr />
 <h3 id="tc-r43-malformed-sheet-name-during-auto-detection-returns-a-clean-error-issue-757">TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)<a class="headerlink" href="#tc-r43-malformed-sheet-name-during-auto-detection-returns-a-clean-error-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> QA round 1 on PR #764 found a third, earlier call site the first pass missed: <code>include_grid_data=True</code> with no <code>range</code> triggers an auto-detect-used-range probe (<code>values().get()</code>, issue #235) <em>before</em> either TC-R04's or TC-R41's own call ever runs. A bad <code>sheet</code> name reaches this probe call raw, same gap, same fix.</p>
@@ -2244,6 +2257,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_data(spreadsheet_id, sheet="DoesNotExist", include_grid_data=True)</code> against the fixture spreadsheet returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: DoesNotExist ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>sheet="DoesNotExist", include_grid_data=True</code>, no range: returned <code>{"error": …}</code>. The failing URL is the values probe (<code>/values/DoesNotExist</code>), so the includeGridData call was never made.</p>
 <hr />
 <h2 id="get_sheet_formulas"><code>get_sheet_formulas</code><a class="headerlink" href="#get_sheet_formulas" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r08-sheet-with-formulas-returns-formula-strings">TC-R08: Sheet with formulas — returns formula strings<a class="headerlink" href="#tc-r08-sheet-with-formulas-returns-formula-strings" title="Permanent link">&para;</a></h3>
@@ -2262,6 +2276,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <code>kai-sa</code>: <code>get_sheet_formulas(Sales)</code> returned row 6 as <code>=SUM(B2:B5)</code>/<code>=SUM(C2:C5)</code>/<code>=SUM(D2:D5)</code>. Data rows came back as literal ints (100, 200, …).</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): row 6 returned as <code>=SUM(B2:B5)</code>/<code>=SUM(C2:C5)</code>/<code>=SUM(D2:D5)</code>, data rows as literals.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Row 6 came back as <code>=SUM(B2:B5)</code>/<code>=SUM(C2:C5)</code>/<code>=SUM(D2:D5)</code>. Data rows came back as literal ints (100, 120, …).</p>
 <hr />
 <h3 id="tc-r09-sheet-with-no-formulas">TC-R09: Sheet with no formulas<a class="headerlink" href="#tc-r09-sheet-with-no-formulas" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2274,6 +2289,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Empty sheet formulas → []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>get_sheet_formulas(Empty)</code> returned <code>[]</code>, no error.</p>
 <hr />
 <h3 id="tc-r10-mixed-cells-formulas-and-literals">TC-R10: Mixed cells — formulas and literals<a class="headerlink" href="#tc-r10-mixed-cells-formulas-and-literals" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2288,6 +2304,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 A2 → "=TODAY()"; B2 → "Setup complete" literal</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — A2 returned <code>=TODAY()</code>; B2 returned the literal "Setup complete".</p>
 <hr />
 <h3 id="tc-r11-no-range-provided-fetches-entire-sheet">TC-R11: No range provided — fetches entire sheet<a class="headerlink" href="#tc-r11-no-range-provided-fetches-entire-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2302,6 +2319,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 No range → all 6 rows, row 6 formula strings; matches TC-R08</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — With no range, all 6 rows came back and row 6 was formula strings, identical to TC-R08 (the same call).</p>
 <hr />
 <h3 id="tc-r42-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757">TC-R42: Malformed range returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-r42-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>get_sheet_formulas</code> had the same gap as TC-R04/TC-R41 — no local validation on the raw caller-supplied <code>range</code> string before handing it to <code>values().get(..., valueRenderOption="FORMULA")</code>.</p>
@@ -2315,6 +2333,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_formulas(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>{"result": {"error": "&lt;HttpError 400 … Unable to parse range: Sales!!!!BadRange!!! …&gt;"}}</code>, not a raw exception. The error dict sits under <code>result</code> because the tool's return type is wrapped.</p>
 <hr />
 <h2 id="get_multiple_sheet_data"><code>get_multiple_sheet_data</code><a class="headerlink" href="#get_multiple_sheet_data" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r12-multiple-valid-queries">TC-R12: Multiple valid queries<a class="headerlink" href="#tc-r12-multiple-valid-queries" title="Permanent link">&para;</a></h3>
@@ -2330,6 +2349,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Two results, correct data per sheet, no errors</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned 2 results: Sales (6 rows, Totals 650/670/705) and Notes &amp; Misc (Date/Note, 11/9/2026/Setup complete). Neither had an error.</p>
 <hr />
 <h3 id="tc-r13-one-query-with-missing-required-keys">TC-R13: One query with missing required keys<a class="headerlink" href="#tc-r13-one-query-with-missing-required-keys" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2343,6 +2363,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Sales ok; 2nd query (no sheet) → error "Missing required keys (spreadsheet_id, sheet)"; first unaffected</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — The Sales query returned its data. The second query (no <code>sheet</code>) returned <code>error: "Missing required keys (spreadsheet_id, sheet)"</code> without affecting the first.</p>
 <hr />
 <h3 id="tc-r14-all-queries-fail">TC-R14: All queries fail<a class="headerlink" href="#tc-r14-all-queries-fail" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2356,6 +2377,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Both entries have error fields; list of 2 error objects, not top-level error</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — FakeSheet1 and FakeSheet2 came back as a list of 2 entries, each with an <code>error</code> (HttpError 400 "Unable to parse range"). No top-level error.</p>
 <hr />
 <h3 id="tc-r15-empty-queries-list">TC-R15: Empty queries list<a class="headerlink" href="#tc-r15-empty-queries-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2368,6 +2390,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>[]</code>.</p>
 <hr />
 <h3 id="tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183">TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)<a class="headerlink" href="#tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #183 made <code>get_multiple_sheet_data</code> fetch all queries concurrently via <code>asyncio.gather()</code> instead of one at a time. <code>gather()</code> is documented to preserve result order regardless of completion order, but this can only be verified against the real API, not mocks. Uses 5 distinct, easily-confused ranges from the same sheet so a mixed-up result is obvious.</p>
@@ -2389,6 +2412,7 @@ No fixture setup needed — query 5 different single-cell ranges from the <code>
 5 ranges A1/B1/C1/A2/B2 → 5 results in order, each correct (Product/Q1/Q2/Widget/100), zero errors. Fresh pass supersedes 2026-07-12 FAIL</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Three 5-range orderings returned cell-exact, in-order results.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Within-call concurrency, 2 runs. A1/B1/C1/A2/B2 returned Product/Q1/Q2/Widget/100 in order. The reversed order B2/A2/C1/B1/A1 returned 100/Widget/Q2/Q1/Product. Zero errors.</p>
 <hr />
 <h3 id="tc-r39-get_multiple_sheet_data-emits-notificationsprogress-updates-as-each-query-completes-issue-355">TC-R39: <code>get_multiple_sheet_data</code> emits <code>notifications/progress</code> updates as each query completes (issue #355)<a class="headerlink" href="#tc-r39-get_multiple_sheet_data-emits-notificationsprogress-updates-as-each-query-completes-issue-355" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #355 extends #316/#319's per-item <code>ctx.report_progress()</code> pattern (originally added to <code>download_folder</code>/<code>sync_folder</code> — see TC-D199) to <code>get_multiple_sheet_data</code>'s concurrent per-query fetches: <code>ctx.report_progress(completed, total, f"{spreadsheet_id}/{sheet}: {outcome}")</code> fires from inside each query's own coroutine as it finishes, wrapped in try/except so a broken notification channel can't demote an already-successful fetch. The exact per-query call count, <code>total</code>, and message content are asserted against a mocked <code>ctx</code> in <code>tests/sheets/test_data.py::TestGetMultipleSheetData::test_reports_progress_per_query</code>/<code>test_report_progress_failure_does_not_demote_a_successful_fetch</code>.</p>
@@ -2404,6 +2428,7 @@ Three 5-range orderings returned cell-exact, in-order results.</p>
 None.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Correct results; progress notifications aren't visible in this client.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>Sales!A1:B2</code> + <code>Notes &amp; Misc!A1</code> returned 2 results (Product/Q1, Widget/100; Date) and no error. Progress notifications aren't visible in this client; the case allows that.</p>
 <hr />
 <h2 id="get_multiple_spreadsheet_summary"><code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r16-happy-path-multiple-spreadsheet-ids">TC-R16: Happy path — multiple spreadsheet IDs<a class="headerlink" href="#tc-r16-happy-path-multiple-spreadsheet-ids" title="Permanent link">&para;</a></h3>
@@ -2423,6 +2448,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <code>kai-sa</code>: <code>get_multiple_spreadsheet_summary([fixture])</code> returned all 3 sheets. Sales had headers Product/Q1/Q2/Q3 plus 4 first rows; Empty had headers [] and first_rows [].</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): all 3 sheets summarized (Sales headers Product/Q1/Q2/Q3; Notes &amp; Misc Date/Note; Empty <code>[]</code>).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — All 3 sheets came back. Sales had headers Product/Q1/Q2/Q3 and 4 first rows. Notes &amp; Misc had Date/Note. Empty had <code>headers: []</code>, <code>first_rows: []</code>.</p>
 <hr />
 <h3 id="tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183">TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)<a class="headerlink" href="#tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-R16 exercises the <em>inner</em> per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the <em>outer</em> per-spreadsheet loop, which is the part that actually became concurrent via <code>asyncio.gather()</code>. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.</p>
@@ -2442,6 +2468,7 @@ Delete the 2 throwaway spreadsheets.</p>
 3 distinct spreadsheets in one call → 3 entries in order, each title/contents match its own (marker-B / marker-C), no cross-attribution, no errors. Throwaway sheets deleted</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Created QA-Summary-183-B/-C in the run folder, with A1 <code>marker-B</code>/<code>marker-C</code>. One call over [copy, B, C] returned 3 entries in order. Each entry's title and headers were its own (marker-B/colB with rowB; marker-C/colC with rowC). No errors. Both throwaways trashed. Ran on the service account, despite the requires-oauth tag.</p>
 <hr />
 <h3 id="tc-r17-cache-hit-second-call-skips-api">TC-R17: Cache hit — second call skips API<a class="headerlink" href="#tc-r17-cache-hit-second-call-skips-api" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice in the same session)</p>
@@ -2457,6 +2484,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Second call identical; the cache-hit log line isn't visible to the client.</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account): second summary logged four <code>Sheet data cache hit: &lt;copy&gt;/&lt;sheetId&gt;</code> lines. <code>kai-oauth</code> (OAuth): three <code>Sheet data cache hit</code> lines, 0.32 s against 1.06 s uncached. Same data both times. Log lines now read <code>Sheet data cache hit: …</code> in <code>/tmp/mcp-gee-sweet.log</code>, not <code>make logs</code>.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — The second summary returned identical data. <code>/tmp/mcp-gee-sweet.log</code> showed 3 <code>Sheet data cache hit: &lt;copy&gt;/&lt;sheetId&gt;</code> lines at 20:26:34 for sheets 0/456535548/547522895. Those followed the first call's <code>Cached sheet data</code> lines at 20:26:29. The copy's ID is unique to this shard.</p>
 <hr />
 <h3 id="tc-r18-rows_to_fetch1-only-header-returned">TC-R18: rows_to_fetch=1 — only header returned<a class="headerlink" href="#tc-r18-rows_to_fetch1-only-header-returned" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2470,6 +2498,7 @@ Second call identical; the cache-hit log line isn't visible to the client.</p>
 rows_to_fetch=1 → headers present, first_rows []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Sales headers were present with <code>first_rows: []</code>, and the same held for the other sheets.</p>
 <hr />
 <h3 id="tc-r19-rows_to_fetch0-clamped-to-1">TC-R19: rows_to_fetch=0 — clamped to 1<a class="headerlink" href="#tc-r19-rows_to_fetch0-clamped-to-1" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2485,6 +2514,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 rows_to_fetch=0 clamped to 1: first_rows [] for Sales, same as TC-R18</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — This ran on a warm cache, after rows_to_fetch=5 calls (the #254 scenario). The result matched TC-R18: headers present, <code>first_rows: []</code> for every sheet.</p>
 <hr />
 <h3 id="tc-r20-spreadsheet-with-empty-sheet">TC-R20: Spreadsheet with empty sheet<a class="headerlink" href="#tc-r20-spreadsheet-with-empty-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2499,6 +2529,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Empty sheet entry headers [] / first_rows []; no error; other sheets fine</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — The Empty entry had <code>headers: []</code>, <code>first_rows: []</code>, <code>error: null</code>. Sales and Notes &amp; Misc were unaffected (from the TC-R16 call).</p>
 <hr />
 <h3 id="tc-r21-invalid-spreadsheet-id-in-list">TC-R21: Invalid spreadsheet ID in list<a class="headerlink" href="#tc-r21-invalid-spreadsheet-id-in-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2513,6 +2544,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Valid → normal summary; "invalidid123xyz" → error field; both present</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — The copy got a normal summary. <code>invalidid123xyz</code> got <code>error: "Error fetching spreadsheet invalidid123xyz: &lt;HttpError 404 … Requested entity was not found.&gt;"</code>. Both entries were present, with no top-level error.</p>
 <hr />
 <h3 id="tc-r22-range-format-verification">TC-R22: Range format verification<a class="headerlink" href="#tc-r22-range-format-verification" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2527,6 +2559,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D present</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — With rows_to_fetch=3, Sales returned its header plus Widget 100/120/140 and Gadget 200/180/220. Columns B–D were present.</p>
 <hr />
 <h3 id="tc-r40-get_multiple_spreadsheet_summary-emits-notificationsprogress-updates-as-each-spreadsheet-finishes-issue-355">TC-R40: <code>get_multiple_spreadsheet_summary</code> emits <code>notifications/progress</code> updates as each spreadsheet finishes (issue #355)<a class="headerlink" href="#tc-r40-get_multiple_spreadsheet_summary-emits-notificationsprogress-updates-as-each-spreadsheet-finishes-issue-355" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Same #355 pattern as TC-R39, applied to <code>get_multiple_spreadsheet_summary</code>'s concurrent per-spreadsheet outer loop (the same loop TC-R37 exercises for cross-attribution): <code>ctx.report_progress(completed, total, f"{spreadsheet_id}: {outcome}")</code> fires from inside each spreadsheet's own coroutine as its summary finishes. Unit-tested against a mocked <code>ctx</code> in <code>tests/sheets/test_data.py::TestGetMultipleSpreadsheetSummary::test_reports_progress_per_spreadsheet</code>/<code>test_report_progress_failure_does_not_demote_a_successful_summary</code>.</p>
@@ -2542,6 +2575,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 None.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Correct results; progress notifications aren't visible in this client.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — This is the same call as TC-R21 (an identical prompt): 2 entries, the invalid one with <code>error</code>, no top-level error. Progress notifications aren't visible in this client; the case allows that.</p>
 <hr />
 <h2 id="find_in_spreadsheet"><code>find_in_spreadsheet</code><a class="headerlink" href="#find_in_spreadsheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r23-match-found-in-specific-sheet">TC-R23: Match found in specific sheet<a class="headerlink" href="#tc-r23-match-found-in-specific-sheet" title="Permanent link">&para;</a></h3>
@@ -2560,6 +2594,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 <code>kai-sa</code>: <code>find_in_spreadsheet("Gadget", sheet=Sales)</code> returned one match: Sales A3 "Gadget" (row 3).</p>
 <p><strong>Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3</strong>
 <code>kai-sa</code> (service account) and <code>kai-oauth</code> (OAuth): <code>find_in_spreadsheet("Gadget", Sales)</code> → Sales A3.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned one match: <code>{sheet: Sales, cell: A3, value: Gadget}</code>.</p>
 <hr />
 <h3 id="tc-r24-match-across-all-sheets">TC-R24: Match across all sheets<a class="headerlink" href="#tc-r24-match-across-all-sheets" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2573,6 +2608,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 Match in 'Notes &amp; Misc' B2; all sheets searched</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — With no sheet filter, the match was Notes &amp; Misc B2 "Setup complete".</p>
 <hr />
 <h3 id="tc-r25-case-insensitive-match-default">TC-R25: Case-insensitive match (default)<a class="headerlink" href="#tc-r25-case-insensitive-match-default" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2586,6 +2622,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 lowercase 'gadget' matched "Gadget" (case-insensitive default)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>gadget</code> matched Sales A3 "Gadget".</p>
 <hr />
 <h3 id="tc-r26-case-sensitive-match">TC-R26: Case-sensitive match<a class="headerlink" href="#tc-r26-case-sensitive-match" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2599,6 +2636,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 case_sensitive=true 'gadget' → []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>gadget</code> with <code>case_sensitive=true</code> returned <code>[]</code>.</p>
 <hr />
 <h3 id="tc-r27-max_results-respected">TC-R27: max_results respected<a class="headerlink" href="#tc-r27-max_results-respected" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2612,6 +2650,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 'Q' max_results=2 → exactly 2 results</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>Q</code> with <code>max_results=2</code> returned exactly 2 matches (B1 Q1, C1 Q2).</p>
 <hr />
 <h3 id="tc-r28-no-matches">TC-R28: No matches<a class="headerlink" href="#tc-r28-no-matches" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2624,6 +2663,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 'ZZZnoMatch' → []</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>[]</code>.</p>
 <hr />
 <h3 id="tc-r29-sheet-name-not-found">TC-R29: Sheet name not found<a class="headerlink" href="#tc-r29-sheet-name-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2637,6 +2677,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 sheet 'DoesNotExist' → [{"error":"Sheet 'DoesNotExist' not found"}], names the sheet</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Returned <code>[{"error": "Sheet 'DoesNotExist' not found"}]</code>.</p>
 <hr />
 <h3 id="tc-r30-multiple-column-matches-in-same-row">TC-R30: Multiple column matches in same row<a class="headerlink" href="#tc-r30-multiple-column-matches-in-same-row" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2650,6 +2691,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 'Q' in Sales → separate results for Q1/Q2/Q3 (per-cell granularity)</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — <code>Q</code> in Sales returned 3 separate results: B1 Q1, C1 Q2, D1 Q3.</p>
 <hr />
 <h2 id="get_sheet_data-effectiveformat-assertions"><code>get_sheet_data</code> — effectiveFormat assertions<a class="headerlink" href="#get_sheet_data-effectiveformat-assertions" title="Permanent link">&para;</a></h2>
 <p>These tests follow a setup→assert→teardown pattern. Apply format via <code>batch_update</code>, assert via <code>get_sheet_data(include_grid_data=True)</code>, then clear via <code>batch_update { cell: {}, fields: "userEnteredFormat" }</code>.</p>
@@ -2674,6 +2716,7 @@ Clear <code>userEnteredFormat</code> from A1 via <code>batch_update → repeatCe
 A1 effectiveFormat.textFormat.bold=true, italic=false, formattedValue "Product"; format cleared in teardown</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — After the repeatCell bold on A1: <code>effectiveFormat.textFormat.bold=true</code>, <code>italic=false</code>, formattedValue "Product". Grid data was read via <code>local_path</code> to keep context small. userEnteredFormat cleared afterward.</p>
 <hr />
 <h3 id="tc-r32-background-color-and-italic-readable-via-effectiveformat">TC-R32: Background color and italic readable via effectiveFormat<a class="headerlink" href="#tc-r32-background-color-and-italic-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2696,6 +2739,7 @@ Clear <code>userEnteredFormat</code> from B1.</p>
 B1 effectiveFormat italic=true, bold=false, backgroundColor {red:1,green:0.8980392,blue:0.6}; cleared</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — B1 read back <code>italic=true</code>, <code>bold=false</code>, and backgroundColor <code>{red:1, green:0.8980392, blue:0.6}</code>. Cleared afterward.</p>
 <hr />
 <h3 id="tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat">TC-R33: Number format and formattedValue readable via effectiveFormat<a class="headerlink" href="#tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2717,6 +2761,7 @@ Clear <code>userEnteredFormat</code> from B2.</p>
 B2 numberFormat {CURRENCY, "$#,##0.00"}, formattedValue "$100.00", effectiveValue.numberValue 100; cleared</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — B2 read back numberFormat <code>{CURRENCY, "$#,##0.00"}</code>, formattedValue "$100.00", and <code>effectiveValue.numberValue</code> 100. Cleared afterward.</p>
 <hr />
 <h3 id="tc-r34-get_multiple_sheet_data-queries-that-are-each-under-the-cap-trip-it-together-issue-242">TC-R34: get_multiple_sheet_data — queries that are each under the cap trip it together (issue #242)<a class="headerlink" href="#tc-r34-get_multiple_sheet_data-queries-that-are-each-under-the-cap-trip-it-together-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #242 generalized #235's response-size safety net beyond <code>get_sheet_data</code>. For <code>get_multiple_sheet_data</code>, the cap applies to the combined response, so several queries that are each under it can be over it together.</p>
@@ -2734,6 +2779,7 @@ local_path branch: 2 queries → {local_path, bytes_written 440, query_count 2},
 <p><strong>Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass</strong>
 local_path part passes; the 200-query cap check is stale since #519 and was not run.
 <strong>Corrected (2026-10-17, #1044 audit):</strong> the 200-query cap check wasn't run.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Wrote <code>=REPT("PADTEST marker ", 2000)</code> to Empty!A1:A40 on the copy. Two queries (A1:A20, A21:A40) raised "the response is 1200471 characters, over the 1000000-character safety cap … MAX_TOOL_RESPONSE_CHARS". With <code>local_path</code>, the call returned <code>{local_path, bytes_written: 1200471, query_count: 2}</code>. The file held both queries with 20 rows each of 30,000-char values.</p>
 <hr />
 <h3 id="tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242">TC-R35: find_in_spreadsheet — max_results bounds count, not size (issue #242)<a class="headerlink" href="#tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>max_results</code> (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.</p>
@@ -2750,6 +2796,7 @@ Write <code>=REPT("PADTEST marker ", 2000)</code> (30,000 characters) into each 
 Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trips the 1,000,000 default. Cap + local_path mechanism covered by TC-R03c/d. Skipped rather than add fixture churn for no signal</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 40 REPT cells of 30k chars (1,201,911 chars) trip the 1M cap; local_path returns match_count 40. TC setup still cites the 40k cap (stale).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Used the same setup. <code>find_in_spreadsheet("PADTEST")</code> raised "the response is 1201911 characters, over the 1000000-character safety cap" with 40 matches, under max_results 50. With <code>local_path</code>, it returned <code>{local_path, spreadsheet_id, query, match_count: 40, bytes_written: 1201911}</code>, and the file held all 40 matches (A1–A40). Teardown <code>clear_values(Empty, A1:A40)</code> done; scratch files deleted.</p>
 <hr />
 <h3 id="tc-r44-a-sheet-name-with-or-writes-inside-the-chosen-local_path-directory-pr-1000-qa-round-2-issue-990-local-filesystem">TC-R44: A sheet name with <code>/</code> or <code>..</code> writes inside the chosen <code>local_path</code> directory (PR #1000 QA round 2, issue #990) ⚠️ local-filesystem<a class="headerlink" href="#tc-r44-a-sheet-name-with-or-writes-inside-the-chosen-local_path-directory-pr-1000-qa-round-2-issue-990-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><code>get_sheet_data</code> names its file <code>&lt;sheet&gt;_data.json</code>. Before the fix, a tab named <code>../x</code> wrote <code>x_data.json</code> beside the chosen directory, and a tab named <code>a/b</code> created a subdirectory.</p>
@@ -2765,6 +2812,11 @@ Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trip
 <p><strong>Result (2026-10-11) ✅ PASS — Kit, PR #1000 round 3 (<code>290f5bc</code>).</strong> Ran under this job's scratch dir instead of <code>/tmp</code>. Used <code>TEST_SPREADSHEET_ID</code>. Step 1 returned <code>&lt;dir&gt;/out/.._x_data.json</code> (117 bytes), step 2 <code>&lt;dir&gt;/out/a_b_data.json</code> (116 bytes). <code>&lt;dir&gt;</code> lists only <code>out</code>, and <code>out</code> lists exactly those two files. Both tabs deleted afterward.</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Ran under the shard scratch dir instead of <code>/tmp</code>, with tabs <code>../x</code> and <code>a/b</code> on the copy. Step 1 returned <code>&lt;dir&gt;/qa-990-sheet/out/.._x_data.json</code> (117 bytes). Step 2 returned <code>&lt;dir&gt;/qa-990-sheet/out/a_b_data.json</code> (116 bytes). <code>qa-990-sheet</code> listed only <code>out</code>, and <code>out</code> listed exactly those two files: no <code>a/</code> subdirectory, nothing beside <code>out</code>. Both tabs deleted, dir removed.</p>
+<hr />
+<p>Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
+Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
+Filed as #1430 (cosmetic): get_sheet_data(include_grid_data=True) cap error reads "Narrow the range, or Pass local_path …" (capital P mid-sentence; <code>tools/sheets/data.py</code> hint + <code>enforce_response_size_cap</code> text).</p>
 
 
 
