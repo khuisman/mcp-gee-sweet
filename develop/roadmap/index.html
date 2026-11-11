@@ -2354,6 +2354,19 @@
 <li>[ ] Docs: <code>upload_local_file</code> should say how to get a converted Doc's title without <code>.md</code>; after community PR #1361 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1411">#1411</a>)</li>
 <li>[ ] <code>upload_local_file(convert=True)</code>: a dotted title is read as a file extension — <code>loud/narrow</code>; after community PR #1361 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1412">#1412</a>)</li>
 </ul>
+<p><strong>Triaged in 2026-11-10</strong> <em>(v0.9.6 release-pass findings, placed here by the maintainer 2026-11-08; #1439 and #1440 by the maintainer 2026-11-10)</em></p>
+<ul>
+<li>[ ] HTML: an <code>&lt;li&gt;</code> holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1414">#1414</a>)</li>
+<li>[ ] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1415">#1415</a>)</li>
+<li>[ ] <code>upload_local_folder</code> on a large folder: no progress, uploads one at a time, and a failed file isn't logged — observed, TC-D300 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1416">#1416</a>)</li>
+<li>[ ] HTML input: <code>&lt;pre&gt;</code> inside a table cell isn't styled as code (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1417">#1417</a>)</li>
+<li>[ ] HTML input: the space after a nested table in a cell is kept, indenting the next line (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1418">#1418</a>)</li>
+<li>[ ] QA: Gmail purges the spam/trash fixtures after 30 days; check them before a pass — Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1420">#1420</a>)</li>
+<li>[ ] An inline image whose one-off fetch fails isn't retried, so the same Markdown renders differently between runs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1428">#1428</a>)</li>
+<li>[ ] <code>get_sheet_data</code> cap error: "or Pass local_path" reads as two broken sentences (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1430">#1430</a>)</li>
+<li>[ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — <code>wrong/narrow</code>, regression since v0.9.5 (PR #1438); documented in known-limitations with the <code>apply_theme</code> workaround (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1439">#1439</a>)</li>
+<li>[ ] <code>get_doc_theme</code> reads text added after a collapsed final table as the doc's body style — <code>wrong/narrow</code>, regression since v0.9.5 (PR #1438) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1440">#1440</a>)</li>
+</ul>
 <p><strong>Bundled 2026-11-01</strong> <em>(maintainer's ankylosaurus scoping)</em></p>
 <ul>
 <li>[ ] <strong>Bundle:</strong> <code>font_family</code> / <code>style_doc_range</code> text-style builder: one PR closing #1038, #1300, #1289 and #1037. #1300 and #1289 are #1273's two follow-ups, so the chain stop rule applies (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/1338">#1338</a>)</li>
