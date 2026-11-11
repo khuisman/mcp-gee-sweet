@@ -28,6 +28,8 @@ list_file_activity({DOC_ID}) -> file_id matches; activities is a list of 5; ever
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_file_activity({DOC_ID}, page_size=10)` → file_id matches; 20 activities (API grouping), each with timestamp/action/actors; actions `edit`, `comment` (allowed set); no `error`.
+
 ---
 
 ### TC-D164: Known-user actor structure
@@ -48,6 +50,8 @@ Each actor: type:"user", person_name:"people/108427788683920971958", is_current_
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — actors `type: "user"`, `person_name: "people/1084…"`, `is_current_user: false` (boolean). On {SPREADSHEET_ID} the SA's own edits show `is_current_user: true`.
+
 ---
 
 ### TC-D165: Pagination — next_page_token present when results exceed page_size
@@ -67,6 +71,8 @@ list_file_activity({DOC_ID}, page_size=1) -> 2 activities returned (Drive Activi
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `page_size=1` → 2 activities and a `next_page_token`.
+
 ---
 
 ### TC-D166: Invalid file ID returns error (unit test)
@@ -82,6 +88,8 @@ Unit-test-only check (HTTP 403/404 -> {"error": ...}); no live fixture that is r
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — live `list_file_activity("invalidid123xyz")` returned `{"error": "<HttpError 500 … Internal error encountered.>"}`, a dict, not a raise. (Drive Activity answers a bad ID with 500, not 403/404; Google's behavior.)
+
 ---
 
 ### TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)
@@ -95,5 +103,11 @@ N/A by design (#242 decision doc). Sanity: list_file_activity({SPREADSHEET_ID}, 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — sanity: `list_file_activity({SPREADSHEET_ID}, page_size=5)` → normal 10-entry list with next_page_token, no cap error. Cap trigger is unit-tested only (by design, #242).
+
+---
+Cleanup: run folder trashed (`delete_file`, not permanent); no files kept (no FAIL). Every share removed. Screenshot: `G/shots/2026-11-08-tc-d136.png` (Playwright's allowed roots forced saving under the worktree's ignored `.playwright-mcp/` first; moved out to scratch).
+Stale case wording noticed: TC-D31's 'test' query returns nothing for the SA, so the cap needs another query to be exercised; TC-D121's "non-matching drive absent" has nothing to compare when only one drive is visible; TC-D166 is no longer unit-test-only (runs live, and the API answers 500 for a bad ID, not 403/404).
 
 ---

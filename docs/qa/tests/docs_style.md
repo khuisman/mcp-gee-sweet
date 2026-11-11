@@ -33,6 +33,8 @@ Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual n
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — "P12 style test" [88,103] styled HEADING_2 → `requests: 1`; re-fetch `namedStyleType: HEADING_2` with a headingId. Playwright: renders as a Heading 2 and appears in the outline (shot tc-doc12).
+
 ---
 
 ### TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
@@ -57,6 +59,8 @@ bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyl
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [103,116] bold+italic+red → `requests: 1`; run `bold: true, italic: true`, paragraph still NORMAL_TEXT. Playwright: "P13 bold test" renders bold italic red (shot tc-doc12).
+
 ---
 
 ### TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
@@ -76,6 +80,8 @@ HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [117,128] HEADING_3 + bold → `requests: 2`; re-fetch HEADING_3 and run `bold: true`.
+
 ---
 
 ### TC-DOC15: No recognised style fields returns error
@@ -93,6 +99,8 @@ Range with no style fields -> {"error":"no recognised style fields in any range"
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — range [117,128] with no style fields → `{"error":"no recognised style fields in any range"}`.
 
 ---
 
@@ -120,6 +128,8 @@ grey background visible
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — 2×2 table, row 0 background 0.953 with column_span 2 → `requests: 1`. Playwright: header row grey across both cells; raw read shows both row-0 cells backgroundColor 0.953.
+
 ---
 
 ### TC-DOC19: Apply borders and padding ⚠️ destructive
@@ -142,6 +152,8 @@ borders visible on all 4 cells; padding not independently visible (empty cells) 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — all 4 cells black 0.5pt SOLID + 3.6pt padding → `requests: 4`, no error. Raw read: every cell has all four borders at 0.5pt SOLID and 3.6pt padding (untouched tables show 5pt). Playwright: thin black borders visible.
+
 ---
 
 ### TC-DOC20: Empty cells list returns error
@@ -159,6 +171,8 @@ Empty cells list -> {"error":"cells list is empty"}.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — `cells=[]` → `{"error":"cells list is empty"}`.
 
 ---
 
@@ -180,6 +194,8 @@ One styled cell + one no-style cell; requests:1 (no-style cell skipped).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [0,0] background red + [0,1] with no fields → `requests: 1`. Raw read: only [0,0] has a background; Playwright shows one red cell.
 
 ---
 
@@ -208,6 +224,8 @@ light blue background visible, distinct from TC-DOC18's grey
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [0,0] background 0.8/0.9/1.0 → `requests: 1`, no oneof 400. Playwright: cell [0,0] light blue, clearly distinct from TC-DOC18's grey.
+
 ---
 
 ## `get_doc_theme` / `get_doc_named_styles` / `apply_theme`
@@ -230,6 +248,8 @@ get_doc_named_styles returned Google default entries (9 keys), no error key — 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Read-only on the fixture doc: returned 9 entries (NORMAL_TEXT Arial 11, HEADING_1–6, TITLE, SUBTITLE at Google defaults), no `error` key.
 
 ---
 
@@ -254,6 +274,8 @@ get_doc_theme on inherited-style doc returned {} — expected, no error.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Fixture doc (inherited styles) → `{}`, no error. On a doc after `apply_theme overwrite=True` (TC-DOC56's doc) it returned `{"HEADING_1":{"font_family":"Georgia"},"NORMAL_TEXT":{"font_family":"Verdana"}}`.
+
 ---
 
 ### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
@@ -274,6 +296,10 @@ apply_theme HEADING_1+NORMAL_TEXT -> {docId, requests:2} = key count; no error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc "QA-orn-D theme53" (h1 + p); theme HEADING_1 + NORMAL_TEXT → `{"docId", "requests": 2}` = key count, no error.
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — On a fixture copy, the HEADING_1 + NORMAL_TEXT theme returned `requests: 2`, equal to the key count, with no error; a raw read shows NORMAL_TEXT Verdana/11 and HEADING_1 Georgia/22.
 
 ---
 
@@ -298,6 +324,10 @@ Georgia 22pt heading / Verdana body confirmed both visually and via toolbar read
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc "QA-orn-D theme54": wrote `<h1>Heading One</h1><p>Normal body text.</p>`, applied the theme with overwrite=True → `requests: 5` (> 2 keys), no error. Raw read: heading run Georgia, body runs Verdana. Playwright: heading shows Georgia/22 in the toolbar; body renders in Verdana (shot tc-doc54).
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — With `overwrite=True` the theme returned `requests: 5`, no error. The heading run reads Georgia and the body run Verdana; on screen the toolbar shows Georgia/22 and the body renders in Verdana.
+
 ---
 
 ### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
@@ -321,6 +351,10 @@ grey header row, black borders, visible padding
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc with a 2-row table; table theme → `requests: 2`, no error. Raw read: all cells 0.5pt SOLID black borders and 3.6pt padding, row 0 background 0.953. Playwright: thin black borders, grey header row (shot tc-doc55).
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `requests: 2`, no error; every cell has 0.5pt solid black borders and 3.6pt padding, and the header row is grey, in the raw read and on screen. Extra #1427 check: a table-only theme kept the paragraph gaps on both sides of the table; a later `apply_theme({"NORMAL_TEXT": {"space_below": 4}})` cleared the gap below the paragraph before the table and kept the gap above the paragraph after it.
+
 ---
 
 ### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
@@ -343,6 +377,10 @@ round-tripped Georgia/Roboto fonts render distinctly
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — On TC-DOC54's doc (explicit Georgia/Verdana run fonts): `get_doc_theme` → `{"HEADING_1":{"font_family":"Georgia"},"NORMAL_TEXT":{"font_family":"Verdana"}}`; applying it back with overwrite=True → `requests: 5`, no error in either.
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `get_doc_theme` returned Georgia/Verdana; applying it back with `overwrite=True` returned `requests: 5`; neither call errored.
 
 ---
 
@@ -377,6 +415,8 @@ style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Black 1pt equals the default border, so the API omits it; verified with a non-default red 1.5pt border. TC wording stale.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — 2×1 table, [0,0] `border_bottom` red 1.5 → `requests: 1`, no error. Raw read: [0,0] has `borderBottom` red, 1.5pt SOLID, with no borderTop/Left/Right ([1,0] reports the same shared edge as its `borderTop`). Playwright: red line between the two rows.
+
 ---
 
 ### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
@@ -404,6 +444,10 @@ apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -> {
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc with a 2×2 table; the exact theme → `requests: 2`, no error. Raw read: row 0 all edges 0.5pt; row 1 top/left/right 0.5pt and borderBottom 2pt. Black reads back as `{}`, so I repeated it with uniform color blue: every edge, including the 2pt last-row bottom, carried blue (inherited). Playwright shows the thick blue bottom edge (shot tc-doc147, blue probe state).
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — `requests: 2`, no error; the last row's bottom border is 2pt and every other edge 0.5pt, inheriting the uniform colour (confirmed with a blue probe, since black reads back as `{}`).
+
 ---
 
 ## `style_doc_range` — additional coverage
@@ -427,6 +471,8 @@ strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [129,144] strikethrough → `requests: 1`; run `strikethrough: true` (also visibly struck through in shot tc-doc12).
+
 ---
 
 ### TC-DOC29: Apply font_size ⚠️ destructive
@@ -448,6 +494,8 @@ font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [145,158] font_size 18 → `requests: 1`; run `font_size: 18`. Playwright: "P29 size test" is visibly larger than the body text (shot tc-doc12).
 
 ---
 
@@ -472,6 +520,8 @@ link_url https://example.com on "example" [7,14]; requests:1; run split — "Vis
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — "example" [165,172] linked → `requests: 1`; runs split "Visit "(null) / "example"(https://example.com, underline auto-added) / "\n"(null). Playwright: blue underlined hyperlink (shot tc-doc12).
 
 ---
 
@@ -502,6 +552,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: On the fresh doc: inserted "Style-test heading\n" at [1,20], then `style_doc_range` HEADING_1 returned `requests: 1`. `get_doc_structure`: HEADING_1 (headingId set), text unchanged. Cleanup done (restyled NORMAL_TEXT, deleted).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — "Style-test heading" [187,206] HEADING_1 → `requests: 1`; re-fetch HEADING_1 with headingId, text unchanged.
+
 ---
 
 ### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
@@ -531,6 +583,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: Inserted "Bold-italic test\n" at [1,18], then `style_doc_range([1,17], bold, italic)` returned `requests: 1`. The run reads `bold: true, italic: true`, and namedStyleType stayed NORMAL_TEXT. Paragraph deleted.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — [206,222] bold+italic → `requests: 1`; run `bold: true, italic: true`; namedStyleType stayed NORMAL_TEXT.
+
 ---
 
 ### TC-DOC230: `font_family` sets the font through `style_doc_range` and `insert_softbreak_paragraph` (#720) ⚠️ destructive
@@ -555,6 +609,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: Step 1 returned `requests: 3`, no error. Step 2 returned line_ranges [18,26] and [27,35], no error. Playwright, reading the toolbar after clicking into each word: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial. `get_doc_as_markdown` gives "Alpha \`Beta\` *Gamma*\n\nLine one<br>Line two", so only Beta is inline code. Structure shows "Line one\vLine two" as one paragraph [18,36]. Screenshot `2026-10-19-tc-doc230.png`. Doc trashed. Side note: `insert_softbreak_paragraph`'s docstring still doesn't list `font_family` (tracked, #1037).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Setup as written (doc in run folder). Step 1 → `requests: 3`, no error; step 2 → line_ranges [18,26] and [27,35], no error. Playwright, mouse-clicking into each word and reading the toolbar: Alpha=Georgia; Beta=Courier New + bold; Gamma=Arial + italic; Line one=Georgia; Line two=Arial, shown on adjacent lines with no paragraph gap (shot tc-doc230). Raw read: "Line one\vLine two" is one paragraph. `get_doc_as_markdown` gives "Alpha \`Beta\` *Gamma*\n\nLine one<br>Line two", so only Beta is inline code. (Keyboard ArrowRight didn't move the Docs cursor in the shared browser; mouse clicks did.)
+
 ### TC-DOC238: `font_family` keeps the range's other text styles, and a call without it keeps the font (#720) ⚠️ destructive
 **Purpose:** TC-DOC230 checks that the font lands. This case checks what a `font_family` call leaves alone: bold already on the range, the other fields in the same call, and an existing font when a later call omits `font_family`. `get_doc_structure` doesn't report a run's font, so the checks read the raw `documents().get()` `textStyle`.
 
@@ -574,6 +630,8 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 
 **Result (2026-10-27) ❌ FAIL — Beta loses its bold (#1273)**
 Run against PR #1026's merge in an isolated service-account sandbox on a Shared Drive. Steps 1 and 2 returned `requests: 2` and `requests: 4`, no error. Raw read: Alpha `{"weightedFontFamily": {"fontFamily": "Roboto Mono", "weight": 400}}`, with plain spaces around it. Gamma `bold: true`, `fontSize` 18pt, Georgia. Delta `italic: true`, Courier New. **Beta** is `{"weightedFontFamily": {"fontFamily": "Georgia", "weight": 400}}` with no `bold`. Re-bolding Beta and then sending `font_family: "Courier New"` alone cleared it again. The request's field mask is only `weightedFontFamily`, so the Docs API clears `bold` on its own. Docs UI rendering wasn't checked here (TC-DOC230 covers the font on screen). Doc trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Step 1 → `requests: 2`; step 2 → **`requests: 5`** (the case says 4). The fifth is the #1273 fix's bold-restore `updateTextStyle` on Beta (`style.py` ~L541, PR #1279), so the case's count is stale wording, not a defect. Raw read: Alpha Roboto Mono, with plain spaces on each side; Beta Georgia **and `bold: true`** (the 2026-10-27 FAIL is fixed; #1273 closed 2026-10-31); Gamma bold + 18pt + Georgia; Delta italic + Courier New.
 
 ---
 
@@ -607,6 +665,8 @@ link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Clearing the link also cleared the auto-added underline; TC wording stale.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Second "Visit example": linked [179,186], then `link_url: null` → `requests: 1`, no HttpError. Re-fetch: "example" run `link_url: null`, `underline: null`. Playwright: second line renders as plain black text, not a link (shot tc-doc12).
+
 ---
 
 ### TC-DOC140: `insert_softbreak_paragraph`'s `link_url: null` also clears rather than erroring (shared helper)
@@ -630,6 +690,10 @@ insert_softbreak_paragraph index 1, line link_url:null; no error; line_ranges 1 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — index 1, one line, link_url null → no error, `line_ranges: [{1,20}]`; the run's `link_url: null`. As in the 2026-07-27 note, the text joined the "Test Document" paragraph and the default NORMAL_TEXT restyled it (documented behaviour, throwaway copy).
+
+Table cases DOC18/19/20/21/25/146 ran on one fresh doc "QA-orn-D tables" (1wN9rY...), one table per case, top-to-bottom 18, 19, 21, 25, 146; shared screenshot `shardD-2026-11-08-tc-doc18.png`, plus a raw `documents().get()` read (scratch script `tmp/D/rawget.py`, run from Aziz's worktree with its own token, read-only).
 
 ---
 
@@ -659,6 +723,8 @@ write md (4-space nested); both list items bullet non-null, share listId kix.io6
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc, `write_doc_content` with the 4-space Markdown: both items share listId `kix.m8npadf4rly`; "Top level item" nestingLevel 0, "Nested item" nestingLevel 1.
 
 ---
 
@@ -697,6 +763,8 @@ Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc. First structure: all 6 items share one listId at level 0. `create_paragraph_bullets([45,99] nesting 1)` → `requests: 6`, no error. Second structure: Select/Configure/Click Restore at 0; the three settings at 1; one shared listId; text unchanged, no tab leaked. Playwright: 1./2. with a./b./c. nested under Configure, and "Click Restore" is 3. (shot tc-doc156).
+
 ---
 
 ### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
@@ -726,6 +794,8 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc. Deleting [12,24] → `requests: 1`. First/Third keep listId `kix.f9edw1oie4w`; Second `bullet: null`, text "Second item\n" unchanged.
 
 ---
 
@@ -764,6 +834,8 @@ Note: sharing the fixture doc to the Playwright browser's own Google identity (T
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get() reads.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc. Alpha/Beta/Gamma started on one listId at level 0. `create_paragraph_bullets([1,18] nesting 1)` → `requests: 8`, no error (one more than the 7 recorded earlier, consistent with #1069's indent reset). After: all three on one new listId at nestingLevel 1, text/indices unchanged, no anchor left behind, trailing paragraph `bullet: null`. Raw read: nestingLevels[1] glyph ○ vs [0] ●, and indents 72/54. Playwright: three ○ items at one indented level (shot tc-doc191).
+
 ---
 
 ### TC-DOC234: `create_paragraph_bullets` sets `nesting_level` absolutely on already-listed paragraphs (#1069) ⚠️ destructive
@@ -795,5 +867,10 @@ Then: "Flatten Gamma to level 1, then put it back at level 2." Tool calls: `crea
 **Cleanup:** write fixture content back to the documented baseline (`docs/qa/setup.md`): `write_doc_content(doc_id={DOC_ID}, content='<h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>')`.
 
 **Result (2026-10-24) ✅ PASS (PR #1216 round 1, head `5de64c4`, Sky)** — Run on a throwaway doc (created via `create_doc`, trashed afterward) instead of the shared fixture, so no fixture cleanup was needed. All steps as written: the first numbered call gave 0/1/2 on one `listId`; the repeated call gave 0/1/2 (not 0/2/4); the Beta-only call gave 0/1/2 with Gamma kept at 2; flattening Gamma gave 0/1/1, and putting it back gave 0/1/2 (not 3). Every call returned 5 requests and no error. No tab leaked into any `text`, and no paragraph was added: the trailing empty paragraph came from the markdown write and was there before the first call. Extra probes: (a) an emitter-written 0/1/2 list (`- pa` / 4-space `- pb` / 8-space `- pc`), re-bulleting only `pb` at level 1, gave 0/1/2, and a raw `documents().get()` showed the preset indents 36/18, 72/54, 108/90, so the explicit 0pt reset doesn't survive the bullet. (b) `delete_paragraph_bullets` over the three left `pa` with no indent and `pb`/`pc` at 36/36 and 72/72, as the new docstring says. Then `create_paragraph_bullets` on `pb`@1 + `pc`@2 (the #713 anchor path, starting from leftover indent) gave 1/2, with the anchor removed (7 requests), and the same result again on a repeat. (c) A quoted list item (72/54 + `borderLeft`) came out at 36/18 with the border kept; that's the pre-existing #1090, not this PR. `get_doc_as_markdown` still printed the `>`. Note for the next run: this markdown parser needs 4-space list nesting, and a 2-space nested item is written flat at level 0, quoted or not.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard D on `mcp-gee-sweet-ash`** — Throwaway doc. First numbered call → 0/1/2 on one listId; the repeat stays 0/1/2 (indents 36/72/108, not doubled); Beta-only → 0/1/2 with Gamma kept at 2; flattening Gamma → 0/1/1, back to 2 → 0/1/2. Every call returned `requests: 5` and no error, with one shared listId each time, no leaked tab and no extra paragraph. Intermediate states read through a raw `documents().get()`, the last two through `get_doc_structure`.
+
+---
+Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with every doc in it. No case failed, so nothing was kept. The fixture doc was only read. Totals: 31 PASS, 0 FAIL, 0 PARTIAL, 0 SKIP.
 
 ---
