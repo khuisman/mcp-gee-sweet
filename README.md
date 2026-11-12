@@ -216,7 +216,7 @@ Some MCP clients cap how many tools they accept, and with every tool registered 
 
 | Client | Limit |
 |---|---|
-| VS Code + GitHub Copilot (agent mode) | 128 tools per request, built-in tools included. Over it, every request fails with "Cannot have more than 128 tools per request" |
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, built-in tools included. Current builds look tools up on demand and handle the full set; a build that sends every tool fails with "Cannot have more than 128 tools per request" |
 | Windsurf | 100 tools in total, across all servers |
 | Cursor | Depends on the model ("Too many MCP tools are enabled for this mode") |
 | Google Antigravity | 100 tools per server (user report) |

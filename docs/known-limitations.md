@@ -601,9 +601,11 @@ server.
 ### Some clients refuse the full tool set
 
 **What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
-128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
-model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+MCP clients. VS Code with GitHub Copilot allows 128 tools per request: current builds look tools
+up on demand and handle the full set, but a build that sends every tool with each request fails
+with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
+Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
+uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own, and the server registers every tool unless told
