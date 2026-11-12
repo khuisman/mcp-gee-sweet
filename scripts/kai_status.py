@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -252,6 +253,52 @@ def _labels(item: dict) -> list[str]:
     return [lb["name"] for lb in item.get("labels", [])]
 
 
+# kai.md "Stalled community PRs": a community PR is stalled once it has carried
+# `awaiting-contributor` this many days with no push and no reply since.
+STALL_DAYS = 14
+
+
+def _event_time(event: dict) -> str | None:
+    """When a timeline event happened. A review has `submitted_at` and a commit
+    only its git committer date; every other event has `created_at`."""
+    return (
+        event.get("created_at")
+        or event.get("submitted_at")
+        or (event.get("committer") or {}).get("date")
+    )
+
+
+def waiting_days(timeline: list[dict], author: str, now: datetime) -> int | None:
+    """Days a PR has waited on its contributor, or None if it isn't waiting.
+
+    The wait starts at the latest `awaiting-contributor` label event and ends
+    at any push to the branch after it (a commit or a force-push, by anyone)
+    or any comment or review by the PR's author. A commit's time is its git
+    committer date, which the committer sets; it's what the timeline API has.
+    """
+    start = None
+    for e in timeline:
+        if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == (
+            "awaiting-contributor"
+        ):
+            t = _event_time(e)
+            if t and (start is None or t > start):
+                start = t
+    if start is None:
+        return None
+    for e in timeline:
+        kind = e.get("event")
+        t = _event_time(e)
+        if not t or t <= start:
+            continue
+        if kind in ("committed", "head_ref_force_pushed"):
+            return None
+        who = (e.get("actor") or e.get("user") or {}).get("login")
+        if kind in ("commented", "reviewed") and who == author:
+            return None
+    return age_days(start, now)
+
+
 # --- Sections ---------------------------------------------------------------
 
 
@@ -354,7 +401,12 @@ def section_rfd(rfd: list[dict]) -> list[str]:
     return lines or ["none"]
 
 
-def section_community(prs: list[dict], issues: list[dict]) -> list[str]:
+def section_community(
+    prs: list[dict],
+    issues: list[dict],
+    timeline: Callable[[int], list[dict]],
+    now: datetime,
+) -> list[str]:
     lines = []
     for kind, items in (("PR", prs), ("issue", issues)):
         for item in items:
@@ -371,6 +423,18 @@ def section_community(prs: list[dict], issues: list[dict]) -> list[str]:
                 )
             elif kind == "issue" and "verify-content" in labels:
                 lines.append(f"waiting for reproduction: issue #{item['number']} {item['title']}")
+            if kind == "PR" and "awaiting-contributor" in labels:
+                days = waiting_days(timeline(item["number"]), item["author"]["login"], now)
+                if days is not None and days >= STALL_DAYS:
+                    edits = (
+                        "maintainer edits allowed"
+                        if item.get("maintainerCanModify")
+                        else "no maintainer edits"
+                    )
+                    lines.append(
+                        f"stalled: PR #{item['number']} [{item['author']['login']}] "
+                        f"{days}d awaiting-contributor, {edits}  {item['title']}"
+                    )
     return lines or ["nothing to do"]
 
 
@@ -476,7 +540,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: {e}; comparing against the existing origin/develop", file=sys.stderr)
 
     now = datetime.now(UTC)
-    pr_fields = "number,title,headRefName,author,labels,isDraft,statusCheckRollup"
+    pr_fields = (
+        "number,title,headRefName,author,labels,isDraft,statusCheckRollup,maintainerCanModify"
+    )
     issue_fields = "number,title,author,labels"
     cache: dict[str, list[dict]] = {}
 
@@ -495,6 +561,19 @@ def main(argv: list[str] | None = None) -> int:
             "issues", ["issue", "list", "--state", "open", "--limit", "500", "--json", issue_fields]
         )
 
+    def timeline(number: int) -> list[dict]:
+        out = run(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                f"repos/{{owner}}/{{repo}}/issues/{number}/timeline?per_page=100",
+                "--jq",
+                ".[]",
+            ]
+        )
+        return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
+
     def rfd() -> list[dict]:
         return [i for i in issues() if "ready-for-development" in _labels(i)]
 
@@ -511,7 +590,7 @@ def main(argv: list[str] | None = None) -> int:
         ("Lanes", lambda: section_lanes(branches, prs(), rfd())),
         ("Open PRs", lambda: section_prs(prs())),
         ("Ready for development", lambda: section_rfd(rfd())),
-        ("Community intake", lambda: section_community(prs(), issues())),
+        ("Community intake", lambda: section_community(prs(), issues(), timeline, now)),
         ("Private vulnerability reports (triage)", lambda: section_advisories(now)),
         ("Dependabot alerts", lambda: section_dependabot(prs())),
     ]

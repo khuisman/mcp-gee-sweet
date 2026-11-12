@@ -288,3 +288,100 @@ class TestRunAndMain:
         out = capsys.readouterr().out
         assert "ERROR: ValueError: unexpected" in out
         assert "== Dependabot alerts ==\n  dep" in out
+
+
+def _labeled(at, name="awaiting-contributor"):
+    return {"event": "labeled", "created_at": at, "label": {"name": name}}
+
+
+class TestWaitingDays:
+    """kai.md "Stalled community PRs" (#1454): the wait starts at the latest
+    `awaiting-contributor` label and ends at a push or an author reply."""
+
+    NOW = datetime(2026, 11, 12, tzinfo=UTC)
+
+    def test_no_activity_since_the_label(self):
+        timeline = [
+            {"event": "commented", "created_at": "2026-10-21T00:00:00Z", "actor": {"login": "c"}},
+            _labeled("2026-10-24T04:41:31Z"),
+            {"event": "cross-referenced", "created_at": "2026-11-06T00:00:00Z"},
+        ]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) == 18
+
+    def test_author_comment_ends_the_wait(self):
+        timeline = [
+            _labeled("2026-10-24T00:00:00Z"),
+            {"event": "commented", "created_at": "2026-10-30T00:00:00Z", "actor": {"login": "c"}},
+        ]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+
+    def test_author_review_ends_the_wait(self):
+        timeline = [
+            _labeled("2026-10-24T00:00:00Z"),
+            {"event": "reviewed", "submitted_at": "2026-10-30T00:00:00Z", "user": {"login": "c"}},
+        ]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+
+    def test_maintainer_comment_does_not_end_it(self):
+        timeline = [
+            _labeled("2026-10-24T00:00:00Z"),
+            {"event": "commented", "created_at": "2026-11-01T00:00:00Z", "actor": {"login": "m"}},
+        ]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) == 19
+
+    @pytest.mark.parametrize(
+        "push",
+        [
+            {"event": "committed", "committer": {"date": "2026-10-30T00:00:00Z"}},
+            {"event": "head_ref_force_pushed", "created_at": "2026-10-30T00:00:00Z"},
+        ],
+    )
+    def test_a_push_ends_it_whoever_made_it(self, push):
+        timeline = [_labeled("2026-10-24T00:00:00Z"), push]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+
+    def test_activity_before_a_relabel_does_not_count(self):
+        timeline = [
+            _labeled("2026-10-01T00:00:00Z"),
+            {"event": "committed", "committer": {"date": "2026-10-10T00:00:00Z"}},
+            _labeled("2026-10-24T00:00:00Z"),
+        ]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) == 19
+
+    def test_never_labeled(self):
+        timeline = [_labeled("2026-10-01T00:00:00Z", "review-ready")]
+        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+
+
+class TestSectionCommunityStalled:
+    NOW = datetime(2026, 11, 12, tzinfo=UTC)
+
+    @staticmethod
+    def pr(number, labels=("community", "awaiting-contributor"), can_modify=True):
+        return {
+            "number": number,
+            "title": f"t{number}",
+            "author": {"login": "c", "is_bot": False},
+            "labels": [{"name": n} for n in labels],
+            "maintainerCanModify": can_modify,
+        }
+
+    def test_reports_only_prs_past_the_threshold(self):
+        started = {1: "2026-10-24T00:00:00Z", 2: "2026-10-30T00:00:00Z", 3: "2026-10-29T00:00:00Z"}
+        lines = kai_status.section_community(
+            [self.pr(1), self.pr(2), self.pr(3, can_modify=False)],
+            [],
+            lambda n: [_labeled(started[n])],
+            self.NOW,
+        )
+        assert lines == [
+            "stalled: PR #1 [c] 19d awaiting-contributor, maintainer edits allowed  t1",
+            "stalled: PR #3 [c] 14d awaiting-contributor, no maintainer edits  t3",
+        ]
+
+    def test_timeline_fetched_only_for_awaiting_prs(self):
+        def timeline(n):
+            raise AssertionError("fetched")
+
+        pr = self.pr(1, labels=("community", "review-ready"))
+        assert kai_status.section_community([pr], [], timeline, self.NOW) == ["nothing to do"]
