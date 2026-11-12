@@ -1228,7 +1228,7 @@ class _AstParser(HTMLParser):
                 Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
             )
 
-    def _interrupt_open_block(self, new_construct_tag: str):
+    def _interrupt_open_block(self, new_construct_tag, interrupting_named_style=None):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
         'pre', or a _BLOCK_TAGS tag) is opening. If a block is currently
         open — of *any* kind, not just <li> — its buffered text must be
@@ -1239,6 +1239,9 @@ class _AstParser(HTMLParser):
         paragraphs interrupted the same way) and emit the outer block after
         its children, since a streaming parser closes children before their
         parent.
+
+        interrupting_named_style is the data-style a `<p>` carries when it's
+        the construct opening, None for every other construct (#1414).
 
         Pushes a frame recording exactly which tag closing would legitimately
         end this interruption, so _resume_interrupted_block can restore it —
@@ -1252,9 +1255,29 @@ class _AstParser(HTMLParser):
         if self._run_buf and not self._in_pre:
             self._trim_source_line_break()
         runs = self._flush_pending_runs()
-        self._emit_block_node(
-            outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
-        )
+        if not (
+            # #1414: a fresh, text-less <li> whose first content is a styled
+            # block (a data-style <p>) is that block, indented under the list
+            # with no bullet — as before #1075 and as TC-DOC242's check reads
+            # it — not an empty bullet sitting above the block. A browser
+            # draws the marker beside the block's first line, not on a line
+            # of its own, so the item reads as one line; the block keeps the
+            # item's indent either way. Scoped to the named-style `<p>` row:
+            # #1075's own rows (a nested list, quote, code block or rule as
+            # the item's only content, the shapes its changelog entry named)
+            # keep their empty bullet. An item that dropped unsupported
+            # content keeps it too, so its boundary node isn't lost, and an
+            # item with text of its own still emits as a normal bullet.
+            outer_tag == "li"
+            and not self._block_resumed
+            and new_construct_tag == "p"
+            and interrupting_named_style is not None
+            and not self._block_had_unsupported_content
+            and not _has_content(runs)
+        ):
+            self._emit_block_node(
+                outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
         self._block_stack.append(
             _BlockFrame(
                 outer_tag=outer_tag,
@@ -1530,7 +1553,7 @@ class _AstParser(HTMLParser):
                 self._li_heading_level = int(tag[1])
                 self._li_heading_tags.append(tag)
                 return
-            self._interrupt_open_block(tag)
+            self._interrupt_open_block(tag, interrupting_named_style=named_style)
             self._open_block(tag, resumed=False, named_style=named_style)
             if tag == "li":
                 self._li_value = _html_integer(attr_dict.get("value"))
