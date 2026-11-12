@@ -59,11 +59,13 @@ Measured across two imports of the same DOCX:
   `_stabilize_internal_links` rewrites a heading link to `#<slug>`, using anchors.py's GitHub-style
   slug with `-1`/`-2` duplicate suffixes, so the link survives a round trip through the write
   side's anchor resolver. The slug list holds only paragraphs that render as Markdown headings,
-  classified by `doc_to_ast._paragraph_to_node` itself (`Heading`, or a TITLE/SUBTITLE
-  `NamedBlock`): a bulleted heading renders as a list item and a heading in a table cell as cell
-  text, and counting them shifted every later duplicate's suffix onto the wrong heading (PR #988
-  QA round 1). A link to a heading that doesn't render as one is dropped, following the project's
-  rule that a wrong link is worse than none.
+  classified by `doc_to_ast._paragraph_to_node` itself (`Heading`, a TITLE/SUBTITLE
+  `NamedBlock`, or a `BulletItem` with `heading_level`: a bulleted `HEADING_N` that isn't a task
+  item renders as a heading inside its item, `- ## Title`, and counts, #1302). A heading in a
+  table cell renders as cell text, a bulleted task-item heading as task text, and a bulleted
+  TITLE/SUBTITLE as a plain list item; counting them shifted every later duplicate's suffix onto
+  the wrong heading (PR #988 QA round 1). A link to a heading that doesn't render as one is
+  dropped, following the project's rule that a wrong link is worse than none.
 - **Bookmark links are dropped.** A bookmark has no text to name it, and any `#fragment` made up
   for one can be fuzzy-matched by `anchors.py` to a heading when the Markdown is written back
   (`#bookmark-1` → the second heading titled "Bookmark"; PR #988 QA round 1).

@@ -54,16 +54,23 @@ _BACKTICK_RUN = re.compile(r"`+")
 # misread by any CommonMark parser as a different block type entirely — an ATX
 # heading, a blockquote, a bullet item, or an ordered-list item — rather than
 # the plain paragraph text it actually is (#591 QA round 1, live-confirmed for
-# "1. Not actually a list item" and "# Not a heading either"). Scoped to plain
-# Paragraph rendering only: Heading/NamedBlock/BulletItem already have their
-# own legitimate prefix on the same line, so content following it is never
-# re-parsed as a new block starting mid-line.
+# "1. Not actually a list item" and "# Not a heading either"). Applied to a
+# plain Paragraph and to a list item's text, which starts the item's first
+# block, so "- # a" is a heading inside the item (#1302). Heading/NamedBlock
+# text follows its own "#" prefix, where it's never re-parsed as a new block.
 _LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[>*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
 # underline under a preceding line, and so is a line of only "=". "*" and "_"
 # rules can't occur: _escape has already escaped both (#993).
 _LEADING_RULE_LINE = re.compile(r"^(?:=+[ \t]*|-[- \t]*)$")
+
+# A thematic break (#1096). Every block is separated by a blank line, so "---"
+# never sits under a paragraph line, where it would be a setext underline. As the
+# document's first line it would open YAML front matter, which the Markdown import
+# drops (D3, #1173) when what follows reads as a mapping, so there it's "***".
+_RULE = "---"
+_FIRST_LINE_RULE = "***"
 
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
@@ -75,15 +82,13 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
     """Serialize a list of DocNode into a single Markdown document string."""
     parts: list[str] = []
     prev_node: DocNode | None = None
+    open_items = _OpenItems()
     for node in nodes:
-        rendered = _render_table(node) if isinstance(node, Table) else _render_block(node)
+        rendered = open_items.render(node, prev_node)
+        if prev_node is None and rendered == _RULE:
+            rendered = _FIRST_LINE_RULE
         if prev_node is not None:
-            # Consecutive list items get a single newline, not a blank line, so
-            # they render as one "tight" list (CommonMark still parses a blank-
-            # line-separated run as the same list, just needlessly "loose" —
-            # no correctness difference, only readability of the output).
-            same_list_run = isinstance(node, BulletItem) and isinstance(prev_node, BulletItem)
-            parts.append("\n" if same_list_run else "\n\n")
+            parts.append(open_items.separator)
         parts.append(rendered)
         prev_node = node
 
@@ -96,6 +101,128 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
         markdown += "\n".join(_render_comment(c) for c in comments)
 
     return markdown
+
+
+class _OpenItems:
+    """Renders each node, writing a block inside a list item (its `list_depth`,
+    #1302) under that item instead of at the margin, and picks the separator before it.
+
+    CommonMark keeps a block in an item when it's indented to the item's content
+    column, the width of the item's own indent and marker. So every list item
+    records that column for its depth, and a block with a `list_depth` is indented
+    by the column of the last item at that depth. The block ends the deeper items.
+    A node with no `list_depth` ends them all.
+
+    A quoted item's quote markers come before its indent ("> - a"). A block inside
+    it is inside that quote too, whatever depth it reads with (an unquoted table
+    reads none), so the item's quote levels go outside the block's indent and only
+    its own extra levels inside ("> - a" then ">   > b"). Two blocks in one item
+    whose own levels overlap share that quote, so the blank line between them
+    carries it (#1122).
+
+    After `render`, `separator` is what goes between the node and the one before it:
+    a newline between two items at the same quote depth, so a list stays tight (items at
+    different depths are different lists, "- b" then "> - qa"); a newline between an
+    empty item and its first block, since CommonMark ends an item that starts with a
+    blank line there (PR #1326 QA round 1); otherwise a blank line carrying the quote
+    levels both nodes write at the margin, so it doesn't end a quote they share. Two
+    adjacent quoted blocks in Docs are one quote: Docs draws their left borders as one
+    bar, and emitter.py puts an unquoted separator paragraph between two separate
+    quotes (#1098), which reads back as a node of its own with no quote."""
+
+    def __init__(self) -> None:
+        # Per open item depth: (content column, blockquote_depth).
+        self._items: list[tuple[int, int]] = []
+        # Quote levels the last node wrote at the margin, before any indent.
+        self._margin_quote = 0
+        # For a block inside an item: (list_depth, content column, the quote levels it
+        # writes inside the item's indent). None for anything else.
+        self._inner_quote: tuple[int, int, int] | None = None
+        self.separator = "\n\n"
+
+    def render(self, node: DocNode, prev_node: DocNode | None) -> str:
+        prev_quote = self._margin_quote
+        prev_inner = self._inner_quote
+        rendered = self._render(node, prev_node)
+        same_list = (
+            isinstance(node, BulletItem)
+            and isinstance(prev_node, BulletItem)
+            and node.blockquote_depth == prev_node.blockquote_depth
+        )
+        shared = min(prev_quote, self._margin_quote)
+        if same_list or _starts_empty_item(prev_node, node):
+            self.separator = "\n"
+        elif (
+            prev_inner is not None
+            and self._inner_quote is not None
+            and prev_inner[:2] == self._inner_quote[:2]
+            and min(prev_inner[2], self._inner_quote[2])
+        ):
+            # Two blocks in one item that share a quote inside its indent: the blank
+            # line between them carries that quote too, or it would end it (#1122).
+            column = self._inner_quote[1]
+            inner = min(prev_inner[2], self._inner_quote[2])
+            self.separator = f"\n{_blockquote(' ' * column + '>' * inner, shared)}\n"
+        else:
+            self.separator = f"\n{'>' * shared}\n" if shared else "\n\n"
+        return rendered
+
+    def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
+        if isinstance(node, BulletItem):
+            opens_sublist = _opens_sublist(node, prev_node)
+            del self._items[node.depth :]
+            self._items.extend([(0, 0)] * (node.depth - len(self._items)))
+            self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
+            self._margin_quote = node.blockquote_depth
+            self._inner_quote = None
+            return _render_block(node, opens_sublist=opens_sublist)
+        list_depth = node.list_depth
+        if list_depth is None or list_depth >= len(self._items):
+            self._items.clear()
+            self._margin_quote = node.blockquote_depth
+            self._inner_quote = None
+            if isinstance(node, Table):
+                # A quoted table (#1122) gets its quote markers like any block.
+                body = _render_table(node)
+                return _blockquote(body, node.blockquote_depth) if node.blockquote_depth else body
+            return _render_block(node)
+        del self._items[list_depth + 1 :]
+        column, item_quote = self._items[list_depth]
+        # A block inside a quoted list's item is inside that list's quote too. Its
+        # own depth can read lower: an unquoted table has no indent in the API, and
+        # Docs puts an unindented empty paragraph before a table in an item.
+        quote = max(node.blockquote_depth, item_quote)
+        outer = item_quote
+        self._margin_quote = outer
+        self._inner_quote = (list_depth, column, quote - outer)
+        if isinstance(node, Table):
+            body = _render_table(node)
+            if quote > outer:
+                body = _blockquote(body, quote - outer)
+        else:
+            body = _render_block(node, blockquote_depth=quote - outer)
+        body = _indent_lines(body, column)
+        return _blockquote(body, outer) if outer else body
+
+
+def _starts_empty_item(prev_node: DocNode | None, node: DocNode) -> bool:
+    """Whether `node` is the first block inside `prev_node`, a list item with no text.
+    CommonMark lets an item start with at most one blank line, its marker's own, so
+    "-", a blank line, then "  ---" is an empty item ended by a rule at the margin."""
+    return (
+        isinstance(prev_node, BulletItem)
+        and not isinstance(node, BulletItem)
+        and not prev_node.runs
+        and prev_node.checked is None
+        and prev_node.heading_level is None
+        and node.list_depth == prev_node.depth
+    )
+
+
+def _indent_lines(body: str, column: int) -> str:
+    # Blank lines stay empty: CommonMark keeps them in the item either way.
+    pad = " " * column
+    return "\n".join(f"{pad}{line}" if line else line for line in body.split("\n"))
 
 
 def _is_code_block(node: Paragraph) -> bool:
@@ -144,8 +271,52 @@ def _render_code_block(node: Paragraph) -> str:
     return "\n\n".join(segments)
 
 
-def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
-    if isinstance(node, Paragraph) and _is_code_block(node):
+def _opens_sublist(node: DocNode, prev_node: DocNode | None) -> bool:
+    """Whether `node` is a list item nested under the item just before it, so its
+    line follows that item's text with only a newline between them."""
+    return (
+        isinstance(node, BulletItem)
+        and isinstance(prev_node, BulletItem)
+        and node.depth > prev_node.depth
+    )
+
+
+def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
+    """The item's real number, from doc_to_ast, so an item resuming a list after an
+    interrupting block starts its Markdown list there (#1208); "1." when unknown.
+
+    CommonMark lets an ordered list interrupt a paragraph only when it starts at 1.
+    A sublist's first line follows its parent item's text, so "- a\\n  5. a1" reads
+    "5. a1" as more of the parent's text. That item writes "1." instead, keeping the
+    sublist and losing only its start number (PR #1234 QA round 1). A blank line
+    before it would keep the number but make the parent list loose."""
+    if node.number is None or (opens_sublist and node.number != 1):
+        return "1. "
+    return f"{node.number}. "
+
+
+def _item_prefix(node: BulletItem, opens_sublist: bool) -> str:
+    """A list item's indent and marker, before its text; its length is the item's
+    content column."""
+    if node.checked is not None:
+        marker = "- [x] " if node.checked else "- [ ] "
+    elif node.ordered:
+        marker = _ordered_marker(node, opens_sublist)
+    else:
+        marker = "- "
+    return "  " * node.depth + marker
+
+
+def _render_block(
+    node: Heading | Paragraph | BulletItem | NamedBlock,
+    opens_sublist: bool = False,
+    blockquote_depth: int | None = None,
+) -> str:
+    """`blockquote_depth` overrides the node's own, for a block whose outer quote
+    levels its caller writes (see `_OpenItems`)."""
+    if isinstance(node, Paragraph) and node.rule:
+        body = _RULE
+    elif isinstance(node, Paragraph) and _is_code_block(node):
         body = _render_code_block(node)
     elif isinstance(node, Heading):
         body = f"{'#' * node.level} {_render_inline(node.runs)}".rstrip()
@@ -155,18 +326,19 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
         level = 1 if node.style_type == "TITLE" else 2
         body = f"{'#' * level} {_render_inline(node.runs)}".rstrip()
     elif isinstance(node, BulletItem):
-        indent = "  " * node.depth
-        if node.checked is not None:
-            marker = "- [x] " if node.checked else "- [ ] "
-        elif node.ordered:
-            marker = "1. "
+        text = _render_inline(node.runs)
+        if node.heading_level:
+            # An item whose text is a heading (#1302): "- # Title".
+            text = f"{'#' * node.heading_level} {text}".rstrip()
         else:
-            marker = "- "
-        body = f"{indent}{marker}{_render_inline(node.runs)}"
+            # Text after the marker starts the item's first block, so "# a" or
+            # "> a" there would read as a heading or quote inside the item.
+            text = _escape_leading_block_marker(text)
+        body = f"{_item_prefix(node, opens_sublist)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 
-    depth = getattr(node, "blockquote_depth", 0)
+    depth = node.blockquote_depth if blockquote_depth is None else blockquote_depth
     if depth:
         body = _blockquote(body, depth)
     return body

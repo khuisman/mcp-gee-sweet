@@ -5,15 +5,11 @@ pip keeps whatever version an existing environment already has unless the
 project's own requirement forces it higher.
 """
 
+import tomllib
 from pathlib import Path
 
 from packaging.requirements import Requirement
 from packaging.version import Version
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python < 3.11 — stdlib tomllib landed in 3.11
-    import tomli as tomllib
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

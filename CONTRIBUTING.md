@@ -173,6 +173,7 @@ Active tasks, defects, product decisions, and QA gaps are tracked in [GitHub Iss
 | `infrastructure` | Build, CI, publishing, dev tooling |
 | `enhancement` | New features from the roadmap tiers |
 | `ready-for-development` | Scoped, actionable, no blocking decisions needed — ready to build |
+| `next-release` | In the next feature release (in flight or first in the queue). Hotfixes don't count |
 | `backlog` | Tier 4 — nice to have, no assigned version |
 | `v0.7`, `v0.8`, `v0.8.1`, `v0.9`, `v1.0`, `v1.1+` | Release/version targets — see `docs/roadmap.md` |
 
@@ -182,7 +183,7 @@ Active tasks, defects, product decisions, and QA gaps are tracked in [GitHub Iss
 
 ## Pull requests
 
-This project has an opinionated roadmap and is maintained by one person. The direct path to a merged PR is a **bug fix with a clear reproduction**, or an **issue already labeled `ready-for-development`** (only maintainers can apply labels, so this is always a deliberate go-ahead, not a self-service queue). If your PR doesn't have an issue yet:
+This project has an opinionated roadmap and is maintained by one person. The direct path to a merged PR is a **bug fix with a clear reproduction**, or an **issue already labeled `ready-for-development`** (only maintainers can apply labels, so this is always a deliberate go-ahead, not a self-service queue). Issues labeled both `ready-for-development` and `next-release` are the work that ships soonest. If your PR doesn't have an issue yet:
 
 - **Bug fix:** go ahead and open the PR. A bug fix with a clear reproduction doesn't need an issue first; if there isn't one, a maintainer opens one and links it, so there's nothing more you need to do.
 - **Feature, or anything else that isn't a bug fix:** open an issue first that explains the use case and the reasoning behind your approach. Whether it fits the roadmap gets settled there, before anyone puts review time into a PR. Good ideas may get folded into the roadmap over time, but implementation is planned rather than crowd-sourced.
@@ -193,6 +194,7 @@ For every PR:
 
 - One issue per PR (or one bug, for a bug fix without an issue) — keep scope matched to what the issue actually asks for.
 - Open a feature branch before pushing (`feat/`, `fix/`, `docs/` prefixes).
+- Target `develop`, not `main`. `main` only receives release merges; a PR opened against it will be asked to retarget and rebase onto `develop`.
 - Fill out the PR template: what changed and why, the issue it closes, and what testing confirms it. Testing bar by change type:
   - **Bug fix** — a unit test that reproduces the bug and confirms the fix. A live `docs/qa/tests/*.md` test case (see [QA operations](#qa-operations)) is welcome too if you have QA fixtures configured, but it's not required to merge — we'll add live QA coverage as a follow-up before the fix ships in a release.
   - **Refactor** — existing unit tests and QA test cases for the touched code still pass; note explicitly if behavior is unchanged.

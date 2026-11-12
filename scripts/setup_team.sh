@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit/aziz/amy/joy/bob)
+# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit/rio/aziz/amy/joy/bob)
 # and write the MCP configs used by `make claude-team` and `make team-<name>`
 # (see write_team_mcp_configs.sh).
 #
@@ -7,10 +7,11 @@
 # that branch is always checked out in the main checkout). Dev slots branch
 # off `team/<name>` into `feat/<name>/issue-<n>` per ticket; QA slots stay on
 # `team/<name>` forever and get reset to whatever PR branch they're
-# verifying (see `/team-member`). Aziz, Amy, Joy, and Bob are also persistent
+# verifying (see `/team-member`); Rio is a QA slot too, for non-lane PRs
+# (`.claude/team-roles/rio.md`). Aziz, Amy, Joy, and Bob are also persistent
 # `team/<name>` slots but don't get a dedicated MCP server process — during a
 # release QA pass Aziz uses every mcp-gee-sweet-* slot already provisioned
-# here (all four lanes, kai-oauth/-sa, plus the standalone oauth/sa slots
+# here (all four lanes, rio, kai-oauth/-sa, plus the standalone oauth/sa slots
 # below), Amy just needs a worktree to write docs PRs from, Joy just needs
 # one for ad-hoc architecture work (see `.claude/team-roles/joy.md`), and Bob
 # just needs one to review other roles' self-edited process files (see
@@ -20,8 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-WORKTREE_ROLES=(ash sky jay kit aziz amy joy bob)
-CONFIG_FILES=(.env credentials.json service_account.json token.json .claude/settings.local.json)
+WORKTREE_ROLES=(ash sky jay kit rio aziz amy joy bob)
 
 git fetch origin develop --quiet
 
@@ -33,19 +33,23 @@ for name in "${WORKTREE_ROLES[@]}"; do
     git worktree add "$worktree_path" -b "team/$name" origin/develop
   fi
 
-  for f in "${CONFIG_FILES[@]}"; do
-    src="$REPO_ROOT/$f"
-    dst="$worktree_path/$f"
-    if [ -f "$src" ] && [ ! -f "$dst" ]; then
-      mkdir -p "$(dirname "$dst")"
-      cp "$src" "$dst"
-    fi
-  done
-
   echo "Syncing dependencies: $name"
   (cd "$worktree_path" && uv sync --quiet)
 done
 
+# Re-syncs credentials a slot already has when they've changed (#1223).
+"$REPO_ROOT/scripts/sync_slot_config.sh" "$REPO_ROOT" "${WORKTREE_ROLES[@]}"
 "$REPO_ROOT/scripts/write_team_mcp_configs.sh" "$REPO_ROOT" "${WORKTREE_ROLES[@]}"
+
+# Install the pinned @playwright/mcp once, before a session starts several
+# Playwright servers at the same moment: concurrent `npx -y` runs on a cold
+# cache corrupt the install (#1410). A failure (no Node, offline) only warns:
+# every role's launch runs this script, and most roles never use Playwright.
+playwright_mcp="$("$REPO_ROOT/scripts/qa_browser.sh" mcp-package)"
+echo "Installing $playwright_mcp into the npx cache"
+if ! "$REPO_ROOT/scripts/qa_browser.sh" install >/dev/null; then
+  echo "warning: couldn't install $playwright_mcp; Playwright servers may fail to start" \
+    "until 'scripts/qa_browser.sh install' succeeds" >&2
+fi
 
 echo "Ready. Launch with: make claude-team"

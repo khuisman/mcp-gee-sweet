@@ -83,7 +83,8 @@ class TestCreateNamedRange:
     async def test_success_response_with_empty_replies_returns_error_not_crash(self):
         """Regression (PR #337 review): a success response with no/empty replies must
         not raise IndexError/KeyError — every sibling tool in this file guarantees
-        {"error": ...} instead."""
+        {"error": ...} instead. The batchUpdate itself succeeded, so the doc is
+        still marked dirty (#1030)."""
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
             "replies": []
@@ -95,7 +96,7 @@ class TestCreateNamedRange:
             doc_id="doc1", name="section-a", start_index=5, end_index=10, ctx=ctx
         )
         assert "error" in result
-        doc_cache.mark_dirty.assert_not_called()
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
 
 
 class TestCreateBookmark:
@@ -144,7 +145,8 @@ class TestCreateBookmark:
     async def test_success_response_with_empty_replies_returns_error_not_crash(self):
         """Regression (PR #337 review): a success response with no/empty replies must
         not raise IndexError/KeyError — every sibling tool in this file guarantees
-        {"error": ...} instead."""
+        {"error": ...} instead. The batchUpdate itself succeeded, so the doc is
+        still marked dirty (#1030)."""
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
             "replies": []
@@ -154,4 +156,4 @@ class TestCreateBookmark:
         ctx.request_context.lifespan_context.doc_cache = doc_cache
         result = await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
         assert "error" in result
-        doc_cache.mark_dirty.assert_not_called()
+        doc_cache.mark_dirty.assert_called_once_with("doc1")

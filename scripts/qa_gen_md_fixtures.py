@@ -397,6 +397,11 @@ DOCSTART = {
     "ds-12-no-trailing-newline.md": "No trailing newline at end of file",
     "ds-13-crlf-line-endings.md": "# CRLF heading\r\n\r\n- one\r\n- two\r\n\r\nParagraph.\r\n",
     "ds-14-front-matter.md": "---\ntitle: Front matter\nauthor: QA\n---\n\n# Body heading\n\nBody text.\n",
+    "ds-15-rule-then-setext-heading.md": "---\nNot front matter\n---\n\nBody text.\n",
+    "ds-16-front-matter-lists.md": (
+        "---\ntitle: Post\ntags:\n- one\n- two\ncategories: [a,\nb]\n"
+        'summary: "two\nlines"\n---\n\n# Body heading\n\nBody text.\n'
+    ),
 }
 
 

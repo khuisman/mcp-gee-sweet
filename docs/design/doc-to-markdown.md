@@ -70,6 +70,23 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   `create_paragraph_bullets` already solved by reading `document["lists"][listId]
   ["listProperties"]["nestingLevels"][level]` (`glyphType` present → ordered, `glyphSymbol`
   present → unordered). Reused verbatim here rather than re-deriving it.
+- **Ordered-item numbers (#1208)**: Docs numbers a list by `listId`, so a table, quote, code
+  block or paragraph between two items doesn't restart it. `document_to_ast` counts body items
+  per `listId` and nesting level in document order (`_ListCounter`), clears the deeper levels'
+  counts at each item (Docs restarts a sublist under every new parent item), offsets by the
+  level's `startNumber`, and sets `BulletItem.number`. A `startNumber` of 0 counts as 1 only for
+  lettered and Roman-numeral levels, as the API reference says; a decimal level numbers from 0.
+  Table-cell items aren't counted: with cell paragraphs and body items on one `listId`, Docs'
+  txt and HTML exports both number the body items after the table from the list's start
+  (measured live, PR #1234 QA round 1).
+  `ast_to_markdown` writes that number, so an item resuming a list after a table starts its
+  Markdown list there (`3. c`). One exception: CommonMark lets an ordered list interrupt a
+  paragraph only when it starts at 1, and a sublist's first line follows its parent item's text
+  with just a newline, so a sublist whose first number isn't 1 writes `1.` there rather than
+  merging into the parent (`- a\n  5. a1` would read as one item). A blank line would keep the
+  number but make the parent list loose. An AST built by the write side has no number and still
+  renders `1.`. Writing a resumed list back still restarts it at 1 when a paragraph interrupts
+  it, because the write side ignores a list's start number (#1118).
 - **Checkbox state**: the write side has no `BULLET_CHECKBOX` preset — it prepends a literal
   `"☑ "`/`"☐ "` glyph to the item's own text (see emitter.py's comment on this). Read-back
   detects that exact prefix on the item's first run and strips it back off, setting
@@ -79,6 +96,33 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   (`borderLeft` alone signals "this was our blockquote styling"; `indentStart` alone is
   ambiguous — plenty of ordinary paragraphs use indentation for unrelated reasons) and infers
   depth from `round(indentStart / 36)`.
+- **Blocks inside a list item** (#1302, the inverse of #1094): the write side puts a block inside
+  an item (a second paragraph, code, a quote, a heading, a rule's empty paragraph) after the
+  item, unbulleted, with `indentStart` and `indentFirstLine` both at the item's text indent (its
+  list level's `indentStart`) plus 36pt per quote level, and Docs keeps the list's numbering
+  going past it. `_ListItemContext` reads that back: a non-bullet paragraph after an item, whose
+  two indents are equal and land on the text indent of that item's level or a shallower one,
+  gets that level as `list_depth`, and its quote depth counts from the text indent, not the
+  margin (from the margin, a quote in an item at 72pt read as `> >`). The deepest matching level
+  wins, and the block closes the levels deeper than it. The context keeps the `listId` open at
+  each depth, since #1072 gives a sublist of the other type its own `listId`. Anything else, a
+  paragraph at the margin or an item of a list that isn't open, ends the list. Some blocks wait
+  instead of being placed at once: a table, which has no indent the API reports (checked live:
+  an in-item table's JSON matches a margin table's); the empty unindented paragraph Docs puts
+  before a table inserted in an item; and a quote whose indent also reads as a deeper quote at
+  the margin (a quote in a top-level item is at 72pt, like a margin `> >`; PR #1311 QA round 1).
+  A waiting block is inside an item when the list goes on: an item of a list open at its depth,
+  a sublist nested under the last item, or a plainly in-item block. A table then takes the depth
+  of the item that ends the wait, capped at the last item's (so a table after a sublist, before
+  the parent's next item, is the parent's). Otherwise it stays outside, as read: a table at the
+  margin, a quote at its margin depth. A block that ends a list's last item therefore reads as
+  outside it (`known-limitations.md`). A margin table between two items comes back as outside
+  too, because the write side splits the list there into two Docs lists (measured live).
+- **Bulleted headings** (#1302): a bulleted `HEADING_N` paragraph (what `- # Title` writes,
+  #1094) reads back as a `BulletItem` with `heading_level`. Since it renders as a heading inside
+  its item, `markdown_export._rendered_heading_slugs` counts it, like the write side's anchor
+  resolver does. A checkbox item doesn't get one: GFM reads `- [ ] ## Title` as task text, so
+  it would neither render nor take a slug as a heading (PR #1311 QA round 1).
 - **Trailing paragraph newline**: every paragraph's content ends with a `"\n"` in the Docs API's
   own representation. Stripped from the last Run once, dropping the Run entirely if that empties
   it — mirrors `html_parser.py`'s own `<pre>`-close trailing-newline handling.
@@ -173,6 +217,17 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   tags), so this is a readability polish on the output, not a correctness fix. Caught during
   live round-trip verification (the initial version produced a blank line between every single
   list item, nested or not).
+- **Blocks inside a list item** (#1302): a node with a `list_depth` is indented to its item's
+  content column, the width of the item's own indent and marker (`_item_prefix`), so CommonMark
+  keeps it in the item and the list going past it. `_OpenItems` records the column of the last
+  item at each depth. A quoted item's quote markers come before its indent (`> - a`). A block
+  inside it is inside that quote too, whatever depth it reads with (a table reads none, and
+  neither does the empty paragraph Docs puts before one), so the item's quote levels go outside
+  the indent and only the block's extra levels inside, and the blank lines around it carry the
+  item's levels (`>`) so the quote doesn't end (PR #1311 QA round 1). A bulleted heading renders
+  as `- ## Title`. Every other item's text now goes through `_escape_leading_block_marker`,
+  since text after the marker starts the item's first block: `- # a` is a heading inside the
+  item, and `- 1. a` a sublist.
 - **Tables**: the first row is always rendered as the header row — GFM pipe-table syntax
   structurally requires exactly one header + separator row, and the Docs API has no per-row
   "is this the header" signal to read back (unlike the AST's own `is_header_row`, which only
@@ -196,10 +251,10 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   `` \ ` * _ [ ] `` — not a line-leading `#`, `>`, `-`/`*`/`+`, or an ordered-list `N.`/`N)`.
   Live-confirmed a plain paragraph reading literally "1. Not actually a list item" or "# Not a
   heading either" round-tripped unescaped and any CommonMark parser reinterprets it as a real
-  ordered-list item or ATX heading. Fixed via `_escape_leading_block_marker`, applied only to
-  plain `Paragraph` rendering (not `Heading`/`NamedBlock`/`BulletItem`, which already have their
-  own legitimate same-line prefix, so content following it is never re-parsed as a new block
-  starting mid-line) and applied *before* any blockquote `"> "` wrapping (a `"> #"` line is parsed
+  ordered-list item or ATX heading. Fixed via `_escape_leading_block_marker`, applied to plain
+  `Paragraph` rendering (not `Heading`/`NamedBlock`, whose text follows their own `#` prefix and
+  is never re-parsed as a new block; a list item's text is escaped too since #1302, see above)
+  and applied *before* any blockquote `"> "` wrapping (a `"> #"` line is parsed
   as a heading nested inside the blockquote by CommonMark, so the escape has to happen first, not
   after). One CommonMark subtlety this surfaced: digits are not in CommonMark's escapable
   ASCII-punctuation set, so `\1` is not a valid escape and renders as a literal backslash — the

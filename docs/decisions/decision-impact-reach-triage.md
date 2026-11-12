@@ -30,6 +30,7 @@ The long tail came from two places the existing rules didn't cover:
 3. **Chain stop rule.** After a root defect's second follow-up in its function family, later tickets in that family go to the next version unless severe or observed. The alternative is declaring the area done and recording its residual edges in `docs/known-limitations.md` (#692's precedent). `qa.md` step 3 and `dev.md` step 6 make the filer state the chain position so Kai can apply it.
 4. **Seam questions.** `qa.md` step 4 asks four seam questions each pass (install/auth, new domain or tool, service account and Shared Drive, dependency move) and records the answers in the round's comment. `dev.md` step 2 asks the Dev the same questions before the PR.
 5. **Measured.** `decision-review-finding-ticket-bar.md` decision 11 extends its 2026-10-18 checkpoint to count `from-review` tickets by cell.
+6. **Data exposure means across a trust boundary** (maintainer, 2026-10-22, PR #1159): to another OS user, another tenant, or a network peer. Mixing the data of two identities the same person controls is `wrong`, not `severe`.
 
 ## Prompt-QA notes (Bob, 2026-10-13)
 

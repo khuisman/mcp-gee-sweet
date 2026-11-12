@@ -309,9 +309,12 @@ class TestInternalLinks:
         md = await self._markdown([_para("orphan", link={"headingId": "h.gone"})], fake_http)
         assert md.strip() == "orphan"
 
-    async def test_bulleted_heading_not_counted_in_slugs(self, fake_http):
-        # PR #988 QA round 1: a bulleted heading renders as a list item, so it
-        # mustn't take the bare slug and push the real heading to "-1".
+    async def test_bulleted_heading_counted_in_slugs(self, fake_http):
+        # Since #1302 a bulleted heading renders as a heading inside its item
+        # ("- ## Setup"), which takes a slug like any other heading. So it takes
+        # the bare slug and the later heading gets "-1", the order the write
+        # side's anchor resolver counts them in. (Before, it rendered as plain
+        # item text and was left out: PR #988 QA round 1.)
         bulleted = _para("Setup\n", heading_id="h.a")
         bulleted["paragraph"]["bullet"] = {"listId": "l1"}
         md = await self._markdown(
@@ -323,9 +326,9 @@ class TestInternalLinks:
             ],
             fake_http,
         )
-        assert "- Setup" in md
-        assert "[back](#setup)" in md
-        assert "[jump]" not in md
+        assert "- ## Setup" in md
+        assert "[jump](#setup)" in md
+        assert "[back](#setup-1)" in md
 
     async def test_heading_inside_table_cell_not_counted(self, fake_http):
         table = {

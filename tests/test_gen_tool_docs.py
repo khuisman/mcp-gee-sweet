@@ -93,6 +93,51 @@ class TestRenderSubsetsBlock:
         with pytest.raises(RuntimeError, match="Read-only Sheets"):
             gen_tool_docs.render_subsets_block(known_names=set())
 
+    def test_renders_each_subset_with_its_tool_count(self):
+        funcs = gen_tool_docs.collect_tools()
+        known_names = {f.__name__ for f in funcs}
+        rendered = gen_tool_docs.render_subsets_block(
+            known_names, gen_tool_docs.service_subsets(funcs)
+        )
+        assert "**Read-only Sheets** (7 tools):" in rendered
+        assert "**Docs + Drive (combined example)**" in rendered
+
+    def test_raises_on_subset_at_client_limit(self):
+        names = [f"tool_{i}" for i in range(gen_tool_docs.CLIENT_TOOL_LIMIT)]
+        known_names = set(names)
+        for _name, tool_names in gen_tool_docs.SUBSETS:
+            known_names.update(tool_names)
+        with pytest.raises(RuntimeError, match="too_big"):
+            gen_tool_docs.render_subsets_block(known_names, [("too_big", names)])
+
+
+class TestServiceSubsets:
+    def test_each_service_subset_holds_its_sections_tools(self):
+        funcs = gen_tool_docs.collect_tools()
+        subsets = dict(gen_tool_docs.service_subsets(funcs))
+        docs_tools = {
+            f.__name__ for f in funcs if f.__module__.startswith("mcp_gee_sweet.tools.docs.")
+        }
+        assert set(subsets["All Docs tools"]) == docs_tools
+        assert "list_spreadsheets" in subsets["All Sheets tools"]
+        assert "list_spreadsheets" not in subsets["All Drive tools"]
+
+    def test_combined_subset_is_the_union_of_its_parts(self):
+        funcs = gen_tool_docs.collect_tools()
+        subsets = dict(gen_tool_docs.service_subsets(funcs))
+        name, parts = gen_tool_docs.COMBINED_SUBSET
+        assert subsets[name] == [tool for part in parts for tool in subsets[part]]
+
+    def test_every_generated_subset_is_under_the_client_limit(self):
+        funcs = gen_tool_docs.collect_tools()
+        for name, tool_names in gen_tool_docs.service_subsets(funcs):
+            assert len(set(tool_names)) < gen_tool_docs.CLIENT_TOOL_LIMIT, name
+
+    def test_raises_on_unknown_section(self, monkeypatch):
+        monkeypatch.setattr(gen_tool_docs, "SERVICE_SUBSETS", [("Broken", ["No such section"])])
+        with pytest.raises(RuntimeError, match="No such section"):
+            gen_tool_docs.service_subsets([])
+
 
 class TestWriteIfChanged:
     def test_writes_new_file_and_reports_changed(self, tmp_path):

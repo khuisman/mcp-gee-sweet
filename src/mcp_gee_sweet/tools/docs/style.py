@@ -5,7 +5,9 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
-from .indices import isolated_bullet_run_wrap_requests
+from .emitter import _BLOCK_SPACING_PT, PARAGRAPH_GAP_PT, _border_width
+from .indices import isolated_bullet_run_wrap_requests, utf16_len
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,87 @@ _NAMED_STYLE_TYPES = frozenset(
 )
 
 
+def _text_runs(para: dict) -> list[dict]:
+    return [
+        element["textRun"]
+        for element in para.get("elements", [])
+        if element.get("textRun", {}).get("content", "").strip()
+    ]
+
+
+def _magnitude(paragraph_style: dict, field_name: str) -> float | None:
+    return paragraph_style.get(field_name, {}).get("magnitude")
+
+
+def _is_block_paragraph(para: dict) -> bool:
+    """Whether a NORMAL_TEXT paragraph is a block rather than body text: a quote or a
+    rule (a left or bottom border), an empty line, or a code block by the emitter's whole
+    signature, since a paragraph merely set in Courier New is body text."""
+    paragraph_style = para.get("paragraphStyle", {})
+    if _border_width(paragraph_style, "borderLeft") or _border_width(
+        paragraph_style, "borderBottom"
+    ):
+        return True
+    runs = _text_runs(para)
+    return not runs or (
+        _magnitude(paragraph_style, "spaceAbove") == _BLOCK_SPACING_PT
+        and _magnitude(paragraph_style, "spaceBelow") == _BLOCK_SPACING_PT
+        and all(
+            run.get("textStyle", {}).get("weightedFontFamily", {}).get("fontFamily")
+            == "Courier New"
+            for run in runs
+        )
+    )
+
+
+def _text_fields(run: dict) -> dict:
+    ts = run.get("textStyle", {})
+    fields: dict = {}
+    ff = ts.get("weightedFontFamily", {}).get("fontFamily")
+    if ff:
+        fields["font_family"] = ff
+    fs = ts.get("fontSize", {}).get("magnitude")
+    if fs is not None:
+        fields["font_size"] = fs
+    if "bold" in ts:
+        fields["bold"] = ts["bold"]
+    if "italic" in ts:
+        fields["italic"] = ts["italic"]
+    rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
+    if rgb:
+        fields["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+    return fields
+
+
+def _body_style_entry(style_type: str, para: dict) -> dict:
+    """The theme entry a body paragraph gives its named style. On NORMAL_TEXT, the
+    spacing the emitter writes around a block or between paragraphs isn't read: that's
+    what those values are on a server-written doc, and a theme carrying one would set it
+    across the whole doc. A text field counts only when every run shares it: a bold
+    lead-in or a code span is that run's own style, not the paragraph's."""
+
+    def spacing(field_name: str) -> float | None:
+        value = _magnitude(ps, field_name)
+        emitted = value in (_BLOCK_SPACING_PT, PARAGRAPH_GAP_PT)
+        return None if style_type == "NORMAL_TEXT" and emitted else value
+
+    entry: dict = {}
+    ps = para.get("paragraphStyle", {})
+    if "lineSpacing" in ps:
+        entry["line_spacing"] = ps["lineSpacing"]
+    space_above = spacing("spaceAbove")
+    if space_above is not None:
+        entry["space_above"] = space_above
+    space_below = spacing("spaceBelow")
+    if space_below is not None:
+        entry["space_below"] = space_below
+    run_fields = [_text_fields(run) for run in _text_runs(para)]
+    if run_fields:
+        first, *rest = run_fields
+        entry.update({k: v for k, v in first.items() if all(other.get(k) == v for other in rest)})
+    return entry
+
+
 def _read_body_styles(doc: dict) -> dict:
     """Derive a theme dict from body paragraph styles — first occurrence per named style type.
 
@@ -33,46 +116,37 @@ def _read_body_styles(doc: dict) -> dict:
     so the returned theme reflects what the document looks like. Subsequent paragraphs of
     the same namedStyleType with different styles are ignored (treated as intentional
     individual overrides outside the theme system).
+
+    The first occurrence decides, explicit style or not: moving past an unstyled
+    paragraph read one run's inline bold as the doc's body text (PR #1388 QA round 3).
+
+    What the emitter writes for a block or a paragraph break isn't a theme value (PR #1388
+    QA rounds 1 and 2). So NORMAL_TEXT comes from body text, not a block
+    (_is_block_paragraph), and doesn't read that spacing (_body_style_entry). Only a doc
+    with no body text at all takes NORMAL_TEXT from its first block with text.
     """
     theme: dict = {}
+    seen: set[str] = set()
+    first_block: dict | None = None
     for elem in doc.get("body", {}).get("content", []):
         para = elem.get("paragraph")
         if not para:
             continue
         style_type = para.get("paragraphStyle", {}).get("namedStyleType")
-        if style_type not in _NAMED_STYLE_TYPES or style_type in theme:
+        if style_type not in _NAMED_STYLE_TYPES or style_type in seen:
             continue
-        entry: dict = {}
-        ps = para.get("paragraphStyle", {})
-        if "lineSpacing" in ps:
-            entry["line_spacing"] = ps["lineSpacing"]
-        space_above = ps.get("spaceAbove", {}).get("magnitude")
-        if space_above is not None:
-            entry["space_above"] = space_above
-        space_below = ps.get("spaceBelow", {}).get("magnitude")
-        if space_below is not None:
-            entry["space_below"] = space_below
-        for element in para.get("elements", []):
-            tr = element.get("textRun")
-            if not tr or not tr.get("content", "").strip():
-                continue
-            ts = tr.get("textStyle", {})
-            ff = ts.get("weightedFontFamily", {}).get("fontFamily")
-            if ff:
-                entry["font_family"] = ff
-            fs = ts.get("fontSize", {}).get("magnitude")
-            if fs is not None:
-                entry["font_size"] = fs
-            if "bold" in ts:
-                entry["bold"] = ts["bold"]
-            if "italic" in ts:
-                entry["italic"] = ts["italic"]
-            rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
-            if rgb:
-                entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
-            break  # first non-empty run only
+        if style_type == "NORMAL_TEXT" and _is_block_paragraph(para):
+            if first_block is None and _text_runs(para):
+                first_block = para
+            continue
+        seen.add(style_type)
+        entry = _body_style_entry(style_type, para)
         if entry:
             theme[style_type] = entry
+    if first_block is not None and "NORMAL_TEXT" not in seen:
+        entry = _body_style_entry("NORMAL_TEXT", first_block)
+        if entry:
+            theme["NORMAL_TEXT"] = entry
     return theme
 
 
@@ -116,6 +190,83 @@ def _read_named_styles(doc: dict) -> dict:
         if entry:
             theme[style_type] = entry
     return theme
+
+
+def _own_paragraph_spacing_fields(doc: dict) -> set[str]:
+    """The paragraph spacing fields ("spaceAbove", "spaceBelow") a doc's NORMAL_TEXT
+    sets, as a theme gives them, which a paragraph gap (#1382) would override."""
+    return _spacing_fields(_read_named_styles(doc).get("NORMAL_TEXT", {}))
+
+
+def _spacing_fields(entry: dict, *, explicit_zero: bool = False) -> set[str]:
+    """The Docs fields a theme entry's space_above/space_below name: non-zero ones, or
+    with `explicit_zero` (a theme a caller passes, where 0 is a value it asked for) any
+    present. Read from a doc, 0 can't be told from the default."""
+    return {
+        api_field
+        for key, api_field in (("space_above", "spaceAbove"), ("space_below", "spaceBelow"))
+        if (key in entry if explicit_zero else entry.get(key))
+    }
+
+
+def _clear_paragraph_gap_requests(doc: dict, theme_fields: set[str]) -> list[dict]:
+    """Requests that hand NORMAL_TEXT body paragraphs carrying the emitter's paragraph
+    gap (#1382) back to the named style, for a theme that sets NORMAL_TEXT spacing
+    (`theme_fields`: "spaceAbove", "spaceBelow"): a value set on the paragraph beats the
+    style, so the theme's spacing wouldn't reach them. Fields named, values absent,
+    resets it.
+
+    A gap beside a table (#1427) is cleared only when the theme sets that same field: a
+    table takes no spacing, so a theme spaced only below its paragraphs would leave the
+    paragraph after a table on its border (PR #1434 QA round 1). It's found by place, as
+    the emitter writes it: spaceAbove on the paragraph right after a table, spaceBelow
+    on the one before a table's empty paragraph. A 10pt spaceAbove anywhere else isn't
+    the emitter's, and stays."""
+    content = doc.get("body", {}).get("content", [])
+    requests = []
+    for i, elem in enumerate(content):
+        paragraph_style = elem.get("paragraph", {}).get("paragraphStyle", {})
+        if paragraph_style.get("namedStyleType") != "NORMAL_TEXT":
+            continue
+        fields = []
+        if (
+            _magnitude(paragraph_style, "spaceAbove") == PARAGRAPH_GAP_PT
+            and i > 0
+            and "table" in content[i - 1]
+            and "spaceAbove" in theme_fields
+        ):
+            fields.append("spaceAbove")
+        if _magnitude(paragraph_style, "spaceBelow") == PARAGRAPH_GAP_PT and (
+            "spaceBelow" in theme_fields or not _precedes_table(content, i)
+        ):
+            fields.append("spaceBelow")
+        if fields:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "range": {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]},
+                        "paragraphStyle": {},
+                        "fields": ",".join(fields),
+                    }
+                }
+            )
+    return requests
+
+
+def _precedes_table(content: list[dict], i: int) -> bool:
+    """Whether body element `i` comes right before a table: next to it, or with only the
+    empty paragraph Docs keeps before a table between them."""
+    following = content[i + 1 : i + 3]
+    if following and "table" in following[0]:
+        return True
+    return len(following) == 2 and "table" in following[1] and _paragraph_text(following[0]) == "\n"
+
+
+def _paragraph_text(elem: dict) -> str | None:
+    paragraph = elem.get("paragraph")
+    if paragraph is None:
+        return None
+    return "".join(el.get("textRun", {}).get("content", "") for el in paragraph.get("elements", []))
 
 
 def _add_or_clear_field(
@@ -246,6 +397,91 @@ def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     ]
 
 
+def _normalize_spans(spans: list[dict[str, int]]) -> list[dict[str, int]]:
+    """Sorted, disjoint [startIndex, endIndex) spans; overlapping or adjacent
+    spans merge into one."""
+    merged: list[dict[str, int]] = []
+    for span in sorted(spans, key=lambda s: (s["startIndex"], s["endIndex"])):
+        if merged and span["startIndex"] <= merged[-1]["endIndex"]:
+            merged[-1]["endIndex"] = max(merged[-1]["endIndex"], span["endIndex"])
+        else:
+            merged.append(dict(span))
+    return merged
+
+
+def _subtract_span(spans: list[dict[str, int]], lo: int, hi: int) -> list[dict[str, int]]:
+    """Remove the [lo, hi) interval from the [startIndex, endIndex) spans."""
+    out: list[dict[str, int]] = []
+    for s in spans:
+        if s["endIndex"] <= lo or s["startIndex"] >= hi:
+            out.append(s)
+            continue
+        if s["startIndex"] < lo:
+            out.append({"startIndex": s["startIndex"], "endIndex": lo})
+        if hi < s["endIndex"]:
+            out.append({"startIndex": hi, "endIndex": s["endIndex"]})
+    return out
+
+
+def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
+    """The [startIndex, endIndex) spans of directly bold runs inside a range. #1273
+
+    A `weightedFontFamily` update that sends no `bold` in the same request clears
+    the range's direct bold (the Docs API renders the new font at weight 400), so
+    `style_doc_range` reads these spans from the document first and restores
+    `bold: true` over them in the same batchUpdate, after the font request.
+    Only a run's own `textStyle.bold` counts — bold inherited from a named style
+    is not part of the run and is not affected by the font request. Adjacent bold
+    runs merge into one span, and table cells are walked with their content.
+    A ParagraphElement sometimes carries no `startIndex` — the Docs API omits
+    it, usually on a document's very first element — so the offset is carried
+    forward from the paragraph's own start the way
+    `indices._collect_doc_paragraphs` does, instead of raising a KeyError.
+    """
+    spans: list[dict[str, int]] = []
+
+    def _runs_of_paragraph(para: dict, para_start: int) -> None:
+        offset = para_start
+        for element in para.get("elements") or []:
+            run = element.get("textRun")
+            run_start = element.get("startIndex")
+            if run_start is None:
+                # No startIndex on this element (usually a document's first
+                # one): carry the offset forward from the paragraph's start,
+                # like indices._collect_doc_paragraphs.
+                run_start = offset
+            run_end = element.get("endIndex")
+            if run_end is None:
+                run_end = run_start
+                if run and run.get("content"):
+                    for ch in run["content"]:
+                        run_end += utf16_len(ch)
+            offset = run_end
+            if not run or run_end <= run_start:
+                continue
+            if run_end <= start_index or run_start >= end_index:
+                continue
+            if not (run.get("textStyle") or {}).get("bold"):
+                continue
+            span_start, span_end = max(run_start, start_index), min(run_end, end_index)
+            if spans and spans[-1]["endIndex"] == span_start:
+                spans[-1]["endIndex"] = span_end
+            else:
+                spans.append({"startIndex": span_start, "endIndex": span_end})
+
+    def _walk(items: list) -> None:
+        for item in items or []:
+            para = item.get("paragraph")
+            if para:
+                _runs_of_paragraph(para, item.get("startIndex", 1))
+            for row in (item.get("table") or {}).get("tableRows") or []:
+                for cell in row.get("tableCells") or []:
+                    _walk(cell.get("content") or [])
+
+    _walk((doc.get("body") or {}).get("content"))
+    return spans
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
     async def style_doc_range(
@@ -283,8 +519,44 @@ def register(tool):
         if not ranges:
             return {"error": "ranges list is empty"}
 
+        # #1273: a font_family range that sends no bold in the same request
+        # clears the range's direct bold, so the bold spans to restore are read
+        # before the batchUpdate is built.
+        font_only = [i for i, r in enumerate(ranges) if "font_family" in r and "bold" not in r]
+        bold_spans: dict[int, list[dict[str, int]]] = {}
+        if font_only:
+            try:
+                doc = await execute_in_thread(
+                    lc.docs_service.documents().get(documentId=doc_id).execute,
+                    lc.docs_service,
+                )
+            except Exception as e:
+                return {"error": str(e)}
+            bold_spans = {
+                i: _bold_runs_in_range(doc, ranges[i]["start_index"], ranges[i]["end_index"])
+                for i in font_only
+            }
+            # The document read predates every request in this batch, so an
+            # earlier range in the same call that sets bold over text a
+            # font-only range covers changes what the restore must do: a
+            # bold=True range means the overlap must end up bold, and a
+            # bold=False range means it must stay unbolded (#1273 review).
+            for i in font_only:
+                spans = bold_spans[i]
+                for r in ranges[:i]:
+                    if "bold" not in r:
+                        continue
+                    lo = max(ranges[i]["start_index"], r["start_index"])
+                    hi = min(ranges[i]["end_index"], r["end_index"])
+                    if lo >= hi:
+                        continue
+                    spans = _subtract_span(spans, lo, hi)
+                    if r["bold"]:
+                        spans = _normalize_spans([*spans, {"startIndex": lo, "endIndex": hi}])
+                bold_spans[i] = spans
+
         requests = []
-        for r in ranges:
+        for i, r in enumerate(ranges):
             rng = {"startIndex": r["start_index"], "endIndex": r["end_index"]}
 
             if "named_style_type" in r:
@@ -313,21 +585,35 @@ def register(tool):
                         }
                     }
                 )
+                # Restore the direct bold the font request clears (#1273), in
+                # the same batchUpdate and after the font request, so the range
+                # keeps the bold it already had. A range that sends bold itself
+                # is not in bold_spans and is left alone.
+                for span in bold_spans.get(i, []):
+                    requests.append(
+                        {
+                            "updateTextStyle": {
+                                "range": span,
+                                "textStyle": {"bold": True},
+                                "fields": "bold",
+                            }
+                        }
+                    )
 
         if not requests:
             return {"error": "no recognised style fields in any range"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("style_doc_range: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -488,16 +774,16 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -520,7 +806,11 @@ def register(tool):
           (they're left behind as literal text). Every paragraph this tool
           touches is deleteParagraphBullets'd first (harmless even if it
           wasn't previously a list item) so createParagraphBullets always
-          applies to a clean, non-list paragraph.
+          applies to a clean, non-list paragraph. deleteParagraphBullets
+          keeps a removed item's indent, which createParagraphBullets would
+          read as extra depth, so the tool also zeroes each paragraph's
+          indentation before bulleting it. nesting_level is therefore
+          absolute: repeating the same call changes nothing.
         - createParagraphBullets has no nestingLevel field of its own — the
           API infers each paragraph's depth from its own leading tab
           characters, but only relative to whatever ELSE is included in that
@@ -739,6 +1029,24 @@ def register(tool):
                         }
                     }
                 )
+                # deleteParagraphBullets leaves a level-N item indented
+                # 36pt * N, and createParagraphBullets counts that indent as
+                # depth on top of the inserted tabs, so re-bulleting an
+                # already-listed paragraph compounded its level (#1069,
+                # confirmed live). Zero both indents first so the tabs alone
+                # set the level; the new bullet sets its own indents.
+                requests.append(
+                    {
+                        "updateParagraphStyle": {
+                            "range": {"startIndex": run_start, "endIndex": run_end},
+                            "paragraphStyle": {
+                                "indentStart": {"magnitude": 0, "unit": "PT"},
+                                "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                            },
+                            "fields": "indentStart,indentFirstLine",
+                        }
+                    }
+                )
                 total_tabs = 0
                 min_nesting = min(u["nesting_level"] for u in run)
                 for unit in sorted(run, key=lambda u: u["start"], reverse=True):
@@ -786,16 +1094,16 @@ def register(tool):
                         )
                     )
 
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("create_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -808,6 +1116,9 @@ def register(tool):
         """
         Remove list membership (bullets/numbering) from one or more paragraph
         ranges, leaving each paragraph's text and other styling untouched.
+        The API keeps a nested item's indent as paragraph indentation (36pt
+        per nesting level for the standard presets), so a nested item stays
+        indented after its bullet is gone; a top-level item doesn't.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -831,16 +1142,16 @@ def register(tool):
         ]
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
@@ -854,10 +1165,17 @@ def register(tool):
 
         Scans the document body and reads the style of the first paragraph found for
         each named style type (NORMAL_TEXT, HEADING_1 through HEADING_6, TITLE, SUBTITLE).
-        Text-level fields (font_family, font_size, bold, italic, color) come from the
-        first non-empty text run in that paragraph; paragraph-level fields (line_spacing,
-        space_above, space_below) come from the paragraph's paragraphStyle. Only named
-        style types that appear in the body are included.
+        Text-level fields (font_family, font_size, bold, italic, color) are the ones every
+        non-empty text run in that paragraph shares, so a bold lead-in isn't reported;
+        paragraph-level fields (line_spacing, space_above, space_below) come from the
+        paragraph's paragraphStyle. A named style type that doesn't appear in the body, or
+        whose first paragraph has no explicit style, is left out.
+
+        NORMAL_TEXT's first paragraph is the first of body text: a quote, a rule, a code
+        block or an empty line is skipped, unless the doc has no body text, and then the
+        first of them with text is used. Its space_above and space_below leave out 8pt
+        and 10pt, the spacing a Markdown or HTML write puts around blocks and between
+        paragraphs.
 
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.
@@ -940,7 +1258,9 @@ def register(tool):
         style defaults via updateNamedStyle. Paragraphs that have explicit individual style
         overrides are unaffected — their styles take precedence over the named style
         defaults. This preserves intentional per-paragraph variations (e.g. a section
-        deliberately styled in a different colour).
+        deliberately styled in a different colour). One exception: a NORMAL_TEXT entry
+        with space_above or space_below replaces the 10pt space below a paragraph that
+        a Markdown or HTML write leaves between paragraphs, so the theme's spacing shows.
 
         For AI-generated docs where all content uses explicit paragraph/run styles, the
         default mode updates the named style definitions but does not visually change
@@ -994,9 +1314,12 @@ def register(tool):
         for style_type, entry in named_style_keys.items():
             requests.extend(_build_named_style_requests(style_type, entry))
 
-        # Fetch the doc only when needed (overwrite mode or table styling)
+        normal_text = named_style_keys.get("NORMAL_TEXT", {})
+        sets_paragraph_spacing = "space_above" in normal_text or "space_below" in normal_text
+
+        # Fetch the doc only when needed (overwrite mode, table styling, or paragraph gaps)
         doc: dict | None = None
-        if overwrite or table_style:
+        if overwrite or table_style or sets_paragraph_spacing:
             try:
                 doc = await execute_in_thread(
                     lc.docs_service.documents().get(documentId=doc_id).execute,
@@ -1004,6 +1327,11 @@ def register(tool):
                 )
             except Exception as e:
                 return {"error": f"failed to fetch doc: {e}"}
+
+        # Before the overwrite pass, whose own space_below on a paragraph must win.
+        if sets_paragraph_spacing and doc:
+            theme_fields = _spacing_fields(normal_text, explicit_zero=True)
+            requests.extend(_clear_paragraph_gap_requests(doc, theme_fields))
 
         # When overwrite=True, also apply styles directly to all existing paragraphs
         if overwrite and named_style_keys and doc:
@@ -1177,15 +1505,15 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": requests})
-                .execute,
-                lc.docs_service,
-            )
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": requests})
+                    .execute,
+                    lc.docs_service,
+                )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("apply_theme: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}

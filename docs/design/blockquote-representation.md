@@ -126,6 +126,117 @@ read back as quoted two and three times (PR #1089 QA round 1, live).
 36, so a level-1 item quoted once reads back as quote depth 1, not 2. A bordered list item
 written before #1056, with only the level's own indent, still reads as depth 1.
 
+## Adjacent quotes and spacing (#1098)
+
+Docs joins the left borders of adjacent paragraphs with the same border and indents into
+one continuous bar. Two separate quotes in a row therefore rendered as one, and nothing
+put space between a quote and the paragraphs around it. Checked live on a scratch doc
+(PDF export), each pair styled as a depth-1 quote:
+
+| Between the two paragraphs | Result |
+|---|---|
+| nothing | one bar |
+| `spaceBelow`/`spaceAbove` 12pt | one bar, with the gap inside it |
+| zero-width `borderTop`/`borderBottom` | one bar |
+| border color 0.6 vs 0.61 (stored as 0.6117647), width 3 vs 3.01 | one bar |
+| border padding 8 vs 9 | two bars, visibly offset by 1pt |
+| an empty unbordered paragraph | two bars |
+| an empty unbordered paragraph collapsed to 1pt (as before a table), quotes spaced 8pt | two bars, a clean gap |
+
+The last row is what the emitter does. A flat `blockquote_depth` can't tell "the second
+paragraph of one quote" from "the first paragraph of the next quote", so the parser
+also records `blockquote_path` on every leaf node: the ids of the `<blockquote>`
+elements it sits in, outermost first, a fresh id per element. Two quoted nodes are in
+one quote when one path is a prefix of the other. The ids are arbitrary, so the field is
+excluded from node equality; `doc_to_ast.py` leaves it empty, and empty paths are never
+separated.
+
+`emitter._with_quote_separators` inserts an empty `Paragraph` between two adjacent quoted
+nodes that aren't in one quote, and `_collapse_paragraph_requests` shrinks it (the same
+styling the blank paragraph before a table gets). The separator is unquoted even between
+two quotes nested in one outer quote: carrying the outer quote's border, its 1pt height
+left a stray dash of that bar. The outer bar already breaks around the deeper-indented
+nested quotes, so nothing is lost. A separator between two quoted lists also splits them
+into two Docs lists, as the source has.
+
+`_block_spacing` gives a quoted node 8pt above where its quote meets content outside it
+(an unquoted node, a table, or the start) and 8pt below likewise. Between two paragraphs
+of one quote at one depth there's only the paragraph gap every paragraph break gets
+(#1382, 10pt), which the bar covers, as the table's second row shows. A code block gets 8pt
+above and below, which is what tells two consecutive code blocks apart.
+
+Two exceptions, both from PR #1199's QA round 1:
+
+- A separator is spaced on one side only, below the quote before it. Spaced on both
+  sides, two separate quotes sat about 41px apart, baseline to baseline, against 31px
+  between a quote and a plain paragraph.
+- A `Heading`, or a `NamedBlock` with a TITLE/SUBTITLE style, gets no quote-edge space.
+  An explicit `spaceAbove` replaces the named style's own, so a quoted H1 lost HEADING_1's
+  20pt above.
+
+The paragraphs `insertTable` leaves before a table take the style of the block after the
+table (#1097). At full height, the one between two tables showed a following list's
+bullet as an empty numbered item, and collapsed or not, they pushed that list's numbering
+on and carried a following quote's indent and border. `_build_blank_para_before_table_collapses`
+now deletes their bullets and clears `indentStart`, `indentFirstLine`, and `borderLeft`,
+in that order, since `deleteParagraphBullets` adds indent to keep a paragraph's visual
+level. The table itself and its cells took the following block's style too, including
+its indent. Since #1097 each table is inserted at a plain placeholder paragraph of its own
+instead (see `docs-ast-pipeline.md`), so none of it reaches the table, and the reset above
+stays as a backstop. A table inside a quote used to get the quote's indent only by that
+accident, from the quote paragraph after it. Now the parser records its quote depth on
+the `Table`, and its placeholder gets the quote's indent (36pt per level).
+
+### A quoted table's bar (#1122)
+
+A table can't take a paragraph border, so after #1097 a quoted table sat at the quote's
+indent with a gap in the bar beside it. Now the emitter puts a quoted table in the one
+cell of a 1x1 wrapper table (`_wrap_quoted_tables`, `Table.quote_bar`), and the wrapper's
+left cell border is the bar.
+
+- **Placement.** Docs draws a paragraph's bar its padding (8pt) plus its width (3pt) left
+  of the indent, and a table's border centered on the table's edge. So the wrapper's
+  placeholder sits `_QUOTE_BAR_OFFSET_PT` (9.5pt) left of the quote's indent, and its bar
+  lines up with the quote paragraphs' bar. A nested table starts at its cell's left
+  padding, not past the border, so a 9.5pt left padding puts the quoted table back at the
+  quote's indent, where #1097 had it. Both confirmed live.
+- **The wrapper's cell.** The API rejects a transparent cell border, so the wrapper's top,
+  right and bottom borders are 0pt wide, with no padding but the left. Docs keeps an
+  empty paragraph before and after a table in a cell; `_build_quote_bar_requests` collapses
+  both after the fill, so the bar hugs the table.
+- **Quote membership.** A quoted table carries `blockquote_path` (the parser sets it at
+  `</table>`, like every leaf node), and it counts as quoted for separators and
+  quote-edge spacing (`_in_quote`): a quote's paragraphs and its table get no space
+  between them, so their bars meet, and two separate quotes that meet at a table get a
+  separator. A table can't take spacing, so the node across a quote edge takes the gap:
+  after a table, the quote following the separator; beside a quote that starts or ends
+  with a table, the unquoted paragraph or list item on the other side (PR #1359 QA round
+  1). `_quoted` still excludes tables, because a table never takes a paragraph border or
+  spacing of its own.
+- **Two tables in a row.** They never get a separator. Docs keeps a full-height paragraph
+  between two tables (#1098), and a separator there pushed it out of that check, so both
+  were collapsed and the tables touched. That paragraph keeps them apart, unbordered, and
+  takes the quote's indent and bar only when both tables are wrappers in one quote, so the
+  bar runs on past the gap (`_shared_quote_indents`, PR #1359 QA round 1).
+- **Read side.** `doc_to_ast` recognizes the wrapper by its whole signature
+  (`_quote_bar_wrapped`: 1x1, a left border and no other, one table among empty
+  paragraphs) and reads the quoted table it holds. A table has no indent in the API, so
+  the wrapper's first empty paragraph records the quote's indent (the list item's text
+  indent included) for the read side to place it, as it places a quoted paragraph. The
+  newline `insertTable` puts before the wrapper is dropped on read, before the table is
+  placed (placing it can settle a waiting paragraph into a list item), since it would end
+  the quote in the Markdown. An unquoted one right after another quoted table is kept: it's
+  the boundary between two quotes. `ast_to_markdown` writes a quoted table's `>` markers, and the
+  blank line between two blocks in one item that share a quote carries that quote.
+- **Cost.** The wrapper is a real table: `get_doc_structure` and the table tools see a
+  1x1 table holding the quoted one (`known-limitations.md`). Widths, merges, cell styles,
+  alignment and cell images all go on the table inside, through the nested-table fill.
+
+**Markdown input was affected by the parser until #1116.** Python-Markdown parsed `> a`, a
+blank line, `> b` as one `<blockquote>` with two paragraphs, where CommonMark has two quotes,
+so it rendered as one quote. The CommonMark parser (#1116, `docs/design/markdown-parser.md`)
+emits two `<blockquote>` elements, and they render as two with no change here.
+
 ## QA round 1 (PR #546): two gaps in the interrupt/resume integration
 
 Reproduced directly against parser output (`html_to_ast`), no live Google API calls

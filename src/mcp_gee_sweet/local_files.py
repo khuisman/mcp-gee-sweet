@@ -23,9 +23,7 @@ from . import auth, cache
 logger = logging.getLogger(__name__)
 
 
-class LocalFileAccess(str, enum.Enum):
-    """`str, Enum` rather than StrEnum, which needs Python 3.11."""
-
+class LocalFileAccess(enum.StrEnum):
     FULL = "full"
     ROOTS = "roots"
     OFF = "off"

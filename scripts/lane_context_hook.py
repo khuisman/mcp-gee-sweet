@@ -2,8 +2,8 @@
 """Context-size backstop for lane sessions (#847).
 
 Wired into `.claude/settings.json` for two hook events, and a no-op unless the
-session's cwd is inside one of the four lane worktrees
-(`.claude/worktrees/{ash,jay,sky,kit}`):
+session's cwd is inside one of the lane worktrees or Rio's
+(`.claude/worktrees/{ash,jay,sky,kit,rio}`):
 
 - `Stop`: reads the session's current context size from its own transcript
   (the latest assistant message's `usage`) and, once it passes
@@ -30,7 +30,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-LANE_NAMES = ("ash", "jay", "sky", "kit")
+LANE_NAMES = ("ash", "jay", "sky", "kit", "rio")
 
 DEFAULT_WARN_TOKENS = 250_000
 DEFAULT_WARN_STEP = 50_000

@@ -18,11 +18,11 @@ Launch day 🚀 is **🎉 here**.
 
 ### UN-04 — combining characters
 
-Precomposed é and decomposed é; Zalgo-light ã̂.
+Precomposed é and decomposed é; Zalgo-light ã̂.
 
 ### UN-05 — non-breaking and other spaces
 
-Non-breaking 100 km, thin space 10 000, ideographic space「　」.
+Non-breaking 100 km, thin space 10 000, ideographic space「　」.
 
 ### UN-06 — emoji before a formatted run (UTF-16 offset check)
 

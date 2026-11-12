@@ -222,11 +222,12 @@ SUBSETS = [
         ],
     ),
     (
-        "Docs only",
+        "Docs essentials",
         [
             "create_doc",
             "create_doc_from_file",
             "get_doc_content",
+            "get_doc_as_markdown",
             "get_doc_structure",
             "find_in_doc",
             "write_doc_content",
@@ -271,12 +272,36 @@ SUBSETS = [
             "send_message",
             "create_draft",
             "send_draft",
+            "list_drafts",
+            "get_draft",
+            "update_draft",
+            "delete_draft",
             "reply_to_message",
             "modify_labels",
             "trash_message",
         ],
     ),
 ]
+
+# Whole-service presets, built from SECTIONS titles so they pick up new tools
+# without a hand edit. Calendar and Gmail need no entry: their SUBSETS above
+# already hold every tool in the service.
+SERVICE_SUBSETS = [
+    ("All Sheets tools", ["Sheets — data", "Sheets — structure", "Spreadsheets (Drive-level)"]),
+    (
+        "All Drive tools",
+        ["Drive — files", "Drive — transfer", "Drive — sharing", "Drive — activity"],
+    ),
+    ("All Docs tools", ["Docs"]),
+]
+
+# A combined preset, shown to demonstrate joining two service lists.
+COMBINED_SUBSET = ("Docs + Drive (combined example)", ["All Docs tools", "All Drive tools"])
+
+# Windsurf caps a session at 100 tools across every server, the lowest
+# documented client limit. Every preset must stay under it, so a preset that
+# grows past it fails the run instead of documenting a broken setup.
+CLIENT_TOOL_LIMIT = 100
 
 
 def render_tools_md(funcs) -> str:
@@ -316,7 +341,24 @@ def render_tools_md(funcs) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_subsets_block(known_names: set[str]) -> str:
+def service_subsets(funcs) -> list[tuple[str, list[str]]]:
+    """Resolve SERVICE_SUBSETS and COMBINED_SUBSET to tool names, in SECTIONS order."""
+    by_title = {title: predicate for title, predicate, _notes in SECTIONS}
+    resolved = {}
+    for name, titles in SERVICE_SUBSETS:
+        unknown = [t for t in titles if t not in by_title]
+        if unknown:
+            raise RuntimeError(
+                f"gen_tool_docs: service subset {name!r} references unknown section(s): "
+                f"{', '.join(unknown)}. Update SERVICE_SUBSETS in scripts/gen_tool_docs.py."
+            )
+        resolved[name] = [f.__name__ for title in titles for f in funcs if by_title[title](f)]
+    combined_name, parts = COMBINED_SUBSET
+    combined = [tool for part in parts for tool in resolved[part]]
+    return [*resolved.items(), (combined_name, combined)]
+
+
+def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
     lines = [
         "## Tool filtering",
         "",
@@ -335,19 +377,48 @@ def render_subsets_block(known_names: set[str]) -> str:
         "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
         "```",
         "",
-        "If neither is set, all tools are registered.",
+        "If neither is set, or the value is empty, all tools are registered. "
+        "`ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. "
+        "Listed with tool names, `all` adds nothing: every tool is still registered.",
+        "",
+        "**Upcoming change:** an upcoming release loads a smaller default tool set when "
+        "`ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. "
+        "Until then, `mcp-gee-sweet` logs this as a warning at startup when neither "
+        "names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` "
+        "doesn't log it.",
         "",
         "### Suggested subsets",
         "",
+        "Some MCP clients cap how many tools they accept, and the full tool set is "
+        "over every cap: VS Code with GitHub Copilot allows 128 tools per request, "
+        "built-in tools included; Windsurf allows 100 across all servers; Cursor's "
+        "cap depends on the model. On Windsurf and Cursor, pick one of these "
+        f"subsets. Each one is under {CLIENT_TOOL_LIMIT} tools. In our November "
+        "2026 test, VS Code + Copilot looked tools up on demand and handled the "
+        'full set, so use a subset there only if you see "Cannot have more than '
+        '128 tools per request". See [Clients with a tool limit]'
+        "(client-setup.md#clients-with-a-tool-limit) for each client's config.",
+        "",
+        "To combine two subsets, join their lists with a comma (a name listed "
+        "twice is fine) and add up the counts to check you're still under your "
+        "client's limit. Windsurf's 100 also counts every other server's tools.",
+        "",
     ]
-    for name, tool_names in SUBSETS:
+    for name, tool_names in [*SUBSETS, *extra_subsets]:
         unknown = [t for t in tool_names if t not in known_names]
         if unknown:
             raise RuntimeError(
                 f"gen_tool_docs: subset {name!r} references unknown tool(s): "
                 f"{', '.join(unknown)}. Update SUBSETS in scripts/gen_tool_docs.py."
             )
-        lines.append(f"**{name}:**")
+        count = len(set(tool_names))
+        if count >= CLIENT_TOOL_LIMIT:
+            raise RuntimeError(
+                f"gen_tool_docs: subset {name!r} has {count} tools, at or over the "
+                f"{CLIENT_TOOL_LIMIT}-tool client limit it's documented to fit under. "
+                "Split it or drop it from scripts/gen_tool_docs.py."
+            )
+        lines.append(f"**{name}** ({count} tools):")
         lines.append("```")
         lines.append(",".join(tool_names))
         lines.append("```")
@@ -372,7 +443,7 @@ def main() -> int:
     changed = write_if_changed(TOOLS_MD, render_tools_md(funcs))
 
     config_text = CONFIG_MD.read_text()
-    new_block = render_subsets_block(known_names)
+    new_block = render_subsets_block(known_names, service_subsets(funcs))
     # backslash-escape the replacement so re.sub doesn't treat it as a backreference template
     escaped_block = new_block.replace("\\", "\\\\") + "\n"
     updated_config, n_subs = re.subn(

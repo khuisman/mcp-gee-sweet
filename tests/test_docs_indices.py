@@ -190,3 +190,20 @@ class TestIsolatedBulletRunWrapRequests:
     def test_anchor_delete_removes_exactly_the_inserted_character(self):
         reqs = isolated_bullet_run_wrap_requests(10, 20, "BULLET_DISC_CIRCLE_SQUARE")
         assert reqs[2]["deleteContentRange"] == {"range": {"startIndex": 10, "endIndex": 11}}
+
+    def test_barrier_leaves_an_unbulleted_paragraph_before_the_anchor(self):
+        # #1241: the barrier paragraph at 10 stays out of the bullet range, so the
+        # range doesn't join a same-preset list ending just before it; both go.
+        reqs = isolated_bullet_run_wrap_requests(
+            10, 20, "NUMBERED_DECIMAL_ALPHA_ROMAN", barrier=True
+        )
+        assert reqs == [
+            {"insertText": {"location": {"index": 10}, "text": "\n\n"}},
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": 11, "endIndex": 22},
+                    "bulletPreset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                }
+            },
+            {"deleteContentRange": {"range": {"startIndex": 10, "endIndex": 12}}},
+        ]

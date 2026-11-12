@@ -54,6 +54,44 @@ class Image:
     link_url: str | None = None
 
 
+# image_source_kind's values.
+IMAGE_SOURCE_URL = "url"
+IMAGE_SOURCE_DRIVE = "drive"
+IMAGE_SOURCE_DATA = "data"
+IMAGE_SOURCE_LOCAL = "local"
+
+
+def _is_host_relative(src: str) -> bool:
+    """A protocol-relative "//host/..." whose host starts with a letter or digit,
+    the same test emitter._storable_link_url applies to a link (#1180)."""
+    return src.startswith("//") and len(src) > 2 and src[2].isascii() and src[2].isalnum()
+
+
+def image_source_kind(src: str) -> str:
+    """What an Image.src names: an http(s) URL (a protocol-relative "//host/..."
+    included, fetched over https by image_url), a "drive:<file_id>", a "data:" URI
+    (inline bytes, which markdown-it's validateLink lets through for images), or,
+    for anything else, a local path. The one classification every image path uses
+    (#1232 QA round 1): resolving it, deciding whether a doc edit needs an upload
+    folder, and naming it in fallback text. Schemes are case-insensitive (RFC 3986).
+    html_parser strips the src when it builds the Image, so it's never padded here."""
+    lowered = src[:8].lower()
+    if lowered.startswith(("http://", "https://")) or _is_host_relative(src):
+        return IMAGE_SOURCE_URL
+    if lowered.startswith("drive:"):
+        return IMAGE_SOURCE_DRIVE
+    if lowered.startswith("data:"):
+        return IMAGE_SOURCE_DATA
+    return IMAGE_SOURCE_LOCAL
+
+
+def image_url(src: str) -> str:
+    """The URL Docs fetches for a URL-kind src: the src itself, or, for a
+    protocol-relative "//host/...", https: plus it. Always https, never http, as
+    for a link (#1180)."""
+    return "https:" + src if _is_host_relative(src) else src
+
+
 @dataclass
 class Cell:
     # Ordered text runs, inline images, and nested tables, in source order
@@ -62,6 +100,9 @@ class Cell:
     rowspan: int = 1
     is_header: bool = False
     content_alignment: str | None = None  # TOP, MIDDLE, BOTTOM
+    # Horizontal alignment of the cell's own paragraphs (#1095): START, CENTER, END,
+    # JUSTIFIED, from text-align (a GFM :--/:-:/--: column) or align. None: no alignment set.
+    alignment: str | None = None
     background_color: RGBColor | None = None  # Phase 3
     padding_top: float | None = None  # Phase 3
     padding_right: float | None = None  # Phase 3
@@ -84,6 +125,47 @@ class Table:
     rows: list[Row]
     col_widths: list[float | None] = field(default_factory=list)
     table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
+    # A quoted table (#1097, #1122): the emitter draws its quote bar with a wrapper
+    # table (see quote_bar) and doc_to_ast.py reads the wrapper back as this depth.
+    blockquote_depth: int = 0
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see below
+    list_depth: int | None = None  # #1094, see below
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see below
+    # Write side only (#1122): this is the emitter's 1x1 wrapper around a quoted table,
+    # its one cell holding that table, its left border the quote bar. Docs can't give a
+    # table a paragraph border, so this is how a table gets one.
+    quote_bar: bool = field(default=False, compare=False)
+
+
+# blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
+# first, one per level of blockquote_depth. Two quoted nodes belong to one quote exactly
+# when one path is a prefix of the other; otherwise they are separate quotes, which the
+# emitter must keep apart because Docs joins the borders of adjacent paragraphs styled
+# alike. The ids are parser-assigned counters with no meaning beyond identity, so they
+# don't take part in node equality. Empty when unknown (doc_to_ast.py): no separation.
+
+# list_depth (#1094): set on a block inside a list item (a second paragraph, a code
+# block, a quote, a heading, a table, a rule): the depth of that item. The emitter
+# indents the block to the item's text and keeps the list going past it, so the next
+# item continues its numbering. None for a block outside every list item. list_path is
+# the item's BulletItem.list_path (write side only, identity only, like
+# blockquote_path), so the emitter can tell which list the block belongs to.
+
+# literal_item_level (#1118): set by the emitter on the node standing in for an
+# item of a list whose start number the Docs API can't set: the item's depth. Its
+# runs start with the written number and a tab, and it takes that list level's
+# hanging indent. None for every other node. Never set by html_parser.
+# literal_item_gap is the room its marker needs before its text, in points: a list
+# level's own gap, or more for a marker that wouldn't clear the tab stop.
+# literal_item_path is the item's own BulletItem.list_path, ending with its own list's
+# id; list_path, one id shorter, places the stand-in as a block in its parent item. The
+# emitter tells a stand-in's list from another by it (#1389).
+
+
+# The glyph and space a task item's text starts with, in the Doc: a literal prefix, not
+# a BULLET_CHECKBOX preset (#336). The emitter writes them, doc_to_ast reads them back.
+CHECKED_PREFIX = "☑ "
+UNCHECKED_PREFIX = "☐ "
 
 
 @dataclass
@@ -92,6 +174,13 @@ class Heading:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
 
 
 @dataclass
@@ -99,6 +188,18 @@ class Paragraph:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
+    # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
+    # draws as a horizontal line, since the Docs API can't insert a horizontalRule
+    # element. doc_to_ast.py reads both that stand-in and a native horizontal line back
+    # as one, and ast_to_markdown.py writes it as a rule.
+    rule: bool = False
 
 
 @dataclass
@@ -109,6 +210,21 @@ class BulletItem:
     checked: bool | None = None  # None = not a task item; True/False = ☑/☐
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    # Read side (#1208): an ordered item's ordinal in its Docs list, counted across
+    # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
+    # Write side (#1118): the item's number in a source <ol> a browser wouldn't number
+    # 1, 2, 3, None in any other list. Metadata like blockquote_path: no part in equality.
+    number: int | None = field(default=None, compare=False)
+    # Write side only (#1241): ids of the source <ul>/<ol> lists enclosing the item,
+    # outermost first, its own list last; parser-assigned counters like
+    # blockquote_path's. Two adjacent lists of one type at one depth differ only
+    # here. Empty when unknown: the emitter then groups by type alone. Identity
+    # only, so it doesn't take part in equality.
+    list_path: tuple[int, ...] = field(default=(), compare=False)
+    # #1094: a list item whose own content is a heading ("- # Title"): the item is a
+    # bulleted paragraph in that HEADING_N style. None for an ordinary item.
+    heading_level: int | None = None
 
 
 @dataclass
@@ -117,6 +233,9 @@ class NamedBlock:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
+    list_depth: int | None = None  # #1094, see above Heading
+    list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
 
 
 DocNode = Heading | Paragraph | BulletItem | Table | NamedBlock

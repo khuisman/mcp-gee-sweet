@@ -1,10 +1,11 @@
 import os
 import stat
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from mcp_gee_sweet.tools import atomic_write
+from tests.conftest import IS_ROOT
 
 
 def _partial_files(directory):
@@ -30,7 +31,7 @@ class TestWriteAtomically:
     def test_success_replaces_content_and_stamps_mtime(self, tmp_path):
         dest = tmp_path / "f.bin"
         dest.write_bytes(b"original")
-        stamp = datetime(2024, 6, 1, tzinfo=timezone.utc).timestamp()
+        stamp = datetime(2024, 6, 1, tzinfo=UTC).timestamp()
 
         atomic_write._write_atomically(dest, lambda fh: fh.write(b"new"), stamp)
 
@@ -47,7 +48,7 @@ class TestWriteAtomically:
 
         assert dest.stat().st_mode & 0o777 == 0o750
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     def test_read_only_destination_is_refused_not_replaced(self, tmp_path):
         """PR #884 QA round 1: a rename only needs directory write permission,
         so a file the user made read-only was silently replaced. The old
@@ -63,7 +64,7 @@ class TestWriteAtomically:
         assert dest.stat().st_mode & 0o777 == 0o444
         assert _partial_files(tmp_path) == []
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root can write a 0o444 file")
+    @pytest.mark.skipif(IS_ROOT, reason="root can write a 0o444 file")
     def test_read_only_symlink_target_is_refused(self, tmp_path):
         real = tmp_path / "real.bin"
         real.write_bytes(b"protected")

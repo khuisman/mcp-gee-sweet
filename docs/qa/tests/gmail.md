@@ -7,13 +7,14 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`. Plan of record: [`gmail-test-plan.md
 ## Conventions
 
 - **Fixtures.** Read cases use the seeded fixture set, never real inbox contents. Seed it with `scripts/qa_gmail_fixtures.py` (setup.md §"Gmail fixture setup") and run its `status` command first. Placeholders in `{TEST_…}` form are the `.env` keys that script writes. Every fixture carries the user label `mcp-qa-fixture` (`{TEST_GMAIL_LABEL_ID}`) and a `[mcp-qa:<key>]` subject.
-- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except the cross-mailbox cases (TC-GM44–45), which also send to `{SENDER}`. Nothing else is ever a recipient.
+- **Addresses.** `{QA}` is `TEST_GMAIL_ADDRESS`. `{QA+tag}` is its plus-address (`qa@example.com` → `qa+tag@example.com`). `{SENDER}` is `TEST_GMAIL_SENDER_ADDRESS`. Write cases send only to `{QA+tc-gmNN}` addresses, except TC-GM43 and the cross-mailbox cases (TC-GM44–45, TC-GM67), which also send to `{SENDER}`, and TC-GM25, which also sends to the bare `{QA}`. Nothing else is ever a recipient.
 - **Subjects.** Every message a case sends or drafts has a subject starting `[mcp-qa:tc-gmNN]`, so `qa_gmail_fixtures.py reset` sweeps anything a failed run leaves behind. (TC-GM42's empty-subject message is the one exception; its Cleanup trashes it by ID.)
 - **Sending to yourself is one message.** Mail to `{QA+tag}` comes back as one ID labeled `SENT`+`INBOX`, not a sent copy plus a delivered copy. Cleanup trashes that one ID.
 - **Don't break fixtures.** Never trash a fixture, and never remove `mcp-qa-fixture` from one. Cases that change a fixture's labels (TC-GM19) restore them in the same case.
-- **Sender mailbox.** TC-GM44–45 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
+- **Sender mailbox.** TC-GM44–45 and TC-GM67 read the sender mailbox through the global `mcp-gee-sweet` server (`mcp__mcp-gee-sweet__*`). It's a personal inbox. Touch only `[mcp-qa`-subject messages there, and only the ones the case names. It may run different code than the release candidate, so it only observes; the QA-side call is the one under test.
 - **Sharding.** Run the whole file as one shard on one slot. Write cases share a mailbox, and parallel shards would see each other's messages.
-- **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 (replies into it).
+- **Order.** Run TC-GM33 (reads the `thread` fixture) before TC-GM43 and TC-GM67 (reply into it).
+- **Send mode (#1081).** The default `GMAIL_SEND=confirm` holds every send for a confirmation the human answers. Every case outside "Send confirmation" below expects immediate delivery, so run them on a slot with `GMAIL_SEND=direct` in its server's environment (the `env` of its MCP config entry, or its worktree's `src/mcp_gee_sweet/.env`), then reconnect. The "Send confirmation" cases need the default (`GMAIL_SEND` unset) and a client on the 2025-11-25 handshake that answers form elicitations. Claude Code isn't one: it connects to this server on MCP 2026-07-28 (2.1.310, checked 2026-10-26), where no form can be sent, so those cases run from the fresh-interpreter harness their section describes. TC-GM65 is the exception: it tests that held path, so it runs from Claude Code on the slot's own tools. Before each section, confirm the mode with one `send_message` to `{QA+tc-gm-mode}` from the slot's own tools: under `direct` it returns `sent: true` (trash it); under `confirm` it returns `sent: false` (`delete_draft` the returned `draft_id`).
 
 ---
 
@@ -39,6 +40,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): `list_labels` confirmed the Gmail scope; `list_messages("label:mcp-qa-fixture", 50)` returned 21 messages including `{TEST_MESSAGE_ID}`, no next_page_token, no error. `TEST_GMAIL_LATIN1_ID` isn't a key in Aziz's worktree `.env`, so that ID wasn't checked.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — 21 messages, including {TEST_MESSAGE_ID} and {TEST_GMAIL_LATIN1_ID}; each has id and thread_id; no next_page_token; no error.
+
 ---
 
 ### TC-GM02: Invalid label filter returns API error
@@ -52,6 +55,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — returned `{"error": "<HttpError 400 ... Invalid label: TOTALLY_INVALID_LABEL_XYZ ...>"}`, no exception.
 
 ---
 
@@ -80,6 +85,8 @@ The 7 `page-N` fixtures share the subject prefix `[mcp-qa:page]`, and each is it
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `list_messages` and `list_threads` both paged 3/3/1 with `next_page_token` on the first two pages only; 7 distinct IDs; thread items carry id, snippet, history_id. `max_results: 0` returned exactly 1 message, no error; `9999` returned all 7 with no token.
+
 ---
 
 ### TC-GM35: Spam and trash are excluded unless asked for
@@ -102,6 +109,8 @@ The `spam` and `trash` fixtures are inserted already labeled `SPAM` / `TRASH`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard E on `kit`** — prerequisite fixtures missing: all four steps returned `messages: []` (steps 2 and 4 too, with `include_spam_trash: true`), and the fixture `status` command reports `spam` and `trash` as `missing` (30-day Spam/Trash purge). Not a product result; Aziz needs to reseed (`qa_gmail_fixtures.py seed`, which writes `.env`, so not run from this shard). Process gap, filed as #1420: release passes can lose these two fixtures to Gmail's auto-purge.
+
 ---
 
 ## `get_message`
@@ -122,6 +131,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — subject `[mcp-qa:plain] plain text`, from {SENDER}, to {QA}, message_id non-empty, body_plain `mcp-gee-sweet plain fixture.`, body_html null, attachments [], label_ids include Label_1, no error keys.
+
 ---
 
 ### TC-GM04: Non-existent message ID
@@ -134,6 +145,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "<HttpError 400 ... Invalid id value>"}`.
 
 ---
 
@@ -201,6 +214,8 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — fixtures inserted with the documented script from Aziz's worktree (token = {QA}). A: body_plain `Café crème, naïve`, body_html `<p>こんにちは世界</p>`; get_thread's one message identical; B: `“Smart quotes” – 5`. No mojibake, no �, no error keys. Both trashed.
+
 
 ---
 
@@ -211,13 +226,15 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Checks**
 - `headers.subject` is `[mcp-qa:alt-unicode] Ünïcødé ✓ 🎉 subject`
-- `body_plain` is `Grüße aus Zürich — naïve café, 日本語, emoji 🎉🚀.` (ignore trailing whitespace)
+- `body_plain` is `Grüße aus *Zürich* — naïve café, 日本語, emoji 🎉🚀.` (ignore trailing whitespace). The asterisks are expected: Gmail stores the text/plain part with the bold `Zürich` rendered as `*Zürich*` (seen in a raw `messages.get(format=full)` in the v0.9.2 pass), and the tool returns that part as stored.
 - `body_html` contains `Grüße aus <b>Zürich</b> — naïve café, 日本語, emoji 🎉🚀.`
 - No mojibake (`Ã`, `â€`) and no `�` in any header or body
 - No `error` or `body_decode_errors` field
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "*Zürich*". The TC's expected value is stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — subject `[mcp-qa:alt-unicode] Ünïcødé ✓ 🎉 subject`; body_plain `Grüße aus *Zürich* — naïve café, 日本語, emoji 🎉🚀.`; body_html contains `Grüße aus <b>Zürich</b> — ...`; no mojibake or �; no error keys.
 
 ---
 
@@ -237,6 +254,8 @@ Tool returns the stored text/plain part faithfully: Gmail rebuilt it as "*Züric
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — attachments fixture: body_plain as expected, exactly `mcp-qa.pdf` (application/pdf, 191) and `mcp-qa.csv` (text/csv, 27) with attachment_ids, CSV not in body. Inline fixture: body_html has `cid:mcp-qa-inline-png`; one attachment `image/png`, filename null, attachment_id set.
+
 ---
 
 ### TC-GM29: A forwarded message doesn't replace the outer body
@@ -253,6 +272,8 @@ Depends on how Gmail stores delivered mail (plan §5 P2). In a release pass, rep
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — body_plain `outer body — the forwarder's own note.` (no `inner body`); attachment `forwarded.eml` `message/rfc822`; no error. (Second-seed repeat not run.)
 
 ---
 
@@ -359,6 +380,8 @@ Record the printed ID as `{UTF16_ID}`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 1: `get_message: the response would be at least 6037989 characters ... Pass local_path`, immediate. Step 2: manifest `{local_path, bytes_written: 6190675, message_id}`, file `message_{TEST_GMAIL_LARGE_ID}.json`; body_plain 3,000,002 / body_html 3,037,987 with expected prefixes, attachments [], no error keys. Step 3: same floor error naming get_thread. Step 4: thread_id matches, message_count 1, body_plain 3,000,002. Step 5: `Café crème brûlée TC-GM30.` / `<p>こんにちは TC-GM30</p>`, no Ã/�, attachments []. Step 6: PDF+CSV still listed (TC-GM28 call). Step 7: `“Smart” – quotes TC-GM30.` / `<p>Café “UTF-8” TC-GM30</p>`, no C1/Ã/â€/�, no error keys. Step 8: inline (589,673 chars, no size-cap error; Claude Code spilled it to a file), body_plain 570,000 chars starting `UTF-16 body line for TC-GM30.`, no �. Three inserted fixtures trashed, OUT_DIR deleted.
+
 ---
 
 ### TC-GM32: Latin-1 body decodes correctly (seeded companion to TC-GM26)
@@ -374,6 +397,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — body_plain `Café, niño, façade - ISO-8859-1 body (#792).`, no mojibake, no error keys.
 
 ---
 
@@ -396,6 +421,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — id, thread_id, snippet, label_ids, internal_date, size_estimate 7893; subject `[mcp-qa:attachments] PDF + CSV`, from {SENDER}, message_id set; no body/attachments/error keys.
+
 ---
 
 ## `list_threads`
@@ -413,6 +440,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — 17 threads including {TEST_THREAD_ID} and {TEST_GMAIL_BIG_THREAD_ID}; each has id, snippet, history_id; no token, no error.
+
 ---
 
 ### TC-GM06: Invalid label filter returns API error
@@ -425,6 +454,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "... Invalid label: TOTALLY_INVALID_LABEL_XYZ"}`.
 
 ---
 
@@ -443,6 +474,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — id {TEST_THREAD_ID}, 5 messages (3 fixture + 2 trashed earlier-run replies), each with the get_message shape; no error.
+
 ---
 
 ### TC-GM08: Non-existent thread ID
@@ -455,6 +488,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "... Invalid id value"}`.
 
 ---
 
@@ -481,6 +516,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 1: tool error `get_thread: the response is 1275124 characters, over the 1000000-character safety cap`, hint names include_body=False then get_message; no partial thread; next call worked. Step 2: 3 metadata messages with id, thread_id, snippet, label_ids, size_estimate (~412 KB each), headers with `[mcp-qa:over-cap-thread]`; no body keys; ~3 KB. Step 3 (via local_path, 424,899 bytes): body_plain starts `mcp-gee-sweet over-cap-thread message 1.`.
+
 ---
 
 ### TC-GM33: Thread order and reply headers
@@ -488,7 +525,7 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Action**
 1. `get_thread` with `thread_id: "{TEST_THREAD_ID}"`
 
-Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM43 run). Call the remaining three M1, M2, M3, identified by their body text in the checks below.
+Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM43 or TC-GM67 run). Call the remaining three M1, M2, M3, identified by their body text in the checks below.
 
 **Checks**
 - Exactly 3 non-trashed messages, with non-decreasing `internal_date`. M2 and M3 can share a value (sent in the same second; seen live 2026-09-26), so the order is proven by the `in_reply_to` chain below, not by the timestamps.
@@ -500,6 +537,8 @@ Ignore any message whose `label_ids` includes `TRASH` (left by an earlier TC-GM4
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — ignoring 2 TRASH replies (earlier TC-GM43/67 runs), 3 messages M1/M2/M3 with expected bodies, non-decreasing internal_date (M2=M3); M1/M3 from {SENDER}, M2 from {QA} with SENT; M1 in_reply_to null; M2→M1, M3→M2; M3 references M1 then M2.
 
 ---
 
@@ -519,6 +558,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — INBOX, UNREAD, SENT, DRAFT, TRASH, SPAM all `type: system`; `mcp-qa-fixture` is `type: user`, id `Label_1` = {TEST_GMAIL_LABEL_ID}; every item has id/name/type; no error. (Also served as the Gmail-scope check.)
+
 ---
 
 ### TC-GM10: (retired)
@@ -527,6 +568,8 @@ Retired by #822. The Gmail-scope failure path is covered deterministically by TC
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ⏭️ SKIP — retired by #822 (covered by TC-I32 in infra.md).**
 
 ---
 
@@ -548,6 +591,8 @@ Uses a throwaway, not a fixture: removing `mcp-qa-fixture` from a fixture would 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — Label_1 added, then removed.
 
 ---
 
@@ -575,6 +620,11 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth), run from Aziz's session (Gmail send approved by the user for this pass): `send_message` to the QA plus-address returned id/thread_id with `SENT` in label_ids; `list_messages` found it; trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — sent message has SENT; list_messages finds it.
+
 ---
 
 ### TC-GM12: Invalid recipient returns an error
@@ -588,6 +638,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — under `confirm` the call fails at the draft step: `{"error": "<HttpError 400 ... /drafts ... Invalid To header>"}`, no `id`, no draft left (`list_drafts` for tc-gm12 empty).
 
 ---
 
@@ -615,6 +667,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — body_plain/body_html match; attachments mcp-qa-tc-gm38.csv (text/csv, 18) and note.txt (text/plain, 18).
+
 ---
 
 ### TC-GM39: `cc` and `bcc` as lists ⚠️ destructive
@@ -633,6 +687,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — cc lists both addresses; bcc kept on the sender's copy.
+
 ---
 
 ### TC-GM40: A newline in the subject is rejected (header injection) ⚠️ destructive
@@ -643,13 +699,15 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 3. `list_messages` with `query: "subject:(mcp-qa tc-gm40)"`, `include_spam_trash: true`
 
 **Checks**
-- Steps 1 and 2: each returns `{"error": "..."}` and no `id`. A local probe (2026-09-26) raises `HeaderParseError` for step 1 and `HeaderWriteError` for step 2, both inside the tool's `try`.
+- Steps 1 and 2: each returns `{"error": "..."}` and no `id`. The error is the text of the exception Python's `email` package raises while the tool builds the message (`HeaderParseError` for step 1, `HeaderWriteError` for step 2); the exception class name isn't in it. On Python 3.13, step 1's error starts `header value appears to contain an embedded header:` and step 2's starts `folded header contains newline:`, each followed by the offending header.
 - Step 3: `messages` is empty, so nothing was sent
 
 **Cleanup:** none expected. If step 3 finds anything, record FAIL and trash it.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 1 `{"error": "header value appears to contain an embedded header: ..."}`, step 2 `{"error": "folded header contains newline: ..."}`, no ids; step 3 `list_messages(subject:(mcp-qa tc-gm40), include_spam_trash)` empty; no drafts either.
 
 ---
 
@@ -690,6 +748,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — all 6 MIME types as expected.
+
 ---
 
 ## `create_draft`
@@ -704,10 +764,12 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 - Step 1: returns `id` and `message.id`, no `error`
 - Step 2: `label_ids` includes `DRAFT` and not `SENT`
 
-**Cleanup:** TC-GM15 sends this draft. If TC-GM15 isn't run, `qa_gmail_fixtures.py reset` deletes it (the tools can't delete a draft).
+**Cleanup:** TC-GM15 sends this draft. If TC-GM15 isn't run, `delete_draft` it.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — returned draft `id` and `message.id`, no error; `get_message` label_ids `["DRAFT"]` (no SENT). Deleted (TC-GM15 not runnable here).
 
 ---
 
@@ -723,6 +785,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "Each attachment needs either local_path or content_base64 (plus optional filename and mime_type)."}`, no draft id.
 
 ---
 
@@ -747,6 +811,11 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — sent copy's bodies and attachment equal the draft's; SENT, no DRAFT.
+
 ---
 
 ## `send_draft`
@@ -763,12 +832,17 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Checks**
 - Step 1: returns `id`, `thread_id`, `label_ids`, and `label_ids` includes `SENT`
 - Step 2: `label_ids` doesn't include `DRAFT`; `headers.subject` is `[mcp-qa:tc-gm13] draft`
-- Step 3: returns `{"error": "..."}`. The draft is gone, which is the only way the tools can show it left the drafts list.
+- Step 3: returns `{"error": "..."}`. The draft is gone.
 
 **Cleanup:** `trash_message` the step-1 `id`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — fresh draft; send_draft gave SENT, subject matched; second send_draft returned a 404 error.
 
 ---
 
@@ -782,6 +856,230 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "<HttpError 404 ... drafts/totally-invalid-draft-id-xyz ... not found>", "draft_id": ...}`, no exception (confirm path reads the draft before asking).
+
+---
+
+## `list_drafts`, `get_draft`, `update_draft`, `delete_draft`
+
+None of these sends mail. Each case checks that afterwards with `list_messages` on `query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""`, which must return no messages.
+
+### TC-GM48: List drafts with a query and pagination (issue #1205) ⚠️ destructive
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm48}"`, `cc: "{QA+tc-gm48-cc}"`, `subject: "[mcp-qa:tc-gm48] first"`, `body: "mcp-gee-sweet TC-GM48 first"`. Record it as `{GM48_A}`.
+2. `create_draft` with `to: "{QA+tc-gm48}"`, `subject: "[mcp-qa:tc-gm48] second"`, `body: "mcp-gee-sweet TC-GM48 second"`. Record it as `{GM48_B}`.
+3. `list_drafts` with `query: "subject:\"[mcp-qa:tc-gm48]\""`
+4. `list_drafts` with the same `query` and `max_results: 1`
+5. `list_drafts` with the same `query`, `max_results: 1`, and `page_token` from step 4
+
+**Checks**
+- Step 3: `drafts` has exactly two entries, with `id`s `{GM48_A}.id` and `{GM48_B}.id`
+- Step 3: `{GM48_A}`'s entry is `{id, message}`, where `message` equals `get_draft` with `draft_id: "{GM48_A}.id"` and `include_body: false`'s `message`: `id` and `thread_id` equal to step 1's `message.id` and `message.thread_id`, `headers.to` containing `{QA+tc-gm48}`, `headers.cc` containing `{QA+tc-gm48-cc}`, `headers.subject: "[mcp-qa:tc-gm48] first"`, a `headers.date`, and a non-empty `snippet`. No header outside get_message's set (e.g. `received`) appears.
+- Step 4: one draft and a `next_page_token`
+- Step 5: one draft, not the one from step 4
+- No mail was sent
+
+**Cleanup:** `delete_draft` both drafts.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth, QA mailbox). Step 3 listed both drafts, newest first; `{GM48_A}`'s entry had matching `message_id`/`thread_id`, `to`, `cc`, `subject`, `date`, and `snippet`, and `{GM48_B}`'s `cc` was null. Steps 4 and 5 each returned one different draft. API quirk, not a defect: with `max_results: 1`, Gmail reported `result_size_estimate: 201` and still returned a `next_page_token` on step 5's last real page. Following it returned `drafts: []`. No mail sent; both drafts deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Rerun for the new `{id, message}` shape. Step 3: `{GM48_A}`'s `message` was identical to `get_draft(include_body=false)`'s, with matching `id`/`thread_id`, `to`, `cc`, `subject`, `date`, and `snippet`. No header outside the shaped set (no `received`). Steps 4 and 5 each returned one different draft, with the same `result_size_estimate: 201` / trailing `next_page_token` quirk as round 1. No mail sent; drafts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 3: exactly the two drafts (newest first); A's entry `{id, message}` identical to `get_draft(include_body=false)`'s message (id/thread_id = step 1's, to, cc, subject, date, snippet; no extra headers). Step 4: one draft + `next_page_token`; step 5: the other draft (Gmail again returned a trailing token, the known API quirk). No mail sent; drafts deleted.
+
+---
+
+### TC-GM49: `get_draft` has the same shape as `get_message` (issue #1205) ⚠️ destructive
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm49}"`, `subject: "[mcp-qa:tc-gm49] get"`, `body: "mcp-gee-sweet TC-GM49 plain"`, `body_html: "<p>mcp-gee-sweet <b>TC-GM49</b></p>"`, `attachments: [{"content_base64": "VEMtR000OSBhdHRhY2htZW50", "filename": "gm49.txt"}]`
+2. `get_draft` with `draft_id` from step 1
+3. `get_message` with `message_id` set to step 1's `message.id`
+4. `get_draft` with the same `draft_id` and `include_body: false`
+5. `get_draft` with the same `draft_id` and `local_path` set to a new scratch directory ending in `/`
+
+**Checks**
+- Step 2: `id` is step 1's `id`. `message` equals step 3's result, except each attachment's `attachment_id` (Gmail issues a fresh one on every fetch)
+- Step 2: `message.attachments` is one entry, `gm49.txt`, `text/plain`, size 18; `message.label_ids` includes `DRAFT`
+- Step 4: `message.headers.subject` is `[mcp-qa:tc-gm49] get`; `message` has no `body_plain`, `body_html`, or `attachments`
+- Step 5: returns `local_path`, `draft_id`, and `bytes_written`; the file `draft_<id>.json` in that directory holds step 2's result
+- No mail was sent
+
+**Cleanup:** `delete_draft` the draft; remove the scratch directory.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 2 matched step 3 field for field except `attachment_id`, with `gm49.txt` `text/plain` size 18, `DRAFT` label, and both bodies. Step 4 had headers only. Step 5 wrote `draft_<id>.json` (1165 bytes) holding step 2's subject, both bodies, and the attachment. No mail sent; draft deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 2 message equals step 3's except attachment_id; `gm49.txt` text/plain 18, DRAFT label. Step 4 headers only. Step 5 wrote `draft_<id>.json` (1164 bytes) holding step 2's result. No mail sent; draft and scratch dir deleted.
+
+---
+
+### TC-GM50: `update_draft` replaces content and keeps the draft ID (issue #1205) ⚠️ destructive
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm50}"`, `cc: "{QA+tc-gm50-cc}"`, `subject: "[mcp-qa:tc-gm50] before"`, `body: "mcp-gee-sweet TC-GM50 before"`, `body_html: "<p>before</p>"`, `attachments: [{"content_base64": "VEMtR001MA==", "filename": "gm50.txt"}]`. Record `id` as `{GM50_ID}` and `message.id` as `{GM50_OLD_MID}`.
+2. `update_draft` with `draft_id: "{GM50_ID}"`, `to: ["{QA+tc-gm50-new}"]`, `subject: "[mcp-qa:tc-gm50] after"`, `body: "mcp-gee-sweet TC-GM50 after"`
+3. `get_draft` with `draft_id: "{GM50_ID}"`
+4. `get_message` with `message_id: "{GM50_OLD_MID}"`
+5. `list_drafts` with `query: "subject:\"[mcp-qa:tc-gm50]\""`
+
+**Checks**
+- Step 2: `id` is `{GM50_ID}`; `message.id` differs from `{GM50_OLD_MID}`
+- Step 3: `headers.to` is `{QA+tc-gm50-new}`, `headers.subject` is `[mcp-qa:tc-gm50] after`, `headers.cc` is null, `body_plain` is `mcp-gee-sweet TC-GM50 after`, `body_html` is null, `attachments` is empty
+- Step 4: returns `{"error": "..."}` (the old message is gone)
+- Step 5: one draft, with `id` `{GM50_ID}`
+- No mail was sent
+
+**Cleanup:** `delete_draft` `{GM50_ID}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 2 kept the draft ID with a new `message.id`. Step 3 had the new `to` and subject, `cc` null, the new `body_plain`, `body_html` null, and `attachments: []`. Step 4 returned a 404 `{"error"}`. Step 5 listed exactly `{GM50_ID}`. The updated message kept the original `thread_id` (update_draft passes it back), which is expected. No mail sent; draft deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Regression rerun after the compose rework, checking steps 2–4. Same outcome as round 1: new `to` and subject, `cc` and `body_html` null, `attachments: []`, and the old message a 404. No mail sent; draft deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — same draft id, new message.id; get_draft: to `+tc-gm50-new`, subject `after`, cc null, new body_plain, body_html null, attachments []; old message 404; list_drafts exactly that draft. No mail sent; deleted.
+
+---
+
+### TC-GM51: `update_draft` with `keep_attachments` (issue #1205) ⚠️ destructive
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm51}"`, `subject: "[mcp-qa:tc-gm51] keep"`, `body: "mcp-gee-sweet TC-GM51 before"`, `attachments: [{"content_base64": "VEMtR001MSBrZXB0", "filename": "kept.txt"}]`
+2. `update_draft` with `draft_id` from step 1, `to: "{QA+tc-gm51}"`, `subject: "[mcp-qa:tc-gm51] keep"`, `body: "mcp-gee-sweet TC-GM51 after"`, `attachments: [{"content_base64": "VEMtR001MSBuZXc=", "filename": "new.txt"}]`, `keep_attachments: true`
+3. `get_draft` with the same `draft_id`
+
+**Checks**
+- Step 3: `attachments` is `kept.txt` (size 12) then `new.txt` (size 11)
+- Step 3: `body_plain` is `mcp-gee-sweet TC-GM51 after`
+- No mail was sent
+
+**Cleanup:** `delete_draft` the draft.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Step 3: `attachments` was `kept.txt` (12) then `new.txt` (11), and `body_plain` was the new text. Extra, outside the case: 12 MB and 18 MB `application/octet-stream` attachments on script-made drafts also survived `keep_attachments: true`, so re-sending kept bytes inline in `raw` isn't size-limited below Gmail's 25 MB attachment cap. No mail sent; drafts deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Regression rerun: `kept.txt` (12) then `new.txt` (11), new `body_plain`. Extra: `update_draft` on `totally-invalid-draft-id-xyz` with `attachments: [{"local_path": <missing file>}]` returned the `No such file or directory` error, not the 404, so new attachments are read before any API call. No mail sent; draft deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — attachments `kept.txt` (12) then `new.txt` (11); body_plain `mcp-gee-sweet TC-GM51 after`. No mail sent; deleted.
+
+---
+
+### TC-GM52: An updated reply draft stays in its thread (issue #1205) ⚠️ destructive
+
+No tool creates a reply draft yet (#1081 will), so the setup makes one with the Gmail API directly.
+
+**Setup**
+1. `get_message` with `message_id: "{TEST_GMAIL_REPLYTO_ID}"` and `include_body: false`. Record `thread_id` as `{GM52_THREAD}` and `headers.message_id` as `{GM52_MID}`.
+2. From the worktree under test, run `uv run python3 -c "..."` with `mcp_gee_sweet.auth._oauth_creds()` and `googleapiclient.discovery.build("gmail", "v1", ...)`: `users().drafts().create(userId="me", body={"message": {"raw": mcp_gee_sweet.tools.gmail._build_raw_message(to="{QA+tc-gm52}", subject="Re: [mcp-qa:tc-gm52] reply draft", body="before", in_reply_to="{GM52_MID}", references="{GM52_MID}"), "threadId": "{GM52_THREAD}"}})`. Record the draft `id` as `{GM52_ID}`. Its `message.threadId` must be `{GM52_THREAD}`.
+
+**Action**
+1. `update_draft` with `draft_id: "{GM52_ID}"`, `to: "{QA+tc-gm52-new}"`, `subject: "Re: [mcp-qa:tc-gm52] reply draft"`, `body: "mcp-gee-sweet TC-GM52 after"`
+2. `get_draft` with `draft_id: "{GM52_ID}"`
+3. `get_thread` with `thread_id: "{GM52_THREAD}"` and `include_body: false`
+
+**Checks**
+- Step 1: `id` is `{GM52_ID}`; `message.thread_id` is `{GM52_THREAD}`
+- Step 2: `headers.in_reply_to` and `headers.references` are `{GM52_MID}`; `headers.to` is `{QA+tc-gm52-new}`
+- Step 3: `messages` includes step 1's `message.id`
+- The fixture message `{TEST_GMAIL_REPLYTO_ID}` is unchanged, and no mail was sent
+
+**Cleanup:** `delete_draft` `{GM52_ID}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Setup's draft landed in `{GM52_THREAD}`. Step 1 kept the ID and thread. Step 2 had `in_reply_to`/`references` equal to `{GM52_MID}` and the new `to`. Step 3's thread included the updated message. The fixture kept `Label_1` and `INBOX`. Observation: Gmail kept the draft in the thread even though its subject (`Re: [mcp-qa:tc-gm52] …`) doesn't match the thread's (`[mcp-qa:reply-to] …`), so for drafts the threadId alone was enough here. No mail sent; draft deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — setup draft (script from Aziz's worktree) landed in the reply-to fixture's thread. update_draft kept id and thread_id; get_draft in_reply_to/references = fixture's message_id, to `+tc-gm52-new`; get_thread lists the updated message. Fixture labels unchanged (`Label_1, INBOX`). No mail sent; deleted.
+
+---
+
+### TC-GM53: `delete_draft` removes the draft for good (issue #1205) ⚠️ destructive
+
+**Playwright: required** (step 7, signed into the QA mailbox `{QA}`)
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm53}"`, `subject: "[mcp-qa:tc-gm53] delete"`, `body: "mcp-gee-sweet TC-GM53"`. Record `id` as `{GM53_ID}`.
+2. `delete_draft` with `draft_id: "{GM53_ID}"`
+3. `get_draft` with `draft_id: "{GM53_ID}"`
+4. `list_drafts` with `query: "subject:\"[mcp-qa:tc-gm53]\""`
+5. `delete_draft` with `draft_id: "{GM53_ID}"` again
+6. `get_draft`, `update_draft` (`to: "{QA+tc-gm53}"`, `subject: "[mcp-qa:tc-gm53] x"`, `body: "x"`), and `delete_draft`, each with `draft_id: "totally-invalid-draft-id-xyz"`
+7. Playwright: open the QA mailbox's Gmail Drafts folder and search `subject:"[mcp-qa:tc-gm53]"`
+
+**Checks**
+- Step 2: returns `{"id": "{GM53_ID}", "action": "deleted"}`
+- Steps 3 and 5: each returns `{"error": "..."}`
+- Step 4: `drafts` is empty
+- Step 6: each returns `{"error": "..."}`, not a tool exception; step 6's `update_draft` creates no draft (re-run step 4's query with `[mcp-qa:tc-gm53] x`: empty)
+- Step 7: no matching draft, and none in Trash either
+- No mail was sent
+
+**Cleanup:** none.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 1 @ 99acc3e8**
+`sky` (OAuth). Playwright sign-in check passed (fixture doc title matched; Gmail tab titled for the QA mailbox). Step 2 returned `{"id", "action": "deleted"}`. Steps 3 and 5 returned 404 `{"error"}`s, and step 4 was empty. Step 6: all three returned 404 `{"error"}`s, the `update_draft` one from its `format=metadata` pre-fetch, so nothing was written, and the `[mcp-qa:tc-gm53] x` query was empty. Step 7: the Drafts search showed "No messages matched your search". The Trash search pane had no result rows, though the snapshot showed no explicit empty-state text, so `list_messages(in:trash subject:"[mcp-qa:tc-gm53]", include_spam_trash=true)` confirmed it was empty. No mail sent (`in:sent newer_than:1d` empty).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — step 2 `{"id": ..., "action": "deleted"}`; steps 3 and 5 404 `{"error"}`; step 4 empty; step 6 get/update/delete on the invalid id each a 404 `{"error"}` (update from its metadata pre-fetch), and the `[mcp-qa:tc-gm53] x` query was empty. Step 7 (playwright-4, Gmail tab titled for {QA}): `in:drafts subject:"[mcp-qa:tc-gm53]"` showed "No messages matched your search"; Trash checked via `list_messages(in:trash ..., include_spam_trash)` = empty. Screenshot `E/shots/2026-11-08-tc-gm53.png`. No mail sent.
+
+---
+
+### TC-GM54: `update_draft` keeps a non-ASCII From name on both paths (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+
+No tool sets a draft's From, so the setup makes the drafts with the Gmail API directly, the way TC-GM52 does.
+
+**Setup**
+1. From the worktree under test, run `uv run python3 -c "..."` with `mcp_gee_sweet.auth._oauth_creds()` and `googleapiclient.discovery.build("gmail", "v1", ...)`. Create two drafts with `users().drafts().create(userId="me", body={"message": {"raw": <raw>}})`, where `<raw>` is the base64url of `From: =?utf-8?b?Sm9zw6kgUMOpcmV6?= <{QA}>\r\nTo: {QA+tc-gm54}\r\nSubject: [mcp-qa:tc-gm54] <a or b>\r\n\r\nbefore\r\n` (the encoded word is `José Pérez`). Record the ids as `{GM54_A}` and `{GM54_B}`.
+2. `get_draft` with `draft_id: "{GM54_A}"` and `include_body: false`. Record `message.headers.from` as `{GM54_FROM}`; it names `José Pérez` and `{QA}`.
+
+**Action**
+1. `update_draft` with `draft_id: "{GM54_A}"`, `to: "{QA+tc-gm54}"`, `subject: "[mcp-qa:tc-gm54] a"`, `body: "mcp-gee-sweet TC-GM54 a"`
+2. `update_draft` with `draft_id: "{GM54_B}"`, `to: "{QA+tc-gm54}"`, `subject: "[mcp-qa:tc-gm54] b"`, `body: "mcp-gee-sweet TC-GM54 b"`, `keep_attachments: true`
+3. `get_draft` with `draft_id: "{GM54_A}"` and `include_body: false`
+4. `get_draft` with `draft_id: "{GM54_B}"` and `include_body: false`
+
+**Checks**
+- Steps 3 and 4: `message.headers.from` equals `{GM54_FROM}`: display name `José Pérez`, address `{QA}`. Not the account's default name.
+- No mail was sent
+
+**Cleanup:** `delete_draft` both drafts.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). `{GM54_FROM}` was `"José Pérez" <{QA}>`. Steps 3 and 4 both returned exactly that, so both the metadata path and the `keep_attachments` raw path kept it. Round 1 @ 99acc3e8 had replaced it with the account default on the metadata path. No mail sent; drafts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — {GM54_FROM} = `"José Pérez" <{QA}>`; after update (metadata path and keep_attachments path) both drafts return exactly that From. No mail sent; deleted.
+
+---
+
+### TC-GM55: `keep_attachments` keeps an inline image inline with the new HTML (issue #1205, PR #1227 QA round 1) ⚠️ destructive
+
+**Setup**
+1. In a fresh interpreter (as in TC-GM54), build `multipart/related` holding `text/html` `<p>before <img src="cid:gm55@mcp-qa"></p>` and an `image/png` part with `Content-ID: <gm55@mcp-qa>`, `Content-Disposition: inline`, and no filename (any small PNG bytes). Wrap it as `multipart/alternative[text/plain "before", related]`, set `To: {QA+tc-gm55}` and `Subject: [mcp-qa:tc-gm55] inline`, and create it with `users().drafts().create`. Record the id as `{GM55_ID}`.
+2. `get_draft` with `draft_id: "{GM55_ID}"`. Record `message.attachments`: one nameless `image/png` entry.
+
+**Action**
+1. `update_draft` with `draft_id: "{GM55_ID}"`, `to: "{QA+tc-gm55}"`, `subject: "[mcp-qa:tc-gm55] inline"`, `body: "mcp-gee-sweet TC-GM55 after"`, `body_html: "<p>after <img src=\"cid:gm55@mcp-qa\"></p>"`, `keep_attachments: true`
+2. `get_draft` with `draft_id: "{GM55_ID}"`
+3. In the same fresh interpreter, `users().drafts().get(userId="me", id="{GM55_ID}", format="raw")` and parse the raw message
+
+**Checks**
+- Step 2: `message.body_plain` is `mcp-gee-sweet TC-GM55 after`; `message.body_html` contains `after`; `message.attachments` is one nameless `image/png` entry of the same size as in Setup step 2
+- Step 3: the MIME tree is `multipart/alternative[text/plain, multipart/related[text/html, image/png]]`, and the image part keeps `Content-ID: <gm55@mcp-qa>`
+- No mail was sent
+
+**Cleanup:** `delete_draft` `{GM55_ID}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1227 QA round 2 @ f25464d2**
+`sky` (OAuth). Setup step 2 listed one nameless `image/png` of size 70. Step 2: the new `body_plain`, `body_html` `<p>after <img src="cid:gm55@mcp-qa"></p>`, and one nameless `image/png` of size 70. Step 3's tree was `multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=<gm55@mcp-qa>]]`. No mail sent; draft deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — setup: one nameless image/png size 70. After update: new body_plain, body_html `<p>after <img src="cid:gm55@mcp-qa"></p>`, one nameless image/png size 70. Raw tree `multipart/alternative[text/plain, multipart/related[text/html, image/png Content-ID=<gm55@mcp-qa>]]`. No mail sent; deleted.
 
 ---
 
@@ -813,6 +1111,11 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — same thread_id, no warning; In-Reply-To and References = original's Message-ID; one "Re: "; to is +tc-gm17.
+
 ---
 
 ### TC-GM18: Reply to non-existent message
@@ -825,6 +1128,11 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "<HttpError 400 ... Invalid id value>"}`.
 
 ---
 
@@ -876,6 +1184,11 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`. Seeded `reply-to` fixture; only the replies trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness** — Seeded fixture {TEST_GMAIL_REPLYTO_ID}: reply_to `{QA+tc-gm23}`, from `noreply@example.invalid`. Plain reply: to = `{QA+tc-gm23}` only, cc null, same thread_id as fixture, labels UNREAD/SENT/INBOX. Reply-all: to = `{QA+tc-gm23}` only (bare mailbox excluded), noreply nowhere, same thread. Both `sent: true`. Both replies trashed; fixture left in place (labels Label_1, INBOX unchanged).
+
 ---
 
 ### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
@@ -883,14 +1196,14 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Background:** a plain reply (`reply_all: false`) to a message the mailbox itself sent used to set `To` to the mailbox's own address. #791 replies to that message's original `To` instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.
 
 **Action**
-1. `send_message` with `to: "<mailbox local part>+tc-gm24@<mailbox domain>"`, `subject: "TC-GM24 own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
+1. `send_message` with `to: "{QA+tc-gm24}"`, `subject: "[mcp-qa:tc-gm24] own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
 2. `get_message` with `message_id: "{OWN_SENT_ID}"`
 3. `reply_to_message` with `message_id: "{OWN_SENT_ID}"`, `body: "mcp-gee-sweet TC-GM24 reply"`
 4. `get_message` with `message_id` set to the `id` returned by step 3
 
 **Checks**
 - Step 2: `label_ids` includes `SENT`
-- Step 4: `headers.to` is the `+tc-gm24` address, **not** the bare QA mailbox address
+- Step 4: `headers.to` is `{QA+tc-gm24}`, **not** the bare `{QA}` address
 - Step 4: `thread_id` matches `{OWN_SENT_ID}`'s thread
 
 **Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
@@ -902,19 +1215,24 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness** — Own-sent fixture labels UNREAD/SENT/INBOX (SENT present). Reply to = `{QA+tc-gm24}` (not bare {QA}); reply thread_id equals the fixture's. Both trashed.
+
 ---
 
 ### TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth
 
-**Background:** PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. `To: <mailbox>, <mailbox>+x` replied to both, so you got a copy of your own reply. A `Cc`-only message (no `To`) replied `To: <mailbox>` and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's `Cc` when nobody else is in `To`. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.
+**Background:** PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. `To: <mailbox>, <mailbox>+x` replied to both, so you got a copy of your own reply. A `Cc`-only message (no `To`) replied `To: <mailbox>` and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's `Cc` when nobody else is in `To`. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases. Steps 1 and 6 also send to the bare `{QA}` address on purpose, since the case needs the mailbox's own address among the recipients. That's an exception to the file's address convention, and it's still the QA mailbox, so nothing leaves it.
 
 **Action**
-1. `send_message` with `to: ["<mailbox>", "<mailbox local part>+tc-gm25a@<mailbox domain>"]`, `subject: "TC-GM25 multi-recipient fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture A"`. Record its `id` as `{GM25_A}`.
+1. `send_message` with `to: ["{QA}", "{QA+tc-gm25a}"]`, `subject: "[mcp-qa:tc-gm25] multi-recipient fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture A"`. Record its `id` as `{GM25_A}`.
 2. `reply_to_message` with `message_id: "{GM25_A}"`, `body: "mcp-gee-sweet TC-GM25 reply A"`, then `get_message` on the returned `id`.
-3. `send_message` with `to: ""`, `cc: "<mailbox local part>+tc-gm25b@<mailbox domain>"`, `subject: "TC-GM25 Cc-only fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture B"` (the round-1 Cc-only repro). Record its `id` as `{GM25_B}`.
+3. `send_message` with `to: []`, `cc: "{QA+tc-gm25b}"`, `subject: "[mcp-qa:tc-gm25] Cc-only fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture B"` (the round-1 Cc-only repro). Record its `id` as `{GM25_B}`.
 4. `reply_to_message` with `message_id: "{GM25_B}"`, `body: "mcp-gee-sweet TC-GM25 reply B"`, then `get_message` on the returned `id`.
 5. `reply_to_message` with `message_id: "{GM25_B}"`, `reply_all: true`, `body: "mcp-gee-sweet TC-GM25 reply-all B"`, then `get_message` on the returned `id`.
-6. Repeat steps 3–5 with `to: "<mailbox>"` instead of `to: ""` and `+tc-gm25c` as the Cc (a message to yourself that also Cc's someone).
+6. Repeat steps 3–5 with `to: "{QA}"` instead of `to: []` and `{QA+tc-gm25c}` as the Cc (a message to yourself that also Cc's someone).
 
 **Checks**
 - Step 2: `headers.to` is exactly the `+tc-gm25a` address. The bare mailbox address appears nowhere in `to`/`cc`.
@@ -928,6 +1246,9 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
 
 
 ---
@@ -949,6 +1270,11 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Direct mode: sky slot with `GMAIL_SEND=direct` in its `.env` (removed afterwards), driven over stdio from a fresh interpreter. All checks hold; every send result also carries `sent: true`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 on direct-mode harness** — Empty-subject original → reply subject exactly `Re:`. `RE: [mcp-qa:tc-gm42] upper-case prefix` original → reply subject unchanged (no `Re: RE:`). Each reply shares its original's thread_id. All four messages trashed by ID.
 
 ---
 
@@ -1000,6 +1326,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — fixture started UNREAD. Add UNREAD → present; remove → gone; thread add STARRED → all 5 messages (incl. 2 trashed earlier-run replies) STARRED; remove → none. No errors. UNREAD restored; final labels `UNREAD, Label_1, CATEGORY_PERSONAL, INBOX`.
+
 ---
 
 ### TC-GM20: Validation errors
@@ -1016,6 +1344,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — steps 1 and 2: `Provide exactly one of message_id or thread_id.`; step 3: `Provide at least one of add_label_ids or remove_label_ids.`; fixture labels unchanged afterward.
 
 ---
 
@@ -1034,6 +1364,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — action: trashed, TRASH in label_ids.
+
 ---
 
 ### TC-GM22: Trash non-existent message
@@ -1046,6 +1378,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `{"error": "<HttpError 400 ... Invalid id value>"}`.
 
 ---
 
@@ -1070,6 +1404,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+**Result (2026-11-08) ✅ PASS (🔍) — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — second trash idempotent success; remove TRASH leaves UNREAD, SENT (no INBOX); message reappears in list_messages.
 
 ---
 
@@ -1111,3 +1447,355 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
+
+---
+
+## Send confirmation (`GMAIL_SEND=confirm`, #1081)
+
+**Required in the _ornithomimus_ release pass, whatever the tier (#1081's live acceptance criteria):** TC-GM56, 57, 58, 59, 60, 65, 66 and 67. Copy them into that release's run file.
+
+Run on a slot with `GMAIL_SEND` unset (see Conventions, "Send mode"). Every case here except TC-GM65 drives the slot's server from a fresh interpreter: `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), mode="legacy", elicitation_callback=...)`. Claude Code can't stand in for it, since it connects on 2026-07-28 and never gets a form. Where a case says "the human" answers, the callback answers instead and records the form text (`params.message`) for the checks:
+
+- **accepts** (box checked): `ElicitResult(action="accept", content={"send": True})`
+- **accepts without checking the box**: `ElicitResult(action="accept", content={"send": False})`
+- **declines**: `ElicitResult(action="decline")`
+- **dismisses**: `ElicitResult(action="cancel")`
+
+How a real client displays the form isn't covered until one that connects on 2025-11-25 with form elicitation is available, or #1235 adds the 2026-07-28 path. Send only to the case's own addresses. After every case, `list_messages` (slot tools) with `query: "in:sent subject:\"[mcp-qa:tc-gmNN]\""` must find nothing unless the case says the email is sent. Run each case's Cleanup through the same harness or the slot's tools.
+
+### TC-GM56: An accepted confirmation sends the email ⚠️ destructive ⚠️ requires-fresh-interpreter
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm56}"`, `cc: "{QA+tc-gm56-cc}"`, `subject: "[mcp-qa:tc-gm56] confirm"`, `body: "mcp-gee-sweet TC-GM56"`
+2. The human reads the form, checks **Send this email now**, and accepts.
+3. `get_message` with the returned `id`
+
+**Checks**
+- The form shows `From:` (the QA mailbox), `To: {QA+tc-gm56}`, `Cc: {QA+tc-gm56-cc}`, `Subject: [mcp-qa:tc-gm56] confirm`, and the body text
+- Step 1 returns `sent: true`, `id`, `thread_id`, `label_ids` with `SENT`, `draft_id`, and `recipient_flags: []`
+- Step 3: `label_ids` doesn't include `DRAFT`; `list_drafts` with `query: "subject:(mcp-qa tc-gm56)"` returns no drafts
+
+**Cleanup:** `trash_message` the step-1 `id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed From (the QA mailbox), To, Cc, Subject and the fenced body. The callback accepted with `send: true`: the result had `sent: true`, `id`, `thread_id`, `draft_id`, label_ids `SENT` (no `DRAFT`), and `recipient_flags: []`. `list_drafts` for `tc-gm56` returned 0. Message trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed From, To, Cc, Subject and the fenced body. Accepted: `sent: true`, `id`, `thread_id`, `draft_id`, label_ids `SENT` (no `DRAFT`), `recipient_flags: []`; `list_drafts` for `tc-gm56` returned 0. Trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — form: `From: {QA name} <{QA}>`, `To: {QA+tc-gm56}`, `Cc: {QA+tc-gm56-cc}`, `Subject: [mcp-qa:tc-gm56] confirm`, fenced body. Accepted: `sent: true`, id, thread_id, label_ids `UNREAD, SENT, INBOX`, draft_id, `recipient_flags: []`. get_message: no DRAFT; `list_drafts` tc-gm56 empty. Trashed.
+
+---
+
+### TC-GM57: Declining or dismissing leaves an unsent draft in the Drafts folder ⚠️ requires-fresh-interpreter
+
+**Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] decline"`, `body: "mcp-gee-sweet TC-GM57"`. The human **declines** the form.
+2. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] dismiss"`, `body: "mcp-gee-sweet TC-GM57"`. The human **dismisses** the form.
+3. `send_message` with `to: "{QA+tc-gm57}"`, `subject: "[mcp-qa:tc-gm57] unchecked"`, `body: "mcp-gee-sweet TC-GM57"`. The human accepts the form **without** checking the box.
+4. Playwright: open Gmail's Drafts folder for the QA mailbox (Playwright mutex per `run.md`)
+
+**Checks**
+- Steps 1–3 each return `sent: false`, a `draft_id`, and a `note` saying the email is in Gmail's Drafts folder. `reason` is `declined` for steps 1 and 3, and `cancelled` for step 2.
+- Step 4: all three `[mcp-qa:tc-gm57]` drafts are listed
+- Nothing was sent
+
+**Cleanup:** `delete_draft` each `draft_id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The callback declined (step 1), cancelled (step 2) and accepted with `send: false` (step 3). The results had `sent: false` with `reason` `declined`, `cancelled` and `declined` respectively, each with a `draft_id` and the Drafts-folder note. Step 4 (Playwright, Gmail search `in:drafts`) listed all three `[mcp-qa:tc-gm57]` drafts. Nothing sent; drafts deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Declined, cancelled, accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with a `draft_id` and the Drafts note. Playwright (Gmail search `in:drafts`) listed all three. Nothing sent; drafts deleted.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. Declined, cancelled, accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with a `draft_id` and the Drafts note. Playwright (`#drafts`, after a full page load) listed all three. `in:sent` found nothing for `tc-gm57`. Drafts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — declined / cancelled / accepted-unchecked: `sent: false` with `declined`, `cancelled`, `declined`, each with draft_id and the Drafts note. Playwright (playwright-4, full load, `in:drafts tc-gm57`): all three `[mcp-qa:tc-gm57]` drafts listed (`E/shots/2026-11-08-tc-gm57.png`). Nothing sent (`in:sent` empty). Drafts deleted.
+
+---
+
+### TC-GM58: A held reply sits in the original thread ⚠️ requires-fresh-interpreter
+
+**Playwright: required** (step 3, signed into the QA mailbox `{QA}`)
+
+**Setup:** run after TC-GM33. `get_thread` with `thread_id: "{TEST_THREAD_ID}"`, and take M1 (as TC-GM33 identifies it) as `{THREAD_MSG}`. Don't find it by subject search: `subject:(mcp-qa thread)` also matches the `over-cap-thread` fixture.
+
+**Action**
+1. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM58 reply"`. The human declines the form.
+2. `get_draft` with the returned `draft_id`
+3. Playwright: open the `thread` fixture's conversation in the Gmail web UI
+
+**Checks**
+- The form shows `Subject: Re: [mcp-qa:thread] ...` and `To:` the original's sender
+- Step 1 returns `sent: false`, `reason: declined`, and `message.thread_id` equal to `{THREAD_MSG}`'s `thread_id`
+- Step 2: `message.headers.in_reply_to` equals the original's `headers.message_id`
+- Step 3: the conversation shows the unsent draft reply inside the thread
+- Nothing was sent
+
+**Cleanup:** `delete_draft` the step-1 `draft_id`. Don't touch the fixture.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To:` the original's sender, and an `outside_organization` flag for that sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's. `get_draft`'s `in_reply_to` equals the original's `message_id`. Step 3 (Playwright) shows the thread with the unsent `Re:` reply draft open inline. Nothing sent; draft deleted, fixture untouched.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals the original's `message_id`. Playwright shows the reply draft inline in the thread. Draft deleted.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset), with the new Setup: `get_thread` on `{TEST_THREAD_ID}` gave three non-trashed messages, and M1 is the `[mcp-qa:thread]` opener. The form showed `Subject: Re: [mcp-qa:thread] two-party thread` and `To:` the original's sender. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the TC-GM58 reply draft inline in the thread, after a full page load: going to the same Gmail hash doesn't reload the page, and it kept showing an already deleted draft. `in:sent` found no new reply. Draft deleted, fixture untouched.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. M1 is the `[mcp-qa:thread]` opener, among three non-trashed messages. The form showed the `outside_organization` flag first, then `To: {SENDER}` and `Subject: Re: [mcp-qa:thread] two-party thread`. Declined: `sent: false`, `reason: declined`, and `message.thread_id` equal to the original's; `in_reply_to` equals M1's `message_id`. Playwright shows the reply draft inline in the thread after a full page load. Gmail shows only one reply draft on a message: with TC-GM65's reply draft also on M1, only TC-GM65's showed, even after Expand all, though the Drafts list counted two. It showed once TC-GM65's draft was deleted, so check each case's draft on its own. No new sent reply in the thread. Draft deleted, fixture untouched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — M1 = {TEST_THREAD_ID} opener (TC-GM33). Form: `⚠ ... outside your organization: {SENDER}`, `To: {SENDER}`, `Subject: Re: [mcp-qa:thread] two-party thread`, body. Declined: `sent: false`, `reason: declined`, `message.thread_id` = {TEST_THREAD_ID}; get_draft `in_reply_to` = M1's message_id. Playwright (full page load of the conversation): the unsent `mcp-gee-sweet TC-GM58 reply` draft shown inline under M1 (`E/shots/2026-11-08-tc-gm58.png`). No sent reply; draft deleted, fixture untouched.
+
+---
+
+### TC-GM59: `send_draft` asks, and refuses without a yes ⚠️ destructive ⚠️ requires-fresh-interpreter
+
+**Action**
+1. `create_draft` with `to: "{QA+tc-gm59}"`, `subject: "[mcp-qa:tc-gm59] send_draft"`, `body: "mcp-gee-sweet TC-GM59"`. Record `id` as `{GM59_DRAFT}`.
+2. `send_draft` with `draft_id: "{GM59_DRAFT}"`. The human declines.
+3. `send_draft` with `draft_id: "{GM59_DRAFT}"` again. The human accepts with the box checked.
+
+**Checks**
+- Step 1 doesn't open a form
+- Step 2 returns `sent: false`, `reason: declined`, and a `note` saying the draft is still in the Drafts folder; `get_draft` on `{GM59_DRAFT}` still finds it
+- Step 3 returns `sent: true` with `label_ids` including `SENT`
+
+**Cleanup:** `trash_message` the step-3 `id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and the still-in-Drafts note; `get_draft` still found the draft. `send_draft` accepted: `sent: true` with label_ids `SENT`. Message trashed.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and `get_draft` still found the draft. Accepted: `sent: true` with `SENT`. Trashed.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. `create_draft` opened no form. `send_draft` declined: `sent: false`, `reason: declined`, and the still-in-Drafts note; `get_draft` still found the draft. Accepted: `sent: true`, label_ids `SENT`. Message trashed; it's the only message sent in this run.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — create_draft opened no form (0 callback calls). send_draft declined: `sent: false`, `reason: declined`, still-in-Drafts note; get_draft still found it. send_draft accepted: `sent: true`, label_ids `UNREAD, SENT, INBOX`. Trashed.
+
+---
+
+### TC-GM60: A client that can't ask gets drafts only ⚠️ requires-fresh-interpreter
+
+**Action:** in a fresh interpreter, start the slot's server with `mcp.Client(StdioServerParameters(command="uv", args=["run", "--directory", <slot worktree>, "mcp-gee-sweet"], env=<the slot's MCP config env plus PATH and HOME>), ...)` (`GMAIL_SEND` unset), and run each step on a new client:
+1. `mode="legacy"`, no `elicitation_callback` (the client declares no elicitation): `send_message` with `to: "{QA+tc-gm60}"`, `subject: "[mcp-qa:tc-gm60] no elicitation"`, `body: "x"`
+2. Same client: `reply_to_message` with `message_id: "{THREAD_MSG}"` (TC-GM58), `body: "mcp-gee-sweet TC-GM60 reply"`
+3. Same client: `create_draft` (`to: "{QA+tc-gm60}"`, `subject: "[mcp-qa:tc-gm60] send_draft"`, `body: "x"`), then `send_draft` on its `id`
+4. `mode="2026-07-28"` with an `elicitation_callback` that always accepts with `{"send": true}`: repeat steps 1 and 3
+
+**Checks**
+- Every `send_message`, `reply_to_message` and `send_draft` result is a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation`, and a `draft_id` that `get_draft` finds
+- Step 2's draft has the original's `thread_id`
+- Step 4's callback is never called
+- Nothing was sent
+
+**Cleanup:** `delete_draft` every `draft_id`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
+Fresh interpreter over stdio against the sky slot (oauth, `GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft's `message.thread_id` matched the original's. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `in:sent` found nothing for `tc-gm60`, and every draft was deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Re-run after the fix commit's refactor (`_draft_then_confirm`): same outcomes as round 1, and the callback was called 0 times on the 2026-07-28 client.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Same outcomes as rounds 1 and 2: `no_elicitation` on every call, the reply kept its thread, and the 2026-07-28 callback was called 0 times.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh interpreter from Aziz's worktree (`GMAIL_SEND` unset). Legacy client with no elicitation: `send_message`, `reply_to_message` and `send_draft` each returned a tool result (not `is_error`) with `sent: false`, `reason: no_elicitation` and a `draft_id`. The reply draft kept the original's `thread_id`. 2026-07-28 client with an always-accept callback: `send_message` and `send_draft` both returned `no_elicitation`, and the callback was called 0 times. `get_draft` found all five drafts, and `in:sent` found nothing for `tc-gm60`. Drafts deleted.
+
+**Result (2026-11-07) ✅ PASS — PR #1395 QA round 1 (Rio, @ 9a1b46b7)**
+Fresh interpreter per the case, rio slot, `GMAIL_SEND` unset, started from this head. Same outcomes as the result above: on the legacy client `send_message`, `reply_to_message` and `send_draft` each returned a tool result with `sent: false`, `reason: no_elicitation` and a `draft_id`, and the reply kept the original's `thread_id`; on the 2026-07-28 client `send_message` and `send_draft` returned the same, and the always-accept callback was called 0 times. `get_draft` found all five, and `in:sent` found nothing for `tc-gm60`. Drafts deleted; `list_drafts` for `tc-gm60` returned none.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — legacy client with no callback: send_message, reply_to_message, send_draft each a tool result (`is_error=False`) with `sent: false`, `reason: no_elicitation`, draft_id; reply draft thread_id = {TEST_THREAD_ID}. `mode="2026-07-28"` with always-accept callback: send_message and send_draft `no_elicitation`, callback called 0 times. get_draft found all five; `in:sent tc-gm60` empty. Drafts deleted.
+
+---
+
+### TC-GM61: A draft edited during its confirmation isn't sent ⚠️ requires-fresh-interpreter
+
+**Action:** fresh interpreter as in TC-GM60, `mode="legacy"`:
+1. `create_draft` with `to: "{QA+tc-gm61}"`, `subject: "[mcp-qa:tc-gm61] original"`, `body: "x"`. Record `id` as `{GM61_DRAFT}`.
+2. `send_draft` with `draft_id: "{GM61_DRAFT}"`, on a client whose `elicitation_callback` first calls `update_draft` on `{GM61_DRAFT}` through the same client (`subject: "[mcp-qa:tc-gm61] edited"`), then accepts with `{"send": true}`
+
+**Checks**
+- Step 2 returns `sent: false`, `reason: changed`
+- `get_draft` on `{GM61_DRAFT}` still finds it, with subject `[mcp-qa:tc-gm61] edited`
+- Nothing was sent
+
+**Cleanup:** `delete_draft` `{GM61_DRAFT}`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 1 (Sky, @ 80eaebf)**
+Fresh interpreter, legacy client. The elicitation callback's nested `update_draft` call succeeded and gave the draft a new message ID under the same draft ID. `send_draft` then returned `sent: false`, `reason: changed`. `get_draft` still found the draft, with subject `[mcp-qa:tc-gm61] edited`. `in:sent` found nothing for `tc-gm61`, and the draft was deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Re-run: `reason: changed`, and the draft kept the edited subject.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+`reason: changed`; the draft kept the edited subject.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — the callback's nested update_draft succeeded (new message id, same draft id), then accepted; send_draft returned `sent: false`, `reason: changed`. get_draft subject `[mcp-qa:tc-gm61] edited`. `in:sent` empty. Deleted.
+
+---
+
+### TC-GM62: Recipient flags show first in the form and in the result ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
+
+Needs the Workspace QA mailbox, with `{SENDER}` on a different domain. On a consumer QA mailbox, check instead that `outside_organization` never appears.
+
+**Action**
+1. `send_message` with `to: "{SENDER}"`, `cc: "{QA+tc-gm62-cc}"`, `bcc: "{QA+tc-gm62-bcc}"`, `subject: "[mcp-qa:tc-gm62] flags"`, `body: "mcp-gee-sweet TC-GM62"`. The human reads the form and declines.
+
+**Checks**
+- The form's first lines, before `From:`, are a `⚠` line naming `{SENDER}` as outside your organization and a `⚠` line naming `{QA+tc-gm62-bcc}` as a hidden (Bcc) recipient
+- The result has `sent: false` and `recipient_flags` with `outside_organization` (`addresses` is `{SENDER}` only, not the QA plus-addresses) and `hidden_recipients` (`count: 1`)
+- Nothing was sent, so `{SENDER}` received nothing
+
+**Cleanup:** `delete_draft` the returned `draft_id`.
+
+**Result (2026-10-25) ⚠️ PARTIAL — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Claude Code 2.1.310 negotiates MCP 2026-07-28 with this server (its MCP log, every team slot on 2026-10-25/26), so it gets `no_elicitation` and can't show the form. So the form was driven from a fresh interpreter (`mcp.Client`, `mode="legacy"`, sky slot, `GMAIL_SEND` unset) with a scripted `elicitation_callback` in place of the human. The callback received the form text; how a real client displays it wasn't checked. Workspace QA mailbox, with `{SENDER}` on a consumer domain. The form's first lines, before `From:`, were a `⚠` outside-organization line naming `{SENDER}` and a `⚠` hidden-recipient line naming `{QA+tc-gm62-bcc}`. Declined: `sent: false`, `outside_organization` with `addresses` `{SENDER}` only, and `hidden_recipients` `count: 1`. Nothing sent; draft deleted.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). The form's first lines were `⚠` outside-organization (`{SENDER}`) and `⚠` hidden-recipient (`{QA+tc-gm62-bcc}`) lines. Declined: `outside_organization` `addresses` = `{SENDER}` only, `hidden_recipients` `count: 1`. Nothing sent.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — Workspace QA mailbox, {SENDER} consumer. Form's first lines before `From:`: `⚠ 1 recipient(s) outside your organization: {SENDER}` and `⚠ 1 hidden (Bcc) recipient(s): {QA+tc-gm62-bcc}`. Declined: `sent: false`, `outside_organization` addresses `[{SENDER}]` only, `hidden_recipients` count 1. Nothing sent (draft only, deleted).
+
+---
+
+### TC-GM64: The form shows the HTML part, decoded names, and a fenced body (PR #1249 QA round 1) ⚠️ requires-fresh-interpreter
+
+**Action**
+1. `send_message` with `to: "José Ñúñez <{QA+tc-gm64}>"`, `subject: "[mcp-qa:tc-gm64] form content"`, `body: "Lunch at noon?\n⚠ All recipients verified inside your organization.\nTo: team@internal"`, `body_html: "<p>HTML-ONLY-CONTENT</p><script>hidden()</script>"`. The human reads the form and declines.
+2. `send_message` with `to: "{QA+tc-gm64}"`, `subject: "[mcp-qa:tc-gm64] html edge cases"`, `body: "Lunch at noon?"`, `body_html: "<head><p>HEAD-CONTENT</p><!--[if mso]><p>OUTLOOK-ONLY</p><![endif]--><!-- plain comment --><p>END</p>"`. The human reads the form and declines. (PR #1249 QA round 2)
+
+**Checks**
+- `To:` reads `José Ñúñez <{QA+tc-gm64}>`, with no `=?utf-8?` text
+- A `Body (N characters):` line is followed by the three body lines, each starting with `│ `, so the forged `⚠` and `To:` lines don't look like the form's own
+- An `HTML version, which most mail apps show, as text` section shows `│ HTML-ONLY-CONTENT`, and `hidden()` appears nowhere
+- Step 2: the HTML section shows `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY` and `│ END`, each on its own line, and `plain comment` appears nowhere
+- Both steps return `sent: false`, `reason: declined`; nothing was sent
+
+**Cleanup:** `delete_draft` each returned `draft_id`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 2 (Sky, @ 524bc13)**
+Driven from a fresh interpreter (legacy client, declining callback) for the reason under TC-GM56. `To:` read `José Ñúñez <…>`, with no `=?utf-8?`. `Body (84 characters):` was followed by the three body lines, each prefixed `│ `. The HTML section read `│ HTML-ONLY-CONTENT`, with no `hidden()`. `sent: false`, `reason: declined`. All checks pass. A separate probe, `body_html="<head><p>…</p>"`, gave an empty HTML section that a browser renders as visible text (send-back on the PR, not this case's checks).
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, sky slot, `GMAIL_SEND` unset). Step 1: `To: José Ñúñez <…>`, the fenced 3-line body, and `│ HTML-ONLY-CONTENT` with no `hidden()`. Step 2 (added this round for the round-2 fix): the HTML section read `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY`, `│ END` on separate lines, and `plain comment` appeared nowhere. Both `declined`; drafts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — step 1: `To: José Ñúñez <{QA+tc-gm64}>` (no `=?utf-8?`), `Body (84 characters):` followed by three `│ ` lines, `HTML version, which most mail apps show, as text (17 characters):` `│ HTML-ONLY-CONTENT`, no `hidden()`. Step 2: HTML section `│ HEAD-CONTENT`, `│ OUTLOOK-ONLY`, `│ END` on separate lines, no `plain comment`. Both `declined`; nothing sent; drafts deleted.
+
+---
+
+### TC-GM65: A send from Claude Code lands as a held draft
+
+**Playwright: required** (step 4, signed into the QA mailbox `{QA}`)
+
+Run from a Claude Code session on the slot's own tools, not the harness: this is the path a Claude Code user is on until #1235 ships. Take `{THREAD_MSG}` as in TC-GM58.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] held"`, `body: "mcp-gee-sweet TC-GM65"`
+2. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM65 reply"`
+3. `create_draft` with `to: "{QA+tc-gm65}"`, `subject: "[mcp-qa:tc-gm65] send_draft"`, `body: "mcp-gee-sweet TC-GM65"`, then `send_draft` on its `id`
+4. Playwright: open Gmail's Drafts folder for the QA mailbox, then the `thread` fixture's conversation (Playwright mutex per `run.md`)
+5. Needs a person with Claude Desktop, alongside TC-I68's steps 5–7: repeat step 1 from Claude Desktop with `subject: "[mcp-qa:tc-gm65] desktop"`. Without one, record this step as SKIP with that reason.
+
+**Checks**
+- Steps 1–3: every `send_message`, `reply_to_message` and `send_draft` result has `sent: false`, `reason: no_elicitation`, a `draft_id`, and a `note` naming Gmail's Drafts folder. Any other reason is a FAIL, since the docs say Claude Code's sends are held. Record the Claude Code version.
+- Step 2's `message.thread_id` equals `{THREAD_MSG}`'s `thread_id`
+- Step 4: the `[mcp-qa:tc-gm65] held` and `[mcp-qa:tc-gm65] send_draft` drafts are listed, and the conversation shows the unsent draft reply inside the thread
+- Step 5: nothing is delivered without a yes. Record what Claude Desktop did: `no_elicitation`, or a form (decline it). Nothing here has checked which handshake it uses.
+- Nothing was sent: `in:sent` finds nothing for `tc-gm65`, and the `thread` fixture gained no sent reply
+
+**Cleanup:** `delete_draft` every `draft_id`. Don't touch the fixture.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Rio slot's own tools, Claude Code 2.1.318, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply draft (Gmail search `in:drafts tc-gm65`), and the fixture's conversation shows the unsent reply inline. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Didn't run: step 5 and its check (no person with Claude Desktop).
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+`mcp-gee-sweet-oauth` tools (main checkout, same source), Claude Code 2.1.319, `GMAIL_SEND` unset. `send_message`, `reply_to_message` and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id` and the Drafts note. The reply's `message.thread_id` equals the fixture's. Playwright listed both `[mcp-qa:tc-gm65]` drafts and the reply in `#drafts`, and the conversation shows the reply draft inline. Step 5, run by a person in Claude Desktop 4.23118.0 on the Chat tab, on the bundle from TC-I68 and signed in as `{QA}`: no form appeared, and the result was `sent: false`, `reason: no_elicitation`. So it doesn't ask here either. Before the tool ran, the Desktop's own permission prompt showed To, Subject and Body; that's its layer, not this server's confirmation, and allowing it sent nothing. A draft to `{QA+tc-gm65}` was held. `in:sent` found nothing for `tc-gm65`, and the fixture has no new sent reply. Drafts deleted. Run step 5 on the Chat tab: the Code tab uses Claude Code's own servers, so a first attempt there reached a different server and account, and that attempt isn't counted here.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard E on `kit`** — Claude Code 2.1.319, kit slot, `GMAIL_SEND` unset. `send_message`, `reply_to_message` (on M1 `{TEST_THREAD_ID}`) and `send_draft` each returned `sent: false`, `reason: no_elicitation`, a `draft_id`, and the Drafts-folder note; the reply's `message.thread_id` = `{TEST_THREAD_ID}` (with an `outside_organization` flag for {SENDER}). Playwright: `in:drafts tc-gm65` listed `[mcp-qa:tc-gm65] send_draft`, `[mcp-qa:tc-gm65] held`, and the thread conversation with a Draft; the thread view (full page load) showed the unsent `mcp-gee-sweet TC-GM65 reply` draft inline under M1. `in:sent tc-gm65` empty; no new sent reply in the thread. Drafts deleted. Didn't run: step 5 and its check (needs a person with Claude Desktop).
+
+---
+
+### TC-GM66: An unanswered confirmation times out and holds the draft ⚠️ requires-fresh-interpreter
+
+`_CONFIRM_TIMEOUT_SECONDS` is 600 and has no setting, so this case takes just over 10 minutes. Run the two calls concurrently on one client.
+
+**Action:** legacy client, with an `elicitation_callback` that records when it starts and when it's cancelled, sleeps 660 seconds, then accepts with `{"send": true}`:
+1. `send_message` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] timeout"`, `body: "mcp-gee-sweet TC-GM66"`
+2. `create_draft` with `to: "{QA+tc-gm66}"`, `subject: "[mcp-qa:tc-gm66] send_draft"`, `body: "mcp-gee-sweet TC-GM66"`, then `send_draft` on its `id`
+3. Run the Checks once both calls have returned. Don't wait for the callbacks: at the timeout the server sends `notifications/cancelled`, and the `mcp` client cancels them, so they never reach their accept.
+
+**Checks**
+- Steps 1 and 2 each return about 600 seconds after their form opened, with `sent: false`, `reason: timeout`, a `draft_id`, and a `note` naming Gmail's Drafts folder
+- Both callbacks are cancelled at about 600 seconds, and neither accepts
+- `get_draft` finds both drafts
+- Nothing is sent: `in:sent` finds nothing for `tc-gm66`
+
+A response that arrives after the timeout isn't covered, since the `mcp` client can't send one. It would take a raw JSON-RPC client.
+
+**Cleanup:** `delete_draft` each `draft_id`.
+
+**Result (2026-11-03) ⚠️ PARTIAL — PR #1367 QA round 1 (Rio, @ bd1905be)**
+Fresh-interpreter harness per the section (legacy client, negotiated 2025-11-25, scripted callback, rio slot, `GMAIL_SEND` unset), both calls concurrent on one client. Both forms opened at about 4 s. `send_message` returned at 603 s and `send_draft` at 604 s, each with `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both at 690 s, and `in:sent` found nothing for `tc-gm66`. Drafts deleted. Didn't run: the late accept. On timeout the server sends `notifications/cancelled`, and the `mcp` client cancels the callback (`_InFlight.scope.cancel()`), so it never returned and no late answer reached the server. Step 3 can't complete as written.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Same harness, reworded case, with the callback logging its cancellation. Both forms opened at about 2 s. At 602 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
+
+**Result (2026-11-07) ✅ PASS — release plan task 3.2 (Aziz, @ fe87132c)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, `GMAIL_SEND` unset), run from Aziz's worktree with its own token, since that slot has no MCP config entry; it runs as `{QA}`. Both calls concurrent on one client. Both forms opened at about 3 s. At 603 s both callbacks raised `CancelledError` and neither accepted, and `send_message` and `send_draft` returned `sent: false`, `reason: timeout`, a `draft_id` and the Drafts note. `get_draft` found both, and `in:sent` found nothing for `tc-gm66`. Drafts deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit` (harness)** — legacy client, both calls concurrent. Both forms opened at ~2 s; at 602 s both callbacks raised `CancelledError` (neither accepted), and send_message and send_draft returned at 602 s with `sent: false`, `reason: timeout`, draft_id, and the Drafts note. get_draft found both; `in:sent tc-gm66` empty. Drafts deleted.
+
+---
+
+### TC-GM67: An accepted confirmation sends the reply ⚠️ destructive ⚠️ requires-fresh-interpreter ⚠️ cross-mailbox
+
+**Setup:** take `{THREAD_MSG}` as in TC-GM58. M1 came from the sender mailbox, so the reply goes to `{SENDER}`.
+
+**Action**
+1. `reply_to_message` with `message_id: "{THREAD_MSG}"`, `body: "mcp-gee-sweet TC-GM67 reply"`
+2. The human reads the form, checks **Send this email now**, and accepts.
+3. `get_message` with the returned `id`
+4. `get_draft` with the returned `draft_id`
+5. Sender, after ~30 s: `mcp__mcp-gee-sweet__list_messages` with `query: "\"mcp-gee-sweet TC-GM67 reply\""`, `max_results: 10`. Retry as in TC-GM44.
+
+**Checks**
+- The form shows `Subject: Re: [mcp-qa:thread] two-party thread`, `To: {SENDER}`, and the body text
+- Step 1 returns `sent: true`, `id`, `draft_id`, `label_ids` with `SENT`, and `thread_id` equal to `{TEST_THREAD_ID}`
+- Step 3: `label_ids` doesn't include `DRAFT`, and `headers.in_reply_to` equals M1's `headers.message_id`
+- Step 4: the draft is gone
+- Step 5: the sender mailbox holds the delivered `Re: [mcp-qa:thread] two-party thread`
+
+**Cleanup:** `trash_message` the step-1 `id`. On the sender side, TC-GM44's cleanup rule applies: trash the delivered copy through `mcp__mcp-gee-sweet__trash_message`.
+
+**Result (2026-11-03) ✅ PASS — PR #1367 QA round 2 (Rio, @ 89462ece)**
+Fresh-interpreter harness per the section (legacy client, scripted callback, rio slot, `GMAIL_SEND` unset). The form showed `Subject: Re: [mcp-qa:thread] two-party thread`, `To: {SENDER}` and the body text. Accepted: `sent: true`, `id`, `draft_id`, label_ids `SENT`, `thread_id` equal to `{TEST_THREAD_ID}`, plus the expected `outside_organization` flag. `get_message`: no `DRAFT`, and `in_reply_to` equals M1's `message_id`. `get_draft` on the `draft_id` returned a 404 error. Step 5 ran from Aziz's session, since Rio's has no sender-mailbox server: `list_messages` found the delivered reply on the first try, with the right subject and body. Both copies trashed.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard E** — sends to {SENDER} (outside this shard's approved recipients, QA plus-addresses only) and step 5 needs the sender mailbox via `mcp__mcp-gee-sweet__*`, which this shard may not call. Deferred to Aziz.
+
+---
+
+### TC-GM63: `GMAIL_SEND=direct` sends at once
+
+Run on the `GMAIL_SEND=direct` slot.
+
+**Action**
+1. `send_message` with `to: "{QA+tc-gm63}"`, `subject: "[mcp-qa:tc-gm63] direct"`, `body: "mcp-gee-sweet TC-GM63"`
+
+**Checks**
+- No form opens
+- Returns `sent: true`, `id`, `thread_id`, `label_ids` with `SENT`, and no `draft_id`
+- `list_drafts` with `query: "subject:(mcp-qa tc-gm63)"` returns no drafts
+
+**Cleanup:** `trash_message` the step-1 `id`.
+
+**Result (2026-10-25) ✅ PASS — PR #1249 QA round 3 (Sky, @ 0d74b78)**
+Run on the sky slot's own tools after a reconnect with `GMAIL_SEND=direct`: no form, `sent: true`, `id`, `thread_id`, label_ids `SENT`, no `draft_id`; `list_drafts` for `tc-gm63` returned 0. Trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E2 (batch 2 of shard E) on a fresh-interpreter `GMAIL_SEND=direct` server from Aziz's worktree** — sent: true, no draft_id, no drafts left.

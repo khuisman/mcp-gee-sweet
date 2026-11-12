@@ -22,3 +22,18 @@
     1. Nested ordered 1.1
     2. Nested ordered 1.2
 2. Top ordered 2
+
+## Case 4: empty items between items
+
+- Bullet before
+-
+- Bullet after
+
+1. Number one
+2.
+3. Number three
+
+- Rule item before
+-
+    ---
+- Rule item after

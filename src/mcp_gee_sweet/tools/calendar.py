@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import weakref
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from mcp.server.mcpserver import Context
@@ -648,7 +648,7 @@ def register(tool):
         }
         if expand_recurring:
             kwargs["orderBy"] = "startTime"
-        kwargs["timeMin"] = time_min or datetime.now(timezone.utc).isoformat()
+        kwargs["timeMin"] = time_min or datetime.now(UTC).isoformat()
         if time_max:
             kwargs["timeMax"] = time_max
         if query:
@@ -1036,7 +1036,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         max_results_per_calendar = clamp_max_results(max_results_per_calendar, 2500)
-        resolved_time_min = time_min or datetime.now(timezone.utc).isoformat()
+        resolved_time_min = time_min or datetime.now(UTC).isoformat()
 
         try:
             all_calendars = await _get_cached_calendar_list(lc)

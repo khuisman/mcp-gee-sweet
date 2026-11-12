@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
 
@@ -48,25 +49,26 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertTable": {
-                                    "rows": rows,
-                                    "columns": columns,
-                                    "location": {"index": index},
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertTable": {
+                                        "rows": rows,
+                                        "columns": columns,
+                                        "location": {"index": index},
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -101,7 +103,6 @@ def register(tool):
                             "paragraphStartIndex": para_start,
                         }
                     )
-            lc.doc_cache.mark_dirty(doc_id)
             logger.debug(
                 "insert_doc_table: %dx%d at index %d in doc %s", rows, columns, index, doc_id
             )
@@ -144,32 +145,32 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertTableRow": {
-                                    "tableCellLocation": {
-                                        "tableStartLocation": {"index": table_start_index},
-                                        "rowIndex": row_index,
-                                        "columnIndex": 0,
-                                    },
-                                    "insertBelow": insert_below,
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertTableRow": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": row_index,
+                                            "columnIndex": 0,
+                                        },
+                                        "insertBelow": insert_below,
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "insert_table_row: row %d (below=%s) in table at %d in doc %s",
             row_index,
@@ -201,31 +202,31 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "deleteTableRow": {
-                                    "tableCellLocation": {
-                                        "tableStartLocation": {"index": table_start_index},
-                                        "rowIndex": row_index,
-                                        "columnIndex": 0,
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "deleteTableRow": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": row_index,
+                                            "columnIndex": 0,
+                                        }
                                     }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "delete_table_row: row %d from table at %d in doc %s",
             row_index,
@@ -260,32 +261,32 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertTableColumn": {
-                                    "tableCellLocation": {
-                                        "tableStartLocation": {"index": table_start_index},
-                                        "rowIndex": 0,
-                                        "columnIndex": column_index,
-                                    },
-                                    "insertRight": insert_right,
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertTableColumn": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": 0,
+                                            "columnIndex": column_index,
+                                        },
+                                        "insertRight": insert_right,
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "insert_table_column: col %d (right=%s) in table at %d in doc %s",
             column_index,
@@ -332,35 +333,35 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "mergeTableCells": {
-                                    "tableRange": {
-                                        "tableCellLocation": {
-                                            "tableStartLocation": {"index": table_start_index},
-                                            "rowIndex": row_index,
-                                            "columnIndex": column_index,
-                                        },
-                                        "rowSpan": row_span,
-                                        "columnSpan": column_span,
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "mergeTableCells": {
+                                        "tableRange": {
+                                            "tableCellLocation": {
+                                                "tableStartLocation": {"index": table_start_index},
+                                                "rowIndex": row_index,
+                                                "columnIndex": column_index,
+                                            },
+                                            "rowSpan": row_span,
+                                            "columnSpan": column_span,
+                                        }
                                     }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "merge_table_cells: (%d,%d) span %dx%d in table at %d in doc %s",
             row_index,
@@ -401,31 +402,31 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "deleteTableColumn": {
-                                    "tableCellLocation": {
-                                        "tableStartLocation": {"index": table_start_index},
-                                        "rowIndex": 0,
-                                        "columnIndex": column_index,
+            with doc_invalidating(lc.doc_cache, doc_id):
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "deleteTableColumn": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": 0,
+                                            "columnIndex": column_index,
+                                        }
                                     }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
                 )
-                .execute,
-                lc.docs_service,
-            )
         except Exception as e:
             return {"error": str(e)}
 
-        lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "delete_table_column: col %d from table at %d in doc %s",
             column_index,

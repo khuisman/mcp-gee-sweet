@@ -339,19 +339,56 @@ class TestTransferOwnership:
             "emailAddress": "new-owner@example.com",
         }
 
-    async def test_send_notification_forwarded_to_api_call(self):
-        """send_notification=False must reach sendNotificationEmail on the API call."""
+    async def test_send_notification_false_rejected_without_api_call(self):
+        """#1055: Drive 403s every ownership transfer whose notification is
+        disabled ("sendNotificationEmail … must not be disabled for ownership
+        transfers") before it even resolves the file, so the tool must refuse the
+        value locally instead of sending a request that can never succeed.
+
+        This test previously asserted the opposite — that False was forwarded to
+        sendNotificationEmail — which pinned the request Drive rejects."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p"}
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1",
+            new_owner_email="new-owner@example.com",
+            send_notification=False,
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert "send_notification=False" in result["error"]
+        drive.permissions.return_value.create.assert_not_called()
+
+    async def test_send_notification_true_is_forwarded(self):
         drive = MagicMock()
         drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p"}
         ctx = _make_ctx(drive_service=drive)
         await _sharing_tools["transfer_ownership"](
             file_id="file-1",
             new_owner_email="new-owner@example.com",
-            send_notification=False,
+            send_notification=True,
             ctx=ctx,
         )
         _, kwargs = drive.permissions.return_value.create.call_args
-        assert kwargs["sendNotificationEmail"] is False
+        assert kwargs["sendNotificationEmail"] is True
+
+    async def test_default_still_notifies(self):
+        """Omitting the parameter keeps the transfer working unchanged: the only
+        value Drive accepts is the one the default already sends."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p"}
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1", new_owner_email="new-owner@example.com", ctx=ctx
+        )
+        assert result == {
+            "fileId": "file-1",
+            "new_owner": "new-owner@example.com",
+            "permissionId": "p",
+        }
+        _, kwargs = drive.permissions.return_value.create.call_args
+        assert kwargs["sendNotificationEmail"] is True
 
 
 class TestShareFile:

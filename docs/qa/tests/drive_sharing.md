@@ -4,6 +4,16 @@ Source: `src/mcp_gee_sweet/tools/drive/sharing.py`
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}`, `{DOC_ID}`, and `{FOLDER_ID}` from `fixtures.local.md`.
 
+> ⚠️ **Approval needed before running this file.** Every case here that creates a permission is a permission grant, which the auto-mode safety classifier denies unless the user's own words in the session name that kind of grant. A general "drive sharing" approval is not enough: in v0.9.2 it covered `TEST_PERMISSION_EMAIL` and the org domain, and the classifier still denied `@example.com` recipients, `type='anyone'`, and `role="owner"` (`docs/qa/runs/v0.9.2.md`). Ask for one approval that names each category, as listed in `.claude/team-roles/aziz.md`:
+> - shares to `TEST_PERMISSION_EMAIL` and to `@example.com` test addresses (a reserved domain, so nobody receives them). This covers the multi-recipient cases (TC-D176, TC-D177, TC-D258).
+> - an "anyone with the link" reader share (TC-D136, TC-D259)
+> - the `role="owner"` calls in TC-D21 and TC-D128. `aziz.md`'s list names only TC-D128, so add TC-D21 to the request.
+> - a share to the org's Workspace domain, `{GWS_DOMAIN}` (TC-D135, TC-D177, TC-D259). `aziz.md`'s list doesn't name this one, so add it to the request.
+>
+> Run every grant on a throwaway spreadsheet or folder in the Shared Drive, not on `{SPREADSHEET_ID}` or `{FOLDER_ID}`, and remove each grant right after its case. Where a prompt below says `{SPREADSHEET_ID}`, substitute the throwaway file.
+>
+> **`@example.com` recipients need `send_notification` left at its default (`True`).** These addresses have no Google account, and Drive refuses to share with such an address without a notification email. The literal address `test@example.com` has also been rejected by Google's address validation ("There's a problem with this email or domain"); use a distinct address such as `qa-recipient1@example.com`. To test `send_notification=False`, share to `TEST_PERMISSION_EMAIL` instead.
+
 ---
 
 ## `share_spreadsheet`
@@ -26,6 +36,8 @@ share_spreadsheet writer on the real Shared Drive fixture -> `{"successes":[{"em
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `share_spreadsheet` to qa-g-writer@example.com writer → successes with permissionId, `failures: []`; list_permissions shows role writer. Removed.
+
 ---
 
 ### TC-D19: Share as reader
@@ -45,6 +57,8 @@ Reader share on the real Shared Drive fixture succeeds -> `{"successes":[{"email
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — qa-g-reader@example.com reader → success, no failures; list_permissions role reader. Removed.
 
 ---
 
@@ -66,12 +80,16 @@ Commenter share on the real Shared Drive fixture succeeds -> `{"successes":[{"em
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — qa-g-commenter@example.com commenter → success, no failures; list_permissions role commenter. Removed.
+
 ---
 
 ### TC-D21: Invalid role
 
+**Approval:** the `role="owner"` call in TC-D21, named in the user's approval (see the note at the top of this file). The tool rejects the role before any API call, but the classifier judges the call by its arguments.
+
 **Prompt**
-> "Share {SPREADSHEET_ID} with test@example.com as an 'owner'"
+> "Share {SPREADSHEET_ID} with qa-recipient1@example.com as an 'owner'"
 
 **Checks**
 - Entry goes to `failures` list (invalid role)
@@ -82,6 +100,8 @@ Invalid role 'owner' -> failures:[{error:"Invalid role 'owner'. Must be 'reader'
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — the user's approval names only TC-D128's `role="owner"` call, not TC-D21's; not run without approval, deferred to Aziz. (The invalid-role path is covered by TC-D23's 'superuser' entry: rejected client-side into `failures`.)
 
 ---
 
@@ -99,6 +119,8 @@ Recipient with no email_address -> failures:[{email_address:null, error:"Missing
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `failures: [{email_address: null, error: "Missing email_address in recipient entry."}]`, no exception.
 
 ---
 
@@ -121,16 +143,20 @@ valid@example.com writer -> successes; invalid-role@example.com ('superuser') ->
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — one response: qa-g-valid@example.com writer in successes; 'superuser' entry in failures ("Invalid role 'superuser'. Must be 'reader', 'commenter', or 'writer'."). Removed.
+
 ---
 
 ### TC-D24: send_notification=False
 
 **Prompt**
-> "Share {SPREADSHEET_ID} with test@example.com as reader but don't send them a notification email"
+> "Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as reader but don't send them a notification email"
+
+`TEST_PERMISSION_EMAIL`, not an `@example.com` address: Drive refuses `send_notification=False` for an address with no Google account (see the approval note at the top of this file).
 
 **Checks**
 - Share succeeds
-- No notification email sent (verify by using an email you control)
+- No notification email sent (verify by checking the `TEST_PERMISSION_EMAIL` inbox)
 
 **Result (2026-09-04) ❌ FAIL**
 send_notification=False -> API path -> "File not found" (supportsAllDrives bug). Cannot verify notification suppression.
@@ -140,6 +166,8 @@ The `supportsAllDrives` bug is fixed, but this test case's own `test@example.com
 
 **Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
 send_notification=false share succeeds; recipient inbox not inspected.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — share to TEST_PERMISSION_EMAIL reader with `send_notification=false` succeeded, no failures. Not run: inbox check that no notification arrived (no access to that mailbox). Removed.
 
 ---
 
@@ -158,11 +186,15 @@ share_spreadsheet("invalidid123xyz", ...) -> error routed to failures:[{error:"F
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — error routed to `failures` ("Failed to share: File not found: invalidid123xyz."), not a top-level exception. 🔍 No ownership validation before sharing (by design).
+
 ---
 
 ### TC-D176: Concurrent multi-recipient share — no cross-attribution (issue #183)
 
 **Background:** #183 made `share_spreadsheet` issue its per-recipient `permissions().create()` calls concurrently via `asyncio.gather()` instead of one at a time. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable recipients at once to surface any result mixed up between concurrent calls (wrong role or permissionId attributed to the wrong email).
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
 
 **Prompt**
 > "Share {SPREADSHEET_ID} with these 5 recipients at once: recipient1@example.com as reader, recipient2@example.com as commenter, recipient3@example.com as writer, recipient4@example.com as reader, recipient5@example.com as writer"
@@ -184,6 +216,8 @@ All 5 recipients -> successes, none in failures. `list_permissions` cross-check 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 list_permissions cross-check: every principal had exactly its requested role.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 5 @example.com recipients: all 5 in successes, each email/role matching its request; list_permissions cross-check: r1 reader, r2 commenter, r3 writer, r4 reader, r5 writer — no cross-attribution. All 5 removed.
+
 ---
 
 ### TC-D258: `share_spreadsheet` emits `notifications/progress` updates as each recipient completes (issue #355)
@@ -191,6 +225,8 @@ list_permissions cross-check: every principal had exactly its requested role.
 **Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_spreadsheet`'s concurrent per-recipient shares (the same concurrent loop TC-D176 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{email_address}: {outcome}")` fires from inside each recipient's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareSpreadsheet::test_reports_progress_per_recipient`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
 
 **Prompt**
 > "Share {SPREADSHEET_ID} with recipient1@example.com as reader and recipient2@example.com as reader"
@@ -204,6 +240,8 @@ list_permissions cross-check: every principal had exactly its requested role.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Both entries in successes; progress notifications aren't visible in this client.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — both recipients in successes, no top-level error; progress notifications not visible in this client (conditional check). Both removed.
 
 ---
 
@@ -222,10 +260,12 @@ Both entries in successes; progress notifications aren't visible in this client.
 - Each entry has `id`, `type`, `role` — no `KeyError` or missing fields
 
 **Result (2026-09-04) ❌ FAIL**
-list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (kevin@mcpsuite.io) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
+list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (qa-workspace-user@example.org) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — read-only on {SPREADSHEET_ID}: 2 entries, one `organizer` (Shared Drive's de-facto owner) and the SA `fileOrganizer`; each has id/type/role.
 
 ---
 
@@ -241,10 +281,12 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Their `permission_id` is present for use in update/remove tests
 
 **Result (2026-09-04) ✅ PASS**
-(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows huismanfamily01@gmail.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
+(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows qa-recipient@example.com role:'reader' with permission_id <recipient permissionId> present for later update/remove use.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — after TC-D132's share, list_permissions shows TEST_PERMISSION_EMAIL with role reader and permission id present.
 
 ---
 
@@ -261,6 +303,8 @@ list_permissions("invalidid123xyz") -> HttpError 404 "File not found: invalidid1
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 "File not found: invalidid123xyz." propagates (URL carries supportsAllDrives=true).
 
 ---
 
@@ -283,9 +327,13 @@ update_permission(throwaway, 03150678215290859261, "reader") on a writer entry -
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `update_permission(<writer id>, "reader")` → `{permissionId, role: "reader"}`; follow-up list_permissions shows the same id with role reader. (First attempt's grant was removed before the list check, so re-run on TC-D23's writer grant.)
+
 ---
 
 ### TC-D128: Invalid role value
+
+**Approval:** the `role="owner"` call in TC-D128, named in the user's approval (see the note at the top of this file). The tool rejects the role before any API call, but the classifier judges the call by its arguments and denied it in v0.9.2 without that approval.
 
 **Prompt**
 > "Update permission {PERMISSION_ID} on {SPREADSHEET_ID} to role 'owner'"
@@ -299,6 +347,8 @@ update_permission(..., role="owner") -> {"error":"Invalid role 'owner'. Must be 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Run on a throwaway sheet in the run folder (not the fixture, per rule 7) with a reader grant to TEST_PERMISSION_EMAIL. `update_permission(role="owner")` → `{"error":"Invalid role 'owner'. Must be one of: reader, commenter, writer"}`, no exception; `list_permissions` afterwards still showed the grant as `reader` (no API change). Grant removed.
 
 ---
 
@@ -316,6 +366,8 @@ update_permission(..., "fakepermid999", "reader") -> HttpError 404 "Permission n
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 "Permission not found: fakepermid999." propagates; names the id.
 
 ---
 
@@ -338,6 +390,8 @@ remove_permission(throwaway, 12400478166082616858) -> {"fileId":"15wb2N6...","pe
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `{fileId, permissionId, action: "removed"}`; follow-up list_permissions no longer shows the removed ids.
+
 ---
 
 ### TC-D131: Non-existent permission ID
@@ -353,6 +407,8 @@ remove_permission(..., "fakepermid999") -> HttpError 404 "Permission not found: 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 "Permission not found: fakepermid999." propagates; not a silent success.
 
 ---
 
@@ -377,10 +433,12 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 `docs/qa/.env` doesn't exist in this scoped role-worktree pass (a known gap — see `docs/qa/run.md`), so `TEST_PERMISSION_EMAIL` isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.
 
 **Result (2026-09-04) ⏭️ SKIP**
-environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, huismanfamily01@gmail.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the mcpsuite.io org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
+environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, qa-recipient@example.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the example.org org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDriveItemNotSupported).
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — transfer_ownership needs OAuth (and a My Drive file); deferred to Aziz.
 
 ---
 
@@ -402,6 +460,8 @@ out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restr
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — shard assignment defers every transfer_ownership call to Aziz, although this case targets the SA server; deferred to Aziz.
+
 ---
 
 ### TC-D235: Non-existent file ID
@@ -421,11 +481,13 @@ transfer_ownership("fakefileid999", ...) -> HttpError 404 "File not found: fakef
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — transfer_ownership deferred to Aziz per shard assignment.
+
 ---
 
 ## `share_file`
 
-> ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not valid Google accounts and Drive will reject sharing with them. TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental.
+> ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not Google accounts: Drive accepts a share to one only with `send_notification` left at `True` (TC-D138, TC-D177), and refuses it with `send_notification=False` (seen in TC-D138's v0.9.2 run; see the note at the top of this file). TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental. See the approval note at the top of this file before running any case here.
 
 ### TC-D132: Share with type=user as reader
 
@@ -438,10 +500,12 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up `list_permissions` confirms the new entry
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'huismanfamily01@gmail.com'}], failures:[]. Follow-up list_permissions confirms the entry.
+share_file(throwaway, [{type:user, email:qa-recipient@example.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'<recipient permissionId>', email_address:'qa-recipient@example.com'}], failures:[]. Follow-up list_permissions confirms the entry.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — TEST_PERMISSION_EMAIL reader → successes `{type: user, role: reader, permissionId}`, failures empty; list_permissions confirms. Removed.
 
 ---
 
@@ -461,6 +525,8 @@ share_file with type='user' role='reader', no email_address -> failures:[{error:
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — failures `"'email_address' required for type='user'"`, successes empty, no exception.
+
 ---
 
 ### TC-D134: Invalid role
@@ -478,11 +544,15 @@ share_file with role='superuser' -> failures:[{error:"Invalid role 'superuser'. 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 'superuser' → failures "Invalid role 'superuser'. Must be one of: reader, commenter, writer"; successes empty.
+
 ---
 
 ### TC-D135: Share with type=domain
 
 > ⚠️ **Environmental:** `example.com` is not a Google Workspace domain; Drive will reject this with a domain validation error. Replace with your actual GWS domain if available, or SKIP and record as environmental.
+
+**Approval:** a share to the org's Workspace domain, `{GWS_DOMAIN}`, named in the user's approval (see the note at the top of this file).
 
 **Prompt**
 > "Share {SPREADSHEET_ID} with everyone at {GWS_DOMAIN} as a reader using share_file with type='domain'"
@@ -492,14 +562,18 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - Follow-up `list_permissions` shows the domain permission entry
 
 **Result (2026-09-04) ✅ PASS**
-share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'mcpsuite.io'}]; list_permissions shows the domain entry (display_name "MCPSuite").
+share_file type='domain' domain='example.org' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'example.org'}]; list_permissions shows the domain entry (display_name "<QA org>").
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — a Workspace-domain share isn't among this pass's approved categories; deferred to Aziz.
+
 ---
 
 ### TC-D136: Share with type=anyone (public link)
+
+**Approval:** an "anyone with the link" reader share, named in the user's approval (see the note at the top of this file). Remove the `anyoneWithLink` permission right after the case.
 
 **Prompt**
 **Playwright: required**
@@ -511,10 +585,12 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 - File accessible via its `web_link` without authentication (verify in incognito browser)
 
 **Result (2026-09-04) ✅ PASS**
-share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as kevin@mcpsuite.io, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
+share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as qa-workspace-user@example.org, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after removal.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — successes `{type: anyone, role: reader, permissionId: anyoneWithLink}`; list_permissions shows the anyone entry. Unauthenticated `curl -L` of the sheet's export URL → 200 while shared, 401 after removal. Playwright (shared-4, account check passed): the web_link loaded as "QA-G-share-probe - Google Sheets" in the signed-in browser (screenshot `G/shots/2026-11-08-tc-d136.png`); the browser is signed in, so the unauthenticated check rests on curl.
 
 ---
 
@@ -530,18 +606,22 @@ anyoneWithLink created; an unauthenticated fetch returned 200, and 401 after rem
 - A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
 **Result (2026-09-04) ⚠️ PARTIAL**
-share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+share_file(folder QA-v090-share-folder, [{type:user, email:qa-recipient@example.com, role:writer}]) -> successes:[{...permissionId:'<recipient permissionId>'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
 **Corrected (2026-10-17, #1044 audit):** the child-file inherited-access check wasn't run.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, Aziz on `sa`** — share_file(folder QA-orn-Aziz-D137, [{type:user, email:TEST_PERMISSION_EMAIL, role:writer}], send_notification=false) -> one success, no failures; list_permissions on the folder shows the writer grant. The child Doc's Share dialog (playwright-4, under the mutex) lists TEST_PERMISSION_EMAIL as Editor, inherited from the folder. Grant removed, folder trashed. (Shard G's identical call had been refused by its session's safety check.)
+
 ---
 
 ### TC-D138: Mixed success and failure in one call
 
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default: with `send_notification=False`, Drive puts the `@example.com` entry in `failures` too (v0.9.2).
+
 **Prompt**
-> "Share {SPREADSHEET_ID} using share_file with two permissions: first type='user' email=test@example.com role='reader', second type='user' role='writer' (no email_address)"
+> "Share {SPREADSHEET_ID} using share_file with two permissions: first type='user' email=qa-mixed-recipient@example.com role='reader', second type='user' role='writer' (no email_address)"
 
 **Checks**
 - First entry in `successes`, second entry in `failures`
@@ -552,6 +632,8 @@ share_file with [{type:user, email:qa-mixed-recipient@example.com, role:reader},
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — first entry (qa-g-mixed-recipient@example.com reader) in successes, second (no email) in failures; one response, batch not aborted. Removed.
 
 ---
 
@@ -568,16 +650,20 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 > ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
 
 **Result (2026-09-04) ✅ PASS**
-share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
+share_file(throwaway, qa-recipient@example.com reader, send_notification=false) -> successes populated (permissionId <recipient permissionId>), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — share to TEST_PERMISSION_EMAIL with `send_notification=false` succeeded; source passes `sendNotificationEmail=send_notification` (sharing.py:409). Not run: inbox non-delivery check. Removed.
 
 ---
 
 ### TC-D177: Concurrent multi-permission share — no cross-attribution (issue #183)
 
 **Background:** Same concurrency change as TC-D176, applied to `share_file`'s richer type/domain/anyone permission model. This mixes distinct types and roles across several entries at once to catch a result attributed to the wrong entry under concurrent execution.
+
+**Approval:** shares to `@example.com` test addresses and to the org's Workspace domain, both named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
 
 **Prompt**
 > "Share {SPREADSHEET_ID} using share_file with these 4 permissions at once: type='user' email=recipient1@example.com role='reader', type='user' email=recipient2@example.com role='writer', type='user' email=recipient3@example.com role='commenter', type='domain' domain={GWS_DOMAIN} role='reader'"
@@ -591,10 +677,12 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 `remove_permission` for each of the 4 test permissions.
 
 **Result (2026-09-04) ✅ PASS**
-share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.
+share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain example.org=reader (09502084656447390423). No cross-attribution.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 list_permissions cross-check: every principal had exactly its requested role.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — ran the 3 user entries only (Workspace-domain share not approved this pass): all 3 in successes, each type/role/email matching; list_permissions: r1 reader, r2 writer, r3 commenter — no cross-attribution. Not run: the `type=domain` entry. All removed.
 
 ---
 
@@ -603,6 +691,8 @@ list_permissions cross-check: every principal had exactly its requested role.
 **Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{perm_type}: {outcome}")` fires from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Approval:** an "anyone with the link" reader share and a share to the org's Workspace domain, both named in the user's approval (see the note at the top of this file).
 
 **Prompt**
 > "Share {SPREADSHEET_ID} using share_file with type='anyone' role='reader' and type='domain' domain={GWS_DOMAIN} role='reader'"
@@ -616,5 +706,9 @@ list_permissions cross-check: every principal had exactly its requested role.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Both entries in successes; progress notifications aren't visible in this client.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — ran the `anyone` reader entry alone: success, no top-level error. Not run: the `type=domain` entry (not approved this pass); progress notifications not visible in this client. Removed.
+
+---
 
 ---

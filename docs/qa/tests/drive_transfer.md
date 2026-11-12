@@ -24,6 +24,8 @@ txt export: encoding utf-8, format txt, content matches doc body ("Test Document
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — encoding utf-8, format txt, content "Test Document / This document is used for QA testing... / * Item one / * Item two" matches the fixture doc.
+
 ---
 
 ### TC-D84: Export Google Doc as HTML
@@ -41,6 +43,8 @@ html export: encoding utf-8, `<html>` tags present, `<h1>Test Document</h1>` + `
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — encoding utf-8, format html, `<html>` present, `<h1>` with "Test Document" and `<ul>`/`<li>` for Item one/two (output 122 KB, read via jq).
 
 ---
 
@@ -60,6 +64,8 @@ pdf export: encoding base64, non-empty, decodes to `%PDF-1.4` header (JVBERi0xLj
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — encoding base64, non-empty, content begins `JVBERi0xLjQ` = `%PDF-1.4`.
+
 ---
 
 ### TC-D86: Export Google Sheet as CSV
@@ -76,6 +82,8 @@ Re-checked after Sheets shard restored {SPREADSHEET_ID} to seed: export_file(csv
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — encoding utf-8, CSV `Product,Q1,Q2,Q3 / Widget,100,120,140 / ... / Totals,650,670,705` matches the seed data.
 
 ---
 
@@ -94,17 +102,24 @@ Unknown format 'xyz' returns ValueError "Unknown export_format 'xyz'. Valid opti
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — error "Unknown export_format 'xyz'. Valid options: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx, raw"; no crash.
+
 ---
 
 ### TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)
 
 **Background:** #242 generalized #235's response-size safety net to `export_file`. Unlike the other capped tools, `export_file` has no `local_path` param — its base64 output written to a JSON file would be a worse artifact than `download_file` (pre-existing tool) already produces, so the error points there instead.
 
+**Setup:** the cap is `MAX_TOOL_RESPONSE_CHARS` (default `1000000`, see `docs/configuration.md`). `{SPREADSHEET_ID}` exported as `xlsx` is only about 9 KB, so it does not trip the default cap. To trip it, export a binary file large enough that its base64 content exceeds the cap: at the default, a raw file of about 800 KB or more. For example, upload an 800 KB non-text file (random bytes, `.bin`) to a scratch folder with `upload_local_file` and export it with `export_format='raw'`. Alternatively, run against a server started with a low `MAX_TOOL_RESPONSE_CHARS` (e.g. `40000`), where the fixture's `xlsx` export does trip it.
+
 **Prompt**
-> "Export {SPREADSHEET_ID} as xlsx"
+> "Export <the large binary file's ID> with export_format 'raw'" (or, on a low-cap server, "Export {SPREADSHEET_ID} as xlsx")
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and `download_file` as the recommended alternative — must NOT mention `local_path` (this tool doesn't have that param)
+- Call raises `ValueError`: `export_file: the response is <N> characters, over the <cap>-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`, where `<cap>` is the server's configured cap
+- The message must NOT mention `local_path` (this tool doesn't have that param)
+
+**Cleanup:** trash the uploaded large file, if one was used.
 
 **Result (2026-07-03) ✅ PASS**
 Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
@@ -114,6 +129,8 @@ Expected ValueError re: 40,000-char response cap on xlsx export. Actual: call SU
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Fixture xlsx no longer trips the 1M cap; an 800 KB file did. TC premise stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — uploaded an 800 KB random `big.bin`; `export_file(raw)` raised "export_file: the response is 1092429 characters, over the 1000000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead ... set MAX_TOOL_RESPONSE_CHARS ..." — exact text, no mention of `local_path`.
 
 ---
 
@@ -134,6 +151,8 @@ upload_file qa-upload.txt to scratch folder (sub-substituted for {FOLDER_ID}): m
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — run on the SA into the Shared Drive run folder (the OAuth tag is about personal-Drive quota). name `qa-upload.txt`, list_files shows it immediately with mime `text/plain`.
+
 ---
 
 ### TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth
@@ -150,6 +169,8 @@ upload_file qa-notes.md (source_format default 'text', convert_to_doc=false): mi
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — source_format default `text`, convert_to_doc false: mimeType `text/plain` (not text/markdown); raw export returns literal `# Heading\n\n- item 1\n- item 2`.
 
 ---
 
@@ -172,6 +193,8 @@ heading, sub-heading, bullets, bold, hyperlink all render correctly
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — Google Doc created; screenshot (shots/2026-11-08-tc-d90.png) shows "My Title" as Heading 1, "Section One" as a heading, Bullet A/B as a bulleted list, "bold" bold, "link" as a link; get_doc_as_markdown confirms `[link](https://example.com)`.
+
 ---
 
 ### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
@@ -190,6 +213,8 @@ heading, paragraph, bulleted list render correctly
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — source_format html, convert_to_doc true; screenshot (tc-d91) shows "HTML Title" as Heading 1, "A paragraph.", and a bulleted list X/Y.
+
 ---
 
 ### TC-D92: Upload Markdown with table ⚠️ requires-oauth
@@ -207,6 +232,8 @@ heading + real 2×2 table render correctly
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — screenshot (tc-d92) shows "Table Test" heading with a real table (header Col A/Col B bold, rows 1/2 and 3/4; a 2x2 body plus header row). Stale wording: the "markdown[extra]" check refers to the old Python-Markdown converter; the converter is markdown-it now (#1116).
 
 ---
 
@@ -228,6 +255,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — 1x1 PNG from the shard scratch dir into subfolder `ulf`: `skipped: false`, `web_content_link` = `https://drive.google.com/uc?id=<id>&export=download` next to `web_link`; list_files shows it with `image/png`.
+
 ---
 
 ### TC-D94: skip_if_exists prevents re-upload ⚠️ local-filesystem
@@ -241,6 +270,14 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Regression check for `_upload_local_file`'s now-paged name lookup, run via `mcp-gee-sweet-sky` (OAuth) in a scratch folder on the Shared Drive. The second call returned the first call's `fileId` with `skipped: true`, and `list_files` showed a single `qa-test.png`.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
+Re-run at head `959ad211`, where the lookup now pages at `pageSize=1000` and requests `id`. Same outcome as round 1.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — second call returned the same fileId with `skipped: true`; list_files had a single `qa-test.png` before the D95 call.
 
 ---
 
@@ -256,6 +293,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `skip_if_exists=false` created a second `qa-test.png` with a new fileId, `skipped: false`.
+
 ---
 
 ### TC-D96: Non-existent local path ⚠️ local-filesystem
@@ -270,6 +309,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — error "No file found at '<path>/does-not-exist-qa.bin'". "No Drive API call" is inferred from the error being the local existence check (no server log read).
+
 ---
 
 ### TC-D97: Name override ⚠️ local-filesystem
@@ -282,6 +323,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — Drive file named `renamed-in-drive.png`; local file unchanged.
 
 ---
 
@@ -298,6 +341,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — no error, `skipped: false`, Drive file `qa-convert` is `application/vnd.google-apps.spreadsheet`; get_sheet_data (tab `qa-convert.csv`) returned `[[name,qty],[apple,3],[pear,5]]`.
+
 ---
 
 ### TC-D211: convert=True — Markdown converts to a native Google Doc ⚠️ local-filesystem
@@ -313,6 +358,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — no error; `qa-convert.md` is `application/vnd.google-apps.document`; get_doc_content returns "QA Heading\r\nA paragraph of QA text."
+
 ---
 
 ### TC-D212: convert=True — PPTX converts to a native Google Slides file ⚠️ local-filesystem
@@ -326,6 +373,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — a python-pptx one-slide deck uploaded with convert=true: no error, mime `application/vnd.google-apps.presentation`.
 
 ---
 
@@ -341,6 +390,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `{"error":"Conversion not supported for extension '.zip'. Supported extensions: .csv, .docx, .htm, .html, .md, .pptx, .xlsx"}`; list_files shows no zip.
+
 ---
 
 ### TC-D214: convert omitted (default False) still uploads CSV as-is ⚠️ local-filesystem
@@ -354,6 +405,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `qa-convert.csv` uploaded as `text/csv`, `web_content_link` present like D93.
 
 ---
 
@@ -376,6 +429,14 @@ Delete both files (raw `qa-convert-215.csv` and converted `qa-convert-215`) from
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Regression check for the `convert=True` branch (which also reads `properties`) of `_upload_local_file`'s now-paged lookup. Run via `mcp-gee-sweet-sky` (OAuth) in a scratch folder on the Shared Drive. Step 2 returned `skipped: false` and a new Sheet named `qa-convert-215`, and `list_files` showed the raw CSV alongside the converted Sheet. An extra step 3 (the same `convert=True` call again) returned the Sheet's `fileId` with `skipped: true`.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
+Re-run at head `959ad211` with the same steps, including the extra step 3. Same outcome as round 1.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 2 `skipped: false`, new Sheet `qa-convert-215`; list_files shows raw `qa-convert-215.csv` (text/csv) and the Sheet with distinct IDs. Extra step 3 returned the Sheet's ID with `skipped: true`. Side note: this Sheet's modifiedTime is 08:20:33 (upload time), not the local mtime 08:18:53 that the other converted uploads carry — see TC-D267.
 
 ---
 
@@ -400,6 +461,8 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — extensionless local file with name `qa-convert-216.csv`, convert=true: no error, Sheet `qa-convert-216` created (`application/vnd.google-apps.spreadsheet`).
 
 ---
 
@@ -433,6 +496,8 @@ Delete `qa-report-286.csv.gz` and the `qa-gz-286-sync` and `qa-gz-286-folder` fo
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 1 metadata `application/gzip`, size 28; step 2 sync upload `uploaded == ["qa-report-286.csv.gz"]` (size_bytes 28 now, per #1003), list shows `application/gzip`; step 3 upload_local_folder `uploaded == ["qa-report-286.csv.gz"]`, `application/gzip`.
+
 ---
 
 ## `upload_local_folder`
@@ -449,6 +514,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `uploaded: [data.json, note.txt, qa-test.png]`, `failed: []`; Drive types application/json, text/plain, image/png.
+
 ---
 
 ### TC-D99: .DS_Store excluded by default ⚠️ local-filesystem
@@ -461,6 +528,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — the same directory held a `.DS_Store`; it isn't in `uploaded` and isn't in Drive; the other three uploaded.
 
 ---
 
@@ -475,6 +544,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard F on `kai-sa`** — second run: `uploaded: []`, `skipped: [data.json, note.txt, qa-test.png]`. Not run: "one list call per run (server logs)" — needs the server log, deferred to Aziz.
 
 ---
 
@@ -498,6 +569,8 @@ Delete both converted files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-240/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `uploaded: [a.csv, b.md]`, `failed: []`; Drive `a` is a Sheet (data `[[h1,h2],[r1,r2]]`), `b.md` is a Doc (text "B doc / Body text b.").
+
 ---
 
 ### TC-D241: convert=True — a file with an unsupported extension is reported in `failed`, siblings still upload ⚠️ local-filesystem
@@ -518,6 +591,8 @@ Delete the converted `a.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-folder-241/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `uploaded: [a.csv]`; `failed: [{archive.zip, "Conversion not supported for extension '.zip'..."}]`; Drive folder holds only the Sheet `a`. Side note: this Sheet's modifiedTime is its upload time (08:22:37), not the local mtime (08:21:42) — see TC-D267.
+
 ---
 
 ### TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem
@@ -536,6 +611,8 @@ Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 2 `uploaded: [a.csv]`; folder holds raw `a.csv` (text/csv) and Sheet `a`, distinct IDs.
 
 ---
 
@@ -560,6 +637,8 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 2 `skipped: [dup.csv]`, `uploaded: []`; folder holds exactly one Sheet `dup`.
+
 ---
 
 ### TC-D262: convert=True — two Drive files sharing the exact same name don't hide each other's classification (#514) ⚠️ local-filesystem
@@ -582,6 +661,8 @@ Delete both `dup.csv` files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-262/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — raw `dup.csv` + Sheet `dup.csv` (create_spreadsheet); step 3 convert=true: `skipped: [dup.csv]`; list_files still shows exactly 2 `dup.csv` files.
+
 ---
 
 ## `download_file`
@@ -602,6 +683,8 @@ No PNG fixture (TC-D93 is local-filesystem, skipped) — used qa-upload.txt as t
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — the D93 PNG downloaded to `<scratch>/dl/qa-test.png`, size_bytes 69 = Drive size; `file` reports a valid 1x1 PNG, byte-identical to the source.
+
 ---
 
 ### TC-D102: Export Google Doc as plain text ⚠️ local-filesystem
@@ -619,6 +702,8 @@ download {DOC_ID} export_format=txt to /tmp/qa-downloads/: file mcp-gee-sweet-qa
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — written as `mcp-gee-sweet-qa-fixtures-doc.txt`, content matches the doc body.
 
 ---
 
@@ -638,6 +723,8 @@ download {DOC_ID} export_format=pdf: file mcp-gee-sweet-qa-fixtures-doc.pdf, `%P
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `mcp-gee-sweet-qa-fixtures-doc.pdf`, `%PDF-1.4` header, size_bytes 20152.
+
 ---
 
 ### TC-D104: Export Google Sheet as CSV ⚠️ local-filesystem
@@ -655,6 +742,8 @@ See TC-D86 — re-checked clean after Sheets fixture restoration; export_file an
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `mcp-gee-sweet-qa-fixtures.csv` written, identical to TC-D86's seed data.
+
 ---
 
 ### TC-D105: Workspace file without export_format ⚠️ local-filesystem
@@ -671,6 +760,8 @@ download {DOC_ID} with no export_format: ValueError "export_format is required f
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — error "export_format is required for Google Workspace file 'mcp-gee-sweet-qa-fixtures-doc'. Valid options: ..."; target dir `dl105/` was not created.
 
 ---
 
@@ -691,6 +782,8 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — written to exactly `<scratch>/dl106/newparent/qa-specific-name.png` (69 B); the missing parent `newparent/` was created.
+
 ---
 
 ### TC-D254: `download_file` — a non-existent trailing-slash `local_path` is created as a directory, not written as a file (issue #690) ⚠️ local-filesystem
@@ -707,7 +800,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Checks**
 - Step 1: `/tmp/qa-d254/new/sub/` exists as a **directory**; the file is at `/tmp/qa-d254/new/sub/<drive_name>` with the real content; the returned `local_path` is that full file path. There is **no** plain file at `/tmp/qa-d254/new/sub`.
 - Step 2: both downloads are present as separate files inside `/tmp/qa-d254/new/sub/` (named after each Drive file) — the second did not overwrite the first, and `/tmp/qa-d254/new/sub` is still a directory, not a file.
-- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'` (wording since #855; before that it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
+- Step 3: the call raises a `ValueError` `local_path '/tmp/qa-d254/clash/' has a non-directory path component at '/tmp/qa-d254/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead` (the trailing hint since #990, the rest since #855; before #855 it read "…ends in a path separator (implying a directory) but a non-directory already exists at…"); `/tmp/qa-d254/clash` still contains `x`, untouched.
 
 **Teardown**
 `rm -rf /tmp/qa-d254`.
@@ -727,6 +820,8 @@ Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (in
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 1 created `d254/new/sub/` (both levels) as a directory, returned `.../new/sub/qa-test.png`; step 2 added `renamed-in-drive.png` beside it, no overwrite; step 3 raised the exact ValueError with the #990 trailing-ending hint; `clash` still `x`.
+
 ---
 
 ### TC-D274: `download_file` — trailing-slash `local_path` over an existing regular file fails before any Drive request (#827, #855) ⚠️ local-filesystem
@@ -741,7 +836,7 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Checks**
 - Step 1 raises the Drive 404 `HttpError` ("File not found: qa-bogus-file-id"), which shows a valid destination does reach Drive. `/tmp/qa-d274/ok/` is **not** created, because mkdir runs after the metadata call.
-- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`.
+- Step 2 raises `ValueError` `local_path '/tmp/qa-d274/clash/' has a non-directory path component at '/tmp/qa-d274/clash'; local_path ends in a path separator or '.', which makes it a directory target. Remove that ending to write a file at that path instead`, with **no** 404. `/tmp/qa-d274/clash` still contains `x`. (The hint after the semicolon was added in #990.)
 
 **Teardown**
 `rm -rf /tmp/qa-d274`.
@@ -750,6 +845,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — control: Drive 404 "File not found: qa-bogus-file-id", `ok/` not created; step 2: the exact non-directory ValueError with hint, no 404; `clash` still `x`.
 
 ---
 
@@ -775,6 +872,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — ValueError "local_path '.../clash/sub/' has a non-directory path component at '.../clash'"; no 404/NotADirectoryError; `clash` still `x`.
+
 ---
 
 ### TC-D276: `download_file` — plain file `local_path` whose intermediate parent is a regular file fails before any Drive request (#836, #855) ⚠️ local-filesystem
@@ -798,6 +897,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — ValueError naming `.../clash`; no 404; `clash` unchanged.
 
 ---
 
@@ -823,6 +924,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — ValueError "has a symlink to a missing target at '.../d277/dangling'", no 404; symlink unchanged, `missing-target` not created.
 
 ---
 
@@ -876,6 +979,8 @@ The case passes. Extra probe: the same step-8 call with `dry_run=true` listed on
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 1 wrote `newdir/hello.txt` (dir); steps 2–3 the exact ValueError with hint, `report` still "keep me"; step 4 dangling-symlink error, link intact, `missing-a` absent; steps 5 and 7 non-directory error at `clash`; step 6 symlink error, `missing-b` absent; step 8 `downloaded: [hello.txt]`, `failed` exactly the `sub/` entry, `sync/sub` still dangling; step 9 dry_run: `failed` empty, actions `hello.txt skip (in sync)` + `sub/ conflict` with the same reason.
+
 ---
 
 ## `download_folder`
@@ -896,6 +1001,8 @@ download_folder scratch→/tmp/qa-folder-download/: downloaded=["qa-notes.md","q
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — run folder: `downloaded: [big.bin, qa-notes.md, qa-upload.txt]`; the 3 Docs (and the subfolders) in `skipped`; files on disk, big.bin byte-identical.
+
 ---
 
 ### TC-D108: Download folder with export_format ⚠️ local-filesystem
@@ -914,6 +1021,8 @@ download_folder scratch→/tmp/qa-folder-export/ export_format=pdf: downloaded =
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — export_format pdf: 3 raw files as-is plus QA-HTML-Doc.pdf / QA-Markdown-Doc.pdf / QA-Table-Doc.pdf (all `%PDF-`); subfolders skipped; failed empty.
+
 ---
 
 ### TC-D109: skip_if_exists=True skips existing local files ⚠️ local-filesystem
@@ -930,6 +1039,8 @@ Re-ran download_folder against /tmp/qa-folder-download/: downloaded=[], skipped=
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — rerun: `downloaded: []`, the 3 present files in `skipped` (with Docs/subfolders), size_bytes 0.
 
 ---
 
@@ -948,6 +1059,42 @@ download_folder mime_type_filter=application/vnd.google-apps.document, export_fo
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — mime_type_filter Doc + txt: only the 3 Docs as .txt; no other files in the output dir.
+
+---
+
+### TC-D303: A quote in `folder_id` stays inside the quoted value (#1084) ⚠️ local-filesystem
+**Purpose:** `transfer.py`'s four `files().list()` sites (`download_folder`, `sync_folder`'s Drive listing, and the `skip_if_exists` checks in `upload_local_folder` and `upload_local_file`) now escape the caller's folder ID with `_escape_drive_query_value`. Unit tests pin the escaped string. This case checks that Drive itself reads `\'` as a literal quote.
+
+**Setup:**
+1. A local directory holding `a.txt`, `b.txt` and `new.txt`, with different content from the Drive `a.txt` below. Backdate the local `a.txt` so it's older than the Drive copy will be: `touch -t <an hour ago, as YYYYMMDDhhmm> <local dir>/a.txt`.
+2. `create_folder("QA-TC-D303", parent_folder_id={FOLDER_ID})`, then `upload_file` `a.txt` into it.
+3. `upload_file` a canary text file into `{FOLDER_ID}`, then trash it with `delete_file`.
+
+**Steps**
+1. `download_folder(folder_id="x' in parents or trashed=true or 'y", local_path=<new dir>)`
+2. `download_folder(folder_id=<fixture folder>, local_path=<new dir>)`
+3. `sync_folder(folder_id=<fixture folder>, local_path=<local dir>, dry_run=True)`
+4. `upload_local_file(local_path=<local dir>/a.txt, parent_folder_id=<fixture folder>, skip_if_exists=True)`
+5. `upload_local_folder(local_path=<local dir>, parent_folder_id=<fixture folder>, skip_if_exists=True)`
+
+**Checks**
+- Step 1 returns a clean "File not found" error or an empty result. It never lists the trashed canary or another folder's children, and it creates no local directory.
+- Step 2 downloads exactly `a.txt`.
+- Step 3 plans `a.txt` as a `download` ("drive newer"), since setup step 1 made the local copy older, and the two local-only files as uploads. Exactly one `a.txt` is planned: nothing from another folder is listed.
+- Step 4 returns `skipped: true` with the existing `a.txt`'s `fileId`.
+- Step 5 uploads `b.txt` and `new.txt` and skips `a.txt`. A `list_files` afterward shows one of each name.
+
+**Cleanup:** trash the fixture folder's files and the folder, and delete the local directories.
+
+**Result (2026-10-27) ✅ PASS (recorded as TC-D1031; its setup order didn't state which `a.txt` was newer)**
+Run against PR #1140's merge in an isolated service-account sandbox on a Shared Drive. Step 1's request sent `q='x\' in parents or trashed=true or \'y' in parents and trashed=false`, and Drive answered 404 `File not found: .`. It returned no listing, and no local directory was created. Step 2 downloaded `["a.txt"]`. Step 3 planned `a.txt` download, `b.txt`/`new.txt` upload "local only". Step 4 returned `skipped: true` with the existing ID. Step 5 uploaded `["b.txt", "new.txt"]`, skipped `["a.txt"]`, and `list_files` showed three files with no duplicates. Files and folder trashed.
+
+**Result (2026-10-29) ✅ PASS — PR #1274 send-back round (Jay), setup in the order above**
+`mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code, under `{FOLDER_ID}`. Local `a.txt` backdated about three hours. Step 1 raised Drive's 404 `File not found: .` for `q='x\' in parents or trashed=true or \'y' in parents and trashed=false`, with no listing and no local directory created. Step 2 downloaded `["a.txt"]`. Step 3 planned `a.txt` `download` ("drive newer by 10415s"), and `b.txt`/`new.txt` `upload` ("local only"), nothing else. Step 4 returned `skipped: true` with the Drive `a.txt`'s ID. Step 5 uploaded `["b.txt", "new.txt"]` and skipped `["a.txt"]`, and `list_files` showed one of each name. Folder trashed, local directories deleted.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — step 1 returned Drive's 404 "File not found: ." for `q='x\' in parents or trashed=true or \'y' in parents and trashed=false`, no listing, no local dir created; step 2 `downloaded: [a.txt]`; step 3 a.txt `download` ("drive newer by 3636s"), b.txt/new.txt `upload` (local only), nothing else; step 4 `skipped: true` with the Drive a.txt ID; step 5 uploaded `[b.txt, new.txt]`, skipped `[a.txt]`, list_files one of each. Note: step 1 came back as a `{"error": ...}` result rather than a raised error (still a clean not-found).
+
 ---
 
 ## `sync_folder`
@@ -965,6 +1112,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — subfolder `sync-111` (drive-only.txt + a Doc) vs local dir (local-only.txt): `dry_run: true`, `actions` = drive-only.txt download "drive only", local-only.txt upload "local only"; nothing changed locally or in Drive.
+
 ---
 
 ### TC-D112: Bidirectional — Drive-only file downloaded ⚠️ destructive ⚠️ local-filesystem
@@ -979,6 +1128,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `downloaded: [drive-only.txt]`, written to the local dir.
+
 ---
 
 ### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive ⚠️ local-filesystem
@@ -991,6 +1142,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — same call: `uploaded: [local-only.txt]`; list_files shows it in Drive.
 
 ---
 
@@ -1007,6 +1160,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — after an in-sync baseline: edited local-only.txt (local newer), backdated drive-only.txt by 1 h (Drive newer), left same.txt: `uploaded: [local-only.txt]`, `downloaded: [drive-only.txt]`, `skipped: [same.txt]`.
+
 ---
 
 ### TC-D115: Upload preserves mtime for future sync accuracy ⚠️ local-filesystem
@@ -1021,6 +1176,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — first sync uploaded local-only.txt; Drive modifiedTime 08:26:23.000Z = local mtime 00:26:23 PST; immediate resync put it in `skipped`.
+
 ---
 
 ### TC-D116: direction='upload' — Drive-only file not downloaded ⚠️ local-filesystem
@@ -1034,6 +1191,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `d116-drive.txt` (Drive only) in `skipped`; `d116-local.txt` uploaded; `same.txt` backdated locally (Drive newer) in `conflicts`.
 
 ---
 
@@ -1050,6 +1209,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — local-only `d116-local.txt`/`d117-local.txt` in `skipped`; Drive-only `d116-drive.txt` downloaded (and Drive-newer same.txt); local-newer `local-only.txt` in `conflicts`.
+
 ---
 
 ### TC-D118: Workspace files excluded without export_format ⚠️ local-filesystem
@@ -1063,6 +1224,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — the Doc `sync-doc` never appeared in downloaded/uploaded/conflicts/skipped or in the dry_run `actions` across all the D111–D117 calls. 🔍 Observed: it's silently excluded, as documented in sync_folder's docstring ("Workspace files with no export_format are skipped entirely").
 
 ---
 
@@ -1080,6 +1243,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — subfolder `s217`: `uploaded: [notes.md]`; list_files shows `notes.md` as `application/vnd.google-apps.document`, name kept; get_doc_content "Notes 211 / Paragraph for 211."
 
 ---
 
@@ -1099,6 +1264,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — bidirectional resync: `skipped: [notes.md]`; one `notes.md` in the folder.
 
 ---
 
@@ -1121,6 +1288,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — after appending a paragraph: `uploaded: [notes.md]`; still one file with the same ID `1AbCoa…`; content now ends "A new paragraph added locally." (Drive's importer put two empty paragraphs before it, Drive-import rendering, not this server's).
+
 ---
 
 ### TC-D220: convert_markdown omitted (default False) — .md still uploads as plain text ⚠️ local-filesystem
@@ -1139,6 +1308,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211b/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `uploaded: [notes.md]`, Drive mime `text/markdown` (not a Doc).
 
 ---
 
@@ -1168,6 +1339,8 @@ Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — upload created the Doc; after removing the local file, bidirectional resync: no exception, `conflicts: [notes.md]`, failed/downloaded empty; one untouched Doc remains; nothing written locally.
+
 ---
 
 ### TC-D222: convert_markdown — a pre-existing unrelated Doc with a colliding name is never treated as this tool's converted twin (#414 QA review, finding #2) ⚠️ local-filesystem
@@ -1190,6 +1363,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-222/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — create_doc `notes.md` + write_doc_content placeholder; sync: `uploaded: [notes.md]`; folder now has two `notes.md` Docs; the original still reads "ORIGINAL PLACEHOLDER 222".
 
 ---
 
@@ -1216,6 +1391,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-223/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — first call uploaded `text/markdown`; after a local edit, convert_markdown call: `failed: [{notes.md, "'notes.md' already exists in Drive as a plain file, not a converted Doc — convert_markdown cannot promote an existing file's type; delete it in Drive and re-sync to convert"}]`; Drive file unchanged (raw export is the original content).
+
 ---
 
 ### TC-D224: convert_markdown + export_format together never exports a converted Doc's binary content into a `.md`-named file (#414 QA review, finding #1) ⚠️ local-filesystem
@@ -1238,6 +1415,8 @@ Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-224/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — with export_format=pdf: no exception, `conflicts: [notes.md]`, not downloaded/failed; the local dir stays empty (no `notes.md` written).
 
 ---
 
@@ -1268,13 +1447,15 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-225/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — upload then bidirectional with the flag omitted: `skipped: [notes.md]`; exactly one `notes.md` (the Doc).
+
 ---
 
 ### TC-D226: a Doc converted via upload_local_file(convert=True) is recognized by sync_folder's convert_markdown matching (round 3 review, #414, finding #2) ⚠️ local-filesystem
 **Background:** before the fix, only `sync_folder`'s own `create()` call stamped the marker property matching relies on — `upload_local_file(convert=True)`'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent `sync_folder` run on the same folder silently created a second Doc.
 
 **Prompt**
-> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then, with `/tmp/qa-sync-226/notes.md` containing identical content and mtime close to now:
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then create the sync copy with `mkdir -p /tmp/qa-sync-226 && cp -p /tmp/qa-sync-226-src/notes.md /tmp/qa-sync-226/notes.md`. The `-p` keeps the source file's mtime: the upload stamps that mtime on the Doc, and `sync_folder` compares a converted `.md` against the stamp exactly (`_CONVERTED_MD_STAMP_TOLERANCE`, 1 ms), so a plain `cp` makes the local file look changed. Then:
 > "Sync {FOLDER_ID} with `/tmp/qa-sync-226/` using direction='bidirectional' and convert_markdown set to true"
 
 **Checks**
@@ -1290,6 +1471,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-226-src/` and `/tmp/q
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — upload_local_file convert → Doc `notes.md`; `cp -p` copy; sync: `skipped: [notes.md]`; one file.
 
 ---
 
@@ -1315,6 +1498,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-227-src/` 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `failed` exactly one `notes.md` entry: "a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — ..."; not in any other list; both files unchanged (same IDs/md5).
+
 ---
 
 ### TC-D228: upload_local_file(convert=True) stamps modifiedTime from the local file's mtime, so a follow-up sync_folder lands in skipped, not conflicts (issue #422, finding #2 — follow-up to TC-D226) ⚠️ local-filesystem
@@ -1338,6 +1523,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-228-src/` and `/tmp/q
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — Doc modifiedTime 08:28:19.000Z = local mtime exactly (created 08:30:22); sync: `skipped: [notes.md]`; one file.
+
 ---
 
 ### TC-D229: convert_markdown — a drive-only converted Doc reports skip under direction='upload', conflict only when a download would otherwise be attempted (issue #422, finding #3) ⚠️ local-filesystem
@@ -1359,6 +1546,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-229-src/` and `/tmp/q
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — direction=upload: `skipped: [notes.md]`, failed/downloaded empty; bidirectional: `conflicts: [notes.md]`.
 
 ---
 
@@ -1384,6 +1573,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-230/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `failed: [{notes.md, "multiple files are named 'notes.md' in this Drive folder — ..."}]` only; both files unchanged.
+
 ---
 
 ### TC-D231: a local file whose name collides with a Drive-side pair is reported as failed, not silently dropped from every result list (PR #433 review, finding #3) ⚠️ local-filesystem
@@ -1407,6 +1598,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — with a local `notes.md` too: `failed` exactly one `notes.md` (plain/Doc collision text); not uploaded/skipped/conflicts; both Drive files unchanged, local file untouched.
 
 ---
 
@@ -1432,6 +1625,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — on the D227 folder, dry_run: `failed` and `conflicts` empty; `actions` one entry `notes.md` `"action": "collision"`; nothing touched. Stale wording: the Background still says "reports it as a `conflict` in `actions`"; the action is `collision`, as the Checks say.
+
 ---
 
 ### TC-D119: Invalid direction or export_format returns error, not a raised exception ⚠️ local-filesystem (issue #488)
@@ -1455,6 +1650,8 @@ sync_folder direction='mirror' → `{"error":"Invalid direction 'mirror'. Use 'u
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — prompt 1 returned `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`; prompt 2 `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}`. "No Drive API call" inferred from both returning before any listing (no server log read).
+
 ---
 
 ### TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)
@@ -1471,13 +1668,15 @@ In `{FOLDER_ID}`, create 3 Drive-only files (`drive-a.txt`, `drive-b.txt`, `driv
 - All 3 Drive-only files appear in `downloaded`; all 3 local-only files appear in `uploaded`; `failed` is empty
 - Each downloaded local file's content matches its *own* source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
 - Each uploaded Drive file's content matches its *own* source local file's marker (check via `export_file` or `download_file` on each)
-- `size_bytes` equals the sum of the 3 downloaded files' actual sizes
+- `size_bytes` equals the sum of the actual sizes of all 6 transferred files: the 3 downloaded and the 3 uploaded (#1003 made it count uploads too)
 
 **Teardown**
 Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded local-only files from Drive, remove `/tmp/qa-sync-183/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 size_bytes now counts uploads too (#1003); TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `downloaded: [drive-a/b/c.txt]`, `uploaded: [local-x/y/z.txt]`, failed empty; each downloaded file holds its own marker; each uploaded file's Drive md5Checksum equals its own local md5; `size_bytes` 149 = 84 downloaded + 65 uploaded.
 
 ---
 
@@ -1505,6 +1704,8 @@ Delete `nested` (and its contents) from `{FOLDER_ID}` via `delete_file`. Remove 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `downloaded: [nested/deep.txt]`, local `nested/deep.txt` = "hello from nested", `folders_skipped` empty; rerun `skipped: [nested/deep.txt]`.
+
 ---
 
 ### TC-D191: `recursive=True` reports out-of-scope subfolders under `folders_skipped` instead of silently ignoring them ⚠️ destructive ⚠️ local-filesystem
@@ -1530,6 +1731,8 @@ Delete `drive-only-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-315b/` if creat
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — direction=upload: `folders_skipped: [drive-only-sub/]`, nothing transferred; local dir `qa-sync-315b/` not even created.
+
 ---
 
 ### TC-D192: default `recursive=False` still ignores subfolders entirely (regression guard) ⚠️ local-filesystem
@@ -1546,6 +1749,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — dry run on a folder with file `collide` + subfolder `collide/inner.txt`: `actions` only the top-level file, `folders_skipped` and `failed` empty. Extra probe: a real non-recursive sync with export_format=pdf on a folder holding a subfolder plus a Doc downloaded only `top-doc.pdf`, `failed` empty (no subfolder export attempt).
 
 ---
 
@@ -1573,6 +1778,8 @@ Delete both the `collide` file and the `collide` folder (with its contents) from
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — normal result; `downloaded: [collide]`; `failed: [{collide/, "cannot create local folder 'collide': a file with the same name already exists at this path"}]`; local `collide` holds "i am a file".
+
 ---
 
 ### TC-D194: `recursive=True` — Drive folder-creation failure for a local-only subfolder is recorded as `failed`, not an uncaught crash (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
@@ -1597,6 +1804,8 @@ Delete the `sub` folder (and its contents) from `{FOLDER_ID}`. Remove `/tmp/qa-s
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — happy path as the case scopes it: `uploaded: [sub/local.txt]`, Drive folder `sub` created holding `local.txt`, `failed` empty. (The failure branch itself is unit-test-only per the case.)
 
 ---
 
@@ -1624,6 +1833,8 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — export_format=pdf: `downloaded: [top-doc.pdf]`, `skipped: [nested-sub]`, failed empty; no `nested-sub/` created locally.
+
 ---
 
 ### TC-D196: `recursive=True` dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem
@@ -1645,6 +1856,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Unit-tested: the named tests pass.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Unit-tested as the case directs: `TestSyncFolderResponseSizeCap::test_oversized_result_raises` and `test_error_points_to_result_local_path_not_local_path` pass on `f98c67b7`.
 
 ---
 
@@ -1676,6 +1889,8 @@ Delete the 5 Drive files. Remove `/tmp/qa-512/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — 5 Drive files (uploaded with mtime stamps), 3 local `cp -p` copies + 1 local-only: all flat lists empty; `actions` 6 entries: a/b/c `skip` "in sync", d/e `download` "drive only", qa-512-new.txt `upload` "local only"; nothing changed.
+
 ---
 
 ### TC-D245: `result_local_path` bypasses the response-size cap and writes the sync result to disk (issue #512)
@@ -1700,6 +1915,8 @@ sync_folder(scratch folder, /tmp/qa-512b/, dry_run=true, result_local_path=/tmp/
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — manifest `{local_path: .../qa-512b-result/<folder>_sync_result.json, bytes_written: 526, folder_id, dry_run: true}`, no inline sync keys; the JSON file has actions/conflicts/downloaded/dry_run/failed/folders_skipped/resolved/size_bytes/skipped/uploaded. (Shape now also includes `resolved`, from #860; the check list predates it — stale wording.)
 
 ---
 
@@ -1728,6 +1945,8 @@ result_local_path == local_path AND nested (/tmp/qa-512c/nested/out.json) both r
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — same dir and nested path both raised "result_local_path (...) must not be local_path (...) or a path inside it — local_path is scanned as sync input ... Use a separate directory."; `qa-512c/` never created; sibling-dir control wrote its manifest.
+
 ---
 
 ### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
@@ -1752,6 +1971,8 @@ Delete `sib-a` and `sib-b` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328c/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `downloaded` = sib-a/a0..a2 and sib-b/b0..b2 with prefixes; each file holds its own marker; failed empty.
 
 ---
 
@@ -1779,6 +2000,8 @@ Remove `/tmp/qa-download-316/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — 12 distinct-size text files: wall clock 1.39 s including client round-trip (vs ~12 s sequential); every file downloaded, `diff -r` against the sources identical, size_bytes 1170; failed empty.
 
 ---
 
@@ -1811,6 +2034,8 @@ download_folder scratch→/tmp/qa-progress-316/ export_format=txt completed norm
 **Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
 Results correct; progress notifications aren't visible in this client.
 
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard F on `kai-sa`** — call completed normally, all 12 files downloaded, failed empty. Not run: the progress-notification check (this client sends no progressToken, so no notifications are visible); unit tests cover it.
+
 ---
 
 ### TC-D255: `download_folder`/`sync_folder` progress messages add bytes transferred so far as supplementary context (issue #352)
@@ -1841,6 +2066,8 @@ Code review surfaced 3 blocking findings on this PR's own new code (sent back to
 **Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
 Results correct; progress notifications aren't visible in this client.
 
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard F on `kai-sa`** — 12 non-Workspace files: completed normally, `downloaded` all 12, `size_bytes` 1170 = sum of sources. Not run: the message-text byte-count check (no progress notifications visible in this client).
+
 ---
 
 ### TC-D200: `download_folder` — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem
@@ -1867,6 +2094,8 @@ Delete both `dup-test.txt` files from `{FOLDER_ID}`. Remove `/tmp/qa-dup-351/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — `downloaded: [dup-test.txt]` once; `failed` one entry "duplicate filename: another file named 'dup-test.txt' already claims this destination path — only the first is downloaded"; local file intact and matches one source exactly ("second copy BBBBBBBB", 20 B); size_bytes 20 = that one file only.
+
 ---
 
 ### TC-D201: `sync_folder` no longer re-uploads a file after downloading it (issue #346) ⚠️ destructive ⚠️ local-filesystem
@@ -1891,6 +2120,8 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — first run `downloaded: [fresh-346.txt]`; second run `skipped: [fresh-346.txt]`; no conflicts either run.
 
 ---
 
@@ -1919,6 +2150,8 @@ Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — local copy backdated to 2020: with use_checksum `skipped: [dup.txt]`; control (fresh dir, same backdate, no checksum) `downloaded: [dup.txt]` ("drive newer").
+
 ---
 
 ### TC-D239: `use_checksum=true` has no effect on Google Workspace files (no md5Checksum to compare) (issue #274) ⚠️ local-filesystem
@@ -1939,6 +2172,8 @@ Remove `/tmp/qa-239/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — folder with a Doc (+ subfolder), export_format pdf, use_checksum: first run `downloaded: [top-doc.pdf]`, rerun `skipped: [top-doc.pdf]`; the same call with use_checksum false also `skipped: [top-doc.pdf]`; no exception.
 
 ---
 
@@ -2003,6 +2238,8 @@ Unit-tested: the named tests pass.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Unit-tested: the named tests pass.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Unit-level: the four named tests (`test_convert_restamp_quota_error_uses_friendly_message`, `test_restamp_quota_failure_uses_friendly_message`, `test_restamp_fixture_lets_existing_file_reimport_through`, `test_restamp_failure_after_successful_create_reports_orphan_fileId`) pass.
+
 ---
 
 ### TC-D252: `_sync_level._run_one` outer catch-all renders a quota error with the friendly message, not raw `str(e)` (issue #670) (unit test)
@@ -2019,6 +2256,8 @@ Unit-tested: the named tests pass.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Unit-tested: the named tests pass.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Unit-level: `test_upload_create_quota_failure_uses_friendly_message` plus the three regression tests (`TestUploadLocalFileCore::test_quota_exceeded_returns_friendly_error_dict`, `TestUploadFile::test_quota_exceeded_returns_friendly_error_dict`, `test_restamp_quota_failure_uses_friendly_message`) pass.
 
 ---
 
@@ -2060,6 +2299,8 @@ _Round 1 (2026-09-09):_ `/code-review high` surfaced a blocking correctness conc
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — Equal mtime, 20 B vs 4 B: dry run gives `conflict` with the byte-size reason; upload and download runs give `conflicts`, no transfer (Drive md5 still AAAA, local still 20 B). Control: 4-byte `CCCC` with the same mtime gives `skip` "in sync".
 
 ### TC-D268: `use_checksum=true` verifies a within-tolerance, same-size pair — a same-size mtime-preserving edit is a `conflict`, not "in sync" (issue #716) ⚠️ destructive ⚠️ local-filesystem
 
@@ -2116,6 +2357,8 @@ Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verific
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F on `kai-sa`** — Step 3 with use_checksum: `skipped`. After a same-size, same-mtime `CCCC` edit: default run `skipped`; dry run with checksum "in sync (checksum not verified in dry_run)"; upload, download and bidirectional with checksum each `conflicts`, nothing transferred.
+
 ---
 
 ### TC-D278: Drive names that aren't a single filename are never written outside `local_path` ⚠️ local-filesystem ⚠️ destructive
@@ -2166,6 +2409,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Local tree under my scratch `F2/qa-278/` instead of /tmp. Step 1: "Drive file name '../../escaped-probe.txt' can't be used as a local filename: name contains a path separator. …", nothing new on disk. Step 2: wrote `a/b/chosen.txt` (5 B); my content read raced the call in a parallel batch, so I re-ran the same explicit-path download to `qa-278/chosen-recheck.txt`, which reads `probe`. Step 3: downloaded ["fine.txt"], skipped [".."], failed one entry for `../../escaped-probe.txt` ("…contains a path separator"). Step 4: actions `../../escaped-probe.txt` and `../` as `unsafe_name`, fine.txt `download`, failed empty, disk unchanged. Step 5: downloaded ["fine.txt"], failed = escaped-probe (path separator) and `../` ("special path segment '..'"); `a/` still only `b/` + secret.txt; `{DOTDOT}` lists only payload.txt. Step 6: failed/uploaded empty, skipped ["../../escaped-probe.txt","fine.txt"], folders_skipped ["../"]. No escaped-probe.txt above `a/b/` at any step.
 
 ---
 
@@ -2229,6 +2474,8 @@ The case passes, but the PR goes back for a regression this case doesn't cover: 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Under `F2/qa-279/`. Drive big.bin: 3000000 B, md5 c0fd3e85…dc15, modified_time 17:56:14Z. Step 1: downloaded ["big.bin"], skipped [".gee-sweet-partial-0123456789abcdef"], uploaded/failed []. Step 2: 3000000 B, md5 matches, mode `-rw-r-----` kept, mtime 2026-11-08T17:56:14 UTC; only the planted temp file. Step 3: one file. Step 4: skipped [temp, "big.bin"], nothing transferred. Step 5: uploaded ["big.bin"], skipped [temp], failed []; list_files two big.bin, no temp. Step 6: size_bytes 3000000; dir holds big.bin + planted temp. Step 7: downloaded ["big.bin"], one duplicate-filename failed entry; dl/ holds only big.bin 3000000 B. Step 8: ro.bin refused "[Errno 13] Permission denied", still "protected", `-r--r--r--`, no temp file; dl/big.bin (was `-rwSr--r--`) re-downloaded and is `-rw-r--r--`.
 
 ---
 
@@ -2295,6 +2542,8 @@ The case passes. Extra probe (sent back on the PR): a Doc exported with `downloa
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Under `F2/qa-285/`; new files get group staff, `{G}` = admin. Step 1: downloaded ["hello.txt"], failed one entry for the temp name "name is reserved for this server's temporary download files; not synced"; sync/ only hello.txt. Step 2: `unsafe_name` (same reason) + hello.txt skip. Step 3: downloaded ["hello.txt"], failed "'.gee-sweet-partial-…' can't be used as a local filename: name is reserved …"; dl/ only hello.txt. Steps 4–5: size_bytes 0 each; null-link still → /dev/null. Step 6: returned at once with "[Errno 22] destination exists but isn't a regular file"; pipe still `prw-r--r--`. Step 7: owned.txt reads "hello", group still admin. Step 8: temp name `unsafe_name` with the reserved reason. Step 9: downloaded []; failed = reserved-name entry + hello.txt "[Errno 21] destination is a directory: '…/dirsync/hello.txt'"; dirsync/hello.txt still an empty dir. Step 10: failed []; actions have `unsafe_name` for the file and `.gee-sweet-partial-0123456789abcdef/hello.txt` as download, no folder entry. Step 11: "[Errno 22] destination exists but isn't a regular file: '…/probe/probe.md.xlsx'" (no Drive 400); FIFO intact. No stray `.gee-sweet-partial-*` beyond the planted src file. (My first `ls` raced parallel calls; re-listed after they finished.)
+
 ---
 
 ## `list_revisions`
@@ -2316,6 +2565,8 @@ list_revisions on {SPREADSHEET_ID}: 3 revisions, each with revisionId/modifiedTi
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Run on my scratch sheet QA-transfer-rev-test-F2 instead of `{SPREADSHEET_ID}` (run-1 rules: don't touch the fixture spreadsheet). Non-empty list (revs 1 → 4, later 1 → 6 → 8), each with revisionId/modifiedTime/modifiedBy/keepForever, ascending, ISO-8601 `Z` timestamps.
+
 ---
 
 ### TC-D147: List revisions for a non-existent file
@@ -2332,22 +2583,27 @@ list_revisions('invalid_file_id_xyz') → HttpError 404 "File not found: invalid
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Clean tool error: HttpError 404 "File not found: invalid_file_id_xyz." No unhandled exception.
+
 ---
 
 ## `export_revision`
 
 ### TC-D148: Export a revision and read a cell range
 
-**Setup:**
-1. Write "QA-BEFORE" to Sales!A1 using `update_cells`
-2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
-3. Write "QA-AFTER" to Sales!A1
-4. Call `list_revisions` on {SPREADSHEET_ID} and identify the revision from between the two writes
+**Setup:** use a throwaway scratch spreadsheet, not `{SPREADSHEET_ID}`. These writes would change the shared fixture's `Sales!A1`, and both recorded runs already used a scratch sheet.
+1. Create a scratch spreadsheet (e.g. `QA-transfer-rev-test`) in a scratch folder with `create_spreadsheet`; note its ID as `{SCRATCH_SHEET_ID}`
+2. Write "QA-BEFORE" to its first sheet's A1 using `update_cells`
+3. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+4. Write "QA-AFTER" to the same A1
+5. Call `list_revisions` on `{SCRATCH_SHEET_ID}` and identify the revision from between the two writes
 
-> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.
+TC-D149 and TC-D150 reuse this scratch sheet. Trash it once those are done.
+
+> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If no revision holds the "QA-BEFORE" state, the writes coalesced: SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk; the 2026-09-04 run coalesced after a 40 s wait, and the 2026-10-17 run coalesced too.
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} and show me the value in range A1"
 
 **Checks**
 - Returns `values` with "QA-BEFORE" in A1
@@ -2360,12 +2616,16 @@ SKIP(environmental — Drive revision coalescing). Setup: created scratch spread
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Environmental: revision coalescing left the scratch sheet with only 2 revisions.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard F2 on `kai-sa`** — Environmental (Drive revision coalescing, the case's known limitation). Two attempts: QA-BEFORE then QA-AFTER ~36 s later left revs 1 (A1 empty) and 4 (A1 "QA-AFTER"); a second QA-BEFORE → ~90 s wait → QA-AFTER merged into rev 6. No revision holds QA-BEFORE. export_revision itself returned correct sheet/range/modifiedTime for revs 1 and 4.
+
 ---
 
 ### TC-D149: Export revision with explicit sheet name
 
+**Setup:** reuse TC-D148's `{SCRATCH_SHEET_ID}`. Add a second sheet with `create_sheet(spreadsheet_id={SCRATCH_SHEET_ID}, title="Sheet2")`, write distinct values (e.g. `S2-A1` …) to `Sheet2!A1:C7` with `update_cells`, then call `list_revisions` and use the newest revision, which includes Sheet2, as `{REVISION_ID}`.
+
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID}, sheet 'Sheet2', range A1:B5"
 
 **Checks**
 - Returns data from Sheet2, not the first sheet
@@ -2378,12 +2638,16 @@ Added Sheet2 (A1:C7 filled S2-*), new rev 6. export_revision(rev 6, sheet="Sheet
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Added Sheet2 with S2-A1..C7; newest rev 8. export_revision(rev 8, sheet="Sheet2", range="A1:B5") → sheet "Sheet2", 5×2 S2-A1..S2-B5 (no C column, no rows 6–7).
+
 ---
 
 ### TC-D150: Export revision — no range returns all data
 
 **Prompt**
-> "Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"
+> "Export revision {REVISION_ID} of {SCRATCH_SHEET_ID} with no range filter"
+
+Use TC-D149's `{REVISION_ID}` (the newest revision of TC-D148's scratch sheet).
 
 **Checks**
 - Returns all rows and columns of the first sheet
@@ -2394,6 +2658,8 @@ export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — export_revision(rev 8) → sheet "Sheet1", range null, full 5×2 grid [["QA-AFTER","x1"]..["r5c1","r5c2"]], no error.
 
 ---
 
@@ -2432,6 +2698,8 @@ export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revisio
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Slides file created blank by an SA scratch script (as the 2026-10-11 run did, not via the Slides UI); list_revisions gave rev 1; export_revision raised exactly "No XLSX or DOCX export available for revision 1. export_revision supports Google Sheets and Google Docs files only."
 
 ---
 
@@ -2533,9 +2801,9 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 - Call 1's `markdown` contains `[Jump](#setup)` and `[back](#setup-1)`, and no
   `docs.google.com` URL.
 - Call 2's `markdown` is identical to call 1's.
-- Call 3's `markdown` renders the first `Setup` as a list item (`- Setup`), leaves "Jump" as
-  plain text (its target doesn't render as a heading), and contains `[back](#setup)`: the
-  bulleted heading takes no slug (PR #988 round 1).
+- Call 3's `markdown` renders the first `Setup` as a heading inside a list item
+  (`- ## Setup`) and contains `[Jump](#setup)` and `[back](#setup-1)`: the bulleted heading
+  renders as a heading, so it takes a slug (#1302, #1419).
 
 **Teardown:** `delete_file` on both Docs.
 
@@ -2545,6 +2813,12 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ❌ FAIL — ornithomimus release pass, shard F2 on `kai-sa`** — Links set by headingId via an SA scratch script. Calls 1 and 2 identical: `[Jump](#setup) here and [back](#setup-1) here.`, no docs.google.com URL (pass). Call 3 (first `## Setup` bulleted): got `- ## Setup` and `[Jump](#setup) here and [back](#setup-1) here.` Expected "Jump" plain and `[back](#setup)`. Since #1302 (PR #1311) a bulleted heading exports as `- ## Setup`, which GitHub does render as a heading with slug `setup`, so the links now point at the right headings; but the export_revision docstring still says a bulleted heading's link is dropped, and the case still expects that. Behavior vs. docs disagree; filed as #1419: the docstring and this case are stale, not the code (Aziz checked against #1302; was: decide whether the docstring/case or the code is wrong).
+
+**Result (2026-11-08, PR #1433 round 1, `a9e5d20`) ✅ PASS** — Ran via `mcp-gee-sweet-kit` (OAuth) against the rewritten call-3 checks (#1419). The earlier results above checked the old call-3 expectation (link dropped). Links set by a scratch script (`updateTextStyle` with `link: {headingId}`). Calls 1 and 2 (revision 4) both returned `# Top\n\n## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`, byte-identical, no `docs.google.com` URL. Call 3 (`qa-959-bullet`, revision 5) returned `# Top\n\n- ## Setup\n\nFirst.\n\n## Setup\n\n[Jump](#setup) here and [back](#setup-1) here.\n\n`: the bulleted heading renders as a heading inside its item and takes the `#setup` slug. Both Docs trashed.
+
+**Result (2026-11-10) ✅ PASS — v0.9.6 re-run, shard R4 on `kai-sa`** — Against the call-3 checks rewritten for #1419. Links set by headingId with a scratch script. Calls 1 and 2 (revision 4) are byte-identical, `[Jump](#setup) here and [back](#setup-1) here.`, with no docs.google.com URL. Call 3 returned `- ## Setup` and the same two links: the bulleted heading keeps its link. One Drive HTTP 500 on the temp-Doc upload in call 1 succeeded on retry.
 
 ---
 
@@ -2588,6 +2862,8 @@ with a trailing `/`, was written as a file of that name; TC-D288 covers the miss
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — SA in the Shared Drive; local dir was my scratch `F2/qa-959/` (pre-created) and the Sheet calls used my scratch sheet (rev 8), not `TEST_SPREADSHEET_ID`. Call 1 → local_path `…/qa-959/<doc-id>-r3.md`, bytes_written 15, revisionId, modifiedTime, no markdown/images; file is raw "Saved to disk\n\n". Call 2 "…is a Google Doc; range and sheet apply only to Google Sheets." Call 3 "…is a Google Sheet; local_path applies only to Google Docs." Call 4 sheet/range/values 2×2. Call 5 "Revision 999999 of <doc-id> not found… call list_revisions again…". Call 6 Drive 404 "File not found: <doc-id>_WRONG." Call 7 "local_path '/etc/hosts/x.md' has a non-directory path component at '/etc/hosts'"; search_files("export_revision temp") → [].
+
 ---
 
 ### TC-D283: A service account (Content manager) exports a Doc revision; the temporary Doc is trashed (issue #959)
@@ -2614,6 +2890,8 @@ is the Shared Drive.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Run on `kai-sa` (SA, Shared Drive default folder) rather than `mcp-gee-sweet-sa`. export_revision → markdown "SA revision\n\n", no `warning`. search_files("export_revision temp") → no live file (trash view not available to this client).
 
 ---
 
@@ -2649,6 +2927,8 @@ parallel shards don't delete each other's scratch dir.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — SA in the Shared Drive; used `F2/qa-990-rev/` (absent beforehand) instead of /tmp. Returned local_path `…/qa-990-rev/<doc-id>-r3.md`; `test -d` confirms a directory; the .md holds "Saved to disk". Cleaned up.
 
 ---
 
@@ -2693,6 +2973,8 @@ Doc.
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Needs a second OAuth identity.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard F2 on `kai-sa`** — Call 2 (`--identity service-account`, Aziz's worktree): DRIVE_FOLDER_ID set True, markdown 'probe 989\n', warning None, My Drive root False, DRIVE_FOLDER_ID True, Shared Drive True — all as expected. Call 1 (`--identity user`) not run: it writes a scratch Doc into the OAuth user's My Drive, outside this shard's identity and the approved Shared-Drive scope — deferred to Aziz.
 
 ---
 
@@ -2743,6 +3025,8 @@ error paths are unit-tested only.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — All named unit tests pass (revision-export, test_files, transfer, docs_content, docs_images quota tests). Fresh interpreter in Aziz's worktree: OAuth-built service → `_USER_QUOTA_ERROR`, SA-built → `_SA_QUOTA_ERROR`. Live SA quota: the case's literal step (`files().create()` with no `parents`, metadata only) did NOT fail — it created a 0-byte file in the SA's My Drive root (storageQuota limit 0, usage 0); I deleted it at once. With a 5-byte media body the same create returned 403 `storageQuotaExceeded`, `is_storage_quota_error` True, `_quota_error_detail(e, service) == _SA_QUOTA_ERROR`. Stale wording: the live step needs a media body (a metadata-only create succeeds for an SA).
+
 ---
 
 ### TC-D287: `sync_folder` — a `result_local_path` over an existing file is refused before any transfer (PR #1000 QA round 1, issue #990) ⚠️ local-filesystem
@@ -2776,6 +3060,8 @@ write, and the error named `local_path` (`sync_folder`'s other parameter).
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Under my scratch `F2/qa-990-sync/` instead of /tmp. Call 1 raised "result_local_path '…/blocker/' has a non-directory path component at '…/blocker'; result_local_path ends in a path separator or '.', which makes it a directory target. …" (no bare `local_path`). Call 2: list_files []. blocker still "keep me". Call 3 raised the same error; `new/` doesn't exist.
+
 ---
 
 ### TC-D256: `download_folder`'s `progress_unit='bytes'` feeds byte totals into the structured progress fields, with a file-count fallback when sizes aren't fully known (issue #741) ⚠️ local-filesystem
@@ -2806,6 +3092,8 @@ Code review (`/code-review high`) separately surfaced 2 blocking findings on thi
 
 **Result (2026-10-17) 🟡 PARTIAL — v0.9.2 release pass**
 Results correct; progress notifications aren't visible in this client.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1 (5 B + 7 B files): downloaded both, size_bytes 12, files on disk 5/7 bytes. Call 2 (3 B file + Google Doc, export pdf): downloaded qa-741-c.txt and qa-741-doc.pdf, size_bytes 13282, no error. Not run: the structured progress/total checks — this client sets no progressToken, so notifications aren't visible (same as 2026-10-17).
 
 ---
 
@@ -2838,6 +3126,8 @@ Fixture folder trashed and local dirs removed as teardown.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1: uploaded ["fresh.csv"], skipped [], one skipped_unverified {name "report.csv", matched_name "report", reason "name-only match, unverified: ..."}. Call 2: skipped ["fresh.csv"], uploaded [], same single skipped_unverified. list_files: exactly `fresh` + hand-made `report`. Scratch script: `fresh` has properties {geeSweetConvertSource: "fresh.csv"}. Side observation (see TC-D267): the `fresh` Sheet's modifiedTime is 17:41:11.538Z vs local mtime 17:41:02, so the restamp didn't hold.
 
 ---
 
@@ -2874,6 +3164,8 @@ Fixture folder trashed and local dirs removed as teardown.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Names: 118-byte ASCII (114 `L` stem) and 40 CJK chars (124-byte filename). Calls 1-2: no error, skipped false; markers `sha256:<64 hex>` on both. Call 3: first uploads, second skipped true with the same fileId, no skipped_unverified. Call 4: skipped true, skipped_unverified true, "unverified" reason, fileId = hand-made report. Call 5: uploaded [], skipped = LONG, fresh, CJK; skipped_unverified = report.csv only. list_files: exactly 4 Sheets, no orphans. Side observation (see TC-D267): all local mtimes 17:41:02; the LONG Sheet kept 17:41:02.000Z but CJK (17:41:52.695Z) and fresh (17:41:58.722Z) carry their upload time.
 
 ---
 
@@ -2928,6 +3220,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Local `F2/qa-266/`: short.md, 100-char A stem (103 B), 110-char B stem (113 B), 48 CJK chars (147 B). Legacy Doc created by SA script with only `geeSweetConvertMarkdownSource: "legacy.md"`; its modifiedTime moved 18:38:33.742Z → 18:38:37.016Z while settling, then restamped to 05:00:00.000Z and the local mtime set to match. Call 1: failed [], uploaded the four new names, legacy.md skipped. Markers: short.md both keys; A100 only generic key with the raw name; B110 and CJK only generic key `sha256:…`; legacy.md only its original key. Calls 2 and 3 (with and without convert_markdown): uploaded/conflicts/failed [], all five skipped (the CJK Doc's modifiedTime had drifted to 18:39:24.794Z after call 1 and still read as in sync). Call 4: upload_local_file(convert=True) of a 115-char C stem returned no error; repeated call 2 skipped it. Final listing: exactly 6 Google Docs, no text/markdown, no orphans or duplicates.
+
 ### TC-D267: `upload_local_file(convert=True)` on a CSV restamps the converted Sheet's `modifiedTime`, so a following `sync_folder(export_format='csv')` reads it as in sync (issue #435) ⚠️ local-filesystem
 
 **Background:** Issue #435 proposed restamping `modifiedTime` only for `.md` → Doc conversions, on the premise that `sync_folder` never matches other converted types back to a local file. That premise is false. Drive strips `.csv` from a converted Sheet's display name, so `export_format='csv'` maps the Sheet straight back to the local `.csv`, and the two mtimes are compared. For a Sheet, `create()` ignores the requested `modifiedTime` outright. Without the follow-up metadata-only restamp, the pair reads as "Drive newer" on the very next sync. #435 declined the `.md`-only gate, and both call sites now share one `_restamp_modified_time` helper. This case guards the non-`.md` path.
@@ -2966,6 +3260,11 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-267/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Ran 3 times (separate run-folder subfolders qa-267, qa-267b, qa-267c; local `F2/qa-267/data.csv`, mtime 2023-01-01T08:00:00Z). Each run: call 1 no error, fileId returned (name `data`); call 2 Google Sheet `data`, modified_time 2023-01-01T08:00:00.000Z; call 3 actions [{data.csv, skip, "in sync"}]. Re-read by scratch script at 17:44:24, 17:44:38 and 17:48:46 (uploads 17:43:02–17:43:30): all three still 2023-01-01T08:00:00.000Z; dry-run syncs at ~17:49 still "in sync".
+Extra probe for shard F's possible defect (plain convert=True CSVs with a current local mtime): (a) `upload_local_file` p1/p2/p3.csv (mtime 17:43:49) at ~17:44: modifiedTime 17:43:49.000Z on all three at 17:44:24, 17:44:38 and 17:48:46 — held. (b) `upload_local_folder(convert=True)` q1–q3.csv (mtime 17:49:06) at ~17:49:30: 17:49:06.000Z on all three at 17:49:38, 17:49:47 and 17:50:4x — held. (c) But earlier in this run, in TC-D264/D265, three of four Sheets kept the upload time instead: D264 `fresh` (upload_local_folder; local 17:41:02, Drive 17:41:11.538Z), D265 CJK-name Sheet (upload_local_file; local 17:41:02, Drive 17:41:52.695Z) and D265 `fresh` (local 17:41:02, Drive 17:41:58.722Z); D265's LONG-name Sheet held 17:41:02.000Z. Still unchanged at 17:44:38. So the drift is intermittent: 3 of 16 converted Sheets this run, each landing on its upload time, never correcting. A drifted Sheet would read "Drive newer" under sync_folder(export_format='csv'). #818 (CLOSED) says the Sheets restamp race was ruled out, filed as #1415.
+
+TC-D267 addendum: `sync_folder(qa-265, export_format="csv", dry_run=True)` on the D265 folder plans `fresh.csv` → download ("drive newer by 56s") and the CJK .csv → download ("drive newer by 50s"), LONG and report → skip. So a drifted restamp makes a real bidirectional sync overwrite the local CSV with a re-export.
+
 ### TC-D271: `sync_folder(convert_markdown=True)` — a Drive-side edit made right after a sync is a `conflict` on an immediate re-sync, and an unedited Doc settles into `skipped` whatever its `modifiedTime` does (issue #814) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** Drive updates a Google Doc's `modifiedTime` from the Docs backend asynchronously, minutes behind. That late update overwrote the post-create restamp (an unedited Doc then sat in `conflicts` on every sync), and it also hid real Drive edits for 1.5–5 minutes, so a sync in that window reported an edited Doc as in sync. A converted Doc now carries `geeSweetSourceMtime` (the local mtime at upload), and its Drive side is judged from revision history. The first sync after an upload records the import's revision ID in `geeSweetImportRevision`, and any later revision is a Drive edit. See `docs/decisions/decision-converted-doc-change-detection.md`.
@@ -3003,6 +3302,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-271/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1: uploaded all 6, failed []. Properties: SourceMtime per file to the microsecond (e.g. a.md 17:44:52.134851Z vs stat 17:44:52.134850979), UploadedAt 17:45:10Z (within a minute), no BaselineRevision. e.md's modifiedTime had drifted to 17:45:16.311Z. Call 2 (~30 s after call 1, later than the case's ~10 s): all 6 skipped, conflicts/failed empty (e.md included); each Doc ImportRevision "1" = its only revision. Call 4 (dry run, seconds after the a.md edit): a.md `conflict` "edited in Drive since the last upload, …", others skip. Call 5: conflicts ["a.md"], 5 skipped, uploaded []; a.md content starts "Drive edit". Call 6 at 17:51:38 (~5.5 min after call 5): identical; b–f still skipped.
+
 ### TC-D272: `sync_folder(convert_markdown=True)` — a local-only change re-uploads and settles; a change on both sides is a `conflict`, never an overwrite of the Drive edit (issue #814) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** Before #814, a converted Doc edited in Drive *and* locally read as "local newer" and was re-uploaded, silently replacing the Drive edit. Now a re-upload stamps the Doc's latest revision from just before the upload as `geeSweetBaselineRevision`, and clears `geeSweetImportRevision`. The next sync takes the first revision after that baseline as the new import. A local change goes up only when the Drive side is unchanged.
@@ -3039,6 +3340,20 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-272/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth, Shared Drive scratch folder), exercising the `timezone.utc` → `UTC` change in `_local_mtime_dt` and `_converted_md_upload_properties` (#1212). After the setup upload, both Docs' `geeSweetSourceMtime`/`geeSweetUploadedAt` were `2026-10-25T05:59:0xZ` for files written at 22:59 PDT, so the stamps are UTC. The bidirectional setup sync recorded `geeSweetImportRevision: "1"` on both.
+- Call 1: `uploaded == ["x.md"]`, `y.md` skipped, same file ID. `x.md` had `geeSweetBaselineRevision: "1"` (its pre-upload latest per `list_revisions`), a new `geeSweetSourceMtime`, and no `geeSweetImportRevision`.
+- Call 2: both skipped, and `x.md` now carried `geeSweetImportRevision: "2"`.
+- Call 3 (dry run): `y.md` was a `conflict`, reason starting "edited both locally and in Drive"; `x.md` was `skip` ("in sync").
+- Call 4: `conflicts == ["y.md"]`, `uploaded == []`. `get_doc_content` on `y.md` contained "Drive edit" and not "local edit".
+- Call 5: `x.md` was a `conflict` with reason "local .md changed since the last upload but direction is download".
+Teardown done.
+
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ✅ PASS**
+Re-run after the fix commit re-locked pydantic 2.14.1 / pydantic-core 2.50.1 (confirmed in the worktree venv), `mcp-gee-sweet-sky` reconnected. Setup stamps were UTC (`16:08:00Z` source mtime for files written at 09:08 PDT). Call 1: `uploaded == ["x.md"]`, `geeSweetBaselineRevision: "1"`, no import revision. Call 2: both skipped, `x.md` `geeSweetImportRevision: "2"`. Call 3: `y.md` `conflict` ("edited both locally and in Drive …"), `x.md` "in sync". Call 4: `conflicts == ["y.md"]`, `uploaded == []`, `y.md` holds "Drive edit" and not "local edit". Call 5: `x.md` `conflict`, "local .md changed since the last upload but direction is download". Extra: `dry_run=True, resolve={"y.md": "keep_local"}` previewed `y.md` as `keep_local`, so the dict-typed parameter still validates under the new pydantic. Teardown done.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Setup: both Docs recorded ImportRevision "1". Call 1: uploaded ["x.md"], y.md skipped; x.md keeps file ID 1yrOD…, carries BaselineRevision "1" (its only pre-upload revision), new SourceMtime 17:47:50.169766Z, no ImportRevision. Call 2: both skipped; x.md ImportRevision "2". Call 3 (dry run): y.md `conflict`, "edited both locally and in Drive since the last upload — …"; x.md skip. Call 4: conflicts ["y.md"], uploaded []; y.md content "Drive edit / Heading / Body y." (no "local edit"). Call 5 (download, dry run, after another x.md line): x.md `conflict`, "local .md changed since the last upload but direction is download".
+
 ### TC-D273: `sync_folder(convert_markdown=True)` — recording the import revision leaves a Drive edit's `modifiedTime` alone, and a local save seconds after an upload still uploads (PR #854 QA round 1) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** PR #854 round 1 reproduced two bugs live. The first sync after an upload records the import's revision ID. It used to re-send the stamped source mtime as `modifiedTime` even on a Doc already edited in Drive, which reset the edit's real timestamp. Also, the local side was compared against its stamp with the 5s Drive clock-skew tolerance, so a save within 5s of the uploaded version never uploaded. The stamp now keeps microsecond precision and is compared exactly, and `modifiedTime` is re-sent only for an unedited Doc.
@@ -3070,6 +3385,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-273/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Setup upload stamped SourceMtime to the microsecond (g 17:44:52.135850Z, x 17:44:52.136049Z). Call 1: edit added revision 2; g.md modified_time 17:45:43.563Z (later than the upload). Call 2: conflicts ["g.md"], x.md skipped. Call 3: modified_time still 17:45:43.563Z; g.md carries ImportRevision "1". Call 4 (x.md appended, mtime = SourceMtime + 3 s): uploaded ["x.md"], conflicts ["g.md"]; get_doc_content shows "appended within 5s".
+
 ### TC-D289: `sync_folder` — `size_bytes` counts uploaded bytes, on both the create and update paths (issue #1003) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** `size_bytes` is documented as bytes transferred, but `sync_folder` added only downloaded bytes to it. An upload-only sync always returned `size_bytes: 0`, whether the file was new (`create()`) or a re-upload (`update()`). Found live in PR #1002's QA.
@@ -3095,6 +3412,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-289/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1: uploaded ["a.txt","sub/b.txt"], size_bytes 35. Call 2 (a.txt rewritten to 40 bytes, mtime = Drive's 17:46:57 + 120 s): uploaded ["a.txt"], skipped ["sub/b.txt"], size_bytes 40; list_files shows one a.txt with the same ID (1TH3Y…), get_file_metadata size "40".
 
 ### TC-D292: `sync_folder(resolve=...)` — `keep_drive` and `keep_local` clear a Drive-edit conflict in place, keeping the file ID; a both-sides edit merged and uploaded with `keep_local` reaches Drive (issue #860) ⚠️ destructive ⚠️ local-filesystem
 
@@ -3137,6 +3456,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-292/`.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Setup: all three Docs ImportRevision "1"; each Drive edit added revision 2. Call 1: all `conflict`; p.md and m.md reasons are the both-sides text ending "re-sync with resolve 'keep_local' to upload the merged file" (no keep_drive); q.md ends "re-sync with resolve 'keep_drive' (or 'keep_local' to overwrite the Drive edit)". Call 2: p.md `keep_drive` ("resolve=keep_drive: accept the Doc's current Drive version as the new baseline; … (was: edited both locally and in Drive…"), q.md/m.md `keep_local`, resolved []; scratch properties+revisions listing identical before/after (diffed). Call 3: resolved ["m.md","p.md","q.md"], uploaded ["m.md","q.md"], conflicts/failed []. Call 4: same three IDs; p.md holds "Drive edit P"; q.md no longer has "Drive edit Q"; m.md holds both "local edit M" and "Drive edit M"; q.md and m.md went 2 → 3 revisions (BaselineRevision "2"); p.md ImportRevision "2" (latest), SourceMtime 17:52:48.173222Z = stat 1794160368.173222183. Call 5: all three skipped, conflicts []. Call 6: uploaded ["p.md"], conflicts []; p.md content has "local edit after resolve".
+
 ### TC-D293: `sync_folder(resolve=...)` — a name that isn't a convert_markdown conflict refuses the whole call and changes nothing, including in a subfolder (issue #860) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** `resolve` has no folder-wide form: every key must be a converted `.md` currently listed under `conflicts`. Because a real run syncs each folder level before planning its subfolders, the keys are checked against a read-only planning pass of the whole tree first, so a bad key in a subfolder can't let the levels above it sync.
@@ -3170,6 +3491,8 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-293/`.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1: only error "Each resolve name must be a convert_markdown .md listed under 'conflicts' … Nothing was changed. 's.md': not a conflict (planned action: skip)". Call 2: "'sub/t.md': not a conflict (planned action: skip)", no r.md. Call 3: "'sub/t.md': not found in this sync (a subfolder path needs recursive=True)". Call 4: "resolve 'keep_local' uploads, which direction='download' never does. …". Call 5: exactly "Invalid resolve value for 'r.md'. Use 'keep_drive' or 'keep_local'.". Call 6: list_files r.md, s.md, sub (no new.txt); whole-tree properties+revisions identical to the setup snapshot (diffed); dry run r.md `conflict`, new.txt `upload`, s.md and sub/t.md skip.
 
 ---
 
@@ -3207,6 +3530,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Under `F2/qa-294/` (absent at start), fixture Doc read only. Calls 1 and 2: "export_format is required for Google Workspace file 'mcp-gee-sweet-qa-fixtures-doc'. …". Call 3: "Unknown export_format 'bogus'. …". Call 4: HttpError 400 "The requested conversion is not supported.". `ls` after each of calls 1–4 (run one at a time): qa-294 absent. Call 6 wrote `qa-294/new/dir/mcp-gee-sweet-qa-fixtures-doc.pdf` (20152 B) and returned that path.
+
 ---
 
 ### TC-D295: `sync_folder(dry_run=True)` — a preview against a `local_path` that doesn't exist creates nothing (issue #1012) ⚠️ local-filesystem
@@ -3243,6 +3568,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Scratch subfolder with uploaded a.txt. Call 1: dry_run true, failed [], actions [a.txt download "drive only"]. qa-295 absent. Call 3: only error "… Nothing was changed. 'nope.md': not found in this sync (a subfolder path needs recursive=True)". qa-295 still absent. Call 5: downloaded ["a.txt"]; `qa-295/new/sync/a.txt` exists.
+
 ---
 
 ### TC-D296: `download_folder` — a folder ID Drive can't find creates no local directory (issue #1012) ⚠️ local-filesystem
@@ -3272,6 +3599,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1 returned `{"error": "<HttpError 404 … returned \"File not found: .\" …>"}` (an error result rather than a raised exception, carrying Drive's 404). qa-296 absent. Call 3 (TC-D295's scratch folder): downloaded ["a.txt"], `qa-296/new/a.txt` present.
 
 ---
 
@@ -3306,6 +3635,8 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Call 1: `{"error": "<HttpError 404 … File not found: . …>"}` (returned, not raised). Call 2 (upload): uploaded/downloaded/failed [], skipped ["a.txt"]; list_files still only a.txt. qa-297 absent after each. Call 4: downloaded ["a.txt"], `qa-297/new/a.txt` exists.
+
 ---
 
 ### TC-D298: `download_folder` — a folder with nothing to download creates no local directory (issue #1012, PR #1023 QA round 1) ⚠️ local-filesystem
@@ -3334,3 +3665,93 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa, SA on the Shared Drive); every check matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — Run against my qa-293 scratch folder (two converted Docs + subfolder `sub`) instead of `TEST_FOLDER_ID`, whose PDF export would read the fixture spreadsheet (run-1 rules) and every other shard's run folder. Call 1: downloaded [], skipped ["r.md","s.md","sub"]. qa-298 absent. Call 3 (pdf): downloaded ["r.md.pdf","s.md.pdf"], sub still skipped; both in `qa-298/new/`.
+
+### TC-D300: Folder transfers see every child of a folder with more than 1,000 entries (issue #1165) ⚠️ local-filesystem
+
+**Background:** `download_folder`, `sync_folder`, and `upload_local_folder(skip_if_exists=True)` listed a folder with one `pageSize=1000` request and never followed `nextPageToken`. Past 1,000 children, `download_folder` silently skipped the rest, and the two upload paths treated files past the first page as missing and uploaded duplicates. Each listing now reads every page.
+
+**Setup:**
+1. `rm -rf /tmp/qa-300 && mkdir -p /tmp/qa-300/src && for i in $(seq -w 1 1005); do printf x > /tmp/qa-300/src/f$i.txt; done` (1,005 one-byte files, `f0001.txt` … `f1005.txt`).
+2. `create_folder(name="qa-300-pagination", parent_folder_id="{FOLDER_ID}")`; call the returned ID `{P}`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")`
+2. `upload_local_folder(local_path="/tmp/qa-300/src", parent_folder_id="{P}")` (again; `skip_if_exists` defaults to `true`)
+3. `sync_folder(folder_id="{P}", local_path="/tmp/qa-300/src", direction="upload")`
+4. `download_folder(folder_id="{P}", local_path="/tmp/qa-300/dl/")`
+5. `ls /tmp/qa-300/dl | wc -l`
+
+**Checks**
+- Call 1: 1,005 entries in `uploaded`, `failed == []`.
+- Call 2: `uploaded == []` and all 1,005 names in `skipped`. Before the fix, the ~5 names past Drive's first page were uploaded again as duplicates.
+- Call 3: `uploaded == []`, `failed == []`, `conflicts == []`. A name in `failed` with a collision error means call 2 or 3 created a duplicate.
+- Call 4: 1,005 entries in `downloaded`, `failed == []`.
+- Step 5: `1005`.
+
+**Teardown**
+`delete_file(file_id="{P}")`, then `rm -rf /tmp/qa-300`.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 1 (Sky)**
+Verified via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive at head `601b0b3e`. Call 1: 1,005 `uploaded`, `failed == []`. Call 2: `uploaded == []`, 1,005 `skipped`. Call 3 (written with `result_local_path`, since the inline result is large): `uploaded`/`failed`/`conflicts` empty, 1,005 `skipped`. Call 4: 1,005 `downloaded`, `failed == []`, `size_bytes: 1005`. Step 5: `1005`. Call 1 takes over 2 minutes, so the client moves it to the background.
+
+**Result (2026-10-26) ✅ PASS — PR #1261 QA round 2 (Sky)**
+Re-run at head `959ad211` (dedupe by `id`, `pageSize` default 1000, clearer page-cap error) via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive. Calls 1 to 4 and step 5 matched exactly as in round 1: 1,005 uploaded, then 1,005 skipped, 1,005 skipped by the sync with no conflicts or failures, then 1,005 downloaded, and `1005` files on disk.
+
+**Result (2026-11-08) ❌ FAIL — ornithomimus release pass, shard F2 on `kai-sa`** — Local tree under `F2/qa-300/` (1,005 one-byte files). Call 1 never returned to the client: Claude Code aborted it after 1800 s with no response or progress ("sent no response or progress for 1800s"). The server kept going and finished at 18:32:02Z (access log `"TOOL upload_local_folder" 200 1990.503s`). On the SA it uploads serially at ~2 s per file (server log), and upload_local_folder sends no progress notifications. Drive then held only 1,004 files: `f0525.txt` was never created, and the server log has no line for it at all (an 8 s gap between f0524 and f0526, no warning or error). Its `failed` entry, if any, was in the lost response. Pagination itself works. Call 2: uploaded ["f0525.txt"], skipped the other 1,004 including f1001–f1005, failed []. Call 3 (result_local_path outside local_path): uploaded/failed/conflicts empty, 1,005 skipped. Call 4: 1,005 downloaded, failed [], size_bytes 1005. Step 5: 1005. What fails is call 1 ("1,005 uploaded, failed == []"): through Claude Code a 1,005-file SA upload can't complete, and one file silently wasn't uploaded. Filed as #1416: (a) upload_local_folder has no progress notifications, so a long upload trips the client's idle timeout, plus it is ~2 s/file serial on an SA (OAuth took ~2 min for the same case on 2026-10-26); (b) a per-file upload failure is not logged server-side, so f0525's cause is unknown.
+
+---
+
+### TC-D302: `upload_file` Markdown renders with our converter, the same way every run (issue #1102) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** `upload_file(source_format="markdown")` converted with Python-Markdown's `extra` extension. With `convert_to_doc=True` it handed that HTML to Drive's import, which flattened every nested list, left `[ ]`/`[x]` as literal text, didn't link bare URLs, and set code blocks in monospace on some runs and Arial on others. A Markdown Doc is now written through `create_doc(content_format="markdown")`'s path, images included. Without `convert_to_doc`, the uploaded HTML comes from the same converter.
+
+**Setup:**
+1. `rm -rf /tmp/qa-302 && mkdir -p /tmp/qa-302 && uv run python -c "from PIL import Image; Image.new('RGB', (40, 20), 'red').save('/tmp/qa-302/red.png')"`
+2. Let `MD` be this content (with real newlines):
+   ````
+   # EP-8 check
+
+   - top item
+     - nested item
+       - deeper item
+   - second top
+
+   - [ ] open task
+   - [x] done task
+
+   Inline `code span`. See https://example.com for more.
+
+   ```python
+   def f():
+       return 1
+   ```
+
+   ![red](/tmp/qa-302/red.png)
+   ````
+
+**Tool calls**
+1. `upload_file(name="qa-302-run1.md", content=MD, source_format="markdown", folder_id="{FOLDER_ID}", convert_to_doc=True)`
+2. The same call with `name="qa-302-run2.md"`, then again with `name="qa-302-run3.md"`.
+3. `get_doc_structure(doc_id=<call 1's fileId>)`
+4. `get_doc_as_markdown(doc_id=<fileId>)` for each of the three Docs.
+5. `upload_file(name="qa-302-raw.html", content=MD, source_format="markdown", folder_id="{FOLDER_ID}")` (no `convert_to_doc`)
+6. `download_file(file_id=<call 5's fileId>, local_path="/tmp/qa-302/")`, then `cat /tmp/qa-302/qa-302-raw.html`.
+
+**Checks**
+- Call 1 returns `fileId`, `name: "qa-302-run1.md"`, `parent`, `web_link`, and `images` with one entry for `/tmp/qa-302/red.png`: a `fileId`, `shared: false` (the temporary share was revoked after embedding; `true` would mean it was left in place), no `error` or `revoke_error`.
+- Call 3: "nested item" has `bullet.nestingLevel` 1 and "deeper item" 2, in the same `listId` as "top item" (level 0). The two task items have a `bullet`, and their text starts with the `☐ ` / `☑ ` glyph (#336's convention), not `[ ]` or `[x]`. The run `https://example.com` has `link_url` `https://example.com`. One paragraph has an inline-image run.
+- Call 4: all three exports are identical apart from the image's temporary `docs-images-rt` URL, which differs per Doc. Each has the nested list at three levels, `- [ ] open task` and `- [x] done task`, `` `code span` ``, the linked URL, and the code block as a ```` ``` ```` fence (the export fences a paragraph only when it's set in Courier New, so this confirms the code font on every run).
+- Call 6's HTML has `<li>nested item` inside a nested `<ul>`, and `<a href="https://example.com">`. Before the fix, Python-Markdown's 2-space sub-bullet came out as a sibling item.
+
+**Teardown**
+`delete_file` on the three Docs, call 5's file, and each run's uploaded image (`images[0].fileId`), then `rm -rf /tmp/qa-302`.
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 1 (Kit)**
+Run via `mcp-gee-sweet-kit` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive, at head `9f07b5b0`. Call 1 returned `fileId`, `name`, `parent`, `web_link`, and one `images` entry with a `fileId`, `shared: false`, and no `error`/`revoke_error`. The case text had expected `shared: true`; corrected above, since `false` means the share was revoked. Call 3: levels 0/1/2 in one `listId`, tasks `☐ open task` / `☑ done task` with a `bullet`, the URL run linked, and one inline-image run. Call 4: the three exports match apart from each image's `docs-images-rt` URL, with the nested list at three levels, both tasks, `` `code span` ``, the linked URL, and the code fenced. Call 6: `<li>nested item` sits inside a nested `<ul>`, plus `<a href="https://example.com">`. Not part of this case: the same probe with a 6000x5000 PNG returned the image error "…or pass auto_downscale=True…", a parameter `upload_file` doesn't take, and a footnote and a definition list came out as literal text (both sent back in round 1).
+
+**Result (2026-10-28) ✅ PASS — PR #1283 QA round 2 (Kit)**
+Re-run at head `56895d03` (the round-1 fixes plus a `develop` merge bringing #1180's `dropped_links`) via `mcp-gee-sweet-kit` (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: `shared: false` image outcomes, levels 0/1/2 in one `listId`, `☐`/`☑` tasks, the linked URL, an inline-image run, three exports identical once the `docs-images-rt` URLs are normalized, and a nested `<ul>` plus `<a href="https://example.com">` in the raw HTML. Not part of this case: `auto_downscale=True` with a 6000x5000 PNG returned `downscaled: true`, and a no-scheme link came back under `dropped_links` (`reason: no_scheme`).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — SA in the Shared Drive run folder (tag is personal-Drive quota); image at my scratch `F2/qa-302/red.png`. Call 1: fileId, name qa-302-run1.md, parent, web_link, images[0] {fileId, shared: false}, no error. Structure: top/nested/deeper at levels 0/1/2 in one listId, tasks `☐ open task`/`☑ done task` bulleted, `https://example.com` run linked, one inline-image run. The three exports are identical apart from the docs-images-rt URL, each with three-level list, `- [ ] open task`/`- [x] done task`, `` `code span` ``, linked URL, fenced code. Raw HTML: `<li>nested item` in a nested `<ul>`, `<a href="https://example.com">`.

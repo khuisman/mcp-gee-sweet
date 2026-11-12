@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
@@ -18,6 +20,8 @@ from mcp_gee_sweet.tools.docs.emitter import (
 from mcp_gee_sweet.tools.docs.style import (
     _add_or_clear_field,
     _build_named_style_requests,
+    _clear_paragraph_gap_requests,
+    _own_paragraph_spacing_fields,
     _read_body_styles,
     _read_named_styles,
     _text_style_and_fields,
@@ -573,6 +577,295 @@ class TestStyleDocRangeTool:
         assert update["fields"] == "weightedFontFamily"
         assert update["textStyle"]["weightedFontFamily"] == {"fontFamily": "Courier New"}
 
+    async def test_font_family_only_restores_bold_over_bold_runs(self):
+        """#1273: a weightedFontFamily request with no bold in the same call clears
+        the range's direct bold, so the bold runs read before the batchUpdate are
+        restored in the same batch, after the font request."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 22,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Alpha ", "textStyle": {}},
+                                },
+                                {
+                                    "startIndex": 6,
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "Beta",
+                                        "textStyle": {"bold": True},
+                                    },
+                                },
+                                {
+                                    "startIndex": 10,
+                                    "endIndex": 22,
+                                    "textRun": {"content": " Gamma Delta\n", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 7, "end_index": 11, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert len(reqs) == 2
+        font_update = reqs[0]["updateTextStyle"]
+        assert font_update["fields"] == "weightedFontFamily"
+        bold_update = reqs[1]["updateTextStyle"]
+        assert bold_update["fields"] == "bold"
+        assert bold_update["textStyle"] == {"bold": True}
+        # only the bold part of the requested range [7, 11) is restored: [7, 10)
+        assert bold_update["range"] == {"startIndex": 7, "endIndex": 10}
+
+    async def test_adjacent_bold_runs_merge_into_one_restore_request(self):
+        """#1273: two adjacent bold runs inside the range restore as one span."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 4,
+                                    "textRun": {"content": "abc", "textStyle": {"bold": True}},
+                                },
+                                {
+                                    "startIndex": 4,
+                                    "endIndex": 7,
+                                    "textRun": {"content": "def", "textStyle": {"bold": True}},
+                                },
+                                {
+                                    "startIndex": 7,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "ghi", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 10, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        assert len(bold_updates) == 1
+        assert bold_updates[0]["range"] == {"startIndex": 1, "endIndex": 7}
+
+    async def test_font_family_with_bold_true_reads_nothing_and_restores_nothing(self):
+        """#1273's not-affected case: bold in the same range dict keeps the bold,
+        so no document read and no restore request."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "font_family": "Courier New", "bold": True}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        mock_docs.documents().get.assert_not_called()
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert len(reqs) == 1
+
+    async def test_font_family_read_failure_returns_error_dict(self):
+        """#1273: a failed document read before styling returns the error dict,
+        with no batchUpdate sent."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.side_effect = Exception("boom")
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert "boom" in result["error"]
+        mock_docs.documents().batchUpdate.assert_not_called()
+
+    async def test_font_only_restore_handles_element_without_start_index(self):
+        """The Docs API sometimes omits startIndex on an element, usually a
+        document's first one (indices._collect_doc_paragraphs guards this).
+        The restore must carry the offset forward from the paragraph's start
+        instead of raising a KeyError (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    # no startIndex, as on a first element;
+                                    # its bold run starts at the paragraph's own start
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "boldtext",
+                                        "textStyle": {"bold": True},
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 10, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"]
+            for r in reqs
+            if r["updateTextStyle"]["fields"] == "bold"
+            and r["updateTextStyle"]["textStyle"] == {"bold": True}
+        ]
+        assert bold_updates[0]["range"] == {"startIndex": 1, "endIndex": 10}
+
+    async def test_font_only_after_bold_false_range_stays_unbold(self):
+        """An earlier range in the same call that sets bold=False over the same
+        text must win over the pre-batch read: on bold text, bold=False then
+        font_family ends unbolded — no restore request re-bolds the overlap
+        (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {
+                                        "content": "boldtext",
+                                        "textStyle": {"bold": True},
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 10, "bold": False},
+                {"start_index": 1, "end_index": 10, "font_family": "Georgia"},
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        # the earlier range set bold=False over the whole overlap, so the
+        # restore must not re-bold any of it
+        assert [u for u in bold_updates if u["textStyle"] == {"bold": True}] == []
+        assert reqs[0]["updateTextStyle"]["textStyle"] == {"bold": False}
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_font_only_after_bold_true_range_restores_bold(self):
+        """The reverse direction: bold=True then font_family on plain text must
+        end bolded — the restore accounts for the earlier range instead of
+        trusting the pre-batch read (#1273 review)."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "plaintext", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 10, "bold": True},
+                {"start_index": 1, "end_index": 10, "font_family": "Georgia"},
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        bold_updates = [
+            r["updateTextStyle"] for r in reqs if r["updateTextStyle"]["fields"] == "bold"
+        ]
+        assert bold_updates[0]["textStyle"] == {"bold": True}
+        assert bold_updates[1]["textStyle"] == {"bold": True}
+        assert bold_updates[1]["range"] == {"startIndex": 1, "endIndex": 10}
+
 
 # ---------------------------------------------------------------------------
 # create_paragraph_bullets / delete_paragraph_bullets tools (#334)
@@ -657,8 +950,8 @@ class TestCreateParagraphBulletsTool:
 
     async def test_fresh_paragraph_top_level_sends_delete_then_create(self):
         # No pre-existing bullet, nesting_level 0 (default): a lone
-        # deleteParagraphBullets (harmless no-op) then createParagraphBullets,
-        # no insertText needed.
+        # deleteParagraphBullets (harmless no-op), the indent reset, then
+        # createParagraphBullets, no insertText needed.
         tools = self._setup()
         doc = self._doc([(1, 10, "Item\n", None)])
         mock_docs, ctx = self._mocks(doc)
@@ -670,9 +963,10 @@ class TestCreateParagraphBulletsTool:
         )
         assert "error" not in result
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
-        assert len(reqs) == 2
+        assert len(reqs) == 3
         assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 10}
-        bullet_req = reqs[1]["createParagraphBullets"]
+        assert reqs[1]["updateParagraphStyle"]["range"] == {"startIndex": 1, "endIndex": 10}
+        bullet_req = reqs[2]["createParagraphBullets"]
         assert bullet_req["range"] == {"startIndex": 1, "endIndex": 10}
         assert bullet_req["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
 
@@ -715,11 +1009,12 @@ class TestCreateParagraphBulletsTool:
         )
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 15}
-        assert reqs[1]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
-        assert reqs[2]["insertText"] == {"location": {"index": 5}, "text": "\n"}
+        assert "updateParagraphStyle" in reqs[1]
+        assert reqs[2]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 5}, "text": "\n"}
         # endIndex = run_end (15) + total_tabs (2) + anchor newline (1)
-        assert reqs[3]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 18}
-        assert reqs[4]["deleteContentRange"]["range"] == {"startIndex": 5, "endIndex": 6}
+        assert reqs[4]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 18}
+        assert reqs[5]["deleteContentRange"]["range"] == {"startIndex": 5, "endIndex": 6}
 
     async def test_isolated_all_nonzero_run_wraps_zero_tab_anchor(self):
         # #713: repairing part of an existing list whose contiguous
@@ -748,10 +1043,11 @@ class TestCreateParagraphBulletsTool:
         assert "error" not in result
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         kinds = [next(iter(r)) for r in reqs]
-        # tabs for all three items, then the anchor newline, then one
-        # createParagraphBullets, then the anchor delete.
+        # the indent reset, tabs for all three items, then the anchor
+        # newline, then one createParagraphBullets, then the anchor delete.
         assert kinds == [
             "deleteParagraphBullets",
+            "updateParagraphStyle",
             "insertText",
             "insertText",
             "insertText",
@@ -765,15 +1061,15 @@ class TestCreateParagraphBulletsTool:
         # the anchor insert below, since both the last of these (index 1) and
         # the anchor target the identical run_start index (1) and Docs API
         # requests at the same location apply in array order.
-        assert reqs[1]["insertText"] == {"location": {"index": 11}, "text": "\t"}
-        assert reqs[2]["insertText"] == {"location": {"index": 6}, "text": "\t"}
-        assert reqs[3]["insertText"] == {"location": {"index": 1}, "text": "\t"}
-        anchor_insert = reqs[4]["insertText"]
+        assert reqs[2]["insertText"] == {"location": {"index": 11}, "text": "\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        assert reqs[4]["insertText"] == {"location": {"index": 1}, "text": "\t"}
+        anchor_insert = reqs[5]["insertText"]
         assert anchor_insert == {"location": {"index": 1}, "text": "\n"}
-        create = reqs[5]["createParagraphBullets"]
+        create = reqs[6]["createParagraphBullets"]
         # run_end (17) + total_tabs (1 per item * 3) + anchor newline (1)
         assert create["range"] == {"startIndex": 1, "endIndex": 21}
-        assert reqs[6]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
+        assert reqs[7]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
 
     async def test_expands_to_include_same_list_neighbors(self):
         # #334 round 2's core fix: nesting the middle paragraph of an
@@ -817,6 +1113,116 @@ class TestCreateParagraphBulletsTool:
             "startIndex": 1,
             "endIndex": 18,
         }
+
+    async def test_indent_reset_between_delete_and_tabs(self):
+        # #1069: deleteParagraphBullets leaves a level-N item indented 36pt * N,
+        # and createParagraphBullets counts that indent as depth on top of the
+        # inserted tabs (confirmed live: re-running a 0/1/2 call gave 0/2/4).
+        # Both indents are zeroed over the whole run after the delete and
+        # before any tab insert, so the tabs alone set the level.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "One\n", {"listId": "L1"}),
+                (6, 11, "Two\n", {"listId": "L1", "nestingLevel": 1}),
+                (11, 17, "Three\n", {"listId": "L1", "nestingLevel": 2}),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 6, "end_index": 11, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert next(iter(reqs[0])) == "deleteParagraphBullets"
+        assert reqs[1] == {
+            "updateParagraphStyle": {
+                "range": {"startIndex": 1, "endIndex": 17},
+                "paragraphStyle": {
+                    "indentStart": {"magnitude": 0, "unit": "PT"},
+                    "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+                },
+                "fields": "indentStart,indentFirstLine",
+            }
+        }
+        assert all("insertText" in r for r in reqs[2:4])
+
+    async def test_rerunning_same_call_inserts_only_requested_tabs(self):
+        # #1069 repro step 2: the same explicit 0/1/2 call on a list already at
+        # 0/1/2. Each paragraph gets exactly its requested tab count (none for
+        # level 0), never its current level added on top, and the reset runs
+        # first, so the result is 0/1/2 again.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "One\n", {"listId": "L1"}),
+                (6, 11, "Two\n", {"listId": "L1", "nestingLevel": 1}),
+                (11, 17, "Three\n", {"listId": "L1", "nestingLevel": 2}),
+            ],
+            lists={"L1": self._numbered_list_entry(3)},
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "nesting_level": 0},
+                {"start_index": 6, "end_index": 11, "nesting_level": 1},
+                {"start_index": 11, "end_index": 17, "nesting_level": 2},
+            ],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        kinds = [next(iter(r)) for r in reqs]
+        assert kinds == [
+            "deleteParagraphBullets",
+            "updateParagraphStyle",
+            "insertText",
+            "insertText",
+            "createParagraphBullets",
+        ]
+        assert reqs[2]["insertText"] == {"location": {"index": 11}, "text": "\t\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        create = reqs[4]["createParagraphBullets"]
+        assert create["range"] == {"startIndex": 1, "endIndex": 20}
+        assert create["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+
+    async def test_each_run_gets_its_own_indent_reset(self):
+        # Two separate runs: each one's reset covers exactly its own span and
+        # comes right after its own delete, before that run's tab inserts.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "First\n", None),
+                (20, 26, "Second\n", None),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "nesting_level": 1},
+                {"start_index": 20, "end_index": 26, "nesting_level": 1},
+            ],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        resets = [i for i, r in enumerate(reqs) if "updateParagraphStyle" in r]
+        assert len(resets) == 2
+        for i, (start, end) in zip(resets, [(20, 26), (1, 6)], strict=True):
+            assert reqs[i - 1]["deleteParagraphBullets"]["range"] == {
+                "startIndex": start,
+                "endIndex": end,
+            }
+            assert reqs[i]["updateParagraphStyle"]["range"] == {
+                "startIndex": start,
+                "endIndex": end,
+            }
+            assert "insertText" in reqs[i + 1]
 
     async def test_does_not_expand_across_different_list_id(self):
         # A directly-adjacent paragraph belonging to a DIFFERENT list must
@@ -1429,6 +1835,368 @@ class TestApplyThemeTool:
         reqs = call_kwargs["body"]["requests"]
         assert any("updateNamedStyle" in r for r in reqs)
         assert any("updateTextStyle" in r for r in reqs)
+
+    @pytest.mark.parametrize(
+        "paragraph_style, own",
+        [
+            ({"spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}, set()),
+            ({"spaceBelow": {"magnitude": 6, "unit": "PT"}}, {"spaceBelow"}),
+            ({"spaceAbove": {"magnitude": 12, "unit": "PT"}}, {"spaceAbove"}),
+        ],
+    )
+    def test_own_paragraph_spacing_fields_reads_normal_text(self, paragraph_style, own):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "paragraphStyle": {"spaceAbove": {"magnitude": 20, "unit": "PT"}},
+                    },
+                    {"namedStyleType": "NORMAL_TEXT", "paragraphStyle": paragraph_style},
+                ]
+            }
+        }
+        assert _own_paragraph_spacing_fields(doc) == own
+
+    @staticmethod
+    def _body_paragraph(style, text, font=None):
+        text_style = {"weightedFontFamily": {"fontFamily": font}} if font else {}
+        return {
+            "paragraph": {
+                "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                "elements": [{"textRun": {"content": text, "textStyle": text_style}}],
+            }
+        }
+
+    def test_unstyled_first_paragraph_decides_over_a_later_bold_lead_in(self):
+        """One run's bold isn't the doc's body text (PR #1388 QA round 3)."""
+        lead_in = self._body_paragraph({}, "Lead-in.")
+        lead_in["paragraph"]["elements"] = [
+            {"textRun": {"content": "Lead-in.", "textStyle": {"bold": True}}},
+            {"textRun": {"content": " The rest.\n", "textStyle": {}}},
+        ]
+        doc = {"body": {"content": [self._body_paragraph({}, "plain\n"), lead_in]}}
+        assert _read_body_styles(doc) == {}
+
+    def test_opening_bold_or_code_run_is_not_the_paragraphs_style(self):
+        para = self._body_paragraph({}, "x")
+        para["paragraph"]["elements"] = [
+            {
+                "textRun": {
+                    "content": "pip",
+                    "textStyle": {
+                        "bold": True,
+                        "weightedFontFamily": {"fontFamily": "Courier New"},
+                        "fontSize": {"magnitude": 12, "unit": "PT"},
+                    },
+                }
+            },
+            {
+                "textRun": {
+                    "content": " fails\n",
+                    "textStyle": {"fontSize": {"magnitude": 12, "unit": "PT"}},
+                }
+            },
+        ]
+        assert _read_body_styles({"body": {"content": [para]}})["NORMAL_TEXT"] == {"font_size": 12}
+
+    def test_first_heading_decides_for_its_style_too(self):
+        def heading(text_style):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                    "elements": [{"textRun": {"content": "h\n", "textStyle": text_style}}],
+                }
+            }
+
+        doc = {"body": {"content": [heading({}), heading({"italic": True})]}}
+        assert _read_body_styles(doc) == {}
+
+    def test_body_theme_reads_a_doc_set_in_courier(self):
+        """Courier New alone isn't a code block (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "one\n", font="Courier New"),
+                    self._body_paragraph({}, "two\n", font="Courier New"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Courier New"}
+
+    def test_body_theme_skips_a_code_block_for_body_text(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                    self._body_paragraph({}, "body\n", font="Georgia"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_unstyled_body_text_keeps_a_block_out_of_the_theme(self):
+        spacing = {
+            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+            "spaceBelow": {"magnitude": 8, "unit": "PT"},
+        }
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph({}, "body\n"),
+                    self._body_paragraph(spacing, "code\n", font="Courier New"),
+                ]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_doc_of_blocks_only_keeps_the_font_but_not_their_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    self._body_paragraph(
+                        {
+                            "borderLeft": {"width": {"magnitude": 3, "unit": "PT"}},
+                            "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                        },
+                        "quote\n",
+                        font="Georgia",
+                    )
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    @pytest.mark.parametrize("key", ["spaceAbove", "spaceBelow"])
+    def test_body_theme_leaves_out_spacing_beside_a_quoted_table(self, key):
+        """That paragraph has the quote's 8pt and no border (PR #1388 QA round 2)."""
+        doc = {
+            "body": {
+                "content": [self._body_paragraph({key: {"magnitude": 8, "unit": "PT"}}, "next\n")]
+            }
+        }
+        assert "NORMAL_TEXT" not in _read_body_styles(doc)
+
+    def test_body_theme_keeps_a_heading_at_the_block_spacing(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_2",
+                                "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                            },
+                            "elements": [],
+                        }
+                    }
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["HEADING_2"] == {"space_above": 8}
+
+    def test_body_theme_leaves_out_the_paragraph_gap_and_block_spacing(self):
+        """A theme carrying them would space a whole doc (PR #1388 QA round 1)."""
+        theme = _read_body_styles(self._paragraph_gap_doc())
+        assert "NORMAL_TEXT" not in theme
+        # A heading at the same value is that heading's own style.
+        assert theme["HEADING_1"]["space_below"] == 10
+
+    @pytest.mark.parametrize(
+        "block_style, runs",
+        [
+            ({"borderLeft": {"width": {"magnitude": 3, "unit": "PT"}}}, ["quote\n"]),
+            ({"borderBottom": {"width": {"magnitude": 1, "unit": "PT"}}}, ["\n"]),
+            ({}, ["\n"]),
+        ],
+        ids=["quote", "rule", "empty"],
+    )
+    def test_body_theme_skips_a_block_for_the_first_body_text(self, block_style, runs):
+        def paragraph(style, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **style},
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        spacing = {"spaceAbove": {"magnitude": 8, "unit": "PT"}}
+        doc = {
+            "body": {
+                "content": [
+                    paragraph({**spacing, **block_style}, runs[0]),
+                    paragraph({"spaceBelow": {"magnitude": 4, "unit": "PT"}}, "body\n"),
+                ]
+            }
+        }
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"space_below": 4}
+
+    @staticmethod
+    def _paragraph_gap_doc():
+        """A gap paragraph, one with a quote edge's 8pt, and a heading at the gap's value."""
+
+        def paragraph(start, end, named_style, space_below):
+            return {
+                "startIndex": start,
+                "endIndex": end,
+                "paragraph": {
+                    "paragraphStyle": {
+                        "namedStyleType": named_style,
+                        "spaceBelow": {"magnitude": space_below, "unit": "PT"},
+                    },
+                    "elements": [{"textRun": {"content": "x\n", "textStyle": {}}}],
+                },
+            }
+
+        return {
+            "body": {
+                "content": [
+                    {"endIndex": 1, "sectionBreak": {}},
+                    paragraph(1, 3, "NORMAL_TEXT", 10),
+                    paragraph(3, 5, "NORMAL_TEXT", 8),
+                    paragraph(5, 7, "HEADING_1", 10),
+                ]
+            }
+        }
+
+    async def _run_theme(self, theme, **kwargs):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._paragraph_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx, **kwargs)
+        return mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+
+    @pytest.mark.parametrize("key", ["space_above", "space_below"])
+    async def test_theme_spacing_replaces_the_paragraph_gap(self, key):
+        """#1382: a value on the paragraph would beat the theme's NORMAL_TEXT."""
+        reqs = await self._run_theme({"NORMAL_TEXT": {key: 20}})
+        assert [r for r in reqs if "updateParagraphStyle" in r] == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 1, "endIndex": 3},
+                    "paragraphStyle": {},
+                    "fields": "spaceBelow",
+                }
+            }
+        ]
+
+    @pytest.mark.parametrize(
+        "theme",
+        [{"NORMAL_TEXT": {"font_family": "Georgia"}}, {"HEADING_1": {"space_below": 20}}],
+    )
+    async def test_theme_without_body_spacing_leaves_the_doc_alone(self, theme):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx)
+        mock_docs.documents().get.assert_not_called()
+
+    @staticmethod
+    def _table_gap_doc():
+        """As the emitter writes "a", "b", a table, "c", then "d" with a 10pt
+        spaceAbove set by hand: a [1,3) and c [16,18) carry plain paragraph gaps below,
+        b [3,5) the gap before the table's empty paragraph [5,6), c the gap after it."""
+
+        def paragraph(start, text, **spacing):
+            style: dict = {"namedStyleType": "NORMAL_TEXT"}
+            style.update({k: {"magnitude": v, "unit": "PT"} for k, v in spacing.items()})
+            return {
+                "startIndex": start,
+                "endIndex": start + len(text),
+                "paragraph": {
+                    "paragraphStyle": style,
+                    "elements": [{"textRun": {"content": text}}],
+                },
+            }
+
+        return {
+            "body": {
+                "content": [
+                    paragraph(1, "a\n", spaceBelow=10),
+                    paragraph(3, "b\n", spaceBelow=10),
+                    paragraph(5, "\n", spaceAbove=0, spaceBelow=0),
+                    {"startIndex": 6, "endIndex": 16, "table": {}},
+                    paragraph(16, "c\n", spaceAbove=10, spaceBelow=10),
+                    paragraph(18, "d\n", spaceAbove=10),
+                ]
+            }
+        }
+
+    @pytest.mark.parametrize(
+        ("theme_fields", "cleared"),
+        [
+            # PR #1434 QA round 1: a theme spaced only below leaves the gap after the
+            # table, or "c" would sit on it.
+            ({"spaceBelow"}, {1: "spaceBelow", 3: "spaceBelow", 16: "spaceBelow"}),
+            ({"spaceAbove"}, {1: "spaceBelow", 16: "spaceAbove,spaceBelow"}),
+            (
+                {"spaceAbove", "spaceBelow"},
+                {1: "spaceBelow", 3: "spaceBelow", 16: "spaceAbove,spaceBelow"},
+            ),
+        ],
+        ids=["below", "above", "both"],
+    )
+    def test_a_table_gap_is_cleared_only_for_the_themes_own_field(self, theme_fields, cleared):
+        """#1427. The plain paragraph gaps go whatever the theme sets, as before, and
+        "d"'s 10pt spaceAbove, which doesn't follow a table, is never the emitter's
+        (PR #1434 QA round 1)."""
+        requests = _clear_paragraph_gap_requests(self._table_gap_doc(), theme_fields)
+        assert {
+            r["updateParagraphStyle"]["range"]["startIndex"]: r["updateParagraphStyle"]["fields"]
+            for r in requests
+        } == cleared
+        assert all(r["updateParagraphStyle"]["paragraphStyle"] == {} for r in requests)
+
+    async def test_apply_theme_keeps_the_gap_after_a_table_for_a_below_only_theme(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._table_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](
+            doc_id="doc123", theme={"NORMAL_TEXT": {"space_below": 20}}, ctx=ctx
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        cleared = {
+            r["updateParagraphStyle"]["range"]["startIndex"]: r["updateParagraphStyle"]["fields"]
+            for r in reqs
+            if "updateParagraphStyle" in r
+        }
+        assert cleared == {1: "spaceBelow", 3: "spaceBelow", 16: "spaceBelow"}
+
+    async def test_an_explicit_zero_in_the_theme_counts_as_setting_the_field(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._table_gap_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](
+            doc_id="doc123", theme={"NORMAL_TEXT": {"space_above": 0}}, ctx=ctx
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        fields = [
+            r["updateParagraphStyle"]["fields"]
+            for r in reqs
+            if r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 16
+        ]
+        assert fields == ["spaceAbove,spaceBelow"]
+
+    async def test_overwrite_spacing_lands_after_the_gap_is_cleared(self):
+        reqs = await self._run_theme({"NORMAL_TEXT": {"space_below": 20}}, overwrite=True)
+        styles = [
+            r["updateParagraphStyle"]
+            for r in reqs
+            if r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 1
+        ]
+        assert styles[0]["paragraphStyle"] == {}
+        assert styles[-1]["paragraphStyle"]["spaceBelow"]["magnitude"] == 20
 
     async def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()

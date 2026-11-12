@@ -23,6 +23,8 @@ Spreadsheet 'QA-Create-Test' created, appears in list_spreadsheets(default) imme
 **Result (2026-10-17) ❌ FAIL — v0.9.2 release pass**
 create_spreadsheet response has no web link ({spreadsheetId,title,folder}); deterministic over 7 calls. Known: #693 (enhancement, v0.9.3).
 
+**Result (2026-11-08) ❌ FAIL — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_spreadsheet('QA-Create-Test')` created it in the default folder (`folder` = the mcp-gee-sweet-shared Shared Drive root), but the response is `{spreadsheetId,title,folder}` with no web link, so "Response includes ... a web link" fails. Known limitation, tracked in open #693 (state OPEN). Cache check: covered by D05/D43 below (listing after create shows the new file).
+
 ---
 
 ### TC-D02: Create with explicit folder ID ⚠️ requires-oauth
@@ -39,6 +41,8 @@ Created 'QA-Create-Explicit' in FOLDER_ID; response `folder`=FOLDER_ID; appears 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Created 'QA-Create-Explicit' with folder_id = run folder (a {FOLDER_ID} child, per rule 8); response `folder` = that ID, and `list_files` on it listed the sheet.
+
 ---
 
 ### TC-D03: Create without a folder — falls back to the configured default folder ⚠️ requires-oauth
@@ -53,10 +57,12 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Cleanup:** trash 'QA-Create-Root'.
 
 **Result (2026-09-04) ✅ PASS**
-Created 'QA-Create-Root' with no folder; get_file_metadata parents=["0APfXAGTeZYz3Uk9PVA"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).
+Created 'QA-Create-Root' with no folder; get_file_metadata parents=["{DRIVE_FOLDER_ID}"] = DRIVE_FOLDER_ID (Shared Drive root), not personal My-Drive. 🔍 unset-deployment path not testable (#680).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_spreadsheet('QA-Create-Root')` with no folder succeeded; `get_file_metadata` parents = ["0APf…PVA"], which `list_drives` shows is the mcp-gee-sweet-shared Shared Drive root (DRIVE_FOLDER_ID), not My Drive. 🔍 unset-deployment path not testable (#680). Trashed.
 
 ---
 
@@ -79,6 +85,8 @@ needs SA prefix + personal-Drive folder; Aziz to run. On OAuth (sky), no persona
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Environmental: needs the SA identity plus a personal-Drive folder / a Content-manager SA.
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — environmental: no personal-Drive folder shared to the SA is available to force the quota error. (The SA did create spreadsheets in the Shared Drive run folder without error throughout this shard.)
+
 ---
 
 ### TC-D05: Drive folder cache invalidated ⚠️ requires-oauth
@@ -98,6 +106,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): `create_spreadsheet("QA-Cache-Check")` logged `Marked drive folder cache dirty`; next `list_files` re-fetched (`Cached 8 files`) and listed it. File trashed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — With the run-folder listing already cached (3 files), created 'QA-Cache-Check' there; the next `list_files` listed it with no refresh_cache, so the folder listing was invalidated.
+
 ---
 
 ### TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth
@@ -112,6 +122,8 @@ create_spreadsheet('Exact Title Test') response title exactly 'Exact Title Test'
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Response title exactly 'Exact Title Test'.
 
 ---
 
@@ -140,6 +152,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 **Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `list_spreadsheets()` → `[]`, no error (no spreadsheets in the Shared Drive root); per-entry checks had nothing to run on.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_spreadsheets()` returned `[]`, no error (Shared Drive root holds no spreadsheets; fixture correctly absent). Not run: "each entry has a name and ID" (no entries).
 
 ---
 
@@ -175,6 +189,8 @@ Ran the revised 3-step setup with fresh fixtures. Step 2 positive control: `list
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: Setup: `QA-Trashed-1054` created in the run folder. Positive controls returned its id on the first try: `list_spreadsheets(run folder)` and `search_spreadsheets("QA-Trashed-1054")`. It was then trashed (`trashed: true` confirmed). After trashing: `list_spreadsheets({FOLDER_ID})` returned only the fixture (scoped correctly), and `list_spreadsheets(run folder)` returned [], so the trashed id is absent.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — Setup in run folder: positive controls `list_spreadsheets(run folder)` and `search_spreadsheets("QA-Trashed-1054")` both returned the new id first try; trashed it (`trashed: true` confirmed). After: `list_spreadsheets({FOLDER_ID})` returned only the fixture; `list_spreadsheets(run folder)` returned only QA-G-share-probe — trashed id absent.
+
 ---
 
 ### TC-D15: List from root (no folder)
@@ -192,6 +208,8 @@ Ran the revised 3-step setup with fresh fixtures. Step 2 positive control: `list
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 🔍 `list_spreadsheets()` resolves to the configured default folder (Shared Drive root) and returned `[]`; no separate root/all-accessible mode.
+
 ---
 
 ### TC-D16: Empty folder
@@ -207,6 +225,8 @@ list_spreadsheets(empty scratch folder) returned `[]`, not an error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_spreadsheets(G-empty folder)` returned `[]`, not an error.
 
 ---
 
@@ -224,6 +244,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 🔍 `list_spreadsheets({FOLDER_ID})` returned 1 (the fixture); no nextPageToken field exposed. Known limitation noted as a product decision.
 
 ---
 
@@ -245,6 +267,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_spreadsheets(max_results=2)` returned `[]`, no error (DRIVE_FOLDER_ID set → Shared Drive root, no spreadsheets). Not run live: pageSize=2 / default 100 / clamp-to-1000 (no observable signal on an empty folder); docstring now names My Drive AND every shared drive (confirmed in served tool description).
+
 ---
 
 ## `list_folders`
@@ -263,6 +287,8 @@ list_folders(FOLDER_ID) returned `[]` — FOLDER_ID has no subfolders; no error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_folders({FOLDER_ID})` returned 10 folders (QA run folders), each with id/name/parent, all folders.
 
 ---
 
@@ -285,6 +311,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_folders()` returned `[mcp-gee-sweet-qa-fixtures]` with parent = Shared Drive root (the configured DRIVE_FOLDER_ID), no error. Explicit form covered by TC-D26.
+
 ---
 
 ### TC-D28: Empty folder
@@ -301,6 +329,8 @@ list_folders(empty scratch folder) returned `[]` — not an error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_folders(G-empty)` returned `[]`; 🔍 no-continuation limitation noted.
 
 ---
 
@@ -321,6 +351,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_folders(max_results=2)` returned 1 folder, no error; docstring names My Drive and every shared drive. Not run live: pageSize / default / clamp checks (only 1 folder exists at the default root, so the cap isn't observable).
 
 ---
 
@@ -355,6 +387,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: `search_spreadsheets("qa-fixtures")` returned the fixture with id and name. After trashing, `search_spreadsheets("QA-Trashed-1054")` returned [], so no trashed id.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_spreadsheets("qa-fixtures")` returned the fixture with id and name. After trashing, `search_spreadsheets("QA-Trashed-1054")` returned `[]` (no trashed id).
+
 ---
 
 ### TC-D30: Content search
@@ -372,6 +406,8 @@ search_spreadsheets('Widget') returned only 'mcp-gee-sweet-qa-fixtures' (= SPREA
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_spreadsheets("Widget")` returned only {SPREADSHEET_ID}.
+
 ---
 
 ### TC-D31: max_results respected
@@ -388,6 +424,8 @@ search_spreadsheets('test', max_results=2) returned exactly 2 results.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_spreadsheets("test", max_results=2)` returned `[]` (nothing matches 'test' for the SA); to exercise the cap, `search_spreadsheets("", max_results=2)` returned exactly 2 where the uncapped call returned 3.
 
 ---
 
@@ -407,6 +445,8 @@ search_spreadsheets("it's") returned `[]` cleanly — no Drive API syntax error.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_spreadsheets("it's")` returned `[]` cleanly, no syntax error.
+
 ---
 
 ### TC-D33: No results
@@ -422,6 +462,8 @@ search_spreadsheets('ZZZAbsolutelyNoMatch12345') returned `[]` — not an error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — returned `[]`, not an error.
 
 ---
 
@@ -439,6 +481,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 🔍 `search_spreadsheets("")` returned all 3 accessible spreadsheets (list-all), not an error.
 
 ---
 
@@ -461,6 +505,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — Run on a run-folder copy named `G-copy-qa-fixtures-sheet` (fixture spreadsheet not touched): after `star_file` on the copy, `search_spreadsheets("qa-fixtures")` returned the copy with `"starred": true` (fixture itself `false`).
+
 ---
 
 ### TC-D35: API error
@@ -477,6 +523,8 @@ Cannot force an auth/API error on a live OAuth session. Error-dict-not-exception
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Can't force an auth error live.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — can't force an auth/API error on a live session; covered by unit tests.
 
 ---
 
@@ -504,6 +552,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `list_files(TEST_FOLDER_ID)` returned 6 entries with id/name/mime_type, no trashed items.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_files({FOLDER_ID})` returned 22 entries (spreadsheet, docs, folders), each with id/name/mime_type; no trashed items.
+
 ---
 
 ### TC-D37: Filter by MIME type
@@ -523,6 +573,8 @@ list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs (qa-fi
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — mime_type=document returned 11 entries, all `application/vnd.google-apps.document`; spreadsheet excluded.
 
 ---
 
@@ -548,6 +600,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `Cached 6 files for folder …` then `Drive folder cache hit: …`. The OAuth server's first call missed although the service account had cached the same folder 45 s earlier: rows are now per identity (GHSA-8jqx).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — sequential `list_files({FOLDER_ID}, spreadsheet mime)` returned identical results; log: `Cached 1 files …` then `Drive folder cache hit: {FOLDER_ID} (mime=application/vnd.google-apps.spreadsheet)`. (Two parallel calls both fetched, as expected.)
+
 ---
 
 ### TC-D39: mime_type=None cache key
@@ -564,6 +618,8 @@ list_files(FOLDER_ID) with mime_type=None called twice returned identical result
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — after `Cached 22 files … (mime=None)`, the next mime=None call logged `Drive folder cache hit … (mime=None)`; no KeyError, results consistent.
 
 ---
 
@@ -584,6 +640,8 @@ Both scenarios re-tested against the real fixture folder (3 items): (1) fresh de
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_files({FOLDER_ID}, max_results=2)` returned exactly 2 (served from the complete 22-file cache entry, sliced). `max_results=5000` on another folder returned cleanly (no API error), consistent with the clamp.
 
 ---
 
@@ -608,6 +666,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — run on the run folder (N=3), sequential. Step 1 `Cached 3 files`; step 2 (1000) same 3 items, `Drive folder cache hit`; step 3 after refresh `Cached 1 files`, 1 item; step 4 default returned all 3 with `Cached 3 files` and no hit.
+
 ---
 
 ### TC-D41: Pagination limit
@@ -623,6 +683,8 @@ Run 1 (kai-oauth).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 🔍 {FOLDER_ID} has 22 items, no truncation; limitation noted.
 
 ---
 
@@ -640,6 +702,8 @@ No trashed files appeared in any list_files(FOLDER_ID) result; trashed=false in 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth), throwaway folder under the Shared Drive.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — trashed QA-Trashed-1054 absent from every later `list_files(run folder)`; no trashed items in {FOLDER_ID} listing.
 
 ---
 
@@ -659,6 +723,8 @@ Run 1 (kai-oauth), throwaway folder under the Shared Drive.
 
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): warm listing, then `create_spreadsheet` logged `Marked drive folder cache dirty`, and the next `list_files` re-fetched (`Cached 7 files`) with the new file listed. File trashed.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Warm listing (4 files), then `create_spreadsheet('QA-ListFilesCache')` in the run folder; next `list_files` listed it (5 files) with no manual refresh.
 
 ---
 
@@ -685,6 +751,8 @@ Uploaded /tmp/qa-236.txt via upload_local_file. list_files(FOLDER_ID) shows qa-2
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — run in the run folder (not {FOLDER_ID}) with a copy of the fixture doc. Uploaded `qa-236.txt` ("hello md5"); `list_files` showed `md5_checksum: 741fc6b1878e208346359af502dd11c5` (matches local `md5 -q`), and the Doc copy's entry `md5_checksum: null`.
 
 ---
 
@@ -718,6 +786,8 @@ list_files(FOLDER_ID, mime_type="it's a test") → `[]` cleanly, no HttpError 40
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_files({FOLDER_ID}, mime_type="it's a test")` returned `[]` cleanly, no HttpError. Unit tests `test_mime_type_single_quote_is_escaped` and `test_api_error_returns_error_dict_not_raised` (8 matches in tests/drive/test_files.py) pass at f98c67b7.
+
 ---
 
 ## `create_folder`
@@ -735,10 +805,12 @@ Run 1 (kai-oauth).
 **Cleanup:** trash 'QA-Folder-Test'.
 
 **Result (2026-09-04) ✅ PASS**
-create_folder('QA-Folder-Test', no parent) → `{folderId, name, parent:"0APfXAGTeZYz3Uk9PVA"}` = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.
+create_folder('QA-Folder-Test', no parent) → `{folderId, name, parent:"{DRIVE_FOLDER_ID}"}` = DRIVE_FOLDER_ID (Shared Drive root), NOT FOLDER_ID. Visible in list_files.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_folder('QA-Folder-Test')` → `{folderId, name:'QA-Folder-Test', parent:'0APf…PVA'}` = Shared Drive root (DRIVE_FOLDER_ID), not {FOLDER_ID}; listed in `list_files(<shared root>, folder mime)`. Trashed.
 
 ---
 
@@ -755,10 +827,12 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Cleanup:** trash 'QA-Folder-Root'.
 
 **Result (2026-09-04) ✅ PASS**
-create_folder('QA-Folder-Root', no parent) → parent = "0APfXAGTeZYz3Uk9PVA" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.
+create_folder('QA-Folder-Root', no parent) → parent = "{DRIVE_FOLDER_ID}" = DRIVE_FOLDER_ID. Resolves to configured default, not personal My-Drive root.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_folder('QA-Folder-Root')` → parent = Shared Drive root (DRIVE_FOLDER_ID), not My Drive. Trashed.
 
 ---
 
@@ -776,6 +850,8 @@ create_folder('QA-Folder-Cache', parent=FOLDER_ID); immediately present in list_
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_folder('QA-Folder-Cache', parent=run folder)`; the previously cached unfiltered listing of the run folder then included it with mime `application/vnd.google-apps.folder`, no manual refresh.
 
 ---
 
@@ -800,6 +876,8 @@ Created QA-Move-Src/QA-Move-Dst child folders + 'QA-Move-Test' spreadsheet in Sr
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — QA-Move-Src/QA-Move-Dst under the run folder; 'QA-Move-Test' created in Src, both listings warmed (Src=[sheet], Dst=[]). `move_file` → `{fileId,name,parent: Dst}`. Next listings with no refresh: Src=[], Dst=[QA-Move-Test], so both parent caches were invalidated.
+
 ---
 
 ### TC-D62: Move a folder
@@ -817,6 +895,8 @@ move_file(QA-Folder-Test → FOLDER_ID) → `{fileId, name:'QA-Folder-Test', mim
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — TC-D58 skipped, so used a run-folder `QA-Folder-Test` created in G-empty and moved it into the run folder (not {FOLDER_ID}): response `{mimeType: application/vnd.google-apps.folder, parent: run folder}`; `list_folders` shows it in the run folder and gone from G-empty.
+
 ---
 
 ### TC-D63: Non-existent file ID
@@ -833,6 +913,8 @@ move_file('invalidid123xyz', FOLDER_ID) → HttpError 404 "File not found: inval
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `move_file('invalidid123xyz', …)` → HttpError 404 "File not found: invalidid123xyz." via the tool-error channel; no crash.
 
 ---
 
@@ -858,6 +940,8 @@ Created 'QA-Rename-Test' in FOLDER_ID, rename_file → response name 'QA-Renamed
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Created 'QA-Rename-Test' in the run folder and cached a listing showing it; `rename_file` → `name:'QA-Renamed-File'`, parent = run folder; the next `list_files` (same cached query, no refresh) showed 'QA-Renamed-File' and no stale old name. (A stray rename call with a wrong ID I'd typed returned a clean 404; my error, not a defect.)
+
 ---
 
 ### TC-D65: Rename a folder
@@ -875,6 +959,8 @@ rename_file(QA-Folder-Cache → 'QA-Folder-Renamed') → response name 'QA-Folde
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — TC-D60 skipped; renamed the run-folder `QA-Folder-Test` to `QA-Folder-Renamed`: response name matches, `list_folders(run folder)` shows the new name.
+
 ---
 
 ### TC-D66: Non-existent file ID
@@ -890,6 +976,8 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 naming the ID, surfaced cleanly.
 
 ---
 
@@ -913,6 +1001,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — run on the run-folder copy `G-copy-qa-fixtures-sheet` (fixture spreadsheet not touched), from an unstarred state: response `{fileId: <copy>, name: "G-copy-qa-fixtures-sheet", starred: true}`, no error.
+
 ---
 
 ### TC-D203: `unstar_file` removes the starred marker
@@ -929,6 +1019,8 @@ Run on a throwaway spreadsheet; starred state visible in metadata, list_files an
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — same copy, starred first: `unstar_file` → `starred: false`, no error.
 
 ---
 
@@ -959,6 +1051,8 @@ Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — on the copy: after star, `get_file_metadata` `starred: true`; `refresh_cache(run folder)`; `list_files(run folder)` entry `starred: true`; `search_files("G-copy-qa-fixtures-sheet")` `starred: true`; `unstar_file` then `get_file_metadata` `starred: false`. Also: the warm `list_files` with no refresh showed `starred: false` right after unstar (parent marked dirty).
+
 ---
 
 ## `copy_file`
@@ -978,6 +1072,8 @@ copy_file(SPREADSHEET_ID) no name → new fileId, name 'Copy of mcp-gee-sweet-qa
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Run on a throwaway sheet (QA-Create-Explicit) instead of {SPREADSHEET_ID}, per rule 7. `copy_file` no name → 'Copy of QA-Create-Explicit', new fileId, web_link present and different, parent = source's folder.
+
 ---
 
 ### TC-D68: Copy with explicit name and destination folder ⚠️ requires-oauth
@@ -994,6 +1090,8 @@ copy_file(SPREADSHEET_ID → FOLDER_ID, 'QA-Copy-Explicit') → appears in list_
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Source the same throwaway sheet (rule 7), destination QA-Move-Dst (listing cached). Copy 'QA-Copy-Explicit' appeared in the next `list_files(Dst)` without refresh; source metadata unchanged (name, parents, modified_time, trashed=false).
 
 ---
 
@@ -1012,6 +1110,8 @@ copy_file(DOC_ID, 'QA-Doc-Copy') → new independent fileId, mimeType applicatio
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `copy_file(DOC_ID, 'QA-Doc-Copy', folder_id=run folder)` (folder given so the copy lands in the run folder) → new fileId, mimeType `application/vnd.google-apps.document`. Inserted 'SHARDH-COPY-EDIT' into the copy: `find_in_doc` finds it in the copy, not in the original.
+
 ---
 
 ### TC-D70: Attempt to copy a folder ⚠️ requires-oauth
@@ -1028,6 +1128,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — 🔍 Used QA-Folder-Cache (TC-D65's folder isn't this shard's). `copy_file` → HttpError 403 "This file cannot be copied by the user." (cannotCopyFile), clean tool error, no crash. Drive API limitation as documented.
 
 ---
 
@@ -1049,6 +1151,8 @@ delete_file('QA-Renamed-File', permanent=False) → `{fileId, action:"trashed"}`
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — TC-D64 skipped, so created `QA-Renamed-File` in the run folder; `delete_file(permanent=False)` → `{fileId, action: "trashed"}`; absent from the next `list_files(run folder)`. Recoverability shown by TC-D269 on the same path.
+
 ---
 
 ### TC-D72: Permanently delete a file ⚠️ requires-oauth ⚠️ destructive
@@ -1069,6 +1173,8 @@ Created 'QA-Delete-Permanent' in FOLDER_ID; delete_file(permanent=True) → `{fi
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Created 'QA-Delete-Permanent' in QA-Move-Src (listing cached showing it); `delete_file(permanent=True)` → `{fileId, action:"deleted"}`; next `list_files` = [] without refresh; `get_file_metadata` → 404 File not found (gone, not in trash).
+
 ---
 
 ### TC-D73: Trash a folder ⚠️ destructive
@@ -1086,6 +1192,8 @@ delete_file('QA-Folder-Renamed', permanent=False) → `{fileId, action:"trashed"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — trashed run-folder `QA-Folder-Renamed` (holding spreadsheet `QA-Folder-Content`): `{action: "trashed"}`; `list_folders(run folder)` no longer shows it; the child's metadata reads `trashed: true`.
+
 ---
 
 ### TC-D74: Non-existent file ID
@@ -1102,6 +1210,8 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 from the pre-flight `parents,driveId,capabilities` get, before any mutation; clean tool error.
 
 ---
 
@@ -1132,6 +1242,8 @@ Re-run the same way against `255512b` (Shared Drive note scoped to `driveId`). S
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Environmental: needs the SA identity plus a personal-Drive folder / a Content-manager SA.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — SA (Content manager), file uploaded to the run folder. Step 1: error "Cannot permanently delete file …: the authenticated identity lacks permanent-delete permission on it. On a Shared Drive this usually requires the Manager role. Use permanent=False to move it to the trash instead." (not a 404). Step 2: `trashed: false`. Step 3: `{action: "trashed"}`. Left in the Shared Drive trash.
+
 ---
 
 ## `restore_file`
@@ -1155,6 +1267,8 @@ Environmental: needs the SA identity plus a personal-Drive folder / a Content-ma
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 restore_file restored; bad ID gives 404.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — created `QA-Restore-Test` in the run folder, trashed, `restore_file` → `{action: "restored"}`; it reappears in `list_files(run folder)` with no manual refresh.
+
 ---
 
 ### TC-D270: Restore a non-existent file ID
@@ -1174,6 +1288,8 @@ restore_file restored; bad ID gives 404.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 restore_file restored; bad ID gives 404.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 "File not found: invalidid123xyz." from the parents lookup; not a silent no-op, no mutation.
 
 ---
 
@@ -1199,10 +1315,12 @@ restore_file restored; bad ID gives 404.
 **Result (2026-07-21) skipped, by operator decision** — unit tests (`test_empty_trash_defaults_to_my_drive_no_drive_id`, `test_empty_trash_api_error_propagates`) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.
 
 **Result (2026-09-04) ⏭️ SKIP**
-destructive — `empty_trash()` (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (kevin.huisman@gmail.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.
+destructive — `empty_trash()` (no drive_id) permanently empties the OAuth user's ENTIRE personal My Drive trash (qa-owner@example.com), far beyond the QA fixture set. TC itself mandates operator confirmation; historic runs skipped by operator decision. Unit tests (test_empty_trash_defaults_to_my_drive_no_drive_id, test_empty_trash_api_error_propagates) cover the path. NON-PRE-APPROVED SKIP — operator decision needed.
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 empty_trash on a whole trash; not run during a shared pass.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — destructive outside the run folder (empties a whole trash); deferred to Aziz per shard assignment.
 
 ---
 
@@ -1231,6 +1349,8 @@ empty_trash on a whole trash; not run during a shared pass.
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 empty_trash on a whole trash; not run during a shared pass.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — would purge the whole Shared Drive trash including other shards' trashed files; deferred to Aziz per shard assignment.
 
 ---
 
@@ -1268,6 +1388,8 @@ Revised setup with fresh fixtures. Step 2 positive controls returned the expecte
 **Result (2026-10-19) ❌ FAIL — v0.9.3 release pass**
 `kai-sa`: The #1054 checks pass: positive controls found both QA-Trashed-1054 fixtures, and after trashing neither appears in `search_files("QA-Trashed-1054")` (also with mime_type=folder). Failing check: "Returns a mix of docs, spreadsheets, and folders": under the service account, unscoped `search_files("QA")` returned only the fixture spreadsheet; the folder-scoped search finds them all, and an OAuth server finds them unscoped. Not a regression (no `corpora` before or after #1054). Tracked in #1127.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — Setup in the run folder: positive controls returned the right ids first try (unscoped → both, mime=folder → the folder, folder_id=run folder → both); both trashed (`trashed: true`). Unscoped `search_files("QA", max_results=100)` under the SA returned ~100 results across docs, spreadsheets, folders, text/csv/png/gzip from many folders (the #1127 failure from v0.9.3 is gone), each with id/name/mimeType/modified_time/web_link. After trashing, unscoped and mime=folder `QA-Trashed-1054` searches returned `[]`.
+
 ---
 
 ### TC-D76: Search with MIME type filter
@@ -1287,6 +1409,8 @@ search_files('QA', mime_type=document) → all 20 results mimeType application/v
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_files("QA", mime_type=document, max_results=8)` → 8 results, all `application/vnd.google-apps.document`.
 
 ---
 
@@ -1320,6 +1444,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
 `kai-sa`: `search_files("QA", folder_id={FOLDER_ID})` returned 4 results, all with parent = FOLDER_ID. `search_files("QA-Trashed-1054", folder_id=run folder)` returned [] after trashing. The injection `folder_id="x' in parents or trashed=true or 'y"` returned one `{"error": "Search failed: HttpError 404 File not found"}` item. The URL shows the escaped query, and no trashed id came back.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_files("QA", folder_id={FOLDER_ID})` → 13 results, every `parent` = {FOLDER_ID}. `search_files("QA-Trashed-1054", folder_id=run folder)` → `[]` after trashing. Injection `folder_id="x' in parents or trashed=true or 'y"` → one `{"error": "Search failed: <HttpError 404 … File not found: .>"}` item; URL shows the escaped query; no trashed id.
+
 ---
 
 ### TC-D78: Query with single quote
@@ -1336,6 +1462,42 @@ search_files("it's a test") → `[]` cleanly, no Drive API syntax error. Single-
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
+OAuth (`mcp-gee-sweet-sky`, on the PR head): positive controls found both #1054 fixtures (all three searches), then after trashing both (`trashed: true` confirmed), `search_files('QA', max_results=100)` returned docs, spreadsheets and folders, each entry with id/name/mimeType/modified_time/web_link, and neither trashed id in either `QA-Trashed-1054` search. Service account (fresh interpreter in the QA worktree, this branch's registered `search_files` with a `service_account.Credentials` Drive client, run twice): `search_files('QA', max_results=100)` → 16 results spanning docs, spreadsheets and folders (the check that failed before #1127).
+
+**Result (2026-10-24) ✅ PASS — PR #1200 QA round 2 (Sky) @ 0073914c**
+Service account (fresh interpreter, this head): `search_files('QA', max_results=100)` → 16 results spanning docs, spreadsheets and folders, each with id/name/mimeType/modified_time/web_link. The round-2 commit doesn't touch `search_files`' query or trashed filter, so the OAuth trashed-fixture checks from round 1 weren't rerun.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `search_files("it's a test")` → 19 fullText matches, no syntax error.
+
+---
+
+### TC-D299: Unscoped search under a service account finds Shared Drive files it never opened (#1127)
+
+**Servers:** an OAuth server for setup and cleanup, and a service-account server (e.g. `mcp-gee-sweet-kai-sa`) for every check. Run on an OAuth server only, this case proves nothing: the bug was that Drive's default `user` corpus leaves out Shared Drive files the *service account* hasn't created or opened.
+
+**Setup:**
+1. On the OAuth server: `create_doc(title="QA-Untouched-1127-Doc", folder_id={FOLDER_ID})` and `create_spreadsheet(title="QA-Untouched-1127-Sheet", folder_id={FOLDER_ID})`; note both ids. From here until cleanup, call nothing on the service-account server that reads either file by id (`get_file_metadata`, `get_doc_content`, `get_sheet_data`, ...). Once the service account opens a file, the file enters its `user` corpus and the case stops reproducing the bug. Listing and search calls don't count as opening.
+2. Positive control, on the service-account server: `search_files(query="QA-Untouched-1127", folder_id={FOLDER_ID})` must return both ids. Drive's search index can lag a new file, so retry until it does; an unscoped check run before this proves nothing.
+
+**Checks** (all on the service-account server, none with a folder):
+- `search_files(query="QA-Untouched-1127")` returns both ids.
+- `search_spreadsheets(query="QA-Untouched-1127")` returns the spreadsheet's id.
+- `list_recent_files(days=1, mime_type="application/vnd.google-apps.spreadsheet", max_results=100)` includes the spreadsheet's id, and `list_recent_files(days=1, mime_type="application/vnd.google-apps.document", max_results=100)` includes the doc's id.
+- Before the fix, each of these returned neither id while the step-2 control found both.
+
+`list_spreadsheets()` and `list_folders()` have the same fix, but no team server reaches their unscoped path: each sets `DRIVE_FOLDER_ID`, so a call with no folder is scoped to it. `tests/drive/test_files.py::TestCorporaSelection` covers that path.
+
+**Cleanup:** on the OAuth server, `delete_file(file_id=<id>, permanent=True)` on both.
+
+**Result (2026-10-24) ✅ PASS — PR #1200 (#1127), QA round 1 (Sky)**
+Setup on `mcp-gee-sweet-sky` (OAuth); every check in a fresh interpreter in the QA worktree, calling this branch's registered tool functions with a `service_account.Credentials` Drive client (no live server runs this branch as a service account). The fixtures were never read by id from the service account. Positive control (folder-scoped `search_files`) found both on the first try. Bug reproduced first: the same raw `files().list` query without `corpora` returned neither id, and with `corpora="allDrives"` returned both (`incompleteSearch=False` both ways). Checks, run twice with identical results: unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files(days=1, …spreadsheet, 100)` → the spreadsheet; `list_recent_files(days=1, …document, 100)` → the doc. Cleanup: both permanently deleted from OAuth.
+
+**Result (2026-10-24) ✅ PASS — PR #1200 QA round 2 (Sky) @ 0073914c**
+Rerun from scratch on the new head, because it moves the all-drives flags into `_list_drive_files`, which `list_recent_files` uses. Fresh fixtures, same method as round 1. Positive control found both. The raw query without `corpora` again returned neither, and with `allDrives` returned both. Unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files` (spreadsheet / document, `days=1`, 100) → each id. Under OAuth, `list_recent_files(max_results=100)` → 41 results, no error. Cleanup: both permanently deleted.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Every check has to run as the service account. This shard may call only the OAuth `ash` prefix, and rule 4 bars borrowing an SA key for a fresh-interpreter run, since Aziz's worktree config has no SA credentials of its own. Without the SA checks the OAuth setup proves nothing, so I didn't create the fixtures. Needs SA identity, deferred to Aziz (setup on an OAuth server, checks on kai-sa/sa).
 
 ---
 
@@ -1364,6 +1526,8 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): spreadsheet metadata with name, parents, created/modified time, owners `[]` (Shared Drive), web_link; no `size`.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — mimeType spreadsheet; name/parents/created_time/modified_time/owners (`[]`, Shared Drive)/web_link present; no `size`; `trashed: false`.
+
 ---
 
 ### TC-D80: Metadata for a Google Doc
@@ -1380,6 +1544,8 @@ get_file_metadata(DOC_ID): mimeType application/vnd.google-apps.document; web_li
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — mimeType document; web_link present (docs.google.com/document/d/{DOC_ID}/edit). Not opened in a browser.
 
 ---
 
@@ -1398,6 +1564,8 @@ get_file_metadata(FOLDER_ID): mimeType application/vnd.google-apps.folder; web_l
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — mimeType folder; web_link is the Drive folder URL.
+
 ---
 
 ### TC-D82: Non-existent file ID
@@ -1413,6 +1581,8 @@ get_file_metadata('invalidid123xyz') → HttpError 404 propagates cleanly — no
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — HttpError 404 propagates cleanly.
 
 ---
 
@@ -1436,6 +1606,8 @@ Substituted qa-236.txt (text/plain, no persistent PNG in FOLDER_ID). get_file_me
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — binary substitute qa-236.txt (no PNG fixture): `md5_checksum: 741fc6b1878e208346359af502dd11c5`, size "9", matching list_files (TC-D236); {SPREADSHEET_ID} `md5_checksum: null`.
+
 ---
 
 ## `list_drives`
@@ -1451,27 +1623,30 @@ Run 1 (kai-oauth).
 - No error if zero shared drives accessible — returns `[]`
 
 **Result (2026-09-04) ✅ PASS**
-list_drives() → 1 drive 'mcp-gee-sweet-shared' (id 0APfXAGTeZYz3Uk9PVA = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).
+list_drives() → 1 drive 'mcp-gee-sweet-shared' (id {DRIVE_FOLDER_ID} = SHARED_DRIVE_ID) with id, name, created_time, and non-empty capabilities dict (canAddChildren:true present).
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — 1 drive `mcp-gee-sweet-shared` with id, name, created_time and a non-empty capabilities dict (canAddChildren true).
 
 ---
 
 ### TC-D121: Filter by name
 
-**Fixture:** the QA environment has exactly one Shared Drive, `SHARED_DRIVE_ID`
-("mcp-gee-sweet-shared"). A `name contains "Marketing"` filter should therefore return
-`[]`; run a second call with `name contains "mcp-gee"` and confirm that one returns the
-fixture drive.
+**Fixture:** the QA environment's Shared Drives include `SHARED_DRIVE_ID`
+("mcp-gee-sweet-shared"), and none of them has "Marketing" in its name. A
+`name contains "Marketing"` filter should therefore return `[]`. Run a second call with
+`name contains "mcp-gee"` and confirm that it returns the fixture drive. Other drives whose
+names contain "mcp-gee" may also be returned; the check doesn't depend on how many exist.
 
 **Prompt**
 > "List shared drives whose name contains 'Marketing'", then "List shared drives whose name contains 'mcp-gee'"
 
 **Checks**
 - `query='name contains "Marketing"'` passed to API; result is `[]`
-- `query='name contains "mcp-gee"'` returns exactly the `SHARED_DRIVE_ID` fixture drive
-- A drive not matching the name is absent from results
+- `query='name contains "mcp-gee"'` includes the `SHARED_DRIVE_ID` fixture drive, and every drive returned has "mcp-gee" in its name
+- A drive not matching the name is absent from results (compare against an unfiltered `list_drives()`)
 
 **Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(query='name contains "Marketing"')` returned `[]`; `list_drives(query='name contains "mcp-gee"')` returned exactly one drive, `mcp-gee-sweet-shared`, whose `id` matches `.env`'s `SHARED_DRIVE_ID`. Unfiltered `list_drives()` returns that same single drive.
 
@@ -1481,21 +1656,24 @@ list_drives(query='name contains "Marketing"') → `[]`; list_drives(query='name
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Filter correct; "exactly one drive" wording is stale (a second mcp-gee* drive exists).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — "Marketing" → `[]`; "mcp-gee" → the shared fixture drive only. The SA sees only one drive, so the "non-matching drive absent" comparison has no non-matching drive to compare against.
+
 ---
 
 ### TC-D122: max_results clamping
 
-**Fixture:** with exactly one Shared Drive in the environment (`SHARED_DRIVE_ID`),
-`max_results=0` exercises the clamp-to-1 path (returns the one drive, not zero). The
-clamp-to-200 ceiling can't be exercised live with one drive; the clamp is inline in
-`list_drives` (`max_results = min(max(1, max_results), 200)`), no dedicated unit test.
+**Fixture:** the environment has at least one Shared Drive (`SHARED_DRIVE_ID`); more than
+one is fine. `max_results=0` exercises the clamp-to-1 path (returns one drive, not zero). The
+clamp-to-200 ceiling can't be exercised live with fewer than 200 drives; `list_drives` clamps
+with `clamp_max_results(max_results, 200)` (`tools/response_limits.py`) and trims the result
+to that count.
 
 **Prompt**
 > "List shared drives with max_results=0" then "List shared drives with max_results=300"
 
 **Checks**
-- `max_results=0` clamped to 1; at most 1 drive returned (not `[]`)
-- `max_results=300` clamped to 200 in the API call; returns the 1 available drive
+- `max_results=0` clamped to 1; exactly 1 drive returned (not `[]`), even when more exist
+- `max_results=300` clamped to 200 in the API call; returns every available drive
 
 **Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(max_results=0)` returned 1 drive (`mcp-gee-sweet-shared`), not `[]` — clamp-to-1 path confirmed. `list_drives(max_results=300)` returned the 1 available drive; the clamp-to-200 ceiling isn't directly observable with a single drive (matches this case's own note).
 
@@ -1504,6 +1682,8 @@ list_drives(max_results=0) → 1 drive (clamp-to-1, not []); list_drives(max_res
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `max_results=0` → 1 drive (not `[]`); `max_results=300` → the 1 available drive, no error (ceiling not observable with one drive, per the case's note).
 
 ---
 
@@ -1523,6 +1703,8 @@ env — TEST_FOLDER_2_ID retired per #305. Standing decision (not a transient ga
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — standing unit-test-only decision (#305).
+
 ---
 
 ## `list_shared_with_me`
@@ -1541,7 +1723,7 @@ Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
 **Result (2026-06-21) ✅** OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have `id`, `name`, `mime_type`, `modified_time`, `owners` (flat email list), `web_link`. Ordered by `modifiedTime desc`. SA: 5 files returned — files explicitly shared with the service account (Budget & Savings spreadsheet plus 4 folders).
 
 **Result (2026-09-04) ⚠️ PARTIAL**
-list_shared_with_me() → `[]` cleanly, no error. The OAuth identity here is a Workspace-org QA account (kevin@mcpsuite.io, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
+list_shared_with_me() → `[]` cleanly, no error. The OAuth identity here is a Workspace-org QA account (qa-workspace-user@example.org, per get_storage_quota), which has no files shared directly with it — [] is a valid result, not a tool fault. Field/ordering checks vacuous. Aziz may want to seed a shared file to exercise the non-empty path.
 **Corrected (2026-10-17, #1044 audit):** the fixture had no shared files, so the field and ordering checks weren't exercised.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
@@ -1552,6 +1734,11 @@ Run 1 (kai-oauth).
 
 **Result (2026-10-20) ⚠️ PARTIAL — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `list_shared_with_me()` → `[]`, no error; per-entry checks had nothing to run on.
+
+**Result (2026-10-24) ⚠️ PARTIAL — PR #1200 (#1127) QA round 2 (Sky) @ 0073914c**
+This head adds `includeItemsFromAllDrives`/`supportsAllDrives` to `list_shared_with_me`. Run in a fresh interpreter on this branch's registered tool, under a service account and under OAuth (sky's credentials): `list_shared_with_me(max_results=200)` → `[]` with no error both times. A raw `sharedWithMe=true` list with and without the flags also returned 0 files under OAuth. Neither identity has a file shared with it directly, so the new non-member Shared Drive path and the per-entry checks weren't exercised.
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `list_shared_with_me()` → `[]`, no error (expected for the SA). Not run: per-entry field and owners checks (no entries); query clauses not visible from the tool surface. Non-empty path needs OAuth with a seeded share — deferred to Aziz.
 
 ---
 
@@ -1574,6 +1761,8 @@ list_shared_with_me(mime_type=spreadsheet) → `[]` cleanly. Same env characteri
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — mime=spreadsheet → `[]`, no error (expected for the SA). Not run: filter check (no entries).
+
 ---
 
 ### TC-D154: Limit shared files with max_results
@@ -1594,6 +1783,8 @@ list_shared_with_me(max_results=3) → `[]` cleanly (≤3 trivially). Same env c
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — max_results=3 → `[]`, no error. Not run: cap and ordering checks (no entries).
 
 ---
 
@@ -1627,6 +1818,8 @@ list_shared_with_me(mime_type="it's a test") → `[]` cleanly, no HttpError 400.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `mime_type="it's a test"` → `[]` cleanly, no HttpError 400. Named unit tests pass (see TC-D248).
+
 ---
 
 ## `list_recent_files`
@@ -1649,6 +1842,11 @@ list_recent_files(max_results=10) → 10 items ordered by modified_time desc; ea
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth). `list_recent_files(max_results=10)` returned 10 items ordered by `modified_time` desc, each with id, name, mime_type, modified_time, web_link.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — run as the SA (all drives): `list_recent_files(max_results=10)` → 10 items, modified_time descending, each with id/name/mime_type/modified_time/web_link; items from the Shared Drive (other shards' folders).
+
 ---
 
 ### TC-D157: Filter by days
@@ -1667,6 +1865,14 @@ list_recent_files(days=7) → all results modified 2026-09-04 (within 7 days), o
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-10-24, PR #1222 round 1 @ 5a30c76, Sky) ✅ PASS**
+`mcp-gee-sweet-sky` (OAuth), exercising the `datetime.now(UTC)` cutoff (#1212). `days=7` returned only items modified 2026-10-24. `days=1, max_results=100` at about 2026-10-25T06:00Z returned 11 items, all modified between 2026-10-24T15:15Z and 19:29Z, inside the 24-hour window, ordered desc.
+
+**Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ✅ PASS**
+After the pydantic 2.14.1 re-lock, reconnected. `days=1, max_results=3` at about 16:08Z returned 3 items modified 2026-10-24T19:05Z–19:29Z, inside the window, ordered desc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `days=7` (with a folder mime filter to keep output small, max 100) → 51 folders, all modified 2026-11-08; `QA-MD-2026-10-31-pr1316-run1` (modified 2026-11-01T03:32Z, just over 7 days) correctly excluded; ordered desc.
 
 ---
 
@@ -1687,6 +1893,8 @@ list_recent_files(days=14, mime_type=spreadsheet) → all 10 results are applica
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `days=14, mime=spreadsheet` → 6 results, all spreadsheets, all modified 2026-11-08.
+
 ---
 
 ### TC-D159: max_results capped at 100
@@ -1701,6 +1909,8 @@ unit-test-only ("Checks (unit test)"): max_results=500 → pageSize=100. Covered
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — standing unit-test-only.
 
 ---
 
@@ -1732,6 +1942,8 @@ list_recent_files(mime_type="it's a test") → `[]` cleanly, no HttpError 400. R
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `mime_type="it's a test"` → `[]` cleanly; named unit tests pass (see TC-D248).
+
 ---
 
 ## `get_storage_quota`
@@ -1750,7 +1962,7 @@ Run 1 (kai-oauth).
 **Result (2026-06-21) ✅** OAuth: `limit_bytes=16106127360` (15 GB), `usage_bytes=13760121856`, `usage_in_drive_bytes=875136784`, `usage_in_trash_bytes=93860012`. All integers. SA: `limit_bytes=0` (API returned `"0"` — expected for service accounts), all usage fields 0, `display_name` is the service account email. Note: docstring corrected — SA returns `0` not `None`.
 
 **Result (2026-09-04) ✅ PASS**
-get_storage_quota() → email "kevin@mcpsuite.io", display_name "Kevin Huisman", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.
+get_storage_quota() → email "qa-workspace-user@example.org", display_name "<QA user>", limit_bytes 32212254720 (int), usage_bytes 103061 (int), usage_in_drive_bytes 0 (int), usage_in_trash_bytes 0 (int). All byte fields integers; all keys present.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
@@ -1760,6 +1972,8 @@ Run 1 (kai-oauth).
 
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account): SA address, all byte fields int 0. `kai-oauth` (OAuth): the fixture account, limit 32212254720, usage fields int.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — SA: email and display_name are the SA address, `limit_bytes: 0`, usage fields int 0; all keys present.
 
 ---
 
@@ -1777,6 +1991,8 @@ unit-test-only ("Checks (unit test)"): fields arg includes storageQuota + user. 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
 
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — standing unit-test-only.
+
 ---
 
 ### TC-D162: Byte values are integers not strings
@@ -1792,6 +2008,8 @@ unit-test-only ("Checks (unit test)"): byte values cast to int. Covered by unit 
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Standing unit-test-only (docs/qa/runs/README.md pre-approved list).
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — standing unit-test-only (ints observed incidentally in TC-D160).
 
 ---
 
@@ -1814,6 +2032,8 @@ import_csv_to_sheet(/tmp/qa-import.csv → 'QA-CSV-Import' in FOLDER_ID) → spr
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `import_csv_to_sheet(<scratch>/qa-import.csv → 'QA-CSV-Import', run folder)` → spreadsheetId, exact title, web_link, rows_written=4. `get_sheet_data` = `[["name","age"],["Alice","30"],["Bob","25"],["Carol","42"]]`. The run folder's cached listing showed the new sheet with no manual refresh.
+
 ---
 
 ### TC-D170: Custom sheet_name renames the default sheet ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1831,6 +2051,8 @@ import_csv_to_sheet(..., sheet_name="Imported Data") → list_sheets returned ex
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — sheet_name='Imported Data' → `list_sheets` = `["Imported Data"]` (one sheet, no Sheet1); its data matches the 4 CSV rows.
 
 ---
 
@@ -1851,6 +2073,8 @@ import_csv_to_sheet(1501-row CSV → 'QA-CSV-Large') → rows_written=1501, no g
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — 1501-row CSV → rows_written=1501, no grid error. A998:B1503 read rows 997…1500 continuously across the 1000 boundary; last data row (1500,row-1500) at sheet row 1501, nothing after.
+
 ---
 
 ### TC-D172: Ragged rows padded to a common width ⚠️ requires-oauth ⚠️ local-filesystem
@@ -1869,6 +2093,8 @@ import_csv_to_sheet(ragged CSV a,b,c / 1,2 / 4,5,6) → rows_written=3. get_shee
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `a,b,c / 1,2 / 4,5,6` → rows_written=3; `get_sheet_data` `[["a","b","c"],["1","2"],["4","5","6"]]`, short row under a/b with no shift, nothing dropped.
+
 ---
 
 ### TC-D173: Non-existent local path (unit test)
@@ -1884,6 +2110,8 @@ import_csv_to_sheet('/tmp/does-not-exist-qa.csv') → `{"error":"File not found:
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — live: `{"error": "File not found: <scratch>/does-not-exist-qa.csv"}`, names the path, nothing created.
+
 ---
 
 ### TC-D174: Non-.csv extension rejected (unit test)
@@ -1898,6 +2126,8 @@ import_csv_to_sheet('/tmp/qa-not-csv.txt') → `{"error":"Unsupported file exten
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — live on a scratch `.txt`: `{"error": "Unsupported file extension '.txt'. Use .csv"}`, nothing created.
 
 ---
 
@@ -1921,6 +2151,8 @@ needs SA prefix + personal-Drive destination folder; Aziz to run. On OAuth (sky)
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Environmental: needs the SA identity plus a personal-Drive folder / a Content-manager SA.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — environmental: no personal-Drive folder available to force the quota error.
 
 ---
 
@@ -1948,6 +2180,8 @@ import_csv_to_sheet(12001-row CSV → 'QA-CSV-Concurrent-183') → rows_written=
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — 12,000-row CSV → rows_written=12001, no error. Boundary reads (rows 1-2, 4998-5002, 9998-10002, 11998-12000) all match. Full read of A1:B12010 to a scratch file: 12,001 rows, data rows equal exactly `row-1..row-12000` in order (no gaps, overlap or duplicates).
+
 ---
 
 ### TC-D257: `import_csv_to_sheet` emits `notifications/progress` updates as each row chunk completes ⚠️ requires-oauth ⚠️ local-filesystem (issue #355)
@@ -1968,6 +2202,8 @@ Delete the `QA-CSV-Progress-355` spreadsheet.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-oauth).
+
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Header+3-row CSV → rows_written=4, no error, so the progress-reporting path doesn't break the call. Not run: "at least one discrete update per chunk", since this subagent client shows no `notifications/progress` messages.
 
 ---
 
@@ -1997,6 +2233,8 @@ Created 'QA-Shortcut-Target' spreadsheet in FOLDER_ID; create_shortcut('QA-Short
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 create_shortcut cases matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Target sheet in the run folder (substituted for {FOLDER_ID}); `create_shortcut(name='QA-Shortcut-Explicit', folder=run folder)` → no error, shortcutId, parent = run folder, targetId = target, targetMimeType spreadsheet. Drive UI (playwright-4, screenshot `.playwright-mcp/shardH-tc-d206.png`) labels it "Shortcut to Google Sheets", unlike the target ("Google Sheets").
+
 ---
 
 ### TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive
@@ -2021,29 +2259,35 @@ create_shortcut(target='QA-Shortcut-NameSource', no name) → `{name:'QA-Shortcu
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 create_shortcut cases matched.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `create_shortcut` with no name → `name:'QA-Shortcut-NameSource'`, targetId matches, no error.
+
 ---
 
 ### TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive
 
 **Setup:** Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.
 
+The default folder is the server's `DRIVE_FOLDER_ID`, which `setup.md` sets to the Shared Drive's root (the same value as `SHARED_DRIVE_ID`). It is not `{FOLDER_ID}` (`TEST_FOLDER_ID`), so the shortcut lands in the Shared Drive root, not next to its target. With `DRIVE_FOLDER_ID` unset, the default is My Drive root.
+
 **Prompt**
 > "Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"
 
 **Checks**
-- Response `parent` matches the server's configured default folder (`{FOLDER_ID}` in this fixture setup)
-- `list_files` on `{FOLDER_ID}` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
+- Response `parent` matches the server's configured default folder, `DRIVE_FOLDER_ID`
+- `list_files` on `DRIVE_FOLDER_ID` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
 - Confirms `drive_folder_cache.mark_dirty` fired for the parent (cache reflects the new shortcut without a manual refresh)
 
 **Cleanup:** Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.
 
-**Result (2026-07-22) ✅ (behavior) / environment note** — This live server has no `DRIVE_FOLDER_ID` configured, so its "configured default folder" is `My Drive` root, not `{FOLDER_ID}` — confirmed by comparison: `create_spreadsheet` with no `folder_id` also lands in the same root (`0ACZ5KALjwnmUUk9PVA`). `create_shortcut`'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a `create_shortcut` defect — the parenthetical `({FOLDER_ID} in this fixture setup)` only holds when the server's `DRIVE_FOLDER_ID` is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's `list_files` call, which showed the new shortcut with no manual `refresh_cache`. All three probe files trashed after the test.
+**Result (2026-07-22) ✅ (behavior) / environment note** — This live server has no `DRIVE_FOLDER_ID` configured, so its "configured default folder" is `My Drive` root, not `{FOLDER_ID}` — confirmed by comparison: `create_spreadsheet` with no `folder_id` also lands in the same root (`<My Drive root>`). `create_shortcut`'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a `create_shortcut` defect — the parenthetical `({FOLDER_ID} in this fixture setup)` only holds when the server's `DRIVE_FOLDER_ID` is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's `list_files` call, which showed the new shortcut with no manual `refresh_cache`. All three probe files trashed after the test.
 
 **Result (2026-09-04) ✅ PASS**
-create_shortcut(target in FOLDER_ID, no folder_id) → `{parent:"0APfXAGTeZYz3Uk9PVA", ...}` = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.
+create_shortcut(target in FOLDER_ID, no folder_id) → `{parent:"{DRIVE_FOLDER_ID}", ...}` = DRIVE_FOLDER_ID (Shared Drive root) = the server's actual configured default folder. TC parenthetical "({FOLDER_ID} in this fixture setup)" is stale post-#680/#305 — behavior is correct and consistent with create_folder/create_spreadsheet (TC-D58/D59). Shortcut is in the root, not FOLDER_ID.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Parent is DRIVE_FOLDER_ID; the "({FOLDER_ID})" parenthetical is stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Warmed `list_files(<shared root>, shortcut mime)` = []; `create_shortcut('QA-Shortcut-Default', no folder)` → parent = mcp-gee-sweet-shared root (DRIVE_FOLDER_ID). The next listing of the same query (no refresh) showed QA-Shortcut-Default with `application/vnd.google-apps.shortcut`, so the parent's cache was invalidated. Trashed.
 
 ---
 
@@ -2064,5 +2308,50 @@ create_shortcut(target='invalidid123xyz', folder=FOLDER_ID, name='QA-Shortcut-Ba
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 create_shortcut cases matched.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — run with the run folder as destination: HttpError 404 "File not found: invalidid123xyz." surfaced cleanly; `list_files(run folder, mime=shortcut)` → `[]`, nothing left behind.
+
+---
+
+### TC-D301: A Drive write cancelled while in flight still lands, and the folder listing is invalidated on the cancel and again once it lands (#1030) ⚠️ requires-oauth ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** No MCP client can cancel a tool call at a chosen point, so `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every folder-cache invalidation as `folder cache marked dirty for <id>` or `folder cache: every folder marked dirty`, each with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`).
+
+**Setup:**
+1. `create_folder(name="TC-D301", parent_folder_id={FOLDER_ID})`. Record `folderId` as `{SCRATCH}`.
+2. `create_doc(title="TC-D301 doc", folder_id={SCRATCH})`. Record `docId` as `{FILE_ID}`.
+3. A local directory `<dir>` holding one file, `a.txt`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py create_folder --folder-id {SCRATCH}`
+2. `uv run python scripts/qa_cancel_inflight_write.py rename_file --file-id {FILE_ID}`
+3. `list_files(folder_id={SCRATCH})`. Record the `TC-D1030 folder` entry's ID as `{SUB}`.
+4. `uv run python scripts/qa_cancel_inflight_write.py move_file --file-id {FILE_ID} --folder-id {SUB}`
+5. `uv run python scripts/qa_cancel_inflight_write.py sync_folder --folder-id {SUB} --local-path <dir>`
+
+**Checks**
+- Every step prints `cancelled <tool> while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
+- Step 1 prints `folder cache marked dirty for {SCRATCH} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1030, neither line was printed
+- Step 2 prints `folder cache: every folder marked dirty (write landed: no)`, then the same with `(write landed: yes)`. A rename's folder comes only from its response, which a cancelled call never reads
+- Step 4 prints a `(write landed: no)` line for both `{SCRATCH}` and `{SUB}`, then a `(write landed: yes)` line for both
+- Step 5 prints `folder cache marked dirty for {SUB} (write landed: no)`, then `(write landed: yes)`
+- After `refresh_cache(folder_id={SCRATCH})` and `refresh_cache(folder_id={SUB})`: `list_files(folder_id={SCRATCH})` shows `TC-D1030 folder` and no `TC-D301 doc`; `list_files(folder_id={SUB})` shows `TC-D1030 renamed` and `a.txt` (every cancelled write landed). Drive's `in parents` index can lag the move by a few seconds, so if `{SCRATCH}` still lists `TC-D1030 renamed`, check that `get_file_metadata(file_id={FILE_ID})` shows `{SUB}` as its only parent, then refresh and list again
+- If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
+
+**Cleanup:** trash `{SCRATCH}`.
+
+**Result (2026-10-26) ✅ PASS — PR #1264 QA round 1 (Kit) @ 46b3ba07**
+Ran the script from the `kit` checkout with its own `TOKEN_PATH`, against a scratch folder on the Shared Drive. Every step printed the expected `(write landed: no)` line(s), then `cancelled <tool> …`, then the matching `(write landed: yes)` line(s), and ended `writes sent: 1; landed: 1`. Step 2 printed `folder cache: every folder marked dirty` both times. Step 4 printed lines for both `{SCRATCH}` and `{SUB}`. Final listings: `{SUB}` held `a.txt` and `TC-D1030 renamed`, and `{SCRATCH}` held only `TC-D1030 folder`. Note: the first `list_files({SCRATCH})` right after `refresh_cache` still showed the moved doc, though `get_file_metadata` already reported `{SUB}` as its only parent. A second refresh-and-list a few seconds later was correct. That points to lag in Drive's `in parents` index, not to the cache, so if the doc still shows up, wait a few seconds and list again.
+
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 2 (Kit) @ 0ca267f3**
+Re-ran all five steps on a fresh scratch folder from the `kit` checkout at the fix commit. Every step printed the same lines as round 1: step 2 printed `every folder marked dirty` on both sides (the cancelled rename gets no response), and step 4 printed lines for both folders. The final listings were correct once Drive's index caught up; the same `in parents` lag appeared after the move and cleared on the next refresh-and-list. Extra round-2 checks in a fresh interpreter, against the real API with mocked caches: `rename_file` on a nonexistent ID raised `HttpError` (404) and marked nothing, and `mark_all_dirty` wasn't called. A successful `rename_file` marked only the parent named in its response, again without `mark_all_dirty`.
+
+**Result (2026-10-27) ✅ PASS — PR #1264 QA round 3 (Kit) @ 51bc64f1**
+After the `develop` merge (1cdde06b, which brought in #1261's paged `transfer.py` listings), I re-ran steps 1 and 5 on a fresh scratch folder from the `kit` checkout, since those are the steps the merged `transfer.py` code runs. Both printed `(write landed: no)` and then `(write landed: yes)` for `{SCRATCH}`, and ended `writes sent: 1; landed: 1`. I didn't re-run steps 2–4: the merge doesn't touch `files.py`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Setup on ash: {SCRATCH} = folder TC-D301 in the run folder, {FILE_ID} = 'TC-D301 doc', local dir with a.txt in shard scratch. Script run from Aziz's worktree (f98c67b7) with that worktree's own OAuth token. Each step printed `cancelled <tool> while its write was in flight; the tool returned nothing` and `writes sent: 1; landed: 1`. Steps 1 and 5: `marked dirty for <folder> (write landed: no)` then `(… yes)`. Step 2: `every folder marked dirty` no/yes. Step 4: no/yes lines for both {SCRATCH} and {SUB}. After refresh_cache on both: {SCRATCH} = [TC-D1030 folder] only; {SUB} = [a.txt, TC-D1030 renamed]. No `in parents` lag seen this time.
 
 ---

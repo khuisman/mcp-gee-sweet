@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import emitter as emitter_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
     Image,
@@ -14,19 +15,23 @@ from mcp_gee_sweet.tools.docs.ast import (
     Run,
     Table,
 )
-from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests
+from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests, _to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
+    CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
+    _build_cell_alignment_requests,
     _build_fill_requests,
     _cell_para_start_for_cursor,
     _fill_nested_cell_content,
     _find_nth_table_in_cell,
+    _has_cell_alignment,
     _text_offset_since_last_table,
     ast_to_requests,
     fill_tables,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 
 
 def _make_tool_registry():
@@ -77,6 +82,15 @@ def _tables_in(cell: Cell) -> list[Table]:
 
 def _runs_in(cell: Cell) -> list[Run]:
     return [child for child in cell.children if isinstance(child, Run)]
+
+
+def _plain_images(svc, doc_id: str = "doc1") -> CellImages:
+    """A fill with no cell images, sending each batch through `svc` as-is."""
+
+    async def run_batch(requests: list[dict]) -> None:
+        svc.documents().batchUpdate(documentId=doc_id, body={"requests": requests}).execute()
+
+    return CellImages({}, run_batch, lambda _e: None, lambda *_: None)
 
 
 # ---------------------------------------------------------------------------
@@ -565,9 +579,13 @@ class TestFindNthTableInCell:
 # ---------------------------------------------------------------------------
 
 
+IMG = "▣"  # how FakeDoc shows an inline image in a paragraph's text
+
+
 class Para:
     def __init__(self, text: str = ""):
         self.text = text
+        self.alignment: str | None = None  # set by updateParagraphStyle (#1095)
 
     def size(self) -> int:
         return len(self.text) + 1  # implicit trailing newline
@@ -670,6 +688,9 @@ class FakeDoc:
         for req in requests:
             if "insertText" in req:
                 self.insert_text(req["insertText"]["location"]["index"], req["insertText"]["text"])
+            elif "insertInlineImage" in req:
+                # An inline object takes one index, like a character (#1073).
+                self.insert_text(req["insertInlineImage"]["location"]["index"], IMG)
             elif "insertTable" in req:
                 it = req["insertTable"]
                 self.insert_table(it["location"]["index"], it["rows"], it["columns"])
@@ -689,6 +710,37 @@ class FakeDoc:
             elif "updateTableCellStyle" in req:
                 loc = req["updateTableCellStyle"]["tableRange"]["tableCellLocation"]
                 self._check_table_start(loc["tableStartLocation"])
+            elif "updateParagraphStyle" in req:
+                self.update_paragraph_style(req["updateParagraphStyle"])
+
+    def _walk_elements(self):
+        """Yield (object, startIndex, endIndex) for every Para and TableNode, at any
+        depth, from a fresh get()."""
+
+        def walk(objs, dict_elems):
+            for obj, elem in zip(objs, dict_elems, strict=True):
+                yield obj, elem["startIndex"], elem["endIndex"]
+                if isinstance(obj, TableNode):
+                    for row_obj, row_elem in zip(obj.rows, elem["table"]["tableRows"], strict=True):
+                        for cell_obj, cell_elem in zip(
+                            row_obj, row_elem["tableCells"], strict=True
+                        ):
+                            yield from walk(cell_obj.content, cell_elem["content"])
+
+        yield from walk(self.content, self.get()["body"]["content"])
+
+    def update_paragraph_style(self, ups: dict):
+        # Only the alignment field is modelled. A range taking in a whole table would
+        # restyle that table's own cells too, so it's rejected here (#1095).
+        start, end = ups["range"]["startIndex"], ups["range"]["endIndex"]
+        assert ups["fields"] == "alignment"
+        elements = list(self._walk_elements())
+        for obj, s, e in elements:
+            if isinstance(obj, TableNode) and start <= s and e <= end:
+                raise ValueError(f"paragraph style range {start}-{end} spans a table")
+        for obj, s, e in elements:
+            if isinstance(obj, Para) and s < end and e > start:
+                obj.alignment = ups["paragraphStyle"]["alignment"]
 
     def _check_table_start(self, location: dict) -> "TableNode":
         # Mirrors the real API's 400 "The provided table start location is
@@ -741,7 +793,7 @@ class TestFillNestedCellContent:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         return doc
 
     async def test_leading_text_only(self):
@@ -817,7 +869,7 @@ class TestFillNestedCellContent:
     async def test_plain_cells_produce_no_calls(self):
         ast_table = _table(_row(_cell("plain")))
         svc = MagicMock()
-        await _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         svc.documents.return_value.get.assert_not_called()
         svc.documents.return_value.batchUpdate.assert_not_called()
 
@@ -834,13 +886,15 @@ class TestFillNestedCellContent:
     async def test_image_child_is_skipped_not_looped_on(self):
         # #509: a cell with a nested table and an Image used to stay pending
         # forever, since the run-group loop stopped at the Image without advancing.
-        # The Image is dropped, as _build_fill_requests drops it in a plain cell.
+        # The Image never resolved here, so it's written as its fallback text (#1099),
+        # as _build_fill_requests writes it in a plain cell: "image", since a drive:
+        # source with no alt has no name to show.
         inner = _table(_row(_cell("inner")))
         img = Image(src="drive:abc")
         doc = await asyncio.wait_for(
             self._run(Cell(children=[img, Run("A"), img, Run("B"), inner, img])), timeout=5
         )
-        assert doc.describe_cell(0, 0, 0) == ["Para:AB", "Table"]
+        assert doc.describe_cell(0, 0, 0) == ["Para:imageAimageB", "Table", "Para:image"]
 
 
 # ---------------------------------------------------------------------------
@@ -873,7 +927,7 @@ class TestNestedTableMerges:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table], _plain_images(svc))
         return doc, batches
 
     async def test_colspan_merge_emitted_and_only_anchor_cell_filled(self):
@@ -987,7 +1041,7 @@ class TestFillTablesColumnWidths:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        await fill_tables(svc, "doc1", ast_tables)
+        await fill_tables(svc, "doc1", ast_tables, _plain_images(svc))
         fetches = svc.documents.return_value.get.return_value.execute.call_count
         return doc, batches, fetches
 
@@ -1078,6 +1132,78 @@ class TestFillTablesColumnWidths:
         assert fetches == baseline
 
 
+class TestFillTablesCollapsesTrailingParagraph:
+    """#1100: fill_tables' first batch collapses the empty paragraph after a final
+    table, alongside the blank paragraph before it."""
+
+    @staticmethod
+    def _para(start: int, text: str) -> dict:
+        return {
+            "startIndex": start,
+            "endIndex": start + len(text),
+            "paragraph": {"elements": [{"textRun": {"content": text}}]},
+        }
+
+    async def _first_batch(self, last_text: str) -> list[dict]:
+        # One 1x1 table at 2..8 whose cell paragraph is 4..5.
+        table = {
+            "startIndex": 2,
+            "endIndex": 8,
+            "table": {
+                "tableRows": [
+                    {
+                        "startIndex": 3,
+                        "tableCells": [
+                            {"startIndex": 3, "endIndex": 5, "content": [self._para(4, "\n")]}
+                        ],
+                    }
+                ]
+            },
+        }
+        doc = {"body": {"content": [self._para(1, "\n"), table, self._para(8, last_text)]}}
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.return_value = doc
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            return MagicMock(execute=MagicMock(return_value={}))
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", [_table(_row(_cell("")))], _plain_images(svc))
+        return batches[0]
+
+    async def test_trailing_paragraph_collapsed_in_first_batch(self):
+        batch = await self._first_batch("\n")
+        trailing = [
+            r["updateParagraphStyle"]
+            for r in batch
+            if r.get("updateParagraphStyle", {}).get("range") == {"startIndex": 8, "endIndex": 9}
+        ]
+        assert trailing == [
+            {
+                "range": {"startIndex": 8, "endIndex": 9},
+                "paragraphStyle": {
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    "lineSpacing": 1,
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        ]
+        # The blank paragraph before the table is still collapsed in the same batch.
+        assert any(
+            r.get("updateTextStyle", {}).get("range") == {"startIndex": 1, "endIndex": 2}
+            for r in batch
+        )
+
+    async def test_text_after_table_untouched(self):
+        batch = await self._first_batch("Done\n")
+        assert not any(
+            r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 8 for r in batch
+        )
+
+
 # ---------------------------------------------------------------------------
 # #277 — a skipped degenerate table must not desync doc_tables/ast_tables
 # ---------------------------------------------------------------------------
@@ -1108,9 +1234,736 @@ class TestSkippedTableDoesNotDesyncTablePairing:
         doc_table = {
             "tableRows": [{"tableCells": [{"startIndex": 9, "content": [{"startIndex": 10}]}]}]
         }
-        fill_requests = _build_fill_requests([doc_table], tables)
+        fill_requests = _build_fill_requests([doc_table], tables, _plain_images(MagicMock()))
 
         insert_texts = [r["insertText"] for r in fill_requests if "insertText" in r]
         assert len(insert_texts) == 1
         assert insert_texts[0]["text"] == "hello"
         assert insert_texts[0]["location"]["index"] == 10
+
+
+# ---------------------------------------------------------------------------
+# #1073 — images inside table cells
+# ---------------------------------------------------------------------------
+
+
+class TestCellImageParser:
+    async def test_img_in_cell_becomes_image_child(self):
+        nodes = html_to_ast(
+            '<table><tr><td>Before</td><td><img src="https://a/b.png" width="40"></td>'
+            "<td>After</td></tr></table>"
+        )
+        cells = nodes[0].rows[0].cells
+        assert cells[1].children == [Image(src="https://a/b.png", width=30.0)]
+        assert _runs_in(cells[0])[0].text == "Before"
+        assert _runs_in(cells[2])[0].text == "After"
+
+    async def test_image_keeps_source_order_and_link(self):
+        nodes = html_to_ast(
+            '<table><tr><td>A <a href="https://x.com"><img src="https://a/b.png"></a> B'
+            "</td></tr></table>"
+        )
+        children = nodes[0].rows[0].cells[0].children
+        assert [type(c).__name__ for c in children] == ["Run", "Image", "Run"]
+        assert children[1].link_url == "https://x.com"
+
+    async def test_markdown_table_cell_image(self):
+        _, tables = _to_doc_requests(
+            "| a | b |\n|---|---|\n| Logo | ![cell logo](https://a/b.png) |\n", "markdown"
+        )
+        assert tables[0].rows[1].cells[1].children == [
+            Image(src="https://a/b.png", alt="cell logo")
+        ]
+
+    async def test_image_in_nested_table_cell(self):
+        nodes = html_to_ast(
+            '<table><tr><td>outer<table><tr><td><img src="https://a/b.png"></td></tr></table>'
+            "</td></tr></table>"
+        )
+        inner = _tables_in(nodes[0].rows[0].cells[0])[0]
+        assert inner.rows[0].cells[0].children == [Image(src="https://a/b.png")]
+
+    async def test_img_without_src_in_cell_is_dropped(self):
+        nodes = html_to_ast("<table><tr><td>x<img></td></tr></table>")
+        assert [type(c).__name__ for c in nodes[0].rows[0].cells[0].children] == ["Run"]
+
+    @staticmethod
+    def _shape(cell: Cell) -> list:
+        return [c.text if isinstance(c, Run) else type(c).__name__ for c in cell.children]
+
+    async def test_indentation_around_a_nested_table_is_dropped(self):
+        # PR #1215 QA round 1: TC-DOC102 Case 7's indented fixture gave the cell a
+        # Run("\n      ") before the nested table, written as empty paragraphs.
+        nodes = html_to_ast(
+            "<table><tr><td>\n      <table><tr><td>x</td></tr></table>\n    </td></tr></table>"
+        )
+        assert self._shape(nodes[0].rows[0].cells[0]) == ["Table"]
+
+    @staticmethod
+    def _linked_text(cell: Cell) -> list[tuple[str, str | None]]:
+        """A cell's text as (text, link) spans, adjacent same-link runs joined: they
+        render alike, and where runs split depends only on where tags flushed."""
+        spans: list[tuple[str, str | None]] = []
+        for child in cell.children:
+            if isinstance(child, Run) and spans and spans[-1][1] == child.link_url:
+                spans[-1] = (spans[-1][0] + child.text, child.link_url)
+            elif isinstance(child, Run):
+                spans.append((child.text, child.link_url))
+            else:
+                spans.append((type(child).__name__, "-"))  # never joins a run
+        return spans
+
+    async def test_line_break_edges_are_trimmed(self):
+        # Whitespace holding a line break goes at a segment's edges, mixed text
+        # included; the whitespace between two pieces of content parses as before.
+        nodes = html_to_ast('<table><tr><td>\n  A\n  <img src="u">\n  <b>B</b>\n</td></tr></table>')
+        assert self._linked_text(nodes[0].rows[0].cells[0]) == [
+            ("A\n  ", None),
+            ("Image", "-"),
+            ("\n  B", None),
+        ]
+
+    async def test_text_before_a_nested_table_loses_its_indentation_edges(self):
+        # PR #1215 QA round 3: a mixed chunk's newline-led edges, next to a nested
+        # table, still became empty paragraphs.
+        nodes = html_to_ast(
+            "<table><tr><td>\n  Intro text\n  <table><tr><td>i</td></tr></table>\n"
+            "</td></tr></table>"
+        )
+        assert self._shape(nodes[0].rows[0].cells[0]) == ["Intro text", "Table"]
+
+    async def test_cell_block_content_and_pre_keep_their_line_breaks(self):
+        # PR #1215 QA round 2: collapsing every line break merged these. A <pre>'s
+        # whitespace is never trimmed, even at an edge.
+        nodes = html_to_ast(
+            "<table><tr><td><p>a</p>\n<p>b</p></td><td><pre>x\n  y</pre></td>"
+            "<td><a href='http://u'>x\n</a>y</td><td><pre>\n  code\n</pre></td></tr></table>"
+        )
+        cells = nodes[0].rows[0].cells
+        assert self._linked_text(cells[0]) == [("a\nb", None)]
+        assert self._linked_text(cells[1]) == [("x\n  y", None)]
+        assert self._linked_text(cells[2]) == [("x\n", "http://u"), ("y", None)]
+        assert self._linked_text(cells[3]) == [("\n  code\n", None)]
+
+    async def test_held_whitespace_keeps_its_link_and_style(self):
+        # PR #1215 QA round 3: released held whitespace had lost the link it was
+        # typed in.
+        nodes = html_to_ast(
+            '<table><tr><td><a href="u"><b>X</b>\n  </a><a href="v">Y</a></td></tr></table>'
+        )
+        runs = _runs_in(nodes[0].rows[0].cells[0])
+        assert [(r.text, r.link_url, r.bold) for r in runs] == [
+            ("X", "u", True),
+            ("\n  ", "u", None),
+            ("Y", "v", None),
+        ]
+
+    async def test_held_whitespace_does_not_leak_past_an_unclosed_cell(self):
+        # The row never closes, so the table has no rows and emits no node.
+        nodes = html_to_ast("<table><tr><td>a\n</table><p>x<b>y</b></p>")
+        assert [r.text for r in nodes[-1].runs] == ["x", "y"]
+
+    async def test_br_and_plain_spaces_in_a_cell_are_kept(self):
+        nodes = html_to_ast(
+            "<table><tr><td>a<br>b</td><td>Some label <table><tr><td>i</td></tr></table>"
+            "</td></tr></table>"
+        )
+        cells = nodes[0].rows[0].cells
+        assert "".join(r.text for r in _runs_in(cells[0])) == "a\vb"
+        assert self._shape(cells[1]) == ["Some label ", "Table"]
+
+
+class _ImageFetchError(Exception):
+    """Stands in for the Docs API's 400 naming requests[index].insertInlineImage."""
+
+    def __init__(self, index: int):
+        super().__init__(f"requests[{index}].insertInlineImage")
+        self.index = index
+
+
+class TestCellImageFill:
+    """Drive fill_tables against FakeDoc, which shows an inserted image as IMG. Each
+    batch's first insertInlineImage whose uri is in `bad` fails it, as the live API
+    names only one failing image per error."""
+
+    async def _run(
+        self,
+        ast_tables: list[Table],
+        uris: dict[int, str],
+        bad: frozenset[str] = frozenset(),
+        doc: FakeDoc | None = None,
+    ) -> tuple[FakeDoc, list[list[dict]], CellImages, list[Image]]:
+        if doc is None:
+            doc = FakeDoc()
+            content: list = [Para("")]
+            for t in ast_tables:
+                content += [TableNode(len(t.rows), len(t.rows[0].cells)), Para("")]
+            doc.content = content
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+
+        def do_batch(documentId, body):
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        batches: list[list[dict]] = []
+        dropped: list[Image] = []
+
+        async def run_batch(requests: list[dict]) -> None:
+            batches.append(list(requests))
+            for i, r in enumerate(requests):
+                if r.get("insertInlineImage", {}).get("uri") in bad:
+                    raise _ImageFetchError(i)
+            doc.batch_update(requests)
+
+        images = CellImages(
+            uris,
+            run_batch,
+            lambda e: e.index if isinstance(e, _ImageFetchError) else None,
+            lambda image, _e: dropped.append(image),
+        )
+        await asyncio.wait_for(fill_tables(svc, "doc1", ast_tables, images), timeout=5)
+        return doc, batches, images, dropped
+
+    @staticmethod
+    def _cell_texts(doc: FakeDoc, table_index: int, row: int, col: int) -> list[str]:
+        cell = doc.content[table_index].rows[row][col]
+        return [c.text if isinstance(c, Para) else "Table" for c in cell.content]
+
+    async def test_image_only_cell_is_filled(self):
+        img = Image(src="https://a/b.png")
+        table = _table(_row(_cell("Before"), Cell(children=[img]), _cell("After")))
+        doc, _batches, images, _ = await self._run([table], {id(img): "https://a/b.png"})
+        assert self._cell_texts(doc, 1, 0, 0) == ["Before"]
+        assert self._cell_texts(doc, 1, 0, 1) == [IMG]
+        assert self._cell_texts(doc, 1, 0, 2) == ["After"]
+        assert images.embedded == {id(img)}
+
+    async def test_image_between_text_and_adjacent_images_keep_order(self):
+        a, b, c = Image(src="a"), Image(src="b"), Image(src="c")
+        cell = Cell(children=[Run("x"), a, Run("yy"), b, c, Run("z")])
+        doc, batches, images, _ = await self._run(
+            [_table(_row(cell))], {id(a): "uri-a", id(b): "uri-b", id(c): "uri-c"}
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == [f"x{IMG}yy{IMG}{IMG}z"]
+        inserts = [r for batch in batches for r in batch if "insertInlineImage" in r]
+        # Latest first: c and b share an offset, so c goes in before b.
+        assert [r["insertInlineImage"]["uri"] for r in inserts] == ["uri-c", "uri-b", "uri-a"]
+        assert images.embedded == {id(a), id(b), id(c)}
+
+    async def test_unresolved_image_written_as_fallback_text(self):
+        # #1099: an image that never resolved shows its alt text (here, with no alt,
+        # its source's name) instead of leaving no trace.
+        img = Image(src="a")
+        doc, batches, images, _ = await self._run(
+            [_table(_row(Cell(children=[Run("t"), img])))], {}
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == ["ta"]
+        assert not any("insertInlineImage" in r for batch in batches for r in batch)
+        assert images.embedded == set()
+        assert images.fallbacks.shown == {id(img)}
+
+    async def test_linked_image_link_follows_its_insert(self):
+        img = Image(src="a", link_url="https://x.com")
+        _doc, batches, _, _ = await self._run(
+            [_table(_row(Cell(children=[img])))], {id(img): "uri-a"}
+        )
+        [batch] = batches
+        i = next(i for i, r in enumerate(batch) if "insertInlineImage" in r)
+        position = batch[i]["insertInlineImage"]["location"]["index"]
+        assert batch[i + 1]["updateTextStyle"] == {
+            "range": {"startIndex": position, "endIndex": position + 1},
+            "textStyle": {"link": {"url": "https://x.com"}},
+            "fields": "link",
+        }
+
+    async def test_unfetchable_linked_image_replaced_by_linked_fallback_text(self):
+        # #1099: the image's insert and its one-character link go; its fallback text
+        # takes its place, linked over the text's whole range.
+        good, bad = Image(src="g"), Image(src="b", link_url="https://x.com")
+        cell = Cell(children=[Run("t"), bad, good])
+        doc, batches, images, dropped = await self._run(
+            [_table(_row(cell))],
+            {id(good): "uri-g", id(bad): "uri-bad"},
+            bad=frozenset({"uri-bad"}),
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == [f"tb{IMG}"]
+        assert dropped == [bad]
+        assert images.embedded == {id(good)}
+        assert images.fallbacks.shown == {id(bad)}
+        assert id(bad) not in images.uris
+        retry = batches[-1]
+        i = next(i for i, r in enumerate(retry) if r.get("insertText", {}).get("text") == "b")
+        position = retry[i]["insertText"]["location"]["index"]
+        assert retry[i + 1]["updateTextStyle"] == {
+            "range": {"startIndex": position, "endIndex": position + 1},
+            "textStyle": {"link": {"url": "https://x.com"}},
+            "fields": "link",
+        }
+        assert not any("insertInlineImage" in r and "uri-bad" in str(r) for r in retry)
+        links = [r for r in retry if "link" in r.get("updateTextStyle", {}).get("textStyle", {})]
+        assert links == [retry[i + 1]]
+
+    async def test_second_bad_image_splits_the_batch_at_that_image(self):
+        # #510's split, for the cell batch: from the second failure on, the requests
+        # ahead of the failed image go on their own and only the rest is retried. The
+        # batch runs latest cell first, so the split keeps each cell's text ahead of
+        # every earlier cell's.
+        a, b, c = Image(src="a"), Image(src="b"), Image(src="c")
+        table = _table(
+            _row(Cell(children=[Run("one"), a]), Cell(children=[Run("two"), b])),
+            _row(Cell(children=[Run("three"), c]), _cell("four")),
+        )
+        doc, batches, images, dropped = await self._run(
+            [table],
+            {id(a): "uri-a", id(b): "uri-b", id(c): "uri-c"},
+            bad=frozenset({"uri-b", "uri-c"}),
+        )
+        full, retry, head, tail = batches
+
+        def fallback_at(batch: list[dict], text: str) -> int:
+            return next(
+                i for i, r in enumerate(batch) if r.get("insertText", {}).get("text") == text
+            )
+
+        # Each failed image's insert is replaced in place by its fallback text and
+        # that text's link-clearing request (#1099).
+        c_index = next(
+            i for i, r in enumerate(full) if r.get("insertInlineImage", {}).get("uri") == "uri-c"
+        )
+        assert fallback_at(retry, "c") == c_index
+        assert retry[:c_index] + retry[c_index + 2 :] == full[:c_index] + full[c_index + 1 :]
+        b_index = next(
+            i for i, r in enumerate(retry) if r.get("insertInlineImage", {}).get("uri") == "uri-b"
+        )
+        # The split is at b, the second failure: its fallback text heads the tail.
+        assert head == retry[:b_index]
+        assert tail[0] == {
+            "insertText": {"location": retry[b_index]["insertInlineImage"]["location"], "text": "b"}
+        }
+        assert tail[2:] == retry[b_index + 1 :]
+        assert not any("insertInlineImage" in r for r in head)
+        assert dropped == [c, b]
+        assert images.embedded == {id(a)}
+        assert images.fallbacks.shown == {id(b), id(c)}
+        assert self._cell_texts(doc, 1, 0, 0) == [f"one{IMG}"]
+        assert self._cell_texts(doc, 1, 0, 1) == ["twob"]
+        assert self._cell_texts(doc, 1, 1, 0) == ["threec"]
+        assert self._cell_texts(doc, 1, 1, 1) == ["four"]
+
+    async def test_error_naming_a_non_image_request_raises(self):
+        img = Image(src="a")
+        table = _table(_row(Cell(children=[Run("t"), img])))
+        doc = FakeDoc()
+        doc.content = [Para(""), TableNode(1, 1), Para("")]
+
+        async def run_batch(requests: list[dict]) -> None:
+            raise _ImageFetchError(0)  # requests[0] is the insertText
+
+        images = CellImages({id(img): "uri-a"}, run_batch, lambda e: e.index, lambda *_: None)
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        with pytest.raises(_ImageFetchError):
+            await fill_tables(svc, "doc1", [table], images)
+
+    async def test_retry_bookkeeping_is_per_batch(self):
+        # PR #1215 QA round 1: an insert dict freed after its batch could have its id()
+        # reused by a later batch's insert, so a stale map entry (a link from the
+        # earlier batch) was found for it. The maps now hold their requests and are
+        # cleared once each batch settles.
+        linked, later = Image(src="l", link_url="https://x.com"), Image(src="u")
+        inner = _table(_row(Cell(children=[later])))
+        cell = Cell(children=[linked, inner])
+        _doc, _batches, images, dropped = await self._run(
+            [_table(_row(cell))],
+            {id(linked): "uri-l", id(later): "uri-bad"},
+            bad=frozenset({"uri-bad"}),
+        )
+        assert images._pending == {}
+        assert dropped == [later]
+        assert images.embedded == {id(linked)}
+
+    async def test_image_before_nested_table_shifts_the_table(self):
+        # The nested table lands after the text *and* the image in its paragraph.
+        img = Image(src="a")
+        img2 = Image(src="a")
+        inner = _table(_row(_cell("inner")))
+        cell = Cell(children=[Run("Lead "), img, inner, Run("tail"), img2])
+        doc, _batches, _, _ = await self._run(
+            [_table(_row(cell))], {id(img): "uri-a", id(img2): "uri-a"}
+        )
+        assert self._cell_texts(doc, 1, 0, 0) == [f"Lead {IMG}", "Table", f"tail{IMG}"]
+
+    async def test_dropped_image_counted_as_its_fallback_text_before_nested_table(self):
+        # A dropped image isn't in the doc, but its fallback text is (#1099), so the
+        # nested table after it lands past that text, not one index past "Lead".
+        img = Image(src="a", alt="alt text")
+        inner = _table(_row(_cell("inner")))
+        cell = Cell(children=[Run("Lead"), img, inner])
+        doc, _batches, _images, dropped = await self._run(
+            [_table(_row(cell))], {id(img): "uri-bad"}, bad=frozenset({"uri-bad"})
+        )
+        assert dropped == [img]
+        assert self._cell_texts(doc, 1, 0, 0) == ["Leadalt text", "Table", ""]
+        nested = doc.content[1].rows[0][0].content[1]
+        assert nested.rows[0][0].content[0].text == "inner"
+
+    async def test_image_in_nested_table_cell(self):
+        img = Image(src="a")
+        inner = _table(_row(Cell(children=[img, Run(" logo")])))
+        doc, _batches, images, _ = await self._run(
+            [_table(_row(Cell(children=[inner])))], {id(img): "uri-a"}
+        )
+        outer_cell = doc.content[1].rows[0][0]
+        nested = next(c for c in outer_cell.content if isinstance(c, TableNode))
+        assert nested.rows[0][0].content[0].text == f"{IMG} logo"
+        assert images.embedded == {id(img)}
+
+    async def test_image_in_a_cell_the_fill_skips_is_not_embedded(self):
+        # A cell missing from the live doc gets no insert; the caller reports it.
+        img = Image(src="a")
+        table = _table(_row(Cell(children=[img])))
+        doc = FakeDoc()
+        doc.content = [Para(""), TableNode(1, 1), Para("")]
+        doc.content[1].rows[0][0].content = []
+        _doc, batches, images, _ = await self._run([table], {id(img): "uri-a"}, doc=doc)
+        assert batches == []
+        assert images.embedded == set()
+
+
+# ---------------------------------------------------------------------------
+# #1095 — horizontal cell alignment (GFM :--/:-:/--: columns)
+# ---------------------------------------------------------------------------
+
+
+def _alignments(table: Table) -> list[list[str | None]]:
+    return [[cell.alignment for cell in row.cells] for row in table.rows]
+
+
+class TestCellAlignmentParser:
+    def _only_table(self, html: str) -> Table:
+        tables = [n for n in html_to_ast(html) if isinstance(n, Table)]
+        assert len(tables) == 1
+        return tables[0]
+
+    def test_gfm_delimiter_row_sets_each_column(self):
+        md = "| a | b | c | d |\n|:--|:-:|--:|---|\n| 1 | 2 | 3 | 4 |\n"
+        table = self._only_table(_md_to_html(md))
+        expected = ["START", "CENTER", "END", None]
+        assert _alignments(table) == [expected, expected]
+
+    def test_style_text_align_values(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align: left">a</td>'
+            '<td style="color: red; TEXT-ALIGN : Center !important">b</td>'
+            '<td style="text-align:right;">c</td>'
+            '<td style="text-align:justify">d</td>'
+            '<td style="text-align:start">e</td>'
+            '<td style="text-align:end">f</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["START", "CENTER", "END", "JUSTIFIED", "START", "END"]]
+
+    def test_align_attribute_and_css_precedence(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<th align="right">a</th>'
+            '<td align="center" style="text-align:left">b</td>'
+            '<td style="text-align:left; text-align:right">c</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["END", "START", "END"]]
+
+    def test_unrecognized_or_absent_value_sets_nothing(self):
+        table = self._only_table(
+            "<table><tr>"
+            "<td>a</td>"
+            '<td style="text-align: inherit">b</td>'
+            '<td align="middle">c</td>'
+            '<td style="text-align:">d</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [[None, None, None, None]]
+
+    def test_nested_table_cells_keep_their_own_alignment(self):
+        table = self._only_table(
+            '<table><tr><td style="text-align:right">outer'
+            '<table><tr><td style="text-align:center">inner</td><td>plain</td></tr></table>'
+            "</td></tr></table>"
+        )
+        outer = table.rows[0].cells[0]
+        assert outer.alignment == "END"
+        assert _alignments(_tables_in(outer)[0]) == [["CENTER", None]]
+
+
+class TestCellAlignmentFill:
+    """fill_tables against FakeDoc, which applies each updateParagraphStyle's alignment
+    to every paragraph its range touches and rejects a range taking in a whole table."""
+
+    async def _run(
+        self, ast_tables: list[Table], cols: list[int] | None = None
+    ) -> tuple[FakeDoc, list[list[dict]], int]:
+        doc = FakeDoc()
+        content: list = [Para("")]
+        for i, t in enumerate(ast_tables):
+            ncols = cols[i] if cols else max(sum(c.colspan for c in r.cells) for r in t.rows)
+            content += [TableNode(len(t.rows), ncols), Para("sep")]
+        doc.content = content
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", ast_tables, _plain_images(svc))
+        fetches = svc.documents.return_value.get.return_value.execute.call_count
+        return doc, batches, fetches
+
+    @staticmethod
+    def _aligned(cell: Cell, alignment: str | None) -> Cell:
+        cell.alignment = alignment
+        return cell
+
+    @staticmethod
+    def _grid(doc: FakeDoc, table_index: int) -> list[list[list[str | None]]]:
+        return [
+            [[p.alignment for p in cell.content if isinstance(p, Para)] for cell in row]
+            for row in doc.content[table_index].rows
+        ]
+
+    async def test_every_row_of_each_column_gets_its_alignment(self):
+        a = self._aligned
+        table = _table(
+            _row(a(_cell("L"), "START"), a(_cell("C"), "CENTER"), a(_cell("R"), "END")),
+            _row(a(_cell("1"), "START"), a(_cell("2"), "CENTER"), a(_cell("3"), "END")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        assert self._grid(doc, 1) == [
+            [["START"], ["CENTER"], ["END"]],
+            [["START"], ["CENTER"], ["END"]],
+        ]
+        assert doc.content[1].rows[1][2].content[0].text == "3"
+
+    async def test_empty_cell_is_aligned_and_unaligned_cell_untouched(self):
+        table = _table(
+            _row(self._aligned(Cell(children=[]), "END"), _cell("plain")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        assert self._grid(doc, 1) == [[["END"], [None]]]
+
+    async def test_second_table_uses_post_fill_indices(self):
+        # Filling the first table shifts the second; a stale index would align the
+        # wrong paragraphs.
+        first = _table(_row(_cell("a much longer first-table cell text")))
+        second = _table(_row(_cell("x"), self._aligned(_cell("y"), "CENTER")))
+        doc, _batches, _fetches = await self._run([first, second])
+        assert self._grid(doc, 1) == [[[None]]]
+        assert self._grid(doc, 3) == [[[None], ["CENTER"]]]
+
+    async def test_merged_cell_aligns_its_head_cell_only(self):
+        a = self._aligned
+        table = _table(
+            _row(a(_cell("wide", colspan=2), "CENTER"), a(_cell("r"), "END")),
+            _row(_cell("1"), _cell("2"), a(_cell("3"), "END")),
+        )
+        doc, _batches, _fetches = await self._run([table])
+        # FakeDoc leaves the covered cell physical, as the real API does.
+        assert self._grid(doc, 1) == [
+            [["CENTER"], [None], ["END"]],
+            [[None], [None], ["END"]],
+        ]
+
+    async def test_nested_tables_aligned_by_their_own_cells(self):
+        inner = _table(_row(self._aligned(_cell("in"), "CENTER"), _cell("plain")))
+        outer_cell = self._aligned(Cell(children=[Run("Before"), inner, Run("After")]), "END")
+        doc, _batches, _fetches = await self._run([_table(_row(outer_cell))])
+
+        outer = doc.content[1].rows[0][0]
+        assert [p.alignment for p in outer.content if isinstance(p, Para)] == ["END", "END"]
+        nested = next(c for c in outer.content if isinstance(c, TableNode))
+        assert [[p.alignment for p in c.content] for c in nested.rows[0]] == [
+            ["CENTER"],
+            [None],
+        ]
+
+    async def test_only_nested_cell_aligned(self):
+        inner = _table(_row(self._aligned(_cell("in"), "END")))
+        doc, _batches, _fetches = await self._run([_table(_row(Cell(children=[inner])))])
+        outer = doc.content[1].rows[0][0]
+        assert [p.alignment for p in outer.content if isinstance(p, Para)] == [None, None]
+        nested = next(c for c in outer.content if isinstance(c, TableNode))
+        assert nested.rows[0][0].content[0].alignment == "END"
+
+    async def test_no_alignment_sends_no_request_and_no_extra_fetch(self, monkeypatch):
+        # Baseline: the same unaligned input with the step forced on, so an always-true
+        # gate (an extra fetch on every write) fails this test.
+        monkeypatch.setattr(emitter_module, "_has_cell_alignment", lambda _tables: True)
+        _doc, _batches, forced = await self._run([_table(_row(_cell("A")))])
+        monkeypatch.undo()
+
+        _doc, batches, fetches = await self._run([_table(_row(_cell("A")))])
+        assert fetches == forced - 1
+        assert not any("updateParagraphStyle" in r for b in batches for r in b)
+
+    def test_gate_ignores_a_degenerate_nested_table(self):
+        # A nested table spanning no columns (a hand-built colspan=0 cell; the parser
+        # clamps to 1) is never inserted, so its alignment can't be applied and mustn't
+        # cost a fetch.
+        degenerate = _table(_row(self._aligned(Cell(children=[Run("in")], colspan=0), "END")))
+        aligned = _table(_row(self._aligned(_cell("in"), "END")))
+        assert not _has_cell_alignment([_table(_row(Cell(children=[Run("A"), degenerate])))])
+        assert _has_cell_alignment([_table(_row(Cell(children=[Run("A"), aligned])))])
+
+    async def test_alignment_adds_one_fetch_shared_with_widths_and_styles(self):
+        _doc, _batches, baseline = await self._run([_table(_row(_cell("A")))])
+
+        aligned = _table(_row(self._aligned(_cell("A"), "CENTER")))
+        _doc, _batches, fetches = await self._run([aligned])
+        assert fetches == baseline + 1
+
+        everything = _table(_row(self._aligned(_cell("A"), "CENTER")))
+        everything.col_widths = [72.0]
+        everything.rows[0].cells[0].background_color = RGBColor(1.0, 0.0, 0.0)
+        _doc, _batches, fetches = await self._run([everything])
+        assert fetches == baseline + 1
+
+    async def test_alignment_rides_in_the_cell_style_batch(self):
+        cell = self._aligned(_cell("A"), "CENTER")
+        cell.background_color = RGBColor(1.0, 0.0, 0.0)
+        doc, batches, _fetches = await self._run([_table(_row(cell))])
+        [batch] = [b for b in batches if any("updateParagraphStyle" in r for r in b)]
+        assert any("updateTableCellStyle" in r for r in batch)
+        assert self._grid(doc, 1) == [[["CENTER"]]]
+
+    async def test_alignment_alone_adds_one_batch(self):
+        _doc, base_batches, _ = await self._run([_table(_row(_cell("A")))])
+        _doc, batches, _ = await self._run([_table(_row(self._aligned(_cell("A"), "END")))])
+        assert len(batches) == len(base_batches) + 1
+
+    async def test_markdown_end_to_end(self):
+        md = "| Item | Est. (€) |\n|------|---------:|\n| Hotel | 540 |\n"
+        tables = [n for n in html_to_ast(_md_to_html(md)) if isinstance(n, Table)]
+        doc, _batches, _fetches = await self._run(tables)
+        assert self._grid(doc, 1) == [[[None], ["END"]], [[None], ["END"]]]
+
+
+class TestCellAlignmentNestedMismatch:
+    def test_a_skipped_nested_table_is_left_unaligned_not_raised(self):
+        # The fill can skip a nested table it can't place, leaving the live cell with
+        # no table for an insertable AST one (PR #1336 QA round 1).
+        inner = _table(_row(_cell("in")))
+        inner.rows[0].cells[0].alignment = "CENTER"
+        outer = Cell(children=[Run("A"), inner], alignment="END")
+        doc_table = {
+            "tableRows": [
+                {"tableCells": [{"startIndex": 4, "content": [_para_elem(5, 7)]}]},
+            ]
+        }
+        requests = _build_cell_alignment_requests([doc_table], [_table(_row(outer))])
+        assert requests == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 5, "endIndex": 7},
+                    "paragraphStyle": {"alignment": "END"},
+                    "fields": "alignment",
+                }
+            }
+        ]
+
+
+class TestCellAlignmentParserRound2:
+    """PR #1336 QA round 1: invalid declarations, vendor values, and inheritance."""
+
+    def _only_table(self, html: str) -> Table:
+        tables = [n for n in html_to_ast(html) if isinstance(n, Table)]
+        assert len(tables) == 1
+        return tables[0]
+
+    def test_invalid_last_declaration_falls_back(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align:right; text-align:bogus">a</td>'
+            '<td align="center" style="text-align:-webkit-match-parent">b</td>'
+            '<td style="text-align:">c</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["END", "CENTER", None]]
+
+    def test_vendor_values_and_spaced_important(self):
+        table = self._only_table(
+            "<table><tr>"
+            '<td style="text-align:-webkit-center">a</td>'
+            '<td style="text-align: -webkit-right">b</td>'
+            '<td style="text-align:-moz-left">c</td>'
+            '<td style="text-align: center ! important">d</td>'
+            '<td style="text-align: right !IMPORTANT">e</td>'
+            "</tr></table>"
+        )
+        assert _alignments(table) == [["CENTER", "END", "START", "CENTER", "END"]]
+
+    def test_row_alignment_is_inherited_and_cell_wins(self):
+        table = self._only_table(
+            '<table><tr align="right"><td>a</td><td align="center">b</td></tr>'
+            '<tr style="text-align:center"><td>c</td><td style="text-align:left">d</td></tr>'
+            "<tr><td>e</td><td>f</td></tr></table>"
+        )
+        assert _alignments(table) == [["END", "CENTER"], ["CENTER", "START"], [None, None]]
+
+    def test_section_and_table_alignment_are_inherited_nearest_first(self):
+        table = self._only_table(
+            '<table style="text-align:right">'
+            '<thead align="center"><tr><th>h</th><th align="left">h2</th></tr></thead>'
+            "<tbody><tr><td>a</td><td>b</td></tr>"
+            '<tr align="center"><td>c</td><td>d</td></tr></tbody>'
+            "</table>"
+        )
+        assert _alignments(table) == [
+            ["CENTER", "START"],
+            ["END", "END"],
+            ["CENTER", "CENTER"],
+        ]
+
+    def test_section_alignment_ends_with_its_section(self):
+        table = self._only_table(
+            '<table><thead style="text-align:center"><tr><th>h</th></tr></thead>'
+            "<tbody><tr><td>a</td></tr></tbody></table>"
+        )
+        assert _alignments(table) == [["CENTER"], [None]]
+
+    def test_table_align_attribute_positions_the_table_not_its_text(self):
+        table = self._only_table('<table align="center"><tr><td>a</td></tr></table>')
+        assert _alignments(table) == [[None]]
+
+    def test_nested_table_does_not_inherit_its_outer_row(self):
+        table = self._only_table(
+            '<table><tr align="right"><td>outer<table><tr><td>inner</td></tr></table>'
+            "</td></tr></table>"
+        )
+        outer = table.rows[0].cells[0]
+        assert outer.alignment == "END"
+        assert _alignments(_tables_in(outer)[0]) == [[None]]
+
+    def test_section_tags_still_parse_as_before(self):
+        plain = self._only_table("<table><tr><td>a</td></tr></table>")
+        wrapped = self._only_table(
+            '<table><tbody align="center"><tr><td>a</td></tr></tbody></table>'
+        )
+        assert wrapped.rows[0].cells[0].children == plain.rows[0].cells[0].children

@@ -264,10 +264,12 @@ def register(tool):
             file_id: The Google Drive file or folder ID.
             new_owner_email: Email address of the new owner.
             send_notification: Whether to send a notification email to the new owner.
-                                Defaults to True.
+                                Defaults to True, and must stay True: Drive refuses
+                                any ownership transfer whose notification is disabled.
 
         Returns:
             Confirmation with fileId, new_owner, and permissionId.
+            {"error": ...} if send_notification is False, before any API call.
 
         Note:
             Requires OAuth auth — service accounts have no personal Drive identity
@@ -275,6 +277,19 @@ def register(tool):
             Check server://auth-status for your current auth method.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
+
+        if not send_notification:
+            # Drive answers a transfer with a disabled notification by 403'ing
+            # "The sendNotificationEmail parameter … must not be disabled for
+            # ownership transfers" — before it even looks the file up (confirmed
+            # with a nonexistent file ID in the v0.9.2 QA pass, #1055). Forwarding
+            # the request would only turn that into an opaque API error, so the
+            # unsupported value is rejected here.
+            return {
+                "error": "send_notification=False is not supported for ownership "
+                "transfers: Drive requires sendNotificationEmail, so the new owner "
+                "always gets the notification email. Omit the parameter or pass True."
+            }
 
         result = await execute_in_thread(
             drive_service.permissions()

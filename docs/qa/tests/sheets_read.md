@@ -31,6 +31,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth), each on its own copy of the fixture spreadsheet: `Sales` header plus data rows, Totals computed as 650/670/705, no error.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `get_sheet_data(Sales)` returned 6 rows × 4 columns (Product/Q1/Q2/Q3). Totals came back computed as 650/670/705, not formula strings. No error.
+
 ---
 
 ### TC-R02: Explicit range
@@ -50,6 +52,8 @@ A1:C3 → 3×3, Product/Q1/Q2, Widget/100/120, Gadget/200/180
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `range="A1:C3"` returned 3×3: Product/Q1/Q2, Widget/100/120, Gadget/200/180.
+
 ---
 
 ### TC-R03: Grid data with an explicit range
@@ -67,6 +71,8 @@ rowData present; range A1:D6 honored; no auto-detect probe (range given)
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `range="A1:D6", include_grid_data=True` was written to scratch via `local_path` (20,507 bytes, range `Sales!A1:D6`). `sheets[0].data[0].rowData` held 6 rows × 4 values, Totals formattedValue 650/670/705. The returned range is the one given.
 
 ---
 
@@ -90,6 +96,8 @@ No range + grid data: rowData scoped to used 6×4 range only (grid is 1000×26);
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — With no `range`, the call returned range `Sales!A1:D6` (20,507 bytes, the same as TC-R03's explicit range). `rowData` covered only 6 rows × 4 columns, against the copy's real 996×28 grid. No error. The probe request itself isn't visible to the client; the scoped range shows it ran.
+
 ---
 
 ### TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)
@@ -97,7 +105,7 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Setup**
 Apply formatting across a range with `format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")`, then call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True)`.
 
-Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side default (`MAX_TOOL_RESPONSE_CHARS=40000`, named `MAX_GRID_DATA_RESPONSE_CHARS` at the time this test was first run — renamed and generalized to 5 more tools by issue #242) sits below that with margin.
+Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side cap is `MAX_TOOL_RESPONSE_CHARS` (named `MAX_GRID_DATA_RESPONSE_CHARS` when this test was first run; renamed and generalized by issue #242). Its default was 40,000 then; issue #519 raised it to 1,000,000. This range still trips the current default: the 2026-09-04 run measured about 4.1M characters.
 
 **Checks**
 - The Sheets API fetch itself succeeds (it's fast either way) — the error comes from the size check on the result, not a failed API call
@@ -114,6 +122,8 @@ Fetch succeeded; size check raised ValueError naming actual size 4,085,918 chars
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Ran on a scratch tab `S5-SizeScratch` on the copy, formatted A1:Z200 as in the Setup. `get_sheet_data(range="A1:Z200", include_grid_data=True)` raised: "the response is 4085944 characters, over the 1000000-character safety cap … Narrow the range, or Pass local_path … or set MAX_TOOL_RESPONSE_CHARS". The exact size shows the fetch completed before the check. Scratch tab deleted. Side observation (cosmetic, UNFILED): the message reads "Narrow the range, or Pass local_path" with a capital P mid-sentence. `data.py`'s hint ends "Narrow the range, or " and the shared `enforce_response_size_cap` text starts with "Pass".
 
 ---
 
@@ -136,15 +146,17 @@ local_path set → returned {local_path, bytes_written 4,085,918, spreadsheet_id
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — The same call with `local_path=<scratch>/qa_grid_data.json` returned `{local_path, bytes_written: 4085944, spreadsheet_id, sheet, range}` and no error. `wc -c` on the file matched 4,085,944. It held 200×26 `rowData` with bold, background {0.898, 0.949, 1} and NUMBER format. File deleted afterward.
+
 ---
 
 ### TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)
 
 **Setup**
-Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.g. to match a `MAX_MCP_OUTPUT_TOKENS` raised in your MCP client config). Repeat the same call as TC-R03c: a formatted range whose response is over the *default* 40,000-character cap but under 200,000.
+Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server. The shipped default (1,000,000 since #519) is above this, so the override has to lower the cap to show it's read. Repeat TC-R38's call: its ~430,000-character response is under the default, so it succeeds on a default server, and over 200,000.
 
 **Checks**
-- Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
+- Call now raises the response-size `ValueError` instead of succeeding — confirms the cap is actually read from the env var, not hardcoded
 - Restore `MAX_TOOL_RESPONSE_CHARS` (unset it) after this test
 
 **Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the *shipped* default to 1,000,000, demonstrating configurability now requires setting `MAX_TOOL_RESPONSE_CHARS` below that default (e.g. `200000` as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.
@@ -154,6 +166,8 @@ Requires server restart with changed MAX_TOOL_RESPONSE_CHARS env var — not pos
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 Needs a server restart with a changed MAX_TOOL_RESPONSE_CHARS.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard S5 on `kai-sa`** — Needs a server restart with `MAX_TOOL_RESPONSE_CHARS=200000`; deferred to Aziz. Unit-level evidence: the tests the case names, `test_cap_is_configurable` (tests/sheets/test_data.py) and `test_env_var_sets_cap_at_import_time` (tests/test_response_limits.py), passed (2 passed) in Aziz's worktree @ f98c67b7.
 
 ---
 
@@ -180,6 +194,8 @@ Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char re
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Scratch tab `S5-R38Scratch`, A1:Z23 formatted as in the Setup. The inline `get_sheet_data(include_grid_data=True)` raised no server ValueError. The response was 428,787 characters (between 40,000 and 1,000,000); Claude Code's own client cap spilled it to a file. `rowData` had 23×26 cells with effectiveFormat bold=true, background {0.898, 0.949, 1} and NUMBER format. Scratch tab deleted.
+
 ---
 
 ### TC-R04: Non-existent sheet name
@@ -198,6 +214,8 @@ Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — cl
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `{"error": "<HttpError 400 … Unable to parse range: DoesNotExist …>"}`, a clean error dict that names the sheet.
 
 ---
 
@@ -218,6 +236,8 @@ Invalid spreadsheet ID → HttpError 404 "Requested entity was not found." — n
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `{"error": "<HttpError 404 … Requested entity was not found. …>"}`. No crash and no silent empty result.
+
 ---
 
 ### TC-R06: Range beyond data bounds
@@ -234,6 +254,8 @@ A100:Z200 → values: [], no error
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `A100:Z200` returned `values: []` with no error.
 
 ---
 
@@ -252,6 +274,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `Notes & Misc` resolved (range `'Notes & Misc'`). 2 rows: Date/Note, then `11/9/2026`/"Setup complete". The date is TODAY() computed in the spreadsheet's `Etc/GMT` time zone; it was already 11/9 in UTC at run time.
 
 ---
 
@@ -273,6 +297,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `{"error": "<HttpError 400 … ?ranges=Sales!!!!BadRange!!!&includeGridData=true … Unable to parse range: Sales!!!!BadRange!!!>"}`, not a raw exception. No size-cap check fired.
+
 ---
 
 ### TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)
@@ -292,6 +318,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `sheet="DoesNotExist", include_grid_data=True`, no range: returned `{"error": …}`. The failing URL is the values probe (`/values/DoesNotExist`), so the includeGridData call was never made.
 
 ---
 
@@ -318,6 +346,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): row 6 returned as `=SUM(B2:B5)`/`=SUM(C2:C5)`/`=SUM(D2:D5)`, data rows as literals.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Row 6 came back as `=SUM(B2:B5)`/`=SUM(C2:C5)`/`=SUM(D2:D5)`. Data rows came back as literal ints (100, 120, …).
+
 ---
 
 ### TC-R09: Sheet with no formulas
@@ -333,6 +363,8 @@ Empty sheet formulas → []
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `get_sheet_formulas(Empty)` returned `[]`, no error.
 
 ---
 
@@ -352,6 +384,8 @@ A2 → "=TODAY()"; B2 → "Setup complete" literal
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — A2 returned `=TODAY()`; B2 returned the literal "Setup complete".
+
 ---
 
 ### TC-R11: No range provided — fetches entire sheet
@@ -369,6 +403,8 @@ No range → all 6 rows, row 6 formula strings; matches TC-R08
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — With no range, all 6 rows came back and row 6 was formula strings, identical to TC-R08 (the same call).
 
 ---
 
@@ -388,6 +424,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `{"result": {"error": "<HttpError 400 … Unable to parse range: Sales!!!!BadRange!!! …>"}}`, not a raw exception. The error dict sits under `result` because the tool's return type is wrapped.
 
 ---
 
@@ -409,6 +447,8 @@ Two results, correct data per sheet, no errors
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned 2 results: Sales (6 rows, Totals 650/670/705) and Notes & Misc (Date/Note, 11/9/2026/Setup complete). Neither had an error.
+
 ---
 
 ### TC-R13: One query with missing required keys
@@ -425,6 +465,8 @@ Sales ok; 2nd query (no sheet) → error "Missing required keys (spreadsheet_id,
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — The Sales query returned its data. The second query (no `sheet`) returned `error: "Missing required keys (spreadsheet_id, sheet)"` without affecting the first.
 
 ---
 
@@ -443,6 +485,8 @@ Both entries have error fields; list of 2 error objects, not top-level error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — FakeSheet1 and FakeSheet2 came back as a list of 2 entries, each with an `error` (HttpError 400 "Unable to parse range"). No top-level error.
+
 ---
 
 ### TC-R15: Empty queries list
@@ -458,6 +502,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `[]`.
 
 ---
 
@@ -490,6 +536,8 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Three 5-range orderings returned cell-exact, in-order results.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Within-call concurrency, 2 runs. A1/B1/C1/A2/B2 returned Product/Q1/Q2/Widget/100 in order. The reversed order B2/A2/C1/B1/A1 returned 100/Widget/Q2/Q1/Product. Zero errors.
+
 ---
 
 ### TC-R39: `get_multiple_sheet_data` emits `notifications/progress` updates as each query completes (issue #355)
@@ -510,6 +558,8 @@ None.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Correct results; progress notifications aren't visible in this client.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `Sales!A1:B2` + `Notes & Misc!A1` returned 2 results (Product/Q1, Widget/100; Date) and no error. Progress notifications aren't visible in this client; the case allows that.
 
 ---
 
@@ -537,6 +587,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): all 3 sheets summarized (Sales headers Product/Q1/Q2/Q3; Notes & Misc Date/Note; Empty `[]`).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — All 3 sheets came back. Sales had headers Product/Q1/Q2/Q3 and 4 first rows. Notes & Misc had Date/Note. Empty had `headers: []`, `first_rows: []`.
+
 ---
 
 ### TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)
@@ -563,6 +615,8 @@ Delete the 2 throwaway spreadsheets.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Created QA-Summary-183-B/-C in the run folder, with A1 `marker-B`/`marker-C`. One call over [copy, B, C] returned 3 entries in order. Each entry's title and headers were its own (marker-B/colB with rowB; marker-C/colC with rowC). No errors. Both throwaways trashed. Ran on the service account, despite the requires-oauth tag.
+
 ---
 
 ### TC-R17: Cache hit — second call skips API
@@ -583,6 +637,8 @@ Second call identical; the cache-hit log line isn't visible to the client.
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account): second summary logged four `Sheet data cache hit: <copy>/<sheetId>` lines. `kai-oauth` (OAuth): three `Sheet data cache hit` lines, 0.32 s against 1.06 s uncached. Same data both times. Log lines now read `Sheet data cache hit: …` in `/tmp/mcp-gee-sweet.log`, not `make logs`.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — The second summary returned identical data. `/tmp/mcp-gee-sweet.log` showed 3 `Sheet data cache hit: <copy>/<sheetId>` lines at 20:26:34 for sheets 0/456535548/547522895. Those followed the first call's `Cached sheet data` lines at 20:26:29. The copy's ID is unique to this shard.
+
 ---
 
 ### TC-R18: rows_to_fetch=1 — only header returned
@@ -599,6 +655,8 @@ rows_to_fetch=1 → headers present, first_rows []
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Sales headers were present with `first_rows: []`, and the same held for the other sheets.
 
 ---
 
@@ -620,6 +678,8 @@ rows_to_fetch=0 clamped to 1: first_rows [] for Sales, same as TC-R18
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — This ran on a warm cache, after rows_to_fetch=5 calls (the #254 scenario). The result matched TC-R18: headers present, `first_rows: []` for every sheet.
+
 ---
 
 ### TC-R20: Spreadsheet with empty sheet
@@ -637,6 +697,8 @@ Empty sheet entry headers [] / first_rows []; no error; other sheets fine
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — The Empty entry had `headers: []`, `first_rows: []`, `error: null`. Sales and Notes & Misc were unaffected (from the TC-R16 call).
 
 ---
 
@@ -656,6 +718,8 @@ Valid → normal summary; "invalidid123xyz" → error field; both present
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — The copy got a normal summary. `invalidid123xyz` got `error: "Error fetching spreadsheet invalidid123xyz: <HttpError 404 … Requested entity was not found.>"`. Both entries were present, with no top-level error.
+
 ---
 
 ### TC-R22: Range format verification
@@ -673,6 +737,8 @@ rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D pres
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — With rows_to_fetch=3, Sales returned its header plus Widget 100/120/140 and Gadget 200/180/220. Columns B–D were present.
 
 ---
 
@@ -694,6 +760,8 @@ None.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Correct results; progress notifications aren't visible in this client.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — This is the same call as TC-R21 (an identical prompt): 2 entries, the invalid one with `error`, no top-level error. Progress notifications aren't visible in this client; the case allows that.
 
 ---
 
@@ -720,6 +788,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `find_in_spreadsheet("Gadget", Sales)` → Sales A3.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned one match: `{sheet: Sales, cell: A3, value: Gadget}`.
+
 ---
 
 ### TC-R24: Match across all sheets
@@ -736,6 +806,8 @@ Match in 'Notes & Misc' B2; all sheets searched
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — With no sheet filter, the match was Notes & Misc B2 "Setup complete".
 
 ---
 
@@ -754,6 +826,8 @@ lowercase 'gadget' matched "Gadget" (case-insensitive default)
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `gadget` matched Sales A3 "Gadget".
+
 ---
 
 ### TC-R26: Case-sensitive match
@@ -770,6 +844,8 @@ case_sensitive=true 'gadget' → []
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `gadget` with `case_sensitive=true` returned `[]`.
 
 ---
 
@@ -788,6 +864,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `Q` with `max_results=2` returned exactly 2 matches (B1 Q1, C1 Q2).
+
 ---
 
 ### TC-R28: No matches
@@ -803,6 +881,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `[]`.
 
 ---
 
@@ -821,6 +901,8 @@ sheet 'DoesNotExist' → [{"error":"Sheet 'DoesNotExist' not found"}], names the
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Returned `[{"error": "Sheet 'DoesNotExist' not found"}]`.
+
 ---
 
 ### TC-R30: Multiple column matches in same row
@@ -837,6 +919,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — `Q` in Sales returned 3 separate results: B1 Q1, C1 Q2, D1 Q3.
 
 ---
 
@@ -873,6 +957,8 @@ A1 effectiveFormat.textFormat.bold=true, italic=false, formattedValue "Product";
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — After the repeatCell bold on A1: `effectiveFormat.textFormat.bold=true`, `italic=false`, formattedValue "Product". Grid data was read via `local_path` to keep context small. userEnteredFormat cleared afterward.
+
 ---
 
 ### TC-R32: Background color and italic readable via effectiveFormat
@@ -902,6 +988,8 @@ B1 effectiveFormat italic=true, bold=false, backgroundColor {red:1,green:0.89803
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — B1 read back `italic=true`, `bold=false`, and backgroundColor `{red:1, green:0.8980392, blue:0.6}`. Cleared afterward.
+
 ---
 
 ### TC-R33: Number format and formattedValue readable via effectiveFormat
@@ -930,18 +1018,23 @@ B2 numberFormat {CURRENCY, "$#,##0.00"}, formattedValue "$100.00", effectiveValu
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — B2 read back numberFormat `{CURRENCY, "$#,##0.00"}`, formattedValue "$100.00", and `effectiveValue.numberValue` 100. Cleared afterward.
+
 ---
 
-### TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)
+### TC-R34: get_multiple_sheet_data — queries that are each under the cap trip it together (issue #242)
 
-**Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the unbounded axis is query *count*, not just per-query range size — many small results can add up.
+**Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the cap applies to the combined response, so several queries that are each under it can be over it together.
 
 **Setup**
-No fixture setup needed — repeat the same tiny query (`{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Sales"}`, a 6x4 range) 200 times in one `queries` list.
+The cap is on the serialized size of the whole response, not on the query count; there is no per-call query limit. Since #519 raised the default cap to 1,000,000 characters, 200 copies of the small `Sales` query (about 150,000 characters, measured 2026-07-03) no longer trip it. Use large cells instead, so that each query is under the cap and only their sum is over it: write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of `Empty!A1:A40` with `update_cells`, then call `get_multiple_sheet_data` with two queries, `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A1:A20"}` and `{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Empty", range: "A21:A40"}` (about 600,000 characters each, about 1.2M together). If TC-R35 runs in the same pass, reuse its setup.
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, and `MAX_TOOL_RESPONSE_CHARS`
-- Same call with only 2 queries + `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
+- Call raises `ValueError` mentioning the actual response size, the 1,000,000-character cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Same two queries with `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
+
+**Teardown**
+`clear_values(sheet="Empty", range="A1:A40")` to remove the test data (once, after TC-R35 if it reuses this setup). Scope it to that range: sheets_mgmt cases (TC-S38–S40, TC-S93–S95) also use `Empty` and may run in a parallel shard.
 
 **Result (2026-07-03) ✅ PASS**
 200 queries against the small `Sales` range (6 rows x 4 cols) raised: `get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` `local_path` with 2 queries succeeded, returned `{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}`; file verified on disk then cleaned up.
@@ -953,6 +1046,8 @@ local_path branch: 2 queries → {local_path, bytes_written 440, query_count 2},
 local_path part passes; the 200-query cap check is stale since #519 and was not run.
 **Corrected (2026-10-17, #1044 audit):** the 200-query cap check wasn't run.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Wrote `=REPT("PADTEST marker ", 2000)` to Empty!A1:A40 on the copy. Two queries (A1:A20, A21:A40) raised "the response is 1200471 characters, over the 1000000-character safety cap … MAX_TOOL_RESPONSE_CHARS". With `local_path`, the call returned `{local_path, bytes_written: 1200471, query_count: 2}`. The file held both queries with 20 rows each of 30,000-char values.
+
 ---
 
 ### TC-R35: find_in_spreadsheet — max_results bounds count, not size (issue #242)
@@ -960,14 +1055,14 @@ local_path part passes; the 200-query cap check is stale since #519 and was not 
 **Background:** `max_results` (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.
 
 **Setup**
-Write 10 cells (`Empty!A1:A10`) each containing a ~4,785-character string with a shared marker substring (e.g. repeated "PADTEST marker text..." sentence), then search for the marker.
+Write `=REPT("PADTEST marker ", 2000)` (30,000 characters) into each of the 40 cells `Empty!A1:A40` with `update_cells`, about 1.2M characters in total, then search for `PADTEST`. The default cap is 1,000,000 characters since #519, so the matches have to add up to more than that; the 2026-07-03 setup (10 cells of ~4,785 characters, ~42,000 in total) only tripped the old 40,000 default.
 
 **Checks**
-- Call raises `ValueError` mentioning the actual response size and the cap, even though match count (10) is well under `max_results` (50)
+- Call raises `ValueError` mentioning the actual response size and the 1,000,000-character cap, even though the match count (40) is under `max_results` (50)
 - Same call with `local_path` set succeeds, returns `{local_path, spreadsheet_id, query, match_count, bytes_written}`, and the file on disk contains all matches
 
 **Teardown**
-`clear_values` on the `Empty` sheet to remove the test data.
+`clear_values(sheet="Empty", range="A1:A40")` to remove the test data. Scope it to that range, as in TC-R34.
 
 **Result (2026-07-03) ✅ PASS**
 10 matches (42,491 chars total) raised: `find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...` despite being far under the `max_results=50` default — confirming match-count capping alone doesn't bound response size. `local_path` call succeeded: `{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}`; file verified then cleaned up. Test data cleared from the `Empty` sheet afterward.
@@ -977,6 +1072,8 @@ Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trip
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 40 REPT cells of 30k chars (1,201,911 chars) trip the 1M cap; local_path returns match_count 40. TC setup still cites the 40k cap (stale).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Used the same setup. `find_in_spreadsheet("PADTEST")` raised "the response is 1201911 characters, over the 1000000-character safety cap" with 40 matches, under max_results 50. With `local_path`, it returned `{local_path, spreadsheet_id, query, match_count: 40, bytes_written: 1201911}`, and the file held all 40 matches (A1–A40). Teardown `clear_values(Empty, A1:A40)` done; scratch files deleted.
 
 
 ---
@@ -1001,3 +1098,10 @@ Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trip
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Ran under the shard scratch dir instead of `/tmp`, with tabs `../x` and `a/b` on the copy. Step 1 returned `<dir>/qa-990-sheet/out/.._x_data.json` (117 bytes). Step 2 returned `<dir>/qa-990-sheet/out/a_b_data.json` (116 bytes). `qa-990-sheet` listed only `out`, and `out` listed exactly those two files: no `a/` subdirectory, nothing beside `out`. Both tabs deleted, dir removed.
+
+---
+Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
+Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
+Filed as #1430 (cosmetic): get_sheet_data(include_grid_data=True) cap error reads "Narrow the range, or Pass local_path …" (capital P mid-sentence; `tools/sheets/data.py` hint + `enforce_response_size_cap` text).

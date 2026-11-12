@@ -35,6 +35,8 @@ from .cache import (
 from .http_transport import (  # noqa: F401 — re-exported for tool imports
     after_abandoned_calls,
     execute_in_thread,
+    invalidating,
+    is_rejection,
     thread_http,
 )
 
@@ -209,6 +211,10 @@ class SpreadsheetContext:
     # read (time.monotonic()), cached by gmail._own_addresses once fully resolved
     # (#802) and cleared by refresh_cache and by apply_oauth_credentials. Per connection, like the rest.
     gmail_own_addresses: tuple[frozenset[str], float] | None = None
+    # The mailbox's primary address, lowercased, recorded by the same lookup and
+    # cleared with it; decides whether a send flags outside-organization recipients
+    # (#1081).
+    gmail_primary_address: str | None = None
     # The Google identity the caches below are bound to (ensure_cache_principal), or
     # None while unbound: every cache read misses and no write lands, so one identity
     # never reads another's cached data (GHSA-8jqx-w7j8-6xwm).
@@ -936,6 +942,7 @@ def apply_oauth_credentials(context: SpreadsheetContext, creds: Credentials, gen
     context.unauthorized_message = None
     context.oauth_generation = generation
     context.gmail_own_addresses = None
+    context.gmail_primary_address = None
     _bind_caches(context, None)
     logger.info("OAuth credentials reloaded; this connection is authorized again")
 

@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import contextvars
 import logging
+import os
 import ssl
 import threading
 import time
@@ -13,6 +14,8 @@ import google_auth_httplib2
 import httplib2
 from google.auth.exceptions import RefreshError
 from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient.errors import HttpError
+from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,35 @@ def after_abandoned_calls(callback: Callable[[], None]) -> Iterator[None]:
         yield
     finally:
         _abandoned_call_hook.reset(token)
+
+
+def is_rejection(e: BaseException) -> bool:
+    """True if `e` is an HttpError the API answered with a 4xx, meaning the
+    request ran nothing. A 5xx, a timeout, or a transport error doesn't say
+    whether the request landed."""
+    return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
+
+
+@contextmanager
+def invalidating(callback: Callable[[], None], *, on_success: bool = True) -> Iterator[None]:
+    """Run `callback`, a cache invalidation for what the write requests inside this
+    block change, on every exit from it, and again whenever one of those requests is
+    abandoned and later finishes (`after_abandoned_calls`). Every exit, not just
+    success: a failed request (a timeout, a 5xx) may still have been applied, and a
+    cancelled one may still land (#907, #1030). The exception is a 4xx
+    (`is_rejection`), which ran nothing, so it skips the callback. `on_success=False`
+    leaves a block that exits normally to its caller, which knows whether anything
+    changed (a skipped upload changed nothing). A block nested inside another
+    `after_abandoned_calls` block replaces the outer callback for its own requests."""
+    try:
+        with after_abandoned_calls(callback):
+            yield
+    except BaseException as e:
+        if not is_rejection(e):
+            callback()
+        raise
+    if on_success:
+        callback()
 
 
 class CallAuthState:
@@ -93,6 +125,48 @@ _RESENDABLE_METHODS = frozenset({"GET", "HEAD"})
 _CONNECTION_ERRORS = (ConnectionError, TimeoutError, ssl.SSLEOFError)
 
 
+# One day: far below any platform's time_t limit, and longer than any request Google
+# keeps open.
+_MAX_HTTP_TIMEOUT_SECONDS = 86400.0
+
+
+def _http_timeout_seconds() -> float:
+    default = float(DEFAULT_HTTP_TIMEOUT_SEC)
+    raw = os.environ.get("HTTP_TIMEOUT_SECONDS")
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if not value > 0:  # also rejects nan
+        logger.warning(
+            "Ignoring HTTP_TIMEOUT_SECONDS=%r: not a positive number; using %g", raw, default
+        )
+        return default
+    if value > _MAX_HTTP_TIMEOUT_SECONDS:
+        # settimeout() rejects a value past the platform's time_t (1e10 on macOS, and
+        # inf) with OverflowError, and httplib2 calls it inside every connect(), so every
+        # tool call failed.
+        logger.warning(
+            "HTTP_TIMEOUT_SECONDS=%r is over the %g s maximum; using %g",
+            raw,
+            _MAX_HTTP_TIMEOUT_SECONDS,
+            _MAX_HTTP_TIMEOUT_SECONDS,
+        )
+        return _MAX_HTTP_TIMEOUT_SECONDS
+    return value
+
+
+# How long one socket operation (connect, a send, a read) may block (#1129). It bounds a
+# request on a connection that died silently, which otherwise hangs until the OS gives
+# up (a 30-minute hang observed live). It's per operation, not per request: a long
+# download or upload that keeps moving bytes never hits it, only a server that goes
+# quiet for this long does. The default is googleapiclient's own, which build() already
+# gives the services' shared transports. docs/decisions/decision-http-socket-timeout.md.
+_HTTP_TIMEOUT_SECONDS = _http_timeout_seconds()
+
+
 class _StaleConnectionHttp(httplib2.Http):
     """httplib2.Http that doesn't reuse a pooled connection that has likely died (#1052).
 
@@ -105,7 +179,16 @@ class _StaleConnectionHttp(httplib2.Http):
     clock stops while a laptop sleeps, so a stdio server waking after hours would see
     seconds. A clock jump in either direction counts as idle; the worst case is one
     extra handshake.
+
+    Like googleapiclient's `build_http()`, it doesn't treat 308 as a redirect (#1129):
+    Drive answers each non-final chunk of a resumable upload with "308 Resume
+    Incomplete" and no Location, which httplib2 would otherwise raise as
+    RedirectMissingLocation, failing every upload larger than one chunk (100 MB).
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.redirect_codes = self.redirect_codes - {308}
 
     def _conn_request(self, conn: Any, *args: Any, **kwargs: Any) -> Any:
         last_used = getattr(conn, "_mcp_gee_sweet_last_used", None)
@@ -136,6 +219,32 @@ class _ResendingRefreshRequest(google_auth_httplib2.Request):
             return super().__call__(*args, **kwargs)
 
 
+def _timeout_message(error: TimeoutError, resendable: bool, http: Any) -> str:
+    # The socket timeout raises with no errno; an errno (ETIMEDOUT) means the OS gave
+    # up on the connection itself, after however long it took.
+    timeout = getattr(http, "timeout", None)
+    if error.errno is None and isinstance(timeout, int | float):
+        waited = f"no data from Google for {timeout:g} s"
+    else:
+        waited = "the connection to Google stopped responding"
+    # Worded for this transport only: a caller's execute(num_retries=N) resends a
+    # timed-out request, write or not, on top of what happens here.
+    if resendable:
+        outcome = (
+            "This was a read, so the connection layer resent it once on a new connection, "
+            "which also failed."
+        )
+    else:
+        outcome = (
+            "This was a write, so the connection layer didn't resend it, and Google may still "
+            "have applied it: check the result before repeating it."
+        )
+    return (
+        f"Google API request timed out: {waited}. {outcome} "
+        "If Google needs longer to answer this request, raise HTTP_TIMEOUT_SECONDS."
+    )
+
+
 def _is_resendable(method: str, headers: Any) -> bool:
     # googleapiclient sends a GET whose URI is over 2048 characters as a POST with an
     # x-http-method-override header; it's still a read.
@@ -160,7 +269,10 @@ class _RefreshTrackingHttp(AuthorizedHttp):
     `_StaleConnectionHttp` (as thread_http builds it), a connection idle longer than
     _IDLE_RECONNECT_SECONDS is closed before reuse and a connection that fails is
     closed. A read that still fails on a dead connection is resent once, and so is a
-    token refresh (`_ResendingRefreshRequest`); a write is not.
+    token refresh (`_ResendingRefreshRequest`); a write is not. A connection that dies
+    silently inside the idle window is bounded by the socket timeout thread_http sets
+    (#1129), and a request that times out raises a TimeoutError that says whether it
+    was resent here and whether a write may have landed.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -172,14 +284,20 @@ class _RefreshTrackingHttp(AuthorizedHttp):
             # AuthorizedHttp re-entering after a 401 refresh: the outer call already
             # handles resending.
             return self._request_noting_refresh(uri, method, *args, **kwargs)
+        headers = kwargs.get("headers", args[1] if len(args) > 1 else None)
+        resendable = _is_resendable(method, headers)
         try:
-            return self._request_noting_refresh(uri, method, *args, **kwargs)
-        except _CONNECTION_ERRORS as e:
-            headers = kwargs.get("headers", args[1] if len(args) > 1 else None)
-            if not _is_resendable(method, headers):
-                raise
-            logger.info("Resending %s on a new connection after %r", method, e)
-            return self._request_noting_refresh(uri, method, *args, **kwargs)
+            try:
+                return self._request_noting_refresh(uri, method, *args, **kwargs)
+            except _CONNECTION_ERRORS as e:
+                if not resendable:
+                    raise
+                logger.info("Resending %s on a new connection after %r", method, e)
+                return self._request_noting_refresh(uri, method, *args, **kwargs)
+        except TimeoutError as e:
+            # A bare "timed out" tells the caller nothing, and for a write the one
+            # thing it must know is that the change may have landed.
+            raise TimeoutError(_timeout_message(e, resendable, self.http)) from e
 
     def _request_noting_refresh(self, *args: Any, **kwargs: Any) -> Any:
         try:
@@ -210,7 +328,9 @@ def thread_http(service: Any) -> AuthorizedHttp:
     credentials = service._http.credentials
     http = cache.get(key)
     if http is None or http.credentials is not credentials:
-        http = cache[key] = _RefreshTrackingHttp(credentials, http=_StaleConnectionHttp())
+        http = cache[key] = _RefreshTrackingHttp(
+            credentials, http=_StaleConnectionHttp(timeout=_HTTP_TIMEOUT_SECONDS)
+        )
     return http
 
 

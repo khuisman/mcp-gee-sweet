@@ -1,6 +1,13 @@
+import os
+
 import pytest
 
 from mcp_gee_sweet import auth, cache, reauth
+
+# Windows-safe root check: os.geteuid does not exist there, and a direct call
+# inside a @pytest.mark.skipif decorator (evaluated at import time) makes the
+# whole module fail to collect instead of skipping the affected tests.
+IS_ROOT = getattr(os, "geteuid", lambda: -1)() == 0
 
 
 @pytest.fixture(autouse=True)
