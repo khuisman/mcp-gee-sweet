@@ -747,6 +747,10 @@ class _AstParser(HTMLParser):
         self._cell_held_runs: list[Run] = []
         # Open <pre> tags inside a table cell, whose whitespace is never trimmed.
         self._cell_pre_depth = 0
+        # #1418: the cell's next text sits right after a nested table's </table>, so
+        # its leading source spacing collapses at the start of the line that follows,
+        # as a browser draws it (see handle_data). Cleared at a cell's start and end.
+        self._cell_after_table = False
 
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
@@ -1443,6 +1447,7 @@ class _AstParser(HTMLParser):
                 )
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
+                self._cell_after_table = False
                 # If it's a header cell, pre-activate bold
                 if is_header:
                     self._bold_depth += 1
@@ -1729,6 +1734,12 @@ class _AstParser(HTMLParser):
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
             self._table_depth -= 1
+            # #1418: back inside an open cell, the text that follows starts on the
+            # line after the block that just closed, so its leading spacing
+            # collapses (see handle_data). Outside a cell there is nothing to trim.
+            self._cell_after_table = (
+                self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
+            )
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")
             return
@@ -1745,6 +1756,7 @@ class _AstParser(HTMLParser):
                 runs = self._flush_pending_runs()
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
+                self._cell_after_table = False
                 if is_header:
                     self._bold_depth -= 1
                 tb.end_cell(runs)
@@ -1980,7 +1992,19 @@ class _AstParser(HTMLParser):
             # with its own style and link, only if more content follows; so everything
             # else in a cell parses as before (#1221 is the general question).
             if not (self._run_buf or self._pending_runs):
-                data = _without_line_break_edge(data, leading=True)
+                if self._cell_after_table:
+                    # #1418: the text resuming after a nested table starts a new line
+                    # in a browser (a table is a block), so the source spacing
+                    # between </table> and that text collapses at the line's start —
+                    # whether or not it holds a line break, where the #1073 trim above
+                    # took only the kind that did. An authored "&nbsp;" isn't ASCII
+                    # whitespace and stays (#444). The flag holds until the cell ends,
+                    # so a tag between the table and its text doesn't restore the
+                    # spacing either; only this line's start is affected, since real
+                    # text lands in the buffer and ends the segment start.
+                    data = data.lstrip(_ASCII_FORMATTING_WHITESPACE)
+                else:
+                    data = _without_line_break_edge(data, leading=True)
             text = _without_line_break_edge(data, leading=False)
             if text:
                 self._release_cell_whitespace()

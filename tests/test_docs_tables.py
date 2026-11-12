@@ -406,7 +406,9 @@ class TestNestedTableParser:
 
     async def test_leading_and_trailing_text_in_true_order(self):
         # Issue #275: text before AND after a nested table, in the same cell,
-        # must preserve true source order — not collapse into one block.
+        # must preserve true source order — not collapse into one block. The
+        # text after the table starts on the line that follows it, so its
+        # leading source space is gone (#1418); the order is what this guards.
         nodes = html_to_ast(
             "<table><tr><td>Before <table><tr><td>inner</td></tr></table> After</td></tr></table>"
         )
@@ -414,7 +416,44 @@ class TestNestedTableParser:
         kinds = [type(c).__name__ for c in outer.children]
         assert kinds == ["Run", "Table", "Run"]
         assert outer.children[0].text == "Before "
-        assert outer.children[2].text == " After"
+        assert outer.children[2].text == "After"
+
+    async def test_space_after_a_nested_table_collapses(self):
+        # #1418: a nested table is a block, so the text resuming after it starts
+        # a new line and the source spacing between </table> and that text
+        # collapses at that line's start — " After" used to keep its space and
+        # show indented by one character.
+        nodes = html_to_ast(
+            "<table><tr><td>Before <table><tr><td>inner</td></tr></table> After</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [repr(getattr(c, "text", type(c).__name__)) for c in outer.children] == [
+            "'Before '",
+            "'Table'",
+            "'After'",
+        ]
+
+    async def test_space_after_a_nested_table_collapses_before_a_tag_too(self):
+        # A tag between the table and its text doesn't restore the spacing: the
+        # line still starts at the table's end. Only an authored "&nbsp;"
+        # survives, as it does everywhere (#444).
+        nodes = html_to_ast(
+            "<table><tr><td><table><tr><td>x</td></tr></table> <b> After</b></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert _runs_in(outer)[0].text == "After"
+        nodes = html_to_ast(
+            "<table><tr><td><table><tr><td>x</td></tr></table>\xa0 After</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert outer.children[1].text == "\xa0 After"
+
+    async def test_space_at_a_cells_start_stays(self):
+        # #1418 trims only the line after a nested table; a cell's own first
+        # line keeps its leading space, which is #1221's open question, not
+        # this fix's.
+        nodes = html_to_ast("<table><tr><td> spaced</td></tr></table>")
+        assert _runs_in(nodes[0].rows[0].cells[0])[0].text == " spaced"
 
     async def test_multiple_nested_tables_with_text_between(self):
         # A cell may contain more than one nested table, with text interleaved
