@@ -932,6 +932,46 @@ class TestContainerText:
         assert nodes[0].runs[0].text == "quoted"
         assert nodes[0].blockquote_depth == 1
 
+    def test_bold_wrapping_a_container_keeps_the_style(self):
+        # #1404: an inline tag opened with no block around it records no style,
+        # so <b><div>x</div></b> wrote plain text.
+        nodes = html_to_ast("<b><div>x</div></b>")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("x", True)]
+
+    def test_a_link_wrapping_a_container_keeps_the_link(self):
+        # #1404's <a> twin: the href was pushed as a bare link (see the bare
+        # top-level <img>, #977) but a run never read it back.
+        nodes = html_to_ast('<a href="https://x.test"><div>card</div></a>')
+        assert [(r.text, r.link_url) for r in nodes[0].runs] == [("card", "https://x.test")]
+
+    def test_a_link_wrapping_a_paragraph_keeps_the_link(self):
+        nodes = html_to_ast('<a href="https://x.test"><p>para</p></a>')
+        assert [(r.text, r.link_url) for r in nodes[0].runs] == [("para", "https://x.test")]
+
+    def test_a_link_wrapping_two_containers_links_both_paragraphs(self):
+        nodes = html_to_ast('<a href="https://x.test"><div>l1</div><div>l2</div></a>')
+        assert [r.link_url for n in nodes for r in n.runs] == [
+            "https://x.test",
+            "https://x.test",
+        ]
+
+    def test_italic_wrapping_a_list_keeps_the_style_on_items(self):
+        nodes = html_to_ast("<i><ul><li>y</li></ul></i>")
+        assert [(r.text, r.italic) for r in nodes[0].runs] == [("y", True)]
+
+    def test_a_style_ended_after_the_container_does_not_leak(self):
+        # The bare-side close balances the depth the start tag recorded (#1404),
+        # and a closed link stops at its container.
+        nodes = html_to_ast('<b><div>b</div></b><div>plain</div>')
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("b", True),
+            ("plain", None),
+        ]
+
+    def test_a_closed_link_does_not_reach_a_later_container(self):
+        nodes = html_to_ast('<a href="https://x.test"><div>l</div></a><div>y</div>')
+        assert [r.link_url for n in nodes for r in n.runs] == ["https://x.test", None]
+
     def test_inline_only_content_in_a_quote(self):
         nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
         assert [(r.text, r.bold) for r in nodes[0].runs] == [("quoted", True)]

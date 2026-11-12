@@ -780,7 +780,18 @@ class _AstParser(HTMLParser):
             strikethrough=True if self._strike_depth > 0 else None,
             background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
             baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
-            link_url=self._link_url[-1] if self._link_url else None,
+            # An <a> opened with no block or cell around it pushed its href as a
+            # bare link (#977); a run flushed while it is still open — the
+            # paragraph of a block container it wraps, or a cell of a table it
+            # wraps — keeps that link, the way the bare top-level <img> branch
+            # and the in-block <img> fallback already do (#1404).
+            link_url=(
+                self._link_url[-1]
+                if self._link_url
+                else self._bare_link_url[-1]
+                if self._bare_link_url
+                else None
+            ),
             font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
         )
         self._pending_runs.append(run)
@@ -1688,6 +1699,28 @@ class _AstParser(HTMLParser):
             if href:
                 self._bare_link_url.append(href)
             self._anchor_pushes.append("bare" if href else None)
+        elif tag in _INLINE_BOLD:
+            # A formatting inline tag opened with no block or cell around it still
+            # records its style (#1404): the block container a document opens
+            # inside it (<b><div>x</div></b>) flushes runs that read these depths,
+            # while text with no block of its own at all stays dropped (#343) since
+            # nothing flushes outside a block. The matching bare-side close below
+            # and _close_dangling_inline_formatting's block-boundary reset keep a
+            # stray close, or an unclosed tag ended by an outer element's close
+            # (#1391), from leaking the style past its element's scope.
+            self._bold_depth += 1
+        elif tag in _INLINE_ITALIC:
+            self._italic_depth += 1
+        elif tag in _INLINE_UNDERLINE:
+            self._underline_depth += 1
+        elif tag in _INLINE_STRIKE:
+            self._strike_depth += 1
+        elif tag in _INLINE_BASELINE:
+            self._baseline_stack.append(_INLINE_BASELINE[tag])
+        elif tag == _INLINE_MARK:
+            self._mark_depth += 1
+        elif tag == "code":
+            self._code_depth += 1
 
     def handle_endtag(self, tag):
         tag = _PRE_ALIASES.get(tag, tag)
@@ -1930,6 +1963,24 @@ class _AstParser(HTMLParser):
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
         elif tag == "a":
             self._close_anchor()
+        elif tag in _INLINE_BOLD:
+            # The bare-side counterpart of the start-tag path above (#1404): the
+            # block a formatting tag opened before may already have closed by the
+            # time its own end tag arrives, so its depth is balanced here, clamped
+            # the same way the guarded branch clamps a stray close.
+            self._bold_depth = max(0, self._bold_depth - 1)
+        elif tag in _INLINE_ITALIC:
+            self._italic_depth = max(0, self._italic_depth - 1)
+        elif tag in _INLINE_UNDERLINE:
+            self._underline_depth = max(0, self._underline_depth - 1)
+        elif tag in _INLINE_STRIKE:
+            self._strike_depth = max(0, self._strike_depth - 1)
+        elif tag in _INLINE_BASELINE:
+            self._close_baseline(_INLINE_BASELINE[tag])
+        elif tag == _INLINE_MARK:
+            self._mark_depth = max(0, self._mark_depth - 1)
+        elif tag == "code":
+            self._code_depth = max(0, self._code_depth - 1)
 
     def _release_cell_whitespace(self):
         """Write held cell whitespace (see handle_data) ahead of the content about to

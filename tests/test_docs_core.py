@@ -3675,7 +3675,10 @@ class TestImageLinks:
             '<a href="https://u"><p>in block</p></a>'
         )
         assert self._image(nodes).link_url is None
-        assert [r.link_url for node in nodes[1:] for r in node.runs] == [None, None]
+        # #1404: the link no longer reaches *later* content — "text" and the
+        # first image, outside its element — but a block a bare <a> itself
+        # wraps now keeps it, like a browser's.
+        assert [r.link_url for node in nodes[1:] for r in node.runs] == [None, "https://u"]
 
     def test_parser_hrefless_nested_anchor_keeps_outer_link_bare(self):
         # PR #992 QA round 2: an href-less </a> popped the outer bare link.
