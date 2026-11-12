@@ -1835,9 +1835,11 @@ server.</p>
 <h2 id="mcp-clients">MCP clients<a class="headerlink" href="#mcp-clients" title="Permanent link">&para;</a></h2>
 <h3 id="some-clients-refuse-the-full-tool-set">Some clients refuse the full tool set<a class="headerlink" href="#some-clients-refuse-the-full-tool-set" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
-128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
-model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
+each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
+Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
+uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.</p>
 <p><strong>Why:</strong> The caps are the clients' own, and the server registers every tool unless told
 otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller

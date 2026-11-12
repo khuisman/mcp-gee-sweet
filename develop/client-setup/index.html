@@ -1640,7 +1640,7 @@
 <tr>
 <td>VS Code + GitHub Copilot (agent mode)</td>
 <td>128 tools per request, VS Code's built-in tools included (<a href="https://code.visualstudio.com/docs/agents/run/tools">docs</a>)</td>
-<td>The request fails with "Cannot have more than 128 tools per request"</td>
+<td>Depends on the build: see the note below the table</td>
 </tr>
 <tr>
 <td>Windsurf</td>
@@ -1659,6 +1659,7 @@
 </tr>
 </tbody>
 </table>
+<p><strong>VS Code may not need a subset.</strong> In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was <strong>Search Tools</strong>, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". If you see that error, use a subset as below.</p>
 <p>The fix is the same everywhere: set <code>ENABLED_TOOLS</code> to one of the <a href="../configuration/#suggested-subsets">suggested subsets</a>, each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.</p>
 <p>The snippets below use the <strong>Read-only Sheets</strong> subset with the PyPI install (<code>uvx</code>); swap in the list you want. For a cloned repo, use the <code>uv run --directory</code> command from <a href="#stdio-cloned-repo">Claude Desktop</a> instead. <code>--include-tools &lt;list&gt;</code> at the end of <code>args</code> works too, in place of the <code>ENABLED_TOOLS</code> entry.</p>
 <h3 id="vs-code-github-copilot">VS Code + GitHub Copilot<a class="headerlink" href="#vs-code-github-copilot" title="Permanent link">&para;</a></h3>
