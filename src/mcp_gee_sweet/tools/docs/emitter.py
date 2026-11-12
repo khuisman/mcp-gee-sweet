@@ -117,14 +117,15 @@ class CellImages:
         self._run_batch = run_batch
         self._failed_request_index = failed_request_index
         self._on_dropped = on_dropped
-        # id(insert) -> (insert, image, its link request or None) for the batch being
+        # id(insert) -> (insert, image, its style request or None) for the batch being
         # built and sent. It holds the request dicts themselves and is cleared once that
         # batch settles, so no id() here can belong to a later batch's request.
         self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
 
     def insert_requests(self, image: Image, position: int) -> list[dict]:
-        """The requests that place `image` at `position`: its insertInlineImage (and
-        link request) when it resolved, recorded for the retry, else its fallback text."""
+        """The requests that place `image` at `position`: its insertInlineImage and its
+        style request (#977, #1334) when it resolved, recorded for the retry, else its
+        fallback text."""
         uri = self.uris.get(id(image))
         if uri is None:
             return self.fallbacks.requests(image, position)
@@ -171,9 +172,10 @@ class CellImages:
         self.fallbacks.applied(batch)
 
     def _drop(self, requests: list[dict], error: Exception) -> int | None:
-        """Replace the image insert `error` names in `requests`, and its link request,
-        with the image's fallback text (#1099), and return the index it was at. None if
-        `error` doesn't name one of this batch's image inserts.
+        """Replace the image insert `error` names in `requests`, and its style request,
+        with the image's fallback text and its style request (#1099, #1334), and return
+        the index it was at. None if `error` doesn't name one of this batch's image
+        inserts.
 
         The text goes where the insert was, at the same position: like the insert, it
         moves no request after it in the batch, since those all sit at or before it."""
@@ -2091,17 +2093,21 @@ def _table_placeholder_requests(
 
 def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
     """Build the insertInlineImage request for an already-resolved image at `position`,
-    followed, for a linked image, by the updateTextStyle that links it (#977).
+    followed by the updateTextStyle that resets the styles the image inherits from the
+    character before it (#1334), keeping its link when it has one (#977).
 
-    Docs stores an image's link on its inlineObjectElement's own textStyle, so the link
+    Docs stores an image's link on its inlineObjectElement's own textStyle, so the style
     goes over the image's one-character range [position, position + 1). It must run
     right after this insert: the descending-position pass guarantees nothing before
     `position` has shifted yet at that point. An image never inherits a neighboring
-    run's link on insert (confirmed live), so an unlinked image needs no clearing
-    request. When the insert fails, content.py's retry replaces it with the image's
-    fallback text and drops this link request (_drop_failed_image, through
-    ast_to_requests's image_links); otherwise the link would land on whatever
-    character sits at `position`, one character of the text."""
+    run's link on insert (confirmed live), but it does take the emphasis and position
+    styles of the character before it (live, #1334): a superscript run before the image
+    raised it and shrunk its fallback text. The clearing request covers both, and always
+    runs, so an unlinked image is reset too. When the insert fails, content.py's retry
+    replaces it with the image's fallback text and drops this style request
+    (_drop_failed_image, through ast_to_requests's image_links); otherwise the cleared
+    fields would land on whatever character sits at `position`, one character of the
+    text."""
     request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
     if image.width is not None or image.height is not None:
         object_size: dict = {}
@@ -2110,10 +2116,7 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
         if image.height is not None:
             object_size["height"] = {"magnitude": image.height, "unit": "PT"}
         request["insertInlineImage"]["objectSize"] = object_size
-    link_url = _storable_link_url(image.link_url)
-    if link_url is None:
-        return [request]
-    return [request, _image_link_request(link_url, position)]
+    return [request, _image_style_request(_storable_link_url(image.link_url), position)]
 
 
 # RFC 3986: a scheme is case-insensitive and an open registry, so acceptance is
@@ -2173,13 +2176,15 @@ def _storable_link_url(link_url: str | None) -> str | None:
     return None
 
 
-def _image_link_request(link_url: str, position: int) -> dict:
-    """updateTextStyle linking the image just inserted at `position` (#977)."""
+def _image_style_request(link_url: str | None, position: int) -> dict:
+    """updateTextStyle resetting the character styles an image just inserted at
+    `position` inherited from the character before it (#1334), and linking it when
+    it has a storable link (#977)."""
     return {
         "updateTextStyle": {
             "range": {"startIndex": position, "endIndex": position + 1},
-            "textStyle": {"link": {"url": link_url}},
-            "fields": "link",
+            "textStyle": {"link": {"url": link_url}} if link_url else {},
+            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
         }
     }
 
@@ -2205,16 +2210,27 @@ def image_fallback_text(image: Image) -> str:
     return " ".join(name.split()) or "image"
 
 
+# The character styles an inserted image or its fallback text inherits from the
+# character before it and can't be its own (#1334): an image carries only its link
+# (#977), so its requests clear these fields — named and left unset — from the range
+# the insert covers, keeping the link when there is one. Font family, size and color
+# stay inherited, so fallback text in a heading still reads like the text around it
+# (#1099's intent, untouched by this reset).
+_INHERITED_CHARACTER_STYLE_FIELDS = (
+    "bold,italic,underline,strikethrough,baselineOffset,smallCaps,backgroundColor,link"
+)
+
 def image_fallback_requests(image: Image, position: int, text: str | None = None) -> list[dict]:
     """Write `image`'s fallback text (`text`, else image_fallback_text) at
     `position`, where its insertInlineImage would have gone, for an image that
     didn't resolve or that Docs couldn't fetch (#1099): an SVG badge, an unreachable
     URL, a missing local file.
 
-    The image's link goes on the text. For an unlinked image, any link the text
-    inherits from the character before it is cleared: inserted text, unlike an
-    inserted image, takes its neighbor's style. Its other inherited styles stay, so
-    it reads like the text around it. Like the image's own requests, the pair goes
+    The image's link goes on the text. The text takes the character before it's
+    styles on insert, so the request clears the character styles a styled neighbor
+    passes on — the emphasis and position fields — keeping only the link (#1334).
+    Font family, size and color still come from the text around it, so it reads
+    like its paragraph (#1099). Like the image's own requests, the pair goes
     in the descending-position pass, where it moves nothing still to come."""
     if text is None:
         text = image_fallback_text(image)
@@ -2225,7 +2241,7 @@ def image_fallback_requests(image: Image, position: int, text: str | None = None
             "updateTextStyle": {
                 "range": {"startIndex": position, "endIndex": position + utf16_len(text)},
                 "textStyle": {"link": {"url": link_url}} if link_url else {},
-                "fields": "link",
+                "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
             }
         },
     ]

@@ -44,6 +44,7 @@ from mcp_gee_sweet.tools.docs.content import (
 )
 from mcp_gee_sweet.tools.docs.emitter import (
     ImageFallbacks,
+    _INHERITED_CHARACTER_STYLE_FIELDS,
     ast_to_requests,
     extract_images,
     heading_image_ids,
@@ -2824,7 +2825,11 @@ class TestCreateDocImages:
                 or ("deleteContentRange" in r and "insertTable" in attempt[i - 1])
                 or r.get("insertText", {}).get("text") in fallback_texts
                 or (
-                    r.get("updateTextStyle", {}).get("fields") == "link"
+                    r.get("updateTextStyle") is not None
+                    and "insertInlineImage" in attempt[i - 1]
+                )
+                or (
+                    r.get("updateTextStyle") is not None
                     and attempt[i - 1].get("insertText", {}).get("text") in fallback_texts
                 )
                 for i, r in enumerate(attempt)
@@ -2845,8 +2850,11 @@ class TestCreateDocImages:
         return [
             r["updateTextStyle"]["range"]
             for r in requests
-            if r.get("updateTextStyle", {}).get("fields") == "link"
-            and r["updateTextStyle"]["textStyle"]["link"]["url"].startswith("https://link/")
+            if r.get("updateTextStyle", {})
+            .get("textStyle", {})
+            .get("link", {})
+            .get("url", "")
+            .startswith("https://link/")
         ]
 
     async def test_bad_linked_image_link_moves_to_its_fallback_text(self):
@@ -2889,7 +2897,7 @@ class TestCreateDocImages:
                 "updateTextStyle": {
                     "range": {"startIndex": bad_position, "endIndex": bad_position + 3},
                     "textStyle": {"link": {"url": "https://link/bad"}},
-                    "fields": "link",
+                    "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
                 }
             },
         ]
@@ -5833,8 +5841,9 @@ class TestPositionalInsertTailStart:
         )
         nodes = html_to_ast(_md_to_html(md))
         uris = {id(img): img.src for img in extract_images(nodes)}
-        requests, _ = ast_to_requests(nodes, start_index=1, image_uris=uris)
-        tail_start = _positional_insert_tail_start(requests)
+        image_links: dict[int, dict] = {}
+        requests, _ = ast_to_requests(nodes, start_index=1, image_uris=uris, image_links=image_links)
+        tail_start = _positional_insert_tail_start(requests, image_links)
         positional = [
             i for i, r in enumerate(requests) if "insertTable" in r or "insertInlineImage" in r
         ]
@@ -5892,9 +5901,13 @@ class TestPositionalInsertTailStart:
         image_links: dict[int, dict] = {}
         requests, _ = ast_to_requests(nodes, image_uris=uris, image_links=image_links)
         inserts = {r["insertInlineImage"]["uri"]: r for r in requests if "insertInlineImage" in r}
-        assert list(image_links) == [id(inserts["https://x/a.png"])]
-        link = image_links[id(inserts["https://x/a.png"])]
-        assert any(r is link for r in requests)
+        # Both images' style requests are recorded (#1334): each one must be dropped
+        # with its insert when Google can't fetch the image.
+        assert list(image_links) == [
+            id(inserts["https://x/a.png"]),
+            id(inserts["https://x/b.png"]),
+        ]
+        assert all(any(r is link for r in requests) for link in image_links.values())
         assert _positional_insert_tail_start(requests, image_links) == requests.index(
             min(inserts.values(), key=requests.index)
         )
@@ -6181,14 +6194,14 @@ class TestImageFallbackText:
         assert style["updateTextStyle"] == {
             "range": {"startIndex": 5, "endIndex": 10},
             "textStyle": {"link": {"url": "https://ci"}},
-            "fields": "link",
+            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
         }
 
     def test_unlinked_fallback_clears_an_inherited_link(self):
         # Inserted text takes the style of the character before it, a link included.
         [_insert, style] = image_fallback_requests(Image(src="https://x/a.svg", alt="A"), 5)
         assert style["updateTextStyle"]["textStyle"] == {}
-        assert style["updateTextStyle"]["fields"] == "link"
+        assert style["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
 
     def test_unstorable_link_is_cleared_not_stored(self):
         # The same rule as a text link (#1120): a relative target goes nowhere.
