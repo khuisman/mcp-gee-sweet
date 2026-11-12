@@ -1,0 +1,6 @@
+{
+  "NORMAL_TEXT": {"font_family": "Georgia", "font_size": 12, "line_spacing": 115},
+  "HEADING_1": {"font_family": "Montserrat", "font_size": 24, "bold": true, "color": {"red": 0.10, "green": 0.30, "blue": 0.60}},
+  "HEADING_2": {"font_family": "Montserrat", "font_size": 18, "bold": true, "color": {"red": 0.10, "green": 0.30, "blue": 0.60}},
+  "HEADING_3": {"font_family": "Montserrat", "font_size": 14, "italic": true, "color": {"red": 0.35, "green": 0.35, "blue": 0.35}}
+}

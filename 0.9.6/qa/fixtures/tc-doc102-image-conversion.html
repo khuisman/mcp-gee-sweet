@@ -1,0 +1,44 @@
+<h1>Image Conversion Test Document (HTML)</h1>
+
+<h2>Case 1: standalone image in its own paragraph</h2>
+<p>Paragraph before the image.</p>
+<p><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="standalone logo" width="92" height="30"></p>
+<p>Paragraph after the image.</p>
+
+<h2>Case 2: inline image inside running text</h2>
+<p>Text before <img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="inline logo"> text after, same paragraph.</p>
+
+<h2>Case 3: two consecutive images with no separating text</h2>
+<p><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="first"><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="second"></p>
+
+<h2>Case 4: image wrapped in a link</h2>
+<p><a href="https://example.com"><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="linked logo"></a></p>
+
+<h2>Case 5: image inside a list item</h2>
+<ul>
+  <li>List item with an image <img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="bullet logo"> inline</li>
+  <li>Plain list item, no image</li>
+</ul>
+
+<h2>Case 6: image inside a table cell</h2>
+<table>
+  <tr><th>Description</th><th>Image</th></tr>
+  <tr><td>Logo in a cell</td><td><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="cell logo"></td></tr>
+</table>
+
+<h2>Case 7: image inside a nested table cell</h2>
+<table>
+  <tr>
+    <td>Outer cell with nested table</td>
+    <td>
+      <table>
+        <tr><td><img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png" alt="nested cell logo"></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<h2>Case 8: image with an unreachable URL (parser-level drop, not a fetch failure)</h2>
+<p><img src="https://does-not-exist.invalid/nope.png" alt="unreachable image"></p>
+
+<p>Final paragraph, confirms the document is not truncated after all image cases.</p>
