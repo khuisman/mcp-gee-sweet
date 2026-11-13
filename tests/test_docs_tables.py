@@ -1348,13 +1348,9 @@ class TestCellImageParser:
     async def test_pre_in_a_cell_is_styled_as_code(self):
         # #1417: a <pre> inside a cell kept its line breaks (#1215) but read as
         # plain text — the cell path never gave its runs the body <pre>'s font.
-        nodes = html_to_ast(
-            "<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table>"
-        )
+        nodes = html_to_ast("<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table>")
         cells = nodes[0].rows[0].cells
-        assert [(r.text, r.font_family) for r in _runs_in(cells[0])] == [
-            ("x\n  y", "Courier New")
-        ]
+        assert [(r.text, r.font_family) for r in _runs_in(cells[0])] == [("x\n  y", "Courier New")]
         assert [(r.text, r.font_family) for r in _runs_in(cells[1])] == [("plain", None)]
 
     async def test_pre_style_in_a_cell_ends_at_its_close(self):
