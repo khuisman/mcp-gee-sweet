@@ -649,6 +649,10 @@ class _AstParser(HTMLParser):
         # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # Whether an <li> has opened in each open list, pushed and popped with
+        # _list_ordered: a list's first item is the one no earlier <li> opened in
+        # it (#1414).
+        self._list_seen_item: list[bool] = []
         # Each <ol> by list id, numbered once every item is known (#1118).
         self._ordered_lists: dict[int, _OrderedList] = {}
         # The open <li>'s value attribute.
@@ -665,6 +669,12 @@ class _AstParser(HTMLParser):
         # makes the item a bulleted heading (#1094). Per-segment, like the fields
         # _open_block resets.
         self._li_heading_level: int | None = None
+        # True while the segment about to be flushed is a fresh <li> that is the
+        # first item of an open <ul> — no earlier <li> opened in that list, and the
+        # list is unordered (#1414). Only such an item can be the styled block it
+        # wraps (see _interrupt_open_block); every other <li> keeps the empty
+        # bullet #1075 gives it. Per-segment, reset by _open_block.
+        self._block_li_first_ul_item = False
         # The tags of the open item headings, which outlive their segment: a nested
         # block can interrupt the item before the heading's </hN>, which must still be
         # consumed here rather than reach the inline end-tag path and decrement
@@ -834,6 +844,18 @@ class _AstParser(HTMLParser):
         self._li_trailing_padding = False
         self._li_heading_level = None
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
+        # #1414: a fresh <li> that is the first item of an open <ul>. Computed from
+        # the live stacks, since no list can have opened inside this item yet; a
+        # resumed segment is never the item's first content, so it's False there.
+        # handle_starttag marks the list as having seen its item right after this,
+        # so the next <li> of the same list finds False here.
+        self._block_li_first_ul_item = (
+            tag == "li"
+            and not resumed
+            and bool(self._list_ordered)
+            and not self._list_ordered[-1]
+            and not self._list_seen_item[-1]
+        )
         self._run_buf = []
         self._pending_runs = []
 
@@ -982,6 +1004,7 @@ class _AstParser(HTMLParser):
         self._list_count += 1
         self._list_ordered.append(ordered)
         self._list_ids.append(self._list_count)
+        self._list_seen_item.append(False)
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -1228,7 +1251,7 @@ class _AstParser(HTMLParser):
                 Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
             )
 
-    def _interrupt_open_block(self, new_construct_tag: str):
+    def _interrupt_open_block(self, new_construct_tag, interrupting_named_style=None):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
         'pre', or a _BLOCK_TAGS tag) is opening. If a block is currently
         open — of *any* kind, not just <li> — its buffered text must be
@@ -1239,6 +1262,9 @@ class _AstParser(HTMLParser):
         paragraphs interrupted the same way) and emit the outer block after
         its children, since a streaming parser closes children before their
         parent.
+
+        interrupting_named_style is the data-style a `<p>` carries when it's
+        the construct opening, None for every other construct (#1414).
 
         Pushes a frame recording exactly which tag closing would legitimately
         end this interruption, so _resume_interrupted_block can restore it —
@@ -1252,9 +1278,37 @@ class _AstParser(HTMLParser):
         if self._run_buf and not self._in_pre:
             self._trim_source_line_break()
         runs = self._flush_pending_runs()
-        self._emit_block_node(
-            outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
-        )
+        if not (
+            # #1414: a fresh, text-less <li> that is the FIRST item of a <ul>,
+            # with no `&nbsp;` before the styled block, is that block, indented
+            # under the list with no bullet — as before #1075 and as TC-DOC242's
+            # check reads it — not an empty bullet sitting above the block. A
+            # browser draws the marker beside the block's first line, not on a
+            # line of its own, so the item reads as one line; the block keeps
+            # the item's indent either way. Scoped to exactly the issue's row:
+            # an <ol>'s items keep the bullet, since a skipped item would no
+            # longer count for start/value numbering (`<ol start="3">`'s next
+            # item would show 3, not 4), and so does every item but the first
+            # — skipping one in the middle makes the block read as content of
+            # the item before it, the same AST as `<li>a<p …>s</p></li>` — and
+            # an `&nbsp;` before the block, a deliberate empty-bullet marker
+            # elsewhere (#1075). #1075's own rows (a nested list, quote, code
+            # block or rule as the item's only content) keep their empty
+            # bullet too, an item that dropped unsupported content keeps it
+            # so its boundary node isn't lost, and an item with text of its
+            # own still emits as a normal bullet.
+            outer_tag == "li"
+            and self._block_li_first_ul_item
+            and not self._block_resumed
+            and new_construct_tag == "p"
+            and interrupting_named_style is not None
+            and not self._block_had_unsupported_content
+            and not _has_content(runs)
+            and not any("\xa0" in r.text for r in runs if isinstance(r, Run))
+        ):
+            self._emit_block_node(
+                outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
         self._block_stack.append(
             _BlockFrame(
                 outer_tag=outer_tag,
@@ -1530,10 +1584,12 @@ class _AstParser(HTMLParser):
                 self._li_heading_level = int(tag[1])
                 self._li_heading_tags.append(tag)
                 return
-            self._interrupt_open_block(tag)
+            self._interrupt_open_block(tag, interrupting_named_style=named_style)
             self._open_block(tag, resumed=False, named_style=named_style)
             if tag == "li":
                 self._li_value = _html_integer(attr_dict.get("value"))
+                if self._list_seen_item:
+                    self._list_seen_item[-1] = True
             return
 
         # --- block container with no node of its own (#1391) ---
@@ -1773,6 +1829,7 @@ class _AstParser(HTMLParser):
             if self._list_ordered:
                 self._list_ordered.pop()
                 self._list_ids.pop()
+                self._list_seen_item.pop()
             self._resume_interrupted_block(tag)
             return
 
