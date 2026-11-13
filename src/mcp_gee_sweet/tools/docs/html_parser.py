@@ -1720,6 +1720,7 @@ class _AstParser(HTMLParser):
         if tag == "table":
             # A cell left open has no </td> to drop what it held.
             self._cell_held_runs = []
+            appended_to_cell = False
             if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
@@ -1733,13 +1734,16 @@ class _AstParser(HTMLParser):
                         self._nodes.append(node)
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
+                        appended_to_cell = True
             self._table_depth -= 1
             # #1418: back inside an open cell, the text that follows starts on the
             # line after the block that just closed, so its leading spacing
-            # collapses (see handle_data). Outside a cell there is nothing to trim.
-            self._cell_after_table = (
-                self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
-            )
+            # collapses (see handle_data) — but only when a table node was really
+            # appended to that cell. An empty <table></table> builds no node, so
+            # the text on either side keeps the spacing the source put there, as on
+            # develop ("Before After", not "BeforeAfter"). Outside a cell there is
+            # nothing to trim.
+            self._cell_after_table = appended_to_cell and self._table_stack[-1].in_cell
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")
             return

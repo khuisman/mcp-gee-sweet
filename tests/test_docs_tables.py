@@ -448,6 +448,15 @@ class TestNestedTableParser:
         outer = nodes[0].rows[0].cells[0]
         assert outer.children[1].text == "\xa0 After"
 
+    async def test_an_empty_nested_table_collapses_nothing(self):
+        # #1418 QA: an empty <table> builds no node, so nothing was appended to
+        # the cell and the flag stays down — the source space between it and the
+        # text stays, as on develop: "Before After", not "BeforeAfter".
+        nodes = html_to_ast("<table><tr><td>Before<table></table> After</td></tr></table>")
+        outer = nodes[0].rows[0].cells[0]
+        texts = [getattr(c, "text", None) for c in outer.children]
+        assert "".join(t for t in texts if t is not None) == "Before After"
+
     async def test_space_at_a_cells_start_stays(self):
         # #1418 trims only the line after a nested table; a cell's own first
         # line keeps its leading space, which is #1221's open question, not
