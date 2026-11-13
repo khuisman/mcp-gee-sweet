@@ -28,8 +28,16 @@ def _github_style_slugify(text: str) -> str:
     run of whitespace into a matching-length run of hyphens — consecutive
     hyphens are NOT collapsed (" - " -> "---", confirmed against issue #409's
     own real example). No known maintained Python package reproduces this;
-    GitHub's own reference implementation (`github-slugger`) is JS-only."""
-    slug = text.lower()
+    GitHub's own reference implementation (`github-slugger`) is JS-only.
+
+    A heading's hard break adds nothing to GitHub's own anchor ("Heading
+    one<br>heading two" -> "heading-oneheading-two", #1357), so the "\v"
+    break marker (#1230) is dropped here, inside the scheme itself — both
+    consumers that must agree (this resolver and markdown_export.py's
+    exported heading links) call this one function, and only the read side's
+    raw heading text carries "\v"; the export side drops the "\n" its
+    doc_to_ast-normalized text carries at the same place."""
+    slug = text.lower().replace("\v", "")
     slug = _STRIP_CHARS.sub("", slug)
     return _WHITESPACE_RUN.sub(lambda m: "-" * len(m.group(0)), slug)
 
@@ -47,14 +55,16 @@ def _github_style_slugify(text: str) -> str:
 # The two schemes also disagree on a heading's hard break (`<br>` / a Markdown
 # "\"), which #1230 stores inside the heading text as a "\v": GitHub's slug
 # ignores the break — it adds no text and no separator ("Heading one<br>heading
-# two" slugs to "heading-oneheading-two", #1357) — while GitLab's Comrak-based
+# two" slugs to "heading-oneheading-two", #1357) — a drop made inside
+# _github_style_slugify itself so every caller of the GitHub scheme agrees,
+# while GitLab's Comrak-based
 # anchor collects the break as a plain space and slugifies it to a single
 # hyphen (comrak's collect_text_append pushes " " for LineBreak | SoftBreak,
 # and anchorize maps it to "-"), which this collapsed scheme already
 # reproduces via python-markdown's slugify. So only the GitHub scheme drops
-# "\v"; the GitLab one keeps turning it into a separator.
+# the break; the GitLab one keeps turning it into a separator.
 _SLUGIFY_FUNCS = [
-    lambda text: _github_style_slugify(text.replace("\v", "")),
+    _github_style_slugify,
     lambda text: _markdown_toc_slugify(text, "-"),
 ]
 

@@ -32,6 +32,14 @@ class TestResolveHeadingAnchor:
         headings = ["Introduction", "Heading one\vheading two", "Appendix"]
         assert resolve_heading_anchor("#heading-oneheading-two", headings) == 1
 
+    def test_hard_break_heading_and_plain_heading_have_distinct_anchors(self):
+        # #1435 review: GitHub's scheme drops the break entirely, so a heading
+        # with a hard break and a plain-space heading slug differently, and
+        # each anchor must find its own heading — never the other's.
+        headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
+        assert resolve_heading_anchor("#heading-one-heading-two", headings) == 1
+
     def test_leading_hash_is_optional(self):
         headings = ["Overview"]
         assert resolve_heading_anchor("overview", headings) == 0
