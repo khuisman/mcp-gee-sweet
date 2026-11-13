@@ -1,0 +1,57 @@
+# CodeQL advanced setup (#1461). Replaces CodeQL default setup, which posts
+# no results on pull requests from forks, so ruleset 26262344 ("Require code
+# scanning results (CodeQL)") never cleared for a community PR.
+#
+# Never add a `pull_request_target` trigger: it would run a fork's code with a
+# write token. A plain `pull_request` run from a fork gets a read-only token,
+# and GitHub still accepts its CodeQL upload.
+#
+# Languages, categories and the query suite match what default setup used, so
+# the alerts it raised carry over instead of being duplicated or closed.
+name: CodeQL
+
+on:
+  push:
+    branches: ["develop", "main"]
+  pull_request:
+  schedule:
+    # Weekly, as default setup ran. Mondays 06:17 UTC.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "actions"]
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # No `queries:`: the default suite, as default setup ran.
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
