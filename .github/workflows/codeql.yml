@@ -6,8 +6,16 @@
 # write token. A plain `pull_request` run from a fork gets a read-only token,
 # and GitHub still accepts its CodeQL upload.
 #
-# Languages, categories and the query suite match what default setup used, so
-# the alerts it raised carry over instead of being duplicated or closed.
+# Default setup must stay off (`state: not-configured` in the repo's
+# code-scanning default-setup API, Security tab → Code scanning → Tools).
+# While it's on, GitHub rejects this workflow's uploads, so the required
+# `CodeQL` check fails on every PR and ruleset 26262344 blocks every merge.
+#
+# Languages, categories and the query suite match what default setup used,
+# but GitHub keys a configuration on the analysis key too, and default setup's
+# was `dynamic/github-code-scanning/codeql:analyze`. Its configurations on
+# `develop` and `main` are stale and never re-run; delete them from the Tool
+# status page once this workflow's first push analysis lands on each branch.
 name: CodeQL
 
 on:
