@@ -2079,6 +2079,18 @@ class TestExportFile:
         assert "download_file" in msg
         assert "local_path" not in msg
 
+    async def test_cap_error_hint_reads_as_full_sentences(self, monkeypatch):
+        # #1430 follow-up (PR #1442 review): export_file's hint is a complete
+        # sentence, so the shared env-var clause starts a fresh sentence after
+        # it — never spliced onto a trailing ", or " ("…overhead, or Set
+        # MAX_TOOL_RESPONSE_CHARS…", the wording khuisman caught in review).
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        ctx = self._ctx(self._workspace_svc(b"x" * 1000))
+        with pytest.raises(ValueError) as exc_info:
+            await _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+        assert "without this overhead. Set MAX_TOOL_RESPONSE_CHARS" in str(exc_info.value)
+        assert ", or Set" not in str(exc_info.value)
+
 
 class _FakeDriveFS:
     """Fakes the slice of the Drive API sync_folder needs: per-folder `files().list`,

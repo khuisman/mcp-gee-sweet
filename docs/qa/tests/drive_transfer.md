@@ -106,13 +106,13 @@ Run 2 (kai-sa, SA on the Shared Drive); every check matched.
 > "Export <the large binary file's ID> with export_format 'raw'" (or, on a low-cap server, "Export {SPREADSHEET_ID} as xlsx")
 
 **Checks**
-- Call raises `ValueError`: `export_file: the response is <N> characters, over the <cap>-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`, where `<cap>` is the server's configured cap
+- Call raises `ValueError`: `export_file: the response is <N> characters, over the <cap>-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead. Set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`, where `<cap>` is the server's configured cap
 - The message must NOT mention `local_path` (this tool doesn't have that param)
 
 **Cleanup:** trash the uploaded large file, if one was used.
 
 **Result (2026-07-03) ✅ PASS**
-Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
+Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead. Set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
 
 **Result (2026-09-04) ❌ FAIL**
 Expected ValueError re: 40,000-char response cap on xlsx export. Actual: call SUCCEEDED, returned full base64 xlsx (~9KB) inline, no error. Root cause: issue #519 raised MAX_TOOL_RESPONSE_CHARS well above the ~54KB this fixture's xlsx produced — the TC premise (small fixture trips 40k cap) is stale post-#519. Not a product regression; TC needs updating.
