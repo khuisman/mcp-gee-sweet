@@ -24,8 +24,58 @@ equivalent manual deletion.
 (`fontSize = 1pt`). The paragraph remains in the document structure but is invisible in the
 rendered output. The one exception is a paragraph between two tables: it keeps its height, as
 the blank line that keeps the tables from touching and reading as one (#1098). Every such
-paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097).
+paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or border (#1097),
+except that one between two quoted tables in the same quote takes the quote's indent and
+bar (#1122).
 Related: #190.
+
+---
+
+### Text typed after a document's final table overlaps it
+
+**What:** When content written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text added after that
+table later (typed in the Docs editor, or written by `insert_doc_text` at the document's end) is
+drawn over the table's last row. Each line added there overprints the one before it too: every
+paragraph started from that text, by Enter or a `"\n"`, takes the same spacing. This applies to
+every document that ends in a table, not only one whose table reaches the bottom margin.
+
+**Why:** A Docs body always ends in a paragraph, so a document ending in a table has an empty one
+after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
+of its own. Since the emitter can't tell whether a table reaches the margin, it collapses that
+paragraph in every document ending in a table (`spaceAbove/spaceBelow = 0`, `lineSpacing = 1`,
+#1100), and text added there inherits the 1% line spacing. Its font size is left alone, so the
+text keeps the document's size.
+
+**Workaround:** In the Docs editor, select the added text and set its line spacing back
+(Format > Line & paragraph spacing > Single). From the tools,
+`apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` sets single spacing
+on every `NORMAL_TEXT` paragraph, the collapsed ones included. That gives the paragraph after the
+table its height back, so the blank last page can return, and gives the collapsed blank
+paragraph before each table (see above) a 1pt line's height. Or write the added text
+as part of the content: `write_doc_content` or `update_doc_from_file` rewrites the document, and
+the paragraph after the table is collapsed again only if the new content still ends in a table.
+
+---
+
+### A quoted table is a table inside a 1x1 wrapper table
+
+**What:** A table inside a blockquote (Markdown `> | a | b |`, or HTML `<blockquote><table>`)
+is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
+gray bar (#1122). `get_doc_structure` reports the wrapper as the top-level table, with the
+quoted table nested in its cell, so table tools that take a table's position
+(`insert_table_row`, `merge_table_cells`, and so on) reach the wrapper, not the table you
+see. Removing the wrapper in the Docs editor removes the bar but leaves the table.
+
+**Why:** The Docs API can't give a table a paragraph border, so a bar beside a table has to
+come from a table cell's border. Without the wrapper, a quoted table sat at the quote's
+indent with a gap in the bar beside it.
+
+**Workaround:** To edit a quoted table's rows or columns with the table tools, pass the
+quoted table's own `table_start_index`: one more than the wrapper cell's
+`paragraphStartIndex` in `get_doc_structure`, since the cell's first paragraph is an empty
+line before the table. Or rewrite the content with `write_doc_content`. `get_doc_as_markdown` reads the wrapper back
+as the quoted table (`> | a | b |`).
 
 ---
 
@@ -138,6 +188,62 @@ lines join into one paragraph. Decided in #1242.
 
 ---
 
+### A list that doesn't start at 1 can be literal numbers, not a Docs list
+
+**What:** In Markdown or HTML content written to a Doc, `3. a` or `<ol start="3">` shows the
+right numbers, but unless it continues the list before it, its items are plain paragraphs
+holding the number, a tab and the text, at a list's hanging indent. Docs doesn't treat them
+as a list: pressing Enter in one doesn't add an item, and adding or removing one doesn't
+renumber the rest. `get_doc_as_markdown` reads them back as list items.
+
+A top-level list that starts where the last top-level list stopped (`1. a`, a code block,
+`2. b`) stays a real list: it joins that list. It's literal instead when another list comes
+between them, or a table, an empty paragraph or a quote two levels deep (each would read back
+from the Doc as inside the first list's last item), or when it's in a different blockquote or
+has a different number. A nested list that doesn't start at 1 is always literal, written in its
+level's glyph (`c.`, `iv.`). So are `<ol reversed>` and a list with an `<li value>`.
+
+A literal item that's both quoted and nested in a list reads back through `get_doc_as_markdown`
+as a plain paragraph: its marker and tab as text, at the quote depth its indent gives. The Doc
+itself shows it correctly. An indent adds the item's list level to its quote depth, and nothing
+in the Doc separates the two. A quoted literal item at the top of a list, with a digit marker,
+reads back as a list item.
+
+A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) starts further left, so
+its text stays lined up with the other items. A marker wider than the level's whole text indent
+moves the item's text right, leaving the blocks and sublists under it behind. The width is
+estimated from Arial at the default sizes, so a much wider font can still overrun it.
+
+**Why:** `NestingLevel.startNumber` is read-only: no `batchUpdate` request writes it, and
+deleting a list's first items renumbers the rest from 1 (confirmed live). Only Drive's HTML
+import sets it, and importing over an existing Doc removes its headers, named styles and
+margins. See `docs/design/list-start-numbers.md`.
+
+**Workaround:** To get a real list, start it at 1, or write it through Drive's import
+(`upload_local_file(convert=True)`), which creates a new Doc.
+
+---
+
+### The gap between paragraphs is set on each paragraph
+
+**What:** `create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file`, and
+`upload_file` (Markdown source) put 10pt below a paragraph that another paragraph follows, in the
+paragraph's own style rather than in NORMAL_TEXT, so a change to NORMAL_TEXT in the Docs UI doesn't
+reach those paragraphs. `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` does: it
+removes the 10pt from every NORMAL_TEXT body paragraph that has exactly that value, including one
+a person set by hand. A doc whose NORMAL_TEXT has nonzero spacing gets no gaps when it's written,
+but a NORMAL_TEXT set to 0 can't be told from the default, so that doc gets them.
+
+The same 10pt goes on each side of a list (#1389), but not on a list inside a quote: the list's
+indent differs from the paragraphs beside it, so Docs wouldn't draw the quote bar across the gap,
+and a quoted list sits tight against the quoted paragraphs around it.
+
+`get_doc_theme` leaves 8pt and 10pt out of NORMAL_TEXT's `space_above` and `space_below`, since
+that's what those values are on a server-written doc, so it also misses them on a paragraph set
+to one by hand.
+
+---
+
 ### A horizontal rule is a bordered paragraph, not a Docs horizontal line
 
 **What:** A Markdown thematic break (`---`, `***`, `___`) or an HTML `<hr>` written by `create_doc`,
@@ -205,10 +311,11 @@ raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-t
 as `get_doc_as_markdown`, with these differences and gaps:
 
 1. A link to a heading renders as a GitHub-style `#slug` anchor, not as a docs.google.com URL.
-   A link to a bookmark, or to a heading that doesn't render as one (a bulleted heading, or one
-   in a table cell), is dropped and leaves its text. An image renders as
-   `image:sha256-<hash>`, with no viewable URL: the temporary Doc's image URLs stop working
-   once it's deleted, so an old revision's images can't be viewed this way.
+   A link to a bookmark, or to a heading that doesn't render as one (a heading in a table
+   cell, a bulleted task-item heading, or a bulleted Title/Subtitle), is dropped and leaves its
+   text. An image renders as `image:sha256-<hash>`, with no viewable URL: the temporary Doc's
+   image URLs stop working once it's deleted, so an old revision's images can't be viewed this
+   way.
 2. The export doesn't include comments, which aren't part of a revision.
 3. A revision ID from `list_revisions` can stop existing: Docs folds a recent revision into the
    next one while editing continues (measured: edits 90 seconds and 5 minutes later both merged it).
@@ -268,33 +375,70 @@ Related: project memory `service_account_limit`.
 Docs tools (`create_doc`, `write_doc_content`, `create_doc_from_file`, `update_doc_from_file`)
 use this server's converter instead. The same Markdown comes out differently:
 
-- **Bullets** use a `-` glyph at every level, not ● / ○ / ■.
+- **Bullets** show the source's own marker: a `-` list shows `-` at every level, a top-level
+  `+` list `+`, and a top-level `*` list ●. This server's converter uses ● / ○ / ■ by level,
+  whatever the marker.
 - **Numbered lists** use `1.` numbering at every level, not `a.` / `i.` for nested levels. A
   `1)` list keeps the `)`. A top-level item after a nested numbered sub-list can repeat the
-  previous number (1, 2, 2).
-- **Code blocks** (fenced or indented) aren't monospace: each line becomes its own Arial
-  paragraph, with paragraph spacing between lines.
+  previous number (1, 2, 2). A numbered list can also join the numbered sub-list before it,
+  even across a heading, so it continues that sub-list's count (2., 3., 4.) instead of starting
+  at 1.
+- **Numbers of 100 or more** don't line up: an item's wrapped line starts left of its first
+  line's text, and a paragraph under the item doesn't line up with the item's text.
+- **Fenced code blocks** become a gray rounded monospace box with syntax colors and a language
+  label, with each source line as its own 9pt paragraph. A fence with no language, or one Drive
+  doesn't recognize, is labeled "None", a word that isn't in the source.
+- **A fenced code block in a list item or a blockquote** sits at the page margin at full width,
+  outside the item or the quote (seen one and two quotes deep). A list continues correctly after
+  it.
+- **Indented code blocks** render as the same gray box as a fence with no language, labeled
+  "None".
 - **Inline code** is green monospace rather than Courier New, so `get_doc_as_markdown` reads it
   back as plain text, without backticks.
 - **Blockquotes** are indented but have no left border.
 - **Task lists** become native Docs checklists rather than `☐` / `☑` text. A numbered task list
-  loses its numbers.
-- **Sub-lists indented by 2 spaces** under a numbered item don't nest; 3 or more spaces do.
+  loses its numbers, and a plain item after its task items restarts at 1. A task list two quotes
+  deep isn't a checklist at all: it shows dash bullets with the literal `[ ]` / `[x]` text (one
+  quote deep it's a checklist).
+- **Sub-lists indented by 2 spaces** under a numbered item don't nest; 3 or more spaces do. A
+  list nested under such a sub-list is joined onto its parent item's text as literal text ("Child
+  one 1. Grandchild one 2. Grandchild two"), and the items after it are renumbered.
+- **A pipe table right under a list item or a quote line**, with no blank line between them,
+  becomes literal text on the end of that line. After a paragraph or a heading, the table is
+  built.
+- **A paragraph between two items of an HTML list** (`<ol><li>…</li><p>…</p><li>…</li></ol>`)
+  is joined onto the start of the next item's text, with no space ("Loose in the listLoose two").
 - **Extra empty paragraphs** appear around paragraphs, rules, lists, and tables. A table gets a
   visible empty line above it when it starts the document, and between it and a paragraph
   directly before it.
-- **`<del>` and `<mark>`** inline HTML isn't rendered as strikethrough or highlight.
+- **Inline HTML:** `<del>` and `<mark>` aren't rendered as strikethrough or highlight, and a
+  `<br>` splits its paragraph in two, with an empty paragraph between, instead of starting a new
+  line in the same paragraph.
 - **Images** with a local path or `drive:` source aren't embedded. Only this server's converter
-  uploads and shares those.
+  uploads and shares those. A local path with a space in it shows as the literal
+  `![alt](path)` text.
+- **An image Docs can't display**, such as an SVG badge from shields.io, leaves an empty line or
+  a gap in the sentence, with no alt text, linked or not. This server's converter writes its alt
+  text in its place (#1099), except in a heading, where it leaves the image out so the heading's
+  text and its link target stay as written.
+- **A protocol-relative image** (`//host/image.png`) shows nothing. This server's converter
+  fetches it over `https://` (#1180).
+- **Relative and `#anchor` links** don't work. A relative link such as `./guide.md` points to
+  `http://./guide.md`, and a link to a heading (`#section`) opens nothing. This server's
+  converter drops a relative link's target, keeping its text, and points an anchor link at its
+  heading, or drops it when no heading matches.
 - **`www.` links**, bare (`www.example.com`) or written (`[x](www.example.com)`), point to
   `http://`. This server's converter gives both `https://` (#1180, #1281).
 
 **Why:** The rendering is Drive's, not this server's. These tools upload the file and set a Google
 Doc as the target type, and Drive's importer converts it. QA recorded the differences above in
 the #1044 Markdown baselines (`docs/qa/results/2026-10-18-markdown.md`,
-`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`); the `www.` scheme in
-PR #1298's QA round 1. Routing these tools through this server's converter is a design question
-(#1113).
+`2026-10-18-markdown-phase2.md`, `2026-10-22-markdown-boundaries-state.md`,
+`2026-11-05-markdown.md`, `2026-11-08-markdown.md`, #1429); the `www.` scheme in PR #1298's QA
+round 1. Drive can change this rendering without a release of this server: fenced code blocks
+looked different in the 2026-10-18 and 2026-11-05 baselines, and the bullet-glyph and
+indented-code entries above were corrected from the 2026-11-08 pass. Routing these tools through
+this server's converter is a design question (#1113).
 
 **Workaround:** For a single file, use `create_doc_from_file`, and `update_doc_from_file` to
 refresh it. They render `.md` the same way as the other Docs tools. There's no equivalent for a
@@ -457,14 +601,16 @@ server.
 ### Some clients refuse the full tool set
 
 **What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
-128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
-model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
+each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
+Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
+uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own, and the server registers every tool unless told
-otherwise, so it works out of the box on clients without a cap. A smaller default tool set is a
-separate design question.
+otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller
+default tool set; `ENABLED_TOOLS=all` keeps every tool.
 
 **Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
 [suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
@@ -501,11 +647,19 @@ sees a confirmation: `send_message` and `reply_to_message` save the email as a d
 elicitation. **Claude Code currently connects on 2026-07-28** (2.1.310, checked 2026-10-26),
 so every send from Claude Code is held as a draft.
 
+**Claude Desktop holds sends too.** On the Chat tab, Claude Desktop 4.23118.0 with the bundle
+installed (checked 2026-11-07) never showed this server's confirmation form: `send_message`
+returned `reason: no_elicitation` and left the email as a draft. Claude Desktop's own permission
+prompt may appear first, showing To, Subject and Body. Allowing it only saves the draft; nothing
+is sent. Which protocol version it connects on hasn't been checked, so this may have a different
+cause from the one below, and #1235 may not change it.
+
 **Why:** Revision 2026-07-28 removed server-initiated requests. Asking there takes an
 `InputRequiredResult` round trip, which isn't implemented yet (#1235).
 
 **Workaround:** Send the draft from Gmail's Drafts folder, connect with a client on the
-2025-11-25 `initialize` handshake, or set `GMAIL_SEND=direct`.
+2025-11-25 `initialize` handshake, or set `GMAIL_SEND=direct`. The bundle install has no setting
+for `GMAIL_SEND`.
 
 ### The changed-draft check has a short window before the send
 

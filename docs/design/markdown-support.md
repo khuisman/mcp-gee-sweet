@@ -184,6 +184,7 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `[![alt](src)](url)` | `<a href=...><img ...></a>` | `Image(link_url=...)` | linked inline image (#977) |
 | `- item` | `<ul><li>` | `BulletItem(ordered=False)` | disc bullet list |
 | `1. item` | `<ol><li>` | `BulletItem(ordered=True)` | numbered list |
+| `3. item` | `<ol start="3"><li>` | `BulletItem(ordered=True, number=3)` | joins the last list if it stopped at 2, else literal numbers (`list-start-numbers.md`) |
 | `- [x] item` | `<input type="checkbox" checked>` | `BulletItem(checked=True)` | bullet with a `☑`/`☐` glyph prefix |
 | a block indented under an item (a second paragraph, code, a quote, a heading, a table, a rule, an image) | the block inside the `<li>` | that block's own node with `list_depth` = the item's depth (#1094) | no bullet, indented to the item's text (a quote one step further, with its border); the list continues past it, so the next item keeps its number |
 | `- # Heading` (a heading as the item's own text) | `<li><h1>` | `BulletItem(heading_level=1)` | a bulleted HEADING_1 paragraph (#1094) |
@@ -191,6 +192,85 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `` `code` `` | `<code>` | `Run(font_family="Courier New")` | monospace text run |
 | ` ```code block``` ` | `<pre><code>` | `Paragraph` (all runs `font_family="Courier New"`) | monospace paragraph, 8pt above and below (#1098) |
 | `> quoted text` | `<blockquote><p>` | `Paragraph(blockquote_depth=1)` (or `Heading`/`BulletItem`/`NamedBlock`, whichever the quoted content is) | left border + indent, scaled by nesting depth (#476), 8pt above and below the quote; adjacent quotes kept apart (#1098) — see [blockquote-representation.md](blockquote-representation.md) |
+
+A blank line between two paragraphs is 10pt of `spaceBelow` on the first (#1382), what Docs'
+own "Add space after paragraph" adds, close to the 8pt around code blocks and quotes. Drive's
+import makes the same gap with an empty paragraph instead, which would read back as content.
+The gap goes between two plain paragraphs in the same quote depth and list item, and between
+an item's text and a paragraph inside that item, a literal item's included. Inside a quote, an
+item's text gets none: the paragraph has a different indent, so Docs leaves the gap out of the
+bar. A spacer line (`&nbsp;`) is a gap already, and a
+heading keeps its own look next to a paragraph. A paragraph in a table cell
+gets none: cells stay compact, and Markdown can't write one.
+
+A table can't take spacing, so a plain paragraph or list item beside one takes the gap on the
+table's side (#1427): `spaceAbove` right after a table, `spaceBelow` right before it. Without it
+the block after sat on the table's bottom border. Drive's import leaves an empty line on both
+sides of a table, list items included. Unquoted only: beside a quoted table the quote-edge 8pt
+applies, and inside one quote a gap would break the bar between the table's wrapper and the
+paragraph. A heading, rule, spacer line or code block beside a table keeps its own spacing.
+
+A list gets the same gap on both sides where it meets a plain paragraph outside it (#1389):
+below the paragraph before its first item, an intro line ("Install the headers:") included,
+and below its last item, or the plain paragraph that ends that item. Drive's import leaves an
+empty line in both places, and a browser's paragraph margin does the same. "Outside" is by list
+place: a paragraph inside an item gets the gap before a sublist under that item, and before
+a different list at any depth, a literal one included (`_starts_list_outside`, by the item's
+own list ids: a stand-in keeps its item's as `literal_item_path`), while the item's
+own text before its sublist, and a paragraph inside an item before the next item of a list it
+sits in, keep the list's spacing. A list item
+that's a heading, and a code block, table or rule at the list's edge, keep their own spacing.
+A quoted list gets none, for the same reason as a quoted item's text. Docs' default NORMAL_TEXT
+`spacingMode` is `COLLAPSE_LISTS`, which drops spacing only between two list items: a 10pt
+`spaceBelow` on a list's last item, or on the paragraph before its first, shows on the page
+(measured in an exported PDF, 2026-11-07).
+
+The gap is set on each paragraph, and the API has no other way to write it short of changing
+NORMAL_TEXT for the whole Doc, lists and table cells included. A value on a paragraph beats the
+named style, so a theme's spacing has to win some other way, in either order:
+
+- A Doc that already has NORMAL_TEXT spacing gets no gaps: `_replace_doc_content` reads it
+  (`_own_paragraph_spacing_fields`) and drops them from the converted requests
+  (`without_paragraph_gaps`). Spacing of exactly 0 can't be told from the default.
+- `apply_theme` with a NORMAL_TEXT `space_above` or `space_below` hands the gap paragraphs back to
+  the named style (`_clear_paragraph_gap_requests`), found by the value `PARAGRAPH_GAP_PT`, which
+  no other spacing the emitter writes uses.
+
+A gap beside a table is the exception in both: it goes only when the Doc or theme sets that same
+field. Nothing else spaces a paragraph from a table, so a Doc spaced only below its paragraphs
+would put the paragraph after a table back on its border (PR #1434 QA round 1). The replace path
+knows these gaps by identity (`ConvertedContent.table_gaps`, filled by `ast_to_requests`), and
+`apply_theme` by place: a 10pt `spaceAbove` right after a table, a 10pt `spaceBelow` right before
+a table's empty paragraph. A 10pt `spaceAbove` anywhere else isn't the emitter's and stays.
+
+`get_doc_theme` must not report what the emitter wrote as the Doc's theme: applying it would
+set that spacing across the target Doc, lists and cells included. So NORMAL_TEXT comes from body
+text, not a quote, a rule, an empty line or a code block (`_is_block_paragraph`), which it knows
+by Courier New and its 8pt on both sides, since a Doc set in Courier by hand is body text. Its
+spacing leaves out 8pt and 10pt (`_body_style_entry`), which also covers a paragraph beside a
+quoted table: that has the quote's 8pt and no border. A Doc with no body text at all takes
+NORMAL_TEXT from its first block with text, font but not those values. The first paragraph of a
+style decides even with no explicit style, and a text field counts only when every run in it
+shares that field, or one run's inline bold or code span would read as the Doc's body text.
+
+`get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
+gaps (checked live on r06).
+
+A list marker stays plain whatever style its item's text has (#1383), as it does in a browser,
+so one list's markers match. A marker's look is `paragraph.bullet.textStyle`, which matches the
+screen. Checked live, what sets it:
+
+| Moment | What the marker takes |
+|---|---|
+| `createParagraphBullets` | Every style the paragraph's whole text shares, however many requests set it: a bold item in two runs still gets a bold marker. The newline's own style doesn't matter, and clearing it before or after changes nothing. |
+| A later `updateTextStyle` | That request's style, if its range covers all of the paragraph's text, with or without the newline. Two requests that only add up to the whole text leave the marker alone. |
+
+So a `BulletItem`'s run styles go after the whole bullet pass (`_item_run_style_requests`), and
+a run that is the item's whole text is styled with a throwaway zero-width space after it, deleted
+by the next request, because no split works for a one-character item. A heading item's marker
+keeps its heading's size and weight: that comes from the named style, not from a run. This
+corrects #1383's own reading that a marker follows the last run: r06's step 3 differs because it's
+the only step not bold throughout, and an item that's plain then bold had a plain marker already.
 
 Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.

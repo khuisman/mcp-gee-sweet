@@ -12,7 +12,12 @@ scope) — multi-tab documents (includeTabsContent) are out of scope here too.
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass, replace
+
 from .ast import (
+    CHECKED_PREFIX,
+    UNCHECKED_PREFIX,
     BulletItem,
     Cell,
     DocNode,
@@ -25,16 +30,17 @@ from .ast import (
     Run,
     Table,
 )
-from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL, is_rule_style, list_level_indents
+from .emitter import (
+    _BLOCKQUOTE_INDENT_PT_PER_LEVEL,
+    _LIST_INDENT_FIRST_LINE_PT,
+    _LIST_INDENT_START_PT,
+    _MAX_LIST_NESTING_LEVEL,
+    is_rule_style,
+    list_level_indents,
+    literal_list_marker,
+)
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
-
-# Checkbox glyphs the emitter prepends to a checked/unchecked task item's text
-# (#336's design decision — a literal glyph prefix, not a BULLET_CHECKBOX
-# preset list; see emitter.py's own comment). Recognized here on read-back the
-# same way the write side writes them, character-for-character.
-_CHECKED_PREFIX = "☑ "  # "☑ "
-_UNCHECKED_PREFIX = "☐ "  # "☐ "
 
 
 def document_to_ast(document: dict) -> list[DocNode]:
@@ -51,14 +57,33 @@ def document_to_ast(document: dict) -> list[DocNode]:
                 continue
             node = _paragraph_to_node(para, document, list_counter)
             if isinstance(node, BulletItem):
-                items.item(para["bullet"])
+                items.item(para.get("bullet") or _literal_item_bullet(node))
             else:
                 items.block(node, para)
             nodes.append(node)
         elif "table" in elem:
-            table = _table_elem_to_ast(elem["table"], document)
+            wrapped = _quote_bar_wrapped(elem["table"])
+            if wrapped is None:
+                table = _table_elem_to_ast(elem["table"], document)
+                items.table(table)
+            else:
+                # A quoted table in its quote-bar wrapper (#1122): placed by the quote
+                # indent the wrapper records, like a quoted paragraph.
+                inner, indent = wrapped
+                if nodes and _is_empty_paragraph(nodes[-1]) and not _ends_a_quoted_table(nodes):
+                    # The newline insertTable puts before every table. Kept, it read
+                    # as a blank line that ended the quote before its table. Dropped
+                    # before the table is placed, which can settle its list depth.
+                    items.discard(nodes.pop())
+                table = _table_elem_to_ast(inner, document)
+                table.blockquote_depth = max(1, round(indent / _BLOCKQUOTE_INDENT_PT_PER_LEVEL))
+                pstyle = {
+                    "indentStart": {"magnitude": indent},
+                    "indentFirstLine": {"magnitude": indent},
+                    "borderLeft": {"width": {"magnitude": 1}},
+                }
+                items.block(table, {"paragraphStyle": pstyle})
             nodes.append(table)
-            items.table(table)
         # sectionBreak, tableOfContents: no Markdown equivalent, silently skipped
         # — same "unsupported construct" convention html_parser.py uses on write.
     items.close()
@@ -123,7 +148,7 @@ class _ListItemContext:
         self._lists.append(list_id)
         self._depth = depth
 
-    def block(self, node: Heading | Paragraph | NamedBlock, para: dict) -> None:
+    def block(self, node: Heading | Paragraph | NamedBlock | Table, para: dict) -> None:
         if not self._lists:
             return
         pstyle = para.get("paragraphStyle", {})
@@ -135,7 +160,12 @@ class _ListItemContext:
             self._settle_pending(match[0])
             node.list_depth, node.blockquote_depth = match
             self._depth = match[0]
-        elif isinstance(node, Paragraph) and not node.runs and not _has_indent(para):
+        elif (
+            isinstance(node, Paragraph)
+            and not node.runs
+            and not node.rule
+            and not _has_indent(para)
+        ):
             self._pending.append((node, None))
         else:
             self.close()
@@ -143,6 +173,10 @@ class _ListItemContext:
     def table(self, table: Table) -> None:
         if self._lists:
             self._pending.append((table, None))
+
+    def discard(self, node: DocNode) -> None:
+        """Forget a node the caller dropped, so a later settle doesn't place it."""
+        self._pending = [(n, match) for n, match in self._pending if n is not node]
 
     def close(self) -> None:
         """End the open list: whatever was waiting stays outside it, as read."""
@@ -241,10 +275,16 @@ class _ListCounter:
 
 
 def _paragraph_to_node(
-    para: dict, document: dict, list_counter: _ListCounter | None
+    para: dict,
+    document: dict,
+    list_counter: _ListCounter | None,
+    *,
+    read_literal: bool = True,
 ) -> Heading | Paragraph | BulletItem | NamedBlock:
     """`list_counter` numbers a list item: pass one counter for a whole walk of
-    the body in document order, or None to leave `BulletItem.number` unset."""
+    the body in document order, or None to leave `BulletItem.number` unset.
+    `read_literal` False keeps an unbulleted paragraph from reading as a stand-in
+    for a list item (#1118), for a caller holding only a piece of a paragraph."""
     pstyle = para.get("paragraphStyle", {})
     named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
     runs = _paragraph_runs(para, document)
@@ -253,24 +293,29 @@ def _paragraph_to_node(
     blockquote_depth = _infer_blockquote_depth(
         pstyle, _list_level_indent_start(bullet, level_props) if bullet else 0
     )
+    literal = None
+    if not bullet and read_literal and runs and isinstance(runs[0], Run):
+        literal = _literal_marker(pstyle, runs[0].text)
 
-    if bullet:
-        checked = None
-        if runs and isinstance(runs[0], Run):
-            if runs[0].text.startswith(_CHECKED_PREFIX):
-                checked = True
-                runs[0].text = runs[0].text[len(_CHECKED_PREFIX) :]
-            elif runs[0].text.startswith(_UNCHECKED_PREFIX):
-                checked = False
-                runs[0].text = runs[0].text[len(_UNCHECKED_PREFIX) :]
-        ordered = _is_ordered_level(level_props)
+    if bullet or literal:
+        if literal:
+            rest = runs[0].text[literal.length :]
+            runs = [replace(runs[0], text=rest), *runs[1:]] if rest else runs[1:]
+        checked = _read_task_prefix(runs)
+        ordered = literal is not None or _is_ordered_level(level_props)
+        if literal:
+            depth, number = literal.depth, literal.number
+            blockquote_depth = literal.quote_depth
+        else:
+            depth = bullet.get("nestingLevel", 0)
+            number = list_counter.number(bullet, level_props, ordered) if list_counter else None
         return BulletItem(
             runs=runs,
-            depth=bullet.get("nestingLevel", 0),
+            depth=depth,
             ordered=ordered,
             checked=checked,
             blockquote_depth=blockquote_depth,
-            number=list_counter.number(bullet, level_props, ordered) if list_counter else None,
+            number=number,
             # A bulleted HEADING_N paragraph is an item whose text is a heading
             # ("- # Title"), as html_parser.py writes it (#1094, #1302). Not a task
             # item: GFM reads "- [ ] ## Title" as task text, not a heading, so it
@@ -287,6 +332,112 @@ def _paragraph_to_node(
     return Paragraph(
         runs=runs, blockquote_depth=blockquote_depth, rule=_is_rule_paragraph(para, runs)
     )
+
+
+# The text emitter._literal_item opens a stand-in with. Bounded, since int32 needs no
+# more, so reading one stays cheap on any text.
+_LITERAL_MARKER = re.compile(r"(-?[0-9]{1,10}|[a-z]{1,15})\.\t")
+# listId of a stand-in's level in _ListItemContext: no doc's lists map has it, so a
+# block inside it is placed by the indents emitter.py writes.
+_LITERAL_LIST_ID = "literal-list-item"
+
+
+@dataclass
+class _LiteralMarker:
+    """The opening of emitter.py's stand-in for a list item (#1118)."""
+
+    depth: int
+    number: int
+    quote_depth: int
+    length: int  # of the marker and its tab, in characters
+
+
+def _literal_marker(pstyle: dict, text: str) -> _LiteralMarker | None:
+    """What a paragraph's text and style say if it's a stand-in, else None: unbulleted
+    (the caller's check), its text at a list level's indentStart, its first line at
+    least the list's gap left of that, starting with a number that level writes and
+    a tab. A marker too wide for the indentStart moves it instead, with the first line
+    at the margin (emitter._deferred_indent_request).
+
+    The marker has to be one its level writes, or a hanging paragraph that merely
+    opens with `iv.<tab>` at another level isn't an item. A quoted stand-in's indent is
+    its list level and quote depth added together, and nothing in the Doc separates
+    them: neither the marker (a roman numeral is letters too) nor the open list (the
+    stand-in can have a quote its list doesn't). So a quoted one reads only at level 0,
+    with a digit marker, and a nested one stays a paragraph (known-limitations.md).
+    Never try to recover its level: each attempt moved the failure (PR #1368)."""
+    match = _LITERAL_MARKER.match(text)
+    start = pstyle.get("indentStart", {}).get("magnitude")
+    # Docs leaves a zero indent out of the response.
+    first_line = pstyle.get("indentFirstLine", {}).get("magnitude", 0)
+    if match is None or start is None:
+        return None
+    gap = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
+    if start - first_line < gap - _INDENT_TOLERANCE_PT:
+        return None
+    steps = _whole_quote_steps(start - _LIST_INDENT_START_PT)
+    if steps is None:
+        steps = _whole_quote_steps(first_line)
+    if steps is None or steps < 0:
+        return None
+    if pstyle.get("borderLeft"):
+        if steps < 1:
+            return None
+        depth = 0
+    else:
+        depth = steps
+    number = _literal_number(match.group(1), depth)
+    if depth > _MAX_LIST_NESTING_LEVEL or number is None:
+        return None
+    return _LiteralMarker(depth, number, steps - depth, match.end())
+
+
+def literal_marker_length(para: dict, text: str) -> int:
+    """How much of a paragraph's text is a stand-in's marker, for matching the rest
+    (the anchor pass), or 0. A bulleted paragraph is never a stand-in, whatever it
+    says."""
+    if para.get("bullet"):
+        return 0
+    marker = _literal_marker(para.get("paragraphStyle", {}), text)
+    return marker.length if marker else 0
+
+
+_ROMAN_VALUES = {literal_list_marker(number, 2)[:-1]: number for number in range(1, 4000)}
+
+
+def _literal_number(marker: str, depth: int) -> int | None:
+    """The number `marker` writes at list level `depth`, or None if that level
+    doesn't write it. The inverse of emitter.literal_list_marker."""
+    if marker.lstrip("-").isdigit():
+        number = int(marker)
+    elif depth % 3 == 1:
+        number = 0
+        for letter in marker:
+            number = number * 26 + ord(letter) - ord("a") + 1
+    elif depth % 3 == 2:
+        number = _ROMAN_VALUES.get(marker)
+    else:
+        number = None
+    if number is None or literal_list_marker(number, depth) != f"{marker}.":
+        return None
+    return number
+
+
+def _literal_item_bullet(item: BulletItem) -> dict:
+    """A `bullet` for a stand-in, for _ListItemContext (#1118)."""
+    return {"listId": _LITERAL_LIST_ID, "nestingLevel": item.depth}
+
+
+def _read_task_prefix(runs: list[Run | Image]) -> bool | None:
+    """A list item's checkbox state, taking the glyph off its first run (fresh from
+    _paragraph_runs). None when it isn't a task item."""
+    if not runs or not isinstance(runs[0], Run):
+        return None
+    for prefix, checked in ((CHECKED_PREFIX, True), (UNCHECKED_PREFIX, False)):
+        if runs[0].text.startswith(prefix):
+            runs[0].text = runs[0].text[len(prefix) :]
+            return checked
+    return None
 
 
 def _is_rule_paragraph(para: dict, runs: list[Run | Image]) -> bool:
@@ -355,7 +506,9 @@ def _paragraph_with_rules(
         elif item is not None:
             node = Paragraph(runs=_paragraph_runs({**para, "elements": piece}, document))
         else:
-            node = _paragraph_to_node({**para, "elements": piece}, document, list_counter)
+            node = _paragraph_to_node(
+                {**para, "elements": piece}, document, list_counter, read_literal=False
+            )
         assert not isinstance(node, BulletItem)
         if item is not None and i > item_at:
             # Inside the item: its depth and quote, not read from the paragraph's
@@ -529,6 +682,67 @@ def _resolve_inline_image(
         height=size.get("height", {}).get("magnitude"),
         link_url=link_url,
     )
+
+
+def _ends_a_quoted_table(nodes: list[DocNode]) -> bool:
+    """Whether the empty paragraph ending `nodes` is the unquoted gap after a quoted
+    table: between two quoted tables in separate quotes, it's what keeps them apart (a
+    gap between two in one quote carries their bar instead)."""
+    gap = nodes[-1]
+    return (
+        len(nodes) >= 2
+        and isinstance(nodes[-2], Table)
+        and nodes[-2].blockquote_depth > 0
+        and gap.blockquote_depth == 0
+    )
+
+
+def _is_empty_paragraph(node: DocNode) -> bool:
+    """An empty paragraph that isn't a rule. Right before a quote-bar wrapper it's the
+    newline insertTable put there, whatever quote it reads in: between two wrappers in
+    one quote it carries that quote's bar (PR #1359 QA round 1)."""
+    return isinstance(node, Paragraph) and not node.runs and not node.rule
+
+
+def _quote_bar_wrapped(table: dict) -> tuple[dict, float] | None:
+    """The table inside emitter.py's quote-bar wrapper (#1122) and the quote indent the
+    wrapper records, or None when `table` isn't one. A wrapper is a 1x1 table whose cell
+    has a left border and no other, and holds one table among empty paragraphs, the
+    first of them indented to the quote (`_build_quote_bar_requests`). A user's own 1x1
+    table around another one has every border, so it reads as a nested table, as before.
+    """
+    rows = table.get("tableRows", [])
+    if len(rows) != 1:
+        return None
+    cells = rows[0].get("tableCells", [])
+    if len(cells) != 1:
+        return None
+    style = cells[0].get("tableCellStyle", {})
+
+    def width(side: str) -> float:
+        return style.get(side, {}).get("width", {}).get("magnitude", 0)
+
+    if width("borderLeft") <= 0 or any(
+        width(side) > 0 for side in ("borderTop", "borderRight", "borderBottom")
+    ):
+        return None
+    content = cells[0].get("content", [])
+    nested = [elem["table"] for elem in content if "table" in elem]
+    paragraphs = [elem["paragraph"] for elem in content if "paragraph" in elem]
+    if len(nested) != 1 or len(nested) + len(paragraphs) != len(content):
+        return None
+    if "paragraph" not in content[0]:
+        # The recorded indent is on the paragraph before the table.
+        return None
+    if any(
+        "".join(el.get("textRun", {}).get("content", "") for el in p.get("elements", [])) != "\n"
+        for p in paragraphs
+    ):
+        return None
+    indent = paragraphs[0].get("paragraphStyle", {}).get("indentStart", {}).get("magnitude", 0)
+    if indent <= 0:
+        return None
+    return nested[0], indent
 
 
 def _table_elem_to_ast(table: dict, document: dict) -> Table:

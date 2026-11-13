@@ -7,8 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph, Run, Table
-from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Image, Paragraph, Run, Table
+from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
+from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
+from mcp_gee_sweet.tools.docs.emitter import ast_to_requests
+from mcp_gee_sweet.tools.docs.html_parser import _collapse_soft_breaks, html_to_ast
 from mcp_gee_sweet.tools.docs.md_to_html import (
     _gfm_autolink_matches,
     _md_to_html,
@@ -349,7 +352,7 @@ class TestQaRound1:
         # At A's content column it is inside A's paragraph: lazy text, not an item.
         md = "1. A\n   2. b"
         assert _preprocess(md) == md
-        assert _outline(md) == [("OL", 0, "A\n2. b")]
+        assert _outline(md) == [("OL", 0, "A 2. b")]
 
     def test_ordered_marker_after_a_blank_line_still_starts_a_list(self):
         assert _outline("Text\n\n2019. A\n  - point") == [
@@ -463,7 +466,7 @@ class TestQaRound2:
 
     def test_lazy_table_after_lazy_text_still_separates(self):
         assert _outline("- A\nlazy text\n| K | V |\n|---|---|\n| k | v |") == [
-            ("UL", 0, "A\nlazy text"),
+            ("UL", 0, "A lazy text"),
             ("TABLE", 2, ""),
         ]
 
@@ -586,7 +589,7 @@ class TestQaRound3:
     def test_lazy_pipe_line_does_not_end_the_list(self):
         # Finding 7.
         assert _outline("1. A\n| lazy pipe text\n  - sub\n2. B\n") == [
-            ("OL", 0, "A\n| lazy pipe text"),
+            ("OL", 0, "A | lazy pipe text"),
             ("UL", 1, "sub"),
             ("OL", 0, "B"),
         ]
@@ -670,15 +673,17 @@ class TestHtmlShapesFromMarkdownIt:
         nodes = html_to_ast("<ul><li>a\n<pre><code>x</code></pre></li></ul>")
         assert _text(nodes[0]) == "a"
 
-    def test_br_before_nested_list_keeps_its_break(self):
+    def test_br_before_nested_list_draws_no_line(self):
+        # A browser draws no line for a <br> right before a block (PR #1356 QA round 1).
         nodes = html_to_ast("<ul><li>a<br />\n<ul><li>b</li></ul></li></ul>")
-        assert _text(nodes[0]) == "a\n"
+        assert _text(nodes[0]) == "a"
 
     @pytest.mark.parametrize("brs", [1, 2])
-    def test_br_right_before_a_block_keeps_its_break(self, brs):
-        # PR #1228 QA round 2 finding 6: the trim removed a <br>'s own "\n".
+    def test_br_right_before_a_block_keeps_all_but_one(self, brs):
+        # PR #1228 QA round 2 finding 6: the trim removed every <br>'s break. A second
+        # <br> is an empty line, as a browser shows; the last one draws none.
         nodes = html_to_ast("<p>Line" + "<br>" * brs + "<table><tr><td>x</td></tr></table></p>")
-        assert _text(nodes[0]) == "Line" + "\n" * brs
+        assert _text(nodes[0]) == "Line" + "\v" * (brs - 1)
 
     def test_rule_inside_list_item_after_text(self):
         nodes = html_to_ast("<ul>\n<li>Item\n<hr />\n</li>\n<li>Next</li>\n</ul>")
@@ -755,3 +760,247 @@ class TestFrontMatter:
 
     def test_rule_and_setext_heading_unchanged(self):
         assert _md_to_html("---\nSome text\n---\n") == "<hr />\n<h2>Some text</h2>\n"
+
+
+def _inserted_text(md: str) -> str:
+    requests, _ = ast_to_requests(_ast(md))
+    return "".join(r["insertText"]["text"] for r in requests if "insertText" in r)
+
+
+class TestLineBreaks:
+    """A soft break is a space, a hard break or <br> a "\\v" (#1230: #1093, #1117,
+    #1091)."""
+
+    def test_soft_break_joins_the_paragraph(self):
+        # #1093's repro, C10.
+        md = "The team agreed to ship the\nindexing service on Friday.\n"
+        assert _outline(md) == [("P", 0, "The team agreed to ship the indexing service on Friday.")]
+        assert _inserted_text(md) == "The team agreed to ship the indexing service on Friday.\n"
+
+    def test_soft_break_in_a_list_item_stays_in_the_item(self):
+        # #1093's r08 repro: the continuation line was its own item.
+        md = (
+            "1. **The first week matters most.** New hires who had a buddy\n"
+            "   were 2.3x more likely.\n"
+            "2. Next\n"
+        )
+        assert _outline(md) == [
+            (
+                "OL",
+                0,
+                "The first week matters most. New hires who had a buddy were 2.3x more likely.",
+            ),
+            ("OL", 0, "Next"),
+        ]
+
+    def test_soft_break_in_a_quote_and_a_heading(self):
+        assert _outline("> one\n> two\n") == [("P", 1, "one two")]
+        assert _outline("Title\nmore\n=====\n") == [("H", 1, "Title more")]
+
+    def test_soft_break_keeps_each_runs_style(self):
+        nodes = _ast("a **bold\nword** c\n")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [
+            ("a ", None),
+            ("bold word", True),
+            (" c", None),
+        ]
+
+    def test_soft_break_after_an_image(self):
+        # Aziz's AJ-009: the text after an image started a new paragraph.
+        nodes = _ast("![x](https://example.com/a.png)\nafter image\n")
+        assert isinstance(nodes[0].runs[0], Image)
+        assert _text(nodes[0]) == " after image"
+
+    @pytest.mark.parametrize("md", ["a  \nb\n", "a\\\nb\n", "a<br>b\n", "a<br>\nb\n"])
+    def test_hard_break_is_a_line_break_in_one_paragraph(self, md):
+        # #1117's BR-02/HT-03 and #1091.
+        assert _outline(md) == [("P", 0, "a\vb")]
+        assert _inserted_text(md) == "a\vb\n"
+
+    def test_br_in_a_heading_and_a_list_item(self):
+        assert _outline("# a<br>b\n") == [("H", 1, "a\vb")]
+        assert _outline("- a  \n  b\n- c\n") == [("UL", 0, "a\vb"), ("UL", 0, "c")]
+
+    def test_html_whitespace_around_a_line_break_collapses(self):
+        nodes = html_to_ast("<p>a \n   b\n  <br>\n  c</p>")
+        assert _text(nodes[0]) == "a b\vc"
+
+    def test_stretch_across_runs_becomes_one_space_in_the_first(self):
+        nodes = html_to_ast("<p><b>a \n</b>\n c</p>")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("a ", True), ("c", None)]
+
+    def test_authored_nbsp_stays(self):
+        nodes = html_to_ast("<p>a\n&nbsp;\nb</p>")
+        assert _text(nodes[0]) == "a \xa0 b"
+
+    def test_code_block_keeps_its_line_breaks(self):
+        assert _text(_ast("```\na\nb\n```\n")[0]) == "a\nb"
+        assert _text(html_to_ast("<pre>a<br>b</pre>")[0]) == "a\nb"
+
+    def test_inline_code_soft_break_is_a_space(self):
+        assert _text(html_to_ast("<p><code>a\nb</code></p>")[0]) == "a b"
+
+    def test_block_edges_and_cells_are_left_alone(self):
+        # #1229 and #1221 own these.
+        assert _text(html_to_ast("<p>a\n</p>")[0]) == "a\n"
+        table = html_to_ast("<table><tr><td>a\nb</td></tr></table>")[0]
+        cell_runs = [r for r in table.rows[0].cells[0].children if isinstance(r, Run)]
+        assert "".join(r.text for r in cell_runs) == "a\nb"
+
+    def test_input_runs_are_not_changed(self):
+        runs: list = [Run(text="a\nb")]
+        assert _collapse_soft_breaks(runs)[0].text == "a b"
+        assert runs[0].text == "a\nb"
+
+    def test_exported_line_break_round_trips(self):
+        # get_doc_as_markdown writes a Docs line break as <br> (#1057); writing that
+        # back gives one paragraph again, not two (#1091).
+        run = {"textRun": {"content": "a\vb\n", "textStyle": {}}}
+        doc = {"body": {"content": [{"paragraph": {"elements": [run]}}]}}
+        md = ast_to_markdown(document_to_ast(doc))
+        assert _inserted_text(md) == "a\vb\n"
+
+
+def _html_inserted_text(html: str) -> str:
+    requests, _ = ast_to_requests(html_to_ast(html))
+    return "".join(r["insertText"]["text"] for r in requests if "insertText" in r)
+
+
+class TestLineBreakQaRound1:
+    """PR #1356 QA round 1."""
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<ul><li>a<ul><li>b</li></ul><br></li><li>c</li></ul>",
+            "<ul><li>a<ul><li>b</li></ul>\n<br>\n</li><li>c</li></ul>",
+        ],
+    )
+    def test_br_after_a_nested_list_is_one_empty_line(self, html):
+        # Finding 1, as corrected in round 3: a browser draws one line for a segment
+        # holding a single <br> (Chromium-measured), so one empty paragraph in the item.
+        nodes = html_to_ast(html)
+        assert [type(n).__name__ for n in nodes] == [
+            "BulletItem",
+            "BulletItem",
+            "Paragraph",
+            "BulletItem",
+        ]
+        assert nodes[2].runs == [] and nodes[2].list_depth == 0
+        assert _html_inserted_text(html) == "a\n\tb\n\nc\n"
+
+    def test_two_brs_after_a_nested_list_are_two_lines(self):
+        html = "<ul><li>a<ul><li>b</li></ul><br><br></li><li>c</li></ul>"
+        assert _html_inserted_text(html) == "a\n\tb\n\v\nc\n"
+
+    def test_br_after_a_table_is_one_empty_line(self):
+        nodes = html_to_ast("<p>a<table><tr><td>x</td></tr></table><br></p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph", "Table", "Paragraph"]
+        assert nodes[2].runs == []
+
+    @pytest.mark.parametrize(
+        ("html", "text"),
+        [
+            ("<p>text<br></p>", "text"),
+            ("<p>text<br>\n</p>", "text\n"),  # the edge "\n" is #1229's
+            ("<h1>Title<br></h1>", "Title"),
+            ("<ul><li>item<br></li></ul>", "item"),
+            ("<p>a<br><br></p>", "a\v"),
+            ("<p>a<br><b> </b></p>", "a "),
+        ],
+    )
+    def test_final_br_draws_no_line(self, html, text):
+        # Finding 2: a browser draws nothing for a <br> ending a block.
+        assert _text(html_to_ast(html)[0]) == text
+
+    @pytest.mark.parametrize("html", ["<p><br></p>", "<p>\n<br>\n</p>"])
+    def test_br_only_paragraph_is_one_empty_line(self, html):
+        nodes = html_to_ast(html)
+        assert len(nodes) == 1 and isinstance(nodes[0], Paragraph) and nodes[0].runs == []
+        assert _html_inserted_text(html) == "\n"
+
+    @pytest.mark.parametrize(
+        ("html", "inserted"),
+        [
+            ("<h2><br></h2><p>x</p>", "\nx\n"),
+            ("<h2><br><br></h2><p>x</p>", "\v\nx\n"),
+            ("<ul><li><br></li></ul>", "\n"),
+            ("<ul><li><br><br></li></ul>", "\v\n"),
+            ("<ol><li><p><br><br></p></li></ol>", "\v\n"),
+        ],
+    )
+    def test_br_only_heading_and_item_keep_their_lines(self, html, inserted):
+        # Round 3, findings 2 and 3: "\v" is content, though str.strip() strips it.
+        assert _html_inserted_text(html) == inserted
+
+    def test_br_only_heading_is_a_heading(self):
+        nodes = html_to_ast("<h2><br><br></h2>")
+        assert isinstance(nodes[0], Heading) and _text(nodes[0]) == "\v"
+
+    def test_nbsp_only_heading_is_still_dropped(self):
+        # PR #441: no <br>, so no line to keep.
+        assert html_to_ast("<h1>&nbsp;</h1><p>x</p>") == html_to_ast("<p>x</p>")
+
+    def test_authored_vertical_tab_at_the_end_stays(self):
+        # Only a <br>'s break is dropped; a typed "\v" is content (PR #772).
+        assert _text(html_to_ast("<p>a\x0b</p>")[0]) == "a\x0b"
+        assert _text(html_to_ast("<p>a<br>\x0b</p>")[0]) == "a\v\x0b"
+
+    def test_br_then_image_keeps_its_break(self):
+        nodes = html_to_ast('<p>a<br><img src="https://example.com/i.png"></p>')
+        assert _text(nodes[0]) == "a\v"
+        assert isinstance(nodes[0].runs[-1], Image)
+
+    def test_long_space_run_is_linear(self):
+        # Finding 3: the regex backtracked quadratically.
+        text = "a" + " " * 200000 + "b\nc"
+        start = time.perf_counter()
+        assert _collapse_soft_breaks([Run(text=text)])[0].text == text[:-2] + " c"
+        assert time.perf_counter() - start < 0.5
+
+    def test_many_runs_is_linear(self):
+        # Finding 4: every run scanned every edit.
+        runs: list = [Run(text=f"w{i}\n", bold=bool(i % 2) or None) for i in range(30000)]
+        runs.append(Run(text="end"))
+        start = time.perf_counter()
+        result = _collapse_soft_breaks(runs)
+        assert time.perf_counter() - start < 1.0
+        assert result[0].text == "w0 " and result[-1].text == "end"
+
+    def test_bare_text_keeps_its_lines(self):
+        # Finding 6: text sent with no tags is plain lines, not HTML to reflow.
+        assert _html_inserted_text("Line one\nLine two\nLine three") == (
+            "Line one\nLine two\nLine three\n"
+        )
+
+    def test_bare_text_resumed_after_a_list_keeps_its_lines(self):
+        html = "Intro\n<ul><li>x</li></ul>\nLine two\nLine three"
+        assert _html_inserted_text(html).endswith("Line two\nLine three\n")
+
+    @pytest.mark.parametrize(("brs", "text"), [(2, "\v"), (3, "\v\v")])
+    def test_several_brs_keep_all_but_the_last(self, brs, text):
+        # PR #1356 QA round 2, finding 1: "\v" passed str.strip() as empty.
+        html = "<p>" + "<br>" * brs + "</p>"
+        assert _text(html_to_ast(html)[0]) == text
+        assert _html_inserted_text(html) == text + "\n"
+
+    @pytest.mark.parametrize(
+        ("html", "inserted"),
+        [
+            ("Line one<br>\nLine two", "Line one\nLine two\n"),
+            # Bare text keeps its own spaces, as before this PR.
+            ("Line one<br>  \n  Line two", "Line one  \n  Line two\n"),
+            ("Line <b>one<br></b>\nLine two", "Line one\nLine two\n"),
+            ("Line one<br><br>\nLine two", "Line one\v\nLine two\n"),
+            ("Line one<br>Line two\nLine three", "Line one\vLine two\nLine three\n"),
+        ],
+    )
+    def test_bare_text_br_before_a_line_break_draws_no_line(self, html, inserted):
+        # Finding 2: the "\v" ending a bare-text line was an extra empty line.
+        assert _html_inserted_text(html) == inserted
+
+    def test_bare_text_authored_vertical_tab_before_a_line_break_stays(self):
+        assert _html_inserted_text("a\x0b\nb") == "a\x0b\nb\n"
+
+    def test_text_in_tags_still_collapses(self):
+        assert _html_inserted_text("<p>Line one\nLine two</p>") == "Line one Line two\n"

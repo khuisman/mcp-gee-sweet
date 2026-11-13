@@ -54,24 +54,43 @@ When a test case is tagged `**Playwright: required**`, after the tool call the c
 
 ### Verifying Playwright is signed into the right account
 
-"Connected," "signed in," and "signed in *as the account that owns the fixtures*" are three different states, and only the third makes `**Playwright: required**` cases meaningful. Playwright MCP keeps a separate persistent browser profile per working directory — the main checkout, each `.claude/worktrees/*` slot, and every other project on the machine each get their own login. Any one of them can be signed into a Google account that isn't the one owning the `mcp-gee-sweet-shared` Shared Drive fixtures (see `setup.md`), or into none at all.
+"Connected," "signed in," and "signed in *as the account that owns the fixtures*" are three different states, and only the third makes `**Playwright: required**` cases meaningful. The default `playwright` server keeps a separate persistent browser profile per working directory — the main checkout, each `.claude/worktrees/*` slot, and every other project on the machine each get their own login. The `playwright-1`…`playwright-4` servers instead share the one QA browser below, so they share its one login. Any of these profiles can be signed into a Google account that isn't the one owning the `mcp-gee-sweet-shared` Shared Drive fixtures (see `setup.md`), or into none at all.
 
-The check, run once before the first `**Playwright: required**` case in any QA pass (lane QA or release pass):
+The check, run before the first `**Playwright: required**` case in any QA pass (lane QA or release pass), and by each parallel shard in its own tab:
 
 1. Get the fixture doc's real title via this role's own `get_file_metadata(TEST_DOC_ID)`.
-2. `browser_navigate` to `https://docs.google.com/document/d/<TEST_DOC_ID>/edit` (under the Playwright mutex below, if other shards may be running).
+2. `browser_navigate` to `https://docs.google.com/document/d/<TEST_DOC_ID>/edit`: on a `playwright-<k>` server, in the tab the shard opened for itself; on the default `playwright` server, under the mutex below if other shards may be running.
 3. **Pass** only if the page title contains that exact document name.
 4. **Fail** on either:
    - a redirect to `accounts.google.com` — the profile isn't signed in;
    - the URL staying on `docs.google.com` but the page showing "You need access" / "Request access," or a generic "Google Docs" title — the profile is signed into the **wrong account**. This one is easy to misread as a pass, since there's no sign-in redirect; it's what the old "not a sign-in page" check let through (confirmed 2026-09-23: a lane QA session's browser opened on the personal account instead of the Workspace-org one that owns the fixtures).
 
-On a fail, stop and tell the user which session's browser needs signing in, and to which account (the one that owns the Shared Drive fixtures). Then wait. The sign-in persists in that slot's profile, so this is a one-time fix per slot. Don't fall back to API-only verification for Playwright-required cases unless the user explicitly says to — that's the silent degradation `retro-v0.9.0.md` describes. Once the user says it's fixed, re-run the check before continuing.
+On a fail, stop and tell the user which session's browser needs signing in, and to which account (the one that owns the Shared Drive fixtures). Then wait. The sign-in persists in that slot's profile, so this is a one-time fix per slot. For a `playwright-<k>` server it's the QA browser's window (`scripts/qa_browser.sh start`), one sign-in for every shard. Don't fall back to API-only verification for Playwright-required cases unless the user explicitly says to — that's the silent degradation `retro-v0.9.0.md` describes. Once the user says it's fixed, re-run the check before continuing.
 
 ### Coordinating Playwright across parallel shards
 
-A single Playwright MCP instance is one browser tab. If a QA run is split across multiple agents (e.g. one per domain), any two shards that both hit `**Playwright: required**` cases at the same time will fight over that tab — one shard's navigation clobbers the snapshot the other was about to take. Spinning up a second authenticated Playwright instance to get true parallelism is possible but costly: the browser profile needs its own logged-in Google session (see `playwright_oauth.md`), so a second instance means cloning that profile rather than just adding a server entry.
+A Playwright MCP server drives one tab at a time. If a QA run is split across multiple agents (e.g. one per domain) that share one server, any two shards that both hit `**Playwright: required**` cases at the same time fight over that tab: one shard's navigation clobbers the snapshot the other was about to take. Subagents inherit their parent session's server processes, so shards in one session share them unless each is given its own.
 
-Cheaper fix: a filesystem mutex around Playwright usage, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).
+#### One tab per shard: the shared QA browser (#1410)
+
+Each parallel shard gets its own server, `playwright-1` … `playwright-4` (in the combined `.mcp.json` that `scripts/setup_team.sh` writes, so a release-pass session has them). All four attach to one Chrome, the **QA browser**, through its remote-debugging endpoint, and each drives its own tab in it. No lock is needed between them.
+
+They share one browser rather than each signing in its own because the fixture account's Google session is tied to the browser it was signed into. A session exported with `--storage-state` and loaded into other browsers is revoked on first use (live spike on #1410), so each would need its own manual sign-in.
+
+- **Start it:** `scripts/qa_browser.sh start` (no-op if running; `status` and `stop` too). Its profile is in the user's cache directory, outside the repo. The first time, sign it into the fixture-owning account in the window it opens; the sign-in persists in that profile. It listens on port 9333. To use another port, set `QA_BROWSER_PORT` for both `scripts/setup_team.sh` (which writes the port into the `playwright-<k>` servers' config) and `start`, then relaunch the sessions; `start` and `status` warn when the two disagree.
+- **Stop it** when no pass needs it: its debugging port is loopback-only, but any local process can drive the signed-in browser through it.
+- **Each shard's first Playwright call is `browser_tabs` with `action: "new"`.** Until it does, a server drives whichever tab the browser hands it, which can be another shard's (verified: four servers without this step all drove one tab).
+- **Don't call `browser_close` before your last Playwright step, and never close a tab by index.** `browser_close` closes only the shard's own tab, but the server's next call then attaches to some *other* shard's tab (verified), which is why it comes last (below). The tab list is shared, so an index can name another shard's tab. If a shard does lose its tab (a `browser_close`, a server reconnect, or a "No open tabs" result), its next call is `browser_tabs` `new` again.
+- **Then run the account check above in that tab**, before the shard's first `**Playwright: required**` case.
+- **One server per shard, and never more Playwright shards than `playwright-<k>` servers.** Assign each Playwright-using shard its own `playwright-<k>` and tell it to call only that prefix. While a shard runs, nothing else calls its server, the parent session included: a server has one current tab, so another caller's new tab or navigation lands on the shard's. Plan the shard count against the servers: give any further shards browser-free work, or ask the user for more `playwright-<k>` servers before the pass. Never put two shards on one `playwright-<k>` under the mutex below. (v0.9.6: shared servers broke each other's locks and hung; see `retro-v0.9.6.md`.)
+- **Check the Doc ID on every capture.** Read the page URL before and after each screenshot and retake on a mismatch; record "URL-verified" for each capture a verdict uses. It's what kept v0.9.6's graded results clean.
+- **Keep each Playwright call short:** one Doc's navigate and capture per call, well under two minutes. Never scroll with a mouse-wheel loop in `browser_run_code_unsafe` (one hung a server for 30 minutes): capture `fullPage` or press `PageDown`. If a call times out, try once more; if the server disconnects, stop and report exactly which captures are missing.
+- **Close your tab as your last Playwright step** (`browser_close`, or `browser_run_code_unsafe` with `async (page) => { await page.close(); }`). Nothing calls that server afterwards, so the attach-to-another-tab problem above doesn't arise. At the end of the pass the conductor closes all but one blank tab, so the window and its sign-in stay open, through the QA browser's debugging endpoint: `curl -s http://127.0.0.1:9333/json/list` lists them, and `/json/close/<id>` closes one. v0.9.6 ended Run 2 with 16 open tabs.
+- **If a `playwright-<k>` call can't reach the QA browser** (a connection-refused error), stop the shard's Playwright cases and report it to the conductor. Don't start the browser yourself, and don't switch to the default `playwright`. The conductor restarts it (`aziz.md` step 4). The server reconnects on its next call with no relaunch, and the browser keeps its sign-in, but the shard's tab is gone (observed live): once the conductor says it's back, open a new tab and re-run the account check before the next case.
+
+#### The mutex, for a shared server
+
+Only for the default `playwright` server, outside a release pass (a `playwright-<k>` server is never shared; see "One server per shard" above). Wrap each use in a filesystem mutex, since only one caller needs the tab at a time and each hold must be brief (one navigate + snapshot, not the whole run). The staleness threshold (below) must exceed the longest hold, so hold the lock for one navigate + capture only: in v0.9.6 a capture batch outlasted the shards' threshold and a waiting shard broke a live lock.
 
 - **Lock path:** `/tmp/mcp-gee-sweet-playwright.lock` (a directory, not a file — `mkdir` is atomic on POSIX, so no separate locking library is needed).
 - **Acquire:** before a Playwright tool call, attempt `mkdir /tmp/mcp-gee-sweet-playwright.lock`. Success means the lock is held — proceed. Failure (already exists) means another shard holds it — back off (a few seconds) and retry.
@@ -79,7 +98,7 @@ Cheaper fix: a filesystem mutex around Playwright usage, since only one shard ne
 - **Stale-lock recovery:** if the lock directory's mtime is older than ~120s, treat it as abandoned (the shard that created it likely crashed or was killed) — remove it and re-acquire rather than waiting forever.
 - **When it's not needed:** a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.
 
-Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.
+Give each parallel shard's conductor prompt its protocol explicitly (its `playwright-<k>` prefix and the tab rules, or the lock's path, acquire/release commands, backoff and staleness threshold) rather than assuming priority ordering or hoping timing works out.
 
 ---
 
@@ -111,6 +130,28 @@ Per iteration, the two subagents rendezvous at a filesystem barrier so both `.ex
   3. **immediately** issue its one assigned tool call — no reasoning, no other tool call between the spin ending and the call
   4. append the raw result (full response, or the error text) to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-<i>.json`
   5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-<i>`
+- **The watcher as a script.** The worktree-isolation guard refuses a shell loop over `$i`, so write the watcher as a Python file in your scratch dir and run it with `python3 -I <path> <N> 3600` in the background (v0.9.6, 20 iterations each for TC-I24 and TC-I02):
+  ```python
+  import os, sys, time
+
+  D, N = "/tmp/mcp-gee-sweet-qa-barrier", int(sys.argv[1])
+  deadline = time.time() + int(sys.argv[2])
+
+
+  def wait(*names):
+      while not all(os.path.exists(os.path.join(D, n)) for n in names):
+          if time.time() > deadline:
+              sys.exit(f"timeout waiting for {names}")
+          time.sleep(0.005)
+
+
+  for i in range(1, N + 1):
+      wait(f"ready-a-{i}", f"ready-b-{i}")
+      open(os.path.join(D, f"go-{i}"), "w").close()
+      wait(f"done-a-{i}", f"done-b-{i}")
+  print("all iterations done")
+  ```
+  To confirm each pair really overlapped, compare the two calls' timestamps in the server's access log (`ACCESS_LOG_FILE`): v0.9.6's pairs completed 40–360 ms apart.
 - **Loop count:** N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.
 - **Teardown:** Aziz `rm -rf /tmp/mcp-gee-sweet-qa-barrier` after collecting results.
 - **Shell form.** The worktree-isolation guard can refuse a Bash call that uses a shell variable (`$i` included) or a heredoc. In every command of the prompt template below, replace `$i` with the iteration number and use the literal absolute path, and write a result with a plain `printf '%s\n' '<result>' >> /tmp/mcp-gee-sweet-qa-barrier/result-<id>-<i>.json` (both v0.9.2 workers lost their first iteration's write to this). A result containing `'` breaks that quoting: write the error text, or the result with each `'` replaced, rather than dropping the line.
@@ -141,7 +182,13 @@ Give each of the two subagents a prompt of this shape (fill the bracketed parts;
 > 4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-$i.json`. Use a plain `printf` with the literal absolute path, with `$i` replaced by the iteration number (see "Shell form" above).
 > 5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-$i`
 >
-> Call **only** `mcp__mcp-gee-sweet-kai-sa__*` tools. Do **not** edit, create, or delete any file inside the git repo — your only writes are to `/tmp/mcp-gee-sweet-qa-barrier/`. When the loop finishes, report back: for each `i`, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.
+> Call **only** `mcp__mcp-gee-sweet-kai-sa__*` tools, and don't start agents of your own. Do **not** edit, create, or delete any file inside the git repo — your only writes are to `/tmp/mcp-gee-sweet-qa-barrier/`. When the loop finishes, report back: for each `i`, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.
+
+---
+
+## Test content the agent tool channel can't carry
+
+An agent's tool call doesn't pass every character through unchanged (v0.9.6, measured with a probe Doc): combining marks are NFC-normalized (`e` + U+0301 arrives as `é`), U+00A0, U+2009 and U+3000 arrive as plain spaces, U+212A (Kelvin sign) arrives as ASCII `K`, and CRLF line endings can't be sent inline. A case whose check depends on such a character (TC-MD117 UN-04/05, TC-S133 call 6, TC-MD301 DS-13) can't be graded from content passed inline; it would test the wrong input and still pass. Run it with a scratch script that reads the fixture file's bytes and calls the tool's own code path (`content._create_doc_with_content`, `_replace_doc_content`, as `docs_content.md`'s scratch scripts do), then read the result back raw with `documents().get()` to confirm the code points arrived. Content read from a file by the tool itself (EP-3 to EP-7) isn't affected.
 
 ---
 

@@ -12,7 +12,7 @@
 | `TOKEN_PATH` | Path to store the OAuth refresh token | `token.json` |
 | `OAUTH_CONSENT_TIMEOUT_SECONDS` | SSE only: how long the server waits for the browser consent when there's no usable OAuth token, before starting without Google access. See [Authentication](auth.md) | `300` |
 | `CREDENTIALS_CONFIG` | Base64-encoded credentials JSON (for containers) | — |
-| `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
+| `ENABLED_TOOLS` | Comma-separated list of tool names to register, or `all` for every tool. See [Tool filtering](#tool-filtering) | all tools (an upcoming release loads a smaller set) |
 | `LOCAL_FILE_ACCESS` | Which local files tools may read and write: `full`, `roots`, or `off`. See [Local file access](#local-file-access) | `full` under stdio, `off` under SSE and streamable HTTP |
 | `LOCAL_FILE_ROOTS` | With `LOCAL_FILE_ACCESS=roots`, the directories tools may use, separated by `:` (`;` on Windows), like `PATH` | — |
 | `CACHE_DB_PATH` | Path to the SQLite cache database (`:memory:` for none) | `mcp-gee-sweet/cache.db` in the user's cache directory (see [Caching](#caching)) |
@@ -89,11 +89,13 @@ ENABLED_TOOLS=get_sheet_data,update_cells,list_spreadsheets,list_sheets
 uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets
 ```
 
-If neither is set, all tools are registered.
+If neither is set, or the value is empty, all tools are registered. `ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. Listed with tool names, `all` adds nothing: every tool is still registered.
+
+**Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. Until then, `mcp-gee-sweet` logs this as a warning at startup when neither names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` doesn't log it.
 
 ### Suggested subsets
 
-Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On those clients, pick one of these subsets. Each one is under 100 tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
+Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On Windsurf and Cursor, pick one of these subsets. Each one is under 100 tools. In our November 2026 test, VS Code + Copilot looked tools up on demand and handled the full set, so use a subset there only if you see "Cannot have more than 128 tools per request". See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
 
 To combine two subsets, join their lists with a comma (a name listed twice is fine) and add up the counts to check you're still under your client's limit. Windsurf's 100 also counts every other server's tools.
 
@@ -107,9 +109,9 @@ get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadshe
 get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns,import_csv_to_sheet
 ```
 
-**Docs essentials** (12 tools):
+**Docs essentials** (13 tools):
 ```
-create_doc,create_doc_from_file,get_doc_content,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
+create_doc,create_doc_from_file,get_doc_content,get_doc_as_markdown,get_doc_structure,find_in_doc,write_doc_content,update_doc_from_file,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
 ```
 
 **Calendar only** (17 tools):
@@ -246,6 +248,10 @@ By default (`GMAIL_SEND=confirm`) no email goes out on the agent's call alone:
 Confirmation needs a client that connects with the 2025-11-25 `initialize` handshake and supports form elicitation. On a 2026-07-28 connection the server has no way to ask, so mail always stays a draft there (#1235).
 
 **Claude Code currently connects on 2026-07-28** (2.1.310, checked 2026-10-26). So under `confirm`, every send from Claude Code is held as a draft: `send_message` and `reply_to_message` return `sent: false`, and `send_draft` refuses. Send the drafts from Gmail's Drafts folder, or set `GMAIL_SEND=direct` to send at once.
+
+**Claude Desktop holds sends too.** On the Chat tab, Claude Desktop 4.23118.0 with the bundle installed (checked 2026-11-07) never showed this server's confirmation form: `send_message` returned `reason: no_elicitation` and left the email as a draft. Claude Desktop's own permission prompt may appear first, showing To, Subject and Body. Allowing it only saves the draft; nothing is sent. Which protocol version Claude Desktop connects on hasn't been checked, so #1235 may not change this.
+
+Send the draft from Gmail's Drafts folder. On a stdio or SSE setup, you can instead set `GMAIL_SEND=direct` to send at once. The [bundle](client-setup.md#install-as-a-bundle) has no setting for it.
 
 **A client hook that auto-accepts elicitations with a yes makes `confirm` behave like `direct`.** The server can't tell a hook's answer from the user's.
 

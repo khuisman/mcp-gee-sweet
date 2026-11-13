@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html as html_module
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 
 from .ast import (
@@ -24,6 +24,187 @@ from .ast import (
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
 _NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+# What a browser draws as a block but this parser has no node for (#1391): the HTML
+# spec's display:block elements (Rendering, "Flow content" and "Sections and headings",
+# plus details, summary and fieldset), less those handled by name (p, pre, headings,
+# lists, blockquote, table). Text directly inside one is its own paragraph. An allowlist
+# rather than "any unknown tag": an inline tag with no block around it stays a no-op.
+_CONTAINER_TAGS = {
+    "address",
+    "article",
+    "aside",
+    "body",
+    "center",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "header",
+    "hgroup",
+    "html",
+    "legend",
+    "main",
+    "menu",
+    "nav",
+    "search",
+    "section",
+    "summary",
+}
+# Obsolete elements a browser draws exactly as <pre>: parsed as one (PR #1400 QA round 1).
+# Newer stdlib HTMLParser versions read <xmp>'s and <plaintext>'s content as raw text,
+# which suits code: there it's one text run either way.
+_PRE_ALIASES = {"listing": "pre", "xmp": "pre", "plaintext": "pre"}
+# The block tag of a paragraph opened for text directly inside a container. Never a
+# _BLOCK_TAGS entry: only _end_anonymous_block closes it.
+_ANONYMOUS_BLOCK = "div"
+# Elements a browser doesn't draw: a stylesheet, a script, the page title, or fallback
+# for a script, frame or plugin. <head> isn't one: its end tag is optional, so it could
+# hide the whole document, and everything in it that has text is listed here anyway. Any
+# element with the hidden attribute or display:none, and a <dialog> that isn't open, is
+# hidden too (_is_hidden). <video>, <audio>, <canvas> and <object> aren't: a Doc can't
+# play or draw one, so its fallback content is what a reader can get, and one left
+# unclosed in Markdown would otherwise hide the rest of the document (PR #1400 QA
+# round 2).
+_HIDDEN_TAGS = {
+    "datalist",
+    "iframe",
+    "noembed",
+    "noframes",
+    "noscript",
+    "script",
+    "style",
+    "template",
+    "title",
+}
+# An end tag outside the table structure never closes past an open table or cell, as in
+# a browser: a </div> inside a cell can't close a <div> around the table.
+_TABLE_SCOPE_TAGS = {"table", "td", "th"}
+_TABLE_STRUCTURE_TAGS = {
+    "table",
+    "caption",
+    "colgroup",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "td",
+    "th",
+}
+
+
+def _end_key(tag: str) -> str:
+    """What an end tag matches in the open-element stack. </ol> and </ul> close either
+    list type: HTML copied from elsewhere mismatches them in practice, and the list
+    handling resolves a mismatch by depth (#382, #450)."""
+    return "list" if tag in ("ol", "ul") else tag
+
+
+def _is_hidden(tag: str, attr_dict: dict) -> bool:
+    """True for an element a browser doesn't draw, nothing in which reaches the Doc: a
+    _HIDDEN_TAGS element, an unopened <dialog>, or one with the hidden attribute or a
+    display:none style. Email HTML keeps preheader text in display:none elements, and a
+    tracking pixel is a hidden <img> (PR #1400 QA round 1)."""
+    if tag in _HIDDEN_TAGS or "hidden" in attr_dict:
+        return True
+    if tag == "dialog" and "open" not in attr_dict:
+        return True
+    return _css_value(attr_dict, "display", _display_value) == "none"
+
+
+# CSS display keywords, any combination of which _display_value accepts as a valid value.
+_DISPLAY_KEYWORDS = {
+    "block",
+    "contents",
+    "flex",
+    "flow",
+    "flow-root",
+    "grid",
+    "inline",
+    "inline-block",
+    "inline-flex",
+    "inline-grid",
+    "inline-table",
+    "list-item",
+    "none",
+    "ruby",
+    "ruby-base",
+    "ruby-base-container",
+    "ruby-text",
+    "ruby-text-container",
+    "run-in",
+    "table",
+    "table-caption",
+    "table-cell",
+    "table-column",
+    "table-column-group",
+    "table-footer-group",
+    "table-header-group",
+    "table-row",
+    "table-row-group",
+    "-webkit-box",
+    "-webkit-inline-box",
+    "-moz-box",
+    "-moz-inline-box",
+    "-ms-flexbox",
+    "-ms-inline-flexbox",
+    "-ms-grid",
+    "-ms-inline-grid",
+    "inherit",
+    "initial",
+    "revert",
+    "revert-layer",
+    "unset",
+}
+
+
+def _display_value(value: str) -> str | None:
+    """A display value as CSS keeps it, or None for one it drops as invalid."""
+    words = value.split()
+    return value if words and all(w in _DISPLAY_KEYWORDS for w in words) else None
+
+
+def _css_value(attr_dict: dict, prop: str, parse):
+    """The value of `prop` in an element's style attribute, as CSS resolves it, parsed by
+    `parse` (None for a value CSS would drop as invalid), or None. An !important
+    declaration beats a normal one, and the last valid declaration of the same
+    importance wins: CSS drops an invalid one, so `display:none; display:bogus` is none
+    (PR #1400 QA round 2)."""
+    result, result_important = None, False
+    for declaration in (attr_dict.get("style") or "").split(";"):
+        name, sep, value = declaration.partition(":")
+        if not sep or name.strip().lower() != prop:
+            continue
+        value = value.strip().lower()
+        important = _IMPORTANT.search(value) is not None
+        parsed = parse(_IMPORTANT.sub("", value).strip())
+        if parsed is not None and (important or not result_important):
+            result, result_important = parsed, important
+    return result
+
+
+@dataclass
+class _OpenElement:
+    """An element in _AstParser's open-element stack."""
+
+    tag: str
+    # Pushed inside a hidden element, or hidden itself: its start tag did nothing, so
+    # its end tag does nothing either.
+    inert: bool = False
+    hidden: bool = False
+    # Counted in _tag_depth: it took the generic inline-element path.
+    counted: bool = False
+    # A container that holds its own text, counted in _container_depth.
+    container_text: bool = False
+
+
 _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
@@ -100,6 +281,24 @@ def _without_line_break_edge(text: str, *, leading: bool) -> str:
     return stripped if "\n" in edge else text
 
 
+def _without_trailing_line_break(runs: list[Run | Image]) -> list[Run | Image]:
+    """`runs` without whitespace holding a line break at their end, a run left empty
+    dropped. For text already flushed into runs by an inline end tag, which
+    _AstParser._trim_source_line_break can't reach: `<a href>\\n  link\\n</a>\\n</div>`
+    ends in "link\\n" (PR #1400 QA round 1). Returns new Run objects."""
+    runs = list(runs)
+    while runs and isinstance(runs[-1], Run):
+        text = runs[-1].text
+        trimmed = _without_line_break_edge(text, leading=False)
+        if trimmed == text:
+            break
+        if trimmed:
+            runs[-1] = replace(runs[-1], text=trimmed)
+            break
+        runs.pop()
+    return runs
+
+
 def _is_resumed_authored_whitespace(resumed: bool, runs: list[Run | Image], raw_text: str) -> bool:
     """True when a resumed block's segment is non-empty and its full,
     unstripped text is whitespace-only per str.strip() but not made up
@@ -141,8 +340,123 @@ def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
 
 
 class _LineBreak(str):
-    """The "\\n" a <br> puts in the run buffer, told apart from source text so trimming
-    source whitespace before a block (_interrupt_open_block) never removes it."""
+    """The break a <br> puts in the run buffer, told apart from source text so trimming
+    source whitespace before a block (_interrupt_open_block) never removes it. It's
+    "\\v" (#1117, #1091), the line break the Docs API keeps inside one paragraph, like
+    Shift+Enter; a "\\n" would start a new paragraph. Inside <pre> it's "\\n", the
+    code's own line break, which the emitter turns into "\\v" for the whole block."""
+
+
+# What an Image stands for in _collapse_soft_breaks' joined text: content, never
+# whitespace and never a line break.
+_IMAGE_PLACEHOLDER = "￼"
+
+
+def _soft_break_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of each stretch of _ASCII_FORMATTING_WHITESPACE holding a "\\n" in
+    `text` (#1093), in order. Each "\\n" is widened over the whitespace on both sides;
+    the next search starts where a stretch ends, and a stretch's left edge never moves
+    past the content ending the one before, so every character is read a bounded number
+    of times (a regex here backtracked quadratically on a long run of spaces, PR #1356
+    QA round 1)."""
+    spans = []
+    pos = text.find("\n")
+    while pos != -1:
+        start = pos
+        while start > 0 and text[start - 1] in _ASCII_FORMATTING_WHITESPACE:
+            start -= 1
+        end = pos + 1
+        while end < len(text) and text[end] in _ASCII_FORMATTING_WHITESPACE:
+            end += 1
+        spans.append((start, end))
+        pos = text.find("\n", end)
+    return spans
+
+
+def _collapse_soft_breaks(runs: list[Run | Image]) -> list[Run | Image]:
+    """`runs` with each source line break inside the text written as a browser shows it
+    (#1093): the whitespace around it becomes one space, or nothing next to a <br>'s
+    "\\v", which already breaks the line. Only ASCII formatting whitespace collapses, so
+    an authored "&nbsp;" stays. The stretch's space goes in the run where it starts.
+
+    A stretch at either end of the text is left as it is: whitespace at a block's edges
+    is #1229's question, and the trimming rules for a segment's edges (#402, #444,
+    #1116) already decide what reaches here. So is <pre> text, whose line breaks are
+    the code's, and a table cell's, which is #1221's. Returns new Run objects; the
+    caller's are never changed."""
+    texts = [r.text if isinstance(r, Run) else _IMAGE_PLACEHOLDER for r in runs]
+    joined = "".join(texts)
+    if "\n" not in joined:
+        return runs
+    edits: list[tuple[int, int, str]] = []
+    for start, end in _soft_break_spans(joined):
+        if start == 0 or end == len(joined):
+            continue
+        at_line_break = joined[start - 1] == "\v" or joined[end] == "\v"
+        edits.append((start, end, "" if at_line_break else " "))
+    if not edits:
+        return runs
+    result: list[Run | Image] = []
+    run_start = 0
+    # The edits are sorted and don't overlap, so their ends are sorted too: `first` only
+    # moves forward, and each run reads only the edits overlapping it (PR #1356 QA round 1).
+    first = 0
+    for run, text in zip(runs, texts, strict=True):
+        run_end = run_start + len(text)
+        if isinstance(run, Image):
+            result.append(run)
+            run_start = run_end
+            continue
+        while first < len(edits) and edits[first][1] <= run_start:
+            first += 1
+        pieces = []
+        pos = run_start
+        i = first
+        while i < len(edits) and edits[i][0] < run_end:
+            start, end, replacement = edits[i]
+            pieces.append(joined[pos : max(start, run_start)])
+            if start >= run_start:
+                pieces.append(replacement)
+            pos = min(end, run_end)
+            i += 1
+        pieces.append(joined[pos:run_end])
+        new_text = "".join(pieces)
+        if new_text:
+            result.append(replace(run, text=new_text))
+        run_start = run_end
+    return result
+
+
+def _has_content(runs: list[Run | Image]) -> bool:
+    """True when `runs` hold something a reader sees: an image, text that isn't
+    whitespace, or a line break "\\v", which draws a line though str.strip() strips it
+    (PR #1356 QA rounds 2 and 3). The one emptiness test every branch of
+    _emit_block_node uses. Whitespace-only text, an "&nbsp;" included, isn't content
+    here: #402's and #444's rules decide whether such a segment is kept."""
+    return any(isinstance(r, Image) or r.text.strip() or "\v" in r.text for r in runs)
+
+
+def _drop_final_line_break(runs: list[Run | Image]) -> tuple[list[Run | Image], bool]:
+    """`runs` without a "\\v" that ends them, ignoring formatting whitespace after it,
+    and whether one was dropped. A browser draws no line for a <br> that ends a
+    segment's text (at a block's end or right before a nested block), but Docs draws an
+    empty line for a paragraph's final "\\v" (PR #1356 QA round 1). A segment left with
+    nothing is still a line: _emit_block_node keeps it (round 3). Only one goes: `a<br><br>` keeps one empty line,
+    as a browser shows. The whitespace after it is left for #1229. Returns new Run
+    objects; the caller's are never changed."""
+    for i in range(len(runs) - 1, -1, -1):
+        run = runs[i]
+        if isinstance(run, Image):
+            return runs, False
+        content = run.text.rstrip(_ASCII_FORMATTING_WHITESPACE)
+        if not content:
+            continue
+        if not content.endswith("\v"):
+            return runs, False
+        new_text = content[:-1] + run.text[len(content) :]
+        kept = [replace(run, text=new_text)] if new_text else []
+        return [*runs[:i], *kept, *runs[i + 1 :]], True
+    return runs, False
 
 
 @dataclass
@@ -165,6 +479,9 @@ class _BlockFrame:
     # The interrupted block's _block_lists: for an <li>, the lists enclosing that item,
     # which a block nested in the item reads through _list_item_fields (#1094).
     lists: tuple[tuple[bool, ...], tuple[int, ...]] = ((), ())
+    # The interrupted block's _block_implicit, so a resumed implicit paragraph keeps
+    # its source line breaks too.
+    implicit: bool = False
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -193,20 +510,62 @@ _CELL_ALIGNMENTS = {
 }
 
 _IMPORTANT = re.compile(r"!\s*important\s*$")
+
+# How a browser reads an integer attribute (the HTML spec's rules for parsing integers):
+# ASCII whitespace, an optional sign, then digits, ignoring what follows them.
+_HTML_INTEGER = re.compile(r"[ \t\n\f\r]*([+-]?)([0-9]+)")
+# Past int32 a browser ignores the attribute.
+_HTML_INTEGER_MAX = 2**31 - 1
+
+
+def _html_integer(value: str | None) -> int | None:
+    """An <ol start> or <li value> as a browser reads it, or None when absent or invalid
+    (#1118). Leading zeros don't count toward the size, and the length check keeps
+    int() from raising on a number past Python's digit limit."""
+    match = _HTML_INTEGER.match(value or "")
+    if match is None:
+        return None
+    digits = match.group(2).lstrip("0") or "0"
+    if len(digits) > len(str(_HTML_INTEGER_MAX)):
+        return None
+    number = int(match.group(1) + digits)
+    return number if abs(number) <= _HTML_INTEGER_MAX else None
+
+
+@dataclass
+class _OrderedList:
+    """What numbers an <ol>'s items (#1118): its attributes, and each item built so
+    far with its <li value>."""
+
+    start: int | None
+    reversed: bool
+    items: list[tuple[BulletItem, int | None]] = field(default_factory=list)
+
+    def assign_numbers(self) -> None:
+        """Give each item the number a browser shows, unless that's 1, 2, 3."""
+        step = -1 if self.reversed else 1
+        number = self.start
+        if number is None:
+            number = len(self.items) if self.reversed else 1
+        numbers = []
+        for _, value in self.items:
+            number = number if value is None else value
+            numbers.append(number)
+            number += step
+        if numbers == list(range(1, len(numbers) + 1)):
+            return
+        for (item, _), item_number in zip(self.items, numbers, strict=True):
+            item.number = item_number
+
+
 _TABLE_SECTIONS = ("thead", "tbody", "tfoot")
 
 
 def _text_align(attr_dict: dict) -> str | None:
-    """An element's own style text-align as a Docs paragraph alignment, or None. The
-    last declaration with a value we can map wins: CSS drops an invalid declaration,
-    so `text-align:right; text-align:bogus` is right."""
-    for declaration in reversed((attr_dict.get("style") or "").split(";")):
-        name, sep, value = declaration.partition(":")
-        if sep and name.strip().lower() == "text-align":
-            alignment = _CELL_ALIGNMENTS.get(_IMPORTANT.sub("", value.strip().lower()).strip())
-            if alignment is not None:
-                return alignment
-    return None
+    """An element's own style text-align as a Docs paragraph alignment, or None, resolved
+    as CSS does (_css_value): `text-align:right; text-align:bogus` is right, since we
+    can only map a valid value."""
+    return _css_value(attr_dict, "text-align", _CELL_ALIGNMENTS.get)
 
 
 def _cell_alignment(attr_dict: dict, *, align_attribute: bool = True) -> str | None:
@@ -262,6 +621,15 @@ class _AstParser(HTMLParser):
         # time. See self._block_had_unsupported_content for how an empty
         # flush's preserve-or-drop decision (#401) is actually made.
         self._block_resumed = False
+        self._block_implicit = False  # see _open_block
+        # True while the last content of the current segment is a <br>: only then does
+        # _emit_block_node drop a final "\v", so an authored "\v" character stays
+        # (PR #772). Per-segment, reset by _open_block.
+        self._ends_with_line_break = False
+        # True once the current segment has held a <br>: a segment that did is never
+        # discarded, since a browser draws a line for it (PR #1356 QA round 3).
+        # Per-segment, reset by _open_block.
+        self._segment_had_line_break = False
         # True while the segment about to be flushed is a list item whose text
         # came through its own transparent `<p>` (#1111); makes
         # _flush_pending_runs trim the HTML padding that follows that `</p>`.
@@ -281,6 +649,10 @@ class _AstParser(HTMLParser):
         # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # Each <ol> by list id, numbered once every item is known (#1118).
+        self._ordered_lists: dict[int, _OrderedList] = {}
+        # The open <li>'s value attribute.
+        self._li_value: int | None = None
         # Ids of the open lists, pushed and popped with _list_ordered: each <ol>/<ul>
         # gets a fresh one, so two adjacent lists stay distinguishable (#1241).
         self._list_ids: list[int] = []
@@ -319,9 +691,25 @@ class _AstParser(HTMLParser):
         # "hello world" with no wrapping tag at all — #343) apart from text
         # that's merely wrapped in an inline tag with no block ancestor (e.g.
         # "<span>no blocks</span>", depth 1) — the latter is intentionally
-        # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS
-        # are excluded since they never get a matching close tag.
+        # dropped (see test_inline_only_html_skips_batchupdate). Counts the open
+        # elements with `counted` set, so it falls when an ancestor's end tag
+        # closes one left open.
         self._tag_depth = 0
+
+        # The open elements, outermost first (#1391), so an end tag closes the element
+        # it names and everything opened inside it, as a browser's does, and an end tag
+        # naming nothing open is ignored. _tag_depth, _container_depth and
+        # _hidden_depth count flags on these entries. _open_index holds each end-tag
+        # key's positions in the stack, and _scope_boundaries the positions of open
+        # tables and cells, which an end tag outside the table structure can't close
+        # past; both keep a lookup O(1), and every element is pushed and popped once.
+        self._open_elements: list[_OpenElement] = []
+        self._open_index: dict[str, list[int]] = {}
+        self._scope_boundaries: list[int] = []
+        # Open containers that hold their own text (_OpenElement.container_text).
+        self._container_depth = 0
+        # Open hidden elements (_is_hidden): nothing inside one reaches the Doc.
+        self._hidden_depth = 0
 
         # --- inline formatting stacks ---
         self._bold_depth = 0
@@ -416,7 +804,9 @@ class _AstParser(HTMLParser):
             self._li_trailing_padding = False
         return runs
 
-    def _open_block(self, tag: str, *, resumed: bool, named_style: str | None):
+    def _open_block(
+        self, tag: str, *, resumed: bool, named_style: str | None, implicit: bool = False
+    ):
         """Reset every piece of per-segment block-open state together, in the
         one place all four sites that begin buffering a block's content route
         through: a fresh `_BLOCK_TAGS`/`pre` start tag, `_resume_interrupted_
@@ -432,6 +822,13 @@ class _AstParser(HTMLParser):
         """
         self._block_tag = tag
         self._block_resumed = resumed
+        # True for the paragraph opened for bare top-level text (#343). Its source line
+        # breaks stay paragraph breaks: text sent with no tags at all is plain lines,
+        # not HTML to reflow, and a caller's line structure would vanish silently
+        # (PR #1356 QA round 1).
+        self._block_implicit = implicit
+        self._ends_with_line_break = False
+        self._segment_had_line_break = False
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
         self._li_trailing_padding = False
@@ -439,6 +836,103 @@ class _AstParser(HTMLParser):
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
         self._run_buf = []
         self._pending_runs = []
+
+    def _push_element(self, element: _OpenElement) -> None:
+        position = len(self._open_elements)
+        self._open_elements.append(element)
+        self._open_index.setdefault(_end_key(element.tag), []).append(position)
+        if element.tag in _TABLE_SCOPE_TAGS:
+            self._scope_boundaries.append(position)
+        if element.hidden:
+            self._hidden_depth += 1
+
+    def _pop_elements(self, tag: str) -> list[_OpenElement] | None:
+        """Pop the innermost open element an end tag for `tag` closes, and every element
+        opened inside it, innermost first; None, popping nothing, when nothing that tag
+        could close is open."""
+        positions = self._open_index.get(_end_key(tag))
+        if not positions:
+            return None
+        target = positions[-1]
+        if (
+            tag not in _TABLE_STRUCTURE_TAGS
+            and self._scope_boundaries
+            and self._scope_boundaries[-1] > target
+        ):
+            return None
+        popped = []
+        while len(self._open_elements) > target:
+            element = self._open_elements.pop()
+            self._open_index[_end_key(element.tag)].pop()
+            if self._scope_boundaries and self._scope_boundaries[-1] == len(self._open_elements):
+                self._scope_boundaries.pop()
+            if element.hidden:
+                self._hidden_depth -= 1
+            if element.counted:
+                self._tag_depth -= 1
+            if element.container_text:
+                self._container_depth -= 1
+            popped.append(element)
+        return popped
+
+    def _close_implied_table_parts(self, tag: str) -> None:
+        """Close the cell (for a <td>/<th>) or row (for a <tr> or table section) open in
+        the innermost open table, if any, through the ordinary end-tag path."""
+        table = next(
+            (
+                position
+                for position in reversed(self._scope_boundaries)
+                if self._open_elements[position].tag == "table"
+            ),
+            None,
+        )
+        if table is None:
+            return
+        for part in ("td", "th") if tag in ("td", "th") else ("tr",):
+            positions = self._open_index.get(part)
+            if positions and positions[-1] > table:
+                self.handle_endtag(part)
+                return
+
+    def _can_open_anonymous_block(self) -> bool:
+        """True where content with no block of its own gets a paragraph (#1391): directly
+        inside a container or a <blockquote>. Unlike the implicit paragraph for bare
+        top-level text (#343), its source line breaks are soft breaks: this is HTML, not
+        plain lines, and it opens for an inline tag too, not just for text."""
+        return (
+            self._block_tag is None
+            and self._table_depth == 0
+            and not self._hidden_depth
+            and bool(self._container_depth or self._blockquote_ids)
+        )
+
+    def _end_anonymous_block(self, *, implicit_too: bool = False):
+        """Emit the paragraph a container's own text opened, if one is open: a container
+        boundary ends it, as a block's end tag ends that block (#1391). With
+        implicit_too, the paragraph opened for bare top-level text (#343) ends too: a
+        container's start tag is a block boundary for it as well."""
+        tag = self._block_tag
+        if tag is None or (tag != _ANONYMOUS_BLOCK and not (implicit_too and self._block_implicit)):
+            return
+        self._trim_source_line_break()
+        runs = _without_trailing_line_break(self._flush_pending_runs())
+        self._emit_block_node(tag, runs)
+        self._block_tag = None
+        self._block_named_style = None
+        self._close_dangling_inline_formatting()
+
+    def _trim_source_line_break(self):
+        """Drop whitespace holding a line break from the end of the text not yet flushed,
+        since at a block's edge it's source formatting, not content: markdown-it writes
+        "<li>a\\n<ul>" for every nested list (#1116), and the "\\n" would reach the Docs
+        API as an empty paragraph. Only raw text is trimmed, so a <br>'s own break stays."""
+        last_br = max(
+            (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
+            default=-1,
+        )
+        kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
+        tail = _without_line_break_edge(text, leading=False)
+        self._run_buf = [*kept, tail] if tail else kept
 
     def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
         # The lists open when this segment began, not now: see _block_lists.
@@ -470,7 +964,7 @@ class _AstParser(HTMLParser):
                 runs[0].text = first_text[4:]
                 if not runs[0].text:
                     runs.pop(0)
-        return BulletItem(
+        item = BulletItem(
             runs=runs,
             depth=depth,
             ordered=ordered,
@@ -479,6 +973,10 @@ class _AstParser(HTMLParser):
             heading_level=self._li_heading_level,
             **self._blockquote_fields(),
         )
+        ordered_list = self._ordered_lists.get(list_path[-1]) if list_path else None
+        if ordered_list is not None:
+            ordered_list.items.append((item, self._li_value))
+        return item
 
     def _push_list(self, ordered: bool) -> None:
         self._list_count += 1
@@ -655,22 +1153,46 @@ class _AstParser(HTMLParser):
         Run at all, must never hit the empty-drop path below just because
         joining its (nonexistent) Run text yields "".
         """
+        # Something dropped in a container's own text is no paragraph to keep: the
+        # container's boundary is there without it (<div><span></span></div>).
+        if tag == _ANONYMOUS_BLOCK:
+            preserve_if_empty = False
+        # Line breaks (#1230). A <pre> interrupted by a nested block lands here too; its
+        # text is literal. Bare top-level text keeps its source line breaks (_open_block).
+        if tag != "pre":
+            if not self._block_implicit:
+                runs = _collapse_soft_breaks(runs)
+            if self._ends_with_line_break:
+                runs, _ = _drop_final_line_break(runs)
         raw_text = "".join(r.text for r in runs if isinstance(r, Run))
-        text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
+        if tag != "pre" and self._segment_had_line_break and not has_image:
+            if all(c in _ASCII_FORMATTING_WHITESPACE for c in raw_text):
+                # A segment that held only a <br> (its final "\v" dropped above) is one
+                # empty line in a browser, whatever its tag and whether it's fresh or
+                # resumed: `<p><br></p>`, `<li>a<ul>…</ul><br></li>`, `<h2><br></h2>`.
+                # Its whitespace goes with it (PR #1356 QA rounds 2 and 3).
+                runs = []
+                preserve_if_empty = True
+            elif all(c in _ASCII_FORMATTING_WHITESPACE or c == "\v" for c in raw_text):
+                # Only line breaks left (`<br><br>`): the formatting whitespace around
+                # them is source layout, not text.
+                runs = _strip_formatting_whitespace(runs)
         if tag == "li" and not self._block_resumed:
             # A list item is a bullet whatever it holds (#1075): `<li></li>` (a
             # Markdown bare `-`), an item holding only whitespace or `&nbsp;`, and an
             # item whose content starts with a nested list or block, all of which
             # show a marker in a browser. Its whitespace is padding, not text.
-            if not text and not has_image:
+            if not _has_content(runs):
                 runs = []
             self._nodes.append(self._make_bullet_item(runs))
             return
-        if not text and not has_image:
+        if not _has_content(runs):
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
+            # A container's "&nbsp;" draws a line and its source indentation doesn't,
+            # the same test a resumed segment needs (<div>&nbsp;</div>, #1391).
             is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
-                self._block_resumed, runs, raw_text
+                self._block_resumed or tag == _ANONYMOUS_BLOCK, runs, raw_text
             )
             if is_resumed_authored_whitespace:
                 runs = _strip_formatting_whitespace(runs)
@@ -727,18 +1249,8 @@ class _AstParser(HTMLParser):
             return
         outer_tag = self._block_tag
         outer_named_style = self._block_named_style
-        # Whitespace holding a line break just before a block element is source
-        # formatting, not content: markdown-it writes "<li>a\n<ul>" for every nested
-        # list (#1116), and the "\n" would reach the Docs API as an empty paragraph.
-        # Only the raw text not yet flushed is trimmed, so a <br>'s own break stays.
         if self._run_buf and not self._in_pre:
-            last_br = max(
-                (i for i, piece in enumerate(self._run_buf) if isinstance(piece, _LineBreak)),
-                default=-1,
-            )
-            kept, text = self._run_buf[: last_br + 1], "".join(self._run_buf[last_br + 1 :])
-            tail = _without_line_break_edge(text, leading=False)
-            self._run_buf = [*kept, tail] if tail else kept
+            self._trim_source_line_break()
         runs = self._flush_pending_runs()
         self._emit_block_node(
             outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
@@ -750,6 +1262,7 @@ class _AstParser(HTMLParser):
                 named_style=outer_named_style,
                 list_depth=(len(self._list_ordered) if new_construct_tag in ("ol", "ul") else None),
                 lists=self._block_lists,
+                implicit=self._block_implicit,
             )
         )
         self._block_tag = None
@@ -825,6 +1338,9 @@ class _AstParser(HTMLParser):
         (when one exists) still overwrites self._block_tag below via
         frame.outer_tag once resuming is confirmed.
         """
+        # A container's or quote's own paragraph ends with its line-break trim and
+        # inline state reset, whichever end tag closes it (PR #1400 QA round 1).
+        self._end_anonymous_block()
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
             self._emit_block_node(
@@ -847,14 +1363,33 @@ class _AstParser(HTMLParser):
         self._block_stack.pop()
         if not resumes:
             return
-        self._open_block(frame.outer_tag, resumed=True, named_style=frame.named_style)
+        self._open_block(
+            frame.outer_tag, resumed=True, named_style=frame.named_style, implicit=frame.implicit
+        )
 
     # ------------------------------------------------------------------
     # HTMLParser callbacks
     # ------------------------------------------------------------------
 
     def handle_starttag(self, tag, attrs):
+        tag = _PRE_ALIASES.get(tag, tag)
         attr_dict = dict(attrs)
+
+        # --- open-element stack (#1391) ---
+        # A hidden element, and everything inside one, is tracked and nothing else: no
+        # node, no image, no empty block or table, and no #401 boundary.
+        hidden = _is_hidden(tag, attr_dict)
+        if self._hidden_depth or hidden:
+            if tag not in _VOID_TAGS:
+                self._push_element(_OpenElement(tag, inert=True, hidden=hidden))
+            return
+        # A cell or row start tag closes the cell or row open in the same table first,
+        # as a browser's implied end tags do: <td>a<td>b is two cells, and
+        # <tr><td>a<tr><td>b two rows (PR #1400 QA round 2).
+        if tag in ("td", "th", "tr", "thead", "tbody", "tfoot"):
+            self._close_implied_table_parts(tag)
+        if tag not in _VOID_TAGS:
+            self._push_element(_OpenElement(tag))
 
         # --- table structure ---
         if tag == "table":
@@ -917,6 +1452,9 @@ class _AstParser(HTMLParser):
         if tag == "ol":
             self._interrupt_open_block("ol")
             self._push_list(True)
+            self._ordered_lists[self._list_count] = _OrderedList(
+                _html_integer(attr_dict.get("start")), "reversed" in attr_dict
+            )
             return
         if tag == "ul":
             self._interrupt_open_block("ul")
@@ -994,7 +1532,19 @@ class _AstParser(HTMLParser):
                 return
             self._interrupt_open_block(tag)
             self._open_block(tag, resumed=False, named_style=named_style)
+            if tag == "li":
+                self._li_value = _html_integer(attr_dict.get("value"))
             return
+
+        # --- block container with no node of its own (#1391) ---
+        # One inside an open block stays an unrecognized tag there, whose text the
+        # block already keeps.
+        if tag in _CONTAINER_TAGS and self._table_depth == 0:
+            self._end_anonymous_block(implicit_too=True)
+            if self._block_tag is None:
+                self._open_elements[-1].container_text = True
+                self._container_depth += 1
+                return
 
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
@@ -1051,6 +1601,10 @@ class _AstParser(HTMLParser):
         # only in inline tags still gets its implicit paragraph: a raw-HTML
         # "<a href><img></a>" (a linked badge, say) is real content, and
         # dropping it loses the image along with its link (PR #992 QA round 1).
+        # Directly in a container it opens the container's own paragraph instead, so
+        # text after it joins it, as text before it would (PR #1400 QA round 1).
+        if tag == "img" and _image_src(attr_dict) and self._can_open_anonymous_block():
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         if tag == "img" and self._block_tag is None and self._table_depth == 0:
             src = _image_src(attr_dict)
             if src:
@@ -1069,6 +1623,10 @@ class _AstParser(HTMLParser):
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS:
             self._tag_depth += 1
+            self._open_elements[-1].counted = True
+        if (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
+            # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -1097,16 +1655,25 @@ class _AstParser(HTMLParser):
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
             elif tag == "br":
-                self._run_buf.append(_LineBreak("\n"))
+                in_pre = self._in_pre or self._cell_pre_depth > 0
+                self._run_buf.append(_LineBreak("\n" if in_pre else "\v"))
+                self._ends_with_line_break = True
+                self._segment_had_line_break = True
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an
                 # embedded image makes no sense.
                 src = _image_src(attr_dict)
                 if src:
-                    self._pending_runs.append(
-                        _make_image(attr_dict, src, self._link_url[-1] if self._link_url else None)
-                    )
+                    link_url = self._link_url[-1] if self._link_url else None
+                    if link_url is None and self._block_tag == _ANONYMOUS_BLOCK:
+                        # An <a> around the container, which opened with no block around
+                        # it, pushed its href as a bare link, which a bare <img> uses
+                        # (#977); one in the container's paragraph keeps it the same way
+                        # (PR #1400 QA round 2).
+                        link_url = self._bare_link_url[-1] if self._bare_link_url else None
+                    self._pending_runs.append(_make_image(attr_dict, src, link_url))
+                    self._ends_with_line_break = False
                 elif self._block_tag:
                     self._block_had_unsupported_content = True
             elif self._block_tag:
@@ -1123,6 +1690,27 @@ class _AstParser(HTMLParser):
             self._anchor_pushes.append("bare" if href else None)
 
     def handle_endtag(self, tag):
+        tag = _PRE_ALIASES.get(tag, tag)
+        # An end tag closes the element it names and everything still open inside it,
+        # innermost first, as a browser's does (#1391): an unclosed <b>, hidden <video>,
+        # <p> or list ends with its container or cell. One naming nothing open is
+        # ignored. The element it names closes under the end tag's own name, so a
+        # </ul> closing an <ol> still reaches the list handling as </ul>.
+        popped = self._pop_elements(tag)
+        if popped is None:
+            return
+        for element in popped[:-1]:
+            if not element.inert:
+                self._close_element(element.tag, element)
+        if not popped[-1].inert:
+            self._close_element(tag, popped[-1])
+
+    def _close_element(self, tag: str, element: _OpenElement):
+        """Everything an element's end tag does once the stack has popped it."""
+        # --- block container with no node of its own (#1391) ---
+        if element.container_text:
+            self._end_anonymous_block()
+            return
         # --- table structure ---
         if tag == "table":
             # A cell left open has no </td> to drop what it held.
@@ -1132,8 +1720,10 @@ class _AstParser(HTMLParser):
                 node = tb.build()
                 if node is not None:
                     if self._table_depth == 1:
-                        node.blockquote_depth = len(self._blockquote_ids)
-                        for name, value in self._list_item_fields().items():
+                        for name, value in {
+                            **self._blockquote_fields(),
+                            **self._list_item_fields(),
+                        }.items():
                             setattr(node, name, value)
                         self._nodes.append(node)
                     elif self._table_stack:
@@ -1315,8 +1905,7 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
-        if tag not in _VOID_TAGS and self._tag_depth > 0:
-            self._tag_depth -= 1
+        # _pop_elements already took a counted element out of _tag_depth.
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -1371,6 +1960,11 @@ class _AstParser(HTMLParser):
             self._bare_link_url.pop()
 
     def handle_data(self, data):
+        if self._hidden_depth:
+            return
+        # An "&nbsp;" draws a line in a container, as source indentation doesn't.
+        if data and not _is_formatting_whitespace(data) and self._can_open_anonymous_block():
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
@@ -1396,24 +1990,36 @@ class _AstParser(HTMLParser):
         elif self._block_tag:
             # Never in <pre>, where the line break and indentation are the code's.
             if (
-                self._block_resumed
+                (self._block_resumed or self._block_tag == _ANONYMOUS_BLOCK)
                 and not self._in_pre
                 and not (self._run_buf or self._pending_runs)
             ):
                 # A resumed segment starts right after the block that interrupted it,
-                # and markdown-it writes a line break there ("<hr />\nmore"). Source
+                # and markdown-it writes a line break there ("<hr />\nmore"), as a
+                # container's source does before its text ("<div>\n  text"). Source
                 # formatting, like the break before the block (_interrupt_open_block);
                 # an authored "&nbsp;" is not ASCII whitespace and stays (#444).
                 data = _without_line_break_edge(data, leading=True)
                 if not data:
                     return
+            if self._block_implicit and self._ends_with_line_break:
+                head, newline, _ = data.partition("\n")
+                if newline and all(c in _ASCII_FORMATTING_WHITESPACE for c in head):
+                    # Bare text keeps its source line breaks as paragraph breaks, so a
+                    # <br> right before one ends a paragraph, where it draws no line
+                    # (_drop_final_line_break; PR #1356 QA round 2).
+                    self._flush_run()
+                    self._pending_runs, _ = _drop_final_line_break(self._pending_runs)
+                    self._ends_with_line_break = False
+            if not all(c in _ASCII_FORMATTING_WHITESPACE for c in data):
+                self._ends_with_line_break = False
             self._run_buf.append(data)
         elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
             # Genuinely bare text — no wrapping block tag, no enclosing tag of
             # any kind (#343). Implicitly open a paragraph so it isn't
             # silently dropped the way inline-only content
             # (e.g. "<span>no blocks</span>") intentionally is.
-            self._open_block("p", resumed=False, named_style=None)
+            self._open_block("p", resumed=False, named_style=None, implicit=True)
             self._run_buf.append(data)
 
     def handle_entityref(self, name):
@@ -1429,6 +2035,7 @@ class _AstParser(HTMLParser):
         opened for bare top-level text (no closing tag ever arrives for it),
         or malformed HTML missing a final close tag — so trailing content
         isn't silently dropped."""
+        self._end_anonymous_block()
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
             self._emit_block_node(
@@ -1436,6 +2043,8 @@ class _AstParser(HTMLParser):
             )
             self._block_tag = None
             self._block_named_style = None
+        for ordered_list in self._ordered_lists.values():
+            ordered_list.assign_numbers()
 
 
 class _TableBuilder:

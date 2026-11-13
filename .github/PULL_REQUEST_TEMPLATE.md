@@ -1,6 +1,9 @@
 ## What changed and why
 
-<!-- Brief description. Link the issue this closes (a bug fix without an issue can
+<!-- Target `develop`, not `main`. `main` only receives release merges; a PR opened
+against it will be asked to retarget and rebase onto `develop`.
+
+Brief description. Link the issue this closes (a bug fix without an issue can
 leave this blank; a maintainer will open one and link it): -->
 
 Closes #

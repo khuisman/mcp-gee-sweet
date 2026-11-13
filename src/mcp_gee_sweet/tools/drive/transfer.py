@@ -2887,8 +2887,8 @@ def register(tool):
         differences from get_doc_as_markdown's output:
           - A link to a heading in the document renders as "#slug" (GitHub
             style), not a docs.google.com URL. A link to a bookmark, or to a
-            heading that doesn't render as one (e.g. a bulleted heading), is
-            dropped, leaving its text.
+            heading that doesn't render as one (e.g. a heading in a table
+            cell), is dropped, leaving its text.
           - An image renders as "image:sha256-<hash of its bytes>", so an
             unchanged image doesn't show up in a diff. No viewable URL is
             returned: the temporary Doc's image URLs stop working once it's
@@ -3220,9 +3220,11 @@ def register(tool):
                      sync_folder call on the same folder won't create a duplicate.
                      A .md file is rendered by Drive's Markdown importer, not this
                      server's converter, so it looks different from create_doc's
-                     output: '-' bullets at every level, code blocks one Arial
-                     paragraph per line instead of monospace, quotes without a
-                     border, nested numbering '1.' rather than 'a.'. Full list:
+                     output: '-' bullets at every level, fenced code in a gray
+                     monospace box with a language label ('None' when it has no
+                     recognized language), at the page margin even inside a list
+                     item, quotes without a border, nested numbering '1.' rather
+                     than 'a.'. Full list:
                      docs/known-limitations.md. To render a .md the way the Docs
                      tools do, use create_doc_from_file instead. Leading YAML front
                      matter is left out of the Doc, as in the Docs tools.
@@ -3299,9 +3301,11 @@ def register(tool):
                      own convert=True behavior for an unsupported extension. Default
                      False (upload every file preserving its original format).
                      A .md file is rendered by Drive's Markdown importer, not this
-                     server's converter: '-' bullets at every level, code blocks
-                     not monospace, quotes without a border, nested numbering '1.'
-                     rather than 'a.'. Full list: docs/known-limitations.md. Leading
+                     server's converter: '-' bullets at every level, fenced code in
+                     a gray monospace box with a language label ('None' when it has
+                     no recognized language), at the page margin even inside a list
+                     item, quotes without a border, nested numbering '1.' rather
+                     than 'a.'. Full list: docs/known-limitations.md. Leading
                      YAML front matter is left out of the Doc.
 
         Returns:
@@ -4103,9 +4107,12 @@ def register(tool):
                            upload_local_file's convert param (#188), and a Doc created
                            either way is recognized by this matching. Drive's importer
                            renders the Markdown, not this server's converter: '-'
-                           bullets at every level, code blocks not monospace, quotes
-                           without a border, nested numbering '1.' rather than 'a.'
-                           (full list: docs/known-limitations.md). Leading YAML
+                           bullets at every level, fenced code in a gray monospace
+                           box with a language label ('None' when it has no
+                           recognized language), at the page margin even inside a
+                           list item, quotes without a border, nested numbering
+                           '1.' rather than 'a.' (full list:
+                           docs/known-limitations.md). Leading YAML
                            front matter is left out of the Doc. The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of

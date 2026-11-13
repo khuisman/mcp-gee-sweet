@@ -57,7 +57,7 @@ Markdown describes HTML, and Docs has no direct equivalent for some constructs. 
 | C4 | Task item | Bullet item whose text starts with `☐` (unchecked) or `☑` (checked); no literal `[ ]`/`[x]` | — |
 | C5 | Inline code | Courier New on exactly the code characters | `textStyle.weightedFontFamily.fontFamily == "Courier New"` on that run only |
 | C6 | Code block (fenced or indented) | One Courier New block; each source line on its own visual line; leading indentation and blank lines kept; no Markdown inside it interpreted | one paragraph (lines joined by soft breaks), all runs Courier New |
-| C7 | Blockquote, depth N | Indented N steps with a gray left border; content inside keeps its own formatting (lists stay lists, headings stay headings) | `paragraphStyle.indentStart` = 36pt × N and `borderLeft` set |
+| C7 | Blockquote, depth N | Indented N steps with a gray left border; content inside keeps its own formatting (lists stay lists, headings stay headings) | `paragraphStyle.indentStart` = 36pt × N and `borderLeft` set. A quoted list item: `indentStart` = the list level's indent + 36pt × N, so its bar sits right of the quote paragraphs' bar ([known limitation](../../known-limitations.md#a-list-inside-a-blockquote-draws-its-own-quote-bar-offset-from-the-quotes), #1242) |
 | C8 | Thematic break | A visible horizontal line across the page; never an empty-looking gap | — |
 | C9 | Hard break (two trailing spaces, `\`) | Line break inside the same paragraph: no extra blank line, no paragraph spacing between the two lines | one paragraph containing a `\v` (soft line break) |
 | C10 | Soft break (a plain newline inside a paragraph) | The lines join into one paragraph, separated by a space | one paragraph |
@@ -116,6 +116,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
+
 ### TC-MD002: Project plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -134,6 +138,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
+
 ### TC-MD003: Spec / PRD ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -149,6 +157,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1093, #1095, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
 
 ### TC-MD004: README ⚠️ destructive
 **Prompt**
@@ -171,6 +183,12 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (usage notes 1–4, code under item 3, item 4 is 4.). The Note quote splits at its soft break (#1230), and the SVG badge isn't embedded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2, F3 (#1113). Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 5/8 case×EP cells pass; failures: #1113 (Drive import; #1429): the SVG badge leaves an empty line, no alt text (EP-5–7) — ornithomimus release pass, shard M1**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 3/3 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — The SVG badge's empty line is now named in `docs/known-limitations.md` (#1429). Check 1's "a FAIL under D4 until #1113" is now stale.
+
 ### TC-MD005: Status report ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -187,6 +205,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
 
 ### TC-MD006: How-to with numbered steps and code ⚠️ destructive
 **Prompt**
@@ -213,6 +235,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — identical to round 1: #1094 checks pass, soft breaks #1230. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
+
 ### TC-MD007: Comparison with tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -226,6 +252,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1095, #1093, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
 
 ### TC-MD008: Research summary with quotes and links ⚠️ destructive
 **Prompt**
@@ -243,6 +273,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1072, #1095. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M1**
 
 ### TC-MD009: Changelog ⚠️ destructive
 **Prompt**
@@ -262,6 +296,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-30, PR #1301 @ b402ede8, EP-3, Run 1 only) ❌ FAIL — the #1094 check passes (the code block under "Added" stays under it). Version-heading links not graded. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md)**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1, F2. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
+
 ### TC-MD010: Checklist-heavy task plan ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -279,6 +317,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
+
 ### TC-MD011: Incident postmortem ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -295,6 +337,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
 
 ### TC-MD012: Interview guide (numbered in numbered) ⚠️ destructive
 **Prompt**
@@ -314,6 +360,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
+
 ### TC-MD013: API reference ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -330,6 +380,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass, identical in both runs; failures: #1095, #1093. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Seen on screen (Playwright), first screen: code blocks and inline code monospace, table header bold. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
 
 ### TC-MD014: Study notes ⚠️ destructive
 **Prompt**
@@ -348,6 +402,10 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M2**
+
 ### TC-MD015: Travel itinerary ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -365,6 +423,16 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
 
+**Result (2026-11-05, develop @ 2cf72ae3) ✅ PASS — 8/8 case×EP cells pass, identical in both runs. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 3/8 case×EP cells pass; failures: #1427: no gap between the Flights table and the paragraph after it (EP-1–4, EP-8) — ornithomimus release pass, shard M2**
+
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-3 and EP-4; other checks, EP-1, EP-2, EP-5 to EP-8 and run 2 not run.** On a fresh Doc, "**Hotel:**" has `spaceAbove` 10 and sits clear of the Flights table on screen. EP-4 into a Doc whose NORMAL_TEXT has `space_below` 20 (from `apply_theme`) gives "Hotel:" no `spaceAbove`, and it sits on the table's bottom border again, which is #1427's defect (sent back on the PR).
+
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ⚠️ PARTIAL — #1427's "Hotel:" gap only, at EP-4; other checks, other EPs and run 2 not run.** "Hotel:" keeps `spaceAbove` 10 (sits clear of the Flights table) on a replace into a Doc whose NORMAL_TEXT sets only `space_below`. Into a Doc that also sets `space_above`, the doc's own spacing takes over.
+
+**Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass, identical in both runs; failures: none — v0.9.6 re-run, develop `4a86b88b`, shards R1 (EP-5–7) and F1 (EP-1–4, EP-8) on `oauth`** — #1427 fixed: "**Hotel:**" sits clear of the Flights table on screen at every converter EP (`spaceAbove` 10pt). Every other check holds: Thursday 1–4 and Friday 1–2 with no restart, Saturday's nested level, Packing ☐☐☐☑, Budget right-aligned with a bold Total row, accented names.
+
 ### TC-MD016: Planning notes (the #1044 report document) ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -375,14 +443,25 @@ Documents of the kind AI clients produce, written the way a model writes them (2
 - Prep tasks: ☐/☑ glyphs.
 - The un-languaged fenced block shows `1. Q4 results` etc. as literal monospace lines, not a list.
 - Logistics table intact.
+- EP-1 to EP-4 and EP-8: the Doc is one page; the table ends page 1 and there's no blank second page (#1100). Check in the Docs editor's page view, or count the pages of the PDF from `download_file(file_id=<doc>, local_path=<scratch dir>, export_format='pdf')`.
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (D1 nesting now correct; numbering restarts 1, 1, 1, 1), identical in both runs; failures: #1072, #1100. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 3/8 case×EP cells pass; failures: #1100: blank last page after the closing table (EP-1–4, EP-8) — ornithomimus release pass, shard M2**
 
 ---
 
 **Result (2026-10-18) ❌ FAIL — 0/8 case×EP cells pass, in both runs; failures: #1071, #1093, #1100, #1101, #1102. Grid: [`results/2026-10-18-markdown.md`](../results/2026-10-18-markdown.md).**
 
 **Result (2026-10-28, PR #1283 @ 56895d03) ⚠️ PARTIAL — EP-8 only, one run (Kit). EP-8's Doc is identical to EP-1's, in both the `get_doc_as_markdown` export and the raw `documents().get()` body (fonts and paragraph styles included, object IDs normalized), so the EP-8 cell has EP-1's outcome: the failures on the latest EP-1 line above, not #1102's Drive-import defects. Not checked on screen this round. Skipped: the second run and EP-2 to EP-7.**
+
+**Result (2026-11-05, develop @ 2cf72ae3) ❌ FAIL — 5/8 case×EP cells pass, identical in both runs; EP-1–EP-4 and EP-8 pass; EP-5–EP-7 fail on F1. Grid: [`results/2026-11-05-markdown.md`](../results/2026-11-05-markdown.md)**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The PDF export of the EP-3 Doc is 1 page. A copy of it with the trailing paragraph's `spaceAbove`/`spaceBelow`/`lineSpacing` reset exports 2 pages, so the collapse is what removes the blank page. On that copy, spacing 0 alone and spacing 0 with a 1pt font both still export 2 pages: only `lineSpacing` 1 removes it. Other checks, other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — #1100's page-count check only, at EP-3, one run.** The EP-3 Doc's PDF export is 1 page again, and its final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own. Other checks, other EPs and run 2 not run.
+
+**Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass, identical in both runs; failures: none — v0.9.6 re-run, develop `4a86b88b`, shards R1 (EP-5–7) and F1 (EP-1–4, EP-8) on `oauth`** — #1100 fixed: at every converter EP the PDF export and the editor show one page, nothing blank after the Logistics table, and the paragraph after the closing table is collapsed in `documents().get()` (`lineSpacing` 1, 0pt above and below, no font size of its own). EP-5's Doc is two pages because Drive splits the table across a page break; nothing is blank. Agenda 1–4 with no restart, sub-bullets at level 1, Prep tasks ☐☐☑, fence lines literal monospace.
 
 ## Phase 2 — Syntax coverage
 
@@ -408,6 +487,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 32/32 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ✅ PASS — 64/64 case×EP cells pass; failures: none — ornithomimus release pass, shard M3 + R3**
+
 ### TC-MD102: Emphasis and strikethrough ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -428,6 +509,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 28/32 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (EM-08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ✅ PASS — 64/64 case×EP cells pass; failures: none — ornithomimus release pass, shard M3 + R3**
+
 ### TC-MD103: Inline code ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -443,6 +526,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 | IC-06 | One paragraph with "only_code_here()" in Courier New (C5; not required to look like a code block) |
 
 **Result (2026-10-18) ❌ FAIL — 24/48 case×EP cells pass, in both runs; failures: #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-11-08) ✅ PASS — 48/48 case×EP cells pass; failures: none — ornithomimus release pass, shard M3 + R3**
 
 ### TC-MD104: Code blocks ⚠️ destructive
 **Prompt**
@@ -463,6 +548,8 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 | CB-10 | Paragraph "A paragraph line.", then the code block (a fence may interrupt a paragraph) |
 
 **Result (2026-10-18) ❌ FAIL — 40/80 case×EP cells pass, in both runs; failures: #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
+
+**Result (2026-11-08) ✅ PASS — 80/80 case×EP cells pass; failures: none — ornithomimus release pass, shard M3 + R3**
 
 ### TC-MD105: List markers and numbering ⚠️ destructive
 **Prompt**
@@ -485,6 +572,14 @@ Each TC renders one fixture; the cases are the `###` sections inside it. "Expect
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 20/32 EP-1–EP-4 cells pass, identical in both runs; failures: #1118 (LM-04), adjacent lists merge (LM-01, LM-07; F2, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2, EP-3) ❌ FAIL — 7/8 at EP-3: LM-01 (three `listId`s) and LM-07 (two) now pass (#1241); LM-04 still fails on #1118. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
+
+**Result (2026-11-05, develop @ 2cf72ae3, #1268, EP-1–EP-4) ✅ PASS — 32/32 EP-1–EP-4 cells pass, identical in both runs: LM-01 has three `listId`s, LM-07 two, LM-04 shows 3. 4. 5. EP-5–EP-8 not run. Grid: [`results/2026-11-05-markdown-i1268.md`](../results/2026-11-05-markdown-i1268.md)**
+
+**Result (2026-11-05, PR #1376 @ f9ef738f, Rio, EP-3) ✅ PASS — 8/8 at EP-3, identical in both runs after renumbering list IDs, rendered as part of a subset rebuilt from the fixtures: LM-01 has three `listId`s, LM-07 two. Seen on screen (Playwright, Run 1): LM-04 shows 3. 4. 5., LM-06 runs 1. to 11. EP-1, EP-2, EP-4 and EP-5–EP-8 not run.**
+
+**Result (2026-11-08) ❌ FAIL — 61/64 case×EP cells pass; failures: #1113 (Drive import; #1429): LM-01 — ornithomimus release pass, shard M3 + R3**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 24/24 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — LM-01's `+` and ● glyphs are now documented (#1429).
 
 ### TC-MD106: Nesting widths × list-type combinations ⚠️ destructive
 **Prompt**
@@ -520,6 +615,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-29, PR #1295 @ 47607c8f, EP-3, Run 1 only) ✅ PASS — 16/16 at EP-3: Top two 2. / Child two b. (or ○) in every case, with the barrier paragraph now on every nested list. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md)**
 
 **Result (2026-10-30, PR #1295 @ 3af9a092, round 2, EP-3) ✅ PASS — 16/16 at EP-3, identical to round 1. Grid: [`results/2026-10-29-markdown-pr1295.md`](../results/2026-10-29-markdown-pr1295.md) §"Round 2"**
+
+**Result (2026-11-08) ❌ FAIL — 125/128 case×EP cells pass; failures: #1113 (Drive import; #1429): LN-04 — ornithomimus release pass, shard M3 + R3**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 48/48 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — LN-04's glued grandchildren are now documented (#1429).
 
 ### TC-MD107: Loose lists and blocks inside list items ⚠️ destructive
 **Prompt**
@@ -558,6 +657,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — 10/11, identical to round 1 (LB-07's table on screen at the item's indent); LB-10's rule #1096. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
+**Result (2026-11-08) ✅ PASS — 88/88 case×EP cells pass; failures: none — ornithomimus release pass, shard M3 + R3**
+
 ### TC-MD108: List boundaries ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -578,6 +679,17 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | LX-11 | Dot one 1., Dot two 2.; Paren one restarts at **1.** in its own list (two `listId`s). Then Parent one 1.; Dot child a.; Paren child restarts at **a.** at level 1, in a list of its own; Parent two **2.** (#1241) |
 | LX-12 | Outer one 1.; Bullet child ○ at level 1; Deep child i. at level 2; Restarted child **a.** at level 1, in a list of its own, not Deep child's; Outer two **2.** (#1241) |
 | LX-13 | First bullet ●; Bullet child ○ at level 1; Last bullet ●; Numbered child one **a.** and Numbered child two **b.**, both at level 1 (PR #1295 QA round 1) |
+| LX-14 | Resume one 1.; the quote at its own indent with its bar; the heading at the margin; Resume two **2.**, Resume three **3.**, all three items one `listId` (#1118) |
+| LX-15 | Numbered first 1.; Bullet between ●; Numbered second **2.**, as text (no `bullet`), lined up with the 1. above it (#1118) |
+| LX-16 | Counted one 1.; the paragraph; **7.** and **8.** as text, the wrapped line of 7. under its text, not under the number; Bullet under seven ○ at level 1; the second paragraph under seven's text; only "Bold" bold, not the number (#1118) |
+| LX-17 | Parent one 1.; Child three **c.** and Child four **d.** as text at level 1's indent; Parent two **2.** in Parent one's `listId` (#1118) |
+| LX-18 | Tab one 1.; the code block keeps its leading tab, no bullet; Tab two **2.** with its bullet, in Tab one's `listId`; the paragraph after is intact, no stray character or bullet near it (#1118) |
+| LX-19 | Inner one 1.; the code block under it, keeping its leading tab; Inner two **2.** (#1118) |
+| LX-20 | Before the table 1.; the table at the margin; **2.** as text. `get_doc_as_markdown` keeps the table at the margin, not under 1. (#1118) |
+| LX-21 | **100.** and **101.** as text; on screen the wrapped line of 100. sits exactly under its first line's text (#1118) |
+| LX-22 | **100.**; its text, the paragraph under it and the bullet's parent indent line up at 36pt; `get_doc_as_markdown` keeps the paragraph in the item (#1118) |
+| LX-23 | Quote one 1.; Quote bullet ○; Quote roman **iii.** in one quote, on screen. `get_doc_as_markdown` writes it as a plain paragraph with its marker, the documented limitation (#1118) |
+| LX-24 | Loose one 1.; the paragraph at the margin; Loose two **2.**; the paragraph; Loose three **3.**, all three items one `listId` (#1118) |
 
 **Result (2026-10-18) ❌ FAIL — 21/72 case×EP cells pass, in both runs; failures: #1116, #1093, #1094, #1118, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
@@ -597,6 +709,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ❌ FAIL — 11/13, identical to round 1: LX-04 #1230, LX-09 #1118. Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
+**Result (2026-11-08) ❌ FAIL — 180/192 case×EP cells pass; failures: #1113 (Drive import; #1429): LX-14, LX-21, LX-22, LX-24. LX-23 on our converter graded against C7 as amended for #1293 — ornithomimus release pass, shard M3 + R3**
+
+**Result (2026-11-10) ❌ FAIL — EP-5–7 re-graded under D4: 66/72 cells pass, identical in both runs; failures: #1113, #1444 (Drive import, undocumented): LX-05, LX-24; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — LX-14, LX-21 and LX-22 now pass under D4 (#1429). LX-05: Drive's import makes the two lists separated by an HTML comment one list (one `listId`, no gap). LX-24: the glued "Loose in the listLoose two" is documented, but "Loose three" lands in a separate Docs list starting at 3 (it reads 3. on screen). Neither is in `docs/known-limitations.md`; filed as #1444. Not a regression, and not a v0.9.6 blocker (maintainer, 2026-11-10).
+
 ### TC-MD109: Task lists ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -615,6 +731,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 24/24 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ❌ FAIL — 45/48 case×EP cells pass; failures: #1113 (Drive import; #1429): TK-04 — ornithomimus release pass, shard M3 + R3**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 18/18 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — TK-04's restart at 1. is now documented (#1429).
+
 ### TC-MD110: Blockquotes ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -625,7 +745,7 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | BQ-01 | One quoted paragraph (C7, depth 1) |
 | BQ-02 | Two quoted paragraphs, both depth 1 |
 | BQ-03 | "Outer level." depth 1, "Inner level." depth 2, "Third level." depth 3 |
-| BQ-04 | Inside the quote: paragraph, 2-item bullet list, 2-item numbered list 1. 2. |
+| BQ-04 | Inside the quote: paragraph, 2-item bullet list, 2-item numbered list 1. 2. Each list item's bar sits at the item's own indent, right of the paragraph's bar (C7) |
 | BQ-05 | Inside the quote: paragraph and a Courier New code block |
 | BQ-06 | Inside the quote: a Heading 2, then a paragraph |
 | BQ-07 | One quoted paragraph containing both lines joined by a space |
@@ -635,6 +755,12 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-18) ❌ FAIL — 0/72 case×EP cells pass, in both runs; failures: #1056, #1093, #1098, #1101, #1102. Quote indent predates the #1056 fix (PR #1089). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 28/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (BQ-07), quoted-list border offset (BQ-04; F3, no issue). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-07, PR #1385 QA round 1 @ 8177ba22, Rio) ⚠️ PARTIAL — C7 and BQ-04 as amended for #1293 only, EP-3, two runs, identical on screen and in `documents().get()`. BQ-04 passes: "Shopping:" has `indentStart` 36 and its bar at the quote's indent; the four list items have `indentStart` 72 (list level 36 + quote 36), `indentFirstLine` 54 and `borderLeft` set, and their bar sits right of the paragraph's. Every other quoted paragraph has `indentStart` 36 × N and `borderLeft` set. Skipped: EP-1, EP-2 and EP-4 to EP-8, and the on-screen grade of BQ-06 to BQ-09.**
+
+**Result (2026-11-08) ❌ FAIL — 69/72 case×EP cells pass; failures: #1113 (Drive import; #1429): BQ-05 — ornithomimus release pass, shard M4 + R4a**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 27/27 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — BQ-05's code box at the margin in a quote is now documented (#1429).
 
 ### TC-MD111: Links ⚠️ destructive
 **Prompt**
@@ -659,6 +785,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-18) ❌ FAIL — 117/144 case×EP cells pass, in both runs; failures: #1116, #1120, #1101, #1102. Includes the `autolink_urls=False` variant. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 48/48 EP-1–EP-4 cells pass, and 48/48 with `autolink_urls=False`, identical in both runs. LK-12 first failed against its old expectation ("links to `./guide.md`"), which predated #1120's fix. LK-12's expectation was corrected in this pass and re-judged from the same screenshots: "the guide" and "an anchor" are both plain text. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 141/144 case×EP cells pass; failures: #1113 (Drive import; #1429): LK-12 — ornithomimus release pass, shard M4 + R4a**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 36/36 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — LK-12's `http://./guide.md` and the dead `#lk-01` are now documented (#1429).
 
 ### TC-MD112: Images ⚠️ destructive
 **Prompt**
@@ -694,6 +824,10 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 **Result (2026-10-31) ✅ PASS (IM-14, IM-15; EP-4 `create_doc_from_file` only) — PR #1310 round 3 (Kit)**
 `mcp-gee-sweet-kit` at eb6ce267, `create_doc_from_file` on the raw `md-images.md`. IM-14: the Docs icon embedded from `//www.gstatic.com/…`, its `images` entry with no `error`. IM-15: the pixel embedded from `../../qa%20fixture%20pixel%20%C3%A9.png` (uploaded, `fileId`, no `error`). Both confirmed in Playwright. IM-11 to IM-13 on this EP matched their expected cells too. IM-04 and IM-06 failed only because the raw fixture still holds their `{QA_IMAGE_LOCAL_PATH}`/`{QA_IMAGE_DRIVE_ID}` placeholders (run-time substitution not done), not a product result. Also: HTML `<img src="  https://…  ">` and a padded `" //www.gstatic.com/… "` in a table cell both embedded with no `error`.
 
+**Result (2026-11-08) ❌ FAIL — 96/111 case×EP cells pass; failures: #1113 (Drive import; #1429): IM-10 to IM-14. IM-05/10/15 N/A at EP-8 (content only, like EP-1/2) — ornithomimus release pass, shard M4 + R4a**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 45/45 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — IM-10 to IM-14 are now documented (#1429). Graded IM-10 against the fixture (a local path containing a space), not #1429's "reference-style" label. IM-11's "FAIL until #1113" note, which IM-12 inherits, is now stale.
+
 ### TC-MD113: Tables ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -718,6 +852,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 40/48 EP-1–EP-4 cells pass, identical in both runs; failures: #1095 (TB-02, TB-10). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ✅ PASS — 96/96 case×EP cells pass; failures: none — ornithomimus release pass, shard M4 + R4a**
+
 ### TC-MD114: Breaks and thematic breaks ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -733,11 +869,13 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 | BR-06 | Same as BR-04 | — |
 | BR-07 | A Heading 2 "This line becomes a level-two heading"; no line | `HEADING_2` |
 | BR-08 | Same as BR-04 | — |
-| BR-09 | Two paragraphs with normal paragraph spacing, no extra empty paragraphs | 2 paragraphs |
+| BR-09 | Two paragraphs with a visible gap between them (#1382), no extra empty paragraphs. EP-1 to EP-4 and EP-8: 10pt `spaceBelow` on the first. EP-5 to EP-7: Drive's import writes the gap as an empty paragraph (D4), so they show 3 paragraphs | 2 paragraphs |
 
 **Result (2026-10-18) ❌ FAIL — 40/72 case×EP cells pass, in both runs; failures: #1093, #1117, #1116, #1096, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 8/36 EP-1–EP-4 cells pass, identical in both runs; failures: #1093 (BR-01), #1117 in bundle #1230 (BR-02, BR-03), #1096 (BR-04, 05, 06, 08). Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-08) ✅ PASS — 144/144 case×EP cells pass; failures: none — ornithomimus release pass, shard M4 + R4a + R4b**
 
 ### TC-MD115: Escapes and entities ⚠️ destructive
 **Prompt**
@@ -758,6 +896,8 @@ No literal `- ` or `1.` text anywhere. Level 0 and level 2 have the parent's typ
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 28/28 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ✅ PASS — 112/112 case×EP cells pass; failures: none — ornithomimus release pass, shard M4 + R4a + R4b**
+
 ### TC-MD116: Inline HTML ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -777,6 +917,10 @@ CommonMark passes raw HTML through, and every entry point turns HTML into a Doc,
 
 **Result (2026-10-18) ❌ FAIL — 30/56 case×EP cells pass, in both runs; failures: #1077, #1119, #1117, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
+**Result (2026-11-08) ❌ FAIL — 106/112 case×EP cells pass; failures: #1113 (Drive import; #1429): HT-03 — ornithomimus release pass, shard M4 + R4a + R4b**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 21/21 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — HT-03's `<br>` split is now documented (#1429).
+
 ### TC-MD117: Unicode ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -791,6 +935,8 @@ CommonMark passes raw HTML through, and every entry point turns HTML into a Doc,
 | UN-05 | The no-break, thin and ideographic spaces kept (no line break inside "100 km") |
 | UN-06 | Exactly "bold after three emoji" bold, exactly "code after" Courier New, exactly "link after" linked: no style shifted by a character (UTF-16 offsets, #358) |
 | UN-07 | Heading 4 with the globe; flag emoji in the table cells |
+
+**Result (2026-11-08) ✅ PASS — 56/56 case×EP cells pass; failures: none (UN-04/05 at EP-1/2/8 rendered by a script from the fixture's bytes: the agent tool channel normalizes U+0301 and turns U+00A0/U+2009 into spaces) — ornithomimus release pass, shard M4 + R4b + R6**
 
 ---
 
@@ -908,6 +1054,14 @@ Not expressible, so not in the matrix:
 
 **Result (2026-10-30, PR #1301 @ 2fd4a8da, round 2, EP-3) ⚠️ PARTIAL — 54/60, identical to round 1 (paragraph dump unchanged; the six rule cases #1096). Grid: [`results/2026-10-30-markdown-pr1301.md`](../results/2026-10-30-markdown-pr1301.md) §"Round 2"**
 
+**Result (2026-11-05, develop @ 2cf72ae3, #1268, 18 cases, EP-1–EP-4) ⚠️ PARTIAL — the 18 paragraph, table and image cases in list containers (CT-01/08/09, 11/18/19, 21/28/29, 31/38/39, 41/48/49, 51/58/59) pass on EP-1–EP-4, identical in both runs: tables sit at the item's indent (#1277) and each sibling continues its list. The other cases and EP-5–EP-8 not run. Grid: [`results/2026-11-05-markdown-i1268.md`](../results/2026-11-05-markdown-i1268.md)**
+
+**Result (2026-11-05, PR #1376 @ f9ef738f, Rio, 18 cases, EP-3) ⚠️ PARTIAL — the same 18 cases pass at EP-3, identical in both runs after renumbering list IDs. Seen on screen (Playwright, Run 1): each paragraph, table and image sits at its item's text indent, each sibling continues its list (2., b., ii.), and all six images embedded. The other cases, EP-1, EP-2, EP-4 and EP-5–EP-8 not run.**
+
+**Result (2026-11-08) ❌ FAIL — 631/640 case×EP cells pass; failures: #1113 (Drive import; #1429): CT-66, CT-75, CT-76. CT-63/64/65/73/74/75 on our converter graded against C7 as amended for #1293 — ornithomimus release pass, shard M5**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 240/240 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — CT-66, CT-75 and CT-76 are now documented (#1429).
+
 ### TC-MD202: Adjacency matrix, no blank line ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1023,6 +1177,10 @@ Every block construct directly followed by every other, with no blank line betwe
 **Result (2026-10-18) ❌ FAIL — 301/800 case×EP cells pass, in both runs; failures: #1116, #1093, #1096, #1056, #1097, #1073, #1101, #1102. EP-8 rendering changed between runs (Rule 4). Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 272/400 EP-1–EP-4 cells pass, identical in both runs; failures: #1093, #1096. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 787/800 case×EP cells pass; failures: #1113 (Drive import; #1429): AJ-028/038/048/068; #1428: AJ-099 at EP-8 Run 2 only (one image fetch failed, written as alt text) — ornithomimus release pass, shard M6**
+
+**Result (2026-11-10) ❌ FAIL — EP-5–7 re-graded under D4: 300/300 cells pass, both runs; the 2026-11-08 failure (AJ-099, #1428, our converter) wasn't re-run and stands — v0.9.6 re-run, shard R2 on `kai-oauth`** — AJ-028/038/048/068 (table glued as literal text) are now documented (#1429). AJ-099's image embedded in all six Drive-import renders.
 
 ### TC-MD203: Adjacency matrix, blank line ⚠️ destructive
 **Prompt**
@@ -1142,6 +1300,8 @@ The same 100 pairs separated by one blank line.
 
 **Result (2026-10-27, PR #1228 @ d1d2bfc1, round 6, merge-scoped: the five #1115 cases at EP-1 and EP-3) ❌ FAIL overall (#1096's 19 cases are unchanged) — AB-023, AB-025, AB-034, AB-043, AB-045 now pass at EP-1 (Run 1) and EP-3 (both runs): each is one list of four items under one `listId`, AB-034 numbered 1. to 4. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md) §"Round 6"**
 
+**Result (2026-11-08) ✅ PASS — 800/800 case×EP cells pass; failures: none — ornithomimus release pass, shard M6 + R6**
+
 ### TC-MD204: Inline formatting matrix ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1188,6 +1348,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ✅ PASS — 128/128 EP-1–EP-4 cells pass, identical in both runs. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
 
+**Result (2026-11-08) ✅ PASS — 256/256 case×EP cells pass; failures: none — ornithomimus release pass, shard M5**
+
 ---
 
 **Result (2026-10-18) ❌ FAIL — 89/256 case×EP cells pass, in both runs; failures: #1077, #1116, #1056, #1122, #1101, #1102. Grid: [`results/2026-10-18-markdown-phase2.md`](../results/2026-10-18-markdown-phase2.md).**
@@ -1208,7 +1370,7 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 | DS-05 | `ds-05-starts-quote.md` | The quote first, then the paragraph |
 | DS-06 | `ds-06-starts-image.md` | The image first, then the paragraph |
 | DS-07 | `ds-07-starts-rule.md` | A horizontal line first, then the paragraph |
-| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no stray visible paragraph after the table beyond Docs' mandatory final one |
+| DS-08 | `ds-08-ends-table.md` | Heading, paragraph, table; no visible paragraph after the table. EP-1 to EP-4 and EP-8: Docs' mandatory final paragraph is collapsed (`lineSpacing` 1, no space above or below in `documents().get()`), so it takes no height (#1100) |
 | DS-09 | `ds-09-ends-list.md` | The list's last item is the last visible line; no empty bulleted line after it |
 | DS-10 | `ds-10-empty.md` | The call succeeds and leaves an empty Doc (EP-2/EP-4: the Doc's previous content is cleared) |
 | DS-11 | `ds-11-whitespace-only.md` | Same as DS-10 |
@@ -1226,6 +1388,14 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 
 **Result (2026-10-30, PR #1303 @ ad1ef994, round 2) ❌ FAIL — DS-14 to DS-16 only, one run (Kit): 19/24 case×EP cells pass. DS-14 and DS-16 pass at all eight entry points; DS-15 passes at EP-5 to EP-7, and at EP-1 to EP-4 and EP-8 keeps every block but its rule has no visible line (#1096). Grid: [`results/2026-10-30-markdown-pr1303.md`](../results/2026-10-30-markdown-pr1303.md) §"Round 2"**
 
+**Result (2026-11-08) ⚠️ PARTIAL — 125/128 (3 not run) case×EP cells pass; failures: none; DS-13 (CRLF) at EP-1/2/8 not run: this client can't send CRLF inline, as on 2026-10-22 — ornithomimus release pass, shard M7**
+
+**Result (2026-11-09, PR #1438 QA round 1 @ 07bfff5c, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** The table is the last visible block. In `documents().get()` the final paragraph after it has `lineSpacing` 1 and 0pt above and below. Not part of DS-08's check: two lines added after the table with `insert_doc_text` overprint each other and the table's last row on screen (the trade-off kept by the maintainer, 2026-11-09). Other EPs and run 2 not run.
+
+**Result (2026-11-09, PR #1438 QA round 2 @ c7d3814a, Sky) ⚠️ PARTIAL — DS-08 only, at EP-3, one run.** Same as round 1: the final paragraph has `lineSpacing` 1, 0pt above and below, and no font size of its own; the PDF export is 1 page. The documented workaround, `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` on round 1's Doc, put both added lines back on their own lines below the table on screen. Other EPs and run 2 not run.
+
+**Result (2026-11-11) ⚠️ PARTIAL — 125/128 case×EP cells pass in both runs (3 not run); failures: none; DS-13 (CRLF) at EP-1/2/8 not run: this client can't send CRLF inline — v0.9.6 re-run, shards R3 and F2 on `sa`** — DS-08 meets #1100's done-when at EP-1–4 and EP-8 (fresh Docs on the post-#1100 server): the final paragraph after the table has `lineSpacing` 1 and 0pt above and below, the PDF is one page, nothing shows after the table and nothing overprints. DS-08 at EP-5–7 passes under D4.
+
 ### TC-MD302: Long document ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1239,6 +1409,10 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 **Result (2026-10-22) ❌ FAIL — 0/8 entry points pass. Every render completes and the second copies of r06/r16 match the first; failures are the Phase 1 rendering defects (#1096 breaks invisible in EP-1–4, #1071, #1072, #1093, #1094, #1097, #1099, #1101, #1102). Identical across runs. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 
 **Result (2026-10-25, PR #1228 @ 7ad1576b) ❌ FAIL — 0/4 EP-1–EP-4 cells pass (completed, no timeout), identical in both runs; failures: #1096 plus the realistic documents' own failures. Grid: [`results/2026-10-25-markdown.md`](../results/2026-10-25-markdown.md)**
+
+**Result (2026-11-08) ❌ FAIL — 5/8 case×EP cells pass; failures: #1113 (Drive import; #1429): the r04 SVG badge (EP-5–7) — ornithomimus release pass, shard M7**
+
+**Result (2026-11-10) ✅ PASS — EP-5–7 re-graded under D4: 3/3 cells pass, both runs; EP-1–4 and EP-8 stand from 2026-11-08 — v0.9.6 re-run, shard R2 on `kai-oauth`** — Completes; the second copies of r06/r16 match standalone EP-5 renders exactly; rules visible; badge documented.
 
 ### TC-MD303: A `.md` file with a long name through the Drive-import entry points ⚠️ destructive
 **Setup:** copy `docs/qa/fixtures/md/realistic/r01-meeting-notes.md` to a temp directory as a file whose name is 110 ASCII bytes (`qa-md303-` padded with `x`, ending `.md`), and a second copy whose name is 45 CJK characters plus `.md` (over 130 UTF-8 bytes). Don't commit either name.
@@ -1254,6 +1428,8 @@ IN-01 to IN-20: each inline style (bold, italic, strikethrough, code, link) cont
 - Each Doc renders the meeting notes per TC-MD001.
 
 **Result (2026-10-22) ❌ FAIL — 0/8 cells pass. The long-name checks pass for both names in both runs (no error, one Doc per upload, second sync `skipped`); the meeting-notes render fails on #1071, #1093, #1098 (EP-3) and #1101 (EP-5–7). Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
 
 ---
 
@@ -1272,6 +1448,10 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 
 **Result (2026-10-22) ❌ FAIL — 0/2 cells pass. The replace checks pass (pixel-identical to a blank-Doc render, nothing of r07 left, both runs); the r06 render itself fails TC-MD006 (#1094, #1072, #1071, #1098). Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 
+**Result (2026-11-08) ✅ PASS — 2/2 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-10) ✅ PASS — 2/2 case×EP cells pass, both runs; failures: none — v0.9.6 re-run, shard R4 on `kai-sa`** — r06 written over an r07 Doc is pixel-identical (0 px) to r06 written into a blank Doc at EP-2 and EP-4, and identical in `documents().get()`: nothing of r07 remains, and the 10pt paragraph gaps are kept.
+
 ### TC-MD402: Writing into a Doc with a theme and non-default named styles ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1281,8 +1461,13 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 - Headings take the theme: Heading 1/2 in Montserrat, blue-ish, bold; Heading 3 Montserrat, gray, italic. Body text in Georgia.
 - Code spans and code blocks are still Courier New, not Georgia.
 - Lists, tables and numbering render exactly as in TC-MD002.
+- Paragraph spacing stays the Doc's (#1382): this theme sets none, so adjacent paragraphs carry the 10pt gap. TC-MD506 covers a theme that does set it.
 
 **Result (2026-10-22) ❌ FAIL — 0/2 cells pass. Headings and body take the theme; table cells also take the heading look in the themed Doc only (#1097); lists fail as in TC-MD002 (#1071). r02 has no code, so the Courier New check isn't exercised. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
+
+**Result (2026-11-08) ✅ PASS — 2/2 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-10) ✅ PASS — 2/2 case×EP cells pass, both runs; failures: none — v0.9.6 re-run, shard R4 on `kai-sa`** — Theme fonts as set (Montserrat headings, H1/H2 blue bold, H3 gray italic; Georgia body and table text); lists, numbering and the table match the unthemed r02 render element for element. Note: r02 has nothing a paragraph-gap check could apply to, so this case can't see #1427.
 
 ### TC-MD403: `update_doc_from_file` twice in a row ⚠️ destructive
 **Prompt**
@@ -1295,6 +1480,10 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 
 **Result (2026-10-22) ❌ FAIL — 0/1 cells pass. Idempotence passes in both runs (pixel-identical, structure identical apart from regenerated heading/list IDs); the r10 render fails TC-MD010 (#1071). Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
 
+**Result (2026-11-08) ✅ PASS — 1/1 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-10) ✅ PASS — 1/1 case×EP cells pass, both runs; failures: none — v0.9.6 re-run, shard R4 on `kai-sa`** — The Doc after the first update and after the second are pixel- and structure-identical (33 elements, same list grouping). The `lists` map keeps 6 orphaned definitions after the second update, which Docs keeps after content is deleted; nothing visible.
+
 ### TC-MD404: Determinism across runs ⚠️ destructive
 **Prompt**
 > Not a separate render: this TC records the Run 1 vs. Run 2 comparison from "Running this suite" step 7 for every case in this file.
@@ -1303,6 +1492,10 @@ These use our converter's write paths (EP-2 and EP-4); the Drive-import entry po
 - Every case's Run 2 screenshot matches Run 1 per entry point. Any difference is a FAIL of the case and of this TC.
 
 **Result (2026-10-22) ❌ FAIL — TC-MD301–403: every page identical across runs except DS-05 EP-3, whose Run 2 `create_doc_from_file` hung 30 minutes and left an empty Doc (#1129). Phase 1 and Phase 2's EP-8 nondeterminism (#1102) still stands. Grid: [`results/2026-10-22-markdown-boundaries-state.md`](../results/2026-10-22-markdown-boundaries-state.md).**
+
+**Result (2026-11-08) ❌ FAIL — every cell of every TC identical in Run 1 and Run 2 but one ; failures: #1428: TC-MD202 AJ-099 at EP-8 differs (Run 2's one-off image fetch failure) — ornithomimus release pass, shard Aziz, from every shard's Run 1 vs Run 2**
+
+**Result (2026-11-11) ✅ PASS — for the v0.9.6 re-run's cases, develop `4a86b88b`** — Every Run 2 render matched Run 1, in pixels and by `documents().get()` structure, for TC-MD015, 016, 004, 105, 106, 108–112, 116, 201, 202, 302 (EP-5–7), 301, 401–403, 506, 508 and 509; each comparison had a negative control reporting DIFFERENT. TC-MD202's converter cells weren't re-run, so the 2026-11-08 AJ-099 difference (#1428, a transient image fetch) wasn't re-checked; #1428 stays open.
 
 ---
 
@@ -1328,6 +1521,8 @@ What our converter tells the caller about the conversion, and the link targets i
 
 **Result (2026-10-28, PR #1272 @ f773c1c6, Sky, round 3) ✅ PASS — 4/4 case×EP cells pass.** EP-1 to EP-4 returned the same four `dropped_links` entries in order, and the second call had no key. `get_doc_as_markdown` on EP-1 shows the same stored links as before. Every edge probe from rounds 1 and 2 passes live. `//:80`, `//-`, `www.foo_bar.example_x` and `www.foo_bar.example_x:8443/x` are dropped and reported. `//example.com:8443/y` is stored as `https://example.com:8443/y`. `href="  "` is no longer reported. A table cell's `href=" #missing"` is reported as `no_matching_heading` and stored as plain text, and its `href=" #real-heading"` resolves to the heading. Markdown autolinks are unchanged by the shared `valid_gfm_domain`: bare `www.example.com` still gets `http://` (#1281), and `www.foo_bar.example_x` stays unlinked.
 
+**Result (2026-11-08) ✅ PASS — 4/4 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
 ### TC-MD502: A bare `www.` autolink gets https, like a written `www.` link ⚠️ destructive
 **Prompt**
 **Playwright: required**
@@ -1339,6 +1534,8 @@ What our converter tells the caller about the conversion, and the link targets i
 - No response has a `dropped_links` key.
 
 **Result (2026-10-30, PR #1298 @ 833b076c, Kit, round 1) ✅ PASS — 5/5 case×EP cells pass.** EP-1 to EP-4 and EP-8 each stored `[www.example.com](https://www.example.com)`, `[y](https://www.example.com)` and `[www.example.com:8443/x](https://www.example.com:8443/x)` (`get_doc_as_markdown`); no response had a `dropped_links` key. Screenshots of EP-1 and EP-8 show all three linked. Out-of-case probe: EP-5 (`upload_local_file(convert=True)`, Drive's importer) stores all three as `http://…`, the written link included, so the engines differ on the scheme; LK-06 now records that.
+
+**Result (2026-11-08) ✅ PASS — 5/5 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
 
 ---
 
@@ -1362,6 +1559,173 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 **Result (2026-11-01, PR #1332 @ eb304470, Kit) ✅ PASS — 10/10 case×EP cells pass (`inline-scope.md` and TC-MD116's HT-01/02/07, each through EP-1 to EP-4 and EP-8), in both runs. Every check was read from the stored text styles (`strikethrough`, `baselineOffset`, `backgroundColor` 1/1/0) and the two runs' read-backs are identical. Seen on screen (Playwright): IS on EP-1 (Run 1) and EP-3 (Run 2), HT on EP-8 (Run 1). `get_doc_as_markdown` gives `~~x~~ and ~~y~~; ~~hij~~k.` and plain sub/sup/highlight text, as expected.**
 
 **Result (2026-11-01, PR #1332 round 2 @ 8fd9f042, after the `develop` merge bringing #1326, Kit) ✅ PASS — 10/10 cells, one run through EP-1 to EP-4 and EP-8. The stored-style read-back is identical to round 1's, so the round-1 on-screen checks still apply; no new screenshots.**
+
+**Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+---
+
+## Line breaks
+
+How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a hard break or `<br>` (a line break inside the paragraph, `\v`) in the blocks that keep a paragraph style (#1230). TC-MD114's BR-01 to BR-03 and TC-MD116's HT-03 cover them in a plain paragraph.
+
+### TC-MD504: Line breaks inside headings, list items and quotes ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/state/line-breaks.md` through EP-1 to EP-4 and EP-8. Also run TC-MD114's BR-01 to BR-03, TC-MD116's HT-03, TC-MD108's LX-04 and TC-MD110's BQ-07 through EP-1 to EP-4: #1093's and #1117's done-when. Two runs, with an on-screen check.
+
+**Checks** (read the stored text with `get_doc_structure`, whose paragraph text shows a `\v`)
+- LB-01: one `HEADING_2` paragraph, "Heading one`\v`heading two"; on screen, two lines in heading style with no paragraph gap between them.
+- LB-02: three top-level numbered items, 1–3, in one list. Item 1 is one paragraph, "The first week matters most. New hires who had a buddy were 2.3x more likely to rate onboarding as good.", with only "The first week matters most." bold. Item 2 is "Second item`\v`after a hard break", with one marker. The nested item is one level-1 bullet, "nested`\v`item". Item 3 is numbered 3.
+- LB-03: one quoted paragraph (left bar, 36pt indent), "Quoted text written across two lines`\v`then a break.", one bar on screen.
+- LB-04: the image and "continues the same paragraph." in one paragraph, with a space before "continues".
+- Round trip: `get_doc_as_markdown` on the EP-1 Doc, then `create_doc(content_format="markdown")` with that output. Each `\v` above comes back as a `\v` in the same paragraph, not as a second paragraph.
+
+**Result (2026-11-01, PR #1356 QA round 1 @ 730f8b58, Kit) PARTIAL — Run 1, EP-3 only; the round was sent back before the full matrix.** EP-3 (`create_doc_from_file`): LB-01 to LB-04 all match on screen and in `get_doc_structure` (one `HEADING_2` "Heading one`\v`heading two"; items 1–3 in one list, item 1 one paragraph with only its first sentence bold, item 2 and the nested item each joined by a `\v`; one quoted paragraph with a `\v`; image and " continues the same paragraph." in one paragraph). Not run yet: EP-1, EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2. A separate probe through EP-1 (HTML) showed two send-backs on screen: `<p>text<br></p>` and `<p><br></p>` each leave an extra blank line, and a `<br>` after a nested list (`<li>a<ul><li>b</li></ul><br></li>`) adds a two-line gap before the next item.
+
+**Result (2026-11-01, PR #1356 QA round 2 @ 7bc387f3, Kit) PARTIAL — Run 1, EP-1 only; the round was sent back before the full matrix.** EP-1 (`create_doc`, Markdown): LB-01 to LB-04 match on screen, as EP-3 did in round 1. Round 1's three probes now render as a browser shows them: `<p>text<br></p>` has no blank line, `<p><br></p>` is one empty line, and a `<br>` after a nested list adds no gap. Two new defects on screen: `<p><br><br></p>` is one empty line where a browser shows two, and bare text `Line one<br>\nLine two` shows a blank line between the two lines. Not run yet: EP-2, EP-4, EP-8, the round trip, the cross-referenced BR/HT/LX/BQ cases, and Run 2.
+
+**Result (2026-11-01, PR #1356 QA round 3 @ fcae255c, Kit) PARTIAL — HTML probes through EP-1 only; the round was sent back before the full matrix.** Round 2's two defects are fixed on screen: `<p><br><br></p>` is two empty lines, and bare `Line one<br>\nLine two` is two lines with no gap. The browser oracle (line heights measured in Playwright) shows round 1's suggestion was wrong: a browser draws one empty line for a `<br>` right after a nested list or table. Two defects on screen: `<li>a<ul><li>b</li></ul><br></li>` draws no line before the next item (browser: one), and `<ul><li><br><br></li></ul>` is a one-line bullet (browser: two lines). The TC-MD504 fixture wasn't re-rendered this round; its `<br>` paths are unchanged since round 2's EP-1 pass.
+
+**Result (2026-11-02, PR #1356 QA round 4 @ 0cc9c871, Kit) ✅ PASS — 45/45 case×EP cells pass, identical in both runs.** LB-01 to LB-04 through EP-1 to EP-4 and EP-8, the round trip, and BR-01 to BR-03, HT-03, LX-04 and BQ-07 through EP-1 to EP-4, each graded by structure and on screen. Grid: [`results/2026-11-02-markdown-pr1356.md`](../results/2026-11-02-markdown-pr1356.md)
+
+**Result (2026-11-08) ✅ PASS — 45/45 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+### TC-MD505: A list's start number survives every Docs entry point ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render the fixture's LM-04 and LX-09 sections through EP-1 to EP-4 and EP-8, on a new Doc, and again over an existing Doc that has a header and a changed named style. #1118's done-when.
+
+**Checks**
+- LM-04: on screen 3. 4. 5., aligned like the list in LM-02. `get_doc_structure` shows three unbulleted paragraphs, "3.`\t`Three" and so on, with `indentFirstLine` 18 and `indentStart` 36.
+- LX-09: on screen 1., the code block at the margin, 2. Both items share one `listId`; the code block has no `bullet` and no indent.
+- Existing Doc: `write_doc_content` with LM-04 keeps the Doc's header and its changed named style (`get_doc_named_styles`), which a Drive import would have removed.
+- HTML through EP-1: `<ol reversed start="3">` with three items shows 3. 2. 1.; `<ol><li value="5">a</li><li>b</li></ol>` shows 5. 6.
+- Hand-numbered heading: a Doc with a real `HEADING_2` "1.`\t`Introduction" and a `#1-introduction` link written by `write_doc_content` keeps a working link.
+- Round trip: `get_doc_as_markdown` on the LM-04 Doc returns `3. Three`, `4. Four` and `5. Five` with no backslashes, and on the LX-09 Doc `1.`, a fence, `2.`.
+
+**Result (2026-11-03, PR #1368 QA round 1 @ 1584a941, Sky) ⚠️ PARTIAL — one run. LM-04 and LX-09 meet every check: on screen at EP-3; EP-1, EP-2, EP-4 and EP-8 have the same paragraphs, indents and bullets through `documents().get()`, not viewed on screen. Existing Doc: `write_doc_content` with LM-04 kept the header and the changed NORMAL_TEXT named style. Round trip as listed. LX-14 to LX-17 match the TC-MD108 table on screen at EP-3. Skipped: the second run, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a leading tab in a code block between two continued lists shifts every later position, losing text and misplacing indents and bullets; a marker wider than the hanging gap, such as `100.`, starts its text at 72pt with wrapped lines at 36pt.**
+
+**Result (2026-11-03, PR #1368 QA round 2 @ d3c252b3, Sky) ⚠️ PARTIAL — one run. Both round 1 live defects are fixed: LX-18 to LX-21 match the TC-MD108 table on screen at EP-3. HTML through EP-1: `reversed` shows 3. 2. 1. and `value` shows 5. 6. on screen. Hand-numbered heading through EP-2: the `#1-introduction` link resolved to its heading. LX-09 to LX-17 structure unchanged from round 1 at EP-3. Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. The same pass found defects these fixtures don't reach, sent back on the PR: a quoted stand-in at list level 2 exports with the wrong number (`iii.` as `6327.`), and a paragraph or sublist under a `100.` item sits left of the item's text.**
+
+**Result (2026-11-04, PR #1368 QA round 3 @ cefbe49e, Sky) ⚠️ PARTIAL — one run, EP-3 and EP-1 only. LX-14 to LX-24 match the TC-MD108 table by structure at EP-3, except LX-23's `get_doc_as_markdown` line: `Quote roman` exports `1.` under #1370, at one quote level as the case asks. Seen on screen in the probe Doc: a quoted roman level, a wide marker with a paragraph under it, and a list past separate quotes. An orphan `<li>` keeps its bullet, and `2.` after it is literal (EP-1, by structure). Skipped: the second run, the other entry points, and the TC-MD105/TC-MD108 grids. Failed, escalated on the PR: a quoted stand-in nested in an unquoted item (`- a`, then `> 3. b` under it) renders correctly but exports `> > > c.<tab>b`, with the raw marker and two extra quote levels, where round 2's head exported a list item.**
+
+**Result (2026-11-04, PR #1368 QA round 4 @ d4908a51, Sky) ⚠️ PARTIAL — every check passes, in one run. LM-04 and LX-09: on screen at EP-1; EP-8 has the same paragraphs, indents and bullets through `documents().get()`; EP-3 and EP-4 match each other across the whole fixture (LX-09 to LX-24 and LM-04); EP-2's existing-Doc run with LM-04 kept the header and the changed named style. Round trip as listed. HTML: `reversed` 3. 2. 1. and `value` 5. 6. by structure and export at EP-1. Hand-numbered heading: `1.<tab>Introduction` keeps its number and its `#1-introduction` link. LX-23 exports as the plain paragraph the table now expects, the maintainer's scope cut. Not run: the second run, LX-09 through EP-2 at this head, and the TC-MD105/TC-MD108 grids.**
+
+**Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+### TC-MD506: A gap between paragraphs, on its own and under a theme ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/realistic/r06-howto.md` and `docs/qa/fixtures/md/syntax/md-paragraph-gaps.md` through EP-1 to EP-4. #1382's done-when. Then run the two theme orders below on the gaps fixture.
+
+**Checks**
+- r06: in Troubleshooting, "Port 5432 is already in use." and "`pip install` fails" read as two paragraphs, with a gap about two thirds of a line, in the same range as the 8pt around its code blocks. `get_doc_structure` shows no extra empty paragraphs.
+- PG-01 and PG-02: a gap below each paragraph that a paragraph follows, none inside a wrapped line, and none for PG-02's soft-broken lines.
+- PG-03: one continuous quote bar, with the gap inside it. The nested quote gets no gap above it, and the outer bar breaks only where it does without this fix.
+- PG-04: a gap below the item's text and between its paragraphs. The markers and the next item keep their list spacing.
+- PG-05: no doubled space beside the code block, and none added beside the spacer line.
+- PG-06: the quoted item and the paragraphs inside it show no vertical break in the quote bar.
+- PG-07: the literal `3.` item and the paragraph inside it show the same gap as PG-04.
+- Theme read: `get_doc_theme` on a Doc written through EP-1 doesn't report the 10pt gap as `NORMAL_TEXT`'s `space_below`, nor an 8pt from a paragraph beside a quoted table. On a Doc whose whole body is Courier New, it still reports that font. On r06, whose body is plain with bold lead-ins, `NORMAL_TEXT` isn't reported as bold.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand. Nothing in the export shows the gap.
+- Theme after: on a Doc written through EP-1, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. `spaceBelow` is absent from the gap paragraphs in `documents().get()`, and on screen every body paragraph has the theme's 20pt, list items included. The code block and the quote-edge paragraphs keep their explicit 8pt, which isn't a gap.
+- Theme before: run the same `apply_theme` on a blank Doc, then write through EP-2 and, on a second Doc, EP-4. No paragraph carries an explicit 10pt, and on screen the theme's 20pt stands.
+- A theme with no spacing, `{"NORMAL_TEXT": {"font_family": "Georgia"}}`, leaves the gaps in place in either order.
+
+**Result (2026-11-07, PR #1388 QA round 1 @ 4584c813, Sky) ❌ FAIL — one run, before PG-06, PG-07 and the theme-read check were added. Passes: r06's Troubleshooting on screen (EP-3), with a 10pt `spaceBelow` by structure; PG-01 to PG-05 on screen at EP-3; EP-2 and EP-4 identical to each other paragraph by paragraph; round trip identical with and without the gaps; theme after clears all five gaps (on an EP-3 Doc, list items at 20pt on screen); theme before leaves no explicit 10pt at EP-2 and EP-4 (structure only); a font-only theme keeps the gaps in both orders. Fails: a quoted list item's bar shows a 10pt hole below the item (the PG-06 shape), a literal `3.` item has no gap (the PG-07 shape), and `get_doc_theme` returns `{"NORMAL_TEXT": {"space_below": 10}}`. Not run: r06 on screen at EP-1, EP-2 and EP-4, and EP-1's structure. The PR comment has the send-back list.**
+
+**Result (2026-11-07, PR #1388 QA round 2 @ c7e551c3, Sky) ❌ FAIL — the gap passes, `get_doc_theme` fails. Passes: r06's Troubleshooting on screen at EP-1 to EP-4; both fixtures identical paragraph by paragraph across EP-1 to EP-4 (gaps also at EP-8 and a second EP-3 run); PG-06 with no vertical break in the bar and PG-07 with its gap, on screen at EP-1; `get_doc_theme` leaves out the gap and the quote and code spacing on the gaps fixture; theme after leaves no explicit 10pt; theme before at EP-4 reports no explicit 10pt (structure only). Fails: a Doc with a Courier New body returns `{}` instead of its font, and a paragraph beside a quoted table returns `{"NORMAL_TEXT": {"space_above": 8}}`. Not rerun at this head: theme before at EP-2, the font-only theme and the round trip, whose code this fix didn't change.**
+
+**Result (2026-11-07, PR #1388 QA round 3 @ d4adbebd, Sky) ❌ FAIL — `get_doc_theme` only; the gap's code didn't change this round, so round 2's gap results stand. Passes: a Courier New body reports its font; a paragraph beside a quoted table reports nothing; the gaps fixture reports `{}`; a code-only Doc reports only the font. Fails: r06 reports `{"NORMAL_TEXT": {"bold": true}}`, and so does a Doc of one plain paragraph and one with a bold lead-in. `develop` has the same fallthrough, so it isn't a regression from this PR.**
+
+**Result (2026-11-07, PR #1388 QA round 4 @ e6dabe3e, Sky) ⚠️ PARTIAL — every check passes; the second run covers only the gaps fixture at EP-3. `get_doc_theme` at this head: r06, the gaps fixture, a paragraph opening with bold and one opening with a code span all report `{}`; a paragraph beside a quoted table reports `{}`; a Courier New body and a code-only Doc report the font; a first paragraph entirely in bold reports bold, as the docstring says. Rerun at this head by structure: a font-only theme after keeps all 7 gaps of the extended fixture; a font-only theme before EP-2 keeps the gap; a spacing theme before EP-2 leaves no 10pt; round trip identical with and without the gaps. The gap's own code is unchanged since round 2, so PG-01 to PG-07 and r06 on screen stand from there.**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass in both runs; failures: none — v0.9.6 re-run, shards R3 and F2 on `sa`** — r06 and paragraph-gaps at EP-1–4 pass on screen and by structure, with every theme check (read, after, before at EP-2/EP-4, font-only both orders) and the round trip. Run 2 pixel-identical to Run 1, theme Docs included.
+
+### TC-MD507: A list's markers look the same whatever its items' text looks like
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/realistic/r06-howto.md` and `docs/qa/fixtures/md/syntax/md-list-marker-styles.md` through EP-1 to EP-4. #1383's done-when.
+
+**Checks**
+- r06: step numbers 1 to 5 are all regular weight on screen, and the step text keeps its bold, including step 3's bold lead-in and plain tail.
+- Fixture, on screen: every marker in each list is regular weight, roman, black and body size, whatever its item holds: whole-item bold, italic, code, link and strikethrough, a one-character item, a single emoji, a bold lead-in, a bold ending, two adjacent styled runs, nested items, a checkbox item and a quoted item. Each item's text keeps its own style.
+- `get_doc_structure` shows no `\u200b` left in any item's text.
+- The heading item's marker is heading-sized. That's the named style, not a defect.
+- `get_doc_as_markdown` returns the same list text, with every emphasis marker in place.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-07, PR #1399 QA round 1 @ 8e41d4e5, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run this round. Both fixtures through `create_doc_from_file`: on screen every marker is regular weight, roman and black, r06's step numbers 1 to 5 included, and each item keeps its own style; the heading item's marker is heading-sized. The raw `paragraph.bullet.textStyle` of every list paragraph is `{"underline": false}` alone. No `\u200b` in any item's text. `get_doc_as_markdown` matches the fixture line for line. Also through EP-1 (`create_doc`, Markdown): a `#slug` TOC list and a list whose only item content is an unfetchable linked SVG badge (written as its alt text) both keep black markers. Two failures outside this case's checks: pretty-printed HTML (`<li>\n\t\t<b>one</b>\n\t</li>`) now fails `create_doc` with a 400, and `create_paragraph_bullets` on one item of the fixture's first list gives its neighbours' markers bold, italic, Courier New and strikethrough (see the round's PR comment).**
+
+**Result (2026-11-07, PR #1399 QA round 2 @ f51e67cf, Sky) ⚠️ PARTIAL — every check passes at EP-3; EP-1, EP-2 and EP-4 not run. The fixture through `create_doc_from_file`: every marker plain on screen and `{"underline": false}` alone in `paragraph.bullet.textStyle`, every item keeping its own style, no `\u200b` in any item text. Round 1's HTML failure is fixed: `create_doc` with a pretty-printed HTML list (`<li>\n\t\t<b>one</b>\n\t</li>`, an `<li><b>bold</b>\n</li>`, and the same shape inside a `<blockquote>`) succeeds, bold and italic land on exactly their own characters, every marker is plain and the quote bar spans its list. The empty bulleted paragraphs that shape still makes are #1229.**
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+### TC-MD508: A gap on both sides of a list ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-list-gaps.md` and `docs/qa/fixtures/md/realistic/r06-howto.md` through EP-1 to EP-4. #1389's done-when. Then, on the fixture's EP-1 Doc, run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`.
+
+**Checks**
+- LG-01: a gap about two thirds of a line below "Install the headers:" and below "two", the same as between two paragraphs (TC-MD506). "one" and "two" sit at their usual list spacing.
+- LG-02: the gap is below "nested last", not inside the list.
+- LG-03: gaps below "first", "Paragraph inside first." and "sub item". None below "Back in first.": "2. second" sits at list spacing.
+- LG-04: gaps on both sides of "Between the list and its continuation.", and the list still numbers 1, 2.
+- LG-05: no extra gap below the heading item or the code block, which keep their own spacing; a gap below "Paragraph after the heading item.", which leads into a list. The quote is one continuous bar, with no gap beside "quoted item".
+- LG-06: a gap below "Paragraph inside a." before "1. b starts a new list", the same as an intro line's. None below "Paragraph inside c1.": "c2" sits at list spacing.
+- LG-07: the `3.` list is written as literal text (#1118). A gap below "Paragraph inside d." before "3. literal list starting at 3", and below the `3.` line before "Paragraph inside 3.". None below "Paragraph inside 3.": "4. next literal item" sits at list spacing.
+- r06: each list has the same gap from its intro line and from the paragraph after it.
+- Structure: in `documents().get()`, each gap is `spaceBelow` 10pt on one paragraph, and no empty paragraph was added. NORMAL_TEXT's `spacingMode` is the Doc's own (`COLLAPSE_LISTS` on a new Doc).
+- Theme: after `apply_theme`, no paragraph carries an explicit 10pt `spaceBelow`, list items included, and on screen each place that had a 10pt gap shows the theme's 20pt instead.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-07, PR #1406 QA round 1 @ 66938bb6, Sky) ⚠️ PARTIAL — the fixture passes at EP-3, with one defect found outside it; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows `spaceBelow` 10 on exactly the paragraphs LG-01 to LG-05 name, no empty paragraph added, and NORMAL_TEXT `spacingMode: COLLAPSE_LISTS`. On screen, LG-01 to LG-04 match every check, and LG-05's heading item and code block keep their own spacing. LG-05's quote shows no gap. Its bar steps right at "quoted item", at that item's own indent, which is how a quoted list already renders and isn't changed by this PR. `apply_theme(NORMAL_TEXT space_below 20)` sent 11 requests and left no explicit 10pt `spaceBelow` on any paragraph, list items included. `get_doc_as_markdown` returns the fixture's structure. **Defect:** a paragraph inside the last item of one list, followed directly by a different list (`- a`, `  p inside a`, `1. b`, via `create_doc` markdown), gets no gap. "p inside a" sits tight against "1. b" both on screen and in `documents().get()`, while an intro line in the same place gets the gap. Sent back in the round 1 comment.
+
+**Result (2026-11-07, PR #1406 QA round 2 @ a4ff4fbf, Sky) ⚠️ PARTIAL — round 1's defect is fixed for a BulletItem list but not for a literal (stand-in) list; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` matches every check in LG-01 to LG-05 as in round 1. For LG-06, "Paragraph inside a." has `spaceBelow` 10 before "1. b starts a new list", and "Paragraph inside c1." has none before "c2". **Defect:** in a `create_doc` markdown probe, `- a` / `  p inside a` / `3. literal list starting at 3` (an ordered list that becomes literal text, #1118) gives "p inside a" no `spaceBelow` before the literal `3.` line, while "After literal." and "p inside x" before a separate bulleted list each get 10. Structure only: the gap shown on screen for a 10pt `spaceBelow` was confirmed in round 1. Sent back in the round 2 comment.
+
+**Result (2026-11-07, PR #1406 QA round 3 @ b4932412, Sky) ⚠️ PARTIAL — every check run passes at EP-3, and round 2's defect is fixed; EP-1, EP-2, EP-4 and r06 not run.** At EP-3, `documents().get()` shows LG-01 to LG-06 as in rounds 1 and 2. LG-07 has `spaceBelow` 10 on "Paragraph inside d." before the literal "3." line and none on "Paragraph inside 3." before "4.", and the screen shows the same. A `create_doc` markdown probe (`- a` / `  p inside a` / `3. …` / `   p inside literal 3` / `4. …`, then a separate ordered list and bulleted list) gives the gap before each other list and none before the same literal list's next item. `apply_theme(NORMAL_TEXT space_below 20)` on the probe sent 9 requests and left no 10pt `spaceBelow`, the literal items included. `get_doc_as_markdown` returns the fixture's structure, LG-07 included.
+
+**Result (2026-11-08) ✅ PASS — 8/8 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass in both runs; failures: none — v0.9.6 re-run, shards R3 and F2 on `sa`** — list-gaps and r06 at EP-1–4: `spaceBelow` 10 exactly where LG-01–07 name, nothing added, screen matches; the theme leaves no 10pt and shows 20pt; round trip identical. Run 2 pixel-identical to Run 1, the themed copy included.
+
+### TC-MD509: A gap between a table and the paragraphs beside it ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render `docs/qa/fixtures/md/syntax/md-table-gaps.md` and `docs/qa/fixtures/md/realistic/r15-travel-itinerary.md` through EP-1 to EP-4. #1427's done-when. Then run the theme and own-spacing checks below on the fixture.
+
+**Checks**
+- r15: "**Hotel:**" sits clear of the Flights table's bottom border, with a gap about two thirds of a line, the same as between two paragraphs (TC-MD506). Compare with r15 through EP-5, Drive's own import.
+- TG-01: the same gap between "Intro before the table." and the table, and between the table and "**Hotel:** the paragraph right after the table.". The gap below "Hotel:" before "Plain paragraph after that." is unchanged.
+- TG-02: "Between the two tables." has a gap on both sides.
+- TG-03: a gap between each item's text and its table, and between each table and the paragraph after it, inside the item and outside the list. The list still reads as one list: "last item" is item 2, at list spacing from the paragraph above it.
+- TG-04: "a list item right after a table" has the same gap from table G, as Drive's import (EP-5) leaves one. The heading and the code block right after a table keep their own spacing, with nothing extra added.
+- TG-05: the quote is unchanged from `develop`: the quoted paragraphs beside the quoted table show the quote's bar as before, with no new gap, and "Unquoted paragraph after the quote." keeps the quote's 8pt edge.
+- Structure: in `documents().get()`, a paragraph or list item after a table has `spaceAbove` 10pt, one before a table `spaceBelow` 10pt, and no empty paragraph was added. The collapsed empty paragraph before each table is still collapsed.
+- Theme, below only: on the fixture's EP-1 Doc, set a 10pt `spaceAbove` by hand on "Plain paragraph after that." (`batch_update`-style `updateParagraphStyle` through a fresh interpreter, or the Docs UI), then run `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_below": 20}})`. Every 10pt `spaceBelow` is cleared, the ones before a table included, and on screen a paragraph before a table shows the theme's 20pt. Each paragraph or list item right after a table keeps its 10pt `spaceAbove`, since this theme sets nothing above, and stays clear of the table. The hand-set `spaceAbove` on "Plain paragraph after that." is still there.
+- Theme, above only: on a second EP-1 Doc, `apply_theme(doc_id, theme={"NORMAL_TEXT": {"space_above": 20}})` clears the `spaceAbove` after each table and every plain paragraph gap, and keeps the 10pt `spaceBelow` on a paragraph or item right before a table.
+- Own spacing: `update_doc_from_file` (EP-4) r15 into a Doc whose NORMAL_TEXT has `space_below` 20 and no `space_above` (`apply_theme` it first). "**Hotel:**" still has `spaceAbove` 10 and sits clear of the Flights table; no paragraph has a 10pt `spaceBelow`.
+- Round trip: `get_doc_as_markdown` on each Doc matches what it returns with the gaps removed by hand.
+
+**Cleanup:** trash the Docs.
+
+**Result (2026-11-08, PR #1434 QA round 1 @ ecc9f218, Sky) ❌ FAIL — EP-1 to EP-4, one run; EP-5 for comparison.** Passing: in `documents().get()`, EP-3 and EP-4 are identical. A paragraph after an unquoted table has `spaceAbove` 10, one before it has `spaceBelow` 10, and no empty paragraph was added. On screen, TG-01 to TG-03 and r15 show the gap. TG-05 is unchanged. The theme on EP-1 leaves no 10pt value and gives the result the case expects. The round-trip export is identical with the gaps removed by hand. Failing:
+- TG-04's list item sits on table G's bottom border, where Drive's import (EP-5) leaves a gap. It's #1427's defect for a list item.
+- `apply_theme(NORMAL_TEXT space_below 20)` also cleared a user's 10pt `spaceAbove` set on "Plain paragraph after that.", which doesn't follow a table.
+- EP-4 of r15 into a Doc with NORMAL_TEXT `space_below` only put "Hotel:" back on the table.
+
+**Result (2026-11-09, PR #1434 QA round 2 @ a789c122, Sky) ✅ PASS for every check run; EP-3 and EP-4 only, one run.** I didn't repeat EP-1 and EP-2, which go through the same converter as EP-3 (round 1 found them identical to EP-3), and the theme checks used EP-3 Docs in place of EP-1. I didn't repeat the round trip either, since the fix changes nothing on the read side.
+- Structure and screen (EP-3): TG-01 and TG-02 are as in round 1. In TG-03, each item's text has `spaceBelow` 10 before its table, and the paragraph after each table has `spaceAbove` 10. On screen, both items sit clear of their tables, and the list reads as one. In TG-04, "a list item right after a table" has `spaceAbove` 10 and sits clear of table G on screen. The heading and the code block are unchanged, and so is TG-05.
+- Theme, below only: I set a 10pt `spaceAbove` by hand on "Plain paragraph after that.", then ran `apply_theme(space_below 20)`. It cleared every 10pt `spaceBelow` and kept `spaceAbove` 10 on each paragraph or item after a table. The hand-set value stayed. A later `apply_theme(space_above 12)` on the same Doc cleared each after-table `spaceAbove` and still left the hand-set one.
+- Theme, above only: on a fresh Doc, `apply_theme(space_above 20)` cleared each after-table `spaceAbove` and kept `spaceBelow` 10 on the two paragraphs and two items right before a table.
+- Own spacing (EP-4): r15 into a Doc whose NORMAL_TEXT sets only `space_below` 20 keeps "Hotel:" at `spaceAbove` 10, with no 10pt `spaceBelow` anywhere. Into a Doc whose NORMAL_TEXT also sets `space_above` 12, "Hotel:" takes no 10pt.
+
+**Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass in both runs; failures: none — v0.9.6 re-run, shards R3 and F2 on `sa`** — md-table-gaps at EP-1–4 passes every check on screen and by structure: theme below-only and above-only (the hand-set `spaceAbove` kept), own spacing, round trip. r15 at EP-1–4 (fresh Docs on the post-#1100 server): "**Hotel:**" has `spaceAbove` 10 and sits clear of the Flights table; the paragraph after the final Budget table is collapsed. Side observation, not a check: under a 20pt NORMAL_TEXT theme TG-05's quote bar breaks at the quoted table, the theme's own spacing on quoted paragraphs (the class noted for PG-03).
 
 ---
 

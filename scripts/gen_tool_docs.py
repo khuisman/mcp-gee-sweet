@@ -227,6 +227,7 @@ SUBSETS = [
             "create_doc",
             "create_doc_from_file",
             "get_doc_content",
+            "get_doc_as_markdown",
             "get_doc_structure",
             "find_in_doc",
             "write_doc_content",
@@ -376,15 +377,26 @@ def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
         "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
         "```",
         "",
-        "If neither is set, all tools are registered.",
+        "If neither is set, or the value is empty, all tools are registered. "
+        "`ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. "
+        "Listed with tool names, `all` adds nothing: every tool is still registered.",
+        "",
+        "**Upcoming change:** an upcoming release loads a smaller default tool set when "
+        "`ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. "
+        "Until then, `mcp-gee-sweet` logs this as a warning at startup when neither "
+        "names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` "
+        "doesn't log it.",
         "",
         "### Suggested subsets",
         "",
         "Some MCP clients cap how many tools they accept, and the full tool set is "
         "over every cap: VS Code with GitHub Copilot allows 128 tools per request, "
         "built-in tools included; Windsurf allows 100 across all servers; Cursor's "
-        "cap depends on the model. On those clients, pick one of these subsets. "
-        f"Each one is under {CLIENT_TOOL_LIMIT} tools. See [Clients with a tool limit]"
+        "cap depends on the model. On Windsurf and Cursor, pick one of these "
+        f"subsets. Each one is under {CLIENT_TOOL_LIMIT} tools. In our November "
+        "2026 test, VS Code + Copilot looked tools up on demand and handled the "
+        'full set, so use a subset there only if you see "Cannot have more than '
+        '128 tools per request". See [Clients with a tool limit]'
         "(client-setup.md#clients-with-a-tool-limit) for each client's config.",
         "",
         "To combine two subsets, join their lists with a comma (a name listed "
