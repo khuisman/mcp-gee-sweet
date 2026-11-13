@@ -4654,9 +4654,7 @@ class TestStyledBlockOnlyItemIsTheBlock:
     def test_the_regression_row(self):
         # The TC-DOC242 release-pass repro: `styled` used to gain an empty bullet
         # before it (the same list as `plain`), indented 36pt under that bullet.
-        nodes = html_to_ast(
-            '<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>'
-        )
+        nodes = html_to_ast('<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>')
         assert [type(n) for n in nodes] == [NamedBlock, BulletItem]
         assert nodes[0].style_type == "SUBTITLE"
         assert nodes[0].runs == [Run("styled")]
@@ -4678,9 +4676,7 @@ class TestStyledBlockOnlyItemIsTheBlock:
     def test_an_item_with_text_keeps_the_styled_block_inside_it(self):
         # The styled block still interrupts an item that has text of its own: the
         # item is a bullet, the block a block inside it (#1094).
-        nodes = html_to_ast(
-            '<ul><li>a<p data-style="subtitle">s</p></li></ul>'
-        )
+        nodes = html_to_ast('<ul><li>a<p data-style="subtitle">s</p></li></ul>')
         assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
         assert nodes[0].runs == [Run("a")]
         assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
