@@ -451,9 +451,7 @@ class TestTableCaption:
         assert isinstance(nodes[1], Table)
 
     async def test_caption_keeps_its_inline_styles(self):
-        nodes = html_to_ast(
-            "<table><caption><b>Q</b> report</caption><tr><td>c</td></tr></table>"
-        )
+        nodes = html_to_ast("<table><caption><b>Q</b> report</caption><tr><td>c</td></tr></table>")
         assert [(r.text, r.bold) for r in nodes[0].runs] == [("Q", True), (" report", None)]
 
     async def test_pretty_printed_caption_is_trimmed(self):
@@ -480,9 +478,12 @@ class TestTableCaption:
             "b</td></tr></table>"
         )
         outer = nodes[0].rows[0].cells[0]
-        assert [
-            ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children
-        ] == ["a", "inner", "Table", "b"]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "inner",
+            "Table",
+            "b",
+        ]
 
     async def test_an_unclosed_caption_closes_at_the_first_row(self):
         # A browser's parser implies </caption> at <tr>: the caption keeps its
