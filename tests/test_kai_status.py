@@ -290,98 +290,156 @@ class TestRunAndMain:
         assert "== Dependabot alerts ==\n  dep" in out
 
 
-def _labeled(at, name="awaiting-contributor"):
+LABELED_AT = "2026-10-24T00:00:00Z"
+NOW = datetime(2026, 11, 12, tzinfo=UTC)
+
+
+def _labeled(at=LABELED_AT, name="awaiting-contributor"):
     return {"event": "labeled", "created_at": at, "label": {"name": name}}
+
+
+def _activity(
+    timeline=(), reviews=(), review_comments=(), head_pushed_at: str | None = "2026-10-21T00:00:00Z"
+):
+    return {
+        "timeline": [_labeled(), *timeline],
+        "reviews": list(reviews),
+        "review_comments": list(review_comments),
+        "head_pushed_at": head_pushed_at,
+    }
 
 
 class TestWaitingDays:
     """kai.md "Stalled community PRs" (#1454): the wait starts at the latest
     `awaiting-contributor` label and ends at a push or an author reply."""
 
-    NOW = datetime(2026, 11, 12, tzinfo=UTC)
-
     def test_no_activity_since_the_label(self):
-        timeline = [
-            {"event": "commented", "created_at": "2026-10-21T00:00:00Z", "actor": {"login": "c"}},
-            _labeled("2026-10-24T04:41:31Z"),
-            {"event": "cross-referenced", "created_at": "2026-11-06T00:00:00Z"},
-        ]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) == 18
-
-    def test_author_comment_ends_the_wait(self):
-        timeline = [
-            _labeled("2026-10-24T00:00:00Z"),
-            {"event": "commented", "created_at": "2026-10-30T00:00:00Z", "actor": {"login": "c"}},
-        ]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
-
-    def test_author_review_ends_the_wait(self):
-        timeline = [
-            _labeled("2026-10-24T00:00:00Z"),
-            {"event": "reviewed", "submitted_at": "2026-10-30T00:00:00Z", "user": {"login": "c"}},
-        ]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
-
-    def test_maintainer_comment_does_not_end_it(self):
-        timeline = [
-            _labeled("2026-10-24T00:00:00Z"),
-            {"event": "commented", "created_at": "2026-11-01T00:00:00Z", "actor": {"login": "m"}},
-        ]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) == 19
+        activity = _activity(
+            timeline=[
+                {
+                    "event": "commented",
+                    "created_at": "2026-10-21T00:00:00Z",
+                    "actor": {"login": "c"},
+                },
+                {"event": "cross-referenced", "created_at": "2026-11-06T00:00:00Z"},
+            ]
+        )
+        assert kai_status.waiting_days(activity, "c", NOW) == 19
 
     @pytest.mark.parametrize(
-        "push",
+        "where, reply",
         [
-            {"event": "committed", "committer": {"date": "2026-10-30T00:00:00Z"}},
-            {"event": "head_ref_force_pushed", "created_at": "2026-10-30T00:00:00Z"},
+            (
+                "timeline",
+                {
+                    "event": "commented",
+                    "created_at": "2026-10-30T00:00:00Z",
+                    "actor": {"login": "c"},
+                },
+            ),
+            (
+                "timeline",
+                {
+                    "event": "reviewed",
+                    "submitted_at": "2026-10-30T00:00:00Z",
+                    "user": {"login": "c"},
+                },
+            ),
+            ("reviews", {"submitted_at": "2026-10-30T00:00:00Z", "user": {"login": "c"}}),
+            # PR #1455 QA round 1: a review-thread reply is in neither the
+            # timeline nor the reviews list (checked live on #631).
+            ("review_comments", {"created_at": "2026-10-30T00:00:00Z", "user": {"login": "c"}}),
         ],
     )
-    def test_a_push_ends_it_whoever_made_it(self, push):
-        timeline = [_labeled("2026-10-24T00:00:00Z"), push]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+    def test_an_author_reply_anywhere_ends_the_wait(self, where, reply):
+        activity = _activity(**{where: [reply]})
+        assert kai_status.waiting_days(activity, "c", NOW) is None
 
-    def test_activity_before_a_relabel_does_not_count(self):
-        timeline = [
-            _labeled("2026-10-01T00:00:00Z"),
-            {"event": "committed", "committer": {"date": "2026-10-10T00:00:00Z"}},
-            _labeled("2026-10-24T00:00:00Z"),
-        ]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) == 19
+    def test_a_maintainer_reply_does_not_end_it(self):
+        reply = {"created_at": "2026-11-01T00:00:00Z", "user": {"login": "m"}}
+        activity = _activity(review_comments=[reply])
+        assert kai_status.waiting_days(activity, "c", NOW) == 19
+
+    def test_a_commit_made_before_the_label_but_pushed_after_ends_it(self):
+        """PR #1455 QA round 1: the committer date is when it was committed,
+        not pushed, so the head's first check suite times the push."""
+        commit = {"event": "committed", "committer": {"date": "2026-10-20T00:00:00Z"}}
+        activity = _activity(timeline=[commit], head_pushed_at="2026-10-30T00:00:00Z")
+        assert kai_status.waiting_days(activity, "c", NOW) is None
+
+    def test_head_pushed_before_the_label_keeps_it_waiting(self):
+        commit = {"event": "committed", "committer": {"date": "2026-10-30T00:00:00Z"}}
+        activity = _activity(timeline=[commit], head_pushed_at="2026-10-21T00:00:00Z")
+        assert kai_status.waiting_days(activity, "c", NOW) == 19
+
+    def test_without_a_check_suite_the_committer_date_is_used(self):
+        commit = {"event": "committed", "committer": {"date": "2026-10-30T00:00:00Z"}}
+        activity = _activity(timeline=[commit], head_pushed_at=None)
+        assert kai_status.waiting_days(activity, "c", NOW) is None
+
+    def test_a_force_push_ends_it(self):
+        force = {"event": "head_ref_force_pushed", "created_at": "2026-10-30T00:00:00Z"}
+        assert kai_status.waiting_days(_activity(timeline=[force]), "c", NOW) is None
+
+    def test_the_latest_label_starts_the_wait(self):
+        activity = _activity(timeline=[_labeled("2026-10-01T00:00:00Z")])
+        assert kai_status.waiting_days(activity, "c", NOW) == 19
 
     def test_never_labeled(self):
-        timeline = [_labeled("2026-10-01T00:00:00Z", "review-ready")]
-        assert kai_status.waiting_days(timeline, "c", self.NOW) is None
+        activity = _activity()
+        activity["timeline"] = [_labeled(name="review-ready")]
+        assert kai_status.waiting_days(activity, "c", NOW) is None
 
 
 class TestSectionCommunityStalled:
-    NOW = datetime(2026, 11, 12, tzinfo=UTC)
-
     @staticmethod
     def pr(number, labels=("community", "awaiting-contributor"), can_modify=True):
         return {
             "number": number,
             "title": f"t{number}",
+            "headRefOid": f"sha{number}",
             "author": {"login": "c", "is_bot": False},
             "labels": [{"name": n} for n in labels],
             "maintainerCanModify": can_modify,
         }
 
     def test_reports_only_prs_past_the_threshold(self):
-        started = {1: "2026-10-24T00:00:00Z", 2: "2026-10-30T00:00:00Z", 3: "2026-10-29T00:00:00Z"}
-        lines = kai_status.section_community(
-            [self.pr(1), self.pr(2), self.pr(3, can_modify=False)],
-            [],
-            lambda n: [_labeled(started[n])],
-            self.NOW,
-        )
-        assert lines == [
+        started = {
+            "sha1": LABELED_AT,
+            "sha2": "2026-10-30T00:00:00Z",
+            "sha3": "2026-10-29T00:00:00Z",
+        }
+
+        def fetch(number, head_sha):
+            activity = _activity()
+            activity["timeline"] = [_labeled(started[head_sha])]
+            return activity
+
+        prs = [self.pr(1), self.pr(2), self.pr(3, can_modify=False)]
+        assert kai_status.section_community(prs, [], NOW, fetch) == [
             "stalled: PR #1 [c] 19d awaiting-contributor, maintainer edits allowed  t1",
             "stalled: PR #3 [c] 14d awaiting-contributor, no maintainer edits  t3",
         ]
 
-    def test_timeline_fetched_only_for_awaiting_prs(self):
-        def timeline(n):
+    def test_activity_fetched_only_for_awaiting_prs(self):
+        def fetch(number, head_sha):
             raise AssertionError("fetched")
 
         pr = self.pr(1, labels=("community", "review-ready"))
-        assert kai_status.section_community([pr], [], timeline, self.NOW) == ["nothing to do"]
+        assert kai_status.section_community([pr], [], NOW, fetch) == ["nothing to do"]
+
+    def test_a_failed_fetch_costs_only_that_pr(self):
+        """PR #1455 QA round 1: one error used to take the whole section."""
+
+        def fetch(number, head_sha):
+            if number == 1:
+                raise kai_status.CommandError("rate limited")
+            return _activity()
+
+        needs_intake = self.pr(3, labels=())
+        lines = kai_status.section_community([self.pr(1), self.pr(2), needs_intake], [], NOW, fetch)
+        assert lines == [
+            "stall check failed: PR #1: CommandError: rate limited",
+            "stalled: PR #2 [c] 19d awaiting-contributor, maintainer edits allowed  t2",
+            "needs intake: PR #3 [c] t3",
+        ]

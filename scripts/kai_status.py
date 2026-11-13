@@ -259,8 +259,10 @@ STALL_DAYS = 14
 
 
 def _event_time(event: dict) -> str | None:
-    """When a timeline event happened. A review has `submitted_at` and a commit
-    only its git committer date; every other event has `created_at`."""
+    """When a timeline event, review, or review comment happened. A review has
+    `submitted_at` and a commit only its git committer date; everything else
+    has `created_at`. GitHub writes every one as UTC ending in `Z`, so they
+    compare as strings."""
     return (
         event.get("created_at")
         or event.get("submitted_at")
@@ -268,14 +270,25 @@ def _event_time(event: dict) -> str | None:
     )
 
 
-def waiting_days(timeline: list[dict], author: str, now: datetime) -> int | None:
+def _login(item: dict) -> str | None:
+    return (item.get("actor") or item.get("user") or {}).get("login")
+
+
+def waiting_days(activity: dict, author: str, now: datetime) -> int | None:
     """Days a PR has waited on its contributor, or None if it isn't waiting.
 
-    The wait starts at the latest `awaiting-contributor` label event and ends
-    at any push to the branch after it (a commit or a force-push, by anyone)
-    or any comment or review by the PR's author. A commit's time is its git
-    committer date, which the committer sets; it's what the timeline API has.
+    `activity` is what `fetch_pr_activity` returns. The wait starts at the
+    latest `awaiting-contributor` label event and ends at:
+    - a push to the branch after it, by anyone. The head commit's push time is
+      when GitHub created its first check suite (CI runs on every push to a
+      PR), not its git committer date, which the committer sets: a commit made
+      before the label and pushed after it still counts. With no check suite,
+      the timeline's committer dates are all there is. A force-push event
+      counts too, since it can move the head back to an older commit.
+    - a comment or review by the PR's author, including a reply inside a
+      review thread, which the issue timeline leaves out.
     """
+    timeline = activity["timeline"]
     start = None
     for e in timeline:
         if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == (
@@ -286,16 +299,18 @@ def waiting_days(timeline: list[dict], author: str, now: datetime) -> int | None
                 start = t
     if start is None:
         return None
-    for e in timeline:
-        kind = e.get("event")
-        t = _event_time(e)
-        if not t or t <= start:
-            continue
-        if kind in ("committed", "head_ref_force_pushed"):
-            return None
-        who = (e.get("actor") or e.get("user") or {}).get("login")
-        if kind in ("commented", "reviewed") and who == author:
-            return None
+
+    pushed = [activity.get("head_pushed_at")]
+    if pushed[0] is None:
+        pushed = [_event_time(e) for e in timeline if e.get("event") == "committed"]
+    pushed += [_event_time(e) for e in timeline if e.get("event") == "head_ref_force_pushed"]
+    if any(t and t > start for t in pushed):
+        return None
+
+    replies = [e for e in timeline if e.get("event") in ("commented", "reviewed")]
+    replies += activity["reviews"] + activity["review_comments"]
+    if any(_login(r) == author and (_event_time(r) or "") > start for r in replies):
+        return None
     return age_days(start, now)
 
 
@@ -401,11 +416,40 @@ def section_rfd(rfd: list[dict]) -> list[str]:
     return lines or ["none"]
 
 
+def _gh_api_items(path: str) -> list[dict]:
+    """Every item of a paginated `gh api` list endpoint."""
+    out = run(["gh", "api", "--paginate", path, "--jq", ".[]"])
+    return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
+
+
+def fetch_pr_activity(number: int, head_sha: str) -> dict:
+    """What `waiting_days` reads for one PR: its issue timeline, its reviews
+    and review-thread comments (a thread reply is in neither the timeline nor
+    the reviews list), and when its head commit was pushed (the earliest check
+    suite GitHub created for it, None if there is none)."""
+    repo = "repos/{owner}/{repo}"
+    suites = run(
+        [
+            "gh",
+            "api",
+            f"{repo}/commits/{head_sha}/check-suites",
+            "--jq",
+            "[.check_suites[].created_at] | min",
+        ]
+    ).strip()
+    return {
+        "timeline": _gh_api_items(f"{repo}/issues/{number}/timeline?per_page=100"),
+        "reviews": _gh_api_items(f"{repo}/pulls/{number}/reviews?per_page=100"),
+        "review_comments": _gh_api_items(f"{repo}/pulls/{number}/comments?per_page=100"),
+        "head_pushed_at": None if suites in ("", "null") else suites,
+    }
+
+
 def section_community(
     prs: list[dict],
     issues: list[dict],
-    timeline: Callable[[int], list[dict]],
     now: datetime,
+    fetch: Callable[[int, str], dict] = fetch_pr_activity,
 ) -> list[str]:
     lines = []
     for kind, items in (("PR", prs), ("issue", issues)):
@@ -424,7 +468,14 @@ def section_community(
             elif kind == "issue" and "verify-content" in labels:
                 lines.append(f"waiting for reproduction: issue #{item['number']} {item['title']}")
             if kind == "PR" and "awaiting-contributor" in labels:
-                days = waiting_days(timeline(item["number"]), item["author"]["login"], now)
+                try:
+                    activity = fetch(item["number"], item["headRefOid"])
+                except Exception as e:  # one PR's failed fetch never hides the section
+                    lines.append(
+                        f"stall check failed: PR #{item['number']}: {type(e).__name__}: {e}"
+                    )
+                    continue
+                days = waiting_days(activity, item["author"]["login"], now)
                 if days is not None and days >= STALL_DAYS:
                     edits = (
                         "maintainer edits allowed"
@@ -541,7 +592,8 @@ def main(argv: list[str] | None = None) -> int:
 
     now = datetime.now(UTC)
     pr_fields = (
-        "number,title,headRefName,author,labels,isDraft,statusCheckRollup,maintainerCanModify"
+        "number,title,headRefName,headRefOid,author,labels,isDraft,statusCheckRollup,"
+        "maintainerCanModify"
     )
     issue_fields = "number,title,author,labels"
     cache: dict[str, list[dict]] = {}
@@ -561,19 +613,6 @@ def main(argv: list[str] | None = None) -> int:
             "issues", ["issue", "list", "--state", "open", "--limit", "500", "--json", issue_fields]
         )
 
-    def timeline(number: int) -> list[dict]:
-        out = run(
-            [
-                "gh",
-                "api",
-                "--paginate",
-                f"repos/{{owner}}/{{repo}}/issues/{number}/timeline?per_page=100",
-                "--jq",
-                ".[]",
-            ]
-        )
-        return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
-
     def rfd() -> list[dict]:
         return [i for i in issues() if "ready-for-development" in _labels(i)]
 
@@ -590,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
         ("Lanes", lambda: section_lanes(branches, prs(), rfd())),
         ("Open PRs", lambda: section_prs(prs())),
         ("Ready for development", lambda: section_rfd(rfd())),
-        ("Community intake", lambda: section_community(prs(), issues(), timeline, now)),
+        ("Community intake", lambda: section_community(prs(), issues(), now)),
         ("Private vulnerability reports (triage)", lambda: section_advisories(now)),
         ("Dependabot alerts", lambda: section_dependabot(prs())),
     ]
