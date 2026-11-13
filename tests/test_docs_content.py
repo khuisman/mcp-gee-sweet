@@ -962,7 +962,7 @@ class TestContainerText:
     def test_a_style_ended_after_the_container_does_not_leak(self):
         # The bare-side close balances the depth the start tag recorded (#1404),
         # and a closed link stops at its container.
-        nodes = html_to_ast('<b><div>b</div></b><div>plain</div>')
+        nodes = html_to_ast("<b><div>b</div></b><div>plain</div>")
         assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
             ("b", True),
             ("plain", None),
