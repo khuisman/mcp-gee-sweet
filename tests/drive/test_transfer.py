@@ -699,10 +699,16 @@ class TestUploadLocalFileConvert:
         assert create_kwargs["body"]["modifiedTime"] == expected_mtime
         assert create_kwargs["body"]["mimeType"] == target_mime
 
-        update_kwargs = drive_svc.files.return_value.update.call_args.kwargs
-        assert update_kwargs["fileId"] == "fid1"
-        assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
-        assert "media_body" not in update_kwargs
+        update_calls = drive_svc.files.return_value.update.call_args_list
+        # The restamp is one update among possibly two — #1309's display-name
+        # extension strip may fire its own name-only update afterwards — so find
+        # it by its body, not by call order.
+        restamp_calls = [
+            c for c in update_calls if c.kwargs.get("body") == {"modifiedTime": expected_mtime}
+        ]
+        assert len(restamp_calls) == 1
+        assert restamp_calls[0].kwargs["fileId"] == "fid1"
+        assert "media_body" not in restamp_calls[0].kwargs
 
     async def test_unreadable_mtime_returns_error_instead_of_raising(self, tmp_path, monkeypatch):
         """PR #817 QA round 1: the local mtime used to be read before the create()
@@ -935,6 +941,118 @@ class TestUploadLocalFileConvert:
         assert "error" in result
         assert ".zip" in result["error"]
         drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_name_without_extension_falls_back_to_local_extension(self, tmp_path):
+        """#1307: name= is the natural way to title a converted Doc, and a title
+        without an extension must not be rejected as unconvertible — the
+        conversion falls back to local_path's own extension, and the title stays
+        the display name."""
+        local_file = tmp_path / "report.md"
+        local_file.write_text("# Q3")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "Q3 report",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="Q3 report",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.document"
+        assert all(
+            "name" not in c.kwargs["body"]
+            for c in drive_svc.files.return_value.update.call_args_list
+        )
+
+    async def test_convert_md_change_detection_properties_under_extensionless_name(self, tmp_path):
+        """#1307 follow-up: with name="Q3 report" over report.md the resolved
+        conversion is Markdown, so the front matter is stripped before import
+        and the #814 change-detection properties are stamped — convert_md is
+        based on the resolved conversion suffix, not Path(file_name).suffix."""
+        local_file = tmp_path / "report.md"
+        local_file.write_text("---\ntitle: Q3\n---\n\n# Q3\n")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "Q3 report",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="Q3 report",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        props = dict(create_kwargs["body"]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
+            # _convert_properties(file_name) records the title as the generic
+            # source marker; the markdown-specific key stays keyed to .md names.
+            transfer_module._CONVERT_SOURCE_PROP: "Q3 report",
+            # convert_md was True: the #814 change-detection reference is set.
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(local_file),
+        }
+
+    async def test_convert_mismatch_between_convertible_extensions_errors(self, tmp_path):
+        """The #1307 fallback's inverse guard: convertible extensions on both
+        name= and local_path that map to different conversions are a real
+        mismatch — the caller named a different conversion than the file's."""
+        local_file = tmp_path / "report.md"
+        local_file.write_text("# Q3")
+        drive_svc = MagicMock()
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="data.csv",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" in result
+        assert "mismatch" in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_same_conversion_spelling_is_not_a_mismatch(self, tmp_path):
+        """Extensions that spell differently but map to the same conversion are
+        not a mismatch: report.htm over a .html source converts as HTML either way."""
+        local_file = tmp_path / "report.html"
+        local_file.write_text("<p>Q3</p>")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "report.htm",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="report.htm",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.document"
 
     async def test_skip_if_exists_does_not_skip_when_existing_file_is_unconverted(self, tmp_path):
         """skip_if_exists must not treat a same-named raw (unconverted) file as the

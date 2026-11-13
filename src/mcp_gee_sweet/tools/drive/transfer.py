@@ -803,12 +803,37 @@ async def _upload_local_file(
     file_name = name or Path(local_path).name
 
     convert_mime: tuple[str, str] | None = None
+    convert_suffix = ""
     if convert:
         # Derived from the effective destination name, not local_path's suffix —
         # a name= override changes what conversion applies (#188 QA review, PR #410).
+        # A name= without an extension falls back to the local file's own (#1307)
+        # — titling a converted Doc must not mean renaming the file — while a
+        # name= that does carry an extension still owns the choice outright:
+        # unsupported there is an error, never a silent conversion as
+        # local_path's type (PR #410 QA review, kept). Convertible extensions on
+        # each side that differ are a real mismatch and also error. Mapping
+        # extensions compare by their conversion, not their spelling:
+        # report.htm over a .html source is the same conversion, not a mismatch.
         dest_suffix = Path(file_name).suffix.lower()
-        convert_mime = _CONVERT_MIME.get(dest_suffix)
-        if convert_mime is None:
+        local_suffix = Path(local_path).suffix.lower()
+        dest_mime = _CONVERT_MIME.get(dest_suffix)
+        local_mime = _CONVERT_MIME.get(local_suffix)
+        if dest_mime is not None and local_mime is not None and dest_mime != local_mime:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion mismatch: name extension {dest_suffix!r} differs from "
+                    f"local_path extension {local_suffix!r}. Both are convertible "
+                    f"({supported}); pass a name without an extension to convert as "
+                    f"the local file, or make the extensions agree."
+                )
+            }
+        if dest_mime is None and dest_suffix:
+            # #1307's fallback is only for an extension-less title: a name= that
+            # carries an unsupported extension would otherwise silently convert
+            # as local_path's type instead of the one the caller named (the
+            # #410 QA review's rule this whole branch used to enforce).
             supported = ", ".join(sorted(_CONVERT_MIME))
             return {
                 "error": (
@@ -816,6 +841,16 @@ async def _upload_local_file(
                     f"Supported extensions: {supported}"
                 )
             }
+        convert_mime = dest_mime or local_mime
+        if convert_mime is None:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {(dest_suffix or local_suffix)!r}. "
+                    f"Supported extensions: {supported}"
+                )
+            }
+        convert_suffix = dest_suffix or local_suffix
 
     if skip_if_exists:
         # Under convert, also look up the extension-stripped stem — Drive's
@@ -896,7 +931,11 @@ async def _upload_local_file(
         lmtime = _local_mtime_dt(path)
         lmtime_str = _drive_time_str(lmtime)
         metadata["modifiedTime"] = lmtime_str
-        convert_md = convert_mime is not None and Path(file_name).suffix.lower() == ".md"
+        # The resolved conversion suffix, not Path(file_name).suffix: with an
+        # extension-less name= over a .md source ("Q3 report" over report.md)
+        # the conversion is Markdown, so the front matter must be stripped
+        # before import and the #814 change-detection properties stamped.
+        convert_md = convert_mime is not None and convert_suffix == ".md"
         if convert_md:
             # sync_folder's change-detection references for this Doc (#814).
             metadata["properties"] = {
