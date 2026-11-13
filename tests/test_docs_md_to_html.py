@@ -140,6 +140,37 @@ class TestStrikethrough:
             ("This is ~gone~~ now", None),
         ]
 
+    def test_lone_tildes_inside_a_double_tilde_span_stay_inside(self):
+        # A lone ~ within a ~~...~~ span must not claim the closing run and
+        # un-strike the whole span; the ~~ pair still wins (#1436).
+        (para,) = _ast("~~was ~5 ms~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("was ~5 ms", True),
+        ]
+        (para,) = _ast("~~a~b~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("a~b", True),
+        ]
+
+    def test_double_tilde_pair_survives_a_leading_lone_tilde(self):
+        # `~a` has no matching single-tilde closer, so it stays literal while
+        # the `~~b~~` pair strikes, as on develop (#1436).
+        (para,) = _ast("~a~~b~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("~a", None),
+            ("b", True),
+        ]
+
+    def test_tilde_pairs_inside_words_strike(self):
+        # GFM imposes no word-boundary flanking rule on tildes, so this is the
+        # expected strike (#1436, also noted in markdown-support.md).
+        (para,) = _ast("100~200 and 300~400")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("100", None),
+            ("200 and 300", True),
+            ("400", None),
+        ]
+
 
 class TestGfmAutolinks:
     @pytest.mark.parametrize(
