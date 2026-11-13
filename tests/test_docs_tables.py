@@ -10,6 +10,7 @@ from mcp_gee_sweet.tools.docs import emitter as emitter_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
     Image,
+    Paragraph,
     RGBColor,
     Row,
     Run,
@@ -436,6 +437,80 @@ class TestNestedTableParser:
 # ---------------------------------------------------------------------------
 # Nested table — emitter phase-1 (ast_to_requests)
 # ---------------------------------------------------------------------------
+
+
+class TestTableCaption:
+    """#1402: a <caption>'s text used to be silently dropped with all other
+    table-scope text. It now reads above the table, and inside a cell ahead of a
+    nested table."""
+
+    async def test_caption_reads_above_the_table(self):
+        nodes = html_to_ast("<table><caption>Sales 2026</caption><tr><td>c</td></tr></table>")
+        assert isinstance(nodes[0], Paragraph)
+        assert [r.text for r in nodes[0].runs] == ["Sales 2026"]
+        assert isinstance(nodes[1], Table)
+
+    async def test_caption_keeps_its_inline_styles(self):
+        nodes = html_to_ast(
+            "<table><caption><b>Q</b> report</caption><tr><td>c</td></tr></table>"
+        )
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("Q", True), (" report", None)]
+
+    async def test_pretty_printed_caption_is_trimmed(self):
+        # A browser collapses a caption's leading/trailing formatting whitespace
+        # away; an authored "&nbsp;" would stay (#444).
+        nodes = html_to_ast(
+            "<table>\n  <caption>\n    Sales\n  </caption>\n  <tr><td>c</td></tr>\n</table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["Sales"]
+
+    async def test_a_table_with_no_rows_keeps_its_caption(self):
+        # The table itself never emits a node; its caption's text is still not
+        # dropped.
+        nodes = html_to_ast("<table><caption>cap</caption></table><p>x</p>")
+        assert [(type(n).__name__, [r.text for r in n.runs]) for n in nodes] == [
+            ("Paragraph", ["cap"]),
+            ("Paragraph", ["x"]),
+        ]
+
+    async def test_a_nested_tables_caption_stays_in_the_cell_before_it(self):
+        nodes = html_to_ast(
+            "<table><tr><td>a"
+            "<table><caption>inner</caption><tr><td>i</td></tr></table>"
+            "b</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [
+            ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children
+        ] == ["a", "inner", "Table", "b"]
+
+    async def test_an_unclosed_caption_closes_at_the_first_row(self):
+        # A browser's parser implies </caption> at <tr>: the caption keeps its
+        # own text and never swallows the table's content.
+        nodes = html_to_ast("<table><caption>cap<tr><td>c</td></tr></table>")
+        assert [r.text for r in nodes[0].runs] == ["cap"]
+        assert [r.text for r in _runs_in(nodes[1].rows[0].cells[0])] == ["c"]
+
+    async def test_text_after_a_caption_still_needs_a_cell(self):
+        # Table-scope text outside the caption is still dropped, as before.
+        nodes = html_to_ast("<table><caption>cap</caption>lost<tr><td>c</td></tr></table>")
+        assert [r.text for r in nodes[0].runs] == ["cap"]
+        assert "".join(r.text for r in _runs_in(nodes[1].rows[0].cells[0])) == "c"
+
+    async def test_caption_in_a_cell_is_ignored(self):
+        # A <caption> typed inside a cell never captures; its text is cell
+        # text, exactly as before #1402.
+        nodes = html_to_ast("<table><tr><td><caption>c</caption>x</td></tr></table>")
+        assert "".join(r.text for r in _runs_in(nodes[0].rows[0].cells[0])) == "cx"
+
+    async def test_a_quoted_tables_caption_is_quoted_too(self):
+        nodes = html_to_ast(
+            "<blockquote><table><caption>cap</caption>"
+            "<tr><td>c</td></tr></table></blockquote><p>after</p>"
+        )
+        assert nodes[0].blockquote_depth == 1
+        assert nodes[1].blockquote_depth == 1
+        assert nodes[2].blockquote_depth == 0
 
 
 class TestNestedTableEmitter:

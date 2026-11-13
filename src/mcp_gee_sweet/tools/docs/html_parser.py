@@ -748,6 +748,10 @@ class _AstParser(HTMLParser):
         # Open <pre> tags inside a table cell, whose whitespace is never trimmed.
         self._cell_pre_depth = 0
 
+        # Inside a <caption> between <table> and its content (#1402): its text
+        # is buffered to the table builder's caption_runs instead of dropped.
+        self._in_caption = False
+
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
 
@@ -1410,6 +1414,12 @@ class _AstParser(HTMLParser):
 
         if self._table_depth >= 1:
             tb = self._table_stack[-1]
+            if self._in_caption and tag in _TABLE_STRUCTURE_TAGS | {"col"}:
+                # A browser's parser closes a <caption> before any table
+                # structure inside it; the same implied close keeps the
+                # caption's capture from swallowing the table's own content
+                # (#1402).
+                self._finish_caption()
             if tag == "col":
                 w = _px_to_pt(attr_dict.get("width") or "")
                 if w is not None:
@@ -1417,6 +1427,13 @@ class _AstParser(HTMLParser):
                 else:
                     tb.col_widths_from_col.append(None)
                 return
+            if tag == "caption" and not tb.in_cell:
+                # #1402: a caption at table scope starts capturing text (see
+                # _close_element) instead of dropping it like other
+                # table-scope text. The tag still falls through to the generic
+                # unrecognized-tag path below, exactly as before, so its element
+                # stays counted; only the capture flag is new.
+                self._in_caption = True
             if tag == "tr":
                 tb.start_row(alignment=_cell_alignment(attr_dict))
                 return
@@ -1627,8 +1644,10 @@ class _AstParser(HTMLParser):
         if (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
             # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
             self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
-        if self._block_tag or (
-            self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
+        if (
+            self._block_tag
+            or self._in_caption
+            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
         ):
             self._release_cell_whitespace()
             self._flush_run()
@@ -1711,6 +1730,13 @@ class _AstParser(HTMLParser):
         if element.container_text:
             self._end_anonymous_block()
             return
+        # --- <caption> (#1402) ---
+        # Only a caption that was capturing (table scope, no cell open) lands
+        # here; a <caption> typed inside a cell never set the flag and closes
+        # as the unrecognized tag it always was.
+        if tag == "caption" and self._in_caption:
+            self._finish_caption()
+            return
         # --- table structure ---
         if tag == "table":
             # A cell left open has no </td> to drop what it held.
@@ -1718,16 +1744,37 @@ class _AstParser(HTMLParser):
             if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
+                caption = tb.caption_runs
                 if node is not None:
                     if self._table_depth == 1:
-                        for name, value in {
+                        fields = {
                             **self._blockquote_fields(),
                             **self._list_item_fields(),
-                        }.items():
+                        }
+                        for name, value in fields.items():
                             setattr(node, name, value)
+                        if caption:
+                            # The caption is the table's own text, so it reads
+                            # above it, as a browser draws it (#1402).
+                            self._nodes.append(Paragraph(runs=caption, **fields))
                         self._nodes.append(node)
                     elif self._table_stack:
+                        if caption and self._table_stack[-1].in_cell:
+                            self._table_stack[-1].append_runs(caption)
                         self._table_stack[-1].append_nested_table(node)
+                elif caption:
+                    # The table has no rows, so no node of its own; its
+                    # caption's text still isn't dropped (#1402).
+                    if self._table_depth == 1:
+                        self._nodes.append(
+                            Paragraph(
+                                runs=caption,
+                                **self._blockquote_fields(),
+                                **self._list_item_fields(),
+                            )
+                        )
+                    elif self._table_stack and self._table_stack[-1].in_cell:
+                        self._table_stack[-1].append_runs(caption)
             self._table_depth -= 1
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")
@@ -1906,8 +1953,10 @@ class _AstParser(HTMLParser):
 
         # --- inline elements / unrecognized tags ---
         # _pop_elements already took a counted element out of _tag_depth.
-        if self._block_tag or (
-            self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
+        if (
+            self._block_tag
+            or self._in_caption
+            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
         ):
             self._flush_run()
             if tag in _INLINE_BOLD:
@@ -1959,8 +2008,36 @@ class _AstParser(HTMLParser):
         elif pushed == "bare" and self._bare_link_url:
             self._bare_link_url.pop()
 
+    def _finish_caption(self):
+        """Stop capturing <caption> text and keep it on the innermost table
+        builder (#1402). Called by </caption>, by the first table-structure tag
+        inside the caption (a browser's parser closes it there), and by the
+        unwind that closes an unclosed caption with its table."""
+        self._in_caption = False
+        self._flush_run()
+        runs, self._pending_runs = self._pending_runs, []
+        # A browser collapses a caption's leading/trailing formatting
+        # whitespace; keep it out of what the caption becomes. Authored
+        # "&nbsp;" is not ASCII whitespace and stays (#444).
+        while runs and isinstance(runs[0], Run) and _is_formatting_whitespace(runs[0].text):
+            runs.pop(0)
+        while runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text):
+            runs.pop()
+        if runs and isinstance(runs[0], Run):
+            runs[0].text = runs[0].text.lstrip(_ASCII_FORMATTING_WHITESPACE)
+        if runs and isinstance(runs[-1], Run):
+            runs[-1].text = runs[-1].text.rstrip(_ASCII_FORMATTING_WHITESPACE)
+        if runs and self._table_stack:
+            self._table_stack[-1].caption_runs.extend(runs)
+
     def handle_data(self, data):
         if self._hidden_depth:
+            return
+        if self._in_caption:
+            # #1402: caption text is captured raw (inline styles still apply —
+            # the inline-tag gate below reads the same depths), and trimmed of
+            # formatting whitespace when the caption closes (_close_element).
+            self._run_buf.append(data)
             return
         # An "&nbsp;" draws a line in a container, as source indentation doesn't.
         if data and not _is_formatting_whitespace(data) and self._can_open_anonymous_block():
@@ -2064,6 +2141,9 @@ class _TableBuilder:
         self.in_cell = False
         # ordered content of the open cell
         self._current_children: list[Run | Image | Table] = []
+        # The <caption>'s runs (#1402), kept instead of dropped with all other
+        # table-scope text; emitted with the table's node at </table>.
+        self.caption_runs: list[Run | Image] = []
 
     def start_row(self, alignment: str | None = None):
         self._current_row_cells = []
