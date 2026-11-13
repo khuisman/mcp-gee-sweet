@@ -112,10 +112,12 @@ Several MCP clients cap how many tools they accept, and with every tool register
 
 | Client | Limit | What happens over it |
 |---|---|---|
-| VS Code + GitHub Copilot (agent mode) | 128 tools per request, VS Code's built-in tools included ([docs](https://code.visualstudio.com/docs/agents/run/tools)) | The request fails with "Cannot have more than 128 tools per request" |
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, VS Code's built-in tools included ([docs](https://code.visualstudio.com/docs/agents/run/tools)) | Depends on the build: see the note below the table |
 | Windsurf | 100 tools in total, across every server ([docs](https://docs.devin.ai/desktop/cascade/mcp)) | Not documented |
 | Cursor | Depends on the model (older builds capped it at 40) | "Too many MCP tools are enabled for this mode", or only part of the tool list is used |
 | Google Antigravity | 100 tools per server (user report) | The server is rejected |
+
+**VS Code may not need a subset.** In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was **Search Tools**, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". If you see that error, use a subset as below.
 
 The fix is the same everywhere: set `ENABLED_TOOLS` to one of the [suggested subsets](configuration.md#suggested-subsets), each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.
 
