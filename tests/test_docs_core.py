@@ -24,8 +24,8 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
-    CellImages,
     _INHERITED_CHARACTER_STYLE_FIELDS,
+    CellImages,
     _build_blank_para_before_table_collapses,
     _build_cell_style_requests,
     _build_fill_requests,
@@ -3791,10 +3791,7 @@ class TestImageLinks:
                 # An unlinked image's own style request clears the character styles
                 # it inherited (#1334) and sets no link.
                 assert following["updateTextStyle"]["textStyle"] == {}
-                assert (
-                    following["updateTextStyle"]["fields"]
-                    == _INHERITED_CHARACTER_STYLE_FIELDS
-                )
+                assert following["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
             else:
                 assert following["updateTextStyle"]["range"] == {
                     "startIndex": index,

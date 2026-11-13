@@ -17,8 +17,8 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests, _to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
-    CellImages,
     _INHERITED_CHARACTER_STYLE_FIELDS,
+    CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
     _build_cell_alignment_requests,

@@ -43,8 +43,8 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
-    ImageFallbacks,
     _INHERITED_CHARACTER_STYLE_FIELDS,
+    ImageFallbacks,
     ast_to_requests,
     extract_images,
     heading_image_ids,
@@ -2824,10 +2824,7 @@ class TestCreateDocImages:
                 or "insertTable" in r
                 or ("deleteContentRange" in r and "insertTable" in attempt[i - 1])
                 or r.get("insertText", {}).get("text") in fallback_texts
-                or (
-                    r.get("updateTextStyle") is not None
-                    and "insertInlineImage" in attempt[i - 1]
-                )
+                or (r.get("updateTextStyle") is not None and "insertInlineImage" in attempt[i - 1])
                 or (
                     r.get("updateTextStyle") is not None
                     and attempt[i - 1].get("insertText", {}).get("text") in fallback_texts
@@ -5842,7 +5839,9 @@ class TestPositionalInsertTailStart:
         nodes = html_to_ast(_md_to_html(md))
         uris = {id(img): img.src for img in extract_images(nodes)}
         image_links: dict[int, dict] = {}
-        requests, _ = ast_to_requests(nodes, start_index=1, image_uris=uris, image_links=image_links)
+        requests, _ = ast_to_requests(
+            nodes, start_index=1, image_uris=uris, image_links=image_links
+        )
         tail_start = _positional_insert_tail_start(requests, image_links)
         positional = [
             i for i, r in enumerate(requests) if "insertTable" in r or "insertInlineImage" in r

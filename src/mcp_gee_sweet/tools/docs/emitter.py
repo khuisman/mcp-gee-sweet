@@ -2220,6 +2220,7 @@ _INHERITED_CHARACTER_STYLE_FIELDS = (
     "bold,italic,underline,strikethrough,baselineOffset,smallCaps,backgroundColor,link"
 )
 
+
 def image_fallback_requests(image: Image, position: int, text: str | None = None) -> list[dict]:
     """Write `image`'s fallback text (`text`, else image_fallback_text) at
     `position`, where its insertInlineImage would have gone, for an image that
