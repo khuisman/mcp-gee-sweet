@@ -4643,13 +4643,16 @@ class TestEmptyListItemIsABullet:
 
 
 class TestStyledBlockOnlyItemIsTheBlock:
-    """#1414: an `<li>` whose only content is a styled block (a data-style `<p>`) is
-    that block, indented under the list with no bullet before it, as before #1075
-    (PR #1322) and as TC-DOC242's check reads it. A browser draws the item's marker
-    beside the block's first line, so the item reads as one line, not as an empty
-    bullet above the block. #1075's own rows — an authored-empty item, an item whose
-    only content is a nested list, quote, code block or rule — keep their empty
-    bullet."""
+    """#1414: an `<li>` that is the first item of a `<ul>` and holds only a styled
+    block (a data-style `<p>`, with no `&nbsp;` before it) is that block, indented
+    under the list with no bullet before it, as before #1075 (PR #1322) and as
+    TC-DOC242's check reads it. A browser draws the item's marker beside the block's
+    first line, so the item reads as one line, not as an empty bullet above the
+    block. Every other item keeps the bullet #1075 gives it: an item with text of
+    its own, a later item of the list, an item of an `<ol>` (whose start/value
+    numbering counts it), one padded with `&nbsp;`, and #1075's own rows — an
+    authored-empty item, an item whose only content is a nested list, quote, code
+    block or rule."""
 
     def test_the_regression_row(self):
         # The TC-DOC242 release-pass repro: `styled` used to gain an empty bullet
@@ -4709,6 +4712,41 @@ class TestStyledBlockOnlyItemIsTheBlock:
     def test_an_authored_empty_item_still_keeps_its_bullet(self):
         nodes = html_to_ast("<ul><li></li><li> </li><li>d</li></ul>")
         assert [n.runs for n in nodes] == [[], [], [Run("d")]]
+
+    def test_an_ol_item_keeps_the_bullet_so_start_numbering_counts_it(self):
+        # The skip is a <ul> row: in an <ol> the skipped item would no longer
+        # count, so `b` would show 3 — #1075's empty bullet keeps it at 4.
+        nodes = html_to_ast('<ol start="3"><li><p data-style="subtitle">s</p></li><li>b</li></ol>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock, BulletItem]
+        assert nodes[0].runs == [] and nodes[0].number == 3
+        assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
+        assert nodes[2].runs == [Run("b")] and nodes[2].number == 4
+
+    def test_an_ol_item_keeps_the_bullet_so_value_numbering_counts_it(self):
+        # Same for <li value>: `x` keeps the 6 a skipped item would have eaten.
+        nodes = html_to_ast('<ol><li value="5"><p data-style="title">T</p></li><li>x</li></ol>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock, BulletItem]
+        assert [n.number for n in nodes if isinstance(n, BulletItem)] == [5, 6]
+        assert nodes[1].style_type == "TITLE" and nodes[1].list_depth == 0
+
+    def test_a_styled_block_in_a_middle_item_keeps_the_empty_bullet(self):
+        # Skipping a middle item would make the block parse exactly like content
+        # of the item before it (`<ul><li>a<p …>s</p></li><li>b</li></ul>`); the
+        # empty bullet keeps the item boundary instead, as on develop.
+        nodes = html_to_ast('<ul><li>a</li><li><p data-style="subtitle">s</p></li><li>b</li></ul>')
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem, NamedBlock, BulletItem]
+        assert nodes[0].runs == [Run("a")]
+        assert nodes[1].runs == []
+        assert nodes[2].style_type == "SUBTITLE" and nodes[2].list_depth == 0
+        assert nodes[3].runs == [Run("b")]
+
+    def test_an_nbsp_before_the_styled_block_keeps_the_bullet(self):
+        # `&nbsp;` marks a deliberate empty bullet elsewhere (#1075); padding the
+        # styled block with one keeps that bullet, like any other content.
+        nodes = html_to_ast('<ul><li>&nbsp;<p data-style="subtitle">s</p></li></ul>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
+        assert nodes[0].runs == []
+        assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
 
     def test_tc_doc242_fixture(self):
         # The QA fixture the release pass runs: the second list is `styled` (a
