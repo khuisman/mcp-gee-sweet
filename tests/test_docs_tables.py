@@ -1132,6 +1132,78 @@ class TestFillTablesColumnWidths:
         assert fetches == baseline
 
 
+class TestFillTablesCollapsesTrailingParagraph:
+    """#1100: fill_tables' first batch collapses the empty paragraph after a final
+    table, alongside the blank paragraph before it."""
+
+    @staticmethod
+    def _para(start: int, text: str) -> dict:
+        return {
+            "startIndex": start,
+            "endIndex": start + len(text),
+            "paragraph": {"elements": [{"textRun": {"content": text}}]},
+        }
+
+    async def _first_batch(self, last_text: str) -> list[dict]:
+        # One 1x1 table at 2..8 whose cell paragraph is 4..5.
+        table = {
+            "startIndex": 2,
+            "endIndex": 8,
+            "table": {
+                "tableRows": [
+                    {
+                        "startIndex": 3,
+                        "tableCells": [
+                            {"startIndex": 3, "endIndex": 5, "content": [self._para(4, "\n")]}
+                        ],
+                    }
+                ]
+            },
+        }
+        doc = {"body": {"content": [self._para(1, "\n"), table, self._para(8, last_text)]}}
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.return_value = doc
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            return MagicMock(execute=MagicMock(return_value={}))
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", [_table(_row(_cell("")))], _plain_images(svc))
+        return batches[0]
+
+    async def test_trailing_paragraph_collapsed_in_first_batch(self):
+        batch = await self._first_batch("\n")
+        trailing = [
+            r["updateParagraphStyle"]
+            for r in batch
+            if r.get("updateParagraphStyle", {}).get("range") == {"startIndex": 8, "endIndex": 9}
+        ]
+        assert trailing == [
+            {
+                "range": {"startIndex": 8, "endIndex": 9},
+                "paragraphStyle": {
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    "lineSpacing": 1,
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        ]
+        # The blank paragraph before the table is still collapsed in the same batch.
+        assert any(
+            r.get("updateTextStyle", {}).get("range") == {"startIndex": 1, "endIndex": 2}
+            for r in batch
+        )
+
+    async def test_text_after_table_untouched(self):
+        batch = await self._first_batch("Done\n")
+        assert not any(
+            r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 8 for r in batch
+        )
+
+
 # ---------------------------------------------------------------------------
 # #277 — a skipped degenerate table must not desync doc_tables/ast_tables
 # ---------------------------------------------------------------------------
@@ -1273,6 +1345,34 @@ class TestCellImageParser:
         assert self._linked_text(cells[2]) == [("x\n", "http://u"), ("y", None)]
         assert self._linked_text(cells[3]) == [("\n  code\n", None)]
 
+    async def test_pre_in_a_cell_is_styled_as_code(self):
+        # #1417: a <pre> inside a cell kept its line breaks (#1215) but read as
+        # plain text — the cell path never gave its runs the body <pre>'s font.
+        nodes = html_to_ast("<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table>")
+        cells = nodes[0].rows[0].cells
+        assert [(r.text, r.font_family) for r in _runs_in(cells[0])] == [("x\n  y", "Courier New")]
+        assert [(r.text, r.font_family) for r in _runs_in(cells[1])] == [("plain", None)]
+
+    async def test_pre_style_in_a_cell_ends_at_its_close(self):
+        # Text after the </pre> in the same cell stays plain, and a <br> inside
+        # the <pre> keeps the "\n" of #1215 with the code font.
+        nodes = html_to_ast("<table><tr><td><pre>a<br>b</pre>tail</td></tr></table>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("a", "Courier New"),
+            ("\nb", "Courier New"),
+            ("tail", None),
+        ]
+
+    async def test_unclosed_pre_at_the_tables_end_does_not_leak_its_font(self):
+        # </table> closes the <pre> still open in the cell through the element
+        # stack, so the cell's text is code-styled but nothing after the table
+        # stays code-styled.
+        nodes = html_to_ast("<table><tr><td><pre>code</table><p>after</p>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("code", "Courier New")
+        ]
+        assert [(r.text, r.font_family) for r in nodes[1].runs] == [("after", None)]
+
     async def test_held_whitespace_keeps_its_link_and_style(self):
         # PR #1215 QA round 3: released held whitespace had lost the link it was
         # typed in.
@@ -1297,7 +1397,7 @@ class TestCellImageParser:
             "</td></tr></table>"
         )
         cells = nodes[0].rows[0].cells
-        assert "".join(r.text for r in _runs_in(cells[0])) == "a\nb"
+        assert "".join(r.text for r in _runs_in(cells[0])) == "a\vb"
         assert self._shape(cells[1]) == ["Some label ", "Table"]
 
 

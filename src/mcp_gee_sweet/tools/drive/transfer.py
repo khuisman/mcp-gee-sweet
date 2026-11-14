@@ -803,12 +803,37 @@ async def _upload_local_file(
     file_name = name or Path(local_path).name
 
     convert_mime: tuple[str, str] | None = None
+    convert_suffix = ""
     if convert:
         # Derived from the effective destination name, not local_path's suffix —
         # a name= override changes what conversion applies (#188 QA review, PR #410).
+        # A name= without an extension falls back to the local file's own (#1307)
+        # — titling a converted Doc must not mean renaming the file — while a
+        # name= that does carry an extension still owns the choice outright:
+        # unsupported there is an error, never a silent conversion as
+        # local_path's type (PR #410 QA review, kept). Convertible extensions on
+        # each side that differ are a real mismatch and also error. Mapping
+        # extensions compare by their conversion, not their spelling:
+        # report.htm over a .html source is the same conversion, not a mismatch.
         dest_suffix = Path(file_name).suffix.lower()
-        convert_mime = _CONVERT_MIME.get(dest_suffix)
-        if convert_mime is None:
+        local_suffix = Path(local_path).suffix.lower()
+        dest_mime = _CONVERT_MIME.get(dest_suffix)
+        local_mime = _CONVERT_MIME.get(local_suffix)
+        if dest_mime is not None and local_mime is not None and dest_mime != local_mime:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion mismatch: name extension {dest_suffix!r} differs from "
+                    f"local_path extension {local_suffix!r}. Both are convertible "
+                    f"({supported}); pass a name without an extension to convert as "
+                    f"the local file, or make the extensions agree."
+                )
+            }
+        if dest_mime is None and dest_suffix:
+            # #1307's fallback is only for an extension-less title: a name= that
+            # carries an unsupported extension would otherwise silently convert
+            # as local_path's type instead of the one the caller named (the
+            # #410 QA review's rule this whole branch used to enforce).
             supported = ", ".join(sorted(_CONVERT_MIME))
             return {
                 "error": (
@@ -816,6 +841,16 @@ async def _upload_local_file(
                     f"Supported extensions: {supported}"
                 )
             }
+        convert_mime = dest_mime or local_mime
+        if convert_mime is None:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {(dest_suffix or local_suffix)!r}. "
+                    f"Supported extensions: {supported}"
+                )
+            }
+        convert_suffix = dest_suffix or local_suffix
 
     if skip_if_exists:
         # Under convert, also look up the extension-stripped stem — Drive's
@@ -896,7 +931,11 @@ async def _upload_local_file(
         lmtime = _local_mtime_dt(path)
         lmtime_str = _drive_time_str(lmtime)
         metadata["modifiedTime"] = lmtime_str
-        convert_md = convert_mime is not None and Path(file_name).suffix.lower() == ".md"
+        # The resolved conversion suffix, not Path(file_name).suffix: with an
+        # extension-less name= over a .md source ("Q3 report" over report.md)
+        # the conversion is Markdown, so the front matter must be stripped
+        # before import and the #814 change-detection properties stamped.
+        convert_md = convert_mime is not None and convert_suffix == ".md"
         if convert_md:
             # sync_folder's change-detection references for this Doc (#814).
             metadata["properties"] = {
@@ -2848,8 +2887,8 @@ def register(tool):
         differences from get_doc_as_markdown's output:
           - A link to a heading in the document renders as "#slug" (GitHub
             style), not a docs.google.com URL. A link to a bookmark, or to a
-            heading that doesn't render as one (e.g. a bulleted heading), is
-            dropped, leaving its text.
+            heading that doesn't render as one (e.g. a heading in a table
+            cell), is dropped, leaving its text.
           - An image renders as "image:sha256-<hash of its bytes>", so an
             unchanged image doesn't show up in a diff. No viewable URL is
             returned: the temporary Doc's image URLs stop working once it's
@@ -3181,9 +3220,11 @@ def register(tool):
                      sync_folder call on the same folder won't create a duplicate.
                      A .md file is rendered by Drive's Markdown importer, not this
                      server's converter, so it looks different from create_doc's
-                     output: '-' bullets at every level, code blocks one Arial
-                     paragraph per line instead of monospace, quotes without a
-                     border, nested numbering '1.' rather than 'a.'. Full list:
+                     output: '-' bullets at every level, fenced code in a gray
+                     monospace box with a language label ('None' when it has no
+                     recognized language), at the page margin even inside a list
+                     item, quotes without a border, nested numbering '1.' rather
+                     than 'a.'. Full list:
                      docs/known-limitations.md. To render a .md the way the Docs
                      tools do, use create_doc_from_file instead. Leading YAML front
                      matter is left out of the Doc, as in the Docs tools.
@@ -3260,9 +3301,11 @@ def register(tool):
                      own convert=True behavior for an unsupported extension. Default
                      False (upload every file preserving its original format).
                      A .md file is rendered by Drive's Markdown importer, not this
-                     server's converter: '-' bullets at every level, code blocks
-                     not monospace, quotes without a border, nested numbering '1.'
-                     rather than 'a.'. Full list: docs/known-limitations.md. Leading
+                     server's converter: '-' bullets at every level, fenced code in
+                     a gray monospace box with a language label ('None' when it has
+                     no recognized language), at the page margin even inside a list
+                     item, quotes without a border, nested numbering '1.' rather
+                     than 'a.'. Full list: docs/known-limitations.md. Leading
                      YAML front matter is left out of the Doc.
 
         Returns:
@@ -4064,9 +4107,12 @@ def register(tool):
                            upload_local_file's convert param (#188), and a Doc created
                            either way is recognized by this matching. Drive's importer
                            renders the Markdown, not this server's converter: '-'
-                           bullets at every level, code blocks not monospace, quotes
-                           without a border, nested numbering '1.' rather than 'a.'
-                           (full list: docs/known-limitations.md). Leading YAML
+                           bullets at every level, fenced code in a gray monospace
+                           box with a language label ('None' when it has no
+                           recognized language), at the page margin even inside a
+                           list item, quotes without a border, nested numbering
+                           '1.' rather than 'a.' (full list:
+                           docs/known-limitations.md). Leading YAML
                            front matter is left out of the Doc. The converted Doc
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format, and independent of

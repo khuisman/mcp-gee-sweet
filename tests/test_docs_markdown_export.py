@@ -2,6 +2,7 @@
 API -> AST walker, ast_to_markdown.py's AST -> Markdown serializer, and the
 get_doc_as_markdown tool wiring them together."""
 
+import re
 from html import escape
 from unittest.mock import MagicMock
 from xml.etree import ElementTree
@@ -11,6 +12,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import md_to_html
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -18,12 +20,14 @@ from mcp_gee_sweet.tools.docs.ast import (
     Image,
     NamedBlock,
     Paragraph,
+    RGBColor,
     Row,
     Run,
     Table,
 )
 from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
+from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 # Strict CommonMark, plus GFM pipe tables. Python-Markdown (used by some older
 # tests below) strips whitespace inside code spans and closes a fence only on an
@@ -351,6 +355,105 @@ class TestDocToAstLinks:
         md = ast_to_markdown(document_to_ast(self._doc({"headingId": "h.abc"})))
         url = f"{self._BASE}?tab=t.0#heading=h.abc"
         assert md == f"[jump]({url})[![](https://i/p.png)]({url})\n"
+
+
+class TestStabilizedHeadingLinks:
+    """PR #1435 review: a revision's exported heading links are written as
+    '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
+    what anchors.py's resolver (and GitHub itself) would produce for the same
+    heading — hard breaks included. A link to the wrong section is worse than
+    no link, so a doc holding both a hard-break heading and a plain heading
+    with the same words must keep their anchors distinct."""
+
+    @staticmethod
+    def _doc():
+        def heading(heading_id, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {
+                        "headingId": heading_id,
+                        "namedStyleType": "HEADING_1",
+                    },
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        def linked_run(link):
+            return {
+                "paragraph": {
+                    "elements": [
+                        {"textRun": {"content": "jump", "textStyle": {"link": link}}},
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+
+        return {
+            "body": {
+                "content": [
+                    # The raw doc carries the hard break as "\v" (#1230);
+                    # doc_to_ast normalizes it to "\n" inside the runs.
+                    heading("h.brk", "Heading one\vheading two\n"),
+                    heading("h.plain", "Heading one heading two\n"),
+                    linked_run({"headingId": "h.brk"}),
+                ]
+            }
+        }
+
+    def _link(self, doc, paragraph_index):
+        elements = doc["body"]["content"][paragraph_index]["paragraph"]["elements"]
+        return elements[0]["textRun"]["textStyle"]["link"]
+
+    def test_hard_break_heading_link_gets_break_free_slug(self):
+        # GitHub's own anchor for "Heading one<br>heading two" is
+        # "heading-oneheading-two" — the exported link must say the same,
+        # not spell the break as a hyphen.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+
+    def test_hard_break_and_plain_heading_links_stay_distinct(self):
+        # The regression khuisman caught in review: with the break slugified as
+        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
+        # the hard-break heading's link resolved to the plain heading.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        doc["body"]["content"].append(
+            {
+                "paragraph": {
+                    "elements": [
+                        {
+                            "textRun": {
+                                "content": "jump too",
+                                "textStyle": {"link": {"headingId": "h.plain"}},
+                            }
+                        },
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+        )
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+        assert self._link(doc, 3) == {"url": "#heading-one-heading-two"}
+
+    def test_exported_slug_round_trips_through_the_resolver(self):
+        # End to end: the slug the export writes must resolve, via the exact
+        # raw heading texts _walk_headings_and_anchor_runs would collect, back
+        # to the very heading the link points at.
+        from mcp_gee_sweet.tools.docs.anchors import resolve_heading_anchor
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        slug = self._link(doc, 2)["url"]
+        # What the write side's _walk_headings_and_anchor_runs sees: raw
+        # textRun content, trailing "\n" stripped, "\v" intact.
+        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor(slug, raw_headings) == 0
 
 
 class TestDocToAstImages:
@@ -2444,3 +2547,399 @@ class TestAdjacentQuotedBlocksStayOneQuote:
             [Paragraph(runs=[Run("a")], blockquote_depth=1), Paragraph(runs=[Run("b")])]
         )
         assert markdown_text == "> a\n\nb\n"
+
+
+def _quote_bar_wrapper(indent, inner=None, *, borders=None):
+    """A quoted table as emitter.py writes it (#1122): a 1x1 wrapper whose cell has only
+    a left border and holds the table between two empty paragraphs, the first recording
+    the quote's indent."""
+    zero = {"width": {}}
+    style = borders or {
+        "borderLeft": {"width": {"magnitude": 3}},
+        "borderTop": zero,
+        "borderRight": zero,
+        "borderBottom": zero,
+    }
+    content = [
+        _para("\n", para_style=_indents(indent)),
+        inner or _one_cell_table("k"),
+        _para("\n"),
+    ]
+    cell = {"tableCellStyle": style, "content": content}
+    return {"table": {"tableRows": [{"tableCells": [cell]}]}}
+
+
+class TestQuotedTableReadBack:
+    """#1122: a quoted table is written inside a 1x1 wrapper table whose left border is
+    the quote bar. Reading it back unwraps it into the quoted table it holds."""
+
+    def _nodes(self, content):
+        return document_to_ast({"body": {"content": content}, "lists": {}})
+
+    def test_wrapper_reads_as_a_quoted_table(self):
+        (table,) = self._nodes([_quote_bar_wrapper(36)])
+        assert isinstance(table, Table)
+        assert (table.blockquote_depth, table.list_depth) == (1, None)
+        assert [[c.children for c in r.cells] for r in table.rows] == [[[Run("k")]]]
+
+    def test_wrapper_depth_comes_from_the_recorded_indent(self):
+        (table,) = self._nodes([_quote_bar_wrapper(72)])
+        assert table.blockquote_depth == 2
+
+    def test_newline_before_the_wrapper_is_dropped(self):
+        nodes = self._nodes(
+            [
+                _para("Quote line\n", para_style=_indents(36, quoted=True)),
+                _para("\n"),
+                _quote_bar_wrapper(36),
+            ]
+        )
+        assert [type(n) for n in nodes] == [Paragraph, Table]
+
+    def test_newline_before_an_ordinary_table_is_kept(self):
+        nodes = self._nodes([_para("a\n"), _para("\n"), _one_cell_table()])
+        assert [type(n) for n in nodes] == [Paragraph, Paragraph, Table]
+
+    def test_one_cell_table_with_every_border_stays_a_nested_table(self):
+        width = {"width": {"magnitude": 1}}
+        sides = ("borderLeft", "borderTop", "borderRight", "borderBottom")
+        (table,) = self._nodes([_quote_bar_wrapper(36, borders=dict.fromkeys(sides, width))])
+        assert table.blockquote_depth == 0
+        assert any(isinstance(child, Table) for child in table.rows[0].cells[0].children)
+
+    def test_wrapper_without_a_recorded_indent_stays_a_nested_table(self):
+        (table,) = self._nodes([_quote_bar_wrapper(0)])
+        assert table.blockquote_depth == 0
+
+    def test_wrapper_with_text_in_its_cell_stays_a_nested_table(self):
+        wrapper = _quote_bar_wrapper(36)
+        wrapper["table"]["tableRows"][0]["tableCells"][0]["content"][2] = _para("text\n")
+        (table,) = self._nodes([wrapper])
+        assert table.blockquote_depth == 0
+
+    def test_wrapper_in_a_list_item_reads_inside_the_item(self):
+        # A quote inside an item, holding a table: the item's text at 36pt, plus a quote.
+        nodes = self._nodes(
+            [
+                _item("a"),
+                _para("Quote in item\n", para_style=_indents(72, quoted=True)),
+                _para("\n"),
+                _quote_bar_wrapper(72),
+                _item("b"),
+            ]
+        )
+        table = next(n for n in nodes if isinstance(n, Table))
+        assert (table.list_depth, table.blockquote_depth) == (0, 1)
+
+    def test_newline_before_a_wrapper_is_dropped_even_once_placed_in_an_item(self):
+        # PR #1359 QA round 1: a list whose text indent isn't a whole number of quote
+        # steps (40pt, edited in the UI) places the table by its item, which settled
+        # the waiting newline into the item too; it then stayed and ended the quote.
+        lists = {
+            "l1": {
+                "listProperties": {
+                    "nestingLevels": [
+                        {"indentStart": {"magnitude": 40}, "indentFirstLine": {"magnitude": 22}}
+                    ]
+                }
+            }
+        }
+        item = _item("a")
+        item["paragraph"]["paragraphStyle"] = _indents(40, first_line=22)
+        nodes = document_to_ast(
+            {
+                "body": {
+                    "content": [
+                        item,
+                        _para("Quote in item\n", para_style=_indents(76, quoted=True)),
+                        _para("\n"),
+                        _quote_bar_wrapper(76),
+                        _item("b"),
+                    ]
+                },
+                "lists": lists,
+            }
+        )
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Table, BulletItem]
+        table = nodes[2]
+        assert (table.list_depth, table.blockquote_depth) == (0, 1)
+        md = ast_to_markdown(nodes)
+        assert "  > Quote in item\n  >\n  > | k |" in md
+
+    def test_quoted_newline_between_two_wrappers_is_dropped(self):
+        # Between two wrappers in one quote, the newline carries the quote's bar.
+        nodes = self._nodes(
+            [
+                _para("\n"),
+                _quote_bar_wrapper(36),
+                _para("\n", para_style=_indents(36, quoted=True)),
+                _quote_bar_wrapper(36),
+            ]
+        )
+        assert [type(n) for n in nodes] == [Table, Table]
+        assert ast_to_markdown(nodes).count("\n>\n") == 1
+
+    def test_unquoted_gap_between_two_wrappers_keeps_two_quotes(self):
+        nodes = self._nodes(
+            [_para("\n"), _quote_bar_wrapper(36), _para("\n"), _quote_bar_wrapper(36)]
+        )
+        assert [type(n) for n in nodes] == [Table, Paragraph, Table]
+        md = ast_to_markdown(nodes)
+        assert [t.type for t in _COMMONMARK.parse(md)].count("blockquote_open") == 2
+
+    def test_round_trip_keeps_one_quote(self):
+        md = ast_to_markdown(
+            self._nodes(
+                [
+                    _para("Quote line\n", para_style=_indents(36, quoted=True)),
+                    _para("\n"),
+                    _quote_bar_wrapper(36),
+                ]
+            )
+        )
+        assert md == "> Quote line\n>\n> | k |\n> | --- |\n"
+        html = _flat_html(md)
+        assert html.startswith("<blockquote><p>Quoteline</p><table>")
+        assert html.endswith("</table></blockquote>")
+
+
+class TestQuotedTableMarkdown:
+    """#1122: a quoted table writes its quote markers, at the margin and in an item, and
+    two quoted blocks in one item share one quote."""
+
+    def _table(self, **kwargs):
+        return Table(rows=[Row(cells=[Cell(children=[Run("k")])])], **kwargs)
+
+    def test_quoted_table_at_the_margin(self):
+        md = ast_to_markdown([self._table(blockquote_depth=2)])
+        assert md == "> > | k |\n> > | --- |\n"
+
+    def test_quoted_table_inside_an_item(self):
+        md = ast_to_markdown(
+            [BulletItem(runs=[Run("a")]), self._table(blockquote_depth=1, list_depth=0)]
+        )
+        assert md == "- a\n\n  > | k |\n  > | --- |\n"
+        html = _flat_html(md)
+        assert html.startswith("<ul><li><p>a</p><blockquote><table>")
+        assert html.endswith("</table></blockquote></li></ul>")
+
+    def test_quoted_paragraph_and_table_in_an_item_stay_one_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("item")]),
+                Paragraph(runs=[Run("a")], blockquote_depth=1, list_depth=0),
+                self._table(blockquote_depth=1, list_depth=0),
+            ]
+        )
+        assert md == "- item\n\n  > a\n  >\n  > | k |\n  > | --- |\n"
+        assert _flat_html(md).count("<blockquote>") == 1
+
+    def test_two_quoted_paragraphs_in_a_quoted_item_stay_one_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("item")], blockquote_depth=1),
+                Paragraph(runs=[Run("a")], blockquote_depth=2, list_depth=0),
+                Paragraph(runs=[Run("b")], blockquote_depth=2, list_depth=0),
+            ]
+        )
+        assert md == "> - item\n>\n>   > a\n>   >\n>   > b\n"
+        assert _flat_html(md) == (
+            "<blockquote><ul><li><p>item</p><blockquote><p>a</p><p>b</p>"
+            "</blockquote></li></ul></blockquote>"
+        )
+
+    def test_blocks_in_different_items_dont_share_a_quote(self):
+        md = ast_to_markdown(
+            [
+                BulletItem(runs=[Run("x")]),
+                Paragraph(runs=[Run("a")], blockquote_depth=1, list_depth=0),
+                BulletItem(runs=[Run("y")]),
+                Paragraph(runs=[Run("b")], blockquote_depth=1, list_depth=0),
+            ]
+        )
+        assert _flat_html(md).count("<blockquote>") == 2
+
+
+def _single_tilde_parsers(on):
+    # _md_to_html's parsers with GFM single-tilde strikethrough set as given.
+    # markdown-it reads the option at parse time, so each parser is built the
+    # usual way and then has it set or cleared (#1462, ahead of #1436).
+    parsers = {}
+    for flag in (True, False):
+        parser = md_to_html._build_markdown_parser(flag)
+        parser.options["strikethrough_single_tilde"] = on
+        parsers[flag] = parser
+    return parsers
+
+
+@pytest.fixture(params=[False, True], ids=["double-tilde", "single-tilde"])
+def single_tilde(request, monkeypatch):
+    monkeypatch.setattr(md_to_html, "_MARKDOWN_PARSERS", _single_tilde_parsers(request.param))
+    return request.param
+
+
+def _reimported_runs(markdown_text):
+    (node,) = html_to_ast(md_to_html._md_to_html(markdown_text))
+    if isinstance(node, Table):
+        return [(r.text, r.strikethrough) for r in node.rows[0].cells[0].children]
+    return [(r.text, r.strikethrough) for r in node.runs]
+
+
+def _struck_text(runs):
+    # The reimported runs with adjacent runs of the same kind (struck or not)
+    # joined, so a split html_to_ast makes at a tag boundary doesn't count.
+    merged = []
+    for text, struck in runs:
+        if merged and merged[-1][1] == struck:
+            merged[-1] = (merged[-1][0] + text, struck)
+        else:
+            merged.append((text, struck))
+    return merged
+
+
+_RED = RGBColor(1.0, 0.0, 0.0)
+
+
+class TestAdjacentStruckRunsRoundTrip:
+    """#1462: two struck runs side by side (split by another style, e.g. a
+    color) exported as "~~a~~~~b~~". Under GFM single-tilde strikethrough a run
+    of three or more tildes is literal, so that came back as one struck run
+    reading "a~~~~b". Each case round-trips through _md_to_html with the
+    option off and on."""
+
+    def test_two_struck_runs_share_one_strike(self, single_tilde):
+        runs = [Run("a", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~ab~~\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_three_struck_runs_with_text_around(self, single_tilde):
+        runs = [
+            Run("x "),
+            Run("a", strikethrough=True),
+            Run("b", strikethrough=True, foreground_color=_RED),
+            Run("c", strikethrough=True),
+            Run(" y"),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "x ~~abc~~ y\n"
+        assert _reimported_runs(rendered) == [("x ", None), ("abc", True), (" y", None)]
+
+    def test_literal_tildes_at_the_boundary_stay_literal(self, single_tilde):
+        runs = [Run("a~", strikethrough=True), Run("~b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\~\\~b~~\n"
+        assert _reimported_runs(rendered) == [("a~~b", True)]
+
+    def test_escaped_backslash_before_the_delimiter(self, single_tilde):
+        runs = [Run("a\\", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\\\b~~\n"
+        assert _reimported_runs(rendered) == [("a\\b", True)]
+
+    def test_boundary_syntax_is_checked_after_the_join(self, single_tilde):
+        # "<" ends the first run's text and "b>" starts the second's: joined
+        # under one strike, they must not make a raw <b> tag.
+        runs = [Run("a <", strikethrough=True), Run("b> c", strikethrough=True)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("a <b> c", True)]
+
+    @pytest.mark.parametrize(
+        "texts",
+        [("AT&", "amp", ";T"), ("x &", "#38", ";"), ("a <", "b", "> c")],
+    )
+    def test_syntax_split_across_three_struck_runs_stays_literal(self, single_tilde, texts):
+        # PR #1476 QA round 1: an entity or tag split over three runs of
+        # alternating color. Merged before escaping, it's escaped as a whole.
+        runs = [
+            Run(t, strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i, t in enumerate(texts)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("".join(texts), True)]
+
+    @pytest.mark.parametrize(
+        ("style", "expected"),
+        [
+            ({"bold": True}, "**~~ab~~**"),
+            ({"italic": True}, "*~~ab~~*"),
+            ({"bold": True, "italic": True}, "***~~ab~~***"),
+            ({"link_url": "https://e.example"}, "[~~ab~~](https://e.example)"),
+        ],
+    )
+    def test_styled_struck_runs_differing_only_in_color(self, single_tilde, style, expected):
+        # PR #1476 QA round 1: "**~~a~~****~~b~~**" re-imported with literal
+        # asterisks between a and b.
+        runs = [
+            Run("a", strikethrough=True, **style),
+            Run("b", strikethrough=True, foreground_color=_RED, **style),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == expected + "\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_struck_runs_with_different_markers_stay_apart(self, single_tilde):
+        runs = [
+            Run("a", strikethrough=True, bold=True),
+            Run("b", strikethrough=True),
+            Run("c", strikethrough=True, link_url="https://e.example"),
+            Run("d", strikethrough=True),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "**~~a~~**~~b~~[~~c~~](https://e.example)~~d~~\n"
+        assert _struck_text(_reimported_runs(rendered)) == [("abcd", True)]
+
+    def test_whitespace_between_struck_runs_is_struck_too(self, single_tilde):
+        # Both runs are struck, so the space between them is as well.
+        runs = [Run("a ", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a b~~\n"
+        assert _reimported_runs(rendered) == [("a b", True)]
+
+    @pytest.mark.parametrize("texts", [("a\n", "b"), ("a", "\nb"), ("a \n ", "b")])
+    def test_runs_meeting_at_a_line_break_stay_apart(self, texts):
+        # The break stays outside the link, as an edge break always renders.
+        url = "https://e.example"
+        runs = [Run(texts[0], link_url=url), Run(texts[1], link_url=url, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered.count(f"]({url})") == 2
+        assert all("<br>" not in label for label in re.findall(r"\[([^\]]*)\]", rendered))
+
+    def test_many_alternating_runs_render_in_linear_time(self):
+        # PR #1476 QA round 1: joining on the rendered string copied the
+        # output once per run.
+        runs = [
+            Run("ab", strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i in range(50_000)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~" + "ab" * 50_000 + "~~\n"
+
+    def test_table_cell(self, single_tilde):
+        cell = Cell(
+            children=[
+                Run("a", strikethrough=True),
+                Run("b", strikethrough=True, foreground_color=_RED),
+            ]
+        )
+        table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run("c")])])])
+        rendered = ast_to_markdown([table])
+        assert rendered.startswith("| ~~ab~~ |")
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+
+class TestNestedStrikeImport:
+    """#1462 (from #1436's review): how a strike inside a strike imports.
+    Decided: as GitHub renders it. With single-tilde strikethrough on, the
+    inner delimiters pair too, and nested <s> is one strike in a Doc, so all
+    the text is struck and no tilde is left. With it off, a lone "~" is text."""
+
+    @pytest.mark.parametrize("source", ["~~a ~b~ c~~", "~a ~~b~~ c~"])
+    def test_nested_strike(self, single_tilde, source):
+        runs = _struck_text(_reimported_runs(source))
+        if single_tilde:
+            assert runs == [("a b c", True)]
+        elif source.startswith("~~"):
+            assert runs == [("a ~b~ c", True)]
+        else:
+            assert runs == [("~a ", None), ("b", True), (" c~", None)]

@@ -103,3 +103,104 @@ unindented code block
 - Last bullet
   1. Numbered child one
   2. Numbered child two
+
+### LX-14 — a list resumes past a quote and a heading
+
+1. Resume one
+
+> Quoted between the lists
+
+#### Heading between the lists
+
+2. Resume two
+3. Resume three
+
+### LX-15 — a list after another list can't resume the first
+
+1. Numbered first
+
+- Bullet between
+
+2. Numbered second
+
+### LX-16 — a list that doesn't pick up the count
+
+1. Counted one
+
+A paragraph between.
+
+7. Skips to seven, wrapping onto a second line so its hanging indent shows on screen, with enough words here to reach the far margin of the page and carry on past it
+   - Bullet under seven
+
+   A second paragraph in seven.
+
+8. **Bold** eight
+
+### LX-17 — a sublist that doesn't start at 1
+
+1. Parent one
+
+   3. Child three
+   4. Child four
+
+2. Parent two
+
+### LX-18 — a tab-indented code line between two lists
+
+1. Tab one
+
+```
+	code starting with a tab
+```
+
+2. Tab two
+
+A paragraph after.
+
+### LX-19 — a tab-indented code line inside an item
+
+1. Inner one
+
+   ```
+   	code starting with a tab
+   ```
+
+2. Inner two
+
+### LX-20 — a table between two lists
+
+1. Before the table
+
+| x |
+|---|
+| y |
+
+2. After the table
+
+### LX-21 — a three-digit start
+
+100. Hundred, wrapping onto a second line so its hanging indent shows on screen, with enough words here to reach the far margin of the page and carry on past it
+101. Hundred and one
+
+### LX-22 — blocks and a sublist under a wide marker
+
+100. Wide parent
+
+     A paragraph under wide.
+
+     - Bullet under wide
+
+### LX-23 — a quoted literal list at a roman level
+
+> 1. Quote one
+>    - Quote bullet
+>
+>      3. Quote roman
+
+### LX-24 — a block loose in a list, then a list that picks up its count
+
+<ol><li>Loose one</li><p>Loose in the list</p><li>Loose two</li></ol>
+
+Between lists.
+
+<ol start="3"><li>Loose three</li></ol>

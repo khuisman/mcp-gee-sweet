@@ -12,13 +12,13 @@
       "mimeType": "image/png"
     }
   ],
-  "version": "0.9.5",
+  "version": "0.9.6",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "mcp-gee-sweet",
-      "version": "0.9.5",
+      "version": "0.9.6",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
@@ -56,7 +56,7 @@
         },
         {
           "name": "ENABLED_TOOLS",
-          "description": "Comma-separated list of tool function names to register. Default: all tools enabled.",
+          "description": "Comma-separated list of tool function names to register, or `all` for every tool. Default: all tools enabled; an upcoming release loads a smaller default set when unset.",
           "isRequired": false
         }
       ]

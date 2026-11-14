@@ -125,11 +125,16 @@ class Table:
     rows: list[Row]
     col_widths: list[float | None] = field(default_factory=list)
     table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
-    # Indent only (#1097): the emitter indents a quoted table like its quote, but gives
-    # it no border or quote spacing, and doesn't count it as quoted for separators.
+    # A quoted table (#1097, #1122): the emitter draws its quote bar with a wrapper
+    # table (see quote_bar) and doc_to_ast.py reads the wrapper back as this depth.
     blockquote_depth: int = 0
+    blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see below
     list_depth: int | None = None  # #1094, see below
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see below
+    # Write side only (#1122): this is the emitter's 1x1 wrapper around a quoted table,
+    # its one cell holding that table, its left border the quote bar. Docs can't give a
+    # table a paragraph border, so this is how a table gets one.
+    quote_bar: bool = field(default=False, compare=False)
 
 
 # blockquote_path (#1098): the ids of the <blockquote> elements a node sits in, outermost
@@ -146,6 +151,22 @@ class Table:
 # the item's BulletItem.list_path (write side only, identity only, like
 # blockquote_path), so the emitter can tell which list the block belongs to.
 
+# literal_item_level (#1118): set by the emitter on the node standing in for an
+# item of a list whose start number the Docs API can't set: the item's depth. Its
+# runs start with the written number and a tab, and it takes that list level's
+# hanging indent. None for every other node. Never set by html_parser.
+# literal_item_gap is the room its marker needs before its text, in points: a list
+# level's own gap, or more for a marker that wouldn't clear the tab stop.
+# literal_item_path is the item's own BulletItem.list_path, ending with its own list's
+# id; list_path, one id shorter, places the stand-in as a block in its parent item. The
+# emitter tells a stand-in's list from another by it (#1389).
+
+
+# The glyph and space a task item's text starts with, in the Doc: a literal prefix, not
+# a BULLET_CHECKBOX preset (#336). The emitter writes them, doc_to_ast reads them back.
+CHECKED_PREFIX = "☑ "
+UNCHECKED_PREFIX = "☐ "
+
 
 @dataclass
 class Heading:
@@ -156,6 +177,10 @@ class Heading:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     list_depth: int | None = None  # #1094, see above Heading
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
 
 
 @dataclass
@@ -166,6 +191,10 @@ class Paragraph:
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
     list_depth: int | None = None  # #1094, see above Heading
     list_path: tuple[int, ...] = field(default=(), compare=False)  # #1094, see above Heading
+    # #1118, see above Heading
+    literal_item_level: int | None = field(default=None, compare=False)
+    literal_item_gap: int = field(default=18, compare=False)
+    literal_item_path: tuple[int, ...] = field(default=(), compare=False)
     # A thematic break (`---`, `<hr>`, #1096): an empty paragraph (runs=[]) the emitter
     # draws as a horizontal line, since the Docs API can't insert a horizontalRule
     # element. doc_to_ast.py reads both that stand-in and a native horizontal line back
@@ -182,9 +211,10 @@ class BulletItem:
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
     blockquote_path: tuple[int, ...] = field(default=(), compare=False)  # #1098, see above Heading
-    # Read side only (#1208): an ordered item's ordinal in its Docs list, counted across
+    # Read side (#1208): an ordered item's ordinal in its Docs list, counted across
     # any blocks that interrupt the list. None when unknown; ast_to_markdown writes "1.".
-    # Read-side metadata like blockquote_path, so it doesn't take part in equality.
+    # Write side (#1118): the item's number in a source <ol> a browser wouldn't number
+    # 1, 2, 3, None in any other list. Metadata like blockquote_path: no part in equality.
     number: int | None = field(default=None, compare=False)
     # Write side only (#1241): ids of the source <ul>/<ol> lists enclosing the item,
     # outermost first, its own list last; parser-assigned counters like

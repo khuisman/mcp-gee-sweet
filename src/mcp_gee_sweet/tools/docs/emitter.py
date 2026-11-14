@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
+from bisect import bisect_left
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
+from itertools import accumulate, pairwise
 from pathlib import PurePath
 from urllib.parse import unquote, urlsplit
 
 from ...auth import execute_in_thread
 from .ast import (
+    CHECKED_PREFIX,
     IMAGE_SOURCE_LOCAL,
     IMAGE_SOURCE_URL,
+    UNCHECKED_PREFIX,
     BulletItem,
     Cell,
     DocNode,
@@ -264,9 +269,10 @@ class _BulletList:
 
     `source_path` is the BulletItem.list_path of the item that started it.
 
-    A top-level list's `continuations` are the blocks inside its items (#1094), in
-    document order: they don't end the list, and the ones inside its range are taken
-    back out of it after its bullet requests."""
+    A top-level list's `continuations` are the blocks inside its items (#1094) and
+    the blocks between it and a list that continues it (#1118), in document order:
+    they don't end the list, and the ones inside its range are taken back out of it
+    after its bullet requests."""
 
     ordered: bool
     first: int
@@ -317,7 +323,25 @@ def _rejoins_root(root: _BulletList, node: BulletItem) -> bool:
     return len(path) < len(root.source_path) and root.source_path[: len(path)] == path
 
 
-def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
+def _joins_last_list(
+    node: BulletItem,
+    continuing: dict[int, int],
+    by_source: dict[int, _BulletList],
+    tops: list[_BulletList],
+) -> bool:
+    """Whether an item with no open list joins the last top-level list instead of
+    starting one: its own source list's, or the one `continuing` names. Only ever the
+    last one, since any range past it would overlap the lists in between."""
+    if not node.ordered or len(node.list_path) != 1:
+        return False
+    source = node.list_path[-1]
+    target = by_source.get(continuing.get(source, source))
+    return target is not None and target is tops[-1]
+
+
+def _bullet_lists(
+    segment_meta: list[_SegmentMeta], continuing: dict[int, int] | None = None
+) -> list[_BulletList]:
     """Group the BulletItems in `segment_meta` into Docs lists and return the
     top-level ones, in document order, each holding the lists nested in it.
 
@@ -342,8 +366,16 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
     block is recorded in its top-level list's `continuations`. Any other non-BulletItem
     segment ends the block, and so does a block inside an item with no open list left
     to belong to. A Table isn't in segment_meta, so a table between two items keeps
-    them in one list, as before."""
+    them in one list, as before.
+
+    A source list in `continuing` (#1118, _resolve_list_starts) joins the list it
+    maps to instead of starting one, and a top-level ordered item past a block that
+    ended its own source list's Docs list (`<ol><li>a</li><p>x</p><li>b</li></ol>`)
+    joins that list again, so it keeps counting as in a browser. The blocks between
+    join that list's `continuations`."""
     tops: list[_BulletList] = []
+    continuing = continuing or {}
+    by_source: dict[int, _BulletList] = {}
     stack: list[_OpenList] = []
     root: _BulletList | None = None
     for i, seg in enumerate(segment_meta):
@@ -381,6 +413,10 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
             enclosing.had_child = True
         elif root is not None and _rejoins_root(root, node):
             bullet_list = root
+        elif _joins_last_list(node, continuing, by_source, tops):
+            bullet_list = root = tops[-1]
+            seen = max((bullet_list.last, *bullet_list.continuations[-1:]))
+            bullet_list.continuations.extend(range(seen + 1, i))
         else:
             bullet_list = root = _BulletList(
                 ordered, i, i, depth, node.list_path, top=None, nested=[]
@@ -390,12 +426,212 @@ def _bullet_lists(segment_meta: list[_SegmentMeta]) -> list[_BulletList]:
         (bullet_list.top or bullet_list).last = i
         bullet_list.min_depth = min(bullet_list.min_depth, depth)
         list_id = node.list_path[-1] if node.list_path else None
+        if list_id is not None:
+            by_source[list_id] = bullet_list
         stack.append(_OpenList(depth, bullet_list, list_id))
     return tops
 
 
+_ORDERED_PRESET = "NUMBERED_DECIMAL_ALPHA_ROMAN"
+
+
 def _bullet_preset(ordered: bool) -> str:
-    return "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+    return _ORDERED_PRESET if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+
+
+_ROMAN_NUMERALS = (
+    (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"), (100, "c"), (90, "xc"),
+    (50, "l"), (40, "xl"), (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+)  # fmt: skip
+_MAX_ROMAN = 3999
+
+
+def _alpha_marker(number: int) -> str:
+    """a, b, ... z, aa, ab: how Docs letters a list level past z."""
+    letters = ""
+    while number > 0:
+        number, remainder = divmod(number - 1, 26)
+        letters = chr(ord("a") + remainder) + letters
+    return letters
+
+
+def _roman_marker(number: int) -> str:
+    numeral = ""
+    for value, letters in _ROMAN_NUMERALS:
+        count, number = divmod(number, value)
+        numeral += letters * count
+    return numeral
+
+
+def literal_list_marker(number: int, depth: int) -> str:
+    """`number` as _ORDERED_PRESET draws it at nesting level `depth`: decimal, lower
+    alpha and lower roman in turn, like Docs itself. A number that glyph can't write
+    (zero or negative, or a roman numeral past 3999) stays decimal."""
+    kind = min(depth, _MAX_LIST_NESTING_LEVEL) % 3
+    if kind == 1 and number > 0:
+        return _alpha_marker(number) + "."
+    if kind == 2 and 0 < number <= _MAX_ROMAN:
+        return _roman_marker(number) + "."
+    return f"{number}."
+
+
+# Each character's width in Arial, in ems, near enough to tell whether a marker clears
+# the tab stop. A doc's own font can differ, so this errs a little wide.
+_MARKER_CHAR_EM = {".": 0.28, "-": 0.34, "m": 0.84, "i": 0.24, "l": 0.24}
+_DIGIT_EM = 0.56
+_LETTER_EM = 0.56
+_BODY_SIZE_PT = 11
+_HEADING_SIZE_PT = {1: 20, 2: 16, 3: 14, 4: 12, 5: 11, 6: 11}
+# Between a marker and the tab stop after it, at least.
+_MARKER_CLEARANCE_PT = 2.5
+# Past a marker too wide for the list level's gap, so the two don't touch.
+_WIDE_MARKER_CLEARANCE_PT = 6
+
+
+def _literal_item_gap(marker: str, heading_level: int | None) -> int:
+    """How far left of its text a stand-in's first line starts. The tab after the
+    marker stops at indentStart only while the marker hasn't reached it: past that it
+    runs to the next default stop, 36pt on, and the text leaves its wrapped lines
+    behind. So a marker too wide for the list level's gap gets a wider one."""
+    size = _BODY_SIZE_PT if heading_level is None else _HEADING_SIZE_PT[heading_level]
+    width = size * sum(
+        _MARKER_CHAR_EM.get(c, _DIGIT_EM if c.isdigit() else _LETTER_EM) for c in marker
+    )
+    list_gap = _LIST_INDENT_START_PT - _LIST_INDENT_FIRST_LINE_PT
+    if width + _MARKER_CLEARANCE_PT <= list_gap:
+        return list_gap
+    return math.ceil(width + _WIDE_MARKER_CLEARANCE_PT)
+
+
+def task_prefix(checked: bool) -> str:
+    return CHECKED_PREFIX if checked else UNCHECKED_PREFIX
+
+
+def _literal_item(item: BulletItem) -> Paragraph | Heading:
+    """The node standing in for `item` when its list can't be a Docs list showing its
+    number (#1118): its number as text, a tab, and its own text, at its list level's
+    hanging indent. Inside a list, it's a block in its parent item, so that list keeps
+    counting past it. The caller's item is left alone."""
+    depth = item.depth
+    marker = literal_list_marker(item.number, depth)
+    text = marker + "\t"
+    if item.checked is not None:
+        text += task_prefix(item.checked)
+    fields = {
+        "blockquote_depth": item.blockquote_depth,
+        "blockquote_path": item.blockquote_path,
+        "list_depth": depth - 1 if depth else None,
+        "list_path": item.list_path[:-1],
+        "literal_item_level": depth,
+        "literal_item_gap": _literal_item_gap(marker, item.heading_level),
+        "literal_item_path": item.list_path,
+    }
+    runs = [Run(text), *item.runs]
+    if item.heading_level is not None:
+        return Heading(level=item.heading_level, runs=runs, **fields)
+    return Paragraph(runs=runs, **fields)
+
+
+@dataclass
+class _LastList:
+    """The last top-level list _resolve_list_starts walked past. `open` is whether a
+    list after it can still continue it, and `interrupted` whether a block has come
+    after its last top-level item."""
+
+    list_id: int
+    ordered: bool
+    open: bool
+    blockquote_path: tuple[int, ...]
+    next_number: int
+    interrupted: bool = False
+
+
+def _reads_as_inside_item(node: DocNode) -> bool:
+    """Whether a block between two lists would read back as inside the first one's
+    last item if they shared a listId (doc_to_ast._ListItemContext). A table and an
+    empty paragraph have no indent to say otherwise, and a quote two levels deep sits
+    where a quote in the item would."""
+    if _list_content_depth(node) is not None:
+        return False
+    if isinstance(node, Table):
+        return True
+    if isinstance(node, Paragraph) and not node.runs and not node.rule:
+        return True
+    return node.blockquote_depth >= 2
+
+
+def _counts_up(numbers: list[int | None]) -> bool:
+    return all(a is not None and b is not None and b == a + 1 for a, b in pairwise(numbers))
+
+
+def _resolve_list_starts(nodes: list[DocNode]) -> tuple[list[DocNode], dict[int, int]]:
+    """Decide how each list a browser wouldn't number 1, 2, 3 keeps its numbers (#1118).
+
+    No Docs API request sets a list's start number: `startNumber` is read-only, and
+    deleting a list's first items renumbers the rest (both confirmed live). Docs does
+    number a list by listId, past anything between its items. So a top-level list
+    that counts up from where the last top-level list stopped, in the same quote,
+    joins that list. Any other list between them prevents that, and so does a block
+    that would then read back as inside the first list's last item
+    (_reads_as_inside_item).
+
+    Any other such list's items become literal text (_literal_item), since a real
+    list would show the wrong numbers. So they're stand-ins, not list items: Docs
+    won't renumber them. Returns the nodes, with the stand-ins in the items' places
+    (the caller's list and nodes are left alone), and each continuing list's id
+    mapped to the id of the list it joins."""
+    numbers: dict[int, list[int | None]] = {}
+    for node in nodes:
+        if isinstance(node, BulletItem) and node.list_path:
+            numbers.setdefault(node.list_path[-1], []).append(node.number)
+    if not any(n is not None for list_numbers in numbers.values() for n in list_numbers):
+        return nodes, {}
+    resolved: list[DocNode] = []
+    continuing: dict[int, int] = {}
+    last: _LastList | None = None
+    for node in nodes:
+        if not isinstance(node, BulletItem) or not node.list_path:
+            if last is not None:
+                # An orphan <li> is a list of its own, in no source list.
+                if isinstance(node, BulletItem) or _reads_as_inside_item(node):
+                    last.open = False
+                last.interrupted = last.interrupted or _list_content_depth(node) is None
+            resolved.append(node)
+            continue
+        top_level = len(node.list_path) == 1
+        list_id = node.list_path[-1]
+        # An item nested under an interrupted list starts a Docs list of its own.
+        if (
+            last is not None
+            and not top_level
+            and (node.list_path[0] != last.list_id or last.interrupted)
+        ):
+            last.open = False
+        if top_level and (last is None or last.list_id != list_id):
+            start = node.number
+            if (
+                start is not None
+                and last is not None
+                and last.open
+                and last.ordered
+                and last.blockquote_path == node.blockquote_path
+                and last.next_number == start
+                and _counts_up(numbers[list_id])
+            ):
+                continuing[list_id] = last.list_id
+            last = _LastList(
+                list_id,
+                node.ordered,
+                start is None or list_id in continuing,
+                node.blockquote_path,
+                1 if start is None else start,
+            )
+        if top_level:
+            last.next_number += 1
+            last.interrupted = False
+        literal = node.number is not None and list_id not in continuing
+        resolved.append(_literal_item(node) if literal else node)
+    return resolved, continuing
 
 
 def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> list[dict]:
@@ -458,12 +694,29 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
         requests = isolated_bullet_run_wrap_requests(start, end, preset)
 
     tabs_ahead = segment_meta[top.first].tabs_through - segment_meta[top.first].own_tabs
+    # A block in the range loses its own leading tabs to that call too, a paragraph
+    # the API reads like any other, and they aren't depth-tabs: they go back with the
+    # block's bullet, below, so positions past `top` never see them gone.
+    in_range = [index for index in top.continuations if index <= top.last]
+    block_tabs = {index: _leading_tabs(segment_meta[index]) for index in in_range}
+    tabs_in_blocks = list(
+        accumulate(sum(count for _, count in block_tabs[index]) for index in in_range)
+    )
+
+    def block_tabs_before(index: int) -> int:
+        position = bisect_left(in_range, index)
+        return tabs_in_blocks[position - 1] if position else 0
 
     def after_top(index: int) -> tuple[int, int]:
         """Segment `index`'s (start, end) once `top`'s first call consumed its tabs."""
         seg = segment_meta[index]
-        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead
-        return seg.doc_start - own_start, seg.doc_end - (seg.tabs_through - tabs_ahead)
+        before = block_tabs_before(index)
+        own_start = seg.tabs_through - seg.own_tabs - tabs_ahead + before
+        own_block_tabs = sum(count for _, count in block_tabs.get(index, ()))
+        return (
+            seg.doc_start - own_start,
+            seg.doc_end - (seg.tabs_through - tabs_ahead + before + own_block_tabs),
+        )
 
     for bullet_list in top.nested:
         list_start = after_top(bullet_list.first)[0]
@@ -507,19 +760,41 @@ def _top_list_requests(top: _BulletList, segment_meta: list[_SegmentMeta]) -> li
     # last, once no later call can bullet it again (#1094). Docs numbers a list's items
     # by listId, so the items after it keep counting (confirmed live). Its indent is set
     # after the whole bullet pass (ast_to_requests).
-    for index in top.continuations:
-        if index > top.last:
-            break
+    # Latest first, so putting a block's tabs back leaves the earlier ranges valid.
+    for index in reversed(in_range):
         start, end = after_top(index)
         requests.append(
             {"deleteParagraphBullets": {"range": {"startIndex": start, "endIndex": end}}}
         )
+        for offset, count in reversed(block_tabs[index]):
+            requests.append(
+                {"insertText": {"location": {"index": start + offset}, "text": "\t" * count}}
+            )
     return requests
 
 
+def _leading_tabs(seg: _SegmentMeta) -> list[tuple[int, int]]:
+    """The leading tabs of each paragraph in a non-item block, as (offset of the
+    paragraph in the block with these tabs already gone, how many), in order.
+    createParagraphBullets removes them from any paragraph in its range. A code
+    block is one paragraph, since its line breaks are written as "\v"."""
+    text = "".join(run.text for run in seg.runs if isinstance(run, Run))
+    lines = [text] if _is_code_paragraph(seg.node) else text.split("\n")
+    tabs: list[tuple[int, int]] = []
+    offset = 0
+    for line in lines:
+        rest = line.lstrip("\t")
+        if len(rest) != len(line):
+            tabs.append((offset, len(line) - len(rest)))
+        offset += utf16_len(rest) + 1
+    return tabs
+
+
 def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
-    """Return `runs` with literal leading tab character(s) removed from the
-    start of its own text, without mutating the caller's Run/Image objects —
+    """Return `runs` with the literal tab character(s) that open each line of its
+    text removed: the start of its text and the start after each "\n", since each
+    line is a paragraph createParagraphBullets reads (PR #1399 QA round 1). It never
+    mutates the caller's Run/Image objects —
     the AST is caller-owned and this function must stay side-effect-free on it
     (contrast html_parser.py's `_make_bullet_item`, which mutates in place, but
     only ever on a list it just built from its own fresh buffer, never on an
@@ -529,23 +804,28 @@ def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
     `_make_bullet_item`'s own `runs.pop(0)` after its checkbox-marker strip —
     so a leading tab spanning more than one run (e.g. a tab-only run followed
     by a run whose own text also starts with a tab) is still fully consumed.
-    Stops at the first run with any remaining text; an Image in between
-    contributes no text and can't itself carry a leading tab, so it's passed
-    through unchanged without stopping the scan.
+    A line's tabs end at its first other character. An Image contributes no
+    text, and at createParagraphBullets time it isn't in the doc yet, so it's
+    passed through unchanged without ending the line's tabs.
     """
     result: list[Run | Image] = []
-    for i, item in enumerate(runs):
+    at_line_start = True
+    for item in runs:
         if not isinstance(item, Run):
             result.append(item)
             continue
-        new_text = item.text.lstrip("\t")
-        if not new_text:
-            continue  # fully consumed — drop and keep scanning
-        if new_text != item.text:
-            item = replace(item, text=new_text)
-        result.append(item)
-        result.extend(runs[i + 1 :])
-        break
+        kept: list[str] = []
+        for char in item.text:
+            if char == "\t" and at_line_start:
+                continue
+            kept.append(char)
+            at_line_start = char == "\n"
+        new_text = "".join(kept)
+        if new_text == item.text:
+            result.append(item)
+        elif new_text:
+            result.append(replace(item, text=new_text))
+        # else fully consumed: dropped
     return result
 
 
@@ -634,6 +914,7 @@ def ast_to_requests(
     image_uris: dict[int, str] | None = None,
     *,
     image_links: dict[int, dict] | None = None,
+    table_gaps: dict[int, str] | None = None,
 ) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
 
@@ -670,12 +951,17 @@ def ast_to_requests(
     failed image request can drop its link request too, by identity rather than by
     matching request shapes.
 
+    table_gaps: if given, filled with id(request) -> "spaceAbove" or "spaceBelow" for
+    each paragraph gap set beside a table (#1427), so without_paragraph_gaps can keep
+    it for a doc whose own spacing doesn't set that field.
+
     Returns (requests, tables) where tables is the list of Table AST nodes in document
     order.
     """
     if image_uris is None:
         image_uris = {}
-    nodes, separators = _with_quote_separators(nodes)
+    nodes, continuing = _resolve_list_starts(nodes)
+    nodes, separators = _with_quote_separators(_wrap_quoted_tables(nodes))
     text_parts: list[str] = []
     utf16_offset = 0
     segment_meta: list[_SegmentMeta] = []
@@ -728,13 +1014,20 @@ def ast_to_requests(
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
-                prefix = "☑ " if node.checked else "☐ "
+                prefix = task_prefix(node.checked)
             # Images (#333) contribute zero characters here — they're not part of the
             # text at all, just a positional marker resolved into its own
             # insertInlineImage request below, exactly like a Table.
             offset_runs = node.runs
             run_text = "".join(r.text for r in node.runs if isinstance(r, Run))
-            if isinstance(node, BulletItem) and run_text.startswith("\t"):
+            if isinstance(node, BulletItem) and (run_text.startswith("\t") or "\n\t" in run_text):
+                # Every line of an item's text is a paragraph in its list's
+                # createParagraphBullets range, so a tab opening a later line (the
+                # indentation of pretty-printed HTML, #1229's "\n\t\t" shape) is
+                # read and consumed the same way and is stripped too (PR #1399 QA
+                # round 1): left in, it went uncounted by tabs_through, and every
+                # style or insert mapped past the bullet pass landed short.
+                #
                 # A literal leading tab in the item's own source text (e.g.
                 # hand-formatted HTML/markdown) is indistinguishable, once
                 # concatenated with `tabs` above, from our own synthesized
@@ -840,6 +1133,17 @@ def ast_to_requests(
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
         spacing = _block_spacing(nodes, separators)
+        top_lists = _bullet_lists(segment_meta, continuing)
+        # Every BulletItem's inline styles, sent after the bullet pass (#1383).
+        item_run_styles: list[dict] = []
+        # The blocks between a list and the list that continues it (#1118): outside
+        # every item, but bulleted and taken back out like a block inside one.
+        between_lists = {
+            id(segment_meta[index].node)
+            for top in top_lists
+            for index in top.continuations
+            if _list_content_depth(segment_meta[index].node) is None
+        }
         for seg in segment_meta:
             node = seg.node
             doc_start, doc_end = seg.doc_start, seg.doc_end
@@ -847,7 +1151,12 @@ def ast_to_requests(
             # A block inside a list item gets its indent, quote styling, rule line and
             # spacing after the bullet pass (#1094), since that pass may bullet it before
             # taking it back out, and createParagraphBullets overwrites both indents.
-            deferred = isinstance(node, BulletItem) or _list_content_depth(node) is not None
+            deferred = (
+                isinstance(node, BulletItem)
+                or _list_content_depth(node) is not None
+                or _literal_item_level(node) is not None
+                or id(node) in between_lists
+            )
 
             if isinstance(node, Heading):
                 requests.append(
@@ -905,7 +1214,7 @@ def ast_to_requests(
             if id(node) in separators:
                 requests.extend(_collapse_paragraph_requests(rng))
             elif seg.order in spacing and not deferred:
-                requests.extend(_spacing_requests(rng, *spacing[seg.order]))
+                requests.extend(_spacing_requests(rng, spacing[seg.order], table_gaps))
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
@@ -916,7 +1225,11 @@ def ast_to_requests(
             # node.runs's own unstripped text here would overrun every offset by however
             # many tab characters were stripped but never actually inserted (the
             # regression PR #768's QA round 2 caught in finding 1's own first version).
+            #
+            # A BulletItem's run styles wait for the bullet pass (#1383), or its marker
+            # would take any style its whole text shares.
             offset = seg.skip_len
+            item_paragraphs = _item_paragraph_spans(seg) if isinstance(node, BulletItem) else []
             for item_order, item in enumerate(seg.runs, start=1):
                 if isinstance(item, Image):
                     uri = image_uris.get(id(item))
@@ -930,7 +1243,11 @@ def ast_to_requests(
                         )
                     continue
                 run_len = utf16_len(item.text)
-                if run_len > 0:
+                if run_len > 0 and isinstance(node, BulletItem):
+                    item_run_styles.extend(
+                        _item_run_style_requests(item, seg, offset, run_len, item_paragraphs)
+                    )
+                elif run_len > 0:
                     style_reqs = _run_style_requests(
                         item, doc_start + offset, doc_start + offset + run_len
                     )
@@ -950,7 +1267,7 @@ def ast_to_requests(
         # nested lists. Each list nested in it that isn't merged into it is taken back
         # out afterward, so the outer list keeps counting past it (#1072,
         # _top_list_requests).
-        for top in _bullet_lists(segment_meta):
+        for top in top_lists:
             bullet_run_requests.append(
                 (segment_meta[top.first].doc_start, _top_list_requests(top, segment_meta))
             )
@@ -962,6 +1279,8 @@ def ast_to_requests(
         # anchor insert/delete pair).
         for _, grouped in sorted(bullet_run_requests, key=lambda item: item[0], reverse=True):
             requests.extend(grouped)
+
+        requests.extend(item_run_styles)
 
         # Blockquote styling for quoted list items (#1056) runs after the whole bullet
         # pass: createParagraphBullets overwrites both paragraph indents. Every tab has
@@ -976,22 +1295,22 @@ def ast_to_requests(
                 "endIndex": _after_bullet_pass(seg.doc_end, seg.tabs_through),
             }
             if isinstance(node, BulletItem):
-                if node.blockquote_depth == 0:
-                    continue
-                requests.append(
-                    _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
-                )
+                # An unquoted item still takes the quote-edge gap beside a quoted table.
+                if node.blockquote_depth > 0:
+                    requests.append(
+                        _blockquote_style_request(rng, node.blockquote_depth, list_level=node.depth)
+                    )
             else:
-                content_depth = _list_content_depth(node)
-                if content_depth is None:
-                    continue
-                requests.append(
-                    _list_content_style_request(rng, content_depth, node.blockquote_depth)
+                indent_request = _deferred_indent_request(
+                    node, rng, between_lists=id(node) in between_lists
                 )
+                if indent_request is None:
+                    continue
+                requests.append(indent_request)
                 if isinstance(node, Paragraph) and node.rule:
                     requests.extend(_rule_requests(rng, quoted=node.blockquote_depth > 0))
             if seg.order in spacing and id(node) not in separators:
-                requests.extend(_spacing_requests(rng, *spacing[seg.order]))
+                requests.extend(_spacing_requests(rng, spacing[seg.order], table_gaps))
 
         # Each table's placeholder, reset to plain after the bullet pass, since a table
         # between two same-preset list items sits inside their one createParagraphBullets
@@ -1001,7 +1320,10 @@ def ast_to_requests(
             position = _after_bullet_pass(pending.position, pending.tab_offset)
             requests.extend(
                 _table_placeholder_requests(
-                    position, pending.node.blockquote_depth, pending.node.list_depth
+                    position,
+                    pending.node.blockquote_depth,
+                    pending.node.list_depth,
+                    quote_bar=pending.node.quote_bar,
                 )
             )
 
@@ -1075,6 +1397,18 @@ _BLOCKQUOTE_BORDER = {
     "padding": {"magnitude": 8, "unit": "PT"},
     "dashStyle": "SOLID",
 }
+
+# A quoted table's quote bar (#1122). A table takes no paragraph border, so a quoted
+# table goes in the one cell of a 1x1 wrapper table whose left cell border is the bar
+# and whose other borders are 0 wide (the API rejects a transparent cell border). Docs
+# draws a paragraph's bar its padding plus its width left of the indent, and a table's
+# border centered on the table's edge, so the wrapper sits that far, less half the
+# bar, left of the quote's indent: its bar then lines up with the bar of the quote's
+# paragraphs. A nested table starts at its cell's left padding, not past the border,
+# so the same padding puts the quoted table back at the quote's indent (both
+# confirmed live).
+_QUOTE_BAR_WIDTH_PT = _BLOCKQUOTE_BORDER["width"]["magnitude"]
+_QUOTE_BAR_OFFSET_PT = _BLOCKQUOTE_BORDER["padding"]["magnitude"] + _QUOTE_BAR_WIDTH_PT / 2
 
 
 # Paragraph indents createParagraphBullets gives a list item at nesting level n, for
@@ -1152,14 +1486,101 @@ def _list_content_style_request(rng: dict, list_depth: int, blockquote_depth: in
     return _indent_style_request(rng, indents, border=blockquote_depth > 0)
 
 
+def _literal_item_level(node: DocNode) -> int | None:
+    """The list level a node stands in an item of (#1118), or None for any other."""
+    return node.literal_item_level if isinstance(node, (Paragraph, Heading)) else None
+
+
+def _literal_item_indents(node: Paragraph | Heading, level: int) -> tuple[int, int]:
+    """(indentFirstLine, indentStart) of a stand-in. Its text stays at the list level's
+    text indent, where the blocks and sublists under it line up, and a wide marker
+    starts further left to make room. Only a marker wider than that whole indent
+    moves the text itself."""
+    quote_indent = _block_indents(node.blockquote_depth)[0]
+    text_indent = list_level_indents(level)[1]
+    gap = node.literal_item_gap
+    return max(text_indent - gap, 0) + quote_indent, max(text_indent, gap) + quote_indent
+
+
+def _deferred_indent_request(node: DocNode, rng: dict, *, between_lists: bool) -> dict | None:
+    """The indent request a non-item block takes after the bullet pass, or None when
+    it set its style before that pass. A stand-in for a list item (#1118) takes the
+    item's hanging indent, a block inside an item its item's text, and a block
+    between a list and the list that continues it goes back to where it was: the
+    quote's indent, or whatever its named style gives it (fields named, values
+    absent: the bullet pass left the list level's indents)."""
+    quote_depth = node.blockquote_depth
+    level = _literal_item_level(node)
+    if level is not None:
+        return _indent_style_request(
+            rng, _literal_item_indents(node, level), border=quote_depth > 0
+        )
+    content_depth = _list_content_depth(node)
+    if content_depth is not None:
+        return _list_content_style_request(rng, content_depth, quote_depth)
+    if not between_lists:
+        return None
+    if quote_depth > 0:
+        return _blockquote_style_request(rng, quote_depth)
+    return {
+        "updateParagraphStyle": {
+            "range": rng,
+            "paragraphStyle": {},
+            "fields": "indentStart,indentFirstLine",
+        }
+    }
+
+
 # Space above and below a code block, and around a quote where it meets other content
 # (#1098). Docs' NORMAL_TEXT has none, so without it a quote or code block touched the
 # paragraphs around it and two code blocks in a row read as one.
 _BLOCK_SPACING_PT = 8
 
+# Space below a paragraph that the next paragraph follows (#1382): what Docs' own "Add
+# space after paragraph" adds, so a blank line in the source reads as a break. It's
+# explicit paragraph styling, which beats the doc's NORMAL_TEXT, so a doc with spacing of
+# its own doesn't take it: see without_paragraph_gaps and apply_theme, which finds it by
+# this value (a gap beside a table also by place, #1427). Keep it different from every
+# other spacing the emitter writes.
+PARAGRAPH_GAP_PT = 10
+
 
 def _quoted(node: DocNode) -> bool:
     return not isinstance(node, Table) and node.blockquote_depth > 0
+
+
+def _wrap_quoted_tables(nodes: list[DocNode]) -> list[DocNode]:
+    """Return `nodes` with each quoted table replaced by its quote-bar wrapper (#1122,
+    see _QUOTE_BAR_OFFSET_PT). The wrapper takes the table's quote and list placement;
+    the table inside it has none of its own. A table with no row or column gets no
+    insertTable, so it isn't wrapped either. Caller-owned nodes are never mutated."""
+    return [
+        _quote_bar_wrapper(node)
+        if isinstance(node, Table)
+        and node.blockquote_depth > 0
+        and not node.quote_bar
+        and _is_insertable_table(node)
+        else node
+        for node in nodes
+    ]
+
+
+def _quote_bar_wrapper(table: Table) -> Table:
+    inner = replace(table, blockquote_depth=0, blockquote_path=(), list_depth=None, list_path=())
+    return Table(
+        rows=[Row(cells=[Cell(children=[inner])])],
+        blockquote_depth=table.blockquote_depth,
+        blockquote_path=table.blockquote_path,
+        list_depth=table.list_depth,
+        list_path=table.list_path,
+        quote_bar=True,
+    )
+
+
+def _in_quote(node: DocNode) -> bool:
+    """Whether `node` is inside a quote, for spacing: a quoted table too, whose wrapper
+    draws the quote's bar beside it."""
+    return node.blockquote_depth > 0 and (not isinstance(node, Table) or node.quote_bar)
 
 
 def _has_named_spacing(node: DocNode) -> bool:
@@ -1169,6 +1590,189 @@ def _has_named_spacing(node: DocNode) -> bool:
     if isinstance(node, BulletItem):
         return node.heading_level is not None
     return isinstance(node, NamedBlock) and node.style_type != "NORMAL_TEXT"
+
+
+def _has_visible_content(node: DocNode) -> bool:
+    return any(isinstance(run, Image) or run.text.strip() for run in node.runs)
+
+
+def _is_plain_paragraph(node: DocNode) -> bool:
+    """Whether `node` is body text with something on its line: not code, a rule, a
+    stand-in for a list item, or a whitespace-only spacer, which is a gap already."""
+    if isinstance(node, NamedBlock):
+        plain = node.style_type == "NORMAL_TEXT"
+    elif isinstance(node, Paragraph):
+        plain = not (node.rule or node.literal_item_level is not None)
+        plain = plain and not _is_code_paragraph(node)
+    else:
+        return False
+    return plain and _has_visible_content(node)
+
+
+def _is_text_of_item_holding(first: DocNode, second: DocNode) -> bool:
+    """Whether `first` is a list item's own text, or the stand-in for it (#1118), and
+    `second` sits inside that item."""
+    place = _list_place(second)
+    if place is None:
+        return False
+    if isinstance(first, BulletItem):
+        return (
+            first.heading_level is None
+            and _has_visible_content(first)
+            and _list_place(first) == place
+        )
+    # A stand-in's list_path stops at its parent list: it's a block in the parent item.
+    depth, path = place
+    return (
+        isinstance(first, Paragraph)
+        and first.literal_item_level == depth
+        and first.list_path == path[:-1]
+    )
+
+
+def _paragraph_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether a paragraph break between two adjacent nodes needs PARAGRAPH_GAP_PT
+    (#1382): `second` is a plain paragraph in the same quote and at the same quote depth
+    as `first`, which is a plain paragraph in the same list item, or that item's text.
+    Or a list meets a paragraph outside it (#1389, _list_gap_between).
+
+    Docs covers the gap with the quote bar only between paragraphs with the same border
+    and indent. So a quoted paragraph gets no gap beside a nested quote's, or beside its
+    item's text, whose indent differs: the bar broke there (PR #1388 QA round 1)."""
+    if _list_gap_between(first, second):
+        return True
+    if (
+        not _is_plain_paragraph(second)
+        or first.blockquote_depth != second.blockquote_depth
+        or first.blockquote_path != second.blockquote_path
+    ):
+        return False
+    if _is_plain_paragraph(first):
+        return _list_place(first) == _list_place(second)
+    return first.blockquote_depth == 0 and _is_text_of_item_holding(first, second)
+
+
+def _gap_after_table(prev: DocNode, node: DocNode) -> bool:
+    """Whether `node` takes PARAGRAPH_GAP_PT above it because `prev` is a table
+    (#1427): a table can't take spacing, and without it the paragraph or list item sat
+    on the table's bottom border. Drive's import leaves an empty line there."""
+    return _is_unquoted_table(prev) and _takes_table_gap(node)
+
+
+def _gap_before_table(node: DocNode, following: DocNode) -> bool:
+    """Whether `node` takes PARAGRAPH_GAP_PT below it because `following` is a table
+    (#1427), the mirror of _gap_after_table."""
+    return _is_unquoted_table(following) and _takes_table_gap(node)
+
+
+def _is_unquoted_table(node: DocNode) -> bool:
+    """An unquoted table that gets inserted: one with no row or column doesn't, so
+    nothing sits on it. Beside a quoted table's wrapper the quote-edge spacing applies
+    instead (_block_spacing), and inside one quote a gap would break the bar between
+    the wrapper and the paragraph."""
+    return isinstance(node, Table) and node.blockquote_depth == 0 and _is_insertable_table(node)
+
+
+def _takes_table_gap(node: DocNode) -> bool:
+    """An unquoted plain paragraph or list item (_is_list_item), the blocks Drive's
+    import puts an empty line between and a table (PR #1434 QA round 1: a list item
+    sat on the table too). A heading, rule, spacer or code block keeps its own
+    spacing."""
+    return node.blockquote_depth == 0 and (_is_plain_paragraph(node) or _is_list_item(node))
+
+
+def _list_gap_between(first: DocNode, second: DocNode) -> bool:
+    """Whether `first` and `second` are where a list meets a paragraph outside it
+    (#1389): a plain paragraph followed by the first item of a list it isn't inside
+    (_starts_list_outside), or a list's last item, or a plain paragraph inside
+    that item, followed by a plain paragraph shallower than it. Drive's import leaves an
+    empty line on both sides of a list, an intro line's included.
+
+    Unquoted only: a quoted list item's indent differs from the paragraph beside it, so
+    the quote bar wouldn't cover the gap (PR #1388 QA round 1). A list item that is a
+    heading keeps its named style's spacing, and a table, code block or rule at the edge
+    of a list keeps its own look. Under COLLAPSE_LISTS, Docs' default spacingMode, the
+    gap still shows between a list item and a paragraph that isn't one (checked live)."""
+    if first.blockquote_depth or second.blockquote_depth:
+        return False
+    if _is_plain_paragraph(first) and _is_list_item(second):
+        return _starts_list_outside(second, _list_place(first))
+    if not _is_plain_paragraph(second):
+        return False
+    if _is_list_item(first):
+        return _deeper_than(_item_place(first), _list_place(second))
+    return _is_plain_paragraph(first) and _deeper_than(_list_place(first), _list_place(second))
+
+
+def _is_list_item(node: DocNode) -> bool:
+    """A list item's own line, not a heading: a BulletItem or the stand-in for one
+    (#1118)."""
+    if isinstance(node, BulletItem):
+        return node.heading_level is None
+    return isinstance(node, Paragraph) and node.literal_item_level is not None
+
+
+def _item_place(node: DocNode) -> tuple[int, tuple[int, ...]]:
+    """The depth and enclosing list ids of a list item (_is_list_item), its own list's
+    id last. A stand-in's list_path stops at its parent list, so its item's own path is
+    literal_item_path."""
+    if isinstance(node, BulletItem):
+        return node.depth, node.list_path
+    assert isinstance(node, Paragraph) and node.literal_item_level is not None
+    return node.literal_item_level, node.literal_item_path
+
+
+def _starts_list_outside(item: DocNode, place: tuple[int, tuple[int, ...]] | None) -> bool:
+    """Whether list item `item` (_is_list_item) belongs to a list that a paragraph at
+    `place` isn't inside: a sublist nested in the paragraph's item, or another list,
+    at any depth (PR #1406 QA round 1). Not the next item of a list the paragraph sits
+    in, which keeps the list's spacing. An item's path (_item_place) ends with its own
+    list's id, a stand-in's included (PR #1406 QA round 2), so its list is one the
+    paragraph sits in exactly when that path is a prefix of the paragraph's. An item
+    with no ids falls back to depth (_deeper_than)."""
+    if place is None:
+        return True
+    item_place = _item_place(item)
+    if item_place[1] and place[1]:
+        return place[1][: len(item_place[1])] != item_place[1]
+    return _deeper_than(item_place, place)
+
+
+def _deeper_than(
+    inner: tuple[int, tuple[int, ...]] | None, outer: tuple[int, tuple[int, ...]] | None
+) -> bool:
+    """Whether the list place `inner` is nested in `outer` (None: outside every list),
+    deeper than it. The ids decide when both sides have them, so a separate list at the
+    same depth isn't read as nested."""
+    if inner is None:
+        return False
+    if outer is None:
+        return True
+    (inner_depth, inner_path), (outer_depth, outer_path) = inner, outer
+    if inner_depth <= outer_depth:
+        return False
+    return not inner_path or not outer_path or inner_path[: len(outer_path)] == outer_path
+
+
+def _list_place(node: DocNode) -> tuple[int, tuple[int, ...]] | None:
+    """The depth and list_path of the item `node` is, or sits in. None outside lists."""
+    if isinstance(node, BulletItem):
+        return (node.depth, node.list_path) if node.list_path else None
+    depth = _list_content_depth(node)
+    return None if depth is None else (depth, node.list_path)
+
+
+def _separator_list_fields(first: DocNode, second: DocNode) -> dict:
+    """list_depth and list_path of a quote separator between two nodes: the shallower
+    of their items, when one sits in the other's list. Empty when they're in no list
+    or different ones, which a separator doesn't have to keep together."""
+    places = [_list_place(first), _list_place(second)]
+    if places[0] is None or places[1] is None:
+        return {}
+    (depth, path), (_, deeper_path) = sorted(places, key=lambda place: place[0])
+    if deeper_path[: len(path)] != path:
+        return {}
+    return {"list_depth": depth, "list_path": path}
 
 
 def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int]]:
@@ -1185,27 +1789,24 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     live), and the outer bar is already broken around the deeper-indented nested ones.
     _collapse_paragraph_requests shrinks it.
 
-    A separator between two quotes inside one list item belongs to that item too
-    (#1094), so it doesn't end the item's list.
+    A separator between two quotes inside one list belongs to its shallower item
+    (#1094, #1118), so it doesn't end that list.
+
+    A quoted table counts (#1122): its wrapper's bar met the next quote's just the same.
+    Two tables in a row get none: the paragraph Docs keeps between them stays at full
+    height, unbordered, and takes the bar only when they share a quote
+    (_build_blank_para_before_table_collapses). A separator there pushed it out of that
+    check, and both were collapsed, so the tables touched (PR #1359 round 2 probe).
     """
     result: list[DocNode] = []
     separators: set[int] = set()
     prev: DocNode | None = None
     for node in nodes:
-        if prev is not None and _quoted(prev) and _quoted(node):
+        between_tables = isinstance(prev, Table) and isinstance(node, Table)
+        if prev is not None and _in_quote(prev) and _in_quote(node) and not between_tables:
             a, b = prev.blockquote_path, node.blockquote_path
             if a[: len(b)] != b and b[: len(a)] != a:
-                content_depth = _list_content_depth(node)
-                in_item = (
-                    content_depth is not None
-                    and _list_content_depth(prev) == content_depth
-                    and prev.list_path == node.list_path
-                )
-                separator = (
-                    Paragraph(runs=[], list_depth=content_depth, list_path=node.list_path)
-                    if in_item
-                    else Paragraph(runs=[])
-                )
+                separator = Paragraph(runs=[], **_separator_list_fields(prev, node))
                 result.append(separator)
                 separators.add(id(separator))
         result.append(node)
@@ -1213,29 +1814,57 @@ def _with_quote_separators(nodes: list[DocNode]) -> tuple[list[DocNode], set[int
     return result, separators
 
 
-def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tuple[int, int]]:
-    """Map a node's index in `nodes` to the (spaceAbove, spaceBelow) it needs (#1098):
+@dataclass(frozen=True)
+class _Spacing:
+    """A node's spaceAbove and spaceBelow (0: none), and which of the two fields is a
+    gap beside a table (#1427), which a Doc's own spacing replaces only when it sets
+    that same field (without_paragraph_gaps)."""
+
+    above: int = 0
+    below: int = 0
+    table_gap_fields: frozenset[str] = frozenset()
+
+
+def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, _Spacing]:
+    """Map a node's index in `nodes` to the spacing it needs (#1098):
     a code block gets both, and a quoted node gets space on each side where its quote
-    meets content outside it (an unquoted node, a table, or the edge). Nodes inside one
-    quote get none between them, so the quote stays one block.
+    meets content outside it (an unquoted node, an unquoted table, or the edge). Nodes
+    inside one quote get none between them, a quoted table included (#1122), so the
+    quote stays one block, unless they're two paragraphs of that quote. A table itself
+    gets no spacing.
+
+    A paragraph break gets PARAGRAPH_GAP_PT below the first paragraph (#1382), so two
+    paragraphs don't read as one with a line break (_paragraph_gap_between). A plain
+    paragraph or list item beside a table takes it on the table's side, above or below
+    (#1427, _gap_after_table, _gap_before_table).
 
     A separator gets space on one side only, below the quote before it: spaced on both,
     two quotes sat twice as far apart as a quote and a paragraph (PR #1199 QA round 1).
     A Heading or a TITLE/SUBTITLE NamedBlock gets no quote-edge space: an explicit
-    value would replace its named style's own spacing (HEADING_1's 20pt above, say)."""
+    value would replace its named style's own spacing (HEADING_1's 20pt above, say).
+
+    A table can't take spacing, so where a quote starts or ends with a table, the
+    unquoted node on the other side of that edge takes the gap instead (PR #1359 QA
+    round 1)."""
+
+    def quoted_table(i: int) -> bool:
+        return 0 <= i < len(nodes) and isinstance(nodes[i], Table) and _in_quote(nodes[i])
 
     def outside_quote(i: int, *, count_separator: bool) -> bool:
         if i < 0 or i >= len(nodes):
             return True
         if id(nodes[i]) in separators:
-            return count_separator
-        return not _quoted(nodes[i])
+            # After a table, the quote after the separator takes the gap: a table
+            # can't take space below it (#1122).
+            return count_separator or (i > 0 and isinstance(nodes[i - 1], Table))
+        return not _in_quote(nodes[i])
 
-    spacing: dict[int, tuple[int, int]] = {}
+    spacing: dict[int, _Spacing] = {}
     for i, node in enumerate(nodes):
         if isinstance(node, Table) or id(node) in separators:
             continue
         above = below = 0
+        table_gap_fields: set[str] = set()
         if _is_code_paragraph(node):
             above = below = _BLOCK_SPACING_PT
         if _quoted(node) and not _has_named_spacing(node):
@@ -1243,59 +1872,109 @@ def _block_spacing(nodes: list[DocNode], separators: set[int]) -> dict[int, tupl
                 above = _BLOCK_SPACING_PT
             if outside_quote(i + 1, count_separator=True):
                 below = _BLOCK_SPACING_PT
+        elif not _in_quote(node) and not _has_named_spacing(node):
+            if quoted_table(i - 1):
+                above = _BLOCK_SPACING_PT
+            if quoted_table(i + 1):
+                below = _BLOCK_SPACING_PT
+        if i > 0 and _gap_after_table(nodes[i - 1], node):
+            above = PARAGRAPH_GAP_PT
+            table_gap_fields.add("spaceAbove")
+        if i + 1 < len(nodes) and _gap_before_table(node, nodes[i + 1]):
+            below = PARAGRAPH_GAP_PT
+            table_gap_fields.add("spaceBelow")
+        elif i + 1 < len(nodes) and _paragraph_gap_between(node, nodes[i + 1]):
+            below = PARAGRAPH_GAP_PT
         if above or below:
-            spacing[i] = (above, below)
+            spacing[i] = _Spacing(above, below, frozenset(table_gap_fields))
     return spacing
 
 
-def _spacing_requests(rng: dict, above: int, below: int) -> list[dict]:
+def _spacing_requests(
+    rng: dict, spacing: _Spacing, table_gaps: dict[int, str] | None = None
+) -> list[dict]:
     """spaceAbove on the first paragraph of a node's range and spaceBelow on its last.
     A node whose text holds a "\\n" becomes several Docs paragraphs (#1093); spacing the
-    whole range put a gap inside it (confirmed live)."""
+    whole range put a gap inside it (confirmed live). Each request that sets a gap
+    beside a table is recorded in `table_gaps`, id(request) -> its field."""
     start, end = rng["startIndex"], rng["endIndex"]
     requests = []
     for style_field, magnitude, sub_range in (
-        ("spaceAbove", above, {"startIndex": start, "endIndex": start + 1}),
-        ("spaceBelow", below, {"startIndex": end - 1, "endIndex": end}),
+        ("spaceAbove", spacing.above, {"startIndex": start, "endIndex": start + 1}),
+        ("spaceBelow", spacing.below, {"startIndex": end - 1, "endIndex": end}),
     ):
         if magnitude:
-            requests.append(
-                {
-                    "updateParagraphStyle": {
-                        "range": sub_range,
-                        "paragraphStyle": {style_field: {"magnitude": magnitude, "unit": "PT"}},
-                        "fields": style_field,
-                    }
+            request = {
+                "updateParagraphStyle": {
+                    "range": sub_range,
+                    "paragraphStyle": {style_field: {"magnitude": magnitude, "unit": "PT"}},
+                    "fields": style_field,
                 }
-            )
+            }
+            if table_gaps is not None and style_field in spacing.table_gap_fields:
+                table_gaps[id(request)] = style_field
+            requests.append(request)
     return requests
 
 
-def _collapse_paragraph_requests(rng: dict) -> list[dict]:
-    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, 1pt
-    font. Shared by the quote separators (#1098) and the blank paragraph before a
-    table."""
+def without_paragraph_gaps(
+    requests: list[dict], table_gaps: dict[int, str], own_fields: set[str]
+) -> list[dict]:
+    """`requests` without the paragraph gaps (#1382), for a doc whose NORMAL_TEXT has
+    spacing of its own (`own_fields`: "spaceAbove", "spaceBelow"), which should stand.
+    A gap beside a table (`table_gaps`, from ast_to_requests, #1427) goes only when the
+    doc sets that same field: a table takes no spacing, so a doc spaced only below its
+    paragraphs would leave the paragraph after a table on its border (PR #1434 QA
+    round 1). The gaps are paragraph styling, so nothing else's position moves."""
+    kept = []
+    for request in requests:
+        field = table_gaps.get(id(request))
+        if field is not None:
+            if field not in own_fields:
+                kept.append(request)
+        elif not _is_paragraph_gap(request):
+            kept.append(request)
+    return kept
+
+
+def _is_paragraph_gap(request: dict) -> bool:
+    """A paragraph break's gap: PARAGRAPH_GAP_PT of spaceBelow. _spacing_requests sends
+    each field as its own request, so a gap request never carries other spacing. A gap
+    beside a table is told apart by identity instead (without_paragraph_gaps)."""
+    style = request.get("updateParagraphStyle", {}).get("paragraphStyle", {})
+    return style.get("spaceBelow", {}).get("magnitude") == PARAGRAPH_GAP_PT
+
+
+def _collapse_paragraph_requests(rng: dict, *, font_size: bool = True) -> list[dict]:
+    """Shrink an empty paragraph to near-zero height: no spacing, 1% line spacing, and
+    (with `font_size`) a 1pt font. Shared by the quote separators (#1098), the blank
+    paragraph before a table, and, without the font, the empty paragraph after a doc's
+    final table (#1100)."""
     paragraph_style = {
         "spaceAbove": {"magnitude": 0, "unit": "PT"},
         "spaceBelow": {"magnitude": 0, "unit": "PT"},
         "lineSpacing": 1,
     }
-    return [
+    requests = [
         {
             "updateParagraphStyle": {
                 "range": rng,
                 "paragraphStyle": paragraph_style,
                 "fields": ",".join(paragraph_style),
             }
-        },
-        {
-            "updateTextStyle": {
-                "range": rng,
-                "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
-                "fields": "fontSize",
-            }
-        },
+        }
     ]
+    if font_size:
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
+    return requests
 
 
 # A thematic break (#1096). The Docs API can't insert a horizontalRule element, so a
@@ -1372,7 +2051,11 @@ def _rule_requests(rng: dict, *, quoted: bool) -> list[dict]:
 
 
 def _table_placeholder_requests(
-    position: int, blockquote_depth: int, list_depth: int | None = None
+    position: int,
+    blockquote_depth: int,
+    list_depth: int | None = None,
+    *,
+    quote_bar: bool = False,
 ) -> list[dict]:
     """Reset a table's placeholder paragraph (#1097) to plain before its insertTable,
     since the table takes its indent and every empty cell its text style. Plain means
@@ -1380,11 +2063,16 @@ def _table_placeholder_requests(
     paragraph field at its default (`*`: the doc's surviving final paragraph mark can
     carry a heading's style into new content), and no text style. A table inside a
     quote keeps the quote's indent, with no border, which a table doesn't take, and a
-    table inside a list item (`list_depth`, #1094) is indented to the item's text.
+    table inside a list item (`list_depth`, #1094) is indented to the item's text. A
+    quoted table's wrapper (`quote_bar`, #1122) sits _QUOTE_BAR_OFFSET_PT left of that,
+    so its bar lines up with the quote's.
     Bullets go first: deleteParagraphBullets adds indent, which the reset clears."""
     rng = {"startIndex": position, "endIndex": position + 1}
     paragraph_style: dict = {"namedStyleType": "NORMAL_TEXT"}
     first_line, start = _block_indents(blockquote_depth, content_level=list_depth)
+    if quote_bar:
+        first_line -= _QUOTE_BAR_OFFSET_PT
+        start -= _QUOTE_BAR_OFFSET_PT
     if start > 0:
         paragraph_style["indentStart"] = {"magnitude": start, "unit": "PT"}
         paragraph_style["indentFirstLine"] = {"magnitude": first_line, "unit": "PT"}
@@ -1543,6 +2231,65 @@ def image_fallback_requests(image: Image, position: int, text: str | None = None
     ]
 
 
+# Holds a list paragraph open past a run while it's styled, then goes (#1383).
+_MARKER_GUARD = "\u200b"
+
+
+def _item_paragraph_spans(seg: _SegmentMeta) -> list[tuple[int, int]]:
+    """Each paragraph of a BulletItem's text as (start, end) offsets from
+    `seg.doc_start`, its newline excluded. Every one has a marker: an item's text
+    holding a "\n" is several paragraphs in the same list (PR #1399 QA round 1). The
+    first starts past the depth-tabs and includes the checkbox glyph."""
+    text = "".join(run.text for run in seg.runs if isinstance(run, Run))
+    spans: list[tuple[int, int]] = []
+    start = seg.own_tabs
+    position = seg.skip_len
+    for line in text.split("\n"):
+        position += utf16_len(line)
+        spans.append((start, position))
+        position += 1
+        start = position
+    return spans
+
+
+def _item_run_style_requests(
+    run: Run, seg: _SegmentMeta, offset: int, length: int, paragraphs: list[tuple[int, int]]
+) -> list[dict]:
+    """The style requests for a BulletItem's run `length` long at `offset` in `seg`, for
+    after the bullet pass, so every position is past the item's consumed tabs (#1383).
+    `paragraphs` is _item_paragraph_spans(seg).
+
+    A marker takes its look from two moments, both confirmed live. createParagraphBullets
+    gives it every style the paragraph's whole text shares, which is why this waits for
+    that call. After it, an updateTextStyle whose range covers all of the paragraph's text
+    restyles the marker too, whether or not the range reaches the newline. So the run is
+    styled one paragraph at a time, newlines left out, and a piece that is a paragraph's
+    whole text is styled while a throwaway character holds the paragraph open past it.
+    Runs that only add up to a whole paragraph need nothing: no one request covers it.
+    The first paragraph is never covered when it opens with a checkbox glyph, which
+    isn't a run. A heading item's marker still follows its named style."""
+    requests: list[dict] = []
+    run_start, run_end = offset, offset + length
+    for para_start, para_end in paragraphs:
+        start, end = max(run_start, para_start), min(run_end, para_end)
+        if start >= end:
+            continue
+        doc_start = _after_bullet_pass(seg.doc_start + start, seg.tabs_through)
+        doc_end = doc_start + end - start
+        style = _run_style_requests(run, doc_start, doc_end)
+        if not style:
+            return []
+        if (start, end) == (para_start, para_end):
+            requests.append({"insertText": {"location": {"index": doc_end}, "text": _MARKER_GUARD}})
+            requests.extend(style)
+            requests.append(
+                {"deleteContentRange": {"range": {"startIndex": doc_end, "endIndex": doc_end + 1}}}
+            )
+        else:
+            requests.extend(style)
+    return requests
+
+
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
     """Return updateTextStyle requests for all non-None style fields on a Run."""
     text_style: dict = {}
@@ -1612,7 +2359,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     """Fill table cells and apply inline styles using live cell indices.
 
     Phases:
-      1. Re-fetch → get cell positions
+      1. Re-fetch → get cell positions; collapse the blank paragraph before each table
+         and, when the doc ends in a table, the empty paragraph after it (#1100)
       2. If any colspan/rowspan > 1: emit mergeTableCells, re-fetch
       3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
       4. Fill cells with a nested table, segment by segment (see
@@ -1624,15 +2372,20 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
       7. If any cell, at any depth, has an alignment: emit updateParagraphStyle over
          its paragraphs (#1095), in the same batch as step 6
+      8. If any table is a quoted table's wrapper (Table.quote_bar, #1122): draw its
+         bar and collapse its cell's empty paragraphs, in the same batch as step 6.
+         Steps 5 and 6 apply a wrapped table's widths and cell styles to the table
+         inside the wrapper.
 
-    Phases 5 to 7 must use a doc fetched after phases 3 and 4: the fill shifts the
+    Phases 5 to 8 must use a doc fetched after phases 3 and 4: the fill shifts the
     startIndex of every table after the first, and a stale one is a 400 (#1053).
     They share one post-fill fetch, since none of them moves an index.
 
     images: the resolved images to embed in cells, at any nesting depth, and how each
     fill batch is sent (#1073).
 
-    Nested table limitations: no col_widths inside nested tables. colspan/
+    Nested table limitations: no col_widths inside nested tables, except a quoted
+    table inside its quote-bar wrapper (#1122), whose widths step 5 applies. colspan/
     rowspan (#109) and text sharing a cell with one or more nested tables
     (#108, #275) are both fully supported, at any nesting depth — each run of
     text, merge, and nested table renders in the same order and shape it had
@@ -1656,7 +2409,13 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         docs_service.documents().get(documentId=doc_id).execute,
         docs_service,
     )
-    blank_collapses = _build_blank_para_before_table_collapses(live_doc)
+    # The empty paragraph after a final table is collapsed in the same batch (#1100). Both
+    # builders compute their ranges from this one fetch, which holds only because no
+    # request in the batch inserts or deletes anything: an index-shifting request added
+    # here would leave every range after it stale.
+    blank_collapses = _build_blank_para_before_table_collapses(
+        live_doc, tables
+    ) + _build_trailing_para_after_table_collapse(live_doc)
     if blank_collapses:
         await execute_in_thread(
             docs_service.documents()
@@ -1690,7 +2449,7 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
     post_fill_doc: dict | None = None
 
     # Step 5: column widths
-    if any(w is not None for t in tables for w in t.col_widths):
+    if any(w is not None for t in _quote_bars_unwrapped(tables) for w in t.col_widths):
         post_fill_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
             docs_service,
@@ -1714,14 +2473,17 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
         or cell.border_color is not None
         or cell.border_width is not None
         or cell.border_dash_style is not None
-        for table in tables
+        for table in _quote_bars_unwrapped(tables)
         for row in table.rows
         for cell in row.cells
     )
     # Step 7: horizontal cell alignment (#1095). It goes in step 6's batch, built from the
     # same post-fill snapshot: neither step moves an index.
     has_alignment = _has_cell_alignment(tables)
-    if has_cell_styles or has_alignment:
+    # Step 8: each quoted table's wrapper (#1122), in the same batch: its bar, and its
+    # cell's empty paragraphs collapsed. Neither moves an index.
+    has_quote_bars = any(table.quote_bar for table in tables)
+    if has_cell_styles or has_alignment or has_quote_bars:
         if post_fill_doc is None:
             post_fill_doc = await execute_in_thread(
                 docs_service.documents().get(documentId=doc_id).execute,
@@ -1733,6 +2495,8 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: Ce
             style_requests.extend(_build_cell_style_requests(doc_tables, tables))
         if has_alignment:
             style_requests.extend(_build_cell_alignment_requests(doc_tables, tables))
+        if has_quote_bars:
+            style_requests.extend(_build_quote_bar_requests(doc_tables, tables))
         if style_requests:
             await execute_in_thread(
                 docs_service.documents()
@@ -1746,6 +2510,87 @@ def _top_level_tables(live_doc: dict) -> list[dict]:
     return [
         elem["table"] for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
     ]
+
+
+def _quote_bars_unwrapped(tables: list[Table]) -> list[Table]:
+    """`tables` with each quote-bar wrapper (#1122) replaced by the table it holds."""
+    return [_quote_bar_inner(table) if table.quote_bar else table for table in tables]
+
+
+def _quote_bar_inner(wrapper: Table) -> Table:
+    inner = wrapper.rows[0].cells[0].children[0]
+    assert isinstance(inner, Table)
+    return inner
+
+
+def _quote_bar_inner_elem(doc_wrapper: dict) -> dict | None:
+    """The live content element of the table inside a quote-bar wrapper (#1122), or
+    None when the wrapper's cell doesn't hold exactly one table (the fill skipped it)."""
+    rows = doc_wrapper.get("tableRows", [])
+    cells = rows[0].get("tableCells", []) if rows else []
+    content = cells[0].get("content", []) if cells else []
+    nested = [elem for elem in content if "table" in elem]
+    return nested[0] if len(nested) == 1 else None
+
+
+def _quote_bar_cell_style(table_start: int) -> dict:
+    """updateTableCellStyle giving a wrapper's one cell the quote bar as its left
+    border, no other border, and the left padding that puts the table it holds at the
+    quote's indent (see _QUOTE_BAR_OFFSET_PT)."""
+    hidden = {"color": _BORDER_GRAY, "width": {"magnitude": 0, "unit": "PT"}, "dashStyle": "SOLID"}
+    style = {
+        "borderLeft": {
+            "color": _BORDER_GRAY,
+            "width": {"magnitude": _QUOTE_BAR_WIDTH_PT, "unit": "PT"},
+            "dashStyle": "SOLID",
+        },
+        "borderTop": hidden,
+        "borderRight": hidden,
+        "borderBottom": hidden,
+        "paddingLeft": {"magnitude": _QUOTE_BAR_OFFSET_PT, "unit": "PT"},
+        "paddingTop": {"magnitude": 0, "unit": "PT"},
+        "paddingRight": {"magnitude": 0, "unit": "PT"},
+        "paddingBottom": {"magnitude": 0, "unit": "PT"},
+    }
+    return {
+        "updateTableCellStyle": {
+            "tableStartLocation": {"index": table_start},
+            "tableCellStyle": style,
+            "fields": ",".join(style),
+        }
+    }
+
+
+def _build_quote_bar_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Style each quoted table's wrapper (#1122) from a doc fetched after the fill: its
+    cell's bar and padding, and the empty paragraphs Docs keeps around the table in the
+    cell (one before it from the insertTable, the cell's own after it), collapsed so the
+    bar hugs the table. The first one records the quote's indent, the one place a table's
+    quote depth survives in the doc: doc_to_ast.py reads it back. It's empty and
+    collapsed, so the indent shows nowhere. None of this moves an index."""
+    requests: list[dict] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        if not ast_table.quote_bar:
+            continue
+        table_start = _table_start_index(doc_table)
+        if table_start is None:
+            continue
+        requests.append(_quote_bar_cell_style(table_start))
+        cells = doc_table.get("tableRows", [{}])[0].get("tableCells", [])
+        paragraphs = [
+            elem
+            for elem in (cells[0].get("content", []) if cells else [])
+            if "paragraph" in elem and "startIndex" in elem and "endIndex" in elem
+        ]
+        _first_line, indent = _block_indents(
+            ast_table.blockquote_depth, content_level=ast_table.list_depth
+        )
+        for i, elem in enumerate(paragraphs):
+            rng = {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]}
+            if i == 0:
+                requests.append(_indent_style_request(rng, (indent, indent), border=False))
+            requests.extend(_collapse_paragraph_requests(rng))
+    return requests
 
 
 def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: int) -> dict | None:
@@ -2255,7 +3100,8 @@ def _build_fill_requests(
 
 
 def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
-    """Build updateTableCellStyle requests for cells with Phase 3 style fields set."""
+    """Build updateTableCellStyle requests for cells with Phase 3 style fields set. A
+    quoted table's go on the table inside its wrapper (#1122)."""
     requests: list[dict] = []
 
     def _rgb(color) -> dict:
@@ -2265,6 +3111,11 @@ def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) 
         return {"magnitude": magnitude, "unit": "PT"}
 
     for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
+        if ast_table.quote_bar:
+            inner_elem = _quote_bar_inner_elem(doc_table)
+            if inner_elem is None:
+                continue
+            doc_table, ast_table = inner_elem["table"], _quote_bar_inner(ast_table)
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
@@ -2421,13 +3272,19 @@ def _has_cell_alignment(tables: list[Table]) -> bool:
 
 
 def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]:
-    """Build updateTableColumnProperties requests for tables with col_widths."""
+    """Build updateTableColumnProperties requests for tables with col_widths. A quoted
+    table's widths go on the table inside its wrapper (#1122), not on the wrapper."""
     requests: list[dict] = []
     doc_table_elems = [
         elem for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
     ]
 
     for elem, ast_table in zip(doc_table_elems, ast_tables, strict=True):
+        if ast_table.quote_bar:
+            inner_elem = _quote_bar_inner_elem(elem["table"])
+            if inner_elem is None:
+                continue
+            elem, ast_table = inner_elem, _quote_bar_inner(ast_table)
         if not ast_table.col_widths:
             continue
         table_start = elem.get("startIndex")
@@ -2459,7 +3316,22 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
     return requests
 
 
-def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
+def _shared_quote_indents(first: Table, second: Table) -> tuple[int, int] | None:
+    """The indents of the quote two adjacent quoted tables' wrappers share (#1122): the
+    shallower one's, when both are wrappers in one quote (one's blockquote_path a prefix
+    of the other's, as in _with_quote_separators). None otherwise."""
+    if not (first.quote_bar and second.quote_bar):
+        return None
+    a, b = first.blockquote_path, second.blockquote_path
+    if a[: len(b)] != b and b[: len(a)] != a:
+        return None
+    outer = first if first.blockquote_depth <= second.blockquote_depth else second
+    return _block_indents(outer.blockquote_depth, content_level=outer.list_depth)
+
+
+def _build_blank_para_before_table_collapses(
+    live_doc: dict, ast_tables: list[Table] | None = None
+) -> list[dict]:
     """Return requests that reset empty paragraphs immediately before tables to a plain
     paragraph and collapse them to zero visual height.
 
@@ -2471,11 +3343,19 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
     preceding heading's style, #1092), no bullet and no indent or border (see below).  Only
     paragraphs whose sole content is a newline are affected, and one sitting between two
     tables is reset but keeps its height (#1098).
+
+    `ast_tables` are the top-level tables in document order, as fill_tables gets them.
+    Between two quoted tables' wrappers in one quote, the full-height paragraph also gets
+    that quote's indent and bar, so the bar runs on past the gap (PR #1359 QA round 1).
     """
     content = live_doc.get("body", {}).get("content", [])
     requests: list[dict] = []
+    table_count = 0
     for i, elem in enumerate(content):
-        if "table" not in elem or i == 0:
+        if "table" not in elem:
+            continue
+        table_count += 1
+        if i == 0:
             continue
         prev = content[i - 1]
         if "paragraph" not in prev:
@@ -2513,9 +3393,40 @@ def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
         if i >= 2 and "table" in content[i - 2]:
             # The only thing between two tables: collapsed, the tables touched and read
             # as one (#1098). Left at full height, it's the blank line between them.
+            this = table_count - 1
+            if ast_tables is not None and this < len(ast_tables):
+                indents = _shared_quote_indents(ast_tables[this - 1], ast_tables[this])
+                if indents is not None:
+                    requests.append(_indent_style_request(rng, indents, border=True))
             continue
         requests.extend(_collapse_paragraph_requests(rng))
     return requests
+
+
+def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
+    """Collapse the empty paragraph Docs keeps after a doc's final table (#1100).
+
+    A body always ends in a paragraph, so a doc ending in a table has an empty one after
+    it. When the table reaches the bottom margin, that paragraph spills onto a page of
+    its own: a blank last page. Spacing 0 and 1% line spacing take its height away
+    (checked live by the PDF export's page count); a 1pt font alone doesn't, so the font
+    is left alone, and text later typed there keeps the doc's size. That text still
+    takes the 1% line spacing and overlaps the table until it's reset, which
+    docs/known-limitations.md names. A rewrite clears it: _replace_doc_content resets
+    the final paragraph mark's style before the clear.
+    """
+    content = live_doc.get("body", {}).get("content", [])
+    if len(content) < 2 or "table" not in content[-2]:
+        return []
+    last = content[-1]
+    paragraph = last.get("paragraph")
+    if paragraph is None:
+        return []
+    text = "".join(el.get("textRun", {}).get("content", "") for el in paragraph.get("elements", []))
+    start, end = last.get("startIndex"), last.get("endIndex")
+    if text != "\n" or start is None or end is None:
+        return []
+    return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
 
 
 def _table_start_index(doc_table: dict) -> int | None:

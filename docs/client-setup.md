@@ -6,12 +6,12 @@ Install the MCP Bundle, or add a block under `mcpServers` in `claude_desktop_con
 
 ### Install as a bundle
 
-A [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, under its assets. Open it in Claude Desktop on macOS to install the server, without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.
+**New in v0.9.6;** on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/client-setup/). A [GitHub Release](https://github.com/khuisman/mcp-gee-sweet/releases) carries an MCP Bundle, `mcp-gee-sweet-<version>.mcpb`, under its assets. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) first: the bundle runs the server with it. Then download the `.mcpb` file and double-click it, or install it from Claude Desktop's **Settings → Extensions**, to install the server on macOS without editing any config file. The bundle declares macOS and Linux; Windows isn't tested yet, so it's left out.
 
 The install dialog asks for:
 
-- **OAuth client file** (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See [Authentication](auth.md#method-b-oauth-20-personal-use--local-dev) for how to create one.
-- **Enabled tools** (optional): a comma-separated list of tool names. Leave it empty to enable every tool (see [Tool filtering](#tool-filtering-in-client-config)).
+- **OAuth client file** (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See [Authentication](auth.md#method-b-oauth-20-personal-use-local-dev) for how to create one.
+- **Enabled tools** (optional): a comma-separated list of tool names, or `all` for every tool (see [Tool filtering](#tool-filtering-in-client-config)). Empty also enables every tool in this release, with a warning at startup: an upcoming release loads a smaller default set when it's empty, so enter `all` to keep every tool.
 
 The bundle ships the source and `uv.lock`, not the dependencies: the first start runs `uv run --frozen`, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (`AUTH_METHOD=oauth`) and keeps the token at `~/.mcp-gee-sweet-token.json`, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.
 
@@ -41,7 +41,7 @@ There's no token on the first start. The server starts without Google access, an
 
 Replace `/path/to/mcp-gee-sweet` with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the `env` block for a different auth method — see [Authentication](auth.md).
 
-Before the first connection, log in once from a terminal with the same paths: `CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its first tool call offers you the Google consent link, or you can run this command and retry (see [Re-authorizing from the client](auth.md#method-b-oauth-20-personal-use--local-dev)).
+Before the first connection, log in once from a terminal with the same paths: `CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its first tool call offers you the Google consent link, or you can run this command and retry (see [Re-authorizing from the client](auth.md#method-b-oauth-20-personal-use-local-dev)).
 
 ### SSE — Docker
 
@@ -62,6 +62,20 @@ The container serves over the network interface, so it needs a bearer token (see
 ```
 
 For Claude Code: `claude mcp add --transport sse mcp-gee-sweet http://localhost:47000/sse --header "Authorization: Bearer <token>"`.
+
+## Claude Code — stdio
+
+```bash
+claude mcp add mcp-gee-sweet \
+  -e ENABLED_TOOLS=all \
+  -e CREDENTIALS_PATH=/path/to/credentials.json \
+  -e TOKEN_PATH=/path/to/token.json \
+  -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
+```
+
+`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set (`all` is new in v0.9.6; on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/client-setup/)). For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+
+Before the first connection, log in once from a terminal with the same paths and the same `ENABLED_TOOLS`, which decides the scopes: `CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`, or `... uvx mcp-gee-sweet auth` for a PyPI install.
 
 ## Claude Code (this project's own MCP config)
 
@@ -98,10 +112,12 @@ Several MCP clients cap how many tools they accept, and with every tool register
 
 | Client | Limit | What happens over it |
 |---|---|---|
-| VS Code + GitHub Copilot (agent mode) | 128 tools per request, VS Code's built-in tools included ([docs](https://code.visualstudio.com/docs/agents/run/tools)) | The request fails with "Cannot have more than 128 tools per request" |
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, VS Code's built-in tools included ([docs](https://code.visualstudio.com/docs/agents/run/tools)) | Depends on the build: see the note below the table |
 | Windsurf | 100 tools in total, across every server ([docs](https://docs.devin.ai/desktop/cascade/mcp)) | Not documented |
 | Cursor | Depends on the model (older builds capped it at 40) | "Too many MCP tools are enabled for this mode", or only part of the tool list is used |
 | Google Antigravity | 100 tools per server (user report) | The server is rejected |
+
+**VS Code may not need a subset.** In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was **Search Tools**, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". If you see that error, use a subset as below.
 
 The fix is the same everywhere: set `ENABLED_TOOLS` to one of the [suggested subsets](configuration.md#suggested-subsets), each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.
 

@@ -64,7 +64,7 @@
     "enabled_tools": {
       "type": "string",
       "title": "Enabled tools",
-      "description": "Comma-separated tool names to register. Leave empty to enable every tool.",
+      "description": "Comma-separated tool names to register, or `all` for every tool. Empty also enables every tool in this release; an upcoming release loads a smaller default set when empty.",
       "required": false,
       "default": ""
     }

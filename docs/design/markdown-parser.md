@@ -27,6 +27,7 @@ _md_to_html(md, autolink_urls)
 |---|---|
 | markdown-it-py, `commonmark` preset | CommonMark-conformant, already in the lock as a transitive dependency (now a direct one). `html=True` keeps raw HTML passing through to `html_to_ast`, as before. |
 | `table`, `strikethrough` rules | GFM's two block/inline extensions. Task lists are left as literal `[ ] `/`[x] ` text, which `html_to_ast` already turns into checkbox items, so no plugin is needed. |
+| `strikethrough_single_tilde` option (#1335, not yet on) | The strikethrough rule takes `~~` only until #1335 turns this option on. With it on, the rule follows GFM: `~x~` strikes like `~~x~~`, a run of three or more tildes is literal text, and an opening and a closing run pair only when they're the same width (`~q~~` doesn't strike). A strike inside a strike (`~~a ~b~ c~~`, `~a ~~b~~ c~`) is then nested `<s>`, which `html_to_ast` reads as all of the text struck with no tilde left, as GitHub renders it (#1462). The export side already respects the three-tilde rule: `get_doc_as_markdown` never writes two struck runs as `~~a~~~~b~~` (`doc-to-markdown.md`). |
 | `_gfm_autolink_rule` (core rule) | GFM extended autolinks: `www.`, `http(s)://`, email. See below. |
 | `normalizeLink` = identity | markdown-it percent-encodes destinations; a local image path like `café.png` would no longer open. `validateLink` still refuses `javascript:` and friends. |
 | `_spaced_image_rule`, `_spaced_link_rule` (inline rules) | `![alt](/path/Screen Shot.png)`, `[notes](./My Notes.md "t")`: Python-Markdown accepted a space in a link or image destination, CommonMark doesn't, and existing `.md` files rely on it. Only that shape is taken: two or more space-separated pieces with no quotes, parens or angle brackets, then an optional quoted title. Anything CommonMark itself parses as a link or image never reaches them. The destination is unescaped like any other (`\_`, `&amp;`) and refused if that yields a quote; the match stops at `posMax` (a link label's end, inside one); a label naming a reference definition stays that reference; and no link opens inside another's label. |
@@ -153,7 +154,8 @@ Inventory of where markdown-it's HTML differs from Python-Markdown's, and what h
 | Strikethrough | (none) | `<s>` | Already handled (`_INLINE_STRIKE`). |
 | Table alignment | `align="left"` | `style="text-align:left"` | Neither was read at this PR; no AST field for column alignment. No regression. Since #1095 both are read into `Cell.alignment` (`text-align` first). |
 | Code block language | `class="language-x"` | same | Unchanged. |
-| Hard break | `<br />\n` | same | Unchanged; the double break it produces is #1117. Now reachable from a trailing `\` too. |
+| Hard break | `<br />\n` | same | Unchanged at this PR; the double break it produced was #1117. Now reachable from a trailing `\` too. Since #1230 a `<br>` is a `"\v"` line break inside the paragraph, and the source line break after it is dropped. |
+| Soft break | `a\nb` | same | Unchanged at this PR; it split the paragraph (#1093). Since #1230 it's a space. |
 | Two quotes | one `<blockquote>`, two `<p>` | two `<blockquote>` | Renders as two quotes (#1098's emitter work). |
 | Empty item | (not produced) | `<li></li>` | An empty bullet (#1075). |
 | Output | no trailing newline | ends in `\n` | Harmless; one exact-match test updated. |

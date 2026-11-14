@@ -28,8 +28,13 @@ Known gaps (full comments CRUD, conditional formatting, protected ranges, multi-
 
 ## Quickstart
 
+For a step-by-step setup from installing `uv` to a first tool call in Claude Desktop, see the [README's Quick start](https://github.com/khuisman/mcp-gee-sweet#quick-start).
+
 ```bash
-# Run locally
+# Run the published package (a stdio server, started by your MCP client)
+uvx mcp-gee-sweet
+
+# Run from a cloned repo
 uv run mcp-gee-sweet
 
 # Docker
