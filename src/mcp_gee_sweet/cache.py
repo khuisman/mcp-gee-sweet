@@ -867,8 +867,8 @@ class CalendarCache(_BaseCache):
         logger.debug("Calendar list cache hit")
         return json.loads(row["value"])
 
-    def store_list(self, calendars: list):
-        if self._replace(self._LIST_KEY, calendars):
+    def store_list(self, calendars: list, epoch: int | None = None):
+        if self._replace(self._LIST_KEY, calendars, epoch):
             logger.debug("Cached calendar list (%d entries)", len(calendars))
 
     def get(self, calendar_id: str) -> dict | None:
@@ -879,14 +879,20 @@ class CalendarCache(_BaseCache):
         logger.debug("Calendar cache hit: %s", calendar_id)
         return json.loads(row["value"])
 
-    def store(self, calendar_id: str, calendar: dict):
-        if self._replace(calendar_id, calendar):
+    def store(self, calendar_id: str, calendar: dict, epoch: int | None = None):
+        if self._replace(calendar_id, calendar, epoch):
             logger.debug("Cached calendar %s", calendar_id)
 
     def mark_dirty(self, calendar_id: str):
         for key in (calendar_id, self._LIST_KEY):
             self._mark_dirty_key(key)
         logger.debug("Marked calendar cache dirty for %s", calendar_id)
+
+    def mark_list_dirty(self):
+        """Invalidate only the calendar list, for a write whose calendar ID the
+        caller doesn't know until the response names it (create_calendar)."""
+        self._mark_dirty_key(self._LIST_KEY)
+        logger.debug("Marked calendar list cache dirty")
 
 
 async def fetch_sheets(

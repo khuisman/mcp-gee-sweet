@@ -1934,3 +1934,26 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Round 2 fixes not covered by a live test case above:**
 - The calendar-list fetch backing `summary_by_id` (`calendar.py`, before `_fetch_one`) had no try/except and could abort the whole batch on a transient failure even when `calendar_ids` was given explicitly (so the fetch was only needed for display names). Now caught: with explicit `calendar_ids`, the call proceeds using the bare IDs as display names; with no `calendar_ids` (so there's no other way to know what to query), it returns a single top-level `{"error": ...}` instead of raising. Forcing a live `calendarList().list()` failure isn't something QA can safely trigger against a real account — covered by `test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort` and `test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error` in `tests/test_calendar.py` only. Documented scoping decision, not an oversight.
 - `time_min`'s default (`datetime.now(timezone.utc)`) was computed independently inside each concurrent per-calendar task, so calendars in the same call could query against slightly different "now" instants under real contention. Now computed once before the fan-out and reused by every task. Not distinguishable via a single live call's response (there's no observable difference unless an event's start time falls in the microseconds-wide window between two independent `datetime.now()` calls) — covered by `test_default_time_min_is_computed_once_for_the_whole_batch` in `tests/test_calendar.py` only.
+
+---
+
+## Cache invalidation for cancelled writes
+
+### TC-CAL85: A Calendar write cancelled while in flight still lands, and the calendar cache is invalidated on the cancel and again once it lands (#1265) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Same mechanism as `drive_files.md`'s TC-D301. `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real API and cancels it while its write request is held on its worker thread. The thread can't be stopped, so the event is created after the cancellation. The script prints every calendar cache invalidation as `calendar cache marked dirty for <id>` with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`), on an OAuth identity that owns `{CALENDAR_ID}` (see the identity note at the top of this file).
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py create_event --calendar-id {CALENDAR_ID}`
+2. `list_events(calendar_id={CALENDAR_ID}, time_min="2030-01-01T00:00:00Z", time_max="2030-01-03T00:00:00Z")`
+
+**Checks**
+- Step 1 prints `cancelled create_event while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
+- Step 1 prints `calendar cache marked dirty for {CALENDAR_ID} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1265, neither line was printed
+- Step 2 lists `TC-1265 event` on 2030-01-01 (the cancelled write landed). Record its `id` as `{NEW_EVENT}`
+- If step 1 shows only a `(write landed: yes)` line, the write finished before the cancel reached the tool; delete the event and re-run it
+
+**Cleanup:** `delete_event(calendar_id={CALENDAR_ID}, event_id={NEW_EVENT})`.

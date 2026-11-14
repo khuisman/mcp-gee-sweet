@@ -1,7 +1,7 @@
 # Invalidating Caches for Cancelled and Failed Writes
 
 **Date:** 2026-10-27
-**Issues:** #1030 (with #1032 folded in)
+**Issues:** #1030 (with #1032 folded in); Sheets and Calendar added for #1265 (2026-11-14)
 
 ## Problem
 
@@ -38,7 +38,15 @@ The callback for a Drive write. It's built with the folders known before the wri
 
 Three more gaps sat in files this PR already changes, so they're fixed here. `create_doc`/`create_doc_from_file` (`_create_doc_file`) hooked only an abandoned create, and only when a folder was named, so a create that failed after Drive applied it left the listing stale; it now goes through `invalidating` and `_FolderInvalidation` like the other creates. `_replace_doc_content`'s backup copy (`content.py`) never marked its folder dirty, either after the copy or after removing it, so a listing read in between kept showing a deleted backup. `import_csv_to_sheet` (`files.py`) now wraps its sheet rename/resize in `invalidating` for `cache`, and its chunk writes for `sheet_data_cache`.
 
+## Sheets and Calendar (#1265)
+
+The Sheets and Calendar write tools now follow the same rule. Each write runs inside `invalidating`, and its post-success `mark_dirty` is gone.
+
+- **Sheets.** `data.py`'s `_execute_or_error` takes `invalidate=`, the write's callback, and catches the `HttpError` outside the `invalidating` block, so the block sees a 4xx before it becomes an error dict. `clear_values`, `update_cells` (each of its up to two writes), and `batch_update_cells` go through it; `batch_update` marks both caches. In `structure.py`, the tab-list writes (`copy_sheet`'s copy and rename, `duplicate_sheet`, `rename_sheet`, `create_sheet`, `delete_sheet`) invalidate `cache`. Five writes that change values or their positions, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, and `sort_range`, never invalidated `sheet_data_cache` at all, and `clear_values` didn't either; they now do. The default modifiedTime check usually caught those, but not with `CACHE_VALIDATE_MODIFIED_TIME=false`. Formatting, resizing, hiding, validation, merges, and charts change nothing either cache holds.
+- **Calendar.** Every write tool invalidates through `invalidating`, and the existing Calendar tests that asserted a failed write leaves the cache alone now use a 4xx, the one failure that still does. `create_calendar` learns its ID only from the response, and the only entry that could hold a new calendar is the list, so it marks just the list (`CalendarCache.mark_list_dirty`). `add_calendar_to_list` uses the caller's ID instead of the response's. `_get_cached_calendar_list` and `get_calendar` snapshot the epoch after the lookup and pass it to `store_list`/`store`, which now take `epoch=` (#1032's guard).
+
+`scripts/qa_cancel_inflight_write.py` gained `update_cells`, `create_sheet`, and `create_event` (TC-W45, TC-CAL85).
+
 ## Not covered
 
-- The Sheets tools under `tools/sheets/` and the Calendar write tools in `calendar.py` still invalidate only after a successful response, and `calendar.py`'s calendar-list fetch stores without an epoch guard. The Calendar tests assert that a failed write doesn't invalidate, so changing that is a policy change of its own.
 - A create into My Drive's root with no folder named: an abandoned one can't be placed, and the root's listing is keyed by whatever ID the caller passed to `list_files`. `_FolderInvalidation` falls back to `mark_all_dirty()` there.

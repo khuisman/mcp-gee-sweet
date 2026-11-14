@@ -46,6 +46,16 @@ def _cannot_change_own_acl_error():
     )
 
 
+def _rejection(message):
+    """A 4xx: the API ran nothing, so a write tool leaves its cache alone (#1265). A
+    failure that may have landed (a 5xx, a timeout) invalidates instead; that's
+    covered for every write tool in tests/test_cancelled_write_invalidation.py."""
+    resp = MagicMock()
+    resp.status = 404
+    resp.reason = message
+    return HttpError(resp=resp, content=b"{}")
+
+
 def _make_tool_registry():
     captured = {}
 
@@ -111,7 +121,7 @@ class TestListCalendars:
         assert result[0]["id"] == "cal-1"
         assert result[0]["time_zone"] == "America/Los_Angeles"
         assert result[0]["access_role"] == "owner"
-        cache.store_list.assert_called_once_with(result)
+        cache.store_list.assert_called_once_with(result, epoch=cache.snapshot_epoch.return_value)
 
 
 class TestCreateCalendar:
@@ -159,8 +169,10 @@ class TestCreateCalendar:
         body = cal_svc.calendars.return_value.insert.call_args.kwargs["body"]
         assert body == {"summary": "Minimal"}
 
-    async def test_marks_cache_dirty_with_new_calendar_id(self):
-        """calendar_cache.mark_dirty must be called with the newly created calendar's id."""
+    async def test_marks_calendar_list_dirty(self):
+        """The new calendar's ID is only in the response, and the only cache entry
+        that could hold it is the list, so create_calendar invalidates the list
+        (#1265), even when the request fails or is cancelled before a response."""
         cal_svc = MagicMock()
         cal_svc.calendars.return_value.insert.return_value.execute.return_value = {
             "id": "new-cal-3",
@@ -171,12 +183,12 @@ class TestCreateCalendar:
 
         await _cal_tools["create_calendar"](summary="Test", ctx=ctx)
 
-        cache.mark_dirty.assert_called_once_with("new-cal-3")
+        cache.mark_list_dirty.assert_called_once_with()
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """When calendars().insert() raises, result must be {"error": ...} and cache stays clean."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendars().insert() returns a 4xx, result must be {"error": ...} and cache stays clean."""
         cal_svc = MagicMock()
-        cal_svc.calendars.return_value.insert.return_value.execute.side_effect = Exception(
+        cal_svc.calendars.return_value.insert.return_value.execute.side_effect = _rejection(
             "quotaExceeded"
         )
         cache = MagicMock()
@@ -186,6 +198,7 @@ class TestCreateCalendar:
 
         assert "error" in result
         cache.mark_dirty.assert_not_called()
+        cache.mark_list_dirty.assert_not_called()
 
 
 class TestUpdateCalendar:
@@ -253,10 +266,10 @@ class TestUpdateCalendar:
 
         cache.mark_dirty.assert_called_once_with("cal-2")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """When calendars().patch() raises, result must be {"error": ...} and cache stays clean."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendars().patch() returns a 4xx, result must be {"error": ...} and cache stays clean."""
         cal_svc = MagicMock()
-        cal_svc.calendars.return_value.patch.return_value.execute.side_effect = Exception(
+        cal_svc.calendars.return_value.patch.return_value.execute.side_effect = _rejection(
             "notFound"
         )
         cache = MagicMock()
@@ -285,10 +298,10 @@ class TestDeleteCalendar:
         assert result == {"calendar_id": "cal-1", "action": "deleted"}
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """If delete raises, result has 'error' key and the cache must not be dirtied."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """If delete returns a 4xx, result has 'error' key and the cache must not be dirtied."""
         cal_svc = MagicMock()
-        cal_svc.calendars.return_value.delete.return_value.execute.side_effect = Exception(
+        cal_svc.calendars.return_value.delete.return_value.execute.side_effect = _rejection(
             "Not Found"
         )
         cache = MagicMock()
@@ -355,10 +368,10 @@ class TestAddCalendarToList:
 
         cache.mark_dirty.assert_called_once_with("shared-cal@example.com")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """When calendarList().insert() raises, result must be {"error": ...} and cache stays clean."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendarList().insert() returns a 4xx, result must be {"error": ...} and cache stays clean."""
         cal_svc = MagicMock()
-        cal_svc.calendarList.return_value.insert.return_value.execute.side_effect = Exception(
+        cal_svc.calendarList.return_value.insert.return_value.execute.side_effect = _rejection(
             "notFound"
         )
         cache = MagicMock()
@@ -387,10 +400,10 @@ class TestRemoveCalendarFromList:
         assert result == {"calendar_id": "cal-1", "action": "removed_from_list"}
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """If delete raises, result has 'error' key and the cache must not be dirtied."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """If delete returns a 4xx, result has 'error' key and the cache must not be dirtied."""
         cal_svc = MagicMock()
-        cal_svc.calendarList.return_value.delete.return_value.execute.side_effect = Exception(
+        cal_svc.calendarList.return_value.delete.return_value.execute.side_effect = _rejection(
             "Not Found"
         )
         cache = MagicMock()
@@ -709,9 +722,9 @@ class TestAddCalendarAcl:
 
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
         cal_svc = MagicMock()
-        cal_svc.acl.return_value.insert.return_value.execute.side_effect = Exception(
+        cal_svc.acl.return_value.insert.return_value.execute.side_effect = _rejection(
             "Invalid sharee"
         )
         cache = MagicMock()
@@ -827,9 +840,9 @@ class TestRemoveCalendarAcl:
         )
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
         cal_svc = MagicMock()
-        cal_svc.acl.return_value.delete.return_value.execute.side_effect = Exception("Not Found")
+        cal_svc.acl.return_value.delete.return_value.execute.side_effect = _rejection("Not Found")
         cache = MagicMock()
         ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
@@ -953,10 +966,10 @@ class TestCreateEvent:
         )
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """When events().insert() raises, result must be {"error": ...} and cache stays clean."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """When events().insert() returns a 4xx, result must be {"error": ...} and cache stays clean."""
         cal_svc = MagicMock()
-        cal_svc.events.return_value.insert.return_value.execute.side_effect = Exception(
+        cal_svc.events.return_value.insert.return_value.execute.side_effect = _rejection(
             "quotaExceeded"
         )
         cache = MagicMock()
@@ -1915,10 +1928,12 @@ class TestDeleteEvent:
         assert result == {"calendar_id": "cal-1", "event_id": "evt-1", "action": "deleted"}
         cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
-        """If delete raises, result has 'error' key and the cache must not be dirtied."""
+    async def test_api_rejection_returns_error_dict_without_marking_cache_dirty(self):
+        """If delete returns a 4xx, result has 'error' key and the cache must not be dirtied."""
         cal_svc = MagicMock()
-        cal_svc.events.return_value.delete.return_value.execute.side_effect = Exception("Not Found")
+        cal_svc.events.return_value.delete.return_value.execute.side_effect = _rejection(
+            "Not Found"
+        )
         cache = MagicMock()
         ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
