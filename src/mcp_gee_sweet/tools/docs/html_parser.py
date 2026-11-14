@@ -900,9 +900,7 @@ class _AstParser(HTMLParser):
             italic=True if self._italic_depth > 0 or bare.italic else None,
             underline=True if self._underline_depth > 0 or bare.underline else None,
             strikethrough=True if self._strike_depth > 0 or bare.strike else None,
-            background_color=RGBColor(*_MARK_RGB)
-            if self._mark_depth > 0 or bare.mark
-            else None,
+            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 or bare.mark else None,
             baseline_offset=self._baseline_stack[-1] if self._baseline_stack else bare.baseline,
             # An <a> opened with no block or cell around it pushed its href as a
             # bare link (#977); a run flushed while it is still open — the
@@ -1835,11 +1833,7 @@ class _AstParser(HTMLParser):
                 src = _image_src(attr_dict)
                 if src:
                     link_url = self._link_url[-1] if self._link_url else None
-                    if (
-                        link_url is None
-                        and self._block_tag is not None
-                        and self._table_depth == 0
-                    ):
+                    if link_url is None and self._block_tag is not None and self._table_depth == 0:
                         # An <a> around the block, which opened with no block around
                         # it, pushed its href as a bare link (#977), which a bare
                         # top-level <img> reads; an image in any block it wraps keeps

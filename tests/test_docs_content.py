@@ -1018,9 +1018,10 @@ class TestContainerText:
         # both cells plain — verified against develop, which leaves them plain too —
         # and the element-recorded style must not cross a cell boundary either.
         nodes = html_to_ast("<table><tr><b><td>x</td><td>y</td></b></tr></table>")
-        assert [
-            [(r.text, r.bold) for r in cell.children] for cell in nodes[0].rows[0].cells
-        ] == [[("x", None)], [("y", None)]]
+        assert [[(r.text, r.bold) for r in cell.children] for cell in nodes[0].rows[0].cells] == [
+            [("x", None)],
+            [("y", None)],
+        ]
 
     def test_inline_only_content_in_a_quote(self):
         nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
