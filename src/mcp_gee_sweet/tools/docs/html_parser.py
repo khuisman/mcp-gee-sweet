@@ -745,7 +745,8 @@ class _AstParser(HTMLParser):
         # written once more content follows in the same segment of the cell, and
         # dropped if the segment ends first.
         self._cell_held_runs: list[Run] = []
-        # Open <pre> tags inside a table cell, whose whitespace is never trimmed.
+        # Open <pre> tags inside a table cell, whose whitespace is never trimmed
+        # and whose runs are code-styled (#1417), like a body <pre>'s.
         self._cell_pre_depth = 0
 
         # --- named block style (data-style on <p>) ---
@@ -781,7 +782,11 @@ class _AstParser(HTMLParser):
             background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
             baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
             link_url=self._link_url[-1] if self._link_url else None,
-            font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
+            font_family=(
+                "Courier New"
+                if (self._in_pre or self._cell_pre_depth > 0 or self._code_depth > 0)
+                else None
+            ),
         )
         self._pending_runs.append(run)
 

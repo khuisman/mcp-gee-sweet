@@ -1345,6 +1345,34 @@ class TestCellImageParser:
         assert self._linked_text(cells[2]) == [("x\n", "http://u"), ("y", None)]
         assert self._linked_text(cells[3]) == [("\n  code\n", None)]
 
+    async def test_pre_in_a_cell_is_styled_as_code(self):
+        # #1417: a <pre> inside a cell kept its line breaks (#1215) but read as
+        # plain text — the cell path never gave its runs the body <pre>'s font.
+        nodes = html_to_ast("<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table>")
+        cells = nodes[0].rows[0].cells
+        assert [(r.text, r.font_family) for r in _runs_in(cells[0])] == [("x\n  y", "Courier New")]
+        assert [(r.text, r.font_family) for r in _runs_in(cells[1])] == [("plain", None)]
+
+    async def test_pre_style_in_a_cell_ends_at_its_close(self):
+        # Text after the </pre> in the same cell stays plain, and a <br> inside
+        # the <pre> keeps the "\n" of #1215 with the code font.
+        nodes = html_to_ast("<table><tr><td><pre>a<br>b</pre>tail</td></tr></table>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("a", "Courier New"),
+            ("\nb", "Courier New"),
+            ("tail", None),
+        ]
+
+    async def test_unclosed_pre_at_the_tables_end_does_not_leak_its_font(self):
+        # </table> closes the <pre> still open in the cell through the element
+        # stack, so the cell's text is code-styled but nothing after the table
+        # stays code-styled.
+        nodes = html_to_ast("<table><tr><td><pre>code</table><p>after</p>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("code", "Courier New")
+        ]
+        assert [(r.text, r.font_family) for r in nodes[1].runs] == [("after", None)]
+
     async def test_held_whitespace_keeps_its_link_and_style(self):
         # PR #1215 QA round 3: released held whitespace had lost the link it was
         # typed in.
