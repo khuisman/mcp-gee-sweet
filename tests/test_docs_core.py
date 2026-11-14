@@ -3680,6 +3680,15 @@ class TestImageLinks:
         # wraps now keeps it, like a browser's.
         assert [r.link_url for node in nodes[1:] for r in node.runs] == [None, "https://u"]
 
+    def test_parser_link_wrapping_a_paragraph_links_its_image(self):
+        # #1404 review: the paragraph's text kept the bare <a>'s link, but the
+        # in-block <img> fallback read a bare link only in a container's own
+        # paragraph, so the image here came out unlinked while a browser links it.
+        nodes = html_to_ast('<a href="https://u"><p>see <img src="https://x/i.png"></p></a>')
+        runs = nodes[0].runs
+        assert [r.link_url for r in runs if isinstance(r, Run)] == ["https://u"]
+        assert self._image(nodes).link_url == "https://u"
+
     def test_parser_hrefless_nested_anchor_keeps_outer_link_bare(self):
         # PR #992 QA round 2: an href-less </a> popped the outer bare link.
         nodes = html_to_ast('<a href="https://u"><a name="n"></a><img src="https://x/a.png"></a>')

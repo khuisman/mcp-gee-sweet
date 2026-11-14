@@ -972,6 +972,56 @@ class TestContainerText:
         nodes = html_to_ast('<a href="https://x.test"><div>l</div></a><div>y</div>')
         assert [r.link_url for n in nodes for r in n.runs] == ["https://x.test", None]
 
+    def test_bold_wrapping_two_containers_styles_both(self):
+        # #1404 review: with the style on the live depth counters, the block boundary
+        # at the first </div> reset it, so only l1 came out bold (the <a href> twin
+        # above kept both, since a bare link isn't per-segment state).
+        nodes = html_to_ast("<b><div>l1</div><div>l2</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("l1", True),
+            ("l2", True),
+        ]
+
+    def test_bold_wrapping_a_containers_inner_paragraph_styles_all_segments(self):
+        # The same reset, one container: the <p> inside the div is a second boundary,
+        # and the resumed trailing segment after it a third.
+        nodes = html_to_ast("<b><div>a<p>b</p>c</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("a", True),
+            ("b", True),
+            ("c", True),
+        ]
+
+    def test_italic_around_a_list_with_a_nested_list_styles_all_items(self):
+        # The nested <ul> interrupts the outer <li> mid-segment, another boundary
+        # that used to end the style: with the counters, l1 was italic and l2 plain.
+        nodes = html_to_ast("<i><ul><li>l1<ul><li>l2</li></ul></li></ul></i>")
+        assert [(r.text, r.italic) for n in nodes for r in n.runs] == [
+            ("l1", True),
+            ("l2", True),
+        ]
+
+    def test_intro_text_before_a_bold_wrapped_container_keeps_them_apart(self):
+        # #1404's own symptom from the review: the bare text opens the implicit
+        # paragraph first, and the container boundary under the tag used to reset
+        # the style, so x came out plain. The intro keeps its own plain style: it
+        # flushes before the tag records its formatting.
+        nodes = html_to_ast("Intro <b><div>x</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("Intro ", None),
+            ("x", True),
+        ]
+
+    def test_bold_opened_in_a_table_row_leaves_the_cells_plain(self):
+        # The table-cell quirk from the #1404 review: a browser's active formatting
+        # stops at the table's structure, so <table><tr><b><td>x</td>... renders
+        # both cells plain — verified against develop, which leaves them plain too —
+        # and the element-recorded style must not cross a cell boundary either.
+        nodes = html_to_ast("<table><tr><b><td>x</td><td>y</td></b></tr></table>")
+        assert [
+            [(r.text, r.bold) for r in cell.children] for cell in nodes[0].rows[0].cells
+        ] == [[("x", None)], [("y", None)]]
+
     def test_inline_only_content_in_a_quote(self):
         nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
         assert [(r.text, r.bold) for r in nodes[0].runs] == [("quoted", True)]
