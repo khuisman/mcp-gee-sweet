@@ -3075,8 +3075,9 @@ def register(tool):
             {"error", "fileId"} plus those fields instead.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only upload files to a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
@@ -3242,8 +3243,9 @@ def register(tool):
             already-created Drive file, not something to retry creating again.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only upload files to a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         try:
@@ -3326,8 +3328,9 @@ def register(tool):
             call then failed (#420) — see upload_local_file's own Returns docs.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only upload files to a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either, though ADC may also resolve to a service identity, which cannot.
             Check server://auth-status for your current auth method.
         """
         try:
