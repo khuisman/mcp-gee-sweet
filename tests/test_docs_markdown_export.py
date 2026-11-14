@@ -835,6 +835,56 @@ class TestDocToAstTables:
         text = "".join(r.text for r in table.rows[0].cells[0].children)
         assert text == "\nLeading test"
 
+    @staticmethod
+    def _cell_alignment_of(content):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {"tableCells": [{"tableCellStyle": {}, "content": content}]}
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        return document_to_ast(doc)[0].rows[0].cells[0].alignment
+
+    def test_cell_whose_paragraphs_are_all_centered_reads_as_center(self):
+        center = {"alignment": "CENTER"}
+        content = [_para("a\n", para_style=center), _para("b\n", para_style=center)]
+        assert self._cell_alignment_of(content) == "CENTER"
+
+    @pytest.mark.parametrize(
+        "second",
+        [{"alignment": "END"}, {"namedStyleType": "NORMAL_TEXT"}, None],
+        ids=["disagreeing", "unset-style", "no-paragraph-style"],
+    )
+    def test_cell_whose_paragraphs_disagree_or_leave_it_unset_reads_as_none(self, second):
+        content = [
+            _para("a\n", para_style={"alignment": "CENTER"}),
+            _para("b\n", para_style=second),
+        ]
+        assert self._cell_alignment_of(content) is None
+
+    def test_cell_with_no_alignment_set_reads_as_none(self):
+        assert self._cell_alignment_of([_para("a\n")]) is None
+
+    def test_nested_table_paragraphs_dont_count_toward_the_cells_alignment(self):
+        center = {"alignment": "CENTER"}
+        inner_cell = {
+            "tableCellStyle": {},
+            "content": [_para("x\n", para_style={"alignment": "END"})],
+        }
+        content = [
+            _para("a\n", para_style=center),
+            {"table": {"tableRows": [{"tableCells": [inner_cell]}]}},
+            _para("b\n", para_style=center),
+        ]
+        assert self._cell_alignment_of(content) == "CENTER"
+
 
 class TestAstToMarkdownInline:
     def test_bold_and_link_render_correctly(self):
@@ -1223,6 +1273,96 @@ class TestAstToMarkdownTables:
         outer = Table(rows=[Row(cells=[Cell(children=[inner])])])
         md = ast_to_markdown([outer])
         assert "nested table omitted" in md
+
+    @staticmethod
+    def _aligned(rows):
+        """A table from rows of (text, alignment) pairs."""
+        return Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text=t)] if t else [], alignment=a) for t, a in row])
+                for row in rows
+            ]
+        )
+
+    def test_center_and_end_columns_render_their_delimiters(self):
+        table = self._aligned([[("a", "CENTER"), ("b", "END")], [("1", "CENTER"), ("2", "END")]])
+        md = ast_to_markdown([table])
+        assert md.splitlines()[:3] == ["| a | b |", "| :-: | --: |", "| 1 | 2 |"]
+
+    def test_start_column_renders_its_delimiter(self):
+        table = self._aligned([[("a", "START")], [("1", "START")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-- |"
+
+    @pytest.mark.parametrize("other", ["END", None], ids=["disagreeing", "unaligned-text"])
+    def test_mixed_column_stays_unaligned(self, other):
+        table = self._aligned([[("a", "CENTER")], [("1", other)]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| --- |"
+
+    def test_justified_column_stays_unaligned(self):
+        table = self._aligned([[("a", "JUSTIFIED")], [("1", "JUSTIFIED")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| --- |"
+
+    @pytest.mark.parametrize("empty_alignment", [None, "END"])
+    def test_empty_cell_doesnt_vote(self, empty_alignment):
+        table = self._aligned([[("a", "CENTER")], [("", empty_alignment)], [("1", "CENTER")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-: |"
+
+    def test_colspan_cell_votes_in_every_column_it_spans(self):
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text="wide")], colspan=2, alignment="CENTER")]),
+                Row(
+                    cells=[
+                        Cell(children=[Run(text="a")], alignment="CENTER"),
+                        Cell(children=[Run(text="b")], alignment="END"),
+                    ]
+                ),
+            ]
+        )
+        # Column 1 agrees with the spanning cell; column 2's END disagrees with it.
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-: | --- |"
+
+    def test_colspan_cell_alone_aligns_every_column_it_spans(self):
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text="wide")], colspan=2, alignment="END")]),
+                Row(cells=[Cell(children=[]), Cell(children=[])]),
+            ]
+        )
+        assert ast_to_markdown([table]).splitlines()[1] == "| --: | --: |"
+
+
+class TestTableAlignmentRoundTrip:
+    """#1337: a Doc whose cells carry a GFM table's alignment exports that table."""
+
+    def test_center_and_end_columns_round_trip_from_docs_json(self):
+        def cell(text, alignment):
+            return {
+                "tableCellStyle": {},
+                "content": [_para(f"{text}\n", para_style={"alignment": alignment})],
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {"tableCells": [cell("a", "CENTER"), cell("b", "END")]},
+                                {"tableCells": [cell("1", "CENTER"), cell("2", "END")]},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| a | b |\n| :-: | --: |\n| 1 | 2 |\n"
+        html = _COMMONMARK.render(md)
+        assert html == _COMMONMARK.render("| a | b |\n|:-:|--:|\n| 1 | 2 |\n")
+        assert html.count('style="text-align:center"') == 2
+        assert html.count('style="text-align:right"') == 2
 
 
 class TestAstToMarkdownComments:
@@ -2581,6 +2721,15 @@ class TestQuotedTableReadBack:
         assert isinstance(table, Table)
         assert (table.blockquote_depth, table.list_depth) == (1, None)
         assert [[c.children for c in r.cells] for r in table.rows] == [[[Run("k")]]]
+
+    def test_quoted_table_exports_its_inner_tables_alignment(self):
+        cell = {
+            "tableCellStyle": {},
+            "content": [_para("k\n", para_style={"alignment": "CENTER"})],
+        }
+        inner = {"table": {"tableRows": [{"tableCells": [cell]}]}}
+        nodes = self._nodes([_quote_bar_wrapper(36, inner)])
+        assert ast_to_markdown(nodes) == "> | k |\n> | :-: |\n"
 
     def test_wrapper_depth_comes_from_the_recorded_indent(self):
         (table,) = self._nodes([_quote_bar_wrapper(72)])
