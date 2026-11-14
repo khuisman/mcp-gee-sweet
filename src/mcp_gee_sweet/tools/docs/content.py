@@ -224,12 +224,14 @@ def _positional_insert_tail_start(
 ) -> int:
     """Index where ast_to_requests's trailing stage-3 pass (the descending-position
     insertTable + insertInlineImage requests — see its docstring) begins: the start
-    of the maximal suffix made up only of those two request kinds, plus each linked
-    image's own link request (#977), each table's placeholder delete (#1097), and
-    the fallback-text requests that replaced an image (#1099). `image_links` is the
-    id(insert) -> link request map ast_to_requests filled; a link request counts by
-    identity, and so does a fallback request (`fallback_ids`). A placeholder delete
-    counts by its position, right after its own insertTable."""
+    of the maximal suffix made up only of those two request kinds, each image's own
+    style request (#977, #1334), each table's placeholder delete (#1097), and the
+    fallback-text requests that replaced an image (#1099). `image_links` is the
+    id(insert) -> style request map ast_to_requests filled, which covers every
+    image's request now that unlinked ones clear inherited styles too (#1334);
+    a style request counts only by identity, and so does a fallback request
+    (`fallback_ids`). A placeholder delete counts by its position, right after
+    its own insertTable."""
     link_ids = {id(link) for link in (image_links or {}).values()} | (fallback_ids or set())
 
     def in_tail(i: int) -> bool:

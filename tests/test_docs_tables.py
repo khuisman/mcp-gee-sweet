@@ -17,6 +17,7 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests, _to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
+    _INHERITED_CHARACTER_STYLE_FIELDS,
     CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
@@ -1480,7 +1481,7 @@ class TestCellImageFill:
         assert batch[i + 1]["updateTextStyle"] == {
             "range": {"startIndex": position, "endIndex": position + 1},
             "textStyle": {"link": {"url": "https://x.com"}},
-            "fields": "link",
+            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
         }
 
     async def test_unfetchable_linked_image_replaced_by_linked_fallback_text(self):
@@ -1504,7 +1505,7 @@ class TestCellImageFill:
         assert retry[i + 1]["updateTextStyle"] == {
             "range": {"startIndex": position, "endIndex": position + 1},
             "textStyle": {"link": {"url": "https://x.com"}},
-            "fields": "link",
+            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
         }
         assert not any("insertInlineImage" in r and "uri-bad" in str(r) for r in retry)
         links = [r for r in retry if "link" in r.get("updateTextStyle", {}).get("textStyle", {})]
@@ -1533,12 +1534,13 @@ class TestCellImageFill:
             )
 
         # Each failed image's insert is replaced in place by its fallback text and
-        # that text's link-clearing request (#1099).
+        # that text's style request; the image's own style request (#1334) goes
+        # with its insert (#1099).
         c_index = next(
             i for i, r in enumerate(full) if r.get("insertInlineImage", {}).get("uri") == "uri-c"
         )
         assert fallback_at(retry, "c") == c_index
-        assert retry[:c_index] + retry[c_index + 2 :] == full[:c_index] + full[c_index + 1 :]
+        assert retry[:c_index] + retry[c_index + 2 :] == full[:c_index] + full[c_index + 2 :]
         b_index = next(
             i for i, r in enumerate(retry) if r.get("insertInlineImage", {}).get("uri") == "uri-b"
         )
@@ -1547,7 +1549,7 @@ class TestCellImageFill:
         assert tail[0] == {
             "insertText": {"location": retry[b_index]["insertInlineImage"]["location"], "text": "b"}
         }
-        assert tail[2:] == retry[b_index + 1 :]
+        assert tail[2:] == retry[b_index + 2 :]
         assert not any("insertInlineImage" in r for r in head)
         assert dropped == [c, b]
         assert images.embedded == {id(a)}

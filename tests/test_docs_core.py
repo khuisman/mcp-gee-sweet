@@ -24,6 +24,7 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
+    _INHERITED_CHARACTER_STYLE_FIELDS,
     CellImages,
     _build_blank_para_before_table_collapses,
     _build_cell_style_requests,
@@ -240,7 +241,7 @@ class TestHtmlToDocRequests:
         assert link == {
             "range": {"startIndex": 11, "endIndex": 15},
             "textStyle": {},
-            "fields": "link",
+            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
         }
         assert _text_offset_since_last_table(children, cursor=2, images=images) == 5
 
@@ -2298,7 +2299,8 @@ class TestListMarkerStyle:
             [BulletItem(runs=[Run("bold", bold=True), image])], image_uris={id(image): "u"}
         )
         assert len(self._guards(requests)) == 1
-        assert self._position(requests, "insertInlineImage") == len(requests) - 1
+        # The image's insert is followed only by its own style request (#1334).
+        assert self._position(requests, "insertInlineImage") == len(requests) - 2
 
     @staticmethod
     def _final_text(requests):
@@ -3713,7 +3715,7 @@ class TestImageLinks:
             "updateTextStyle": {
                 "range": {"startIndex": 8, "endIndex": 9},
                 "textStyle": {"link": {"url": "https://t"}},
-                "fields": "link",
+                "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
             }
         }
 
@@ -3786,7 +3788,10 @@ class TestImageLinks:
             index = requests[i]["insertInlineImage"]["location"]["index"]
             following = requests[i + 1] if i + 1 < len(requests) else {}
             if img.link_url is None:
-                assert "updateTextStyle" not in following
+                # An unlinked image's own style request clears the character styles
+                # it inherited (#1334) and sets no link.
+                assert following["updateTextStyle"]["textStyle"] == {}
+                assert following["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
             else:
                 assert following["updateTextStyle"]["range"] == {
                     "startIndex": index,
