@@ -108,8 +108,9 @@ def register(tool):
             Information about the newly created spreadsheet including its ID
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either. ADC can also resolve to a service identity, which has the same Shared Drive-only limit.
             Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
@@ -193,8 +194,9 @@ def register(tool):
             per chunk that succeeded), so the missing rows can be retried precisely.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either. ADC can also resolve to a service identity, which has the same Shared Drive-only limit.
             Check server://auth-status for your current auth method.
         """
         try:
@@ -421,9 +423,9 @@ def register(tool):
         'My Drive'.
 
         A strict, less-flexible special case of list_files pre-filtered to the
-        spreadsheet MIME type. For a different result cap or other file types, use
-        list_files(folder_id, mime_type='application/vnd.google-apps.spreadsheet', ...)
-        instead.
+        spreadsheet MIME type. Raise this tool's own max_results for a different
+        result cap; for other file types in a folder, use
+        list_files(folder_id, mime_type=..., ...) instead.
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
@@ -999,8 +1001,9 @@ def register(tool):
             fileId, name, mimeType, parent, and webViewLink of the new copy.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot copy files into personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only copy files into a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either. ADC can also resolve to a service identity, which has the same Shared Drive-only limit.
             Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
