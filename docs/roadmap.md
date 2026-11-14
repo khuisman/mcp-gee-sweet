@@ -596,7 +596,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
 - [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
 
-**Triaged in 2026-11-14** _(review follow-ups from community PRs #1435, #1457, #1458 and #1471)_
+**Triaged in 2026-11-14** _(review follow-ups from community PRs #1141, #1435, #1447, #1457, #1458 and #1471)_
 
 - [ ] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches. `wrong/narrow`, not observed; starts after #1457 merges ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475))
 - [ ] HTML input: a `<pre>` inside a table cell, follow-ups from PR #1458's review (nested table resets the cell-`<pre>` flag, image guard, inline layout, one shared flag, tests, CHANGELOG wording). `wrong/narrow`, not observed ([#1478](https://github.com/khuisman/mcp-gee-sweet/issues/1478))
