@@ -421,9 +421,9 @@ def register(tool):
         'My Drive'.
 
         A strict, less-flexible special case of list_files pre-filtered to the
-        spreadsheet MIME type. For a different result cap or other file types, use
-        list_files(folder_id, mime_type='application/vnd.google-apps.spreadsheet', ...)
-        instead.
+        spreadsheet MIME type. Raise this tool's own max_results for a different
+        result cap; for other file types in a folder, use
+        list_files(folder_id, mime_type=..., ...) instead.
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
