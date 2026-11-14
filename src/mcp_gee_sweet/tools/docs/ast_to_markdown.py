@@ -384,7 +384,7 @@ def _md_link_dest(url: str) -> str:
 
 def _render_inline(items: list[Run | Image]) -> str:
     parts: list[str] = []
-    for item in _coalesce_code_runs(items):
+    for item in _coalesce_plain_runs(_coalesce_code_runs(items)):
         if isinstance(item, Image):
             parts.append(_render_image(item))
         else:
@@ -474,6 +474,56 @@ def _coalesce_code_runs(items: list) -> list:
             )
         else:
             merged.append(item)
+    return merged
+
+
+def _markdown_style(run: Run) -> tuple:
+    # The styles _render_plain_run writes. Everything else on a Run (color,
+    # size, underline, highlight, ...) has no Markdown syntax.
+    return (bool(run.bold), bool(run.italic), bool(run.strikethrough), run.link_url)
+
+
+def _coalesce_plain_runs(items: list) -> list:
+    """Merge adjacent non-code runs whose Markdown styles match (#1462).
+
+    Docs splits a run at any style change, including ones Markdown can't
+    write (a color). Rendered apart, two such runs put their markers side by
+    side: struck runs wrote "~~a~~~~b~~", which GFM's single-tilde
+    strikethrough reads as literal tildes, and bold struck ones
+    "**~~a~~****~~b~~**". Merged first, they render as one span ("~~ab~~"),
+    and the text is escaped as a whole, so an entity or tag split across runs
+    is still seen. Like _coalesce_code_runs, the merge loses nothing Markdown
+    could have kept. Runs are collected in a list and joined once, so a long
+    paragraph of alternating colors stays linear.
+
+    Two runs that meet at a line break stay apart: a run's edge breaks render
+    outside its link and markers (_split_edge_breaks), and merged they'd be
+    inside, a cell's paragraph break included (PR #1088 QA round 1). Apart,
+    a <br> separates the markers, so they never touch."""
+    merged: list = []
+    pending: list[Run] = []
+
+    def flush() -> None:
+        if len(pending) == 1:
+            merged.append(pending[0])
+        elif pending:
+            merged.append(replace(pending[0], text="".join(r.text for r in pending)))
+        pending.clear()
+
+    for item in items:
+        if not isinstance(item, Run) or _is_code_run(item):
+            flush()
+            merged.append(item)
+        elif pending and (
+            _markdown_style(pending[0]) != _markdown_style(item)
+            or _split_edge_breaks(pending[-1].text)[2]
+            or _split_edge_breaks(item.text)[0]
+        ):
+            flush()
+            pending.append(item)
+        else:
+            pending.append(item)
+    flush()
     return merged
 
 
@@ -645,7 +695,7 @@ def _render_table(table: Table) -> str:
 
 def _render_cell(cell: Cell) -> str:
     parts: list[str] = []
-    for child in _coalesce_code_runs(cell.children):
+    for child in _coalesce_plain_runs(_coalesce_code_runs(cell.children)):
         if isinstance(child, Table):
             parts.append(_NESTED_TABLE_PLACEHOLDER)
         elif isinstance(child, Image):
