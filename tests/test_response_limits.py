@@ -77,6 +77,42 @@ class TestEnforceResponseSizeCap:
             )
         assert "local_path" not in str(exc_info.value)
 
+    def test_local_path_unavailable_starts_a_new_sentence(self, monkeypatch):
+        """#1430: with local_path unavailable the env-var clause is its own
+        sentence, so it must not start lowercase after the period."""
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_cap(
+                {"a": "bb"}, tool_name="some_tool", local_path_available=False
+            )
+        assert "safety cap. Set MAX_TOOL_RESPONSE_CHARS" in str(exc_info.value)
+
+    def test_full_sentence_hint_with_local_path_starts_a_new_sentence(self, monkeypatch):
+        """#1430: a hint is a complete sentence, so the text after it starts a
+        fresh sentence — 'Pass local_path' is never spliced onto a trailing
+        'or ' (the get_sheet_data case)."""
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_cap(
+                {"a": "bb"},
+                tool_name="some_tool",
+                hint="Narrow the range. ",
+            )
+        assert "Narrow the range. Pass local_path to write the result" in str(exc_info.value)
+
+    def test_full_sentence_hint_without_local_path_reads_as_one_message(self, monkeypatch):
+        """#1430: the list_messages/list_file_activity/list_doc_comments form —
+        hint sentence, then the env-var sentence, capitalized."""
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_cap(
+                {"a": "bb"},
+                tool_name="some_tool",
+                hint="Lower max_results and paginate via next_page_token. ",
+                local_path_available=False,
+            )
+        assert "next_page_token. Set MAX_TOOL_RESPONSE_CHARS" in str(exc_info.value)
+
     def test_local_path_param_overrides_hint_name(self, monkeypatch):
         # sync_folder's own local_path param already means the sync destination
         # (#512) — it needs the hint to name a different param for the response

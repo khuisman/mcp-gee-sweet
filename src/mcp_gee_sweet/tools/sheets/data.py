@@ -183,7 +183,7 @@ def register(tool):
                     tool_name="get_sheet_data(include_grid_data=True)",
                     hint="Densely formatted cells serialize to ~700+ bytes each, so even a "
                     "modest range can produce a response large enough to break the client "
-                    "connection. Narrow the range, or ",
+                    "connection. Narrow the range. ",
                 )
         else:
             error, values_result = await _execute_or_error(

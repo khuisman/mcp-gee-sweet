@@ -2807,7 +2807,7 @@ def register(tool):
             result,
             tool_name="export_file",
             hint="Base64 encoding inflates raw file size by ~33%. Call download_file "
-            "instead to write the file straight to disk without this overhead, or ",
+            "instead to write the file straight to disk without this overhead. ",
             local_path_available=False,
         )
         return result
@@ -4387,7 +4387,7 @@ def register(tool):
                 result,
                 tool_name="sync_folder",
                 hint="Recursive syncs can produce very large result lists. Narrow "
-                "folder_id, direction, or recursive scope, or ",
+                "folder_id, direction, or recursive scope. ",
                 local_path_param="result_local_path",
             )
             return result

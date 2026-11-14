@@ -123,7 +123,7 @@ def register(tool):
         enforce_response_size_cap(
             result,
             tool_name="list_doc_comments",
-            hint="Lower page_size and paginate via next_page_token, or ",
+            hint="Lower page_size and paginate via next_page_token. ",
             local_path_available=False,
         )
 
