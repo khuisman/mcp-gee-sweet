@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Bug fixes
+
+- A `<pre>` inside a table cell is styled as code, as a `<pre>` at the body level is: its text keeps the line breaks #1215 gave it and now reads in Courier New, where it used to keep the breaks but look like plain text in the cell. Text after the `</pre>` in the same cell stays plain — #1417
+- An `<li>` that is the first item of a `<ul>` and holds only a styled block (a `<p data-style="title">` or `<p data-style="subtitle">`, HTML input, with no `&nbsp;` before it) is that block, indented under the list with no bullet, as in v0.9.5, instead of an empty bullet above it: a browser draws the item's marker beside the block's first line, so the item reads as one line (#1075's premise put the marker on a line of its own). Every other item keeps the bullet #1075 gives it — one with text of its own, a later item of the list, an item of an `<ol>` (whose `start`/`value` numbering counts it), or one whose only content is a nested list, quote, code block or rule. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1414
+
+## [0.9.6] — 2026-11-11
+
 ### Upcoming change
 
 - **An upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset.** To keep every tool, set `ENABLED_TOOLS=all`. Until then, a server started with `ENABLED_TOOLS` unset or empty logs this as a warning at startup — #1363
