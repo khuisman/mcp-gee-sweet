@@ -161,6 +161,14 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   rule — it renders as literal asterisks). Caught live during round-trip verification, not by
   the initial hand-written test fixtures. Fixed by moving leading/trailing whitespace outside
   the style markers before wrapping.
+- **Adjacent struck runs share one strike (#1462)**: Docs splits a run at any style change, so
+  two struck runs that differ only in color rendered as `~~a~~~~b~~`. Under GFM's single-tilde
+  strikethrough (`markdown-parser.md`) a run of three or more tildes is literal text, so that
+  re-imported as one struck run reading `a~~~~b`. `_join_inline` joins two parts whose
+  delimiters touch into one strike (`~~ab~~`), and runs its boundary-syntax check after the
+  join. Only touching delimiters join: a bold, italic or linked struck run ends in its own
+  marker, and whitespace stays outside a strike, so neither ever leaves four tildes in a row.
+  A literal `~` is always written `\~`, so an unescaped `~~` is always a delimiter.
 - **Fenced code block vs. inline code**: since the Docs representation can't distinguish them
   (see Scope above), the heuristic is: a `Paragraph` node renders as a fenced block only when
   *every* run in it is code-styled; a paragraph mixing code-styled and plain runs renders each

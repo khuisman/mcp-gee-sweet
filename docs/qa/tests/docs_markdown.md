@@ -1729,6 +1729,25 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 ---
 
+### TC-MD510: Adjacent struck runs round-trip through `get_doc_as_markdown` ⚠️ destructive
+**Prompt**
+> #1462's done-when, live. Two struck runs that differ only in color must export as one strike and re-import as the same struck text with no literal tildes.
+> 1. `create_doc(title="TC-MD510 scratch", content="x ~~ab~~ y", content_format="markdown")`.
+> 2. `find_in_doc(doc_id, "ab")`, then `style_doc_range(doc_id, ranges=[{"start_index": <start of "b">, "end_index": <end of "b">, "foreground_color": {"red": 1, "green": 0, "blue": 0}}])`, so "a" and "b" are two struck runs.
+> 3. `get_doc_as_markdown(doc_id)`, and save the returned Markdown to a local `.md` file.
+> 4. `update_doc_from_file(doc_id, <that file>)`, then `get_doc_as_markdown(doc_id)` and `get_doc_structure(doc_id)`.
+> 5. `create_doc(title="TC-MD510 nested", content="~~a ~b~ c~~ and ~a ~~b~~ c~", content_format="markdown")`, then `get_doc_as_markdown` on it.
+
+**Checks**
+- Step 2: `get_doc_structure` shows "a" and "b" as two text runs, both `strikethrough: true`, "b" red.
+- Step 3: the export reads `x ~~ab~~ y`, not `x ~~a~~~~b~~ y`.
+- Step 4: the Doc's text is `x ab y` with "ab" struck and no `~` anywhere; the second export is `x ~~ab~~ y` again. The color is lost, as Markdown has no syntax for it.
+- Step 5, with single-tilde strikethrough (#1436) on `develop`: both halves read back as "a b c" all struck, with no `~` in the Doc's text. Before #1436 merges, the first half is "a ~b~ c" struck and the second "~a ", "b" struck, " c~", the old reading.
+
+**Cleanup:** trash both Docs and delete the local `.md` file.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

@@ -11,6 +11,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import md_to_html
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -18,12 +19,14 @@ from mcp_gee_sweet.tools.docs.ast import (
     Image,
     NamedBlock,
     Paragraph,
+    RGBColor,
     Row,
     Run,
     Table,
 )
 from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
+from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 # Strict CommonMark, plus GFM pipe tables. Python-Markdown (used by some older
 # tests below) strips whitespace inside code spans and closes a fence only on an
@@ -2655,3 +2658,135 @@ class TestQuotedTableMarkdown:
             ]
         )
         assert _flat_html(md).count("<blockquote>") == 2
+
+
+def _single_tilde_parsers(on):
+    # _md_to_html's parsers with GFM single-tilde strikethrough set as given.
+    # markdown-it reads the option at parse time, so each parser is built the
+    # usual way and then has it set or cleared (#1462, ahead of #1436).
+    parsers = {}
+    for flag in (True, False):
+        parser = md_to_html._build_markdown_parser(flag)
+        parser.options["strikethrough_single_tilde"] = on
+        parsers[flag] = parser
+    return parsers
+
+
+@pytest.fixture(params=[False, True], ids=["double-tilde", "single-tilde"])
+def single_tilde(request, monkeypatch):
+    monkeypatch.setattr(md_to_html, "_MARKDOWN_PARSERS", _single_tilde_parsers(request.param))
+    return request.param
+
+
+def _reimported_runs(markdown_text):
+    (node,) = html_to_ast(md_to_html._md_to_html(markdown_text))
+    if isinstance(node, Table):
+        return [(r.text, r.strikethrough) for r in node.rows[0].cells[0].children]
+    return [(r.text, r.strikethrough) for r in node.runs]
+
+
+def _struck_text(runs):
+    # The reimported runs with adjacent runs of the same kind (struck or not)
+    # joined, so a split html_to_ast makes at a tag boundary doesn't count.
+    merged = []
+    for text, struck in runs:
+        if merged and merged[-1][1] == struck:
+            merged[-1] = (merged[-1][0] + text, struck)
+        else:
+            merged.append((text, struck))
+    return merged
+
+
+_RED = RGBColor(1.0, 0.0, 0.0)
+
+
+class TestAdjacentStruckRunsRoundTrip:
+    """#1462: two struck runs side by side (split by another style, e.g. a
+    color) exported as "~~a~~~~b~~". Under GFM single-tilde strikethrough a run
+    of three or more tildes is literal, so that came back as one struck run
+    reading "a~~~~b". Each case round-trips through _md_to_html with the
+    option off and on."""
+
+    def test_two_struck_runs_share_one_strike(self, single_tilde):
+        runs = [Run("a", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~ab~~\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_three_struck_runs_with_text_around(self, single_tilde):
+        runs = [
+            Run("x "),
+            Run("a", strikethrough=True),
+            Run("b", strikethrough=True, foreground_color=_RED),
+            Run("c", strikethrough=True),
+            Run(" y"),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "x ~~abc~~ y\n"
+        assert _reimported_runs(rendered) == [("x ", None), ("abc", True), (" y", None)]
+
+    def test_literal_tildes_at_the_boundary_stay_literal(self, single_tilde):
+        runs = [Run("a~", strikethrough=True), Run("~b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\~\\~b~~\n"
+        assert _reimported_runs(rendered) == [("a~~b", True)]
+
+    def test_escaped_backslash_before_the_delimiter(self, single_tilde):
+        runs = [Run("a\\", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\\\b~~\n"
+        assert _reimported_runs(rendered) == [("a\\b", True)]
+
+    def test_boundary_syntax_is_checked_after_the_join(self, single_tilde):
+        # "<" ends the first run's text and "b>" starts the second's: joined
+        # under one strike, they must not make a raw <b> tag.
+        runs = [Run("a <", strikethrough=True), Run("b> c", strikethrough=True)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("a <b> c", True)]
+
+    def test_struck_runs_with_their_own_markers_stay_apart(self, single_tilde):
+        # A bold or linked struck run ends in its own marker, so nothing joins.
+        runs = [
+            Run("a", strikethrough=True, bold=True),
+            Run("b", strikethrough=True),
+            Run("c", strikethrough=True, link_url="https://e.example"),
+            Run("d", strikethrough=True),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "**~~a~~**~~b~~[~~c~~](https://e.example)~~d~~\n"
+        assert _struck_text(_reimported_runs(rendered)) == [("abcd", True)]
+
+    def test_whitespace_between_struck_runs_stays_outside(self, single_tilde):
+        runs = [Run("a ", strikethrough=True), Run("b", strikethrough=True)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a~~ ~~b~~\n"
+        assert _reimported_runs(rendered) == [("a", True), (" ", None), ("b", True)]
+
+    def test_table_cell(self, single_tilde):
+        cell = Cell(
+            children=[
+                Run("a", strikethrough=True),
+                Run("b", strikethrough=True, foreground_color=_RED),
+            ]
+        )
+        table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run("c")])])])
+        rendered = ast_to_markdown([table])
+        assert rendered.startswith("| ~~ab~~ |")
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+
+class TestNestedStrikeImport:
+    """#1462 (from #1436's review): how a strike inside a strike imports.
+    Decided: as GitHub renders it. With single-tilde strikethrough on, the
+    inner delimiters pair too, and nested <s> is one strike in a Doc, so all
+    the text is struck and no tilde is left. With it off, a lone "~" is text."""
+
+    @pytest.mark.parametrize("source", ["~~a ~b~ c~~", "~a ~~b~~ c~"])
+    def test_nested_strike(self, single_tilde, source):
+        runs = _struck_text(_reimported_runs(source))
+        if single_tilde:
+            assert runs == [("a b c", True)]
+        elif source.startswith("~~"):
+            assert runs == [("a ~b~ c", True)]
+        else:
+            assert runs == [("~a ", None), ("b", True), (" c~", None)]

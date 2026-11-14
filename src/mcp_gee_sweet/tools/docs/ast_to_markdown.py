@@ -400,9 +400,22 @@ def _join_inline(parts: list[str]) -> str:
     the end of a run nothing does, so "a <" then "b> text" exported a raw
     <b> tag and "AT&" then "amp;T" an entity (PR #981 QA round 1). The check
     runs against the text joined so far and everything after it, so an empty
-    part, or an entity split across several runs, can't hide the boundary."""
+    part, or an entity split across several runs, can't hide the boundary.
+
+    Two struck parts that meet with nothing between their delimiters are
+    joined into one strike: "~~a~~" then "~~b~~" is "~~ab~~", not
+    "~~a~~~~b~~" (#1462). With GFM's single-tilde strikethrough a run of
+    three or more tildes is literal text, so the four tildes would come back
+    as one struck run reading "a~~~~b". The parts' other styles differ (that
+    is why Docs split them), but Markdown keeps none of those that would sit
+    between the delimiters: a bold, italic or linked part ends in its own
+    marker, never in "~~"."""
+    parts = list(parts)
     out = ""
     for i, part in enumerate(parts):
+        if _closes_strike(out) and part.startswith("~~"):
+            out = out[:-2]
+            part = parts[i] = part[2:]
         if (
             part
             and _ends_with_unescaped(out, _BOUNDARY_SYNTAX)
@@ -427,6 +440,12 @@ def _text_ahead(parts: list[str], start: int) -> str:
         if len(ahead) >= _LOOKAHEAD_CHARS:
             break
     return ahead
+
+
+def _closes_strike(text: str) -> bool:
+    # A literal "~" is always written escaped (_escape), so an unescaped "~~"
+    # at the end is a strike's closing delimiter.
+    return text.endswith("~~") and _ends_with_unescaped(text[:-1], "~")
 
 
 def _ends_with_unescaped(text: str, chars) -> bool:
