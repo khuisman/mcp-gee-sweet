@@ -1022,10 +1022,13 @@ class TestContainerText:
     def test_stray_container_end_tag_is_ignored(self):
         assert _para_texts("</div>stray") == ["stray"]
 
-    def test_container_inside_an_open_block_stays_in_that_block(self):
-        assert _para_texts("<p>x<div>y</div>z</p>") == ["xyz"]
+    def test_container_inside_an_open_block_breaks_the_blocks_text(self):
+        # #1403: the container drew no line of its own there, running the block's
+        # text together with its ("xyz"); it breaks the block's text beside its
+        # own now, and stays a part of the block — not a paragraph boundary.
+        assert _para_texts("<p>x<div>y</div>z</p>") == ["x\vy\vz"]
         nodes = html_to_ast("<div><p>x<div>y</div>z</p>after</div>")
-        assert ["".join(r.text for r in n.runs) for n in nodes] == ["xyz", "after"]
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["x\vy\vz", "after"]
 
     def test_div_wrapping_a_list_items_text_is_still_the_bullet(self):
         nodes = html_to_ast("<ul><li><div>x</div></li></ul>")
@@ -1223,6 +1226,85 @@ class TestContainerText:
         await _docs_tools["create_doc"](title="Doc", content="<div>kept</div>", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert "kept" in json.dumps(body)
+
+
+class TestContainerInOpenBlockBreaksItsText:
+    """#1403: a block container inside an open <p> or <li> ran its text into the
+    block's own text — `<li>a<div>b</div>c</li>` read "abc" — where a browser draws
+    each on its own line. The container breaks the block's text around its own,
+    wherever the block has text beside it, and PR #1400's transparency holds where it
+    doesn't: a container holding the block's only text keeps the block whole."""
+
+    def test_issue_example_breaks_the_text_around_the_container(self):
+        nodes = html_to_ast("<li>a<div>b</div>c</li>")
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert _node_text(nodes[0]) == "a\vb\vc"
+
+    def test_issue_example_in_a_paragraph(self):
+        nodes = html_to_ast("<p>x<div>y</div>z</p>")
+        assert [type(n) for n in nodes] == [Paragraph]
+        assert _node_text(nodes[0]) == "x\vy\vz"
+
+    def test_only_text_container_stays_transparent(self):
+        assert _node_text(html_to_ast("<li><div>x</div></li>")[0]) == "x"
+        assert _node_text(html_to_ast("<h1><div>x</div></h1>")[0]) == "x"
+
+    def test_text_on_one_side_only_breaks_once(self):
+        assert _node_text(html_to_ast("<li>a<div>b</div></li>")[0]) == "a\vb"
+        assert _node_text(html_to_ast("<li><div>x</div>y</li>")[0]) == "x\vy"
+
+    def test_empty_container_draws_no_line_of_its_own(self):
+        assert _node_text(html_to_ast("<li>a<div></div>c</li>")[0]) == "a\vc"
+        assert _node_text(html_to_ast("<li><div></div>c</li>")[0]) == "c"
+        assert _node_text(html_to_ast("<li>a<div></div></li>")[0]) == "a"
+
+    def test_adjacent_containers_do_not_double_the_break(self):
+        assert _node_text(html_to_ast("<li>a<div>b</div><div>c</div>d</li>")[0]) == ("a\vb\vc\vd")
+        assert _node_text(html_to_ast("<li>a<div>b<div>c</div>d</div>e</li>")[0]) == (
+            "a\vb\vc\vd\ve"
+        )
+
+    def test_a_br_at_the_boundary_is_the_boundary(self):
+        # A <br> right before or after the container's own boundary draws no line of
+        # its own, the same rule a <br> at a block's edge already follows.
+        assert _node_text(html_to_ast("<li>a<br><div>b</div></li>")[0]) == "a\vb"
+        assert _node_text(html_to_ast("<li>a<div>b<br></div>c</li>")[0]) == "a\vb\vc"
+
+    def test_container_in_a_heading_breaks_like_a_br(self):
+        nodes = html_to_ast("<h2>a<div>b</div>c</h2>")
+        assert [type(n) for n in nodes] == [Heading]
+        assert _node_text(nodes[0]) == "a\vb\vc"
+
+    def test_a_nested_block_inside_the_container_already_broke_the_line(self):
+        nodes = html_to_ast("<li>a<div><p>b</p></div>c</li>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+
+    def test_text_after_a_nested_block_inside_the_container_breaks_again(self):
+        nodes = html_to_ast("<li>a<div>b<p>c</p>d</div>e</li>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
+        assert [_node_text(n) for n in nodes] == ["a\vb", "c", "d\ve"]
+
+    def test_empty_container_after_a_nested_block_adds_no_break(self):
+        nodes = html_to_ast("<li>a<div><p>b</p></div>c</li>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+
+    def test_unclosed_container_breaks_like_a_closed_one(self):
+        # The </li> closes the <div> implicitly, with the block still open.
+        assert _node_text(html_to_ast("<li>a<div>b</li>")[0]) == "a\vb"
+
+    def test_container_in_a_cell_stays_cell_text(self):
+        table = html_to_ast("<table><tr><td>a<div>b</div>c</td></tr></table>")[0]
+        assert "".join(r.text for r in table.rows[0].cells[0].children) == "abc"
+
+    def test_inline_formatting_inside_the_container_keeps_its_style(self):
+        nodes = html_to_ast("<li>a<div><b>b</b></div>c</li>")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [
+            ("a\v", None),
+            ("b", True),
+            ("\v", None),
+            ("c", None),
+        ]
 
 
 class TestMdToHtml:

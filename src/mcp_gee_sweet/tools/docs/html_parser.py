@@ -203,6 +203,12 @@ class _OpenElement:
     counted: bool = False
     # A container that holds its own text, counted in _container_depth.
     container_text: bool = False
+    # A container that opened inside an open block (#1403): it breaks the block's
+    # text around its own, and `container_mark`/`container_epoch` say whether any of
+    # its content arrived in the segment its end tag closes in.
+    container_in_block: bool = False
+    container_mark: int = 0
+    container_epoch: int = 0
 
 
 _INLINE_BOLD = {"b", "strong"}
@@ -708,6 +714,10 @@ class _AstParser(HTMLParser):
         self._scope_boundaries: list[int] = []
         # Open containers that hold their own text (_OpenElement.container_text).
         self._container_depth = 0
+        # Segments a container-in-block element was opened in, so an end tag in a
+        # later segment (a nested block inside it reopened the outer block) knows
+        # the container's own content ended with that block (#1403).
+        self._segment_epoch = 0
         # Open hidden elements (_is_hidden): nothing inside one reaches the Doc.
         self._hidden_depth = 0
 
@@ -822,6 +832,9 @@ class _AstParser(HTMLParser):
         """
         self._block_tag = tag
         self._block_resumed = resumed
+        # Every segment opener is a new segment: a container-in-block element's mark
+        # counts only the content of the segment its boundary lands in (#1403).
+        self._segment_epoch += 1
         # True for the paragraph opened for bare top-level text (#343). Its source line
         # breaks stay paragraph breaks: text sent with no tags at all is plain lines,
         # not HTML to reflow, and a caller's line structure would vanish silently
@@ -905,6 +918,33 @@ class _AstParser(HTMLParser):
             and not self._hidden_depth
             and bool(self._container_depth or self._blockquote_ids)
         )
+
+    def _tail_kind(self) -> str:
+        """What ends the open segment's content (#1403): "text" for characters a
+        reader sees or an image, "break" for a line break (a <br> or a container
+        boundary already drawn), "none" when only formatting whitespace precedes.
+        Decides which side of a container-in-block boundary still draws a line."""
+        for piece in reversed(self._run_buf):
+            if isinstance(piece, _LineBreak):
+                return "break"
+            if not _is_formatting_whitespace(piece):
+                return "text"
+        for run in reversed(self._pending_runs):
+            if isinstance(run, Image):
+                return "text"
+            text = run.text.rstrip(_ASCII_FORMATTING_WHITESPACE)
+            if not text:
+                continue
+            return "break" if text.endswith("\v") else "text"
+        return "none"
+
+    def _segment_content_size(self) -> int:
+        """How much the open segment holds (#1403): run text, one per image, and the
+        buffered pieces, line breaks included. Compared against a container-in-block
+        element's `container_mark` to tell whether the container's own content
+        arrived, source whitespace and all."""
+        size = sum(1 if isinstance(r, Image) else len(r.text) for r in self._pending_runs)
+        return size + sum(len(piece) for piece in self._run_buf)
 
     def _end_anonymous_block(self, *, implicit_too: bool = False):
         """Emit the paragraph a container's own text opened, if one is open: a container
@@ -1545,6 +1585,24 @@ class _AstParser(HTMLParser):
                 self._open_elements[-1].container_text = True
                 self._container_depth += 1
                 return
+            # --- block container inside an open block (#1403) ---
+            # A browser starts it on a line of its own, so it breaks the block's
+            # text beside its own wherever the block has text there: the break
+            # before it goes in only when text precedes it — a <br> or another
+            # container's boundary just before already drew the line, and when it
+            # holds the block's only text, PR #1400's transparency keeps the
+            # block whole. The break after it is its end tag's, below; one here
+            # would survive when nothing follows, where a browser draws no extra
+            # line. Inside <pre> the text is literal, so a container stays the
+            # unrecognized tag it always was there. The generic path below still
+            # flushes, so the break joins the text before it, as a <br> does.
+            element = self._open_elements[-1]
+            element.container_in_block = True
+            element.container_epoch = self._segment_epoch
+            if not self._in_pre and self._tail_kind() == "text":
+                self._run_buf.append(_LineBreak("\v"))
+                self._ends_with_line_break = True
+            element.container_mark = self._segment_content_size()
 
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
@@ -1711,6 +1769,26 @@ class _AstParser(HTMLParser):
         if element.container_text:
             self._end_anonymous_block()
             return
+        # --- block container inside an open block, closing (#1403) ---
+        # The break after the container's text goes in only when something of the
+        # container arrived in the segment its end tag closes in: a nested block
+        # inside it already broke the line (the segment changed; a fresh segment
+        # holds only what followed that block), and an empty container draws no
+        # line of its own. Where the tail already ends in a line break, the
+        # boundary is that break, as a <br> at a block's edge is. Nothing follows
+        # the container yet, so _ends_with_line_break hands this break to
+        # _drop_final_line_break when no text ever does follow. The generic path
+        # below still flushes, keeping the container's text its own run.
+        if (
+            element.container_in_block
+            and self._block_tag is not None
+            and self._table_depth == 0
+            and not self._in_pre
+        ):
+            mark = element.container_mark if element.container_epoch == self._segment_epoch else 0
+            if self._segment_content_size() > mark and self._tail_kind() != "break":
+                self._run_buf.append(_LineBreak("\v"))
+                self._ends_with_line_break = True
         # --- table structure ---
         if tag == "table":
             # A cell left open has no </td> to drop what it held.
