@@ -585,7 +585,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-11-10** _(v0.9.6 release-pass findings, placed here by the maintainer 2026-11-08; #1439 and #1440 by the maintainer 2026-11-10)_
 
-- [ ] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414))
+- [x] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414)) (PR #1447)
 - [ ] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive ([#1415](https://github.com/khuisman/mcp-gee-sweet/issues/1415))
 - [ ] `upload_local_folder` on a large folder: no progress, uploads one at a time, and a failed file isn't logged — observed, TC-D300 ([#1416](https://github.com/khuisman/mcp-gee-sweet/issues/1416))
 - [x] HTML input: `<pre>` inside a table cell isn't styled as code ([#1417](https://github.com/khuisman/mcp-gee-sweet/issues/1417)) (PR #1458)
@@ -601,6 +601,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches. `wrong/narrow`, not observed; starts after #1457 merges ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475))
 - [ ] HTML input: a `<pre>` inside a table cell, follow-ups from PR #1458's review (nested table resets the cell-`<pre>` flag, image guard, inline layout, one shared flag, tests, CHANGELOG wording). `wrong/narrow`, not observed ([#1478](https://github.com/khuisman/mcp-gee-sweet/issues/1478))
 - [ ] Anchor slugging follow-ups from community PRs #1435 and #1471: Unicode word characters differ from github-slugger, `-N` dedup collisions, a GitLab/GitHub ambiguity to document, test and comment cleanup. `wrong/narrow`, not observed; second follow-up in #1357's family, so the chain stop rule applies to a further one ([#1482](https://github.com/khuisman/mcp-gee-sweet/issues/1482))
+- [ ] HTML input: a list item whose content is a styled block — should the bulleted item carry the named style? Design question, plus the follow-ups from community PR #1447's review folded in (orphaned nested list, round-trip indent misread, non-NBSP padding, stale comments, tests). `wrong/narrow`, not observed ([#1468](https://github.com/khuisman/mcp-gee-sweet/issues/1468))
+- [ ] `list_spreadsheets` / `list_files` docstrings: false equivalence between the two, invisible 1000-result clamp, dropped redirect case. Follow-ups from community PR #1141's review; can join the docstring bundle (#1341) ([#1483](https://github.com/khuisman/mcp-gee-sweet/issues/1483))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
