@@ -5244,6 +5244,33 @@
 - Own spacing (EP-4): r15 into a Doc whose NORMAL_TEXT sets only <code>space_below</code> 20 keeps "Hotel:" at <code>spaceAbove</code> 10, with no 10pt <code>spaceBelow</code> anywhere. Into a Doc whose NORMAL_TEXT also sets <code>space_above</code> 12, "Hotel:" takes no 10pt.</p>
 <p><strong>Result (2026-11-11) ✅ PASS — 8/8 case×EP cells pass in both runs; failures: none — v0.9.6 re-run, shards R3 and F2 on <code>sa</code></strong> — md-table-gaps at EP-1–4 passes every check on screen and by structure: theme below-only and above-only (the hand-set <code>spaceAbove</code> kept), own spacing, round trip. r15 at EP-1–4 (fresh Docs on the post-#1100 server): "<strong>Hotel:</strong>" has <code>spaceAbove</code> 10 and sits clear of the Flights table; the paragraph after the final Budget table is collapsed. Side observation, not a check: under a 20pt NORMAL_TEXT theme TG-05's quote bar breaks at the quoted table, the theme's own spacing on quoted paragraphs (the class noted for PG-03).</p>
 <hr />
+<h3 id="tc-md510-adjacent-struck-runs-round-trip-through-get_doc_as_markdown-destructive">TC-MD510: Adjacent struck runs round-trip through <code>get_doc_as_markdown</code> ⚠️ destructive<a class="headerlink" href="#tc-md510-adjacent-struck-runs-round-trip-through-get_doc_as_markdown-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<h1 id="1462s-done-when-live-two-struck-runs-that-differ-only-in-color-must-export-as-one-strike-and-re-import-as-the-same-struck-text-with-no-literal-tildes">1462's done-when, live. Two struck runs that differ only in color must export as one strike and re-import as the same struck text with no literal tildes.<a class="headerlink" href="#1462s-done-when-live-two-struck-runs-that-differ-only-in-color-must-export-as-one-strike-and-re-import-as-the-same-struck-text-with-no-literal-tildes" title="Permanent link">&para;</a></h1>
+<ol>
+<li><code>create_doc(title="TC-MD510 scratch", content="x ~~ab~~ y", content_format="markdown")</code>.</li>
+<li><code>find_in_doc(doc_id, "ab")</code>, then <code>style_doc_range(doc_id, ranges=[{"start_index": &lt;start of "b"&gt;, "end_index": &lt;end of "b"&gt;, "foreground_color": {"red": 1, "green": 0, "blue": 0}}])</code>, so "a" and "b" are two struck runs.</li>
+<li><code>get_doc_as_markdown(doc_id)</code>, and save the returned Markdown to a local <code>.md</code> file.</li>
+<li><code>update_doc_from_file(doc_id, &lt;that file&gt;)</code>, then <code>get_doc_as_markdown(doc_id)</code> and <code>get_doc_structure(doc_id)</code>.</li>
+<li><code>create_doc(title="TC-MD510 nested", content="~~a ~b~ c~~ and ~a ~~b~~ c~", content_format="markdown")</code>, then <code>get_doc_as_markdown</code> on it.</li>
+<li><code>create_doc(title="TC-MD510 entity", content="~~AT\\&amp;amp;T~~", content_format="markdown")</code>, then <code>style_doc_range(doc_id, ranges=[{"start_index": 4, "end_index": 7, "foreground_color": {"red": 1, "green": 0, "blue": 0}}])</code> to color "amp", so the text is three struck runs. <code>get_doc_as_markdown(doc_id, local_path=&lt;a local .md file&gt;)</code>, then <code>update_doc_from_file(doc_id, &lt;that file&gt;)</code> and <code>get_doc_structure(doc_id)</code>.</li>
+<li><code>create_doc(title="TC-MD510 bold", content="x **~~ab~~** y", content_format="markdown")</code>, then <code>style_doc_range</code> "b" red as in step 2, then <code>get_doc_as_markdown(doc_id, local_path=&lt;a local .md file&gt;)</code>, <code>update_doc_from_file(doc_id, &lt;that file&gt;)</code> and <code>get_doc_structure(doc_id)</code>.</li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 2: <code>get_doc_structure(doc_id)</code> shows "a" and "b" as two text runs, both <code>strikethrough: true</code>. Its runs don't report color, so the split into two runs is the check that the color took.
+- Step 3: the export reads <code>x ~~ab~~ y</code>, not <code>x ~~a~~~~b~~ y</code>.
+- Step 4: the Doc's text is <code>x ab y</code> with "ab" struck and no <code>~</code> anywhere; the second export is <code>x ~~ab~~ y</code> again. The color is lost, as Markdown has no syntax for it.
+- Step 5, with single-tilde strikethrough (#1436) on <code>develop</code>: both halves read back as "a b c" all struck, with no <code>~</code> in the Doc's text. Before #1436 merges, the first half is "a ~b~ c" struck and the second "~a ", "b" struck, " c~", the old reading.</p>
+<ul>
+<li>Step 6 (PR #1476 QA round 1): before the update, <code>get_doc_structure</code> shows three struck runs; the export is <code>~~AT\&amp;amp;T~~</code>, with the <code>&amp;</code> escaped. After the update the Doc's text is still <code>AT&amp;amp;T</code>, all struck.</li>
+<li>Step 7 (PR #1476 QA round 1): the export is <code>x **~~ab~~** y</code>, not <code>x **~~a~~****~~b~~** y</code>. After the update the text is <code>x ab y</code>, with "ab" one bold struck run and no <code>*</code> or <code>~</code>.</li>
+</ul>
+<p><strong>Cleanup:</strong> trash every Doc and delete the local <code>.md</code> files.</p>
+<p><strong>Result (2026-11-14, PR #1476 QA round 1 @ c6e3445d, Kit) ✅ PASS — one run, before #1436 merged.</strong> Step 2: two runs "a" and "b", both struck. Step 3: <code>x ~~ab~~ y</code>. Step 4: the text is <code>x ab y</code>, with "ab" as one struck run and no <code>~</code>; the second export is <code>x ~~ab~~ y</code>. Step 5: the old reading: "a ~b~ c" struck, then " and ~a ", "b" struck, " c~"; it exports as <code>~~a \~b\~ c~~ and \~a ~~b~~ c\~</code>. QA fixed the step 2 check: it named a <code>get_doc_structure</code> call the step never made and a color that tool doesn't report.</p>
+<p><strong>Result (2026-11-14, PR #1476 QA round 2 @ 4cfa8d2e, Kit) ✅ PASS — steps 1–7, one run, before #1436 merged.</strong> Steps 1–5 are unchanged from round 1. Step 6: three struck runs ("AT&amp;", "amp", ";T\n"); the export is <code>~~AT\&amp;amp;T~~</code>; after the update the text is <code>AT&amp;amp;T</code>, one struck run. Step 7: two bold struck runs; the export is <code>x **~~ab~~** y</code>; after the update "ab" is one bold struck run, with no <code>*</code> or <code>~</code>. QA added steps 6 and 7 for round 1's send-backs.</p>
+<hr />
 <h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Insert Markdown at an index:</strong> no tool does this (see "Entry points").</li>

@@ -1384,6 +1384,10 @@ fenced code inside a list item was literal text, <code>~~</code> did nothing. Th
 <td>GFM's two block/inline extensions. Task lists are left as literal <code>[ ]</code>/<code>[x]</code> text, which <code>html_to_ast</code> already turns into checkbox items, so no plugin is needed.</td>
 </tr>
 <tr>
+<td><code>strikethrough_single_tilde</code> option (#1335, not yet on)</td>
+<td>The strikethrough rule takes <code>~~</code> only until #1335 turns this option on. With it on, the rule follows GFM: <code>~x~</code> strikes like <code>~~x~~</code>, a run of three or more tildes is literal text, and an opening and a closing run pair only when they're the same width (<code>~q~~</code> doesn't strike). A strike inside a strike (<code>~~a ~b~ c~~</code>, <code>~a ~~b~~ c~</code>) is then nested <code>&lt;s&gt;</code>, which <code>html_to_ast</code> reads as all of the text struck with no tilde left, as GitHub renders it (#1462). The export side already respects the three-tilde rule: <code>get_doc_as_markdown</code> never writes two struck runs as <code>~~a~~~~b~~</code> (<code>doc-to-markdown.md</code>).</td>
+</tr>
+<tr>
 <td><code>_gfm_autolink_rule</code> (core rule)</td>
 <td>GFM extended autolinks: <code>www.</code>, <code>http(s)://</code>, email. See below.</td>
 </tr>
