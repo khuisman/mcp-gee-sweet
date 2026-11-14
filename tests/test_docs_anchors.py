@@ -14,6 +14,32 @@ class TestResolveHeadingAnchor:
         headings = ["Appendix A - Approved Hashing Algorithms"]
         assert resolve_heading_anchor("#appendix-a-approved-hashing-algorithms", headings) == 0
 
+    def test_github_style_drops_a_hard_break_no_separator(self):
+        # #1357: a heading's stored "\v" hard break (#1230) adds nothing to
+        # GitHub's slug — "Heading one<br>heading two" is "heading-oneheading-two",
+        # with no hyphen where the break sits.
+        headings = ["Heading one\vheading two"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
+
+    def test_gitlab_style_keeps_a_hyphen_for_a_hard_break(self):
+        # The same heading under GitLab: Comrak collects the break as a space
+        # and the slug gets a single hyphen, so the collapsed scheme still
+        # resolves an anchor spelled with the separator (#1357).
+        headings = ["Heading one\vheading two"]
+        assert resolve_heading_anchor("#heading-one-heading-two", headings) == 0
+
+    def test_hard_break_heading_still_matches_right_heading_among_several(self):
+        headings = ["Introduction", "Heading one\vheading two", "Appendix"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 1
+
+    def test_hard_break_heading_and_plain_heading_have_distinct_anchors(self):
+        # #1435 review: GitHub's scheme drops the break entirely, so a heading
+        # with a hard break and a plain-space heading slug differently, and
+        # each anchor must find its own heading — never the other's.
+        headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
+        assert resolve_heading_anchor("#heading-one-heading-two", headings) == 1
+
     def test_leading_hash_is_optional(self):
         headings = ["Overview"]
         assert resolve_heading_anchor("overview", headings) == 0

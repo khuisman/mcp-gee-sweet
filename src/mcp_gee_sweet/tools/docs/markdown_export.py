@@ -111,7 +111,18 @@ def _rendered_heading_slugs(document: dict) -> dict[str, str]:
         elif not isinstance(node, Heading | NamedBlock):
             continue
         ids.append(heading_id)
-        texts.append("".join(r.text for r in node.runs if isinstance(r, Run)).strip())
+        # A hard break inside the heading — "\v" in the raw doc, "\n" once
+        # _paragraph_to_node has normalized the run text — adds nothing to
+        # GitHub's own anchor slug (#1357), so the "\n" is dropped here too:
+        # anchors.py's resolver slugs the raw "\v"-carrying text via the same
+        # _github_style_slugify (which drops "\v" itself), and the two sides
+        # must agree — otherwise, in a doc holding both "Heading one<br>heading
+        # two" and a plain "Heading one heading two", the exported
+        # "#heading-one-heading-two" would resolve to the second heading while
+        # pointing at the first (PR #1435 review).
+        texts.append(
+            "".join(r.text for r in node.runs if isinstance(r, Run)).replace("\n", "").strip()
+        )
     slugs = _slugs_with_dedup(texts, _github_style_slugify)
     return {heading_id: slug for heading_id, slug in zip(ids, slugs, strict=True) if slug}
 
