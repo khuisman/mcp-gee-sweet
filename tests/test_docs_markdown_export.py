@@ -353,6 +353,105 @@ class TestDocToAstLinks:
         assert md == f"[jump]({url})[![](https://i/p.png)]({url})\n"
 
 
+class TestStabilizedHeadingLinks:
+    """PR #1435 review: a revision's exported heading links are written as
+    '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
+    what anchors.py's resolver (and GitHub itself) would produce for the same
+    heading — hard breaks included. A link to the wrong section is worse than
+    no link, so a doc holding both a hard-break heading and a plain heading
+    with the same words must keep their anchors distinct."""
+
+    @staticmethod
+    def _doc():
+        def heading(heading_id, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {
+                        "headingId": heading_id,
+                        "namedStyleType": "HEADING_1",
+                    },
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        def linked_run(link):
+            return {
+                "paragraph": {
+                    "elements": [
+                        {"textRun": {"content": "jump", "textStyle": {"link": link}}},
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+
+        return {
+            "body": {
+                "content": [
+                    # The raw doc carries the hard break as "\v" (#1230);
+                    # doc_to_ast normalizes it to "\n" inside the runs.
+                    heading("h.brk", "Heading one\vheading two\n"),
+                    heading("h.plain", "Heading one heading two\n"),
+                    linked_run({"headingId": "h.brk"}),
+                ]
+            }
+        }
+
+    def _link(self, doc, paragraph_index):
+        elements = doc["body"]["content"][paragraph_index]["paragraph"]["elements"]
+        return elements[0]["textRun"]["textStyle"]["link"]
+
+    def test_hard_break_heading_link_gets_break_free_slug(self):
+        # GitHub's own anchor for "Heading one<br>heading two" is
+        # "heading-oneheading-two" — the exported link must say the same,
+        # not spell the break as a hyphen.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+
+    def test_hard_break_and_plain_heading_links_stay_distinct(self):
+        # The regression khuisman caught in review: with the break slugified as
+        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
+        # the hard-break heading's link resolved to the plain heading.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        doc["body"]["content"].append(
+            {
+                "paragraph": {
+                    "elements": [
+                        {
+                            "textRun": {
+                                "content": "jump too",
+                                "textStyle": {"link": {"headingId": "h.plain"}},
+                            }
+                        },
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+        )
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+        assert self._link(doc, 3) == {"url": "#heading-one-heading-two"}
+
+    def test_exported_slug_round_trips_through_the_resolver(self):
+        # End to end: the slug the export writes must resolve, via the exact
+        # raw heading texts _walk_headings_and_anchor_runs would collect, back
+        # to the very heading the link points at.
+        from mcp_gee_sweet.tools.docs.anchors import resolve_heading_anchor
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        slug = self._link(doc, 2)["url"]
+        # What the write side's _walk_headings_and_anchor_runs sees: raw
+        # textRun content, trailing "\n" stripped, "\v" intact.
+        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor(slug, raw_headings) == 0
+
+
 class TestDocToAstImages:
     def test_inline_object_resolves_to_image(self):
         doc = {

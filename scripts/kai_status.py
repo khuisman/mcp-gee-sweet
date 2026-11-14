@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -252,6 +253,67 @@ def _labels(item: dict) -> list[str]:
     return [lb["name"] for lb in item.get("labels", [])]
 
 
+# kai.md "Stalled community PRs": a community PR is stalled once it has carried
+# `awaiting-contributor` this many days with no push and no reply since.
+STALL_DAYS = 14
+
+
+def _event_time(event: dict) -> str | None:
+    """When a timeline event, review, or review comment happened. A review has
+    `submitted_at` and a commit only its git committer date; everything else
+    has `created_at`. GitHub writes every one as UTC ending in `Z`, so they
+    compare as strings."""
+    return (
+        event.get("created_at")
+        or event.get("submitted_at")
+        or (event.get("committer") or {}).get("date")
+    )
+
+
+def _login(item: dict) -> str | None:
+    return (item.get("actor") or item.get("user") or {}).get("login")
+
+
+def waiting_days(activity: dict, author: str, now: datetime) -> int | None:
+    """Days a PR has waited on its contributor, or None if it isn't waiting.
+
+    `activity` is what `fetch_pr_activity` returns. The wait starts at the
+    latest `awaiting-contributor` label event and ends at:
+    - a push to the branch after it, by anyone. The head commit's push time is
+      when GitHub created its first check suite (CI runs on every push to a
+      PR), not its git committer date, which the committer sets: a commit made
+      before the label and pushed after it still counts. With no check suite,
+      the timeline's committer dates are all there is. A force-push event
+      counts too, since it can move the head back to an older commit.
+    - a comment or review by the PR's author, including a reply inside a
+      review thread, which the issue timeline leaves out.
+    """
+    timeline = activity["timeline"]
+    start = None
+    for e in timeline:
+        if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == (
+            "awaiting-contributor"
+        ):
+            t = _event_time(e)
+            if t and (start is None or t > start):
+                start = t
+    if start is None:
+        return None
+
+    pushed = [activity.get("head_pushed_at")]
+    if pushed[0] is None:
+        pushed = [_event_time(e) for e in timeline if e.get("event") == "committed"]
+    pushed += [_event_time(e) for e in timeline if e.get("event") == "head_ref_force_pushed"]
+    if any(t and t > start for t in pushed):
+        return None
+
+    replies = [e for e in timeline if e.get("event") in ("commented", "reviewed")]
+    replies += activity["reviews"] + activity["review_comments"]
+    if any(_login(r) == author and (_event_time(r) or "") > start for r in replies):
+        return None
+    return age_days(start, now)
+
+
 # --- Sections ---------------------------------------------------------------
 
 
@@ -354,7 +416,41 @@ def section_rfd(rfd: list[dict]) -> list[str]:
     return lines or ["none"]
 
 
-def section_community(prs: list[dict], issues: list[dict]) -> list[str]:
+def _gh_api_items(path: str) -> list[dict]:
+    """Every item of a paginated `gh api` list endpoint."""
+    out = run(["gh", "api", "--paginate", path, "--jq", ".[]"])
+    return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
+
+
+def fetch_pr_activity(number: int, head_sha: str) -> dict:
+    """What `waiting_days` reads for one PR: its issue timeline, its reviews
+    and review-thread comments (a thread reply is in neither the timeline nor
+    the reviews list), and when its head commit was pushed (the earliest check
+    suite GitHub created for it, None if there is none)."""
+    repo = "repos/{owner}/{repo}"
+    suites = run(
+        [
+            "gh",
+            "api",
+            f"{repo}/commits/{head_sha}/check-suites",
+            "--jq",
+            "[.check_suites[].created_at] | min",
+        ]
+    ).strip()
+    return {
+        "timeline": _gh_api_items(f"{repo}/issues/{number}/timeline?per_page=100"),
+        "reviews": _gh_api_items(f"{repo}/pulls/{number}/reviews?per_page=100"),
+        "review_comments": _gh_api_items(f"{repo}/pulls/{number}/comments?per_page=100"),
+        "head_pushed_at": None if suites in ("", "null") else suites,
+    }
+
+
+def section_community(
+    prs: list[dict],
+    issues: list[dict],
+    now: datetime,
+    fetch: Callable[[int, str], dict] = fetch_pr_activity,
+) -> list[str]:
     lines = []
     for kind, items in (("PR", prs), ("issue", issues)):
         for item in items:
@@ -371,6 +467,25 @@ def section_community(prs: list[dict], issues: list[dict]) -> list[str]:
                 )
             elif kind == "issue" and "verify-content" in labels:
                 lines.append(f"waiting for reproduction: issue #{item['number']} {item['title']}")
+            if kind == "PR" and "awaiting-contributor" in labels:
+                try:
+                    activity = fetch(item["number"], item["headRefOid"])
+                except Exception as e:  # one PR's failed fetch never hides the section
+                    lines.append(
+                        f"stall check failed: PR #{item['number']}: {type(e).__name__}: {e}"
+                    )
+                    continue
+                days = waiting_days(activity, item["author"]["login"], now)
+                if days is not None and days >= STALL_DAYS:
+                    edits = (
+                        "maintainer edits allowed"
+                        if item.get("maintainerCanModify")
+                        else "no maintainer edits"
+                    )
+                    lines.append(
+                        f"stalled: PR #{item['number']} [{item['author']['login']}] "
+                        f"{days}d awaiting-contributor, {edits}  {item['title']}"
+                    )
     return lines or ["nothing to do"]
 
 
@@ -476,7 +591,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: {e}; comparing against the existing origin/develop", file=sys.stderr)
 
     now = datetime.now(UTC)
-    pr_fields = "number,title,headRefName,author,labels,isDraft,statusCheckRollup"
+    pr_fields = (
+        "number,title,headRefName,headRefOid,author,labels,isDraft,statusCheckRollup,"
+        "maintainerCanModify"
+    )
     issue_fields = "number,title,author,labels"
     cache: dict[str, list[dict]] = {}
 
@@ -511,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
         ("Lanes", lambda: section_lanes(branches, prs(), rfd())),
         ("Open PRs", lambda: section_prs(prs())),
         ("Ready for development", lambda: section_rfd(rfd())),
-        ("Community intake", lambda: section_community(prs(), issues())),
+        ("Community intake", lambda: section_community(prs(), issues(), now)),
         ("Private vulnerability reports (triage)", lambda: section_advisories(now)),
         ("Dependabot alerts", lambda: section_dependabot(prs())),
     ]
