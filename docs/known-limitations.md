@@ -7,7 +7,25 @@ Each entry describes what the limitation is, why it exists, and the available wo
 
 ## Google Docs
 
-### Blank paragraph before every table
+### Setting a named style clears the paragraph's inline text styles
+
+**What:** Writing a `namedStyleType` onto a paragraph that already has inline text
+styles removes those styles - reproduced with `strikethrough`, and it happens even when
+the named style being written is the one the paragraph already had.
+
+**Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
+named style's own text properties to the paragraph's runs, so per-run formatting is not
+preserved. It is API behaviour rather than a quirk of this server's request building.
+
+**Where it bites:** `style_doc_range(named_style_type=...)`, and
+`insert_softbreak_paragraph`, which sets the style explicitly for the whole block. The
+v0.9.2 release QA pass reproduced it three times, including a control that set no other
+style fields.
+
+**Workaround:** Set the named style first, then apply the text styles in a second
+`style_doc_range` call carrying only text-style fields. Setting text styles alone never
+takes the `namedStyleType` path.
+
 
 **What:** A blank paragraph always appears in the document structure immediately before each
 table, even when none was written in the source HTML/Markdown.
