@@ -644,13 +644,80 @@ def _spaced_link_rule(state, silent: bool) -> bool:
     return True
 
 
+def _pair_single_tilde(state) -> None:
+    """Pair ``~`` delimiter runs by width before ``balance_pairs`` runs.
+
+    The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
+    or two tildes (three or more are consumed as plain text), but the pairing
+    is left to ``balance_pairs``, which pairs by marker only: in ``~~a~b~~``
+    the lone ``~`` grabs the closing ``~~``, and the width check only rejects
+    that pair afterwards, by which point the real ``~~`` opener is already
+    broken and the whole span stays literal (#1436). Pair the tildes here
+    instead, closing a run with the nearest same-width unconsumed opener —
+    the same-width rule is what keeps a lone ``~`` inside a ``~~...~~`` span
+    from cancelling it — convert the pairs to ``s_open``/``s_close``, and
+    drop the tilde delimiters so no later rule pairs them again.
+    """
+
+    def pair_one(delimiters) -> None:
+        tildes = [i for i, delimiter in enumerate(delimiters) if delimiter.marker == 0x7E]
+        if not tildes:
+            return
+        consumed = set()
+        for closer_at, closer_index in enumerate(tildes):
+            closer = delimiters[closer_index]
+            if closer_index in consumed or not closer.close:
+                continue
+            width = len(state.tokens[closer.token].content)
+            for opener_index in reversed(tildes[:closer_at]):
+                if opener_index in consumed:
+                    continue
+                opener = delimiters[opener_index]
+                if not opener.open:
+                    continue
+                if len(state.tokens[opener.token].content) != width:
+                    continue
+                consumed.update((opener_index, closer_index))
+                markup = "~" * width
+                token = state.tokens[opener.token]
+                token.type = "s_open"
+                token.tag = "s"
+                token.nesting = 1
+                token.markup = markup
+                token.content = ""
+                token = state.tokens[closer.token]
+                token.type = "s_close"
+                token.tag = "s"
+                token.nesting = -1
+                token.markup = markup
+                token.content = ""
+                break
+        delimiters[:] = [d for d in delimiters if d.marker != 0x7E]
+
+    pair_one(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            pair_one(meta["delimiters"])
+
+
 def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # CommonMark plus GFM's table and strikethrough extensions. Raw HTML passes through
     # to html_to_ast, as it did under Python-Markdown. Task-list items stay literal
     # "[ ] "/"[x] " text, which html_to_ast turns into checkbox items.
-    md = MarkdownIt("commonmark", {"html": True, "maxNesting": _MAX_NESTING}).enable(
-        ["table", "strikethrough"]
-    )
+    # strikethrough_single_tilde widens the strikethrough tokenizer to GFM's full
+    # form: `~x~` strikes like `~~x~~`, and a run of three or more tildes stays
+    # literal text (#1335). The upstream option only tokenizes the runs; pairing
+    # them is ours (_pair_single_tilde), because balance_pairs' marker-only
+    # pairing leaves a lone `~` inside a `~~...~~` span un-struck (#1436).
+    md = MarkdownIt(
+        "commonmark",
+        {
+            "html": True,
+            "maxNesting": _MAX_NESTING,
+            "strikethrough_single_tilde": True,
+        },
+    ).enable(["table", "strikethrough"])
+    md.inline.ruler2.before("balance_pairs", "pair_single_tilde", _pair_single_tilde)
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")
     # that _resolve_image_source opens as-is. validateLink still screens schemes.
