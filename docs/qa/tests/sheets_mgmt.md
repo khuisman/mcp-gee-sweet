@@ -32,6 +32,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): Sales / Notes & Misc / Empty, no error.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `list_sheets` → Sales / Notes & Misc / Empty, no error.
+
 ---
 
 ### TC-S02: Cache hit on second call
@@ -51,6 +53,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): both calls logged `Cache hit: N sheets for <copy>`.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Second call returned the same list; log shows `Cached 3 sheets` on the first and `Cache hit: 3 sheets for <copy>` on the second.
 
 ---
 
@@ -72,6 +76,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `rename_sheet(Empty→WasEmpty)` logged `Marked cache dirty`, and the next `list_sheets` re-fetched and showed WasEmpty. On `kai-oauth` (OAuth) that `list_sheets` took 9.8 s (every other one under 1 s); the log shows no cause, not reproduced.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `rename_sheet(Empty→WasEmpty)` then `list_sheets` → Sales / Notes & Misc / WasEmpty; log shows `Marked cache dirty` after the rename and a fresh `Cached 3 sheets` on the list. Renamed back.
+
 ---
 
 ## `copy_sheet`
@@ -92,6 +98,8 @@ copy_sheet(dst_sheet="Sales Copy") → 'Sales Copy' created, data matches Sales 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `copy_sheet(dst_sheet="Sales Copy")` → copy created then renamed (response has `rename`); summary shows 'Sales Copy' identical to Sales (header + 5 rows, 4 cols); Sales unchanged.
+
 ---
 
 ### TC-S05: Copy to a different spreadsheet
@@ -110,6 +118,8 @@ copy_sheet accepted src_spreadsheet/dst_spreadsheet as distinct params (same ID 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Tool takes `src_spreadsheet`/`dst_spreadsheet` separately; same-ID copy (TC-S04's call) completed without error. Cross-spreadsheet copy not exercised (per the case's own note).
+
 ---
 
 ### TC-S06: Name differs from Google's auto-assigned name — rename triggered
@@ -126,6 +136,8 @@ copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Cop
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `copy_sheet(dst_sheet="My Custom Name")` → Google created "Copy of Sales 1", response includes `rename`, and `list_sheets` shows "My Custom Name".
 
 ---
 
@@ -144,6 +156,8 @@ copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → res
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `copy_sheet(dst_sheet="Copy of Sales")` (no existing "Copy of Sales") → response has only `copy` (title "Copy of Sales"), no `rename` key.
+
 ---
 
 ### TC-S08: Source sheet not found
@@ -160,6 +174,8 @@ copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' n
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Source sheet 'DoesNotExist' not found"}`.
 
 ---
 
@@ -178,6 +194,8 @@ copy_sheet(dst_spreadsheet="invalidid123xyz") → HttpError 400 "Invalid destina
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Tool error: HttpError 400 "Invalid destinationSpreadsheetId [invalidid123xyz]"; Sales unchanged in the next summary.
+
 ---
 
 ### TC-S10: Cache invalidated after copy ⚠️ destructive
@@ -194,6 +212,8 @@ copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it —
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `copy_sheet(dst_sheet="PostCopyCache")` then immediate `list_sheets` included PostCopyCache (log: `Marked cache dirty` after the copy). All copies deleted afterward with `delete_sheet`.
 
 ---
 
@@ -219,6 +239,8 @@ duplicate_sheet(sheet="Sales") → {"sheetId","title":"Copy of Sales","index":1,
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `duplicate_sheet(sheet="Sales")` → `{sheetId, title:"Copy of Sales", index:1, spreadsheetId}`; its data equals Sales (6×4); Sales unchanged. Deleted after.
+
 ---
 
 ### TC-S52: Duplicate with a custom name ⚠️ destructive
@@ -238,6 +260,8 @@ duplicate_sheet(new_name="Sales Duplicate") → title="Sales Duplicate" directly
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `duplicate_sheet(new_name="Sales Duplicate")` → title "Sales Duplicate" in the one response; code sets `newSheetName` on the same `duplicateSheet` request (structure.py:739), no follow-up rename.
 
 ---
 
@@ -262,6 +286,8 @@ duplicate_sheet() no insert_index → list_sheets shows "Copy of Sales" immediat
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — After TC-S51's call `list_sheets` → Sales, Copy of Sales, Notes & Misc, Empty (copy at index 1, right after Sales).
+
 ---
 
 ### TC-S54: Explicit insert_index is honored ⚠️ destructive
@@ -281,6 +307,8 @@ duplicate_sheet(insert_index=0) → "Copy of Sales" is first tab in list_sheets.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `duplicate_sheet(insert_index=0)` → index 0; `list_sheets` starts with "Copy of Sales". Deleted after.
 
 ---
 
@@ -305,6 +333,8 @@ duplicate_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not fou
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'DoesNotExist' not found"}`.
+
 ---
 
 ### TC-S56: Cache invalidated after duplicate ⚠️ destructive
@@ -324,6 +354,8 @@ duplicate_sheet(new_name="PostDuplicateCache") then immediate list_sheets includ
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `duplicate_sheet(new_name="PostDuplicateCache")` then immediate `list_sheets` included it. Deleted after.
 
 ---
 
@@ -345,6 +377,8 @@ rename_sheet(Empty→Renamed) → no error; list_sheets shows "Renamed" not "Emp
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `rename_sheet(Empty→Renamed)` no error; `list_sheets` → Sales / Notes & Misc / Renamed. Renamed back.
+
 ---
 
 ### TC-S12: Rename to the same name
@@ -362,6 +396,8 @@ rename_sheet(Sales→Sales same name) → succeeds, no error, round-trips to API
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `rename_sheet(Sales→Sales)` → normal batchUpdate response (`replies:[{}]`), no error: it round-trips to the API rather than no-op locally. Sales still exists.
 
 ---
 
@@ -383,6 +419,8 @@ rename_sheet(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S14: Cache invalidated after rename
@@ -399,6 +437,8 @@ rename_sheet('Notes & Misc'→'Notes') → list_sheets shows "Notes" not "Notes 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `rename_sheet('Notes & Misc'→'Notes')` then `list_sheets` → Sales / Notes / Empty. Renamed back.
 
 ---
 
@@ -426,6 +466,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `create_sheet("BrandNew")` returned sheetId/title/index 3; `Marked cache dirty`, then the next `list_sheets` re-fetched 4 sheets.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `create_sheet("BrandNew")` → `{sheetId:1552166715, title, index:3, spreadsheetId}`; next `list_sheets` includes BrandNew.
+
 ---
 
 ### TC-S16: Duplicate tab title
@@ -442,6 +484,8 @@ create_sheet(title="Sales", dup) → HttpError 400 "A sheet with the name \"Sale
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — 🔍 Observed: tool error HttpError 400 "A sheet with the name "Sales" already exists." No auto-suffix, no duplicate.
 
 ---
 
@@ -460,6 +504,8 @@ create_sheet(150-char title) → HttpError 400 "The sheet name cannot be greater
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — 157-char title → HttpError 400 "The sheet name cannot be greater than 100 characters." Limit is 100.
+
 ---
 
 ### TC-S18: Response shape
@@ -476,6 +522,8 @@ create_sheet(title="ShapeTest") → {sheetId(int), title(str), index(int), sprea
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `create_sheet("ShapeTest")` → sheetId 1365175700 (int), title (str), index 4 (int), spreadsheetId (str).
 
 ---
 
@@ -494,6 +542,8 @@ create_sheet(title="CacheNewSheet") then list_sheets includes it immediately —
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `create_sheet("CacheNewSheet")` then `list_sheets` → …, BrandNew, ShapeTest, CacheNewSheet.
+
 ---
 
 ## `add_rows` / `add_columns`
@@ -511,6 +561,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `test_zero_count_…`/`test_negative_count_…` in TestAddRows/TestAddColumns pass (tests/sheets 448 passed). Live spot-check: `add_rows(count=0)` → `{"error":"count must be positive, got 0"}`.
+
 ---
 
 ### TC-S112: add_rows / add_columns — negative start returns error (unit test)
@@ -525,6 +577,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Named unit tests pass. Live spot-check: `add_columns(start_column=-1, count=1)` → `{"error":"start_column must be non-negative, got -1"}`.
 
 ---
 
@@ -551,6 +605,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account) and `kai-oauth` (OAuth): `refresh_cache(spreadsheet_id)` → `invalidated: [spreadsheet:<copy>]`, both caches marked dirty, next `list_sheets` a miss (`Cached 4 sheets`).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"invalidated":["spreadsheet:<copy>"]}`; log: `Marked cache dirty` + `Marked all sheet data dirty`, then the next `list_sheets` logged `Cached 6 sheets` (a miss, not a hit).
+
 ---
 
 ### TC-S21: Refresh by doc ID only
@@ -568,6 +624,8 @@ Requires {DOC_ID} fixture — not provided to this Sheets shard (only SPREADSHEE
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Read-only on the fixture doc. `refresh_cache(doc_id)` → `{"invalidated":["doc:<DOC_ID>"]}`, log `Marked doc cache dirty`, and the next `get_doc_content` logged `Cached doc <DOC_ID>` (re-fetched).
+
 ---
 
 ### TC-S22: Refresh both spreadsheet and doc
@@ -584,6 +642,8 @@ Requires {DOC_ID} fixture — not provided to this Sheets shard
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `invalidated: [spreadsheet:<copy>, doc:<DOC_ID>]`; both marked dirty in the log; next `list_sheets` and `get_doc_content` both re-fetched (`Cached 6 sheets`, `Cached doc`).
 
 ---
 
@@ -605,6 +665,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account): `refresh_cache()` → `invalidated: all`; the log names all five caches (sheet_structure, sheet_data, drive_folder, doc_content, calendar), and the next `list_sheets`, `get_doc_content` and `list_files` each re-fetched. Stale wording: five caches now, not four.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"invalidated":"all"}`; log: `Invalidated all` sheet_structure, sheet_data, drive_folder, doc_content and calendar entries; next summary re-fetched. Stale wording: five caches, not four (already noted 2026-10-20).
+
 ---
 
 ### TC-S24: Cache re-populated after refresh
@@ -624,6 +686,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-sa` (service account): after `refresh_cache(spreadsheet_id)` a summary re-fetched (`Cached 4 sheets`, then `Cached sheet data …` per tab) and returned current data.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — After the refresh, `get_multiple_spreadsheet_summary` returned the current 6 tabs and data; log shows `Cached 6 sheets` then `Cached sheet data …/0`, `…/456535548` (miss → store).
 
 ---
 
@@ -648,6 +712,8 @@ create TempTab, delete_sheet(TempTab) → no error; list_sheets confirms absent
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Created TempTab, `delete_sheet(TempTab)` → no error; `list_sheets` → Sales / Notes & Misc / Empty.
+
 ---
 
 ### TC-S26: Delete a non-existent sheet returns error
@@ -666,6 +732,10 @@ delete_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'DoesNotExist' not found"}`.
+
+Note for request-shape checks below: request bodies aren't observable from the tool response, so each is checked against the code path (structure.py builds `updateDimensionProperties` with `{"hiddenByUser": True/False}` / `pixelSize` and the matching `fields`, `autoResizeDimensions` at :511) and against the resulting sheet state read back with a fresh-interpreter `spreadsheets().get(includeGridData, fields=rowMetadata/columnMetadata)` probe (`tmp/S1/scripts/probe.py`, Aziz's worktree token in place). Screenshots in `.playwright-mcp/S1/`.
 
 ---
 
@@ -690,6 +760,8 @@ delete_rows(start_row=4) → Gizmo row removed; Totals (now row 5) recalculated 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Sales was first restored to fixture values (Totals as `=SUM(B2:B5)` etc.; rows 4/5 = Gizmo/Totals). `delete_rows(start_row=4)` → Gizmo gone, Totals now row 5, recalculated to 350/360/415; other rows unchanged.
+
 ---
 
 ### TC-S28: Delete a range of rows ⚠️ destructive
@@ -709,6 +781,8 @@ delete_rows(start_row=2,end_row=4) → 3 rows removed (Gadget/Donut/Totals); onl
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Added marker rows After1/After2 below the data, then `delete_rows(2, end_row=4)` → Gadget, Donut and Totals removed (3 rows, indices 2–4 → exclusive end 5); After1/After2 shifted up to rows 3–4.
+
 ---
 
 ### TC-S29: Delete rows — sheet not found returns error
@@ -727,6 +801,8 @@ delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S105: end_row before start_row returns error (unit test)
@@ -738,6 +814,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.
 
 ---
 
@@ -752,6 +830,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.
 
 ---
 
@@ -776,6 +856,8 @@ delete_columns(start_column=1) → Q1 removed, Q2/Q3 shift left, Totals recalc 6
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Header row Product,Q1,Q2,Q3,colE…colH; `delete_columns(start_column=1)` → Product,Q2,Q3,colE…: Q1 gone, C shifted to B.
+
 ---
 
 ### TC-S31: Delete a range of columns ⚠️ destructive
@@ -795,6 +877,8 @@ delete_columns(start_column=2,end_column=4) on 3-col sheet → only Q3(idx2) exi
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `delete_columns(2, end_column=4)` → Product,Q2,colG,colH: three columns (Q3, colE, colF) removed, colG shifted from F to C.
+
 ---
 
 ### TC-S32: Delete columns — sheet not found returns error
@@ -813,6 +897,8 @@ delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S106: end_column before start_column returns error (unit test)
@@ -824,6 +910,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.
 
 ---
 
@@ -838,6 +926,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestDeleteRows/TestDeleteColumns exist and pass (tests/sheets: 448 passed). Recorded as one entry per ID: TC-S105 ✅, TC-S106 ✅, TC-S113 ✅, TC-S114 ✅.
 
 ---
 
@@ -864,6 +954,8 @@ hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Pl
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `hide_rows(start_row=4)` → `replies:[{}]`; probe: only rowMetadata[4] `hiddenByUser:true`. Playwright (tc-s63.png): row numbers go 4 → 6 with the show-row chevrons.
+
 ---
 
 ### TC-S64: Hide a range of rows ⚠️ destructive
@@ -885,6 +977,8 @@ hide_rows(start_row=2,end_row=4) → rowMetadata[2,3,4] all hiddenByUser=true
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `hide_rows(2, end_row=4)`; probe: rows 2,3,4 hidden, 5 not (exclusive end 5). Playwright (tc-s64.png): rows 1, 2, 6 visible, 3–5 collapsed.
+
 ---
 
 ### TC-S65: Hide rows — sheet not found returns error
@@ -903,6 +997,8 @@ hide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -927,6 +1023,8 @@ unhide_rows(start_row=4) → row 4's hiddenByUser gone; rows 2,3 remained hidden
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — With rows 3–5 hidden, `unhide_rows(start_row=4)`; Playwright (tc-s66.png): row 5 (Gizmo) back, rows 3–4 still hidden — so only index 4 was unhidden. Then unhid 2–3 (probe: none hidden).
+
 ---
 
 ### TC-S67: Unhide rows — sheet not found returns error
@@ -946,6 +1044,8 @@ unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S107: hide_rows / unhide_rows — end_row before start_row returns error (unit test)
@@ -958,6 +1058,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestHideRows/TestUnhideRows exist and pass. TC-S107 ✅, TC-S115 ✅.
 
 ---
 
@@ -973,6 +1075,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestHideRows/TestUnhideRows exist and pass. TC-S107 ✅, TC-S115 ✅.
 
 ---
 
@@ -998,6 +1102,8 @@ hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `hide_columns(start_column=1)`; probe: only columnMetadata[1] hidden. Playwright (tc-s68.png): headers A, C, D with chevrons; Q1 column gone.
+
 ---
 
 ### TC-S69: Hide a range of columns ⚠️ destructive
@@ -1019,6 +1125,8 @@ hide_columns(start_column=2,end_column=4) → columnMetadata[2,3,4] all hiddenBy
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `hide_columns(2, end_column=4)`; probe: columns 2,3,4 hidden, 5 not. Playwright (tc-s69.png): A, B, then F.
+
 ---
 
 ### TC-S70: Hide columns — sheet not found returns error
@@ -1037,6 +1145,8 @@ hide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -1061,6 +1171,8 @@ unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `unhide_columns(start_column=1)`; Playwright (tc-s71.png): A–D all back with Q1 values.
+
 ---
 
 ### TC-S72: Unhide columns — sheet not found returns error
@@ -1080,6 +1192,8 @@ unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S108: hide_columns / unhide_columns — end_column before start_column returns error (unit test)
@@ -1092,6 +1206,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestHideColumns/TestUnhideColumns exist and pass. TC-S108 ✅, TC-S116 ✅.
 
 ---
 
@@ -1107,6 +1223,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestHideColumns/TestUnhideColumns exist and pass. TC-S108 ✅, TC-S116 ✅.
 
 ---
 
@@ -1131,6 +1249,8 @@ resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 mome
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Probe: rowMetadata[4].pixelSize 60, neighbours 21. Playwright (tc-s73.png): row 5 visibly taller.
+
 ---
 
 ### TC-S74: Resize a range of rows ⚠️ destructive
@@ -1150,6 +1270,8 @@ resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixe
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `resize_rows(2, end_row=4, pixel_size=40)`; probe: rows 2–4 = 40, row 5 = 21. Playwright (tc-s74.png): rows 3–5 taller.
 
 ---
 
@@ -1173,6 +1295,8 @@ resize_rows(start_row=4,auto_resize=True) → succeeded, no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Row 5 at 40px → `resize_rows(4, auto_resize=True)`; probe: row 4 index back to 21, rows 2–3 still 40. Playwright (tc-s75.png): Gizmo row back to normal height.
+
 ---
 
 ### TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error
@@ -1191,6 +1315,8 @@ resize_rows(start_row=0) no size/auto → {"error":"Specify pixel_size or set au
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Specify pixel_size or set auto_resize=True"}`; no-batchUpdate covered by unit tests (TestResizeRows) and no state change.
 
 ---
 
@@ -1211,6 +1337,8 @@ resize_rows(pixel_size=50,auto_resize=True) both → {"error":"Specify only one 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Specify only one of pixel_size or auto_resize"}`; row 0 unchanged (21px).
+
 ---
 
 ### TC-S78: Resize rows — sheet not found returns error
@@ -1228,6 +1356,8 @@ resize_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -1250,6 +1380,8 @@ resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=20
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Probe: columnMetadata[1].pixelSize 200. Playwright (tc-s79.png): column B visibly wide.
+
 ---
 
 ### TC-S80: Resize a range of columns ⚠️ destructive
@@ -1269,6 +1401,8 @@ resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `resize_columns(2, end_column=4, pixel_size=50)`; probe: C–E = 50, F = 100. Playwright (tc-s80.png): C, D, E widened.
 
 ---
 
@@ -1292,6 +1426,8 @@ resize_columns(start_column=1,auto_resize=True) → succeeded, no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Column B at 200 → `resize_columns(1, auto_resize=True)`; probe: back to 28. Playwright (tc-s81.png): B narrow around "100".
+
 ---
 
 ### TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error
@@ -1310,6 +1446,8 @@ resize_columns(start_column=0) no size/auto → {"error":"Specify pixel_size or 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Specify pixel_size or set auto_resize=True"}`.
 
 ---
 
@@ -1330,6 +1468,8 @@ resize_columns(pixel_size=100,auto_resize=True) both → {"error":"Specify only 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Specify only one of pixel_size or auto_resize"}`; column A unchanged (52px).
+
 ---
 
 ### TC-S84: Resize columns — sheet not found returns error
@@ -1348,6 +1488,8 @@ resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
 ---
 
 ### TC-S109: resize_rows / resize_columns — non-positive pixel_size returns error (unit test)
@@ -1361,6 +1503,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.
+
 ---
 
 ### TC-S110: resize_rows / resize_columns — end index before start index returns error (unit test)
@@ -1372,6 +1516,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.
 
 ---
 
@@ -1385,6 +1531,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.
 
 ---
 
@@ -1400,6 +1548,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Cited tests in TestResizeRows/TestResizeColumns exist and pass. TC-S109 ✅, TC-S110 ✅, TC-S111 ✅, TC-S117 ✅.
 
 ---
 
@@ -1425,6 +1575,8 @@ format_cells(A1:D1, bold=true, bg light blue) → replies:[{}], no error. Reset 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `format_cells(A1:D1, bold=True, background_color={0.8,0.9,1.0})` → `replies:[{}]`. Probe: A1:D1 `textFormat.bold:true`, backgroundColor light blue. Code builds `repeatCell` with fields `userEnteredFormat.textFormat`+`userEnteredFormat.backgroundColor` (structure.py:1480/1484). Playwright (tc-s33.png): header row bold on light blue.
+
 ---
 
 ### TC-S34: Apply number format to a column ⚠️ destructive
@@ -1446,6 +1598,8 @@ format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to N
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `format_cells(B2:B100, number_format_type="CURRENCY", number_format_pattern="$#,##0.00")`; probe: B2 `numberFormat {type: CURRENCY, pattern: "$#,##0.00"}`, formatted "$100.00"; C unchanged. Fields include `userEnteredFormat.numberFormat` (:1501). Playwright (tc-s34.png): column B shows "$100…" (truncated by the narrow column).
+
 ---
 
 ### TC-S35: Set horizontal alignment ⚠️ destructive
@@ -1466,6 +1620,8 @@ format_cells(A1:F1, CENTER) → replies:[{}], no error. Reset to LEFT (header) a
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `format_cells(A1:F1, horizontal_alignment="CENTER")`; probe: A1:F1 `horizontalAlignment: CENTER`, and A1:D1's bold/background from TC-S33 kept (fields-scoped). Playwright (tc-s35.png): header centered.
+
 ---
 
 ### TC-S36: No formatting params returns error
@@ -1482,6 +1638,8 @@ format_cells(A1:D1) no formatting params → {"error":"No formatting parameters 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestFormatCells passes (incl. `test_invalid_range_returns_error_without_api_call`). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.
+
 ---
 
 ### TC-S37: format_cells — sheet not found returns error
@@ -1497,6 +1655,8 @@ format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestFormatCells passes (incl. `test_invalid_range_returns_error_without_api_call`). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.
+
 ---
 
 ### TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
@@ -1508,6 +1668,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestFormatCells passes (incl. `test_invalid_range_returns_error_without_api_call`). TC-S36 ✅, TC-S37 ✅, TC-S123 ✅.
 
 ---
 
@@ -1538,6 +1700,8 @@ Fresh scratch spreadsheet (`create_spreadsheet`, then `update_cells` A1:E5 with 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Scratch spreadsheet `qa-tc-s131-scratch` in the run folder (A1:E5 text). `range=":"` → `{"error":"Invalid A1 notation: ':'"}`; `range="A1\n"` → `{"error":"Invalid A1 notation: 'A1\\n'"}`. Before/after A1:F8 grid-data reads byte-identical (cmp), no bold cell.
+
 ---
 
 ### TC-S132: format_cells — bounded and open-ended ranges still format exactly their target (PR #922 regression) ⚠️ destructive
@@ -1566,6 +1730,8 @@ Same scratch spreadsheet as TC-S131's re-run (values in A1:E5), read A1:F8 after
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Bold cells in A1:F8 after each call (reset with `A:Z` bold=False between): `A1`→A1; `A1:B2`→A1 B1 A2 B2; `A:A`→A1–A8; `1:2`→A1–F2; `B2:D`→B2–D8. Every call `replies:[{}]`, no error. Scratch spreadsheet trashed.
+
 ---
 
 ## `merge_cells` / `unmerge_cells`
@@ -1591,6 +1757,8 @@ merge_cells(Empty!E1:G2, MERGE_ALL) → replies:[{}], no error (used Empty scrat
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `merge_cells(Empty, A1:D1)` (default MERGE_ALL) → `replies:[{}]`; probe `merges`: one range rows 0–1 × cols 0–4. Playwright (tc-s38.png): A1:D1 is one selected cell, name box "A1:D1".
+
 ---
 
 ### TC-S39: Merge rows independently ⚠️ destructive
@@ -1611,6 +1779,8 @@ merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `merge_cells(Empty, A3:C5, merge_type="MERGE_ROWS")`; probe: three merges, one per row 3/4/5 spanning A–C. Playwright (tc-s39.png): rows 3–5 show no inner column gridlines in A–C. Unmerged afterward.
 
 ---
 
@@ -1634,6 +1804,8 @@ unmerge_cells(Empty!E1:G2) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet to avoid destroying Sales data; TC prompt says Sales.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `unmerge_cells(Empty, A1:D1)` (and A3:C5) → no error; probe: no `merges` left. Playwright (tc-s40.png): plain grid.
+
 ---
 
 ### TC-S41: merge_cells — sheet not found returns error
@@ -1649,6 +1821,8 @@ merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestMergeCells/TestUnmergeCells pass, including `test_invalid_range_returns_error_without_api_call`. TC-S41 ✅, TC-S124 ✅.
+
 ---
 
 ### TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
@@ -1661,6 +1835,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestMergeCells/TestUnmergeCells pass, including `test_invalid_range_returns_error_without_api_call`. TC-S41 ✅, TC-S124 ✅.
 
 ---
 
@@ -1686,6 +1862,8 @@ update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no er
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `update_borders(A1:D5, top/bottom/left/right={SOLID, black})` → `replies:[{}]`; probe: top on row 1, bottom on row 5, left on A, right on D, nothing inside. Playwright (tc-s85.png): black box around A1:D5.
+
 ---
 
 ### TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
@@ -1707,6 +1885,8 @@ update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `update_borders(A1:C3, inner_horizontal/inner_vertical={DASHED})`; probe: dashed between rows/columns inside A1:C3, outer edges keep TC-S85's solid (none added/removed). Playwright (tc-s86.png): dashed inner lines.
+
 ---
 
 ### TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
@@ -1727,6 +1907,8 @@ update_borders(A1:D5, right=NONE) → API-verified via grid data: column D cells
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `update_borders(A1:D5, right={NONE})`; probe: D1–D5 no longer have `right`, other edges intact. Playwright (tc-s87.png): right edge gone.
+
 ---
 
 ### TC-S88: update_borders — no border params returns error
@@ -1743,6 +1925,8 @@ update_borders(A1:D1, no edge params) → {"error":"No border parameters provide
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
+
 ---
 
 ### TC-S89: update_borders — border spec missing style returns error
@@ -1757,6 +1941,8 @@ update_borders(top={"color":{"red":0}}) missing style → {"error":"Border spec 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
 
 ---
 
@@ -1773,6 +1959,8 @@ update_borders(top={"style":"SQUIGGLY"}) → {"error":"Invalid border style 'SQU
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
+
 ---
 
 ### TC-S91: update_borders — sheet not found returns error
@@ -1787,6 +1975,8 @@ update_borders(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
 
 ---
 
@@ -1803,6 +1993,8 @@ update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' h
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
+
 ---
 
 ### TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)
@@ -1817,6 +2009,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
+
 ---
 
 ### TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)
@@ -1828,6 +2022,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateBorders passes (incl. `test_validation_runs_before_sheet_lookup`, `test_invalid_range_returns_error_without_api_call`). Each ID ✅.
 
 ---
 
@@ -1857,6 +2053,8 @@ add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `add_data_validation(Empty, A1:A5, ONE_OF_LIST, [Yes,No,Maybe])` → no error. `get_data_validation(A1:A5)` → 5 entries A1–A5, each `ONE_OF_LIST` with `userEnteredValue` Yes/No/Maybe, strict, showCustomUi. Playwright: dropdown arrows on A1–A5 (tc-s93.png); opening A1's shows exactly Yes / No / Maybe (tc-s93-dropdown.png, closed with Escape, nothing chosen). Teardown done.
+
 ---
 
 ### TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
@@ -1878,6 +2076,8 @@ add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_val
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `add_data_validation(Empty, B1:B5, BOOLEAN)` → no error; `get_data_validation(B1:B5)` → `condition {"type":"BOOLEAN"}`, no `values`, each cell. Playwright (tc-s94.png): B1–B5 render checkboxes. Cells held FALSE; teardown cleared the rule and the values.
+
 ---
 
 ### TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
@@ -1896,6 +2096,8 @@ add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succe
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run on the Empty sheet; dropdown/checkbox rendering seen, values confirmed via API read-back.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — No error; readback `NUMBER_BETWEEN` values `["1","10"]` with no `strict` key (API omits false, i.e. strict == false). Cleared.
 
 ---
 
@@ -1916,6 +2118,8 @@ get_data_validation(Empty!D1:D5, no rules) → []
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `get_data_validation(Sales, D1:D5)` → `{"result":[]}` (MCP wrapping of the list), no error.
+
 ---
 
 ### TC-S97: add_data_validation — invalid condition_type returns error (unit test)
@@ -1930,6 +2134,8 @@ add_data_validation(condition_type="NOT_A_REAL_TYPE") → {"error":"Invalid cond
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestAddDataValidation passes, every cited test present. Each ID ✅.
+
 ---
 
 ### TC-S98: add_data_validation — sheet not found returns error (unit test)
@@ -1943,6 +2149,8 @@ add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not f
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestAddDataValidation passes, every cited test present. Each ID ✅.
 
 ---
 
@@ -1965,6 +2173,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestAddDataValidation passes, every cited test present. Each ID ✅.
 
 ---
 
@@ -1989,6 +2199,8 @@ add_data_validation(ONE_OF_RANGE, values=["Sales!A2:A5"], no leading =) → succ
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — The docstring's format `values=["Sales!A2:A5"]` on Empty!D1:D2 now succeeds and creates a range-sourced dropdown (fixed by PR #361; see TC-S101).
+
 ---
 
 ### TC-S100: `get_data_validation` on a nonexistent sheet raises raw, not a clean error ❌ code review finding
@@ -2008,6 +2220,8 @@ get_data_validation(sheet="NonexistentSheetXYZ") → clean {"error":"Sheet 'None
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error is nested as {"result":{"error":…}} (list-typed output schema); TC says {"error"}.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"result":{"error":"Sheet 'NonexistentSheetXYZ' not found"}}`, no raw HttpError (fixed; see TC-S102).
 
 ---
 
@@ -2033,6 +2247,8 @@ Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Call succeeded; readback `userEnteredValue: "=Sales!$A$2:$A$5"`. Cleared.
+
 ---
 
 ### TC-S102: `get_data_validation` on a nonexistent sheet returns a clean error (PR #361 review fix)
@@ -2053,6 +2269,8 @@ Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error is nested as {"result":{"error":…}} (list-typed output schema); TC says {"error"}.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `{"result":{"error":"Sheet 'NonexistentSheetXYZ' not found"}}`.
+
 ---
 
 ### TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
@@ -2064,6 +2282,8 @@ Error is nested as {"result":{"error":…}} (list-typed output schema); TC says 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestAddDataValidation passes, every cited test present. Each ID ✅.
 
 ---
 
@@ -2094,6 +2314,8 @@ Ran live against the fixture spreadsheet. `add_data_validation` set the ONE_OF_L
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Step 1 ONE_OF_LIST on Empty!E1:E5 → ok; step 2 clear → `replies:[{}]`; step 3 `get_data_validation(E1:E5)` → `[]`.
+
 ---
 
 ### TC-S120: clear_data_validation on a range with no existing rule is a no-op
@@ -2111,6 +2333,8 @@ Confirmed F1:F5 had no rule beforehand (`get_data_validation` → `[]`), then `c
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `clear_data_validation(Empty, F1:F5)` → no error; `get_data_validation(F1:F5)` → `[]`.
+
 ---
 
 ### TC-S121: clear_data_validation — sheet not found returns error (unit test)
@@ -2121,6 +2345,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestClearDataValidation passes. TC-S121 ✅, TC-S127 ✅.
 
 ---
 
@@ -2133,6 +2359,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestClearDataValidation passes. TC-S121 ✅, TC-S127 ✅.
 
 ---
 
@@ -2157,6 +2385,8 @@ freeze(rows=1) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `freeze(Sales, rows=1)` → no error; probe `frozenRowCount:1`, no frozen column. Code sends `updateSheetProperties` with fields `gridProperties.frozenRowCount,gridProperties.frozenColumnCount` (structure.py:1899). Playwright (tc-s42.png): freeze bar under row 1.
+
 ---
 
 ### TC-S43: Freeze first row and first column ⚠️ destructive
@@ -2176,6 +2406,8 @@ freeze(rows=1,columns=1) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — probe `frozenRowCount:1, frozenColumnCount:1`. Playwright (tc-s43.png): freeze bars under row 1 and right of column A.
+
 ---
 
 ### TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive
@@ -2194,6 +2426,8 @@ freeze(rows=0,columns=0) → replies:[{}], no error (also serves as unfreeze tea
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `freeze(rows=0, columns=0)` → no error; probe: neither frozen count present (0).
+
 ---
 
 ### TC-S45: freeze — sheet not found returns error
@@ -2208,6 +2442,8 @@ freeze(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestFreeze passes.
 
 ---
 
@@ -2233,6 +2469,8 @@ update_sheet_properties(tab_color red) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `update_sheet_properties(tab_color={1,0,0})` → no error; probe `tabColor {red:1}`; code appends field `tabColor` (:1958–1959). Playwright: `.docs-sheet-tab-color` for Sales `background: rgb(255, 0, 0)` (tc-s57.png).
+
 ---
 
 ### TC-S57b: Clear tab color with `{}` ⚠️ destructive
@@ -2254,6 +2492,8 @@ update_sheet_properties(tab_color={}) → replies:[{}], no error (clears via tab
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `tab_color={}` → no error; code sends `tabColorStyle: {}` with field `tabColorStyle` only (:1955–1956); probe: neither tabColor nor tabColorStyle left. Playwright: all three tab-color elements `background: transparent` (not black) (tc-s57b.png).
 
 ---
 
@@ -2277,6 +2517,8 @@ update_sheet_properties(show_gridlines=false) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `show_gridlines=False` → probe `hideGridlines:true` (field `gridProperties.hideGridlines`, :1962–1963). Playwright (tc-s58.png): no gridlines in the cell area.
+
 ---
 
 ### TC-S59: Set right-to-left layout ⚠️ destructive
@@ -2299,6 +2541,8 @@ update_sheet_properties(right_to_left=true) → replies:[{}], no error
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `right_to_left=True` → probe `rightToLeft:true` (field `rightToLeft`). Playwright (tc-s59.png): column A at the right, row headers on the right edge.
+
 ---
 
 ### TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
@@ -2320,6 +2564,8 @@ update_sheet_properties(tab_color=blue, show_gridlines=true, right_to_left=false
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — One call → `replies:[{}]` (a single `updateSheetProperties` request, code :1977–1980); probe: tabColor blue, hideGridlines gone (false), rightToLeft gone (false). Fields built from all three branches.
+
 ---
 
 ### TC-S61: No properties provided returns error
@@ -2336,6 +2582,8 @@ update_sheet_properties(no properties) → {"error":"No properties provided to u
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestUpdateSheetProperties passes; live: `{"error":"No properties provided to update"}`.
+
 ---
 
 ### TC-S62: update_sheet_properties — sheet not found returns error
@@ -2351,6 +2599,8 @@ update_sheet_properties(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' n
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Unit test passes; live: `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -2374,6 +2624,8 @@ sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabet
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `sort_range(A2:D50)` (no sort_order) → `replies:[{}]`; rows became Donut, Gadget, Gizmo, Totals, Widget (A ascending), header untouched. Playwright (tc-s46.png) matches. (Totals is a SUM formula inside the sorted range, so its value moved with it, which is Sheets' own behaviour.)
+
 ---
 
 ### TC-S47: Sort descending by a non-first column ⚠️ destructive
@@ -2392,6 +2644,8 @@ sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `sort_order=[{column_index:2, order:DESCENDING}]` → rows by Q2 descending (Totals 550, Gizmo 310, Gadget 180, Widget 120, Donut 60). Playwright (tc-s47.png) matches. The Totals SUM row, moved above the rows it sums, shows #REF! — Sheets' own formula behaviour after sorting a formula into its own range, not a tool defect.
 
 ---
 
@@ -2414,6 +2668,8 @@ sort_range(A2:D50, col0 ASC + col2 DESC) → two sort specs applied correctly, p
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — Added two extra "Gadget" rows (Q2 5 and 999) so the secondary key matters; `sort_order=[{0,ASCENDING},{2,DESCENDING}]` → Donut, Gadget 999, Gadget 180, Gadget 5, Gizmo, Totals, Widget: A ascending, ties broken by C descending, so both specs reached the API in order. Playwright (tc-s48.png) matches.
+
 ---
 
 ### TC-S49: column_index offset by range start column
@@ -2429,6 +2685,8 @@ column_index offset logic implicitly exercised/correct via TC-S46-48 (dimensionI
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestSortRange passes. Each ID ✅.
+
 ---
 
 ### TC-S50: sort_range — sheet not found returns error
@@ -2443,6 +2701,8 @@ sort_range(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestSortRange passes. Each ID ✅.
 
 ---
 
@@ -2481,6 +2741,8 @@ All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → cle
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestSortRange passes. Each ID ✅.
+
 ---
 
 ### TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)
@@ -2492,6 +2754,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Error text now repr-quotes the range; TC wording stale.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — TestSortRange passes. Each ID ✅.
 
 ---
 
@@ -2512,6 +2776,8 @@ Error text now repr-quotes the range; TC wording stale.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `test_row_zero_raises`, `test_inverted_column_range_raises`, `test_zero_width_column_range_raises` and siblings in TestParseA1Notation exist and pass.
+
 ---
 
 ### TC-S130: A1-notation error handling factored into a shared `_or_error` helper, not duplicated per call site (issue #747 QA round 1, unit test)
@@ -2527,6 +2793,8 @@ Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell bra
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — `grep 'except ValueError'` over data.py/structure.py/helpers.py: only structure.py:291 (inside `_grid_range_or_error`) and helpers.py:177 (inside `_parse_a1_notation_or_error`). `uv run python -m pytest tests/sheets/` → 448 passed.
 
 
 ---
@@ -2594,6 +2862,8 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
+**Result (2026-11-08) ⚠️ PARTIAL — ornithomimus release pass, shard S1 on `kai-oauth`** — Calls 1–5, 7 and 8 matched exactly: 1 `column is beyond ZZZ: 'ZZZZZZZZ1'`, 2 `row is beyond 10,000,000: 'A99999999999'`, 3 `column is beyond ZZZ: 'A1:AAAA2'`, 4 `Invalid A1 notation: 'A:5'`, 5 `Invalid A1 notation: 'A:B5'`, 7 `row is beyond 10,000,000: 'A10000001'`, 8 (control `ZZZ10000000`) → HttpError 404 on the fake ID, so it reached the sheet lookup; none of 1–5/7 returned a 404. **Not run live: call 6 (Kelvin sign U+212A).** My tool calls sent an ASCII `K` both times (the result was the 404 an ASCII `K1` correctly gets), so the Kelvin-sign input never reached the server. Unit-level evidence: a fresh interpreter's `_parse_a1_notation('K1')` raises `Invalid A1 notation: 'K1'` (Kelvin sign shown), and `TestGridRangeToolsRejectMalformedRange` includes `"K1"` against all seven tools. Deferred to Aziz: re-run call 6 from a client that can send U+212A unchanged.
+
 ---
 
 ### TC-S134: add_data_validation rejects condition types data validation doesn't support, before any API call (PR #986 QA round 2)
@@ -2626,3 +2896,5 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — BLANK, NOT_BLANK, TEXT_STARTS_WITH, TEXT_ENDS_WITH → each `Invalid condition_type '<type>'. Must be one of: …`, and the list has none of the four; no 404. Control DATE_IS_VALID → HttpError 404 on the fake ID (it reached the lookup). The served `add_data_validation` description (loaded schema) lists none of the four.

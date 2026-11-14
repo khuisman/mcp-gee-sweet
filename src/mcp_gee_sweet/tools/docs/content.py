@@ -56,7 +56,7 @@ from .images import (
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 from .markdown_export import _discard_temp_doc
 from .md_to_html import _md_to_html
-from .style import _add_or_clear_field, _has_own_paragraph_spacing
+from .style import _add_or_clear_field, _own_paragraph_spacing_fields
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,9 @@ class ConvertedContent:
     placeholder_uris: dict[int, str]
     unstorable_urls: list[str]
     heading_image_ids: set[int] = field(default_factory=set)
+    # id(request) -> field of each paragraph gap beside a table (#1427), for
+    # without_paragraph_gaps.
+    table_gaps: dict[int, str] = field(default_factory=dict)
 
 
 def _convert_doc_content(
@@ -128,8 +131,13 @@ def _convert_doc_content(
     images = extract_images(nodes)
     placeholder_uris = {id(img): f"urn:mcp-gee-sweet:pending-image:{id(img)}" for img in images}
     image_links: dict[int, dict] = {}
+    table_gaps: dict[int, str] = {}
     requests, tables = ast_to_requests(
-        nodes, start_index=1, image_uris=placeholder_uris, image_links=image_links
+        nodes,
+        start_index=1,
+        image_uris=placeholder_uris,
+        image_links=image_links,
+        table_gaps=table_gaps,
     )
     return ConvertedContent(
         images=images,
@@ -139,6 +147,7 @@ def _convert_doc_content(
         placeholder_uris=placeholder_uris,
         unstorable_urls=unstorable_link_urls(nodes),
         heading_image_ids=heading_image_ids(nodes),
+        table_gaps=table_gaps,
     )
 
 
@@ -776,8 +785,11 @@ async def _replace_doc_content(
                 "docId": doc_id,
             }
     doc, end_index = await _doc_end_index(docs_service, doc_id)
-    if _has_own_paragraph_spacing(doc):
-        converted.requests = without_paragraph_gaps(converted.requests)
+    own_spacing = _own_paragraph_spacing_fields(doc)
+    if own_spacing:
+        converted.requests = without_paragraph_gaps(
+            converted.requests, converted.table_gaps, own_spacing
+        )
 
     backup: dict[str, Any] = {}
     no_backup_reason: str | None = None

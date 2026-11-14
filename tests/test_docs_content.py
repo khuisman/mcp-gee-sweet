@@ -3509,6 +3509,39 @@ class TestUpdateDocFromFile:
             for r in content_requests
         )
 
+    @pytest.mark.parametrize(
+        "normal_text, kept",
+        [
+            # PR #1434 QA round 1: a doc spaced only below keeps the gap after the
+            # table, or "Hotel" would sit on it.
+            ({"spaceBelow": {"magnitude": 20, "unit": "PT"}}, [("spaceAbove", 10)]),
+            ({"spaceAbove": {"magnitude": 20, "unit": "PT"}}, [("spaceBelow", 10)]),
+        ],
+        ids=["below", "above"],
+    )
+    async def test_doc_with_its_own_spacing_keeps_a_table_gap_it_does_not_set(
+        self, tmp_path, normal_text, kept
+    ):
+        """#1427: a table takes no spacing, so a gap beside it goes only when the doc's
+        NORMAL_TEXT sets that same field. "Intro" before the table, "Hotel" after."""
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("Intro\n\n| A |\n|---|\n| 1 |\n\nHotel\n")
+        drive_svc, docs_svc = self._make_services(end_index=50)
+        doc = docs_svc.documents().get().execute.return_value
+        doc["namedStyles"] = {
+            "styles": [{"namedStyleType": "NORMAL_TEXT", "paragraphStyle": normal_text}]
+        }
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["update_doc_from_file"](doc_id="doc1", local_path=str(md_file), ctx=ctx)
+        content_requests = self._batchupdate_calls(docs_svc)[1]
+        spacing = [
+            (field, value["magnitude"])
+            for r in content_requests
+            for field, value in r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).items()
+            if field in ("spaceAbove", "spaceBelow") and value.get("magnitude") == 10
+        ]
+        assert spacing == kept
+
     async def test_empty_doc_skips_clear_requests(self, tmp_path):
         md_file = tmp_path / "notes.md"
         md_file.write_text("New content\n")
