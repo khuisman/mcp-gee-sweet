@@ -16,22 +16,31 @@ import re
 
 from markdown.extensions.toc import slugify as _markdown_toc_slugify
 
-_STRIP_CHARS = re.compile(r"[^\w\s-]", re.UNICODE)
-_WHITESPACE_RUN = re.compile(r"\s+")
+_STRIP_CHARS = re.compile(r"[^\w -]", re.UNICODE)
 _TRAILING_DEDUP_SUFFIX = re.compile(r"-(\d+)$")
 _WORD_CHARS = re.compile(r"[a-z0-9]+")
 
 
 def _github_style_slugify(text: str) -> str:
-    """GitHub's markdown heading-anchor convention: lowercase, strip
-    punctuation (keeping any literal hyphen already present), and turn each
-    run of whitespace into a matching-length run of hyphens — consecutive
-    hyphens are NOT collapsed (" - " -> "---", confirmed against issue #409's
-    own real example). No known maintained Python package reproduces this;
+    """GitHub's markdown heading-anchor convention: lowercase, keep word
+    characters, hyphens and literal spaces, strip everything else, and turn
+    each space into a hyphen — consecutive hyphens are NOT collapsed
+    (" - " -> "---", confirmed against issue #409's own real example; a run
+    of spaces still becomes a matching-length run of hyphens, one per space).
+
+    Every other whitespace character is stripped like any other non-word
+    character, never hyphenated (#1460): github-slugger's own
+    disallowed-character regex (master) removes \t and \x0b in its \0-\x1f
+    range and \xa0 in its \xa0-\xa9 range, so GitHub's real anchor for
+    "Price\xa0List" — a heading from HTML with `&nbsp;` — and for
+    "Price\tList" is "pricelist", where hyphenating every whitespace run used to
+    read it as "price-list". That also covers the "\v" a heading's `<br>`
+    hard break leaves in a Doc's heading text (#1357): GitHub's anchor there
+    is separator-free. No known maintained Python package reproduces this;
     GitHub's own reference implementation (`github-slugger`) is JS-only."""
     slug = text.lower()
     slug = _STRIP_CHARS.sub("", slug)
-    return _WHITESPACE_RUN.sub(lambda m: "-" * len(m.group(0)), slug)
+    return slug.replace(" ", "-")
 
 
 # One callable per known slugification scheme. The GitLab/Kramdown-style

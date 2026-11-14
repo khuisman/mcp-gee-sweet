@@ -1,6 +1,10 @@
 """Tests for GitHub/GitLab-style heading-anchor slug resolution (issue #409)."""
 
-from mcp_gee_sweet.tools.docs.anchors import compute_scheme_slugs, resolve_heading_anchor
+from mcp_gee_sweet.tools.docs.anchors import (
+    _github_style_slugify,
+    compute_scheme_slugs,
+    resolve_heading_anchor,
+)
 
 
 class TestResolveHeadingAnchor:
@@ -129,3 +133,30 @@ class TestComputeSchemeSlugs:
         assert resolve_heading_anchor("#new-heading", headings, stale) == resolve_heading_anchor(
             "#new-heading", headings
         )
+
+
+class TestGithubSchemeStripsOtherWhitespace:
+    """#1460: the GitHub scheme hyphenated every whitespace run, where GitHub's
+    own anchor (github-slugger) strips a tab, an NBSP and a heading's "<br>"
+    break with no hyphen at all, so a "#pricelist" link to a heading written
+    "Price\xa0List" — HTML input with `&nbsp;` — resolved to nothing."""
+
+    def test_nbsp_and_tab_slug_separator_free(self):
+        # Checked against github-slugger master: its disallowed-character regex
+        # removes \t (\0-\x1F) and \xa0 (\xA0-\xA9), so GitHub's real
+        # anchor for both is "pricelist".
+        assert _github_style_slugify("Price\xa0List") == "pricelist"
+        assert _github_style_slugify("Price\tList") == "pricelist"
+
+    def test_issue_repro_resolves_the_nbsp_heading(self):
+        assert resolve_heading_anchor("#pricelist", ["Price\xa0List"]) == 0
+
+    def test_hard_break_heading_slug_is_separator_free(self):
+        assert _github_style_slugify("Heading one\vheading two") == "heading-oneheading-two"
+
+    def test_space_runs_still_become_matching_hyphens(self):
+        assert _github_style_slugify("A - Approved") == "a---approved"
+        assert _github_style_slugify("a  b") == "a--b"
+
+    def test_slash_still_strips_with_no_separator(self):
+        assert _github_style_slugify("Setup/Installation") == "setupinstallation"
