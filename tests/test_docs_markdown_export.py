@@ -2,6 +2,7 @@
 API -> AST walker, ast_to_markdown.py's AST -> Markdown serializer, and the
 get_doc_as_markdown tool wiring them together."""
 
+import re
 from html import escape
 from unittest.mock import MagicMock
 from xml.etree import ElementTree
@@ -2744,8 +2745,41 @@ class TestAdjacentStruckRunsRoundTrip:
         rendered = ast_to_markdown([Paragraph(runs=runs)])
         assert _reimported_runs(rendered) == [("a <b> c", True)]
 
-    def test_struck_runs_with_their_own_markers_stay_apart(self, single_tilde):
-        # A bold or linked struck run ends in its own marker, so nothing joins.
+    @pytest.mark.parametrize(
+        "texts",
+        [("AT&", "amp", ";T"), ("x &", "#38", ";"), ("a <", "b", "> c")],
+    )
+    def test_syntax_split_across_three_struck_runs_stays_literal(self, single_tilde, texts):
+        # PR #1476 QA round 1: an entity or tag split over three runs of
+        # alternating color. Merged before escaping, it's escaped as a whole.
+        runs = [
+            Run(t, strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i, t in enumerate(texts)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("".join(texts), True)]
+
+    @pytest.mark.parametrize(
+        ("style", "expected"),
+        [
+            ({"bold": True}, "**~~ab~~**"),
+            ({"italic": True}, "*~~ab~~*"),
+            ({"bold": True, "italic": True}, "***~~ab~~***"),
+            ({"link_url": "https://e.example"}, "[~~ab~~](https://e.example)"),
+        ],
+    )
+    def test_styled_struck_runs_differing_only_in_color(self, single_tilde, style, expected):
+        # PR #1476 QA round 1: "**~~a~~****~~b~~**" re-imported with literal
+        # asterisks between a and b.
+        runs = [
+            Run("a", strikethrough=True, **style),
+            Run("b", strikethrough=True, foreground_color=_RED, **style),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == expected + "\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_struck_runs_with_different_markers_stay_apart(self, single_tilde):
         runs = [
             Run("a", strikethrough=True, bold=True),
             Run("b", strikethrough=True),
@@ -2756,11 +2790,31 @@ class TestAdjacentStruckRunsRoundTrip:
         assert rendered == "**~~a~~**~~b~~[~~c~~](https://e.example)~~d~~\n"
         assert _struck_text(_reimported_runs(rendered)) == [("abcd", True)]
 
-    def test_whitespace_between_struck_runs_stays_outside(self, single_tilde):
-        runs = [Run("a ", strikethrough=True), Run("b", strikethrough=True)]
+    def test_whitespace_between_struck_runs_is_struck_too(self, single_tilde):
+        # Both runs are struck, so the space between them is as well.
+        runs = [Run("a ", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
         rendered = ast_to_markdown([Paragraph(runs=runs)])
-        assert rendered == "~~a~~ ~~b~~\n"
-        assert _reimported_runs(rendered) == [("a", True), (" ", None), ("b", True)]
+        assert rendered == "~~a b~~\n"
+        assert _reimported_runs(rendered) == [("a b", True)]
+
+    @pytest.mark.parametrize("texts", [("a\n", "b"), ("a", "\nb"), ("a \n ", "b")])
+    def test_runs_meeting_at_a_line_break_stay_apart(self, texts):
+        # The break stays outside the link, as an edge break always renders.
+        url = "https://e.example"
+        runs = [Run(texts[0], link_url=url), Run(texts[1], link_url=url, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered.count(f"]({url})") == 2
+        assert all("<br>" not in label for label in re.findall(r"\[([^\]]*)\]", rendered))
+
+    def test_many_alternating_runs_render_in_linear_time(self):
+        # PR #1476 QA round 1: joining on the rendered string copied the
+        # output once per run.
+        runs = [
+            Run("ab", strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i in range(50_000)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~" + "ab" * 50_000 + "~~\n"
 
     def test_table_cell(self, single_tilde):
         cell = Cell(
