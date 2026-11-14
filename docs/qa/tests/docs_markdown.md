@@ -1739,12 +1739,14 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 > 5. `create_doc(title="TC-MD510 nested", content="~~a ~b~ c~~ and ~a ~~b~~ c~", content_format="markdown")`, then `get_doc_as_markdown` on it.
 
 **Checks**
-- Step 2: `get_doc_structure` shows "a" and "b" as two text runs, both `strikethrough: true`, "b" red.
+- Step 2: `get_doc_structure(doc_id)` shows "a" and "b" as two text runs, both `strikethrough: true`. Its runs don't report color, so the split into two runs is the check that the color took.
 - Step 3: the export reads `x ~~ab~~ y`, not `x ~~a~~~~b~~ y`.
 - Step 4: the Doc's text is `x ab y` with "ab" struck and no `~` anywhere; the second export is `x ~~ab~~ y` again. The color is lost, as Markdown has no syntax for it.
 - Step 5, with single-tilde strikethrough (#1436) on `develop`: both halves read back as "a b c" all struck, with no `~` in the Doc's text. Before #1436 merges, the first half is "a ~b~ c" struck and the second "~a ", "b" struck, " c~", the old reading.
 
 **Cleanup:** trash both Docs and delete the local `.md` file.
+
+**Result (2026-11-14, PR #1476 QA round 1 @ c6e3445d, Kit) ✅ PASS — one run, before #1436 merged.** Step 2: two runs "a" and "b", both struck. Step 3: `x ~~ab~~ y`. Step 4: the text is `x ab y`, with "ab" as one struck run and no `~`; the second export is `x ~~ab~~ y`. Step 5: the old reading: "a ~b~ c" struck, then " and ~a ", "b" struck, " c~"; it exports as `~~a \~b\~ c~~ and \~a ~~b~~ c\~`. QA fixed the step 2 check: it named a `get_doc_structure` call the step never made and a color that tool doesn't report.
 
 ---
 
