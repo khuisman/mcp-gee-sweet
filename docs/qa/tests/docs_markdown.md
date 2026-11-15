@@ -1729,6 +1729,34 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 ---
 
+### TC-MD510: Adjacent struck runs round-trip through `get_doc_as_markdown` ⚠️ destructive
+**Prompt**
+> #1462's done-when, live. Two struck runs that differ only in color must export as one strike and re-import as the same struck text with no literal tildes.
+> 1. `create_doc(title="TC-MD510 scratch", content="x ~~ab~~ y", content_format="markdown")`.
+> 2. `find_in_doc(doc_id, "ab")`, then `style_doc_range(doc_id, ranges=[{"start_index": <start of "b">, "end_index": <end of "b">, "foreground_color": {"red": 1, "green": 0, "blue": 0}}])`, so "a" and "b" are two struck runs.
+> 3. `get_doc_as_markdown(doc_id)`, and save the returned Markdown to a local `.md` file.
+> 4. `update_doc_from_file(doc_id, <that file>)`, then `get_doc_as_markdown(doc_id)` and `get_doc_structure(doc_id)`.
+> 5. `create_doc(title="TC-MD510 nested", content="~~a ~b~ c~~ and ~a ~~b~~ c~", content_format="markdown")`, then `get_doc_as_markdown` on it.
+> 6. `create_doc(title="TC-MD510 entity", content="~~AT\\&amp;T~~", content_format="markdown")`, then `style_doc_range(doc_id, ranges=[{"start_index": 4, "end_index": 7, "foreground_color": {"red": 1, "green": 0, "blue": 0}}])` to color "amp", so the text is three struck runs. `get_doc_as_markdown(doc_id, local_path=<a local .md file>)`, then `update_doc_from_file(doc_id, <that file>)` and `get_doc_structure(doc_id)`.
+> 7. `create_doc(title="TC-MD510 bold", content="x **~~ab~~** y", content_format="markdown")`, then `style_doc_range` "b" red as in step 2, then `get_doc_as_markdown(doc_id, local_path=<a local .md file>)`, `update_doc_from_file(doc_id, <that file>)` and `get_doc_structure(doc_id)`.
+
+**Checks**
+- Step 2: `get_doc_structure(doc_id)` shows "a" and "b" as two text runs, both `strikethrough: true`. Its runs don't report color, so the split into two runs is the check that the color took.
+- Step 3: the export reads `x ~~ab~~ y`, not `x ~~a~~~~b~~ y`.
+- Step 4: the Doc's text is `x ab y` with "ab" struck and no `~` anywhere; the second export is `x ~~ab~~ y` again. The color is lost, as Markdown has no syntax for it.
+- Step 5, with single-tilde strikethrough (#1436) on `develop`: both halves read back as "a b c" all struck, with no `~` in the Doc's text. Before #1436 merges, the first half is "a ~b~ c" struck and the second "~a ", "b" struck, " c~", the old reading.
+
+- Step 6 (PR #1476 QA round 1): before the update, `get_doc_structure` shows three struck runs; the export is `~~AT\&amp;T~~`, with the `&` escaped. After the update the Doc's text is still `AT&amp;T`, all struck.
+- Step 7 (PR #1476 QA round 1): the export is `x **~~ab~~** y`, not `x **~~a~~****~~b~~** y`. After the update the text is `x ab y`, with "ab" one bold struck run and no `*` or `~`.
+
+**Cleanup:** trash every Doc and delete the local `.md` files.
+
+**Result (2026-11-14, PR #1476 QA round 1 @ c6e3445d, Kit) ✅ PASS — one run, before #1436 merged.** Step 2: two runs "a" and "b", both struck. Step 3: `x ~~ab~~ y`. Step 4: the text is `x ab y`, with "ab" as one struck run and no `~`; the second export is `x ~~ab~~ y`. Step 5: the old reading: "a ~b~ c" struck, then " and ~a ", "b" struck, " c~"; it exports as `~~a \~b\~ c~~ and \~a ~~b~~ c\~`. QA fixed the step 2 check: it named a `get_doc_structure` call the step never made and a color that tool doesn't report.
+
+**Result (2026-11-14, PR #1476 QA round 2 @ 4cfa8d2e, Kit) ✅ PASS — steps 1–7, one run, before #1436 merged.** Steps 1–5 are unchanged from round 1. Step 6: three struck runs ("AT&", "amp", ";T\n"); the export is `~~AT\&amp;T~~`; after the update the text is `AT&amp;T`, one struck run. Step 7: two bold struck runs; the export is `x **~~ab~~** y`; after the update "ab" is one bold struck run, with no `*` or `~`. QA added steps 6 and 7 for round 1's send-backs.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").

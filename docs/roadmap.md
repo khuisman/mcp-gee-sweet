@@ -22,8 +22,9 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 | [**v0.9.2**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2) | Post-release defect fixes & infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786) | Stabilizes before Tier 3 begins |
 | [**v0.9.3**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.3) | ✅ Security release — fixes GHSA-mpw3-mr4r-6cqh and GHSA-8jqx-w7j8-6xwm, plus what merged since v0.9.2 (#1052, #1124) | Published 2026-10-21 |
 | [**v0.9.4**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.4) | ✅ Security hotfix cut from v0.9.3: Pillow 13.0.0 for 12.3.0's open CVEs, which drops Python 3.10 ([#1158](https://github.com/khuisman/mcp-gee-sweet/issues/1158)). Nothing else from `develop` | Published 2026-10-22 |
-| [**ornithomimus**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ornithomimus%22) | Queued, next after v0.9.4. Feature set: Markdown → Docs fidelity (#1044 and its defects), comments as a first-class capability (breaking rename), Gmail sending safety, launch readiness. Plus a ranked fill (was v0.9.4 until 2026-10-22) | Gets a number when it goes in flight |
-| [**ankylosaurus**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22) | Queued: hardening. Feature set not yet set; fill candidates moved from the v0.9.4 feature set (then numbered v0.9.3) and the decision backlog 2026-10-18 | Gets a number when it goes in flight |
+| [**v0.9.5**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.5) | ✅ Security hotfix cut from v0.9.4: requires `certifi>=2026.10.19` for the eMudhra/emSign CA incident ([#1217](https://github.com/khuisman/mcp-gee-sweet/issues/1217)). Nothing else from `develop` | Published 2026-10-24 |
+| [**v0.9.6 — Ornithomimus**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.6) | ✅ Launch release: Markdown → Docs fidelity (#1044 and its defects), Gmail sending safety, launch readiness, plus its locked fill | Published 2026-11-11 |
+| [**ankylosaurus**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+ankylosaurus%22) | Queued, next after v0.9.6: hardening and tool-surface cleanup (feature set scoped 2026-11-01), plus fill candidates | Gets a number when it goes in flight |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.2) | Expanded scope |
 
@@ -384,7 +385,7 @@ Security hotfix cut from the v0.9.4 tag, with nothing else from `develop` (maint
 
 ### v0.9.6 — Ornithomimus: launch release, Markdown fidelity, Gmail sending safety, launch readiness _(target: [v0.9.6](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.6))_
 
-**In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged by 2026-11-09; the targeted re-run decides the cut.
+**Published 2026-11-11.** **In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged by 2026-11-09; the targeted re-run decides the cut.
 
 Feature set and fill set by the maintainer 2026-10-18, under the release-scoping rules in [#1085](https://github.com/khuisman/mcp-gee-sweet/issues/1085). The release ships when the feature set is done and passes release QA. **Locked 2026-10-18**, after Aziz's #1044 Phase 1 baseline: the baseline's defects joined the Markdown feature set, and #646, #957, #1078, #1100, #1103 and #1104 moved to ankylosaurus. From here only urgent fixes join (the rubric's in-flight cases and security fixes); Phase 2 findings come in only that way.
 
@@ -396,7 +397,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 **Feature set: Markdown → Docs fidelity**
 
-- [ ] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044))
+- [x] QA: Playwright-verified test plan for Markdown → Google Docs rendering (full syntax, every entry point) — absorbs #477 (full-construct fixture), closed into it 2026-10-18 ([#1044](https://github.com/khuisman/mcp-gee-sweet/issues/1044)) (closed as delivered by v0.9.6)
 - [x] Markdown sub-lists indented 2 or 3 spaces don't nest ([#1071](https://github.com/khuisman/mcp-gee-sweet/issues/1071)) (PR #1228)
 - [x] A numbered list restarts its numbering after a nested bullet list. #1241, the reverse case in the same run grouping, was folded in (maintainer, 2026-10-28) but PR #1286 didn't fix it, so #1241 stays open below — lane A ([#1072](https://github.com/khuisman/mcp-gee-sweet/issues/1072)) (PR #1286)
 - [x] Two adjacent Markdown lists render as one Docs list. `wrong/narrow`, observed in TC-MD105/108. Folded into #1072 (maintainer, 2026-10-28), but PR #1286 didn't fix it: it needs a list boundary in the AST — lane A ([#1241](https://github.com/khuisman/mcp-gee-sweet/issues/1241)) (PR #1295)
@@ -587,13 +588,19 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414))
 - [ ] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive ([#1415](https://github.com/khuisman/mcp-gee-sweet/issues/1415))
 - [ ] `upload_local_folder` on a large folder: no progress, uploads one at a time, and a failed file isn't logged — observed, TC-D300 ([#1416](https://github.com/khuisman/mcp-gee-sweet/issues/1416))
-- [ ] HTML input: `<pre>` inside a table cell isn't styled as code ([#1417](https://github.com/khuisman/mcp-gee-sweet/issues/1417))
+- [x] HTML input: `<pre>` inside a table cell isn't styled as code ([#1417](https://github.com/khuisman/mcp-gee-sweet/issues/1417)) (PR #1458)
 - [ ] HTML input: the space after a nested table in a cell is kept, indenting the next line ([#1418](https://github.com/khuisman/mcp-gee-sweet/issues/1418))
 - [ ] QA: Gmail purges the spam/trash fixtures after 30 days; check them before a pass — Aziz ([#1420](https://github.com/khuisman/mcp-gee-sweet/issues/1420))
 - [ ] An inline image whose one-off fetch fails isn't retried, so the same Markdown renders differently between runs ([#1428](https://github.com/khuisman/mcp-gee-sweet/issues/1428))
 - [ ] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430))
 - [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
 - [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
+
+**Triaged in 2026-11-14** _(review follow-ups from community PRs #1435, #1457, #1458 and #1471)_
+
+- [ ] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches. `wrong/narrow`, not observed; starts after #1457 merges ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475))
+- [ ] HTML input: a `<pre>` inside a table cell, follow-ups from PR #1458's review (nested table resets the cell-`<pre>` flag, image guard, inline layout, one shared flag, tests, CHANGELOG wording). `wrong/narrow`, not observed ([#1478](https://github.com/khuisman/mcp-gee-sweet/issues/1478))
+- [ ] Anchor slugging follow-ups from community PRs #1435 and #1471: Unicode word characters differ from github-slugger, `-N` dedup collisions, a GitLab/GitHub ambiguity to document, test and comment cleanup. `wrong/narrow`, not observed; second follow-up in #1357's family, so the chain stop rule applies to a further one ([#1482](https://github.com/khuisman/mcp-gee-sweet/issues/1482))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
