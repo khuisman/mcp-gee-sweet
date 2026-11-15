@@ -483,7 +483,10 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True),
+        default=True,
+    )
     async def style_doc_range(
         doc_id: str,
         ranges: list[dict],

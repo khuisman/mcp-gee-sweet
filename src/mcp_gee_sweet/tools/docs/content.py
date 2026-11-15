@@ -1647,7 +1647,7 @@ async def _resolve_heading_anchors(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True), default=True)
     async def create_doc(
         title: str,
         content: str | None = None,
@@ -1934,7 +1934,10 @@ def register(tool):
         enforce_response_size_cap(result, tool_name="get_doc_content")
         return result
 
-    @tool(annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True),
+        default=True,
+    )
     async def write_doc_content(
         doc_id: str,
         content: str,
@@ -2141,7 +2144,9 @@ def register(tool):
             source_dir=Path(local_path).parent,
         )
 
-    @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True), default=True
+    )
     async def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Return the full structural map of a Google Doc body with element indices.
@@ -2318,7 +2323,7 @@ def register(tool):
             "elements": elements,
         }
 
-    @tool(annotations=ToolAnnotations(title="Find in Document", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Find in Document", readOnlyHint=True), default=True)
     async def find_in_doc(
         doc_id: str,
         query: str,

@@ -15,7 +15,7 @@ from ..fakes import as_service_account
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func

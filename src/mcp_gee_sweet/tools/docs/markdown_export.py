@@ -297,7 +297,10 @@ async def export_doc_revision_markdown(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Get Document as Markdown", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Get Document as Markdown", readOnlyHint=True),
+        default=True,
+    )
     async def get_doc_as_markdown(
         doc_id: str,
         include_comments: bool = False,

@@ -1,4 +1,4 @@
-"""Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
+"""Tests for server.py (_parse_selection, _auth_status_json, _timed, tool strict args)."""
 
 import importlib.metadata
 import inspect
@@ -26,11 +26,11 @@ from starlette.requests import Request
 from uvicorn.importer import import_from_string
 
 from mcp_gee_sweet import auth as auth_module
-from mcp_gee_sweet import local_files, server
+from mcp_gee_sweet import local_files, server, tool_groups
 from mcp_gee_sweet.http_auth import BearerAuth
 from mcp_gee_sweet.server import (
     _auth_status_json,
-    _parse_enabled_tools,
+    _parse_selection,
     _timed,
     _version_logger,
     get_auth_status,
@@ -135,13 +135,13 @@ class TestGmailScopeGate:
     """#790: auth requests Gmail's mailbox scope only when a Gmail tool is registered."""
 
     def test_default_registration_enables_gmail(self):
-        # The test process registers every tool (no ENABLED_TOOLS filter).
+        # The test process registers every tool (conftest sets ENABLED_TOOLS=all).
         assert "mcp_gee_sweet.tools.gmail" in server._registered_tool_modules
         assert auth_module._gmail_enabled is True
 
     def test_filter_without_gmail_tools_leaves_gmail_module_unregistered(self, monkeypatch):
         recorded: set[str] = set()
-        monkeypatch.setattr(server, "ENABLED_TOOLS", {"get_sheet_data"})
+        monkeypatch.setattr(server, "SELECTION", _selection("get_sheet_data"))
         monkeypatch.setattr(server, "_registered_tool_modules", recorded)
 
         def list_messages():  # stands in for a Gmail tool
@@ -152,139 +152,113 @@ class TestGmailScopeGate:
         assert recorded == set()
 
 
-class TestParseEnabledTools:
-    def test_no_filter_returns_none(self, monkeypatch):
-        monkeypatch.delenv("ENABLED_TOOLS", raising=False)
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        assert _parse_enabled_tools() is None
-
-    def test_env_var_single_tool(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data"}
-
-    def test_env_var_multiple_tools(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data,update_cells,list_sheets")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data", "update_cells", "list_sheets"}
-
-    def test_env_var_strips_whitespace(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data, update_cells , list_sheets")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data", "update_cells", "list_sheets"}
-
-    def test_cli_arg_takes_precedence_over_env(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "update_cells")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools", "get_sheet_data"])
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data"}
-
-    def test_cli_arg_multiple_tools(self, monkeypatch):
-        monkeypatch.delenv("ENABLED_TOOLS", raising=False)
-        monkeypatch.setattr(
-            sys, "argv", ["mcp-gee-sweet", "--include-tools", "get_sheet_data,list_sheets"]
-        )
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data", "list_sheets"}
-
-    def test_empty_env_var_returns_none(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        assert _parse_enabled_tools() is None
-
-    def test_all_means_every_tool(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "all")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        assert _parse_enabled_tools() is None
-
-    def test_all_on_the_cli_means_every_tool(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools", "all"])
-        assert _parse_enabled_tools() is None
-
-    def test_all_with_tool_names_is_still_every_tool(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data, all ,list_sheets")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
-        assert _parse_enabled_tools() is None
-
-    def test_equals_form_filters_like_the_space_form(self, monkeypatch):
-        monkeypatch.delenv("ENABLED_TOOLS", raising=False)
-        monkeypatch.setattr(
-            sys, "argv", ["mcp-gee-sweet", "--include-tools=get_sheet_data,list_sheets"]
-        )
-        assert _parse_enabled_tools() == {"get_sheet_data", "list_sheets"}
-
-    def test_equals_form_beats_the_env_var(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "update_cells")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools=get_sheet_data"])
-        assert _parse_enabled_tools() == {"get_sheet_data"}
-
-    def test_equals_form_with_no_value_falls_through_to_env(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools="])
-        assert _parse_enabled_tools() == {"get_sheet_data"}
-
-    def test_all_in_the_equals_form_means_every_tool(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools=all"])
-        assert _parse_enabled_tools() is None
-
-    def test_cli_arg_missing_value_falls_through_to_env(self, monkeypatch):
-        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
-        # --include-tools is the last arg with no following value
-        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools"])
-        result = _parse_enabled_tools()
-        assert result == {"get_sheet_data"}
+def _selection(*entries) -> tool_groups.Selection:
+    return tool_groups.Selection.from_entries(entries)
 
 
-class TestSmallerDefaultWarning:
-    """#1363: a server with no tool filter says, once, that the default will shrink."""
-
-    def _warnings(self, monkeypatch, argv, enabled_tools):
-        if enabled_tools is None:
+class TestParseSelection:
+    def _entries(self, monkeypatch, argv=("mcp-gee-sweet",), env=None):
+        if env is None:
             monkeypatch.delenv("ENABLED_TOOLS", raising=False)
         else:
-            monkeypatch.setenv("ENABLED_TOOLS", enabled_tools)
-        monkeypatch.setattr(sys, "argv", argv)
-        monkeypatch.setattr(mcp, "run", MagicMock())
-        warning = MagicMock()
-        # server.logger, not caplog: DEBUG_LEVEL turns off the package logger's
-        # propagation, so caplog would depend on the environment.
-        monkeypatch.setattr(server.logger, "warning", warning)
-        main()
-        return [c for c in warning.call_args_list if "smaller default" in str(c)]
+            monkeypatch.setenv("ENABLED_TOOLS", env)
+        monkeypatch.setattr(sys, "argv", list(argv))
+        selection = _parse_selection()
+        return selection.entries, selection.configured
 
-    @pytest.mark.parametrize("enabled_tools", [None, "", " , "])
-    def test_unset_warns_once(self, monkeypatch, enabled_tools):
-        calls = self._warnings(monkeypatch, ["mcp-gee-sweet"], enabled_tools)
-        assert len(calls) == 1
-        assert calls[0].args == (
-            "An upcoming release loads a smaller default tool set when ENABLED_TOOLS is unset. "
-            "To keep every tool, set ENABLED_TOOLS=all.",
+    def test_unset_is_the_default_group(self, monkeypatch):
+        assert self._entries(monkeypatch) == (("default",), False)
+
+    @pytest.mark.parametrize("value", ["", " , "])
+    def test_empty_is_the_default_group(self, monkeypatch, value):
+        assert self._entries(monkeypatch, env=value) == (("default",), False)
+
+    def test_env_var_single_tool(self, monkeypatch):
+        assert self._entries(monkeypatch, env="get_sheet_data") == (("get_sheet_data",), True)
+
+    def test_env_var_strips_whitespace_and_keeps_order(self, monkeypatch):
+        entries, _ = self._entries(monkeypatch, env="update_cells, get_sheet_data , docs")
+        assert entries == ("update_cells", "get_sheet_data", "docs")
+
+    def test_a_repeated_entry_counts_once(self, monkeypatch):
+        entries, _ = self._entries(monkeypatch, env="docs,get_sheet_data,docs")
+        assert entries == ("docs", "get_sheet_data")
+
+    def test_cli_arg_takes_precedence_over_env(self, monkeypatch):
+        argv = ["mcp-gee-sweet", "--include-tools", "get_sheet_data"]
+        assert self._entries(monkeypatch, argv, env="update_cells")[0] == ("get_sheet_data",)
+
+    def test_equals_form_beats_the_env_var(self, monkeypatch):
+        argv = ["mcp-gee-sweet", "--include-tools=get_sheet_data,docs"]
+        assert self._entries(monkeypatch, argv, env="update_cells")[0] == (
+            "get_sheet_data",
+            "docs",
         )
 
-    @pytest.mark.parametrize("enabled_tools", ["all", "get_sheet_data", "all,get_sheet_data"])
-    def test_any_value_stays_quiet(self, monkeypatch, enabled_tools):
-        assert self._warnings(monkeypatch, ["mcp-gee-sweet"], enabled_tools) == []
+    def test_equals_form_with_no_value_falls_through_to_env(self, monkeypatch):
+        argv = ["mcp-gee-sweet", "--include-tools="]
+        assert self._entries(monkeypatch, argv, env="get_sheet_data")[0] == ("get_sheet_data",)
 
-    @pytest.mark.parametrize("value", ["all", "get_sheet_data"])
-    def test_a_cli_value_stays_quiet(self, monkeypatch, value):
-        argv = ["mcp-gee-sweet", "--include-tools", value]
-        assert self._warnings(monkeypatch, argv, None) == []
+    def test_cli_arg_missing_value_falls_through_to_env(self, monkeypatch):
+        argv = ["mcp-gee-sweet", "--include-tools"]
+        assert self._entries(monkeypatch, argv, env="get_sheet_data")[0] == ("get_sheet_data",)
 
-    @pytest.mark.parametrize("value", ["all", "get_sheet_data"])
-    def test_an_equals_form_cli_value_stays_quiet(self, monkeypatch, value):
-        argv = ["mcp-gee-sweet", f"--include-tools={value}"]
-        assert self._warnings(monkeypatch, argv, None) == []
+    def test_all_beside_names_selects_every_tool(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data, all ,list_sheets")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        assert _parse_selection().selects_all
 
-    def test_the_auth_command_stays_quiet(self, monkeypatch):
+    def test_uppercase_all_is_not_all(self, monkeypatch):
+        # PR #1365's review: ENABLED_TOOLS=ALL started a server with 0 tools.
+        monkeypatch.setenv("ENABLED_TOOLS", "ALL")
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        selection = _parse_selection()
+        assert not selection.selects_all
+        assert selection.unknown_entries(server._known_tools) == ["ALL"]
+
+
+class TestStartupToolsLine:
+    """#1364: main() logs, once and always, how many tools it registered and how to
+    get every tool. Replaces #1363's "smaller default" warning."""
+
+    def _lines(self, monkeypatch, argv, selection):
+        monkeypatch.setattr(sys, "argv", argv)
+        monkeypatch.setattr(server, "SELECTION", selection)
+        monkeypatch.setattr(mcp, "run", MagicMock())
+        info = MagicMock()
+        monkeypatch.setattr(_version_logger, "info", info)
+        main()
+        return [c.args[0] for c in info.call_args_list if "Registered" in c.args[0]]
+
+    def test_default_names_the_default_group_and_all(self, monkeypatch):
+        lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection())
+        assert len(lines) == 1
+        total = len(server._known_tools)
+        registered = len(server._registered_tools)
+        assert lines[0] == (
+            f"Registered {registered} of {total} tools from the default tool group "
+            "(ENABLED_TOOLS is unset). Set ENABLED_TOOLS=all to register every tool."
+        )
+
+    def test_a_value_is_named(self, monkeypatch):
+        lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection("docs", "list_events"))
+        assert "from ENABLED_TOOLS=docs,list_events." in lines[0]
+        assert lines[0].endswith("Set ENABLED_TOOLS=all to register every tool.")
+
+    def test_all_doesnt_suggest_all(self, monkeypatch):
+        lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection("all"))
+        assert lines[0].endswith("tools from ENABLED_TOOLS=all.")
+
+    def test_the_smaller_default_warning_is_gone(self, monkeypatch):
+        warning = MagicMock()
+        monkeypatch.setattr(server.logger, "warning", warning)
+        self._lines(monkeypatch, ["mcp-gee-sweet"], _selection())
+        assert not [c for c in warning.call_args_list if "smaller default" in str(c)]
+
+    def test_the_auth_command_doesnt_log_it(self, monkeypatch):
         monkeypatch.setattr(server, "run_auth_command", MagicMock(return_value=0))
         with pytest.raises(SystemExit):
-            self._warnings(monkeypatch, ["mcp-gee-sweet", "auth"], None)
-        server.logger.warning.assert_not_called()
+            self._lines(monkeypatch, ["mcp-gee-sweet", "auth"], _selection())
 
 
 class TestAuthStatusResource:
@@ -1299,7 +1273,7 @@ def _captured_registrations():
 
     captured = {}
 
-    def capture(annotations=None, local_only=False):
+    def capture(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = (func, local_only)
             return func
@@ -1322,7 +1296,7 @@ class TestLocalOnlyRegistration:
         use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="off")
         dropped: list[str] = []
         monkeypatch.setattr(server, "_unregistered_local_only_tools", dropped)
-        monkeypatch.setattr(server, "ENABLED_TOOLS", None)
+        monkeypatch.setattr(server, "SELECTION", _selection("all"))
         fake_mcp = MagicMock()
         monkeypatch.setattr(server, "mcp", fake_mcp)
 
@@ -1338,7 +1312,7 @@ class TestLocalOnlyRegistration:
         use_local_file_policy(monkeypatch, LOCAL_FILE_ACCESS="off")
         dropped: list[str] = []
         monkeypatch.setattr(server, "_unregistered_local_only_tools", dropped)
-        monkeypatch.setattr(server, "ENABLED_TOOLS", {"get_sheet_data"})
+        monkeypatch.setattr(server, "SELECTION", _selection("get_sheet_data"))
 
         async def sync_folder():
             pass
@@ -1375,14 +1349,18 @@ def _import_server_in_subprocess(argv: list[str], env: dict[str, str]):
 
 class TestLocalFilePolicyAtImport:
     def test_sse_default_leaves_local_only_tools_unregistered(self):
-        names, _ = _import_server_in_subprocess(["mcp-gee-sweet", "--transport", "sse"], {})
+        # ENABLED_TOOLS=all, since `default` holds no local-only tool (#1364).
+        names, _ = _import_server_in_subprocess(
+            ["mcp-gee-sweet", "--transport", "sse"], {"ENABLED_TOOLS": "all"}
+        )
         assert not (names & _LOCAL_ONLY_TOOLS)
         # Tools with only an optional local path stay registered.
         assert {"get_sheet_data", "send_message", "create_doc"} <= names
 
     def test_explicit_full_under_sse_registers_them(self):
         names, _ = _import_server_in_subprocess(
-            ["mcp-gee-sweet", "--transport", "sse"], {"LOCAL_FILE_ACCESS": "full"}
+            ["mcp-gee-sweet", "--transport", "sse"],
+            {"LOCAL_FILE_ACCESS": "full", "ENABLED_TOOLS": "all"},
         )
         assert names >= _LOCAL_ONLY_TOOLS
 
@@ -1402,25 +1380,37 @@ class TestLocalFilePolicyAtImport:
         assert stderr.count("not registering local-only tools") == 1
         assert "named in ENABLED_TOOLS: sync_folder\n" in stderr
 
-    @pytest.mark.parametrize("value", ["all", ""])
-    def test_all_or_no_filter_names_no_dropped_tool(self, value):
-        _, stderr = _import_server_in_subprocess(
+    @pytest.mark.parametrize("value", ["all", "", "drive,docs"])
+    def test_all_default_or_a_service_group_names_no_dropped_tool(self, value):
+        # `drive,docs` holds every local-only tool, so a stray warning would show; the
+        # unset case only shows the default stays quiet, since it holds none (#1364).
+        names, stderr = _import_server_in_subprocess(
             ["mcp-gee-sweet"], {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": value}
         )
         assert "not registering local-only tools" not in stderr
+        assert not names & _LOCAL_ONLY_TOOLS
 
     def test_enabled_tools_all_registers_every_tool(self):
-        unset, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {})
         everything, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {"ENABLED_TOOLS": "all"})
-        assert everything == unset
-        assert len(everything) > 100
+        assert everything == set(_captured_registrations())
 
     def test_include_tools_all_with_a_name_registers_every_tool(self):
-        unset, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {})
         everything, _ = _import_server_in_subprocess(
             ["mcp-gee-sweet", "--include-tools", "all,get_sheet_data"], {}
         )
-        assert everything == unset
+        assert everything == set(_captured_registrations())
+
+    def test_a_local_files_group_under_off_warns_for_each_dropped_tool(self):
+        _, stderr = _import_server_in_subprocess(
+            ["mcp-gee-sweet"], {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "local-files"}
+        )
+        assert ("named in ENABLED_TOOLS: " + ", ".join(sorted(_LOCAL_ONLY_TOOLS)) + "\n") in stderr
+
+    def test_a_service_group_under_off_doesnt_warn(self):
+        _, stderr = _import_server_in_subprocess(
+            ["mcp-gee-sweet"], {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "drive"}
+        )
+        assert "not registering local-only tools" not in stderr
 
 
 class TestLocalPathToolsAreCovered:
