@@ -53,17 +53,18 @@ def _github_style_slugify(text: str) -> str:
 # exactly one scheme's slug list for a well-formed document — only which
 # scheme wins a pathological tie.
 #
-# The two schemes also disagree on a heading's hard break (`<br>` / a Markdown
-# "\"), which #1230 stores inside the heading text as a "\v": GitHub's slug
-# ignores the break — it adds no text and no separator ("Heading one<br>heading
-# two" slugs to "heading-oneheading-two", #1357) — a drop made inside
-# _github_style_slugify itself so every caller of the GitHub scheme agrees,
-# while GitLab's Comrak-based
-# anchor collects the break as a plain space and slugifies it to a single
-# hyphen (comrak's collect_text_append pushes " " for LineBreak | SoftBreak,
-# and anchorize maps it to "-"), which this collapsed scheme already
-# reproduces via python-markdown's slugify. So only the GitHub scheme drops
-# the break; the GitLab one keeps turning it into a separator.
+# Both schemes also touch a heading's hard break ("<br>", stored inside the
+# heading text as a "\v", #1230): GitHub's slug ignores the break — it adds
+# no text and no separator ("Heading one<br>heading two" slugs to
+# "heading-oneheading-two", #1357) — a drop made inside
+# _github_style_slugify itself so every caller of the GitHub scheme agrees.
+# GitLab's own anchor ignores an inline <br> the same way — comrak parses it
+# as an HtmlInline node, no text and no children, so collect_text_append adds
+# nothing — but the collapsed GitLab scheme still slugifies a stored "\v" to
+# a single hyphen: extra tolerance for an anchor spelled with the separator,
+# not a reproduction of GitLab's own <br> slug. The full story — including
+# which break shapes can actually reach a heading — lives in
+# docs/design/heading-anchor-resolution.md (#1460).
 _SLUGIFY_FUNCS = [
     _github_style_slugify,
     lambda text: _markdown_toc_slugify(text, "-"),
