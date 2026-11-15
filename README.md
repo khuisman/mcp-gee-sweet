@@ -216,12 +216,12 @@ Some MCP clients cap how many tools they accept, and with every tool registered 
 
 | Client | Limit |
 |---|---|
-| VS Code + GitHub Copilot (agent mode) | 128 tools per request, built-in tools included. Over it, every request fails with "Cannot have more than 128 tools per request" |
+| VS Code + GitHub Copilot (agent mode) | 128 tools per request, built-in tools included. In our November 2026 test, Copilot looked tools up on demand and handled the full set; a build that sends every tool fails with "Cannot have more than 128 tools per request" |
 | Windsurf | 100 tools in total, across all servers |
 | Cursor | Depends on the model ("Too many MCP tools are enabled for this mode") |
 | Google Antigravity | 100 tools per server (user report) |
 
-On these clients, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
+On Windsurf, Cursor and Antigravity, or on VS Code if you see that error, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
 
 > **Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`, which registers every tool today as well. `all` is new in v0.9.6; on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/configuration/).
 

@@ -7,6 +7,27 @@ Each entry describes what the limitation is, why it exists, and the available wo
 
 ## Google Docs
 
+### Setting a named style clears the paragraph's inline text styles
+
+**What:** Writing a `namedStyleType` onto a paragraph that already has inline text
+styles removes those styles - reproduced with `strikethrough`, and it happens even when
+the named style being written is the one the paragraph already had.
+
+**Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
+named style's own text properties to the paragraph's runs, so per-run formatting is not
+preserved. It is API behaviour rather than a quirk of this server's request building.
+
+**Where it bites:** `style_doc_range(named_style_type=...)`, and
+`insert_softbreak_paragraph`, which sets the style explicitly for the whole block. The
+v0.9.2 release QA pass reproduced it three times, including a control that set no other
+style fields.
+
+**Workaround:** Set the named style first, then apply the text styles in a second
+`style_doc_range` call carrying only text-style fields. Setting text styles alone never
+takes the `namedStyleType` path.
+
+---
+
 ### Blank paragraph before every table
 
 **What:** A blank paragraph always appears in the document structure immediately before each
@@ -28,6 +49,33 @@ paragraph is also reset to plain `NORMAL_TEXT`, with no bullet, indent, or borde
 except that one between two quoted tables in the same quote takes the quote's indent and
 bar (#1122).
 Related: #190.
+
+---
+
+### Text typed after a document's final table overlaps it
+
+**What:** When content written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text added after that
+table later (typed in the Docs editor, or written by `insert_doc_text` at the document's end) is
+drawn over the table's last row. Each line added there overprints the one before it too: every
+paragraph started from that text, by Enter or a `"\n"`, takes the same spacing. This applies to
+every document that ends in a table, not only one whose table reaches the bottom margin.
+
+**Why:** A Docs body always ends in a paragraph, so a document ending in a table has an empty one
+after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
+of its own. Since the emitter can't tell whether a table reaches the margin, it collapses that
+paragraph in every document ending in a table (`spaceAbove/spaceBelow = 0`, `lineSpacing = 1`,
+#1100), and text added there inherits the 1% line spacing. Its font size is left alone, so the
+text keeps the document's size.
+
+**Workaround:** In the Docs editor, select the added text and set its line spacing back
+(Format > Line & paragraph spacing > Single). From the tools,
+`apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` sets single spacing
+on every `NORMAL_TEXT` paragraph, the collapsed ones included. That gives the paragraph after the
+table its height back, so the blank last page can return, and gives the collapsed blank
+paragraph before each table (see above) a 1pt line's height. Or write the added text
+as part of the content: `write_doc_content` or `update_doc_from_file` rewrites the document, and
+the paragraph after the table is collapsed again only if the new content still ends in a table.
 
 ---
 
@@ -574,9 +622,11 @@ server.
 ### Some clients refuse the full tool set
 
 **What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
-128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
-model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
+each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
+Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
+uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own, and the server registers every tool unless told

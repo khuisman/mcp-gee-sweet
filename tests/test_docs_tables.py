@@ -406,7 +406,9 @@ class TestNestedTableParser:
 
     async def test_leading_and_trailing_text_in_true_order(self):
         # Issue #275: text before AND after a nested table, in the same cell,
-        # must preserve true source order — not collapse into one block.
+        # must preserve true source order — not collapse into one block. The
+        # text after the table starts on the line that follows it, so its
+        # leading source space is gone (#1418); the order is what this guards.
         nodes = html_to_ast(
             "<table><tr><td>Before <table><tr><td>inner</td></tr></table> After</td></tr></table>"
         )
@@ -414,7 +416,53 @@ class TestNestedTableParser:
         kinds = [type(c).__name__ for c in outer.children]
         assert kinds == ["Run", "Table", "Run"]
         assert outer.children[0].text == "Before "
-        assert outer.children[2].text == " After"
+        assert outer.children[2].text == "After"
+
+    async def test_space_after_a_nested_table_collapses(self):
+        # #1418: a nested table is a block, so the text resuming after it starts
+        # a new line and the source spacing between </table> and that text
+        # collapses at that line's start — " After" used to keep its space and
+        # show indented by one character.
+        nodes = html_to_ast(
+            "<table><tr><td>Before <table><tr><td>inner</td></tr></table> After</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [repr(getattr(c, "text", type(c).__name__)) for c in outer.children] == [
+            "'Before '",
+            "'Table'",
+            "'After'",
+        ]
+
+    async def test_space_after_a_nested_table_collapses_before_a_tag_too(self):
+        # A tag between the table and its text doesn't restore the spacing: the
+        # line still starts at the table's end. Only an authored "&nbsp;"
+        # survives, as it does everywhere (#444).
+        nodes = html_to_ast(
+            "<table><tr><td><table><tr><td>x</td></tr></table> <b> After</b></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert _runs_in(outer)[0].text == "After"
+        nodes = html_to_ast(
+            "<table><tr><td><table><tr><td>x</td></tr></table>\xa0 After</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert outer.children[1].text == "\xa0 After"
+
+    async def test_an_empty_nested_table_collapses_nothing(self):
+        # #1418 QA: an empty <table> builds no node, so nothing was appended to
+        # the cell and the flag stays down — the source space between it and the
+        # text stays, as on develop: "Before After", not "BeforeAfter".
+        nodes = html_to_ast("<table><tr><td>Before<table></table> After</td></tr></table>")
+        outer = nodes[0].rows[0].cells[0]
+        texts = [getattr(c, "text", None) for c in outer.children]
+        assert "".join(t for t in texts if t is not None) == "Before After"
+
+    async def test_space_at_a_cells_start_stays(self):
+        # #1418 trims only the line after a nested table; a cell's own first
+        # line keeps its leading space, which is #1221's open question, not
+        # this fix's.
+        nodes = html_to_ast("<table><tr><td> spaced</td></tr></table>")
+        assert _runs_in(nodes[0].rows[0].cells[0])[0].text == " spaced"
 
     async def test_multiple_nested_tables_with_text_between(self):
         # A cell may contain more than one nested table, with text interleaved
@@ -1132,6 +1180,78 @@ class TestFillTablesColumnWidths:
         assert fetches == baseline
 
 
+class TestFillTablesCollapsesTrailingParagraph:
+    """#1100: fill_tables' first batch collapses the empty paragraph after a final
+    table, alongside the blank paragraph before it."""
+
+    @staticmethod
+    def _para(start: int, text: str) -> dict:
+        return {
+            "startIndex": start,
+            "endIndex": start + len(text),
+            "paragraph": {"elements": [{"textRun": {"content": text}}]},
+        }
+
+    async def _first_batch(self, last_text: str) -> list[dict]:
+        # One 1x1 table at 2..8 whose cell paragraph is 4..5.
+        table = {
+            "startIndex": 2,
+            "endIndex": 8,
+            "table": {
+                "tableRows": [
+                    {
+                        "startIndex": 3,
+                        "tableCells": [
+                            {"startIndex": 3, "endIndex": 5, "content": [self._para(4, "\n")]}
+                        ],
+                    }
+                ]
+            },
+        }
+        doc = {"body": {"content": [self._para(1, "\n"), table, self._para(8, last_text)]}}
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.return_value = doc
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            return MagicMock(execute=MagicMock(return_value={}))
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        await fill_tables(svc, "doc1", [_table(_row(_cell("")))], _plain_images(svc))
+        return batches[0]
+
+    async def test_trailing_paragraph_collapsed_in_first_batch(self):
+        batch = await self._first_batch("\n")
+        trailing = [
+            r["updateParagraphStyle"]
+            for r in batch
+            if r.get("updateParagraphStyle", {}).get("range") == {"startIndex": 8, "endIndex": 9}
+        ]
+        assert trailing == [
+            {
+                "range": {"startIndex": 8, "endIndex": 9},
+                "paragraphStyle": {
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    "lineSpacing": 1,
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        ]
+        # The blank paragraph before the table is still collapsed in the same batch.
+        assert any(
+            r.get("updateTextStyle", {}).get("range") == {"startIndex": 1, "endIndex": 2}
+            for r in batch
+        )
+
+    async def test_text_after_table_untouched(self):
+        batch = await self._first_batch("Done\n")
+        assert not any(
+            r.get("updateParagraphStyle", {}).get("range", {}).get("startIndex") == 8 for r in batch
+        )
+
+
 # ---------------------------------------------------------------------------
 # #277 — a skipped degenerate table must not desync doc_tables/ast_tables
 # ---------------------------------------------------------------------------
@@ -1272,6 +1392,34 @@ class TestCellImageParser:
         assert self._linked_text(cells[1]) == [("x\n  y", None)]
         assert self._linked_text(cells[2]) == [("x\n", "http://u"), ("y", None)]
         assert self._linked_text(cells[3]) == [("\n  code\n", None)]
+
+    async def test_pre_in_a_cell_is_styled_as_code(self):
+        # #1417: a <pre> inside a cell kept its line breaks (#1215) but read as
+        # plain text — the cell path never gave its runs the body <pre>'s font.
+        nodes = html_to_ast("<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table>")
+        cells = nodes[0].rows[0].cells
+        assert [(r.text, r.font_family) for r in _runs_in(cells[0])] == [("x\n  y", "Courier New")]
+        assert [(r.text, r.font_family) for r in _runs_in(cells[1])] == [("plain", None)]
+
+    async def test_pre_style_in_a_cell_ends_at_its_close(self):
+        # Text after the </pre> in the same cell stays plain, and a <br> inside
+        # the <pre> keeps the "\n" of #1215 with the code font.
+        nodes = html_to_ast("<table><tr><td><pre>a<br>b</pre>tail</td></tr></table>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("a", "Courier New"),
+            ("\nb", "Courier New"),
+            ("tail", None),
+        ]
+
+    async def test_unclosed_pre_at_the_tables_end_does_not_leak_its_font(self):
+        # </table> closes the <pre> still open in the cell through the element
+        # stack, so the cell's text is code-styled but nothing after the table
+        # stays code-styled.
+        nodes = html_to_ast("<table><tr><td><pre>code</table><p>after</p>")
+        assert [(r.text, r.font_family) for r in _runs_in(nodes[0].rows[0].cells[0])] == [
+            ("code", "Courier New")
+        ]
+        assert [(r.text, r.font_family) for r in nodes[1].runs] == [("after", None)]
 
     async def test_held_whitespace_keeps_its_link_and_style(self):
         # PR #1215 QA round 3: released held whitespace had lost the link it was

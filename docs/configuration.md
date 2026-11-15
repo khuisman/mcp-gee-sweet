@@ -95,7 +95,7 @@ If neither is set, or the value is empty, all tools are registered. `ENABLED_TOO
 
 ### Suggested subsets
 
-Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On those clients, pick one of these subsets. Each one is under 100 tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
+Some MCP clients cap how many tools they accept, and the full tool set is over every cap: VS Code with GitHub Copilot allows 128 tools per request, built-in tools included; Windsurf allows 100 across all servers; Cursor's cap depends on the model. On Windsurf and Cursor, pick one of these subsets. Each one is under 100 tools. In our November 2026 test, VS Code + Copilot looked tools up on demand and handled the full set, so use a subset there only if you see "Cannot have more than 128 tools per request". See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's config.
 
 To combine two subsets, join their lists with a comma (a name listed twice is fine) and add up the counts to check you're still under your client's limit. Windsurf's 100 also counts every other server's tools.
 

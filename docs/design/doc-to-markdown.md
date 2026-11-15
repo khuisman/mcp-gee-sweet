@@ -161,6 +161,17 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   rule — it renders as literal asterisks). Caught live during round-trip verification, not by
   the initial hand-written test fixtures. Fixed by moving leading/trailing whitespace outside
   the style markers before wrapping.
+- **Runs Markdown can't tell apart are merged before rendering (#1462)**: Docs splits a run at
+  any style change, so two struck runs that differ only in color rendered as `~~a~~~~b~~`,
+  and bold struck ones as `**~~a~~****~~b~~**`. Under GFM's single-tilde strikethrough a run
+  of three or more tildes is literal text, so the first re-imported as one struck run reading
+  `a~~~~b`, and the second kept literal asterisks either way. `_coalesce_plain_runs` merges
+  adjacent non-code runs with the same bold, italic, strikethrough and link (the only styles
+  Markdown writes) into one, as `_coalesce_code_runs` does for code. The merged text is
+  escaped as a whole, so an entity or tag split across several runs is still escaped. Two
+  runs meeting at a line break stay apart, since an edge break renders outside its run's link
+  and markers; the `<br>` between them keeps their markers from touching. Merging on the
+  rendered string instead missed both the styled case and a split entity (PR #1476 QA round 1).
 - **Fenced code block vs. inline code**: since the Docs representation can't distinguish them
   (see Scope above), the heuristic is: a `Paragraph` node renders as a fenced block only when
   *every* run in it is code-styled; a paragraph mixing code-styled and plain runs renders each

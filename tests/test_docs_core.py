@@ -18,6 +18,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
+    _convert_doc_content,
     _html_to_doc_requests,
     _md_to_html,
     _to_doc_requests,
@@ -30,6 +31,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _build_merge_requests,
     _build_phantom_set,
     _build_quote_bar_requests,
+    _build_trailing_para_after_table_collapse,
     _build_width_requests,
     _inserted_table_length,
     _physical_to_ast_indices,
@@ -717,12 +719,15 @@ class TestLooseListItemKeepsItsBullet:
 
     def test_named_style_paragraph_inside_an_item_keeps_its_style(self):
         # A styled paragraph isn't the item's transparent `<p>`: it's a block inside
-        # the item, which has no text of its own and so is an empty bullet (#1075).
+        # the item. #1414: an `<li>` whose only content is that block is the block
+        # itself, indented under the list with no bullet — not an empty bullet above
+        # it, which is what #1075's "the marker sits on its own line" premise got
+        # wrong for this shape (a browser draws it beside the block's first line).
         nodes = html_to_ast('<ul><li><p data-style="title">T</p></li></ul>')
-        assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
-        assert nodes[0].runs == []
-        assert nodes[1].style_type == "TITLE"
-        assert nodes[1].list_depth == 0
+        assert [type(n) for n in nodes] == [NamedBlock]
+        assert nodes[0].style_type == "TITLE"
+        assert nodes[0].runs == [Run("T")]
+        assert nodes[0].list_depth == 0
 
     def test_emitter_bullets_the_loose_list(self):
         # End to end: the requests actually sent to Docs must carry the bullets,
@@ -1573,7 +1578,7 @@ class TestBlockSeparation:
     def test_list_gaps_go_with_the_other_paragraph_gaps(self):
         """A doc with spacing of its own drops them all (without_paragraph_gaps)."""
         requests, _ = _to_doc_requests("p\n\n- a\n\nq\n", "markdown")
-        kept = without_paragraph_gaps(requests)
+        kept = without_paragraph_gaps(requests, {}, {"spaceBelow"})
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
 
     @pytest.mark.parametrize(
@@ -1609,7 +1614,7 @@ class TestBlockSeparation:
         requests, _ = _html_to_doc_requests(
             "<p>a</p><p>b</p><pre><code>c</code></pre><blockquote><p>q</p></blockquote>"
         )
-        kept = without_paragraph_gaps(requests)
+        kept = without_paragraph_gaps(requests, {}, {"spaceBelow"})
         assert len(kept) == len(requests) - 1
         assert not any(style.get("spaceBelow") == 10 for style in self._spacing(kept).values())
         assert any(style.get("spaceBelow") == 8 for style in self._spacing(kept).values())
@@ -3467,6 +3472,80 @@ class TestBuildBlankParaBeforeTableCollapses:
         ]
 
 
+class TestBuildTrailingParaAfterTableCollapse:
+    """#1100: the empty paragraph Docs keeps after a doc's final table spilled onto a
+    blank last page when the table reached the bottom margin. Spacing and line spacing
+    are collapsed; the font isn't (a 1pt font alone kept the blank page, checked live),
+    so text typed there later keeps its size."""
+
+    _doc = TestBuildBlankParaBeforeTableCollapses._doc
+    _blank_para = TestBuildBlankParaBeforeTableCollapses._blank_para
+    _text_para = TestBuildBlankParaBeforeTableCollapses._text_para
+    _table_elem = TestBuildBlankParaBeforeTableCollapses._table_elem
+
+    @staticmethod
+    def _collapse() -> dict:
+        return {
+            "updateParagraphStyle": {
+                "range": {"startIndex": 10, "endIndex": 11},
+                "paragraphStyle": {
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    "lineSpacing": 1,
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        }
+
+    def test_empty_paragraph_after_final_table_collapsed(self):
+        doc = self._doc([self._blank_para(1, 2), self._table_elem(2), self._blank_para(10, 11)])
+        assert _build_trailing_para_after_table_collapse(doc) == [self._collapse()]
+
+    def test_font_size_left_alone(self):
+        doc = self._doc([self._table_elem(1), self._blank_para(10, 11)])
+        result = _build_trailing_para_after_table_collapse(doc)
+        assert not any("updateTextStyle" in request for request in result)
+
+    def test_doc_ending_in_text_untouched(self):
+        doc = self._doc(
+            [self._blank_para(1, 2), self._table_elem(2), self._text_para(10, 15, "Done\n")]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_empty_paragraph_after_text_untouched(self):
+        """Only the paragraph right after a table: an empty last line after text is
+        content the source asked for."""
+        doc = self._doc(
+            [self._table_elem(1), self._text_para(10, 15, "Done\n"), self._blank_para(15, 16)]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_empty_paragraph_between_tables_untouched(self):
+        """Not the doc's last element: the paragraph between two tables keeps its height
+        (#1098)."""
+        doc = self._doc(
+            [
+                self._table_elem(1),
+                self._blank_para(9, 10),
+                self._table_elem(10),
+                self._text_para(20, 25, "Done\n"),
+            ]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_no_tables_or_empty_body(self):
+        assert _build_trailing_para_after_table_collapse(self._doc([])) == []
+        assert _build_trailing_para_after_table_collapse({}) == []
+        doc = self._doc([self._blank_para(1, 2)])
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+    def test_missing_indices_skipped(self):
+        doc = self._doc(
+            [self._table_elem(1), {"paragraph": {"elements": [{"textRun": {"content": "\n"}}]}}]
+        )
+        assert _build_trailing_para_after_table_collapse(doc) == []
+
+
 class TestImagePositionalInserts:
     """#333: extract_images + ast_to_requests's image_uris handling — the combined
     descending-position pass that lets images and tables shift each other's
@@ -4268,8 +4347,171 @@ class TestQuoteEdgeBesideAQuotedTable:
         )
         assert spacing == []
 
-    def test_unquoted_table_gives_its_neighbours_nothing(self):
-        assert self._spacing("<p>a</p><table><tr><td>x</td></tr></table><p>b</p>") == []
+    def test_unquoted_table_gives_its_neighbours_the_paragraph_gap(self):
+        """No quote edge here, but a paragraph still takes the gap on the table's side
+        (#1427, TestParagraphGapBesideATable)."""
+        spacing = self._spacing("<p>a</p><table><tr><td>x</td></tr></table><p>b</p>")
+        # "a\n" [1,3), the placeholder [3,4), "b\n" [4,6).
+        assert spacing == [
+            {
+                "range": {"startIndex": 2, "endIndex": 3},
+                "paragraphStyle": {"spaceBelow": {"magnitude": 10, "unit": "PT"}},
+                "fields": "spaceBelow",
+            },
+            {
+                "range": {"startIndex": 4, "endIndex": 5},
+                "paragraphStyle": {"spaceAbove": {"magnitude": 10, "unit": "PT"}},
+                "fields": "spaceAbove",
+            },
+        ]
+
+
+class TestParagraphGapBesideATable:
+    """#1427: a paragraph right after a table sat on the table's bottom border, and one
+    right before it had no gap above the table. A table can't take spacing, so the
+    plain paragraph beside it takes PARAGRAPH_GAP_PT on the table's side."""
+
+    @staticmethod
+    def _gaps(requests) -> dict[int, dict[str, int]]:
+        """{startIndex: {field: magnitude}} for every spaceAbove/spaceBelow > 0."""
+        return TestBlockSeparation._spacing(requests)
+
+    def test_paragraph_after_a_table_gets_the_gap_above(self):
+        # The TC-MD015 shape: a heading, a table, then "**Hotel:**" and more text.
+        requests, _ = _to_doc_requests(
+            "## Flights\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n**Hotel:** x\n\nNext\n", "markdown"
+        )
+        # "Flights\n" [1,9), placeholder [9,10), "Hotel: x\n" [10,19), "Next\n" [19,24).
+        assert self._gaps(requests) == {10: {"spaceAbove": 10}, 18: {"spaceBelow": 10}}
+
+    def test_paragraph_before_a_table_gets_the_gap_below(self):
+        requests, _ = _to_doc_requests("Intro\n\n| A |\n|---|\n| 1 |\n", "markdown")
+        # "Intro\n" [1,7).
+        assert self._gaps(requests) == {6: {"spaceBelow": 10}}
+
+    def test_paragraph_between_two_tables_gets_both(self):
+        requests, _ = _html_to_doc_requests(
+            "<table><tr><td>x</td></tr></table><p>mid</p><table><tr><td>y</td></tr></table>"
+        )
+        # placeholder [1,2), "mid\n" [2,6), placeholder [6,7). spaceBelow goes on the "\n".
+        assert self._gaps(requests) == {2: {"spaceAbove": 10}, 5: {"spaceBelow": 10}}
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            "<table><tr><td>x</td></tr></table><h2>h</h2>",
+            "<h2>h</h2><table><tr><td>x</td></tr></table>",
+            "<table><tr><td>x</td></tr></table><hr>",
+            "<table><tr><td>x</td></tr></table><p>&nbsp;</p>",
+            "<table><tr><td>x</td></tr></table><blockquote><p>q</p></blockquote>",
+            "<table><tr><td>x</td></tr></table><ul><li><h2>h</h2></li></ul>",
+        ],
+        ids=["heading-after", "heading-before", "rule", "spacer", "quote", "heading-item"],
+    )
+    def test_no_gap_beside_a_block_that_keeps_its_own_spacing(self, html):
+        """A heading (a heading item too) keeps its named style's spacing, a rule and a
+        spacer their own look, a quote its 8pt edge."""
+        requests, _ = _html_to_doc_requests(html)
+        assert not any(10 in style.values() for style in self._gaps(requests).values())
+
+    def test_list_item_after_a_table_gets_the_gap_above(self):
+        """PR #1434 QA round 1: the item sat on the table, where Drive's import leaves an
+        empty line. Sent after the bullet pass, like the rest of the item's styling."""
+        requests, _ = _html_to_doc_requests(
+            "<table><tr><td>x</td></tr></table><ul><li>item</li><li>next</li></ul>"
+        )
+        # placeholder [1,2), "item\n" [2,7), "next\n" [7,12): none between the items.
+        assert self._gaps(requests) == {2: {"spaceAbove": 10}}
+        gap = next(
+            i
+            for i, r in enumerate(requests)
+            if r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).get("spaceAbove")
+        )
+        bullets = max(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert gap > bullets
+
+    @pytest.mark.parametrize(
+        "markdown",
+        ["- last\n\n| A |\n|---|\n| 1 |\n", "3. literal\n\n| A |\n|---|\n| 1 |\n"],
+        ids=["bullet", "literal"],
+    )
+    def test_list_item_before_a_table_gets_the_gap_below(self, markdown):
+        requests, _ = _to_doc_requests(markdown, "markdown")
+        gaps = self._gaps(requests)
+        assert [style for style in gaps.values() if 10 in style.values()] == [{"spaceBelow": 10}]
+
+    def test_code_block_after_a_table_keeps_its_own_spacing(self):
+        requests, _ = _html_to_doc_requests(
+            "<table><tr><td>x</td></tr></table><pre><code>c</code></pre>"
+        )
+        # placeholder [1,2), "c\n" [2,4).
+        assert self._gaps(requests) == {2: {"spaceAbove": 8}, 3: {"spaceBelow": 8}}
+
+    def test_quoted_table_keeps_the_quote_edge_spacing(self):
+        """Inside one quote a gap would break the bar between the table's wrapper and
+        the paragraph; at the quote's edge the existing 8pt applies."""
+        requests, _ = _html_to_doc_requests(
+            "<blockquote><table><tr><td>x</td></tr></table><p>q</p></blockquote><p>after</p>"
+        )
+        values = [v for style in self._gaps(requests).values() for v in style.values()]
+        assert 10 not in values
+
+    def test_paragraph_after_a_table_inside_one_list_item(self):
+        """The paragraph's styling waits for the bullet pass (#1094); its gap goes with
+        it."""
+        requests, _ = _to_doc_requests(
+            "- item\n\n  | A |\n  |---|\n  | 1 |\n\n  after\n", "markdown"
+        )
+        above = [
+            r
+            for r in requests
+            if r.get("updateParagraphStyle", {}).get("paragraphStyle", {}).get("spaceAbove")
+            == {"magnitude": 10, "unit": "PT"}
+        ]
+        assert len(above) == 1
+        bullets = max(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert requests.index(above[0]) > bullets
+
+    def test_paragraph_after_a_table_that_ends_a_list(self):
+        requests, _ = _to_doc_requests("- item\n\n  | A |\n  |---|\n  | 1 |\n\nafter\n", "markdown")
+        # "item\n" [1,6), its table's placeholder [6,7), "after\n" [7,13): the item's
+        # text before its table, and "after" after it.
+        assert self._gaps(requests) == {5: {"spaceBelow": 10}, 7: {"spaceAbove": 10}}
+
+    _AROUND = "<p>a</p><p>b</p><table><tr><td>x</td></tr></table><p>c</p>"
+
+    @classmethod
+    def _without_gaps(cls, own_fields: set[str]) -> dict[int, dict[str, int]]:
+        converted = _convert_doc_content(cls._AROUND, "html", True)
+        return cls._gaps(
+            without_paragraph_gaps(converted.requests, converted.table_gaps, own_fields)
+        )
+
+    def test_table_gaps_are_recorded_by_field(self):
+        converted = _convert_doc_content(self._AROUND, "html", True)
+        assert sorted(converted.table_gaps.values()) == ["spaceAbove", "spaceBelow"]
+        # "a\n" [1,3), "b\n" [3,5), placeholder [5,6), "c\n" [6,8).
+        assert self._gaps(converted.requests) == {
+            2: {"spaceBelow": 10},
+            4: {"spaceBelow": 10},
+            6: {"spaceAbove": 10},
+        }
+
+    @pytest.mark.parametrize(
+        ("own_fields", "kept"),
+        [
+            # A doc spaced below its paragraphs: "b" before the table is spaced by it,
+            # "c" after the table isn't (PR #1434 QA round 1).
+            ({"spaceBelow"}, {6: {"spaceAbove": 10}}),
+            # Spaced above: "c" is, "b" before the table isn't.
+            ({"spaceAbove"}, {4: {"spaceBelow": 10}}),
+            ({"spaceAbove", "spaceBelow"}, {}),
+        ],
+        ids=["below", "above", "both"],
+    )
+    def test_a_docs_own_spacing_drops_a_table_gap_only_for_its_own_field(self, own_fields, kept):
+        """The plain paragraph gap ("a" to "b") goes whatever the doc sets."""
+        assert self._without_gaps(own_fields) == kept
 
 
 class TestEmptyListItemIsABullet:
@@ -4397,4 +4639,128 @@ class TestEmptyListItemIsABullet:
             ("", 0, 2),
             ("", None, None),
             ("Rule item after", 0, 3),
+        ]
+
+
+class TestStyledBlockOnlyItemIsTheBlock:
+    """#1414: an `<li>` that is the first item of a `<ul>` and holds only a styled
+    block (a data-style `<p>`, with no `&nbsp;` before it) is that block, indented
+    under the list with no bullet before it, as before #1075 (PR #1322) and as
+    TC-DOC242's check reads it. A browser draws the item's marker beside the block's
+    first line, so the item reads as one line, not as an empty bullet above the
+    block. Every other item keeps the bullet #1075 gives it: an item with text of
+    its own, a later item of the list, an item of an `<ol>` (whose start/value
+    numbering counts it), one padded with `&nbsp;`, and #1075's own rows — an
+    authored-empty item, an item whose only content is a nested list, quote, code
+    block or rule."""
+
+    def test_the_regression_row(self):
+        # The TC-DOC242 release-pass repro: `styled` used to gain an empty bullet
+        # before it (the same list as `plain`), indented 36pt under that bullet.
+        nodes = html_to_ast('<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>')
+        assert [type(n) for n in nodes] == [NamedBlock, BulletItem]
+        assert nodes[0].style_type == "SUBTITLE"
+        assert nodes[0].runs == [Run("styled")]
+        assert nodes[0].list_depth == 0
+        assert nodes[1].runs == [Run("plain")]
+
+    def test_the_requests_carry_no_empty_bullet(self):
+        # End to end: the Doc gets one list of one item (`plain`), with `styled` a
+        # SUBTITLE paragraph outside it — not an empty first item sharing `plain`'s
+        # list, which is what the release pass caught live.
+        requests, _ = _html_to_doc_requests(
+            '<ul><li><p data-style="subtitle">styled</p></li><li>plain</li></ul>'
+        )
+        assert _render_lists(requests) == [
+            ("styled", None, None, None),
+            ("plain", 0, "B1", 1),
+        ]
+
+    def test_an_item_with_text_keeps_the_styled_block_inside_it(self):
+        # The styled block still interrupts an item that has text of its own: the
+        # item is a bullet, the block a block inside it (#1094).
+        nodes = html_to_ast('<ul><li>a<p data-style="subtitle">s</p></li></ul>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
+        assert nodes[0].runs == [Run("a")]
+        assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
+
+    def test_text_after_the_styled_block_stays_in_the_item(self):
+        # The resumed segment after the block is still a paragraph inside the item.
+        nodes = html_to_ast('<ul><li><p data-style="subtitle">s</p>t</li></ul>')
+        assert [type(n) for n in nodes] == [NamedBlock, Paragraph]
+        assert nodes[0].style_type == "SUBTITLE"
+        assert nodes[1].runs == [Run("t")] and nodes[1].list_depth == 0
+
+    def test_a_plain_first_p_is_still_the_items_own_text(self):
+        # The transparent `<p>` (#1111) is untouched: a loose item keeps its bullet.
+        nodes = html_to_ast("<ul><li><p>a</p></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert nodes[0].runs == [Run("a")]
+
+    def test_the_1075_rows_keep_their_empty_bullet(self):
+        # The fix is scoped to the styled-block row; #1075's own shapes are unchanged.
+        nodes = html_to_ast("<ul><li><ul><li>inner</li></ul></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem]
+        assert nodes[0].runs == [] and nodes[1].runs == [Run("inner")]
+        nodes = html_to_ast("<ul><li><blockquote>q</blockquote></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph]
+        assert nodes[0].runs == []
+        nodes = html_to_ast("<ul><li><pre>code</pre></li></ul>")
+        assert [type(n) for n in nodes] == [BulletItem, Paragraph]
+        assert nodes[0].runs == []
+
+    def test_an_authored_empty_item_still_keeps_its_bullet(self):
+        nodes = html_to_ast("<ul><li></li><li> </li><li>d</li></ul>")
+        assert [n.runs for n in nodes] == [[], [], [Run("d")]]
+
+    def test_an_ol_item_keeps_the_bullet_so_start_numbering_counts_it(self):
+        # The skip is a <ul> row: in an <ol> the skipped item would no longer
+        # count, so `b` would show 3 — #1075's empty bullet keeps it at 4.
+        nodes = html_to_ast('<ol start="3"><li><p data-style="subtitle">s</p></li><li>b</li></ol>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock, BulletItem]
+        assert nodes[0].runs == [] and nodes[0].number == 3
+        assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
+        assert nodes[2].runs == [Run("b")] and nodes[2].number == 4
+
+    def test_an_ol_item_keeps_the_bullet_so_value_numbering_counts_it(self):
+        # Same for <li value>: `x` keeps the 6 a skipped item would have eaten.
+        nodes = html_to_ast('<ol><li value="5"><p data-style="title">T</p></li><li>x</li></ol>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock, BulletItem]
+        assert [n.number for n in nodes if isinstance(n, BulletItem)] == [5, 6]
+        assert nodes[1].style_type == "TITLE" and nodes[1].list_depth == 0
+
+    def test_a_styled_block_in_a_middle_item_keeps_the_empty_bullet(self):
+        # Skipping a middle item would make the block parse exactly like content
+        # of the item before it (`<ul><li>a<p …>s</p></li><li>b</li></ul>`); the
+        # empty bullet keeps the item boundary instead, as on develop.
+        nodes = html_to_ast('<ul><li>a</li><li><p data-style="subtitle">s</p></li><li>b</li></ul>')
+        assert [type(n) for n in nodes] == [BulletItem, BulletItem, NamedBlock, BulletItem]
+        assert nodes[0].runs == [Run("a")]
+        assert nodes[1].runs == []
+        assert nodes[2].style_type == "SUBTITLE" and nodes[2].list_depth == 0
+        assert nodes[3].runs == [Run("b")]
+
+    def test_an_nbsp_before_the_styled_block_keeps_the_bullet(self):
+        # `&nbsp;` marks a deliberate empty bullet elsewhere (#1075); padding the
+        # styled block with one keeps that bullet, like any other content.
+        nodes = html_to_ast('<ul><li>&nbsp;<p data-style="subtitle">s</p></li></ul>')
+        assert [type(n) for n in nodes] == [BulletItem, NamedBlock]
+        assert nodes[0].runs == []
+        assert nodes[1].style_type == "SUBTITLE" and nodes[1].list_depth == 0
+
+    def test_tc_doc242_fixture(self):
+        # The QA fixture the release pass runs: the second list is `styled` (a
+        # SUBTITLE paragraph with no bullet) then `plain`, and the first list's
+        # transparent `<p>` items keep their bullets.
+        rendered = _html_to_doc_requests(
+            (Path(__file__).parent / "../docs/qa/fixtures/tc-doc242-loose.html")
+            .read_text()
+            .replace("<evidence doc, in the trashed run folder>", "")
+        )[0]
+        lists = _render_lists(rendered)
+        assert lists == [
+            ("a", 0, "B2", 1),
+            ("b", 0, "B2", 2),
+            ("styled", None, None, None),
+            ("plain", 0, "B1", 1),
         ]
