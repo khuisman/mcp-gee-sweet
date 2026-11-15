@@ -33,9 +33,26 @@ class TestCollectGroups:
     """#1364: the script reads each tool's groups as the server computes them."""
 
     def test_matches_the_server_computation(self):
-        from .test_tool_groups import _registrations
+        # server._known_tools is what server.tool() recorded at import for every
+        # tool, registered or not; the test process runs with ENABLED_TOOLS=all.
+        from mcp_gee_sweet import server
 
-        assert _groups_by_name() == _registrations()
+        assert _groups_by_name() == server._known_tools
+
+    def test_capture_takes_exactly_server_tools_flags(self, monkeypatch):
+        # No catch-all: a new server.tool() flag must fail the script, not vanish.
+        import inspect
+
+        from mcp_gee_sweet import server
+
+        captured = {}
+
+        def register_all(tool):
+            captured["params"] = list(inspect.signature(tool).parameters)
+
+        monkeypatch.setattr(gen_tool_docs, "register_all", register_all)
+        gen_tool_docs.collect_tools()
+        assert captured["params"] == list(inspect.signature(server.tool).parameters)
 
     def test_records_the_default_group(self):
         from .test_tool_groups import DEFAULT_SNAPSHOT
@@ -171,6 +188,61 @@ class TestRenderFilteringBlock:
         }
         with pytest.raises(RuntimeError, match="'docs' has"):
             gen_tool_docs.render_filtering_block(groups)
+
+    def test_all_counts_the_deprecated_aliases(self, monkeypatch):
+        from mcp_gee_sweet import tool_groups
+
+        groups = _groups_by_name()
+        monkeypatch.setattr(
+            tool_groups,
+            "RENAMED_TOOLS",
+            {
+                "old_a": tool_groups.Renamed("create_doc", "9.9"),
+                "old_b": tool_groups.Renamed("list_files", "9.9"),
+            },
+        )
+        rendered = gen_tool_docs.render_filtering_block(groups)
+        assert f"| `all` | {len(groups) + 2} |" in rendered
+        # The opening sentence counts tools, not aliases.
+        assert f"of the {len(groups)} tools" in rendered.replace("\n", " ")
+
+    def test_derived_lists_name_the_groups_own_tools(self):
+        groups = _groups_by_name()
+        rendered = gen_tool_docs.render_filtering_block(groups)
+        for group in ("cache", "comments"):
+            row = next(line for line in rendered.splitlines() if line.startswith(f"| `{group}` |"))
+            for name, member_of in groups.items():
+                assert (f"`{name}`" in row) == (group in member_of), (group, name)
+
+    def test_raises_on_a_false_membership_claim(self, monkeypatch):
+        monkeypatch.setattr(
+            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "sheets", True),)
+        )
+        with pytest.raises(RuntimeError, match="create_spreadsheet in sheets"):
+            gen_tool_docs.render_filtering_block(_groups_by_name())
+
+    def test_raises_when_a_left_out_tool_joins_default(self):
+        groups = _groups_by_name()
+        groups["sync_folder"] = groups["sync_folder"] | {"default"}
+        with pytest.raises(RuntimeError, match="sync_folder not in default"):
+            gen_tool_docs.render_filtering_block(groups)
+
+    def test_raises_on_a_renamed_tool_named_in_the_prose(self):
+        groups = _groups_by_name()
+        groups["get_cache_ttl_v2"] = groups.pop("get_cache_ttl")
+        # The cache row is derived, so it follows the rename; a hand-written name
+        # elsewhere doesn't, and check_names catches it.
+        gen_tool_docs.render_filtering_block(groups)  # should not raise
+        groups["insert_doc_table_v2"] = groups.pop("insert_doc_table")
+        with pytest.raises(RuntimeError, match="insert_doc_table"):
+            gen_tool_docs.render_filtering_block(groups)
+
+    @pytest.mark.parametrize(
+        ("count", "expected"),
+        [(39, "is also under the 40"), (40, "is exactly the 40"), (41, "is over the 40")],
+    )
+    def test_old_cursor_note_matches_the_count(self, count, expected):
+        assert expected in gen_tool_docs._old_cursor_note(count)
 
     def test_all_may_exceed_the_client_limit(self):
         groups = _groups_by_name()

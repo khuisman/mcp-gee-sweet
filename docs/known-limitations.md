@@ -634,7 +634,7 @@ uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own. An unset `ENABLED_TOOLS` loads the `default` tool group,
-which is under every cap; `all` registers every tool, for clients without one.
+which is under every current cap (older Cursor builds allowed 40, which `default` doesn't exceed); `all` registers every tool, for clients without one.
 
 **Workaround:** Leave `ENABLED_TOOLS` unset, or set it (or `--include-tools`) to
 [tool groups](configuration.md#tool-groups) and names whose total stays under your client's cap.

@@ -98,13 +98,13 @@ If neither is set, or the value is empty, the `default` group is registered. `EN
 | `default` | 40 | Everyday reading and writing across all five services. What an unset or empty `ENABLED_TOOLS` loads |
 | `all` | 143 | Every tool, plus the deprecated alias of each recently renamed tool |
 | `sheets` | 36 | Every tool that works inside a spreadsheet: data, sheets, formatting, charts. Creating, listing, searching, importing and sharing spreadsheets are Drive tools, in `drive` (`default` has `create_spreadsheet`) |
-| `drive` | 38 | Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching and importing spreadsheets |
+| `drive` | 38 | Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets |
 | `docs` | 34 | Every Docs tool |
 | `calendar` | 17 | Every Calendar tool |
 | `gmail` | 15 | Every Gmail tool |
-| `cache` | 3 | The cache controls: `refresh_cache`, `get_cache_ttl`, `set_cache_ttl` |
+| `cache` | 3 | The cache controls: `get_cache_ttl`, `set_cache_ttl`, `refresh_cache` |
 | `local-files` | 9 | The tools that only work on files on the server's machine: local upload, download and sync, CSV import, a Doc written from a local Markdown or HTML file, and local images inserted into a Doc. Not registered when `LOCAL_FILE_ACCESS=off` |
-| `comments` | 3 | Doc comments: list, add and resolve |
+| `comments` | 3 | Doc comments: `list_doc_comments`, `add_doc_comment`, `resolve_doc_comment` |
 
 Each tool's groups are listed in [Tools](tools.md). A group never loads a deprecated alias: only `all`, or the old name itself, does.
 
@@ -113,9 +113,9 @@ Each tool's groups are listed in [Tools](tools.md). A group never loads a deprec
 get_sheet_data,get_sheet_formulas,find_in_spreadsheet,update_cells,batch_update,list_sheets,create_spreadsheet,list_files,search_files,get_file_metadata,create_folder,copy_file,rename_file,share_file,export_file,upload_file,create_doc,write_doc_content,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,style_doc_range,get_doc_as_markdown,list_calendars,list_events,get_event,create_event,update_event,delete_event,find_free_slots,list_messages,get_thread,list_labels,send_message,create_draft,send_draft,list_drafts,reply_to_message,modify_labels
 ```
 
-**What `default` leaves out.** It has no tool that only works on local files, so local upload, download and sync (`upload_local_file`, `download_folder`, `sync_folder`, ...), `import_csv_to_sheet`, and the Markdown file tools (`create_doc_from_file`, `update_doc_from_file`) need `local-files` or their own names. It also leaves out most structural tools: Sheets formatting and charts, Docs tables, themes and comments, calendar management, and Drive trash. Add a service group, or the tool names, for those.
+**What `default` leaves out.** It has no tool that only works on local files, so local upload, download and sync, CSV import, and the Markdown file tools (`upload_local_file`, `download_folder`, `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, ...) need `local-files` or their own names. It also leaves out most structural tools: Sheets formatting and charts, Docs tables, themes and comments, calendar management, and Drive trash. Add a service group, or the tool names, for those.
 
-**Combining entries.** Join groups and names with a comma, e.g. `default,local-files` or `default,comments,insert_doc_table`; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but `all` is under the lowest documented cap, 100. A combination can go over it, so add up the counts above; Windsurf's cap also counts every other server's tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's setting.
+**Combining entries.** Join groups and names with a comma, e.g. `default,local-files` or `default,comments,insert_doc_table`; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but `all` is under 100, the lowest cap a current client documents. `default` (40) is exactly the 40 older Cursor builds allowed, so there it leaves no room for another server's tools. A combination can go over a cap, so add up the counts above; Windsurf's cap also counts every other server's tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's setting.
 
 ## HTTP transport authentication
 

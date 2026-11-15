@@ -83,7 +83,7 @@ The project runs two instances — one OAuth, one service account — defined in
 
 ## Choosing tools for your client
 
-With `ENABLED_TOOLS` unset, the server loads the `default` [tool group](configuration.md#tool-groups): everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, and under every client's tool cap. Set `ENABLED_TOOLS` (or `--include-tools`) to change it:
+With `ENABLED_TOOLS` unset, the server loads the `default` [tool group](configuration.md#tool-groups): everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized for clients that cap how many tools they accept (see [Clients with a tool limit](#clients-with-a-tool-limit)). Set `ENABLED_TOOLS` (or `--include-tools`) to change it:
 
 | Client | Setting |
 |---|---|
@@ -118,7 +118,7 @@ To set it as a CLI argument instead of an environment variable, pass `--include-
 
 ## Clients with a tool limit
 
-Several MCP clients cap how many tools they accept. The `default` group, and every group but `all`, is under each of these caps; with every tool registered (`all`), the server is over all of them:
+Several MCP clients cap how many tools they accept. Every group but `all` is under 100, so the `default` group is under each current cap below. Older Cursor builds capped a session at 40; [Tool filtering](configuration.md#tool-groups) says where `default` stands against that. With every tool registered (`all`), the server is over all of these caps:
 
 | Client | Limit | What happens over it |
 |---|---|---|

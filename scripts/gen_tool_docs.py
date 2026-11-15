@@ -43,7 +43,9 @@ def collect_tools(groups_by_name: dict[str, frozenset[str]] | None = None):
     decorator flags exactly as server.tool() computes them."""
     captured = []
 
-    def tool(annotations=None, *, local_only=False, default=False, groups=(), **_):
+    # Same signature as server.tool(), with no catch-all, so a new flag there fails
+    # this script until it's handled here too.
+    def tool(annotations=None, *, local_only=False, default=False, groups=()):
         def decorator(func):
             captured.append(func)
             if groups_by_name is not None:
@@ -195,7 +197,10 @@ Two resources are available (read-only, not tools):
 
 # What each group holds, for docs/configuration.md, in the order its table lists
 # them. The run fails if these keys and tool_groups.GROUP_NAMES differ, so a new
-# group can't ship undocumented and a removed one can't stay in the docs.
+# group can't ship undocumented and a removed one can't stay in the docs. `{tools}`
+# is replaced by the group's own tool names, so a list can't go stale; any other
+# tool name written here must be a real tool (check_names), and any membership it
+# states belongs in MEMBERSHIP_CLAIMS.
 GROUP_DESCRIPTIONS = {
     tool_groups.DEFAULT: (
         "Everyday reading and writing across all five services. What an unset or "
@@ -209,25 +214,55 @@ GROUP_DESCRIPTIONS = {
     ),
     "drive": (
         "Every Drive tool: files, sharing, activity, upload, download, local sync, and "
-        "creating, listing, searching and importing spreadsheets"
+        "creating, listing, searching, importing and sharing spreadsheets"
     ),
     "docs": "Every Docs tool",
     "calendar": "Every Calendar tool",
     "gmail": "Every Gmail tool",
-    "cache": "The cache controls: `refresh_cache`, `get_cache_ttl`, `set_cache_ttl`",
+    "cache": "The cache controls: {tools}",
     tool_groups.LOCAL_FILES: (
         "The tools that only work on files on the server's machine: local upload, "
         "download and sync, CSV import, a Doc written from a local Markdown or HTML "
         "file, and local images inserted into a Doc. "
         "Not registered when `LOCAL_FILE_ACCESS=off`"
     ),
-    "comments": "Doc comments: list, add and resolve",
+    "comments": "Doc comments: {tools}",
 }
+
+# Every membership the prose above and in render_filtering_block states, as
+# (tool, group, is a member). Checked against the collected groups on every run, so
+# a tool moving between groups fails the run instead of leaving a false claim.
+_SPREADSHEET_FILE_TOOLS = (
+    "create_spreadsheet",
+    "list_spreadsheets",
+    "search_spreadsheets",
+    "import_csv_to_sheet",
+    "share_spreadsheet",
+)
+MEMBERSHIP_CLAIMS = (
+    ("create_spreadsheet", tool_groups.DEFAULT, True),
+    *((name, "sheets", False) for name in _SPREADSHEET_FILE_TOOLS),
+    *((name, "drive", True) for name in _SPREADSHEET_FILE_TOOLS),
+)
+
+# The local-file tools "What `default` leaves out" names. Each must be in
+# `local-files` and not in `default`.
+DEFAULT_LEAVES_OUT = (
+    "upload_local_file",
+    "download_folder",
+    "sync_folder",
+    "import_csv_to_sheet",
+    "create_doc_from_file",
+    "update_doc_from_file",
+)
 
 # Windsurf caps a session at 100 tools across every server, the lowest
 # documented client limit. Every group but `all` must stay under it, so a group
 # that grows past it fails the run instead of documenting a broken setup.
 CLIENT_TOOL_LIMIT = 100
+# Older Cursor builds capped a session at 40 tools across every server
+# (docs/client-setup.md); the Tool filtering section says where `default` stands.
+OLD_CURSOR_TOOL_LIMIT = 40
 
 
 def group_members(groups_by_name: dict[str, frozenset[str]]) -> dict[str, list[str]]:
@@ -238,6 +273,49 @@ def group_members(groups_by_name: dict[str, frozenset[str]]) -> dict[str, list[s
         for group in groups:
             members[group].append(tool_name)
     return members
+
+
+def check_claims(members: dict[str, list[str]]) -> None:
+    """Fail the run on a membership the prose states that the tools don't bear out."""
+    claims = [
+        *MEMBERSHIP_CLAIMS,
+        *((name, tool_groups.LOCAL_FILES, True) for name in DEFAULT_LEAVES_OUT),
+        *((name, tool_groups.DEFAULT, False) for name in DEFAULT_LEAVES_OUT),
+    ]
+    wrong = [
+        f"{name} {'in' if expected else 'not in'} {group}"
+        for name, group, expected in claims
+        if (name in members[group]) != expected
+    ]
+    if wrong:
+        raise RuntimeError(
+            "gen_tool_docs: the Tool filtering prose claims "
+            f"{'; '.join(wrong)}, which the tools don't bear out. Update "
+            "MEMBERSHIP_CLAIMS, DEFAULT_LEAVES_OUT or the prose in scripts/gen_tool_docs.py."
+        )
+
+
+_CODE_SPAN = re.compile(r"`([^`\n]+)`")
+_NAME_LIKE = re.compile(r"[a-z][a-z0-9_-]*")
+
+
+def check_names(text: str, known: set[str]) -> None:
+    """Fail the run on a lowercase name in a code span (or one entry of a
+    comma-separated one, like `default,local-files`) that names no tool or group.
+    Fenced blocks are skipped: the `default` list there is built from the tools."""
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    names = {
+        entry
+        for span in _CODE_SPAN.findall(text)
+        for entry in span.split(",")
+        if _NAME_LIKE.fullmatch(entry)
+    }
+    unknown = sorted(names - known - tool_groups.GROUP_NAMES)
+    if unknown:
+        raise RuntimeError(
+            f"gen_tool_docs: the Tool filtering section names {', '.join(unknown)}, "
+            "which is no tool or group. Update scripts/gen_tool_docs.py."
+        )
 
 
 def format_groups(groups: frozenset[str]) -> str:
@@ -309,7 +387,12 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
                 f"the {CLIENT_TOOL_LIMIT}-tool client limit every group but `all` is "
                 "documented to fit under."
             )
+    check_claims(members)
     default_names = members[tool_groups.DEFAULT]
+    # `all` also registers every deprecated alias (tool_groups.RENAMED_TOOLS), so its
+    # count is what a client actually receives under it.
+    counts = {group: len(names) for group, names in members.items()}
+    counts[tool_groups.ALL] += len(tool_groups.RENAMED_TOOLS)
     lines = [
         "## Tool filtering",
         "",
@@ -345,7 +428,8 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
         "|---|---|---|",
     ]
     for group, description in GROUP_DESCRIPTIONS.items():
-        lines.append(f"| `{group}` | {len(members[group])} | {description} |")
+        tools = ", ".join(f"`{name}`" for name in members[group])
+        lines.append(f"| `{group}` | {counts[group]} | {description.format(tools=tools)} |")
     lines += [
         "",
         "Each tool's groups are listed in [Tools](tools.md). A group never loads a "
@@ -357,9 +441,9 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
         "```",
         "",
         "**What `default` leaves out.** It has no tool that only works on local files, "
-        "so local upload, download and sync (`upload_local_file`, `download_folder`, "
-        "`sync_folder`, ...), `import_csv_to_sheet`, and the Markdown file tools "
-        "(`create_doc_from_file`, `update_doc_from_file`) need `local-files` or their "
+        "so local upload, download and sync, CSV import, and the Markdown file tools ("
+        + ", ".join(f"`{name}`" for name in DEFAULT_LEAVES_OUT)
+        + ", ...) need `local-files` or their "
         "own names. It also leaves out most structural tools: Sheets formatting and "
         "charts, Docs tables, themes and comments, calendar management, and Drive "
         "trash. Add a service group, or the tool names, for those.",
@@ -367,13 +451,28 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
         "**Combining entries.** Join groups and names with a comma, e.g. "
         "`default,local-files` or `default,comments,insert_doc_table`; a tool named "
         "twice loads once. Some MCP clients cap how many tools they accept, and every "
-        f"group but `all` is under the lowest documented cap, {CLIENT_TOOL_LIMIT}. A "
-        "combination can go over it, so add up the counts above; Windsurf's cap also "
-        "counts every other server's tools. See [Clients with a tool limit]"
+        f"group but `all` is under {CLIENT_TOOL_LIMIT}, the lowest cap a current client "
+        f"documents. {_old_cursor_note(len(default_names))} A combination can go over "
+        "a cap, so add up the counts above; Windsurf's cap also counts every other "
+        "server's tools. See [Clients with a tool limit]"
         "(client-setup.md#clients-with-a-tool-limit) for each client's setting.",
         "",
     ]
+    check_names("\n".join(lines), set(groups_by_name))
     return "\n".join(lines)
+
+
+def _old_cursor_note(default_count: int) -> str:
+    """Where `default` stands against the 40-tool cap of older Cursor builds."""
+    limit = OLD_CURSOR_TOOL_LIMIT
+    if default_count < limit:
+        return f"`default` ({default_count}) is also under the {limit} older Cursor builds allowed."
+    if default_count == limit:
+        return (
+            f"`default` ({default_count}) is exactly the {limit} older Cursor builds "
+            "allowed, so there it leaves no room for another server's tools."
+        )
+    return f"`default` ({default_count}) is over the {limit} older Cursor builds allowed."
 
 
 def write_if_changed(path: Path, content: str) -> bool:

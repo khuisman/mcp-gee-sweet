@@ -213,7 +213,7 @@ See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/
 
 ### Choosing which tools load
 
-With `ENABLED_TOOLS` unset, the server loads the `default` tool group: everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized to fit every client's tool cap. `ENABLED_TOOLS` takes tool names and group names, and loads their union:
+With `ENABLED_TOOLS` unset, the server loads the `default` tool group: everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized for clients that cap how many tools they accept. `ENABLED_TOOLS` takes tool names and group names, and loads their union:
 
 - `all`: every tool. Use it in Claude Code, whose tool search keeps the full set cheap.
 - `default,local-files`: the default set plus the tools that work on local files: `create_doc_from_file` and `update_doc_from_file` for Markdown files, and local upload, download and `sync_folder`. `default` leaves these out.
@@ -223,7 +223,7 @@ The groups, their sizes and the [per-client settings](https://khuisman.github.io
 
 ### Using a client with a tool limit
 
-Some MCP clients cap how many tools they accept. The `default` group is under each cap, but with every tool registered (`all`) this server is over all of them:
+Some MCP clients cap how many tools they accept. The `default` group is under each current cap below (older Cursor builds capped a session at 40, which `default` doesn't exceed), but with every tool registered (`all`) this server is over all of them:
 
 | Client | Limit |
 |---|---|
