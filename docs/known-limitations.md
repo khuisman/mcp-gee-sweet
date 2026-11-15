@@ -636,9 +636,10 @@ Google Antigravity is reported to reject a server with more than 100 tools.
 **Why:** The caps are the clients' own. An unset `ENABLED_TOOLS` loads the `default` tool group,
 which is under every cap; `all` registers every tool, for clients without one.
 
-**Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
-[suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
-config is in [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
+**Workaround:** Leave `ENABLED_TOOLS` unset, or set it (or `--include-tools`) to
+[tool groups](configuration.md#tool-groups) and names whose total stays under your client's cap.
+Every group but `all` is under 100 tools. Per-client config is in
+[Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
 
 ---
 

@@ -50,7 +50,9 @@ DEFAULT_SNAPSHOT = {
     "create_draft",
     "list_drafts",
     "send_draft",
+    "list_labels",
     "modify_labels",
+    "list_calendars",
     "list_events",
     "get_event",
     "create_event",
@@ -416,7 +418,7 @@ class TestLaunch:
         assert set(names) == DEFAULT_SNAPSHOT
         assert gmail is True
         assert instructions.startswith(
-            f"Tools: this server loads 38 of {len(_registrations())} tools (the default tool group)."
+            f"Tools: this server loads {len(DEFAULT_SNAPSHOT)} of {len(_registrations())} tools (the default tool group)."
         )
 
     def test_empty_is_unset(self):
