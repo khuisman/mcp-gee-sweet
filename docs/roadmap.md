@@ -589,7 +589,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-11-14** _(review follow-ups and live-QA tickets from PRs #1141, #1148, #1360, #1435, #1436, #1442, #1447, #1448, #1457, #1458, #1471 and #1495)_
 
-- [ ] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches, and CLAUDE.md's `content.py` "link request goes" line, stale since #1457. `wrong/narrow`, not observed ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475))
+- [x] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches, and CLAUDE.md's `content.py` "link request goes" line, stale since #1457. `wrong/narrow`, not observed ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475)) (PR #1508)
 - [ ] Live QA for community PR #1457 (an image and its fallback text keep only their own character styles) ([#1498](https://github.com/khuisman/mcp-gee-sweet/issues/1498))
 - [ ] `list_spreadsheets` / `list_files` docstrings: false equivalence between the two, invisible 1000-result clamp, dropped redirect case. Follow-ups from community PR #1141's review; can join the docstring bundle (#1341) ([#1483](https://github.com/khuisman/mcp-gee-sweet/issues/1483))
 - [x] Writing a named style wipes inline text styles: `insert_softbreak_paragraph` always sends one, and `style_doc_range` orders paragraph and text requests per range. Code follow-up to community PR #1148's docs; item 2 can join #1338. `wrong/narrow`, observed ([#1489](https://github.com/khuisman/mcp-gee-sweet/issues/1489)) (PR #1495; item 2 carried to #1499)
@@ -601,7 +601,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500)) (PR #1505)
 - [ ] Single-tilde pairing (`_pair_single_tilde`) from community PR #1436's review: quadratic on crafted input, pairs across matched spans, an export fixture no longer tests upstream pairing. The code isn't on `develop` yet: starts after #1436 merges, and items 1–2 close with it if its rework moves pairing into `balance_pairs` ([#1502](https://github.com/khuisman/mcp-gee-sweet/issues/1502))
 - [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
-- [ ] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504))
+- [x] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504)) (PR #1508)
 
 **Triaged in 2026-11-15** _(review and sweep tickets from 2026-11-01 to 11-06 that had no version)_
 
