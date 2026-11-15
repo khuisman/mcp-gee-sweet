@@ -618,6 +618,16 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
 - [ ] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504))
 
+**Triaged in 2026-11-15** _(review and sweep tickets from 2026-11-01 to 11-06 that had no version)_
+
+- [ ] Tool metadata: trim descriptions over 4,096 characters, add missing `readOnlyHint`, and guard both in CI. Tool surface ([#1358](https://github.com/khuisman/mcp-gee-sweet/issues/1358))
+- [ ] `docker-compose.yml` doesn't forward `ENABLED_TOOLS`, so a compose user can't widen the smaller default #1364 now loads ([#1369](https://github.com/khuisman/mcp-gee-sweet/issues/1369))
+- [ ] Tool docstrings: `create_doc`'s `folder_id` default and `upload_file`'s return are wrong; from Bob's `docs/tools.md` sweep ([#1379](https://github.com/khuisman/mcp-gee-sweet/issues/1379))
+- [ ] Gmail docstrings: drop the auto-accept hook note; fix `send_draft`'s `draft_id` source; from Bob's `docs/tools.md` sweep ([#1380](https://github.com/khuisman/mcp-gee-sweet/issues/1380))
+- [ ] `get_doc_as_markdown` loses ordered list numbers (a sublist not starting at 1, an ordered task item, a negative number) ([#1370](https://github.com/khuisman/mcp-gee-sweet/issues/1370))
+- [ ] `get_doc_as_markdown` drops subscript, superscript and highlight; follows #1231 ([#1317](https://github.com/khuisman/mcp-gee-sweet/issues/1317))
+- [ ] Table fill gives a nested table's cells, and the text after the table, the style of the text before it ([#1321](https://github.com/khuisman/mcp-gee-sweet/issues/1321))
+
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
 - [ ] **Bundle:** `font_family` / `style_doc_range` text-style builder: one PR closing #1038, #1300, #1289 and #1037. #1300 and #1289 are #1273's two follow-ups, so the chain stop rule applies ([#1338](https://github.com/khuisman/mcp-gee-sweet/issues/1338))
