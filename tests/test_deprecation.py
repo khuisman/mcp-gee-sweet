@@ -4,12 +4,13 @@ module's own registry stays as it is, and called through mcp's own `call_tool`."
 
 import inspect
 from types import SimpleNamespace
-from typing import Any
+from typing import Annotated, Any, Optional
 from unittest.mock import MagicMock
 
 import pytest
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import Field
 
 from mcp_gee_sweet import server
 from mcp_gee_sweet.deprecation import (
@@ -21,7 +22,7 @@ from mcp_gee_sweet.deprecation import (
     tool_deprecation,
     with_deprecation_warnings,
 )
-from mcp_gee_sweet.tool_groups import Selection
+from mcp_gee_sweet.tool_groups import Renamed, Selection
 
 _MODULE = "mcp_gee_sweet.tools.docs.comments"
 
@@ -229,7 +230,7 @@ class TestRenamedParams:
 
     @pytest.mark.parametrize(
         "annotation",
-        [dict, dict[str, Any], dict[str, Any] | None],
+        [dict, dict[str, Any]],
     )
     def test_open_dict_results_are_accepted(self, annotation):
         async def tool(doc_id: str):
@@ -239,7 +240,16 @@ class TestRenamedParams:
         renamed_params(removed_in="v1.0", file_id="doc_id")(tool)
 
     @pytest.mark.parametrize(
-        "annotation", [list[dict], str, dict[str, list[dict]], inspect.Parameter.empty]
+        "annotation",
+        [
+            list[dict],
+            str,
+            dict[str, list[dict]],
+            inspect.Parameter.empty,
+            # A None result would drop the warning (PR #1507 QA round 1).
+            dict[str, Any] | None,
+            Optional[dict],  # noqa: UP045 - the typing.Union form, on purpose
+        ],
     )
     def test_other_results_fail_at_import(self, annotation):
         async def tool(doc_id: str):
@@ -261,3 +271,101 @@ class TestRenamedParams:
     def test_no_pairs_fails(self):
         with pytest.raises(ValueError):
             renamed_params(removed_in="v1.0")
+
+    def test_two_old_names_for_one_new_name_fail_at_import(self):
+        with pytest.raises(ValueError, match="more than one old name for doc_id"):
+            renamed_params(removed_in="v1.0", file_id="doc_id", document="doc_id")
+
+    # Optional[str] is the typing.Union form, on purpose.
+    @pytest.mark.parametrize("annotation", [str | None, Optional[str], Any, None])  # noqa: UP045
+    def test_a_required_new_parameter_that_allows_none_fails_at_import(self, annotation):
+        async def tool(doc_id) -> dict[str, Any]:
+            return {}
+
+        tool.__annotations__["doc_id"] = Annotated[annotation, Field(description="d")]
+        with pytest.raises(TypeError, match="required 'doc_id' allows None"):
+            renamed_params(removed_in="v1.0", file_id="doc_id")(tool)
+
+    def test_an_optional_new_parameter_may_allow_none(self):
+        async def tool(doc_id: str | None = None) -> dict[str, Any]:
+            return {}
+
+        renamed_params(removed_in="v1.0", file_id="doc_id")(tool)
+
+
+def _described_list_comments():
+    async def list_comments(
+        doc_id: Annotated[str, Field(description="The document.", min_length=3)],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """List the comments."""
+        return {"doc_id": doc_id}
+
+    list_comments.__module__ = _MODULE
+    return list_comments
+
+
+class TestRenamedParamsSchema:
+    """A description or constraint stays on the property itself, not inside one
+    `anyOf` branch of the widened type (PR #1507 QA round 1)."""
+
+    def _schema(self, fresh_mcp):
+        func = renamed_params(removed_in="v1.0", file_id="doc_id")(_described_list_comments())
+        server.tool()(func)
+        return fresh_mcp._tool_manager.get_tool("list_comments").parameters["properties"]
+
+    def test_the_new_parameter_keeps_its_own_description(self, fresh_mcp):
+        prop = self._schema(fresh_mcp)["doc_id"]
+        assert prop["description"] == "The document."
+        assert all("description" not in branch for branch in prop["anyOf"])
+
+    def test_the_old_parameter_has_only_the_deprecation_note(self, fresh_mcp):
+        prop = self._schema(fresh_mcp)["file_id"]
+        assert prop["description"] == "Deprecated: use `doc_id`. Removed in v1.0."
+        assert all("description" not in branch for branch in prop["anyOf"])
+
+    async def test_constraints_carry_over_to_both_names(self, fresh_mcp):
+        self._schema(fresh_mcp)
+        for name in ("doc_id", "file_id"):
+            with pytest.raises(ToolError):
+                await _call(fresh_mcp, "list_comments", {name: "ab"})
+        assert await _call(fresh_mcp, "list_comments", {"file_id": "abc"}) == {
+            "doc_id": "abc",
+            DEPRECATION_WARNINGS_KEY: [
+                "`file_id` is deprecated: use `doc_id`. `file_id` is removed in v1.0."
+            ],
+        }
+
+
+class TestDecoratorOrder:
+    """Written above `@tool()`, a deprecation decorator would wrap a tool already
+    registered without its change; it fails at import instead (PR #1507 QA round 1)."""
+
+    @pytest.mark.parametrize("entries", [("all",), ("sheets",)])
+    def test_renamed_params_above_tool_fails(self, monkeypatch, fresh_mcp, entries):
+        monkeypatch.setattr(server, "SELECTION", Selection.from_entries(entries, {}))
+        registered = server.tool()(_list_comments())
+        with pytest.raises(TypeError, match="apply it under @tool"):
+            renamed_params(removed_in="v1.0", file_id="doc_id")(registered)
+
+    @pytest.mark.parametrize("entries", [("all",), ("sheets",)])
+    def test_deprecated_tool_above_tool_fails(self, monkeypatch, fresh_mcp, entries):
+        monkeypatch.setattr(server, "SELECTION", Selection.from_entries(entries, {}))
+        registered = server.tool()(_list_comments())
+        with pytest.raises(TypeError, match="apply it under @tool"):
+            deprecated_tool(use="`x`", removed_in="v1.0")(registered)
+
+
+class TestRenameAndRemovalDontOverlap:
+    def test_a_deprecated_tool_that_is_a_rename_target_fails(self, monkeypatch, fresh_mcp):
+        renamed = {"old_comments": Renamed("list_comments", "v1.0")}
+        monkeypatch.setattr(server, "SELECTION", Selection.from_entries(("sheets",), renamed))
+        func = deprecated_tool(use="`x`", removed_in="v1.0")(_list_comments())
+        with pytest.raises(TypeError, match="a rename and a removal can't overlap"):
+            server.tool()(func)
+
+    def test_an_undeprecated_rename_target_is_fine(self, monkeypatch, fresh_mcp):
+        renamed = {"old_comments": Renamed("list_comments", "v1.0")}
+        monkeypatch.setattr(server, "SELECTION", Selection.from_entries(("all",), renamed))
+        server.tool()(_list_comments())
+        assert server._registered_aliases == ["old_comments"]

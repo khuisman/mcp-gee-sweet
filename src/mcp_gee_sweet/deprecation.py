@@ -43,11 +43,26 @@ def deprecation_doc(note: str, doc: str | None) -> str:
     return f"{note}\n\n{body}".rstrip()
 
 
+# Set by `server.tool()` on what it returns, so a deprecation decorator written above
+# `@tool()`, which would wrap a tool already registered without its change, fails at
+# import instead of silently doing nothing.
+REGISTERED_MARK = "__registered_tool__"
+
+
+def _require_under_tool(decorator_name: str, func) -> None:
+    if getattr(func, REGISTERED_MARK, False):
+        raise TypeError(
+            f"{decorator_name} on {func.__name__}: apply it under @tool(), not above it; "
+            "above it, the tool is already registered without the change"
+        )
+
+
 def deprecated_tool(*, use: str, removed_in: str):
     """Mark a tool for removal in `removed_in`; `use` says what replaces it, in the
     words the description should show (e.g. "`share_file`")."""
 
     def decorator(func):
+        _require_under_tool("deprecated_tool", func)
         func.__doc__ = deprecation_doc(
             f"Deprecated: use {use} instead. Removed in {removed_in}.", func.__doc__
         )
@@ -75,15 +90,41 @@ def with_deprecation_warnings(result: dict, warnings: list[str]) -> dict:
 
 
 def _returns_open_dict(annotation) -> bool:
-    """Whether a result annotated `annotation` can take one more key without failing
-    its output schema: bare `dict`, `dict[str, Any]`, or either with `| None`."""
-    origin = typing.get_origin(annotation)
-    if origin in (typing.Union, types.UnionType):
-        members = [a for a in typing.get_args(annotation) if a is not type(None)]
-        return len(members) == 1 and _returns_open_dict(members[0])
+    """Whether every result annotated `annotation` can take one more key without
+    failing its output schema: bare `dict` or `dict[str, Any]`. Not `| None`, since a
+    `None` result would drop the warning."""
     if annotation is dict:
         return True
-    return origin is dict and typing.get_args(annotation)[1:] == (Any,)
+    return typing.get_origin(annotation) is dict and typing.get_args(annotation)[1:] == (Any,)
+
+
+def _split_annotated(annotation) -> tuple[Any, tuple]:
+    """`annotation`'s type and its `Annotated` metadata (descriptions, constraints)."""
+    if annotation is inspect.Parameter.empty:
+        return Any, ()
+    if typing.get_origin(annotation) is Annotated:
+        base, *metadata = typing.get_args(annotation)
+        return base, tuple(metadata)
+    return annotation, ()
+
+
+def _optional(annotation, *extra) -> Any:
+    """`annotation` widened to allow `None`, keeping its metadata outside the union so
+    a description or constraint stays on the schema property, not inside one `anyOf`
+    branch. `extra` metadata goes last, so it wins where it overlaps."""
+    base, metadata = _split_annotated(annotation)
+    if not (metadata or extra):
+        return base | None
+    return Annotated[(base | None, *metadata, *extra)]
+
+
+def _allows_none(annotation) -> bool:
+    base, _ = _split_annotated(annotation)
+    if base is Any or base is None or base is type(None):
+        return True
+    if typing.get_origin(base) in (typing.Union, types.UnionType):
+        return any(_allows_none(member) for member in typing.get_args(base))
+    return False
 
 
 def renamed_params(*, removed_in: str, **old_to_new: str):
@@ -100,12 +141,22 @@ def renamed_params(*, removed_in: str, **old_to_new: str):
 
     The tool must return `dict[str, Any]` (or bare `dict`), the one result shape the
     warning can join without breaking its output schema; anything else raises
-    TypeError at import.
+    TypeError at import. So does a required new parameter whose type allows `None`,
+    since an explicit `null` would read as not passed, and so do two old names for
+    one new one, since a call passing both would be told to pass only the new one.
+    It must be applied under `@tool()`, which `REGISTERED_MARK` enforces.
     """
     if not old_to_new:
         raise ValueError("renamed_params needs at least one old=new pair")
+    targets = list(old_to_new.values())
+    if duplicates := sorted({new for new in targets if targets.count(new) > 1}):
+        raise ValueError(
+            f"renamed_params: more than one old name for {', '.join(duplicates)}; "
+            "keep one old name per parameter"
+        )
 
     def decorator(func):
+        _require_under_tool("renamed_params", func)
         sig = inspect.signature(func, eval_str=True)
         params = dict(sig.parameters)
         if not _returns_open_dict(sig.return_annotation):
@@ -121,26 +172,26 @@ def renamed_params(*, removed_in: str, **old_to_new: str):
         required = {
             new for new in old_to_new.values() if params[new].default is inspect.Parameter.empty
         }
+        for new in sorted(required):
+            if _allows_none(params[new].annotation):
+                raise TypeError(
+                    f"renamed_params on {func.__name__}: required {new!r} allows None, so an "
+                    "explicit null couldn't be told from a missing argument; give it a default"
+                )
 
         published = []
         for name, param in params.items():
             if name in required:
-                annotation = (
-                    Any if param.annotation is inspect.Parameter.empty else param.annotation
-                )
-                param = param.replace(annotation=annotation | None, default=None)
+                param = param.replace(annotation=_optional(param.annotation), default=None)
             published.append(param.replace(kind=inspect.Parameter.KEYWORD_ONLY))
         for old, new in old_to_new.items():
-            annotation = params[new].annotation
-            if annotation is inspect.Parameter.empty:
-                annotation = Any
             note = f"Deprecated: use `{new}`. Removed in {removed_in}."
             published.append(
                 inspect.Parameter(
                     old,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=None,
-                    annotation=Annotated[annotation | None, Field(description=note)],
+                    annotation=_optional(params[new].annotation, Field(description=note)),
                 )
             )
 
@@ -164,10 +215,7 @@ def renamed_params(*, removed_in: str, **old_to_new: str):
             for new in required:
                 if kwargs.get(new) is None:
                     raise ToolError(f"Missing required argument `{new}`.")
-            result = await func(**kwargs)
-            if isinstance(result, dict):
-                result = with_deprecation_warnings(result, warnings)
-            return result
+            return with_deprecation_warnings(await func(**kwargs), warnings)
 
         wrapper.__signature__ = sig.replace(parameters=published)  # pyright: ignore[reportAttributeAccessIssue]
         return wrapper

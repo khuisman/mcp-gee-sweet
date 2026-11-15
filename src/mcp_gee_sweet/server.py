@@ -377,22 +377,39 @@ def tool(
             func.__module__, default=default, local_only=local_only, groups=groups
         )
         _known_tools[tool_name] = member_of
+        deprecated = deprecation.tool_deprecation(func)
+        if deprecated and (
+            old_names := sorted(o for o, r in SELECTION.renamed_items if r.new == tool_name)
+        ):
+            # The alias would point callers at a tool that is itself going away (#1209).
+            raise TypeError(
+                f"{tool_name} is marked deprecated_tool and is also the new name of "
+                f"{', '.join(old_names)} in RENAMED_TOOLS; a rename and a removal can't "
+                "overlap, so drop the RENAMED_TOOLS entry"
+            )
         if not SELECTION.selects(tool_name, member_of):
-            return func
+            return _registered_mark(func)
         if local_only and not local_files.registers_local_only_tools():
             _unregistered_local_only_tools.append(tool_name)
-            return func
+            return _registered_mark(func)
         _registered_tool_modules.add(func.__module__)
         timed = _register(func, annotations)
         _registered_tools[tool_name] = member_of
-        if deprecated := deprecation.tool_deprecation(func):
+        if deprecated:
             _deprecated_tools[tool_name] = deprecated
         for old_name in SELECTION.aliases_for(tool_name):
             _register(_alias_of(func, old_name, SELECTION.renamed[old_name]), annotations)
             _registered_aliases.append(old_name)
-        return timed
+        return _registered_mark(timed)
 
     return decorator
+
+
+def _registered_mark(func):
+    """Mark what `tool()` returns, registered or not, so a deprecation decorator
+    written above `@tool()` raises at import instead of doing nothing (#1209)."""
+    setattr(func, deprecation.REGISTERED_MARK, True)
+    return func
 
 
 # Register all tools
