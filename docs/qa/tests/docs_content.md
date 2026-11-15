@@ -7581,3 +7581,6 @@ Raw read: `First line\vSecond linestruck` (struck) + ` mid ` + `bold\n` (bold), 
 - The table cell's `cellalt` is bold and ` tail` isn't
 
 **Cleanup:** `delete_file` the doc
+
+**Result (2026-11-14) ⚠️ PARTIAL — Kit, PR #1508 round 1 @ 3b84ce87**
+Every listed check passes. Step 1: no `error`, `images` has `error` + `fallback_text` for the seven `{BAD}` images only (`status`, `build`, `struck`, `codealt`, `badge`, `linked`, `cellalt`). Raw read: S1 `Build: status passing` is one bold run. S2 ` build now` has no `weightedFontFamily` (only `make` is Courier New). S3 image `textStyle` `{"bold": true}`. S4 image has the yellow `backgroundColor`, `gone struck` is one struck run. S5 `c codealt` is one Courier New run. All four items bulleted, each `bullet.textStyle` only `{"underline": false}` (no `bold`); item 1's image `{"bold": true}`, `badge` bold, `linked` has the link. Cell: `cellalt` bold, ` tail` plain. Screenshot (URL-verified, `.playwright-mcp/tc-doc259.png`): every marker is a plain bullet, `build` in Arial. Not PASS because of one defect seen in the same doc and outside the listed checks: `linked` has the link and link color but no `underline`, while an ordinary Markdown link in the same doc has `underline: true` (#1504). Doc trashed.
