@@ -7419,6 +7419,9 @@ Run on 2026-11-14 in an isolated service-account sandbox on a Shared Drive, agai
 **Result (2026-11-14) ✅ PASS**
 Step 1 returned no `dropped_links`. Step 2: a → `h.xrg9…` (the break heading), b → `h.c63h…` (the plain one), c and d → the first and second `Intro`, e → `Plain heading`. Step 3 rendered `## Heading one<br>heading two` with each link as its same-document URL. An `export_revision` of the URL links (before step 4) returned the URLs unchanged: the write side stores a URL, and only an ID-only link is slugged. After step 4, `export_revision` on revision 5 returned exactly `[a](#heading-oneheading-two) and [b](#heading-one-heading-two), [c](#intro), [d](#intro-1), [e](#plain-heading)`. The headings come first, `## Heading one<br>heading two` included. Doc trashed.
 
+**Result (2026-11-14) ✅ PASS (steps 1–3 only) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`**
+Step 1: no `error`, no `dropped_links`. Step 2: `a` → the break heading's `headingId` (`Heading one\vheading two`), `b` → `Heading one heading two`'s, `c`/`d` → the first and second `Intro`, `e` → `Plain heading`. Step 3: `## Heading one<br>heading two`, each link its same-document URL. Steps 4–5 (relink by ID through a script, then `export_revision`) weren't re-run; they rest on the run above. Doc trashed.
+
 ### TC-DOC253: A `<pre>` in a table cell is Courier New, like a body `<pre>` (#1417) ⚠️ destructive
 
 **Purpose:** a cell `<pre>` kept its line breaks (#1215) but rendered in the doc's normal font. Its runs now get the Courier New a body `<pre>` gets.
@@ -7489,6 +7492,9 @@ Raw read, each as the checks list: `After\n`, bold `After\n`, `\xa0 After\n`, `B
 
 **Result (2026-11-14) ❌ FAIL — unaligned columns export `:--` (#1503)**
 Step 2: `| :-: | --: | :-- |` for both the plain and the quoted table (quote kept), and `| :-- | :-- |` for `p | q`. The CENTER and END columns are right, but every unaligned column reads `:--`. Raw read: every cell paragraph of a table written through the API carries `"alignment": "START"`. A bare `insertTable` sent to the API on its own gives the same `START` on its empty cells, so the PR's assumption that an unaligned cell leaves `alignment` unset doesn't hold. The same `:--` shows on HTML tables (TC-DOC253 step 2). Step 3: the `.docx` import stores no `alignment` field on its cells, and exports `| --- | --- |` (pass). Step 4: `export_revision` matches `get_doc_as_markdown` for both docs, `:--` included (pass). Docs trashed.
+
+**Result (2026-11-14) ❌ FAIL (steps 1, 2 and 4 on `{DOC}`) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`; reproduces #1503**
+Step 2: `| :-: | --: | :-- |` for the plain and the quoted table (inside its `> `), and `| :-- | :-- |` for `p | q`. Step 4: `export_revision` of the last revision returned the same delimiter rows. Step 3 (the `.docx` import) wasn't re-run; it rests on the run above. Doc trashed.
 
 ### TC-DOC256: An embedded image and its fallback text keep only their own character styles (#1334) ⚠️ requires-network ⚠️ destructive
 
