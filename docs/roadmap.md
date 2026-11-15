@@ -597,7 +597,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
 - [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
 
-**Triaged in 2026-11-14** _(review follow-ups and live-QA tickets from PRs #1141, #1148, #1360, #1435, #1442, #1447, #1448, #1457, #1458, #1471 and #1495)_
+**Triaged in 2026-11-14** _(review follow-ups and live-QA tickets from PRs #1141, #1148, #1360, #1435, #1436, #1442, #1447, #1448, #1457, #1458, #1471 and #1495)_
 
 - [ ] Inline image styling follow-ups from community PR #1457's review: enclosing styles lost, code font leaks into fallback text, weak tests, dead link-only branches, and CLAUDE.md's `content.py` "link request goes" line, stale since #1457. `wrong/narrow`, not observed ([#1475](https://github.com/khuisman/mcp-gee-sweet/issues/1475))
 - [ ] Live QA for community PR #1457 (an image and its fallback text keep only their own character styles) ([#1498](https://github.com/khuisman/mcp-gee-sweet/issues/1498))
@@ -614,6 +614,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Anchor pass: slugging gaps from PR #1435's review; community PR #1471 claims item 1 ([#1460](https://github.com/khuisman/mcp-gee-sweet/issues/1460))
 - [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed) and CLAUDE.md's `docs/editing.py` line, stale since #1495. `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
 - [ ] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500))
+- [ ] Single-tilde pairing (`_pair_single_tilde`) from community PR #1436's review: quadratic on crafted input, pairs across matched spans, an export fixture no longer tests upstream pairing. The code isn't on `develop` yet: starts after #1436 merges, and items 1–2 close with it if its rework moves pairing into `balance_pairs` ([#1502](https://github.com/khuisman/mcp-gee-sweet/issues/1502))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
