@@ -638,6 +638,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] `update_doc_from_file`: opt-in incremental (`mode="patch"`) update that diffs block by block and rewrites only changed blocks, so comment anchors and revision history survive — lane A, after #878 (same write-path files) ([#957](https://github.com/khuisman/mcp-gee-sweet/issues/957))
 - [ ] **Bundle:** Calendar follow-ups from PR #912, one PR closing [#915](https://github.com/khuisman/mcp-gee-sweet/issues/915), [#918](https://github.com/khuisman/mcp-gee-sweet/issues/918) — lane B, after #892 ([#985](https://github.com/khuisman/mcp-gee-sweet/issues/985))
 - [ ] `get_doc_structure`: inline-image `link_url`, a run-type key, and images inside table cells. From PR review ([#1154](https://github.com/khuisman/mcp-gee-sweet/issues/1154))
+- [ ] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-15 by the maintainer ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513))
 
 **Moved from ankylosaurus 2026-11-14** _(maintainer trim: the HTML-input cluster gated on #1329's parser-library pick, unobserved Markdown-export polish, and #1416; #1243 keeps its decided option A)_
 
