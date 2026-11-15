@@ -8,6 +8,7 @@ target: the run keeps its text and simply gets no link.
 
 from mcp_gee_sweet.tools.docs.ast import Image, Run
 from mcp_gee_sweet.tools.docs.emitter import (
+    _INHERITED_CHARACTER_STYLE_FIELDS,
     _image_insert_requests,
     _run_style_requests,
     _storable_link_url,
@@ -164,10 +165,14 @@ class TestImageLinkRequests:
         image = Image(alt="chart", src="chart.png", link_url=link_url)
         return _image_insert_requests(image, "https://drive.example/blob", position=10)
 
-    def test_relative_image_link_adds_no_style_request(self):
+    def test_relative_image_link_still_resets_inherited_styles(self):
+        # #1120 keeps a relative target unstorable, but the image still gets its
+        # style-clearing request (#1334), just with no link in it.
         requests = self._requests("./report.pdf")
-        assert len(requests) == 1
+        assert len(requests) == 2
         assert "insertInlineImage" in requests[0]
+        assert requests[1]["updateTextStyle"]["textStyle"] == {}
+        assert requests[1]["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
 
     def test_absolute_image_link_still_links_the_image(self):
         requests = self._requests("https://example.com/report.pdf")
