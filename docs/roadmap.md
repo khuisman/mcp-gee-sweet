@@ -501,8 +501,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Deprecation policy for renamed and removed tools: an old name stays as an alias for one release when it's listed in `ENABLED_TOOLS` or under `all`, with a CHANGELOG note. Prerequisite of #663/#664 and #665, decided 2026-10-24 ([#1209](https://github.com/khuisman/mcp-gee-sweet/issues/1209))
 - [ ] Tool groups: `ENABLED_TOOLS` accepts group names, unset loads a smaller default, and the alias mechanism lands with them. Its first PR comes before #663, #665 and the `create_bookmark` fold ([#1364](https://github.com/khuisman/mcp-gee-sweet/issues/1364)) — PR 1 (groups and aliases) merged as PR #1501; PR 2 (docs) left
 - [ ] CI: lint every tool's schemas for client compatibility (root `oneOf`/`anyOf`, `$ref`, name rules), since some clients silently drop a tool that breaks them. Feature set, added 2026-11-01 ([#1342](https://github.com/khuisman/mcp-gee-sweet/issues/1342))
-- [ ] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment`/`resolve_doc_comment` → `list_file_comments`/`add_file_comment`/`resolve_comment` (param `doc_id` → `file_id`); retire `tools/docs/comments.py`. Breaking change. ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663))
-- [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
+- [ ] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment`/`resolve_doc_comment` → `list_file_comments`/`add_file_comment`/`resolve_comment` (param `doc_id` → `file_id`); retire `tools/docs/comments.py`. Breaking change. Under #1209's policy: the old names register as aliases through `tool_groups.RENAMED_TOOLS`, `doc_id` through the parameter-rename helper, and the CHANGELOG lists them under Deprecated (moved from #1209, 2026-11-15) ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663))
+- [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. Any renamed tool or parameter goes through #1209's helpers and the CHANGELOG's Deprecated section (moved from #1209, 2026-11-15) ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
 - [ ] Follow-up cleanup for the docs comments API (`add_doc_comment`/`resolve_doc_comment`/`list_doc_comments`) — same surface #663/#664 generalize, do it there rather than twice; triaged out of `backlog` 2026-09-11 ([#329](https://github.com/khuisman/mcp-gee-sweet/issues/329))
 
 **Moved from ornithomimus at the re-split, 2026-10-24**
@@ -515,7 +515,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] `batch_update_cells` empty input — validation error vs silent no-op — decided 2026-10-18: return `{"error": ...}` ([#32](https://github.com/khuisman/mcp-gee-sweet/issues/32))
 - [ ] `search_spreadsheets` empty query — return all or require non-empty input — decided 2026-10-18: return `{"error": ...}` pointing to `list_spreadsheets` ([#39](https://github.com/khuisman/mcp-gee-sweet/issues/39))
-- [ ] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
+- [ ] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18). Under #1209's policy: `share_spreadsheet` keeps working for one release with the `deprecated=` marker, listed under the CHANGELOG's Deprecated section (moved from #1209, 2026-11-15) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
 
 **Candidates**
 
