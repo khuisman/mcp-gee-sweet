@@ -23,6 +23,23 @@ def make_func(name, doc, params=""):
     return ns[name]
 
 
+class TestDefaultCount:
+    """#1364: the Tool filtering block states the `default` group's size."""
+
+    def test_default_tool_names_are_the_default_group(self):
+        from .test_tool_groups import DEFAULT_SNAPSHOT
+
+        assert gen_tool_docs.default_tool_names() == DEFAULT_SNAPSHOT
+
+    def test_block_states_the_default_count(self):
+        known_names = {f.__name__ for f in gen_tool_docs.collect_tools()}
+        rendered = gen_tool_docs.render_subsets_block(known_names)
+        count = len(gen_tool_docs.default_tool_names())
+        assert f"registers the `default` tool group, {count} of the {len(known_names)}" in (
+            rendered.replace("\n", " ")
+        )
+
+
 class TestCollectAndDocstrings:
     def test_collect_tools_returns_every_registered_tool(self):
         funcs = gen_tool_docs.collect_tools()

@@ -2713,7 +2713,7 @@ class _DownloadCandidate:
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Export File", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Export File", readOnlyHint=True), default=True)
     async def export_file(
         file_id: str,
         export_format: str,
@@ -3030,7 +3030,7 @@ def register(tool):
             "values": values,
         }
 
-    @tool(annotations=ToolAnnotations(title="Upload File", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Upload File", destructiveHint=True), default=True)
     async def upload_file(
         name: str,
         content: str,

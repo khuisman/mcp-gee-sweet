@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Insert Document Text", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Insert Document Text", destructiveHint=True),
+        default=True,
+    )
     async def insert_doc_text(
         doc_id: str,
         insertions: list[dict],
@@ -64,7 +67,10 @@ def register(tool):
         logger.debug("insert_doc_text: %d insertions in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "insertions": len(requests)}
 
-    @tool(annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True),
+        default=True,
+    )
     async def delete_doc_range(
         doc_id: str,
         deletions: list[dict],

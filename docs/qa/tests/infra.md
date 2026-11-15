@@ -30,6 +30,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I67 (socket timeout and resumable-upload 308, issue #1129) | Unit-tested in `tests/test_http_transport.py` (`TestSocketTimeout`, `TestResumableUploadStatus`) against local sockets that never answer or answer 308. Live QA for the real Drive upload path over 100 MB and the configured server's timeout message — see TC-I67 below |
 | TC-I69 (`ENABLED_TOOLS=all` and the smaller-default warning, issue #1363) | `_parse_enabled_tools`, the warning's conditions and registration at import are unit-tested in `tests/test_server.py`. Live QA starts a real server, since the warning's reach (stderr, once per server under SSE) only shows there — see TC-I69 below |
 | TC-I70 (`--include-tools=` form and the local-only warning beside `all`, issue #1363) | Unit-tested in `tests/test_server.py`. Live QA starts a real server, as for TC-I69 — see TC-I70 below |
+| TC-I71 (tool groups and the `default` set, issue #1364) | The selection, the group guards (the `default` snapshot, the caps, disjoint names) and the alias registration are unit-tested in `tests/test_tool_groups.py`, registration at import in fresh interpreters. Live QA starts a real server, since `instructions`, the startup line and auth-status only show there — see TC-I71 below. The deprecated-alias path has no live case: `RENAMED_TOOLS` is empty until the first rename lands, so it's unit-tested against a real `MCPServer` |
 | TC-I68 (MCP Bundle install and OAuth, issue #1036) | `manifest.json`'s identity and `user_config` wiring, the build's version stamping, and its staging of committed files from an allowlist are unit-tested in `tests/test_mcpb_manifest.py`. The `MCP Bundle` workflow packs the bundle and installs it with uv on every PR that touches it. Consent needs a person at a browser, and the Claude Desktop install needs macOS with Claude Desktop, so both are manual — see TC-I68 below |
 
 ---
@@ -2196,6 +2197,8 @@ Step 1 only; steps 2–7 didn't run here, and the release pass settles this case
 
 ### TC-I69: `ENABLED_TOOLS=all` registers every tool, and an unset value warns once per server (issue #1363)
 
+**Superseded for an unset value by TC-I71 (issue #1364):** unset now loads the `default` group and logs no `smaller default tool set` line, so step 1's and step 5's checks no longer apply. Steps 2–4, 6 and 7 still do.
+
 **Background:** `all` was read as a tool name, so the server started with no tools and no error. An upcoming release shrinks the default when `ENABLED_TOOLS` is unset, so this release warns at startup. Under SSE the lifespan runs once per connection, so a warning placed there would repeat.
 
 **Setup**
@@ -2257,3 +2260,35 @@ All seven steps met their checks. Probes outside the steps found defects (below)
 All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as in TC-I69. Step 1: 1 tool, no smaller-default line. Step 2: 143, no line. Step 3: 134, `not registering local-only tools named in ENABLED_TOOLS: sync_folder`. Step 4: 134, no such line. Step 5: `Scopes` has no `gmail.modify`. Step 6: exit 2, `unrecognized arguments: --include get_sheet_data`, no URL. TC-I69 steps 1–4 repeated with the same results as round 1. Probes: `--include-tools=` falls through to `ENABLED_TOOLS` (1 tool) or, with none, 143 with the line; `--include-tools=list_sheets` beats `ENABLED_TOOLS=get_sheet_data`; `off` with `--include-tools=all,sync_folder` warns; `off` with two local-only names and a normal one lists just the two; `off` unset logs no local-only line.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S6 on throwaway stdio SA servers + dummy OAuth client for the CLI steps** — `DEBUG_LEVEL`/`LOG_FILE` set empty. 1: `--include-tools=get_sheet_data` → 1 tool, no smaller-default line. 2: `--include-tools=all` → 143, no line. 3: `LOCAL_FILE_ACCESS=off`, `ENABLED_TOOLS=all,sync_folder` → 134, `... not registering local-only tools named in ENABLED_TOOLS: sync_folder` (only that tool). 4: `off` + `all` → 134, no local-only line. 5: `auth --no-browser --include-tools=get_sheet_data` → `Scopes` has the 4 base scopes, no `gmail.modify`. 6: `auth --no-browser --include get_sheet_data` → exit 2, `unrecognized arguments: --include get_sheet_data`, no URL.
+
+---
+
+### TC-I71: unset `ENABLED_TOOLS` loads the `default` group, groups combine with names, and an unknown entry warns (issue #1364)
+
+**Background:** Every install registered all 143 tools, over several clients' caps. `ENABLED_TOOLS` now takes tool names and group names (`default`, `all`, `sheets`, `drive`, `docs`, `calendar`, `gmail`, `cache`, `local-files`, `comments`) and registers their union, and unset or empty means `default`. PR #1365's review found `ENABLED_TOOLS=ALL` and a misspelled name each started a server with 0 tools and no warning.
+
+**Setup**
+- `ENABLED_TOOLS` unset, and `DEBUG_LEVEL` and `LOG_FILE` set empty, since a slot's `.env` may set them. A scratch directory, `<scratch>`, under `$CLAUDE_JOB_DIR/tmp`.
+- An `mcp` SDK `stdio_client` + `ClientSession` script that runs `initialize`, `list_tools` and `read_resource("server://auth-status")`. It prints the tool count, whether `list_messages` and `add_doc_comment` are listed, `initialize`'s `instructions`, and auth-status's `tool_selection`, and writes the server's stderr to a file.
+
+**Action**
+1. Start `uv run mcp-gee-sweet` through the SDK client with `ENABLED_TOOLS` unset. Call `search_files` with `query="zz-1364-no-such-file"`, `max_results=1`.
+2. Same, with `ENABLED_TOOLS=all`.
+3. Same, with `ENABLED_TOOLS=docs,list_events`.
+4. Same, with `ENABLED_TOOLS=ALL`.
+5. Same, with `ENABLED_TOOLS=get_sheet_dta,comments`.
+6. Same, with `LOCAL_FILE_ACCESS=off` and `ENABLED_TOOLS=local-files,get_sheet_data`.
+7. Same, with `LOCAL_FILE_ACCESS=off` and `ENABLED_TOOLS=drive`.
+8. `ENABLED_TOOLS=docs,list_events TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet auth --no-browser`: kill it once the URL is printed. Then the same with `ENABLED_TOOLS` unset.
+
+**Checks**
+- 1: 38 tools, `list_messages` listed, `add_doc_comment` not. `instructions` starts `Tools: this server loads the default tool group, out of 143.` and names `ENABLED_TOOLS` and the other groups. `tool_selection` is `{"entries": ["default"], "configured": false, "registered_tools": 38}`. stderr has `Registered 38 of 143 tools from the default tool group (ENABLED_TOOLS is unset). Set ENABLED_TOOLS=all to register every tool.` exactly once, and no `smaller default tool set` line. `search_files` returns a list, not an error
+- 2: 143 tools. `instructions` is `Tools: every tool is loaded (143), because ENABLED_TOOLS includes all.` The startup line ends `from ENABLED_TOOLS=all.`
+- 3: 35 tools (every Docs tool plus `list_events`), `add_doc_comment` listed, `list_messages` not. `tool_selection.entries` is `["docs", "list_events"]`. No `ENABLED_TOOLS: ignoring` line
+- 4: 0 tools, and stderr has `ENABLED_TOOLS: ignoring ALL, which names no tool or tool group. Names are case-sensitive; see docs/tools.md for tool names.` The server still starts
+- 5: 3 tools (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`), and the `ignoring` line names `get_sheet_dta` only
+- 6: 1 tool (`get_sheet_data`), and stderr has `not registering local-only tools named in ENABLED_TOOLS:` followed by all nine local-only tools
+- 7: 32 tools (the Drive group without its six local-only tools), and no `not registering local-only tools` line
+- 8: with `docs,list_events`, the `Scopes :` line has no `gmail.modify`. Unset, it has `gmail.modify`, since `default` includes Gmail tools
+
+**Cleanup:** delete `<scratch>`.

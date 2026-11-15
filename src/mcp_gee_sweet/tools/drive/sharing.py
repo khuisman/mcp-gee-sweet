@@ -312,7 +312,7 @@ def register(tool):
             "permissionId": result.get("id"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True), default=True)
     async def share_file(
         file_id: str,
         permissions: list[dict[str, str]],

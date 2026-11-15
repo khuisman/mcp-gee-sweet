@@ -82,7 +82,7 @@ def _build_rich_text_cell(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True), default=True)
     async def get_sheet_data(
         spreadsheet_id: str,
         sheet: str,
@@ -214,7 +214,7 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True), default=True)
     async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
     ) -> list[list[Any]] | dict[str, Any]:
@@ -575,7 +575,7 @@ def register(tool):
         enforce_response_size_cap(summaries, tool_name="get_multiple_spreadsheet_summary")
         return summaries
 
-    @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True), default=True)
     async def find_in_spreadsheet(
         spreadsheet_id: str,
         query: str,
@@ -710,7 +710,7 @@ def register(tool):
             return error
         return result
 
-    @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True), default=True)
     async def update_cells(
         spreadsheet_id: str, sheet: str, range: str, data: list[list[Any]], ctx: Context = None
     ) -> dict[str, Any]:
@@ -946,7 +946,7 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True), default=True)
     async def batch_update(
         spreadsheet_id: str, requests: list[dict[str, Any]], ctx: Context = None
     ) -> dict[str, Any]:

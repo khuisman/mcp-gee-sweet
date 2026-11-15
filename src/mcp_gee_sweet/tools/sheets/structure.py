@@ -607,7 +607,7 @@ async def _resize_dimension(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True), default=True)
     async def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
         """
         List all sheets in a Google Spreadsheet.
