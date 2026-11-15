@@ -34,6 +34,8 @@ class Renamed:
 # Old name -> its replacement (#1209). An old name in ENABLED_TOOLS registers the new
 # tool, with a startup warning, plus a callable alias under the old name; `all`
 # registers every alias too. Groups never carry an alias.
+# Policy: docs/design.md, "Renaming or Removing a Tool". Remove an entry one feature
+# release after it's added.
 RENAMED_TOOLS: dict[str, Renamed] = {}
 
 

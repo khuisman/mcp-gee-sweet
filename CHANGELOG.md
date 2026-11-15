@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed and removed tools now get one release of notice. A renamed tool's old name keeps working for one release when it's listed in `ENABLED_TOOLS` or the server runs with `all`, with a startup warning naming the new tool; a tool due for removal says so at the start of its description and warns at startup when `ENABLED_TOOLS` names it; and a renamed parameter's old name keeps working, with a `deprecation_warnings` entry in the result. Each one is listed here under **Deprecated** in the release that deprecates it and under **Removed** in the release after. `server://auth-status` lists deprecated tools under `tool_selection.deprecated_tools`. See the [deprecation policy](https://khuisman.github.io/mcp-gee-sweet/latest/design/#renaming-or-removing-a-tool) — #1209
+
 ### Bug fixes
 
 - `insert_softbreak_paragraph` no longer sends a paragraph-style request unless `named_style_type` is passed: it used to write `NORMAL_TEXT` over the whole paragraph the block landed in by default, so a plain insert wiped the paragraph's existing inline text styles (`updateParagraphStyle(namedStyleType)` re-applies the named style's text properties). The default is now `None` — no `updateParagraphStyle` at all — and passing a named style still writes it over the whole paragraph. Its line-dict vocabulary now lists `font_family`, which was already supported, and the docstring, `style_doc_range`'s Note and the known-limitations entry now state that one range dict carrying `named_style_type` plus text-style fields applies paragraph-style-first in a single call, dropping the wrong second-call workaround — #1489
