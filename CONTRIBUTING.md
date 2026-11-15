@@ -144,6 +144,8 @@ Every new tool must have at least:
 
 See [Design Principles](https://khuisman.github.io/mcp-gee-sweet/latest/design/) for the tool inclusion criteria and composite tool rules.
 
+Renaming or removing a tool or one of its parameters goes through a one-release deprecation: see [Renaming or Removing a Tool](https://khuisman.github.io/mcp-gee-sweet/latest/design/#renaming-or-removing-a-tool) for the policy and the helpers that apply it.
+
 ---
 
 ## Development workflow
