@@ -544,6 +544,22 @@ class TestTableCaption:
         assert [r.text for r in nodes[0].runs] == ["cap"]
         assert [r.text for r in _runs_in(nodes[1].rows[0].cells[0])] == ["c"]
 
+    async def test_a_table_nested_in_a_caption_keeps_the_outer_tables_own_row(self):
+        # PR #1459 review: the caption's capture state lives on the table
+        # builder, as in_cell does, so the implied </caption> before a <tr>
+        # fires only for the innermost table's own caption. The nested
+        # table's <tr> used to close the outer caption through the end-tag
+        # path, popping the nested table's element with it: the nested row
+        # became the outer table's row and the outer table's own row was
+        # lost. What a nested table inside a caption renders as stays with
+        # #1402; the caption's own text still reads above the outer table.
+        nodes = html_to_ast(
+            "<table><caption>Title<table><tr><td>x</td></tr></table><tr><td>y</td></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["Title"]
+        assert len(nodes[1].rows) == 1
+        assert [r.text for r in _runs_in(nodes[1].rows[0].cells[0])] == ["y"]
+
     async def test_text_after_a_caption_still_needs_a_cell(self):
         # Table-scope text outside the caption is still dropped, as before.
         nodes = html_to_ast("<table><caption>cap</caption>lost<tr><td>c</td></tr></table>")

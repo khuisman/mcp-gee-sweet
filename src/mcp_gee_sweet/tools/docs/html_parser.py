@@ -763,9 +763,8 @@ class _AstParser(HTMLParser):
         # as a browser draws it (see handle_data). Cleared at a cell's start and end.
         self._cell_after_table = False
 
-        # Inside a <caption> between <table> and its content (#1402): its text
-        # is buffered to the table builder's caption_runs instead of dropped.
-        self._in_caption = False
+        # #1402: whether the innermost open table's own <caption> is capturing
+        # lives on that table's builder (in_caption, as in_cell does), not here.
 
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
@@ -928,6 +927,18 @@ class _AstParser(HTMLParser):
             if positions and positions[-1] > table:
                 self.handle_endtag(part)
                 return
+
+    def _capturing_caption(self) -> bool:
+        """True while the innermost open table's own <caption> is capturing text
+        (#1402). The state lives on the table builder, as in_cell does, so it
+        follows table nesting: a table nested inside a caption leaves the outer
+        caption's capture armed but inert while the nested table is innermost,
+        and the nested table's own <tr> never implies the outer </caption>.
+        A browser's parser also leaves a caption open across a nested table;
+        what such a caption's nested table renders as is deferred with #1402."""
+        return (
+            self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_caption
+        )
 
     def _can_open_anonymous_block(self) -> bool:
         """True where content with no block of its own gets a paragraph (#1391): directly
@@ -1465,11 +1476,12 @@ class _AstParser(HTMLParser):
         # can't leak into the table's cells or past the table. Before this
         # tag's own element is pushed, so the pop stops at the caption — a
         # <table> inside a caption still doesn't close it (deferred with #1402).
-        if (
-            self._table_depth >= 1
-            and self._in_caption
-            and tag in _TABLE_STRUCTURE_TAGS - {"table"} | {"col"}
-        ):
+        # The capture state sits on the table builder, as in_cell does, so this
+        # fires only for the innermost table's own caption: a <tr> of a table
+        # nested inside a caption must not close the outer caption, which popped
+        # the nested table's element along with it and made the nested row the
+        # outer table's own, losing the outer table's next row (PR #1459 review).
+        if self._capturing_caption() and tag in _TABLE_STRUCTURE_TAGS - {"table"} | {"col"}:
             self.handle_endtag("caption")
         if tag not in _VOID_TAGS:
             self._push_element(_OpenElement(tag))
@@ -1485,6 +1497,17 @@ class _AstParser(HTMLParser):
                 # otherwise it bleeds into the nested table's own first cell (#108).
                 self._table_stack[-1].append_runs(self._flush_pending_runs())
                 self._cell_held_runs = []
+            elif self._capturing_caption():
+                # A nested table is opening inside the caption's own table's
+                # caption, which stays open across it (deferred with #1402).
+                # The run buffer is shared across nesting levels, as above: the
+                # caption's runs so far move to the table builder's caption_runs
+                # now, or they would bleed into the nested table's own first
+                # cell at its </td> flush. Text after the nested table keeps
+                # capturing into the same caption (PR #1459 review).
+                runs = self._take_caption_runs()
+                if runs:
+                    self._table_stack[-1].caption_runs.extend(runs)
             self._table_depth += 1
             self._table_stack.append(
                 _TableBuilder(alignment=_cell_alignment(attr_dict, align_attribute=False))
@@ -1505,8 +1528,10 @@ class _AstParser(HTMLParser):
                 # _close_element) instead of dropping it like other
                 # table-scope text. The tag still falls through to the generic
                 # unrecognized-tag path below, exactly as before, so its element
-                # stays counted; only the capture flag is new.
-                self._in_caption = True
+                # stays counted; only the capture flag is new. It sits on the
+                # table builder, as in_cell does, so it follows table nesting
+                # (a nested table's <tr> can't imply this table's </caption>).
+                tb.in_caption = True
             if tag == "tr":
                 tb.start_row(alignment=_cell_alignment(attr_dict))
                 return
@@ -1722,7 +1747,7 @@ class _AstParser(HTMLParser):
             self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
         if (
             self._block_tag
-            or self._in_caption
+            or self._capturing_caption()
             or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
         ):
             self._release_cell_whitespace()
@@ -1808,9 +1833,9 @@ class _AstParser(HTMLParser):
             return
         # --- <caption> (#1402) ---
         # Only a caption that was capturing (table scope, no cell open) lands
-        # here; a <caption> typed inside a cell never set the flag and closes
-        # as the unrecognized tag it always was.
-        if tag == "caption" and self._in_caption:
+        # here; a <caption> typed inside a cell never set its table's flag and
+        # closes as the unrecognized tag it always was.
+        if tag == "caption" and self._capturing_caption():
             self._finish_caption()
             return
         # --- table structure ---
@@ -2043,7 +2068,7 @@ class _AstParser(HTMLParser):
         # _pop_elements already took a counted element out of _tag_depth.
         if (
             self._block_tag
-            or self._in_caption
+            or self._capturing_caption()
             or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
         ):
             self._flush_run()
@@ -2101,7 +2126,17 @@ class _AstParser(HTMLParser):
         builder (#1402). Called by </caption>, by the first table-structure tag
         inside the caption (a browser's parser closes it there), and by the
         unwind that closes an unclosed caption with its table."""
-        self._in_caption = False
+        self._table_stack[-1].in_caption = False
+        runs = self._take_caption_runs()
+        if runs:
+            self._table_stack[-1].caption_runs.extend(runs)
+
+    def _take_caption_runs(self) -> list[Run | Image]:
+        """Take the caption's buffered runs and process them as caption text
+        (#1402): leading/trailing formatting whitespace collapsed, soft breaks
+        one space, a <br> at the end no line. Also called when a table nests
+        inside the caption, which moves its runs so far to the table builder's
+        caption_runs without closing the caption (PR #1459 review)."""
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
         # A browser collapses a caption's leading/trailing formatting
@@ -2124,13 +2159,12 @@ class _AstParser(HTMLParser):
         runs = _collapse_soft_breaks(runs)
         if self._ends_with_line_break:
             runs, _ = _drop_final_line_break(runs)
-        if runs and self._table_stack:
-            self._table_stack[-1].caption_runs.extend(runs)
+        return runs
 
     def handle_data(self, data):
         if self._hidden_depth:
             return
-        if self._in_caption:
+        if self._capturing_caption():
             # #1402: caption text is captured raw (inline styles still apply —
             # the inline-tag gate below reads the same depths), and trimmed of
             # formatting whitespace when the caption closes (_close_element).
@@ -2253,6 +2287,12 @@ class _TableBuilder:
         self._current_cell: dict | None = None  # metadata for current open cell
         self._cell_col_widths: list[float | None] = []  # widths from <td width>
         self.in_cell = False
+        # #1402: this table's own <caption> is capturing its text (see
+        # _close_element), as a browser draws it between <table> and its
+        # content. On the builder, as in_cell is, so it follows table nesting:
+        # a table nested inside the caption has its own builder, and its <tr>
+        # never implies this caption's close (PR #1459 review).
+        self.in_caption = False
         # ordered content of the open cell
         self._current_children: list[Run | Image | Table] = []
         # The <caption>'s runs (#1402), kept instead of dropped with all other
