@@ -26,11 +26,15 @@ class TestResolveHeadingAnchor:
         assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
 
     def test_gitlab_style_keeps_a_hyphen_for_a_hard_break(self):
-        # The same heading under GitLab: Comrak collects the break as a space
-        # and the slug gets a single hyphen, so the collapsed scheme still
-        # resolves an anchor spelled with the separator (#1357).
+        # The collapsed GitLab scheme slugifies a heading's stored "\v" break
+        # to a single hyphen (#1357), pinned on the scheme's own slug list —
+        # resolving "#heading-one-heading-two" would pass even if the scheme
+        # dropped the break, because the fuzzy pass resolves the hyphen form
+        # anyway (#1460). GitLab's own <br> anchor is separator-free too; the
+        # hyphen form is tolerance, not reproduction — see
+        # docs/design/heading-anchor-resolution.md.
         headings = ["Heading one\vheading two"]
-        assert resolve_heading_anchor("#heading-one-heading-two", headings) == 0
+        assert compute_scheme_slugs(headings)[1] == ["heading-one-heading-two"]
 
     def test_hard_break_heading_still_matches_right_heading_among_several(self):
         headings = ["Introduction", "Heading one\vheading two", "Appendix"]
