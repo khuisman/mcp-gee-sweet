@@ -612,6 +612,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] HTML input: leading/trailing spacing at block edges beyond #1418, follow-ups from PR #1448's review ([#1467](https://github.com/khuisman/mcp-gee-sweet/issues/1467))
 - [ ] Response-size cap: enforce the full-sentence hint form, follow-up of community PR #1442 ([#1465](https://github.com/khuisman/mcp-gee-sweet/issues/1465))
 - [ ] Anchor pass: slugging gaps from PR #1435's review; community PR #1471 claims item 1 ([#1460](https://github.com/khuisman/mcp-gee-sweet/issues/1460))
+- [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed) and CLAUDE.md's `docs/editing.py` line, stale since #1495. `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
+- [ ] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
