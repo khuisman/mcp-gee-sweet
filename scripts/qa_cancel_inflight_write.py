@@ -13,7 +13,7 @@ after the cancellation has unwound.
 Every cache invalidation is printed as `doc cache marked dirty for <id>`,
 `folder cache marked dirty for <id>`, `folder cache: every folder marked dirty`,
 `sheet structure cache marked dirty for <id>`, `sheet data cache marked dirty for
-<id>`, `calendar cache marked dirty for <id>`, or `calendar list cache marked dirty`,
+<id>`, or `calendar cache: every calendar marked dirty`,
 each followed by `(write landed: yes|no)`. The script waits for the held write
 to finish before exiting, so the output shows whether the cache is invalidated
 on the cancel path and again once the abandoned write lands.
@@ -28,7 +28,7 @@ Tools and the arguments each needs:
 - `sync_folder --folder-id F --local-path DIR`: an upload-direction sync of DIR.
 - `update_cells --spreadsheet-id S --sheet T`: writes `INFLIGHT1265` to T!A1.
 - `create_sheet --spreadsheet-id S`: adds a tab named `TC-1265 sheet`.
-- `create_event --calendar-id C`: creates an all-day `TC-1265 event` on 2030-01-01.
+- `update_calendar --calendar-id C`: sets C's description to `TC-1265 description`.
 
 Usage:
     uv run python scripts/qa_cancel_inflight_write.py TOOL [--doc-id D] [--file-id X] [--folder-id F]
@@ -66,7 +66,7 @@ _TOOLS = [
     "sync_folder",
     "update_cells",
     "create_sheet",
-    "create_event",
+    "update_calendar",
 ]
 
 
@@ -127,11 +127,8 @@ async def main(args: argparse.Namespace) -> None:
     lc.sheet_data_cache.mark_dirty.side_effect = lambda spreadsheet_id: print(
         f"sheet data cache marked dirty for {spreadsheet_id} {_landed_note()}"
     )
-    lc.calendar_cache.mark_dirty.side_effect = lambda calendar_id: print(
-        f"calendar cache marked dirty for {calendar_id} {_landed_note()}"
-    )
-    lc.calendar_cache.mark_list_dirty.side_effect = lambda: print(
-        f"calendar list cache marked dirty {_landed_note()}"
+    lc.calendar_cache.mark_all_dirty.side_effect = lambda: print(
+        f"calendar cache: every calendar marked dirty {_landed_note()}"
     )
     # Reads always miss, so every read goes to the API.
     lc.drive_folder_cache.get.return_value = None
@@ -201,12 +198,10 @@ async def main(args: argparse.Namespace) -> None:
         "create_sheet": lambda: partial(
             tools["create_sheet"], spreadsheet_id=args.spreadsheet_id, title="TC-1265 sheet"
         ),
-        "create_event": lambda: partial(
-            tools["create_event"],
+        "update_calendar": lambda: partial(
+            tools["update_calendar"],
             calendar_id=args.calendar_id,
-            summary="TC-1265 event",
-            start="2030-01-01",
-            end="2030-01-02",
+            description="TC-1265 description",
         ),
     }
     call = partial(calls[args.tool](), ctx=ctx)

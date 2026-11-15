@@ -114,6 +114,17 @@ def _shape_calendar_list_entry(c: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _invalidate_calendars(lc) -> None:
+    """The invalidation for every write that changes a calendar or its list entry.
+
+    It marks every calendar entry, not just the written ID: `get_calendar` caches
+    under the caller's own spelling, so `primary` and the primary calendar's address
+    are two entries for one calendar, and a write may name only one of them (some
+    responses don't name the calendar at all). The entries are small and calendar
+    writes are rare. Event writes don't call this: the cache holds no event data."""
+    lc.calendar_cache.mark_all_dirty()
+
+
 async def _get_cached_calendar_list(lc) -> list[dict[str, Any]]:
     """Cache-first calendarList().list(), shaped for callers.
 
@@ -277,7 +288,7 @@ def register(tool):
             body["timeZone"] = timezone
 
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_list_dirty()):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 c = await execute_in_thread(
                     lc.calendar_service.calendars().insert(body=body).execute,
                     lc.calendar_service,
@@ -332,7 +343,7 @@ def register(tool):
             patch["timeZone"] = timezone
 
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 if patch:
                     c = await execute_in_thread(
                         lc.calendar_service.calendars()
@@ -383,7 +394,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 await execute_in_thread(
                     lc.calendar_service.calendars().delete(calendarId=calendar_id).execute,
                     lc.calendar_service,
@@ -426,7 +437,7 @@ def register(tool):
             body["colorId"] = color_id
 
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 c = await execute_in_thread(
                     lc.calendar_service.calendarList().insert(body=body).execute,
                     lc.calendar_service,
@@ -460,7 +471,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 await execute_in_thread(
                     lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute,
                     lc.calendar_service,
@@ -567,7 +578,7 @@ def register(tool):
             scope["value"] = scope_value
 
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 r = await execute_in_thread(
                     lc.calendar_service.acl()
                     .insert(
@@ -602,7 +613,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
+            with invalidating(lambda: _invalidate_calendars(lc)):
                 await execute_in_thread(
                     lc.calendar_service.acl()
                     .delete(calendarId=calendar_id, ruleId=rule_id)
@@ -758,12 +769,12 @@ def register(tool):
         if recurrence:
             body["recurrence"] = recurrence
 
+        # No cache invalidation: calendar_cache holds no event data (#1265).
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
-                e = await execute_in_thread(
-                    lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute,
-                    lc.calendar_service,
-                )
+            e = await execute_in_thread(
+                lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute,
+                lc.calendar_service,
+            )
         except Exception as ex:
             return {"error": str(ex)}
 
@@ -844,14 +855,14 @@ def register(tool):
                 end_obj["timeZone"] = timezone
             patch["end"] = end_obj
 
+        # No cache invalidation: calendar_cache holds no event data (#1265).
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
-                e = await execute_in_thread(
-                    lc.calendar_service.events()
-                    .patch(calendarId=calendar_id, eventId=event_id, body=patch)
-                    .execute,
-                    lc.calendar_service,
-                )
+            e = await execute_in_thread(
+                lc.calendar_service.events()
+                .patch(calendarId=calendar_id, eventId=event_id, body=patch)
+                .execute,
+                lc.calendar_service,
+            )
         except Exception as ex:
             return {"error": str(ex)}
 
@@ -871,14 +882,14 @@ def register(tool):
             Confirmation with calendar_id, event_id, and action 'deleted'.
         """
         lc = ctx.request_context.lifespan_context
+        # No cache invalidation: calendar_cache holds no event data (#1265).
         try:
-            with invalidating(lambda: lc.calendar_cache.mark_dirty(calendar_id)):
-                await execute_in_thread(
-                    lc.calendar_service.events()
-                    .delete(calendarId=calendar_id, eventId=event_id)
-                    .execute,
-                    lc.calendar_service,
-                )
+            await execute_in_thread(
+                lc.calendar_service.events()
+                .delete(calendarId=calendar_id, eventId=event_id)
+                .execute,
+                lc.calendar_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

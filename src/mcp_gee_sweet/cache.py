@@ -888,12 +888,6 @@ class CalendarCache(_BaseCache):
             self._mark_dirty_key(key)
         logger.debug("Marked calendar cache dirty for %s", calendar_id)
 
-    def mark_list_dirty(self):
-        """Invalidate only the calendar list, for a write whose calendar ID the
-        caller doesn't know until the response names it (create_calendar)."""
-        self._mark_dirty_key(self._LIST_KEY)
-        logger.debug("Marked calendar list cache dirty")
-
 
 async def fetch_sheets(
     sheets_service: Any,

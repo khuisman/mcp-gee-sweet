@@ -16,7 +16,9 @@ import anyio
 import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet import http_transport
 from mcp_gee_sweet.cache import CalendarCache, SheetInfo
+from mcp_gee_sweet.http_transport import execute_in_thread, invalidating
 from mcp_gee_sweet.tools import calendar as calendar_module
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.drive import _FolderInvalidation
@@ -557,8 +559,31 @@ _SHEET_TOOL_CALLS = {
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "range": "A1:B5"},
         {("data", "sid")},
     ),
+    # A number format changes the FORMATTED_VALUE strings the data cache holds.
+    "format_cells": (
+        {
+            "spreadsheet_id": "sid",
+            "sheet": "Sheet1",
+            "range": "A1",
+            "number_format_type": "CURRENCY",
+        },
+        {("data", "sid")},
+    ),
+    "format_cells_bold": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "range": "A1", "bold": True},
+        set(),
+    ),
+    # A merge clears every merged cell's value but the top-left one.
+    "merge_cells": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "range": "A1:C1"},
+        {("data", "sid")},
+    ),
 }
-_SHEET_CASE_TOOL = {"update_cells_rich_text": "update_cells", "update_cells_mixed": "update_cells"}
+_SHEET_CASE_TOOL = {
+    "update_cells_rich_text": "update_cells",
+    "update_cells_mixed": "update_cells",
+    "format_cells_bold": "format_cells",
+}
 
 _sheets_tool, _sheets_tools = _make_tool_registry()
 sheets_data_module.register(_sheets_tool)
@@ -623,6 +648,8 @@ def test_every_sheets_write_is_covered():
         "delete_rows",
         "delete_columns",
         "sort_range",
+        "format_cells",
+        "merge_cells",
     } == covered
 
 
@@ -672,6 +699,94 @@ async def test_sheets_tool_rejected_write_marks_nothing(case):
     assert seen == []
 
 
+async def test_copy_sheet_invalidates_when_its_copy_lands_and_rename_is_rejected():
+    # The copy adds a tab; the rename then gets a 400 (the name is taken).
+    ctx, seen = _sheets_ctx(lambda **kw: _SHEET_WRITE_RESPONSE)
+    spreadsheets = ctx.request_context.lifespan_context.sheets_service.spreadsheets.return_value
+
+    def taken(**kw):
+        raise _rejection(400)
+
+    spreadsheets.batchUpdate.return_value.execute.side_effect = taken
+    kwargs, expected = _SHEET_TOOL_CALLS["copy_sheet"]
+
+    with contextlib.suppress(HttpError):
+        await _sheets_tools["copy_sheet"](ctx=ctx, **kwargs)
+    assert set(seen) == expected
+
+
+# ---------------------------------------------------------------------------
+# invalidating: a 4xx after a write that may have landed (#1265)
+# ---------------------------------------------------------------------------
+
+
+def _request(method: str, outcome):
+    """An `.execute` bound to a request object with `method`, as googleapiclient's is."""
+
+    class _Request:
+        def __init__(self) -> None:
+            self.method = method
+
+        def execute(self, **kw):
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+    return _Request().execute
+
+
+async def _run_block(*requests):
+    calls = []
+    with contextlib.suppress(HttpError, TimeoutError), invalidating(lambda: calls.append(True)):
+        for execute in requests:
+            await execute_in_thread(execute, None)
+    return len(calls)
+
+
+@pytest.fixture
+def _no_transport(monkeypatch):
+    monkeypatch.setattr(http_transport, "thread_http", lambda service: None)
+
+
+@pytest.mark.usefixtures("_no_transport")
+class TestInvalidatingAfterALandedWrite:
+    async def test_a_lone_rejection_skips_the_callback(self):
+        assert await _run_block(_request("POST", _rejection(400))) == 0
+
+    async def test_a_rejection_after_a_landed_write_runs_it(self):
+        assert await _run_block(_request("POST", {}), _request("POST", _rejection(400))) == 1
+
+    async def test_a_rejection_after_a_write_that_may_have_landed_runs_it(self):
+        # The block's caller caught the timeout and went on to a second write.
+        async def timed_out_then_rejected():
+            with contextlib.suppress(TimeoutError):
+                await execute_in_thread(_request("POST", TimeoutError("?")), None)
+            await execute_in_thread(_request("PATCH", _rejection(400)), None)
+
+        calls = []
+        with contextlib.suppress(HttpError), invalidating(lambda: calls.append(True)):
+            await timed_out_then_rejected()
+        assert calls == [True]
+
+    async def test_a_rejection_after_a_read_skips_it(self):
+        assert await _run_block(_request("GET", {}), _request("POST", _rejection(400))) == 0
+
+    async def test_a_rejection_after_a_rejected_write_skips_it(self):
+        assert (
+            await _run_block(_request("POST", _rejection(409)), _request("POST", _rejection(400)))
+            == 0
+        )
+
+    async def test_a_nested_blocks_landed_write_counts_for_the_outer_block(self):
+        outer, inner = [], []
+        with contextlib.suppress(HttpError), invalidating(lambda: outer.append(True)):
+            with invalidating(lambda: inner.append(True)):
+                await execute_in_thread(_request("POST", {}), None)
+            await execute_in_thread(_request("POST", _rejection(400)), None)
+        assert inner == [True]
+        assert outer == [True]
+
+
 # ---------------------------------------------------------------------------
 # Calendar write tools (#1265)
 # ---------------------------------------------------------------------------
@@ -679,24 +794,31 @@ async def test_sheets_tool_rejected_write_marks_nothing(case):
 _cal_tool, _cal_tools = _make_tool_registry()
 calendar_module.register(_cal_tool)
 
-# create_calendar's new ID is only in the response, so it invalidates the list.
+# Every calendar write marks every calendar entry ("all"): `get_calendar` caches
+# under the caller's spelling, so `primary` and the address are two entries.
 _CAL_TOOL_CALLS = {
-    "create_calendar": ({"summary": "s"}, {"list"}),
-    "update_calendar": ({"calendar_id": "cal1", "summary": "s", "color_id": "3"}, {"cal1"}),
-    "delete_calendar": ({"calendar_id": "cal1"}, {"cal1"}),
-    "add_calendar_to_list": ({"calendar_id": "cal1"}, {"cal1"}),
-    "remove_calendar_from_list": ({"calendar_id": "cal1"}, {"cal1"}),
+    "create_calendar": ({"summary": "s"}, {"all"}),
+    "update_calendar": ({"calendar_id": "cal1", "summary": "s", "color_id": "3"}, {"all"}),
+    "delete_calendar": ({"calendar_id": "cal1"}, {"all"}),
+    "add_calendar_to_list": ({"calendar_id": "cal1"}, {"all"}),
+    "remove_calendar_from_list": ({"calendar_id": "cal1"}, {"all"}),
     "add_calendar_acl": (
         {"calendar_id": "cal1", "role": "reader", "scope_type": "user", "scope_value": "a@b.c"},
-        {"cal1"},
+        {"all"},
     ),
-    "remove_calendar_acl": ({"calendar_id": "cal1", "rule_id": "r1"}, {"cal1"}),
-    "create_event": (
-        {"calendar_id": "cal1", "summary": "e", "start": "2026-01-01", "end": "2026-01-02"},
-        {"cal1"},
-    ),
-    "update_event": ({"calendar_id": "cal1", "event_id": "ev1", "summary": "e"}, {"cal1"}),
-    "delete_event": ({"calendar_id": "cal1", "event_id": "ev1"}, {"cal1"}),
+    "remove_calendar_acl": ({"calendar_id": "cal1", "rule_id": "r1"}, {"all"}),
+}
+
+# calendar_cache holds no event data, so an event write invalidates nothing.
+_CAL_EVENT_CALLS = {
+    "create_event": {
+        "calendar_id": "cal1",
+        "summary": "e",
+        "start": "2026-01-01",
+        "end": "2026-01-02",
+    },
+    "update_event": {"calendar_id": "cal1", "event_id": "ev1", "summary": "e"},
+    "delete_event": {"calendar_id": "cal1", "event_id": "ev1"},
 }
 
 
@@ -716,7 +838,7 @@ def _calendar_ctx(execute):
     lc.calendar_service = cal_svc
     seen: list = []
     lc.calendar_cache.mark_dirty.side_effect = lambda cid: seen.append(cid)
-    lc.calendar_cache.mark_list_dirty.side_effect = lambda: seen.append("list")
+    lc.calendar_cache.mark_all_dirty.side_effect = lambda: seen.append("all")
     return ctx, seen
 
 
@@ -727,7 +849,47 @@ def test_every_calendar_write_is_covered():
     writes = {
         name for name, fn in _cal_tools.items() if not name.startswith(("list_", "get_", "find_"))
     }
-    assert writes == set(_CAL_TOOL_CALLS)
+    assert writes == set(_CAL_TOOL_CALLS) | set(_CAL_EVENT_CALLS)
+
+
+@pytest.mark.parametrize("tool_name", sorted(_CAL_EVENT_CALLS))
+async def test_event_write_invalidates_nothing_on_any_outcome(tool_name):
+    kwargs = _CAL_EVENT_CALLS[tool_name]
+
+    ctx, seen = _calendar_ctx(lambda **kw: _CAL_WRITE_RESPONSE)
+    await _cal_tools[tool_name](ctx=ctx, **kwargs)
+
+    def timeout(**kw):
+        raise TimeoutError("may have landed")
+
+    failed_ctx, failed_seen = _calendar_ctx(timeout)
+    assert "error" in await _cal_tools[tool_name](ctx=failed_ctx, **kwargs)
+
+    blocking = _Blocking(_CAL_WRITE_RESPONSE)
+    cancelled_ctx, cancelled_seen = _calendar_ctx(blocking)
+    await _cancel_mid_request(partial(_cal_tools[tool_name], ctx=cancelled_ctx, **kwargs), blocking)
+    blocking.release.set()
+    await _wait_for(lambda: blocking.landed)
+    await anyio.sleep(0.05)  # let an abandoned-call hook, if any, run on the loop
+
+    assert seen == failed_seen == cancelled_seen == []
+
+
+async def test_update_calendar_invalidates_when_its_patch_lands_and_color_is_rejected():
+    # calendars().patch lands; calendarList().patch(colorId=...) returns a 400.
+    ctx, seen = _calendar_ctx(lambda **kw: _CAL_WRITE_RESPONSE)
+    cal_svc = ctx.request_context.lifespan_context.calendar_service
+
+    def bad_color(**kw):
+        raise _rejection(400)
+
+    cal_svc.calendarList.return_value.patch.return_value.execute.side_effect = bad_color
+
+    result = await _cal_tools["update_calendar"](
+        calendar_id="cal1", summary="renamed", color_id="999", ctx=ctx
+    )
+    assert "error" in result
+    assert seen == ["all"]
 
 
 @pytest.mark.parametrize("tool_name", sorted(_CAL_TOOL_CALLS))

@@ -1,4 +1,5 @@
 import textwrap
+from contextlib import nullcontext
 from itertools import groupby
 from typing import Any, NamedTuple
 
@@ -1513,25 +1514,33 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "repeatCell": {
-                                "range": grid_range,
-                                "cell": {"userEnteredFormat": cell_format},
-                                "fields": ",".join(fields),
-                            }
-                        }
-                    ]
-                },
-            )
-            .execute,
-            sheets_service,
+        # A number format changes the FORMATTED_VALUE strings sheet_data_cache holds
+        # (get_multiple_spreadsheet_summary reads them); other formatting doesn't.
+        invalidation = (
+            invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id))
+            if "numberFormat" in cell_format
+            else nullcontext()
         )
+        with invalidation:
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "repeatCell": {
+                                    "range": grid_range,
+                                    "cell": {"userEnteredFormat": cell_format},
+                                    "fields": ",".join(fields),
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
+            )
 
     @tool(annotations=ToolAnnotations(title="Update Borders", destructiveHint=True))
     async def update_borders(
@@ -1800,24 +1809,26 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "mergeCells": {
-                                "range": grid_range,
-                                "mergeType": merge_type.upper(),
+        # A merge clears the value of every merged cell but the top-left one.
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "mergeCells": {
+                                    "range": grid_range,
+                                    "mergeType": merge_type.upper(),
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
     @tool(annotations=ToolAnnotations(title="Unmerge Cells", destructiveHint=True))
     async def unmerge_cells(

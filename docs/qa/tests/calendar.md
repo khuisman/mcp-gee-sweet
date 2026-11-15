@@ -1941,21 +1941,22 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 ### TC-CAL85: A Calendar write cancelled while in flight still lands, and the calendar cache is invalidated on the cancel and again once it lands (#1265) ⚠️ requires-oauth ⚠️ destructive
 
-**Background:** Same mechanism as `drive_files.md`'s TC-D301. `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real API and cancels it while its write request is held on its worker thread. The thread can't be stopped, so the event is created after the cancellation. The script prints every calendar cache invalidation as `calendar cache marked dirty for <id>` with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`), on an OAuth identity that owns `{CALENDAR_ID}` (see the identity note at the top of this file).
+**Background:** Same mechanism as `drive_files.md`'s TC-D301. `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real API and cancels it while its write request is held on its worker thread. The thread can't be stopped, so the calendar's description changes after the cancellation. Every calendar write marks every calendar entry dirty (`primary` and the calendar's address are two cache entries for one calendar), and the script prints that as `calendar cache: every calendar marked dirty` with `(write landed: yes|no)`, then waits for the held write to finish. Event writes don't invalidate the calendar cache, which holds no event data. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`), on an OAuth identity that owns `{CALENDAR_ID}` (see the identity note at the top of this file). Round 1's Result below ran an earlier version of this case that cancelled `create_event`.
 
 **Prompt**
 > (none — script-driven; the steps below are shell commands plus tool calls)
 
 **Steps**
-1. `uv run python scripts/qa_cancel_inflight_write.py create_event --calendar-id {CALENDAR_ID}`
-2. `list_events(calendar_id={CALENDAR_ID}, time_min="2030-01-01T00:00:00Z", time_max="2030-01-03T00:00:00Z")`
+1. `get_calendar(calendar_id={CALENDAR_ID})`. Record its `description` as `{ORIGINAL_DESCRIPTION}` (it may be `null`)
+2. `uv run python scripts/qa_cancel_inflight_write.py update_calendar --calendar-id {CALENDAR_ID}`
+3. `refresh_cache(calendar_id={CALENDAR_ID})`, then `get_calendar(calendar_id={CALENDAR_ID})`. The script's cache is its own stand-in, so the server's cache still holds step 1's entry until this refresh
 
 **Checks**
-- Step 1 prints `cancelled create_event while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
-- Step 1 prints `calendar cache marked dirty for {CALENDAR_ID} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1265, neither line was printed
-- Step 2 lists `TC-1265 event` on 2030-01-01 (the cancelled write landed). Record its `id` as `{NEW_EVENT}`
-- If step 1 shows only a `(write landed: yes)` line, the write finished before the cancel reached the tool; delete the event and re-run it
+- Step 2 prints `cancelled update_calendar while its write was in flight; the tool returned nothing` and ends with `writes sent: 1; landed: 1`
+- Step 2 prints `calendar cache: every calendar marked dirty (write landed: no)`, then the same line with `(write landed: yes)`. Before #1265, neither line was printed
+- Step 3 returns `description` `TC-1265 description` (the cancelled write landed)
+- If step 2 shows only a `(write landed: yes)` line, the write finished before the cancel reached the tool; re-run it
 
-**Cleanup:** `delete_event(calendar_id={CALENDAR_ID}, event_id={NEW_EVENT})`.
+**Cleanup:** `update_calendar(calendar_id={CALENDAR_ID}, description={ORIGINAL_DESCRIPTION})`, or `description=""` if step 1 recorded `null`.
 
 **Result (2026-11-14) ✅ PASS — PR #1492 round 1 (Kit) @ 520a3830, OAuth on `mcp-gee-sweet-kit`** — step 1 printed `calendar cache marked dirty for {CALENDAR_ID} (write landed: no)`, `cancelled create_event while its write was in flight; the tool returned nothing`, then `(write landed: yes)` and `writes sent: 1; landed: 1`, all on the first run. Step 2: `list_events` returned `TC-1265 event` (all-day, 2030-01-01). Event deleted.
