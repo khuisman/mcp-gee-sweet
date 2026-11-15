@@ -715,6 +715,7 @@ Moved out of ankylosaurus on 2026-11-01 (maintainer): no release depends on thes
 - [ ] Dedicated QA calendar, teardown for creation-only tests, and a `cleanup_stray_artifacts` sweep — split from #304, no second account needed — Aziz ([#886](https://github.com/khuisman/mcp-gee-sweet/issues/886))
 - [ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass ([#1067](https://github.com/khuisman/mcp-gee-sweet/issues/1067))
 - [ ] Track release-QA spend across releases so passes can be sized ahead of time ([#1068](https://github.com/khuisman/mcp-gee-sweet/issues/1068))
+- [ ] Changelog fragments (`changelog.d/`) so concurrent PRs stop conflicting on `CHANGELOG.md`; changes the release step, so weigh against `release.md` ([#1497](https://github.com/khuisman/mcp-gee-sweet/issues/1497))
 - [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise ([#520](https://github.com/khuisman/mcp-gee-sweet/issues/520))
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Moved to Unversioned 2026-11-08, out of v0.9.6 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 
