@@ -89,6 +89,45 @@ class TestInsertSoftbreakParagraph:
         assert insert_req["location"]["index"] == 10
         assert insert_req["text"] == "Line one\vLine two"
 
+    async def test_default_sends_no_paragraph_style_request(self):
+        # #1489: the tool used to always send updateParagraphStyle, defaulting
+        # to NORMAL_TEXT, so a plain insert wiped the paragraph's existing
+        # inline text styles with no named_style_type asked for. The default
+        # now sends no paragraph-style request at all.
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "abc"}, {"text": "de"}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        kinds = [next(iter(r)) for r in body["requests"]]
+        assert kinds == ["insertText"]
+
+    async def test_font_family_line_sends_weighted_font_family(self):
+        # #1489 item 4: font_family is part of the line-dict vocabulary
+        # (_text_style_and_fields supports it), and must reach the batchUpdate
+        # as a weightedFontFamily updateTextStyle request.
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "code line", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        style_requests = [r["updateTextStyle"] for r in body["requests"] if "updateTextStyle" in r]
+        assert style_requests == [
+            {
+                "range": {"startIndex": 1, "endIndex": 10},
+                "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
+                "fields": "weightedFontFamily",
+            }
+        ]
+
     async def test_paragraph_style_set_explicitly_over_whole_span(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc)

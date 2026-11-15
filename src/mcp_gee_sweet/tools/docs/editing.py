@@ -169,13 +169,14 @@ def register(tool):
         doc_id: str,
         index: int,
         lines: list[dict],
-        named_style_type: str = "NORMAL_TEXT",
+        named_style_type: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Insert a single paragraph built from multiple lines joined by soft line
-        breaks (Shift+Enter in the Docs UI), with the paragraph's style set
-        explicitly rather than inherited from whatever is at `index`.
+        breaks (Shift+Enter in the Docs UI). The paragraph's style is left
+        untouched unless a named_style_type is passed, in which case it is set
+        explicitly over the whole paragraph.
 
         Use this for metadata/header-style blocks that must render as one tight
         paragraph with no blank line between rows — e.g. a document header block:
@@ -183,18 +184,23 @@ def register(tool):
             Category: AWS / Database
             Source: ...
         insert_doc_text with "\\n" between lines creates separate paragraphs with a
-        blank line between them instead. This also sidesteps delete_doc_range's
-        paragraph-merge style-inheritance gotcha (see its docstring) by setting
-        namedStyleType explicitly on the whole paragraph the block lands in, rather
-        than leaving it to whichever neighboring paragraph it happened to merge into.
+        blank line between them instead. Passing a named_style_type also sidesteps
+        delete_doc_range's paragraph-merge style-inheritance gotcha (see its
+        docstring): the style is set explicitly on the whole paragraph the block
+        lands in, rather than left to whichever neighboring paragraph it happened
+        to merge into.
 
         To replace existing content with a soft-break block: delete it first with
         delete_doc_range, then call this tool at the same index.
 
-        This block sets namedStyleType explicitly, so any inline text styles the target
-        paragraph carried are cleared by the Docs API behaviour documented on
-        style_doc_range. Set the styles you want on the line dicts rather than relying
-        on the paragraph's previous formatting.
+        When a named_style_type is passed, the Docs API behaviour documented on
+        style_doc_range applies: updateParagraphStyle re-applies the named
+        style's own text properties over the paragraph's runs, clearing any
+        inline text styles the paragraph carried. With the default None no
+        paragraph-style request is sent at all, so the paragraph's existing
+        style and inline text styles are untouched. Either way, set the styles
+        you want on the line dicts rather than relying on the paragraph's
+        previous formatting.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -205,13 +211,16 @@ def register(tool):
                 (same vocabulary as style_doc_range's text-style fields):
                   bold, italic, underline, strikethrough (bool)
                   font_size (float): size in points
+                  font_family (str): font family name (e.g. "Courier New", "Consolas")
                   foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
                   link_url (str | null): set a hyperlink (null to clear)
-            named_style_type: Paragraph style applied to the whole paragraph the
-                inserted block ends up in (per Docs API updateParagraphStyle
-                semantics, this covers the entire paragraph touched by the insert,
-                not just the newly-inserted span). NORMAL_TEXT (default),
-                HEADING_1 … HEADING_6, TITLE, SUBTITLE.
+            named_style_type: Optional paragraph style applied to the whole
+                paragraph the inserted block ends up in (per Docs API
+                updateParagraphStyle semantics, this covers the entire paragraph
+                touched by the insert, not just the newly-inserted span). None
+                (the default) sends no updateParagraphStyle request, leaving the
+                paragraph's style and inline text styles untouched. Otherwise:
+                NORMAL_TEXT, HEADING_1 … HEADING_6, TITLE, SUBTITLE.
 
         Returns:
             Confirmation with docId, start_index, end_index (the inserted block's
@@ -226,7 +235,7 @@ def register(tool):
         for line in lines:
             if not line.get("text"):
                 return {"error": "every line must have non-empty 'text'"}
-        if named_style_type not in _NAMED_STYLE_TYPES:
+        if named_style_type is not None and named_style_type not in _NAMED_STYLE_TYPES:
             return {
                 "error": f"invalid named_style_type {named_style_type!r}; must be one of: "
                 f"{', '.join(sorted(_NAMED_STYLE_TYPES))}"
@@ -237,14 +246,20 @@ def register(tool):
 
         requests: list[dict[str, Any]] = [
             {"insertText": {"location": {"index": index}, "text": joined_text}},
-            {
-                "updateParagraphStyle": {
-                    "range": {"startIndex": index, "endIndex": end_index},
-                    "paragraphStyle": {"namedStyleType": named_style_type},
-                    "fields": "namedStyleType",
-                }
-            },
         ]
+        # #1489: only touch the paragraph's style when asked to — an unasked
+        # updateParagraphStyle re-applies the named style's text properties
+        # over the paragraph's runs and wipes its existing inline styles.
+        if named_style_type is not None:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "range": {"startIndex": index, "endIndex": end_index},
+                        "paragraphStyle": {"namedStyleType": named_style_type},
+                        "fields": "namedStyleType",
+                    }
+                }
+            )
 
         line_ranges: list[dict[str, int]] = []
         cursor = index

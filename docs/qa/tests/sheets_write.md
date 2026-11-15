@@ -952,5 +952,35 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S4 on `jay`** — clean `{"error": "<HttpError 400 ... Unable to parse range ... BadRange ...>"}`, not a raw exception; nothing cleared.
 
---- sheets_charts.md (all on copy C; every created chart deleted with deleteEmbeddedObject, replies all [{}]) ---
+---
+
+## Cache invalidation for cancelled writes
+
+### TC-W45: A Sheets write cancelled while in flight still lands, and its cache is invalidated on the cancel and again once it lands (#1265) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Same mechanism as `drive_files.md`'s TC-D301. No MCP client can cancel a tool call at a chosen point, so `scripts/qa_cancel_inflight_write.py` runs the checkout's own tool against the real APIs and cancels it while its first write request is held on its worker thread. The thread can't be stopped, so the write lands after the cancellation. The script prints every Sheets cache invalidation as `sheet data cache marked dirty for <id>` (headers and first rows, read by `get_multiple_spreadsheet_summary`) or `sheet structure cache marked dirty for <id>` (the tab list), each with `(write landed: yes|no)`, then waits for the held write to finish. Run it from the checkout under test with that checkout's OAuth token (`TOKEN_PATH`).
+
+**Setup:**
+1. `create_spreadsheet(title="TC-W45", folder_id={FOLDER_ID})`. Record `spreadsheetId` as `{SCRATCH}`. Its one tab is `Sheet1`.
+
+**Prompt**
+> (none — script-driven; the steps below are shell commands plus tool calls)
+
+**Steps**
+1. `uv run python scripts/qa_cancel_inflight_write.py update_cells --spreadsheet-id {SCRATCH} --sheet Sheet1`
+2. `uv run python scripts/qa_cancel_inflight_write.py create_sheet --spreadsheet-id {SCRATCH}`
+3. `get_sheet_data(spreadsheet_id={SCRATCH}, sheet="Sheet1", range="A1")` and `list_sheets(spreadsheet_id={SCRATCH})`
+
+**Checks**
+- Both script steps print `cancelled <tool> while its write was in flight; the tool returned nothing` and end with `writes sent: 1; landed: 1`
+- Step 1 prints `sheet data cache marked dirty for {SCRATCH} (write landed: no)`, then the same line with `(write landed: yes)`. Before #1265, neither line was printed
+- Step 2 prints `sheet structure cache marked dirty for {SCRATCH} (write landed: no)`, then the same line with `(write landed: yes)`
+- Step 3: `A1` holds `INFLIGHT1265` and the tab list includes `TC-1265 sheet` (both cancelled writes landed)
+- If a step shows only `(write landed: yes)` lines, the write finished before the cancel reached the tool; re-run that step
+
+**Cleanup:** `delete_file(file_id={SCRATCH})`.
+
+**Result (2026-11-14) ✅ PASS — PR #1492 round 1 (Kit) @ 520a3830, OAuth on `mcp-gee-sweet-kit`, scratch spreadsheet on the Shared Drive** — step 1: `sheet data cache marked dirty … (write landed: no)`, `cancelled update_cells while its write was in flight; the tool returned nothing`, then `(write landed: yes)`, `writes sent: 1; landed: 1`. Step 2: the same sequence with `sheet structure cache marked dirty` and `create_sheet`. Step 3: `A1` = `INFLIGHT1265`; `list_sheets` → `["Sheet1", "TC-1265 sheet"]`. Each step passed on its first run. Scratch spreadsheet trashed.
+
+**Result (2026-11-14) ✅ PASS — PR #1492 round 2 (Kit) @ 29d6297c, OAuth on `mcp-gee-sweet-kit`, scratch spreadsheet on the Shared Drive** — re-run after the `invalidating`/`execute_in_thread` change. Both script steps printed the same sequence as round 1 on their first run, ending `writes sent: 1; landed: 1`. Step 3: `A1` = `INFLIGHT1265`; `list_sheets` → `["Sheet1", "TC-1265 sheet"]`. Scratch spreadsheet trashed.
 

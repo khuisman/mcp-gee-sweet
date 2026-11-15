@@ -1,4 +1,5 @@
 import textwrap
+from contextlib import nullcontext
 from itertools import groupby
 from typing import Any, NamedTuple
 
@@ -7,6 +8,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import fetch_sheets
+from ...http_transport import invalidating
 from .helpers import (
     _column_index_to_letter,
     _get_sheet_id,
@@ -654,45 +656,45 @@ def register(tool):
         if src_sheet_id is None:
             return {"error": f"Source sheet '{src_sheet}' not found"}
 
-        copy_result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .sheets()
-            .copyTo(
-                spreadsheetId=src_spreadsheet,
-                sheetId=src_sheet_id,
-                body={"destinationSpreadsheetId": dst_spreadsheet},
-            )
-            .execute,
-            sheets_service,
-        )
-
-        result = {"copy": copy_result}
-
-        if copy_result.get("title") != dst_sheet:
-            rename_result = await execute_in_thread(
+        with invalidating(lambda: lc.cache.mark_dirty(dst_spreadsheet)):
+            copy_result = await execute_in_thread(
                 sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=dst_spreadsheet,
-                    body={
-                        "requests": [
-                            {
-                                "updateSheetProperties": {
-                                    "properties": {
-                                        "sheetId": copy_result["sheetId"],
-                                        "title": dst_sheet,
-                                    },
-                                    "fields": "title",
-                                }
-                            }
-                        ]
-                    },
+                .sheets()
+                .copyTo(
+                    spreadsheetId=src_spreadsheet,
+                    sheetId=src_sheet_id,
+                    body={"destinationSpreadsheetId": dst_spreadsheet},
                 )
                 .execute,
                 sheets_service,
             )
-            result["rename"] = rename_result
 
-        lc.cache.mark_dirty(dst_spreadsheet)
+            result = {"copy": copy_result}
+
+            if copy_result.get("title") != dst_sheet:
+                rename_result = await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .batchUpdate(
+                        spreadsheetId=dst_spreadsheet,
+                        body={
+                            "requests": [
+                                {
+                                    "updateSheetProperties": {
+                                        "properties": {
+                                            "sheetId": copy_result["sheetId"],
+                                            "title": dst_sheet,
+                                        },
+                                        "fields": "title",
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    .execute,
+                    sheets_service,
+                )
+                result["rename"] = rename_result
+
         return result
 
     @tool(annotations=ToolAnnotations(title="Duplicate Sheet", destructiveHint=True))
@@ -738,17 +740,16 @@ def register(tool):
         if new_name is not None:
             duplicate_request["newSheetName"] = new_name
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={"requests": [{"duplicateSheet": duplicate_request}]},
+        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"requests": [{"duplicateSheet": duplicate_request}]},
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
-
-        lc.cache.mark_dirty(spreadsheet_id)
 
         new_sheet_props = result["replies"][0]["duplicateSheet"]["properties"]
         return {
@@ -782,26 +783,26 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet,
-                body={
-                    "requests": [
-                        {
-                            "updateSheetProperties": {
-                                "properties": {"sheetId": sheet_id, "title": new_name},
-                                "fields": "title",
+        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet,
+                    body={
+                        "requests": [
+                            {
+                                "updateSheetProperties": {
+                                    "properties": {"sheetId": sheet_id, "title": new_name},
+                                    "fields": "title",
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
-        lc.cache.mark_dirty(spreadsheet)
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Sheet", destructiveHint=True))
@@ -819,17 +820,16 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
+        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
-
-        lc.cache.mark_dirty(spreadsheet_id)
 
         new_sheet_props = result["replies"][0]["addSheet"]["properties"]
         return {
@@ -879,29 +879,30 @@ def register(tool):
             return error
 
         start = start_row if start_row is not None else 0
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "insertDimension": {
-                                "range": {
-                                    "sheetId": sheet_id,
-                                    "dimension": "ROWS",
-                                    "startIndex": start,
-                                    "endIndex": start + count,
-                                },
-                                "inheritFromBefore": start_row is not None and start_row > 0,
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertDimension": {
+                                    "range": {
+                                        "sheetId": sheet_id,
+                                        "dimension": "ROWS",
+                                        "startIndex": start,
+                                        "endIndex": start + count,
+                                    },
+                                    "inheritFromBefore": start_row is not None and start_row > 0,
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
         return result
 
@@ -945,29 +946,31 @@ def register(tool):
             return error
 
         start = start_column if start_column is not None else 0
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "insertDimension": {
-                                "range": {
-                                    "sheetId": sheet_id,
-                                    "dimension": "COLUMNS",
-                                    "startIndex": start,
-                                    "endIndex": start + count,
-                                },
-                                "inheritFromBefore": start_column is not None and start_column > 0,
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertDimension": {
+                                    "range": {
+                                        "sheetId": sheet_id,
+                                        "dimension": "COLUMNS",
+                                        "startIndex": start,
+                                        "endIndex": start + count,
+                                    },
+                                    "inheritFromBefore": start_column is not None
+                                    and start_column > 0,
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
         return result
 
@@ -992,17 +995,17 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
-        lc.cache.mark_dirty(spreadsheet_id)
         return result
 
     @tool(annotations=ToolAnnotations(title="Delete Rows", destructiveHint=True))
@@ -1044,28 +1047,29 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteDimension": {
-                                "range": {
-                                    "sheetId": sheet_id,
-                                    "dimension": "ROWS",
-                                    "startIndex": start_row,
-                                    "endIndex": end_index,
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteDimension": {
+                                    "range": {
+                                        "sheetId": sheet_id,
+                                        "dimension": "ROWS",
+                                        "startIndex": start_row,
+                                        "endIndex": end_index,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
     @tool(annotations=ToolAnnotations(title="Delete Columns", destructiveHint=True))
     async def delete_columns(
@@ -1108,28 +1112,29 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteDimension": {
-                                "range": {
-                                    "sheetId": sheet_id,
-                                    "dimension": "COLUMNS",
-                                    "startIndex": start_column,
-                                    "endIndex": end_index,
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteDimension": {
+                                    "range": {
+                                        "sheetId": sheet_id,
+                                        "dimension": "COLUMNS",
+                                        "startIndex": start_column,
+                                        "endIndex": end_index,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
     @tool(annotations=ToolAnnotations(title="Hide Rows", destructiveHint=True))
     async def hide_rows(
@@ -1509,25 +1514,33 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "repeatCell": {
-                                "range": grid_range,
-                                "cell": {"userEnteredFormat": cell_format},
-                                "fields": ",".join(fields),
-                            }
-                        }
-                    ]
-                },
-            )
-            .execute,
-            sheets_service,
+        # A number format changes the FORMATTED_VALUE strings sheet_data_cache holds
+        # (get_multiple_spreadsheet_summary reads them); other formatting doesn't.
+        invalidation = (
+            invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id))
+            if "numberFormat" in cell_format
+            else nullcontext()
         )
+        with invalidation:
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "repeatCell": {
+                                    "range": grid_range,
+                                    "cell": {"userEnteredFormat": cell_format},
+                                    "fields": ",".join(fields),
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
+            )
 
     @tool(annotations=ToolAnnotations(title="Update Borders", destructiveHint=True))
     async def update_borders(
@@ -1796,24 +1809,26 @@ def register(tool):
         if error:
             return error
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "mergeCells": {
-                                "range": grid_range,
-                                "mergeType": merge_type.upper(),
+        # A merge clears the value of every merged cell but the top-left one.
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "mergeCells": {
+                                    "range": grid_range,
+                                    "mergeType": merge_type.upper(),
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
     @tool(annotations=ToolAnnotations(title="Unmerge Cells", destructiveHint=True))
     async def unmerge_cells(
@@ -2053,24 +2068,25 @@ def register(tool):
             for column_index, order in validated_orders
         ]
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "sortRange": {
-                                "range": grid_range,
-                                "sortSpecs": sort_specs,
+        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "sortRange": {
+                                    "range": grid_range,
+                                    "sortSpecs": sort_specs,
+                                }
                             }
-                        }
-                    ]
-                },
+                        ]
+                    },
+                )
+                .execute,
+                sheets_service,
             )
-            .execute,
-            sheets_service,
-        )
 
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
     async def add_chart(

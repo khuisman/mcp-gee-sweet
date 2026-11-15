@@ -828,7 +828,7 @@ def _list_page(
     enforce_response_size_cap(
         out,
         tool_name=tool_name,
-        hint="Lower max_results and paginate via next_page_token, or ",
+        hint="Lower max_results and paginate via next_page_token. ",
         local_path_available=False,
     )
     return out
