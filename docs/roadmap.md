@@ -607,6 +607,11 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] HTML input: a list item whose content is a styled block — should the bulleted item carry the named style? Design question, plus the follow-ups from community PR #1447's review folded in (orphaned nested list, round-trip indent misread, non-NBSP padding, stale comments, tests). `wrong/narrow`, not observed ([#1468](https://github.com/khuisman/mcp-gee-sweet/issues/1468))
 - [ ] `list_spreadsheets` / `list_files` docstrings: false equivalence between the two, invisible 1000-result clamp, dropped redirect case. Follow-ups from community PR #1141's review; can join the docstring bundle (#1341) ([#1483](https://github.com/khuisman/mcp-gee-sweet/issues/1483))
 - [ ] Writing a named style wipes inline text styles: `insert_softbreak_paragraph` always sends one, and `style_doc_range` orders paragraph and text requests per range. Code follow-up to community PR #1148's docs; item 2 can join #1338. `wrong/narrow`, observed ([#1489](https://github.com/khuisman/mcp-gee-sweet/issues/1489))
+- [ ] Live QA for PR #1360 (table column alignment kept through `get_doc_as_markdown`) ([#1494](https://github.com/khuisman/mcp-gee-sweet/issues/1494))
+- [ ] Live QA for PR #1435 (a heading's hard break is dropped, not hyphenated, in anchors and export) ([#1474](https://github.com/khuisman/mcp-gee-sweet/issues/1474))
+- [ ] HTML input: leading/trailing spacing at block edges beyond #1418, follow-ups from PR #1448's review ([#1467](https://github.com/khuisman/mcp-gee-sweet/issues/1467))
+- [ ] Response-size cap: enforce the full-sentence hint form, follow-up of community PR #1442 ([#1465](https://github.com/khuisman/mcp-gee-sweet/issues/1465))
+- [ ] Anchor pass: slugging gaps from PR #1435's review; community PR #1471 claims item 1 ([#1460](https://github.com/khuisman/mcp-gee-sweet/issues/1460))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
@@ -717,6 +722,7 @@ Moved out of ankylosaurus on 2026-11-01 (maintainer): no release depends on thes
 - [ ] Make scripts/qa_compile_results.py the standard compile step of a release QA pass ([#1067](https://github.com/khuisman/mcp-gee-sweet/issues/1067))
 - [ ] Track release-QA spend across releases so passes can be sized ahead of time ([#1068](https://github.com/khuisman/mcp-gee-sweet/issues/1068))
 - [ ] Changelog fragments (`changelog.d/`) so concurrent PRs stop conflicting on `CHANGELOG.md`; changes the release step, so weigh against `release.md` ([#1497](https://github.com/khuisman/mcp-gee-sweet/issues/1497))
+- [ ] Process: before adding or tightening a repo control, check every merge and push path still works (fork PRs under the CodeQL ruleset) — Bob ([#1464](https://github.com/khuisman/mcp-gee-sweet/issues/1464))
 - [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise ([#520](https://github.com/khuisman/mcp-gee-sweet/issues/520))
 - [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 — only if the competitor comparisons come back; otherwise it moves out. Moved to Unversioned 2026-11-08, out of v0.9.6 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
 
