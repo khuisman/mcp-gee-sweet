@@ -593,7 +593,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] HTML input: the space after a nested table in a cell is kept, indenting the next line ([#1418](https://github.com/khuisman/mcp-gee-sweet/issues/1418)) (PR #1448)
 - [ ] QA: Gmail purges the spam/trash fixtures after 30 days; check them before a pass — Aziz ([#1420](https://github.com/khuisman/mcp-gee-sweet/issues/1420))
 - [ ] An inline image whose one-off fetch fails isn't retried, so the same Markdown renders differently between runs ([#1428](https://github.com/khuisman/mcp-gee-sweet/issues/1428))
-- [x] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430))
+- [x] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430)) (PR #1442)
 - [ ] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439))
 - [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
 
@@ -606,17 +606,17 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Anchor slugging follow-ups from community PRs #1435 and #1471: Unicode word characters differ from github-slugger, `-N` dedup collisions, a GitLab/GitHub ambiguity to document, test and comment cleanup. `wrong/narrow`, not observed; second follow-up in #1357's family, so the chain stop rule applies to a further one ([#1482](https://github.com/khuisman/mcp-gee-sweet/issues/1482))
 - [ ] HTML input: a list item whose content is a styled block — should the bulleted item carry the named style? Design question, plus the follow-ups from community PR #1447's review folded in (orphaned nested list, round-trip indent misread, non-NBSP padding, stale comments, tests). `wrong/narrow`, not observed ([#1468](https://github.com/khuisman/mcp-gee-sweet/issues/1468))
 - [ ] `list_spreadsheets` / `list_files` docstrings: false equivalence between the two, invisible 1000-result clamp, dropped redirect case. Follow-ups from community PR #1141's review; can join the docstring bundle (#1341) ([#1483](https://github.com/khuisman/mcp-gee-sweet/issues/1483))
-- [ ] Writing a named style wipes inline text styles: `insert_softbreak_paragraph` always sends one, and `style_doc_range` orders paragraph and text requests per range. Code follow-up to community PR #1148's docs; item 2 can join #1338. `wrong/narrow`, observed ([#1489](https://github.com/khuisman/mcp-gee-sweet/issues/1489))
+- [x] Writing a named style wipes inline text styles: `insert_softbreak_paragraph` always sends one, and `style_doc_range` orders paragraph and text requests per range. Code follow-up to community PR #1148's docs; item 2 can join #1338. `wrong/narrow`, observed ([#1489](https://github.com/khuisman/mcp-gee-sweet/issues/1489)) (PR #1495; item 2 carried to #1499)
 - [ ] Live QA for PR #1360 (table column alignment kept through `get_doc_as_markdown`) ([#1494](https://github.com/khuisman/mcp-gee-sweet/issues/1494))
 - [ ] Live QA for PR #1435 (a heading's hard break is dropped, not hyphenated, in anchors and export) ([#1474](https://github.com/khuisman/mcp-gee-sweet/issues/1474))
 - [ ] HTML input: leading/trailing spacing at block edges beyond #1418, follow-ups from PR #1448's review ([#1467](https://github.com/khuisman/mcp-gee-sweet/issues/1467))
 - [ ] Response-size cap: enforce the full-sentence hint form, follow-up of community PR #1442 ([#1465](https://github.com/khuisman/mcp-gee-sweet/issues/1465))
 - [ ] Anchor pass: slugging gaps from PR #1435's review; community PR #1471 claims item 1 ([#1460](https://github.com/khuisman/mcp-gee-sweet/issues/1460))
-- [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed) and CLAUDE.md's `docs/editing.py` line, stale since #1495. `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
+- [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed). `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
 - [ ] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500))
 - [ ] Single-tilde pairing (`_pair_single_tilde`) from community PR #1436's review: quadratic on crafted input, pairs across matched spans, an export fixture no longer tests upstream pairing. The code isn't on `develop` yet: starts after #1436 merges, and items 1–2 close with it if its rework moves pairing into `balance_pairs` ([#1502](https://github.com/khuisman/mcp-gee-sweet/issues/1502))
-- [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. `wrong/common`, regression since v0.9.6 (PR #1360); lane B after #1475 ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
-- [ ] A linked image's fallback text keeps the link color but loses its underline. `wrong/narrow`, observed, regression since v0.9.6 (PR #1457); fixed in the same PR as #1475 ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504))
+- [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
+- [ ] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
