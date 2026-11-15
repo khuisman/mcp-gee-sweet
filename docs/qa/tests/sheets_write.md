@@ -980,3 +980,5 @@ Run 2 (kai-oauth): every check matched; no classifier denials or timeouts.
 
 **Cleanup:** `delete_file(file_id={SCRATCH})`.
 
+**Result (2026-11-14) ✅ PASS — PR #1492 round 1 (Kit) @ 520a3830, OAuth on `mcp-gee-sweet-kit`, scratch spreadsheet on the Shared Drive** — step 1: `sheet data cache marked dirty … (write landed: no)`, `cancelled update_cells while its write was in flight; the tool returned nothing`, then `(write landed: yes)`, `writes sent: 1; landed: 1`. Step 2: the same sequence with `sheet structure cache marked dirty` and `create_sheet`. Step 3: `A1` = `INFLIGHT1265`; `list_sheets` → `["Sheet1", "TC-1265 sheet"]`. Each step passed on its first run. Scratch spreadsheet trashed.
+

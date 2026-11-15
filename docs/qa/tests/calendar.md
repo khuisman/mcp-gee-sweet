@@ -1957,3 +1957,5 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 - If step 1 shows only a `(write landed: yes)` line, the write finished before the cancel reached the tool; delete the event and re-run it
 
 **Cleanup:** `delete_event(calendar_id={CALENDAR_ID}, event_id={NEW_EVENT})`.
+
+**Result (2026-11-14) ✅ PASS — PR #1492 round 1 (Kit) @ 520a3830, OAuth on `mcp-gee-sweet-kit`** — step 1 printed `calendar cache marked dirty for {CALENDAR_ID} (write landed: no)`, `cancelled create_event while its write was in flight; the tool returned nothing`, then `(write landed: yes)` and `writes sent: 1; landed: 1`, all on the first run. Step 2: `list_events` returned `TC-1265 event` (all-day, 2030-01-01). Event deleted.
