@@ -83,6 +83,7 @@ from mcp.types import ToolAnnotations  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 
 from . import (  # noqa: E402
+    deprecation,
     http_auth,
     local_files,
     reauth,
@@ -325,6 +326,9 @@ _known_tools: dict[str, frozenset[str]] = {}
 # registered: what `instructions`, the startup line and auth-status report.
 _registered_tools: dict[str, frozenset[str]] = {}
 _registered_aliases: list[str] = []
+# Registered tools marked with deprecation.deprecated_tool, for the startup warning
+# and auth-status (#1209).
+_deprecated_tools: dict[str, deprecation.ToolDeprecation] = {}
 
 
 def _alias_of(func, old_name: str, renamed: tool_groups.Renamed):
@@ -335,10 +339,9 @@ def _alias_of(func, old_name: str, renamed: tool_groups.Renamed):
         return await func(*args, **kwargs)
 
     alias.__name__ = alias.__qualname__ = old_name
-    alias.__doc__ = (
-        f"Deprecated: use `{func.__name__}`. Removed in {renamed.removed_in}.\n\n"
-        f"{func.__doc__ or ''}"
-    ).rstrip()
+    alias.__doc__ = deprecation.deprecation_doc(
+        f"Deprecated: use `{func.__name__}`. Removed in {renamed.removed_in}.", func.__doc__
+    )
     return alias
 
 
@@ -382,6 +385,8 @@ def tool(
         _registered_tool_modules.add(func.__module__)
         timed = _register(func, annotations)
         _registered_tools[tool_name] = member_of
+        if deprecated := deprecation.tool_deprecation(func):
+            _deprecated_tools[tool_name] = deprecated
         for old_name in SELECTION.aliases_for(tool_name):
             _register(_alias_of(func, old_name, SELECTION.renamed[old_name]), annotations)
             _registered_aliases.append(old_name)
@@ -424,6 +429,14 @@ def _log_selection_problems(selection: tool_groups.Selection) -> None:
             renamed.new,
             renamed.removed_in,
         )
+    for name, deprecated in sorted(_deprecated_tools.items()):
+        if selection.names(name):
+            logger.warning(
+                "ENABLED_TOOLS: %s is deprecated; use %s instead. It is removed in %s.",
+                name,
+                deprecated.use,
+                deprecated.removed_in,
+            )
     if named := _local_only_tools_named(selection, _unregistered_local_only_tools):
         logger.warning(
             "LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: %s",
@@ -463,6 +476,7 @@ def _tool_selection_status() -> dict:
         "configured": SELECTION.configured,
         "registered_tools": len(_registered_tools),
         "deprecated_aliases": sorted(_registered_aliases),
+        "deprecated_tools": sorted(_deprecated_tools),
     }
 
 

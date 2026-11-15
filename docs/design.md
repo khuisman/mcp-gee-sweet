@@ -75,6 +75,33 @@ See [Decision: Composite Tool Policy](decisions/decision-composite-tools.md) for
 
 ---
 
+## Renaming or Removing a Tool
+
+Tool names and parameter names are public interface. Users put them in client permission allowlists (for example a Claude Code rule like `mcp__<server>__send_message`), in `ENABLED_TOOLS`, and in saved prompts and scripts. A rename or removal breaks those with no error at the place they're written, so each one gets one release of notice first. "One release" means one feature release: a hotfix doesn't count.
+
+1. **A renamed tool keeps its old name for one release, when that name is listed in `ENABLED_TOOLS` or the server runs with `all`.** The old name then loads the new tool, logs a startup warning, and registers as a callable alias whose description opens with `Deprecated: use <new>.` A group never carries an alias, `default` included, so aliases don't count against a client's tool cap; on a default install an old-name call fails right after the rename. The alias is removed in the next release.
+2. **A removed tool is deprecated for one release first.** Its description opens with `Deprecated: use <replacement> instead.`, and naming it in `ENABLED_TOOLS` logs a startup warning. It's removed in the next release.
+3. **A renamed parameter keeps its old name for one release.** A call that passes the old name works, and the result says the name is deprecated. A removed parameter is deprecated the same way, with a description note naming what to use instead.
+4. **Every deprecation and removal goes in `CHANGELOG.md`**, under a `### Deprecated` or `### Removed` heading in its release, naming the replacement. The release that removes something also lists it under its release notes' breaking changes.
+5. **Exception: a security fix can remove or change a tool or parameter at once.** Its changelog entry says why.
+
+### How to apply it
+
+Each mechanism lives in one place, so a rename never re-implements it:
+
+| Change | Mechanism |
+|---|---|
+| Rename a tool | Rename the function, then add the old name to `tool_groups.RENAMED_TOOLS`: `"old_name": Renamed("new_name", removed_in="the next feature release")`. The server registers the alias and logs the warning. |
+| Remove a tool | Decorate it with `` @deprecation.deprecated_tool(use="`share_file`", removed_in=...) `` under `@tool()`. `use` is shown as written, so it can name a parameter too (`` "`export_file` with `format='pdf'`" ``). |
+| Rename a parameter | Rename it in the signature, then decorate the tool with `@deprecation.renamed_params(old_name="new_name", removed_in=...)` under `@tool()`. The result gains a `deprecation_warnings` list when the old name is used. The tool must return `dict[str, Any]`, the one result shape that can take the extra key without breaking its output schema. |
+| Remove a parameter | Keep it for a release, described with `Annotated[..., Field(description="Deprecated: ...")]`, and when a call passes it, return `deprecation.with_deprecation_warnings(result, [...])`. |
+
+`removed_in` is shown to users after "Removed in", in the release that deprecates the name, so `"the next feature release"` stays true for anyone running that release. Use a version number only once that release has one. Both decorators go in the tool's own module, under `@tool()`, so `docs/tools.md` shows the same description and parameters the server registers.
+
+The release after, remove the alias entry, the deprecated tool, or the old parameter, and add its `### Removed` entry. File that removal as a ticket when the deprecation merges, so it isn't forgotten.
+
+---
+
 ## Testing
 
 **Unit tests** (`tests/test_tools.py`) cover helpers, HTML conversion, tool filtering, A1 notation parsing, and cache TTL/invalidation logic. These run in CI on every push and PR.

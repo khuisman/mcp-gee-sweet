@@ -282,6 +282,7 @@ class TestAliasRegistration:
         monkeypatch.setattr(server, "_registered_tool_modules", set())
         monkeypatch.setattr(server, "_registered_tools", {})
         monkeypatch.setattr(server, "_registered_aliases", [])
+        monkeypatch.setattr(server, "_deprecated_tools", {})
         return fresh
 
     @staticmethod
@@ -471,6 +472,7 @@ class TestLaunch:
             "configured": True,
             "registered_tools": len(_members("gmail")) + 1,
             "deprecated_aliases": [],
+            "deprecated_tools": [],
         }
 
 
@@ -491,4 +493,5 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
+            "deprecated_tools": [],
         }
