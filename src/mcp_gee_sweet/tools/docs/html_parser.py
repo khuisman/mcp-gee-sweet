@@ -591,18 +591,20 @@ def _image_src(attr_dict: dict) -> str:
     return (attr_dict.get("src") or "").strip()
 
 
-def _make_image(attr_dict: dict, src: str, link_url: str | None = None) -> Image:
+def _make_image(attr_dict: dict, src: str, link_url: str | None, character_style: dict) -> Image:
     """Build an Image node from an <img> tag's attributes. width/height are
     only ever present on raw HTML <img> tags (content_format="html") — plain
     markdown "![alt](src)" has no syntax for them, so they're None there.
     link_url is the enclosing <a href>, if any (markdown "[![alt](src)](url)",
-    #977)."""
+    #977), and character_style the enclosing inline tags' style
+    (_AstParser._character_style, #1475)."""
     return Image(
         src=src,
         alt=attr_dict.get("alt") or None,
         width=_px_to_pt(attr_dict.get("width") or ""),
         height=_px_to_pt(attr_dict.get("height") or ""),
         link_url=link_url,
+        **character_style,
     )
 
 
@@ -789,20 +791,46 @@ class _AstParser(HTMLParser):
         self._run_buf = []
         run = Run(
             text=text,
-            bold=True if self._bold_depth > 0 else None,
-            italic=True if self._italic_depth > 0 else None,
-            underline=True if self._underline_depth > 0 else None,
-            strikethrough=True if self._strike_depth > 0 else None,
-            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
-            baseline_offset=self._baseline_stack[-1] if self._baseline_stack else None,
             link_url=self._link_url[-1] if self._link_url else None,
-            font_family=(
+            **self._character_style(),
+        )
+        self._pending_runs.append(run)
+
+    def _bare_character_style(self) -> dict:
+        """_character_style for a bare top-level <img>, wrapped only in inline tags
+        (`<b><img></b>`). No block was open when those tags started, so they raised no
+        style depth; read the same mapping from the open-element stack instead, as the
+        bare link is kept apart (_bare_link_url)."""
+        tags = [element.tag for element in self._open_elements if not element.inert]
+        baseline = [_INLINE_BASELINE[tag] for tag in tags if tag in _INLINE_BASELINE]
+        return {
+            "bold": True if _INLINE_BOLD.intersection(tags) else None,
+            "italic": True if _INLINE_ITALIC.intersection(tags) else None,
+            "underline": True if _INLINE_UNDERLINE.intersection(tags) else None,
+            "strikethrough": True if _INLINE_STRIKE.intersection(tags) else None,
+            "background_color": RGBColor(*_MARK_RGB) if _INLINE_MARK in tags else None,
+            "baseline_offset": baseline[-1] if baseline else None,
+            "font_family": "Courier New" if "code" in tags else None,
+        }
+
+    def _character_style(self) -> dict:
+        """The character style of the inline tags open right now, as the Run/Image
+        fields they share: a run of text takes it, and so does an image in the same
+        span (#1475), which the emitter then sets explicitly rather than letting the
+        image or its fallback text take whatever the character before it has."""
+        return {
+            "bold": True if self._bold_depth > 0 else None,
+            "italic": True if self._italic_depth > 0 else None,
+            "underline": True if self._underline_depth > 0 else None,
+            "strikethrough": True if self._strike_depth > 0 else None,
+            "background_color": RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
+            "baseline_offset": self._baseline_stack[-1] if self._baseline_stack else None,
+            "font_family": (
                 "Courier New"
                 if (self._in_pre or self._cell_pre_depth > 0 or self._code_depth > 0)
                 else None
             ),
-        )
-        self._pending_runs.append(run)
+        }
 
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
@@ -1677,7 +1705,7 @@ class _AstParser(HTMLParser):
                 link_url = self._bare_link_url[-1] if self._bare_link_url else None
                 self._nodes.append(
                     Paragraph(
-                        runs=[_make_image(attr_dict, src, link_url)],
+                        runs=[_make_image(attr_dict, src, link_url, self._bare_character_style())],
                         **self._blockquote_fields(),
                         **self._list_item_fields(),
                     )
@@ -1738,7 +1766,9 @@ class _AstParser(HTMLParser):
                         # (#977); one in the container's paragraph keeps it the same way
                         # (PR #1400 QA round 2).
                         link_url = self._bare_link_url[-1] if self._bare_link_url else None
-                    self._pending_runs.append(_make_image(attr_dict, src, link_url))
+                    self._pending_runs.append(
+                        _make_image(attr_dict, src, link_url, self._character_style())
+                    )
                     self._ends_with_line_break = False
                 elif self._block_tag:
                     self._block_had_unsupported_content = True

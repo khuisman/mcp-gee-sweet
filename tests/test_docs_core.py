@@ -24,7 +24,7 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
-    _INHERITED_CHARACTER_STYLE_FIELDS,
+    _IMAGE_TEXT_STYLE_FIELDS,
     CellImages,
     _build_blank_para_before_table_collapses,
     _build_cell_style_requests,
@@ -241,7 +241,7 @@ class TestHtmlToDocRequests:
         assert link == {
             "range": {"startIndex": 11, "endIndex": 15},
             "textStyle": {},
-            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
+            "fields": _IMAGE_TEXT_STYLE_FIELDS,
         }
         assert _text_offset_since_last_table(children, cursor=2, images=images) == 5
 
@@ -3718,7 +3718,7 @@ class TestImageLinks:
             "updateTextStyle": {
                 "range": {"startIndex": 8, "endIndex": 9},
                 "textStyle": {"link": {"url": "https://t"}},
-                "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
+                "fields": _IMAGE_TEXT_STYLE_FIELDS,
             }
         }
 
@@ -3794,7 +3794,7 @@ class TestImageLinks:
                 # An unlinked image's own style request clears the character styles
                 # it inherited (#1334) and sets no link.
                 assert following["updateTextStyle"]["textStyle"] == {}
-                assert following["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
+                assert following["updateTextStyle"]["fields"] == _IMAGE_TEXT_STYLE_FIELDS
             else:
                 assert following["updateTextStyle"]["range"] == {
                     "startIndex": index,
