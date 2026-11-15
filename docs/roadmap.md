@@ -615,6 +615,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed) and CLAUDE.md's `docs/editing.py` line, stale since #1495. `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
 - [ ] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500))
 - [ ] Single-tilde pairing (`_pair_single_tilde`) from community PR #1436's review: quadratic on crafted input, pairs across matched spans, an export fixture no longer tests upstream pairing. The code isn't on `develop` yet: starts after #1436 merges, and items 1–2 close with it if its rework moves pairing into `balance_pairs` ([#1502](https://github.com/khuisman/mcp-gee-sweet/issues/1502))
+- [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. `wrong/common`, regression since v0.9.6 (PR #1360); lane B after #1475 ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
+- [ ] A linked image's fallback text keeps the link color but loses its underline. `wrong/narrow`, observed, regression since v0.9.6 (PR #1457); fixed in the same PR as #1475 ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
