@@ -35,6 +35,8 @@ QA_BROWSER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/qa_browser.sh"
 PLAYWRIGHT_MCP_PACKAGE="$("$QA_BROWSER" mcp-package)"
 QA_BROWSER_ENDPOINT="$("$QA_BROWSER" endpoint)"
 
+# Every team server sets ENABLED_TOOLS=all: QA runs cases against every tool, and
+# unset loads only the `default` group (#1364).
 oauth_server() {
   local key="$1" dir="$2"
   cat <<JSON
@@ -44,6 +46,7 @@ oauth_server() {
       "args": ["run", "--directory", "$dir", "mcp-gee-sweet"],
       "env": {
         "AUTH_METHOD": "oauth",
+        "ENABLED_TOOLS": "all",
         "CREDENTIALS_PATH": "$dir/credentials.json",
         "TOKEN_PATH": "$dir/token.json"
       }
@@ -60,6 +63,7 @@ sa_server() {
       "args": ["run", "--directory", "$dir", "mcp-gee-sweet"],
       "env": {
         "AUTH_METHOD": "service_account",
+        "ENABLED_TOOLS": "all",
         "SERVICE_ACCOUNT_PATH": "$dir/service_account.json"
       }
     }

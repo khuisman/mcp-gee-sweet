@@ -86,6 +86,7 @@ from . import (  # noqa: E402
     http_auth,
     local_files,
     reauth,
+    tool_groups,
 )
 from .auth import (  # noqa: E402
     MissingOAuthScopesError,
@@ -103,40 +104,28 @@ from .http_auth import BearerAuth  # noqa: E402
 from .http_transport import track_refresh_failures  # noqa: E402
 from .sse_shutdown import SingleResponseGuard  # noqa: E402
 
-# In ENABLED_TOOLS / --include-tools, registers every tool, whatever else is listed.
-_ALL_TOOLS = "all"
-_SMALLER_DEFAULT_WARNING = (
-    "An upcoming release loads a smaller default tool set when ENABLED_TOOLS is unset. "
-    "To keep every tool, set ENABLED_TOOLS=all."
-)
 
-
-def _configured_tool_names() -> set[str]:
-    """What --include-tools / ENABLED_TOOLS name, `all` included; empty if neither names any."""
-    enabled_tools_str = None
+def _configured_value() -> str | None:
+    """The raw --include-tools / ENABLED_TOOLS value; the CLI wins when it names one."""
     for i, arg in enumerate(sys.argv):
         if arg == "--include-tools" and i + 1 < len(sys.argv):
-            enabled_tools_str = sys.argv[i + 1]
+            value = sys.argv[i + 1]
             break
         if arg.startswith("--include-tools="):
-            enabled_tools_str = arg.split("=", 1)[1]
+            value = arg.split("=", 1)[1]
             break
-    if not enabled_tools_str:
-        enabled_tools_str = os.environ.get("ENABLED_TOOLS")
-    if not enabled_tools_str:
-        return set()
-    return {t.strip() for t in enabled_tools_str.split(",") if t.strip()}
+    else:
+        value = None
+    return value or os.environ.get("ENABLED_TOOLS")
 
 
-def _parse_enabled_tools() -> set | None:
-    """The tools to register, or None for every tool."""
-    tools = _configured_tool_names()
-    if not tools or _ALL_TOOLS in tools:
-        return None
-    return tools
+def _parse_selection() -> tool_groups.Selection:
+    """What --include-tools / ENABLED_TOOLS select: tool names and groups, or `default`
+    when neither names any entry (#1364)."""
+    return tool_groups.Selection.from_entries(tool_groups.parse_entries(_configured_value()))
 
 
-ENABLED_TOOLS = _parse_enabled_tools()
+SELECTION = _parse_selection()
 
 # Loopback by default: any other address needs MCP_SERVER_TOKEN (http_auth.check_startup).
 _resolved_host = os.environ.get("HOST") or os.environ.get("FASTMCP_HOST") or "127.0.0.1"
@@ -329,27 +318,73 @@ _registered_tool_modules: set[str] = set()
 # Local-only tools that LOCAL_FILE_ACCESS=off kept from registering, though
 # ENABLED_TOOLS would have allowed them (#796). Reported by server://auth-status.
 _unregistered_local_only_tools: list[str] = []
+# Every tool the decorator saw, registered or not, with its groups (#1364): the
+# unknown-entry check and the counts in the startup log and `instructions` need it.
+_known_tools: dict[str, frozenset[str]] = {}
+# The tools actually registered, aliases aside, with their groups, and the aliases
+# registered: what `instructions`, the startup line and auth-status report.
+_registered_tools: dict[str, frozenset[str]] = {}
+_registered_aliases: list[str] = []
 
 
-def tool(annotations: ToolAnnotations | None = None, *, local_only: bool = False):
-    """Register a tool unless ENABLED_TOOLS leaves it out. `local_only` marks a tool
-    that can only work on local files, which LOCAL_FILE_ACCESS=off doesn't register;
-    it's set at the tool's own decorator so a rename can't drop it from a list."""
+def _alias_of(func, old_name: str, renamed: tool_groups.Renamed):
+    """A callable alias of the tool `func` under its old name (#1209)."""
+
+    @functools.wraps(func)
+    async def alias(*args, **kwargs):
+        return await func(*args, **kwargs)
+
+    alias.__name__ = alias.__qualname__ = old_name
+    alias.__doc__ = (
+        f"Deprecated: use `{func.__name__}`. Removed in {renamed.removed_in}.\n\n"
+        f"{func.__doc__ or ''}"
+    ).rstrip()
+    return alias
+
+
+def _register(func, annotations: ToolAnnotations | None):
+    """Register `func` under its own name and return the wrapper mcp calls."""
+    timed = _timed(func)
+    if annotations:
+        mcp.tool(annotations=annotations)(timed)
+    else:
+        mcp.tool()(timed)
+    _enforce_strict_tool_args(func.__name__)
+    return timed
+
+
+def tool(
+    annotations: ToolAnnotations | None = None,
+    *,
+    local_only: bool = False,
+    default: bool = False,
+    groups: tuple[str, ...] = (),
+):
+    """Register a tool when ENABLED_TOOLS selects it, by name or through a group.
+
+    Every flag is set at the tool's own decorator so a rename can't drop it from a
+    list. `local_only` marks a tool that can only work on local files, which
+    LOCAL_FILE_ACCESS=off doesn't register, and puts it in `local-files`; `default`
+    puts it in the set an unset ENABLED_TOOLS loads; `groups` names any other group
+    (tool_groups.DECLARED_GROUPS). Its service group comes from its module (#1364)."""
 
     def decorator(func):
         tool_name = func.__name__
-        if ENABLED_TOOLS is not None and tool_name not in ENABLED_TOOLS:
+        member_of = tool_groups.tool_groups(
+            func.__module__, default=default, local_only=local_only, groups=groups
+        )
+        _known_tools[tool_name] = member_of
+        if not SELECTION.selects(tool_name, member_of):
             return func
         if local_only and not local_files.registers_local_only_tools():
             _unregistered_local_only_tools.append(tool_name)
             return func
         _registered_tool_modules.add(func.__module__)
-        timed = _timed(func)
-        if annotations:
-            mcp.tool(annotations=annotations)(timed)
-        else:
-            mcp.tool()(timed)
-        _enforce_strict_tool_args(tool_name)
+        timed = _register(func, annotations)
+        _registered_tools[tool_name] = member_of
+        for old_name in SELECTION.aliases_for(tool_name):
+            _register(_alias_of(func, old_name, SELECTION.renamed[old_name]), annotations)
+            _registered_aliases.append(old_name)
         return timed
 
     return decorator
@@ -360,17 +395,75 @@ from .tools import gmail as _gmail_tools  # noqa: E402
 from .tools import register_all  # noqa: E402
 
 register_all(tool)
-# An operator who named these in ENABLED_TOOLS should learn why they're missing, and
-# `all` beside a name doesn't change that. `all` itself names none of them.
-_named_but_unregistered = _configured_tool_names().intersection(_unregistered_local_only_tools)
-if _named_but_unregistered:
-    logger.warning(
-        "LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: %s",
-        ", ".join(sorted(_named_but_unregistered)),
-    )
+
+
+def _local_only_tools_named(selection: tool_groups.Selection, dropped) -> list[str]:
+    """The tools LOCAL_FILE_ACCESS=off dropped that the operator asked for by name or
+    through `local-files`. Through `all`, `default` or a service group they're just
+    not part of the set, so there's nothing to warn about."""
+    if tool_groups.LOCAL_FILES in selection.entries:
+        return sorted(dropped)
+    return sorted(name for name in dropped if selection.names(name))
+
+
+def _log_selection_problems(selection: tool_groups.Selection) -> None:
+    """Startup warnings for ENABLED_TOOLS entries that don't do what they say."""
+    if unknown := selection.unknown_entries(_known_tools):
+        logger.warning(
+            "ENABLED_TOOLS: ignoring %s, which name%s no tool or tool group. "
+            "Names are case-sensitive; see docs/tools.md for tool names.",
+            ", ".join(unknown),
+            "s" if len(unknown) == 1 else "",
+        )
+    for old_name in selection.old_names():
+        renamed = selection.renamed[old_name]
+        logger.warning(
+            "ENABLED_TOOLS: %s was renamed %s; loading %s. The old name is removed in %s.",
+            old_name,
+            renamed.new,
+            renamed.new,
+            renamed.removed_in,
+        )
+    if named := _local_only_tools_named(selection, _unregistered_local_only_tools):
+        logger.warning(
+            "LOCAL_FILE_ACCESS=off: not registering local-only tools named in ENABLED_TOOLS: %s",
+            ", ".join(named),
+        )
+
+
+_log_selection_problems(SELECTION)
 # Runs before the lifespan (i.e. before auth), so Gmail's mailbox scope is only
-# requested when an ENABLED_TOOLS filter leaves at least one Gmail tool in (#790).
+# requested when ENABLED_TOOLS leaves at least one Gmail tool in (#790).
 set_gmail_enabled(_gmail_tools.__name__ in _registered_tool_modules)
+# Read by each client at initialize, so it must be set before serving.
+mcp._lowlevel_server.instructions = SELECTION.describe(
+    _registered_tools, len(_known_tools), len(_registered_aliases)
+)
+
+
+def _startup_tools_line(selection: tool_groups.Selection) -> str:
+    """The startup log line: how many tools, from which entries, and how to get all."""
+    if selection.configured:
+        source = f"ENABLED_TOOLS={','.join(selection.entries)}"
+    else:
+        source = "the default tool group (ENABLED_TOOLS is unset)"
+    line = f"Registered {len(_registered_tools)} of {len(_known_tools)} tools"
+    if _registered_aliases:
+        line += f" plus {len(_registered_aliases)} deprecated aliases"
+    line += f" from {source}."
+    if not selection.selects_all:
+        line += " Set ENABLED_TOOLS=all to register every tool."
+    return line
+
+
+def _tool_selection_status() -> dict:
+    """ENABLED_TOOLS as server://auth-status reports it (#1364)."""
+    return {
+        "entries": list(SELECTION.entries),
+        "configured": SELECTION.configured,
+        "registered_tools": len(_registered_tools),
+        "deprecated_aliases": sorted(_registered_aliases),
+    }
 
 
 # Service-account restrictions fall into distinct failure classes with their own
@@ -504,6 +597,7 @@ def _auth_status_json(
     the auth *method* used to reach it was ADC.
     """
     local_file_access = _local_file_access_status()
+    tool_selection = _tool_selection_status()
     if oauth_unauthorized:
         return json.dumps(
             {
@@ -511,6 +605,7 @@ def _auth_status_json(
                 "is_service_account_identity": False,
                 "can_create_in_personal_drive": False,
                 "local_file_access": local_file_access,
+                "tool_selection": tool_selection,
                 "limited_tools": ["*"],
                 "limitations": [
                     {
@@ -533,6 +628,7 @@ def _auth_status_json(
                 "is_service_account_identity": True,
                 "can_create_in_personal_drive": False,
                 "local_file_access": local_file_access,
+                "tool_selection": tool_selection,
                 "limited_tools": [t for lim in limitations for t in lim["tools"]],
                 "limitations": limitations,
             },
@@ -556,6 +652,7 @@ def _auth_status_json(
             "is_service_account_identity": False,
             "can_create_in_personal_drive": True,
             "local_file_access": local_file_access,
+            "tool_selection": tool_selection,
             "limited_tools": [t for lim in limitations for t in lim["tools"]],
             "limitations": limitations,
         },
@@ -572,7 +669,9 @@ def get_auth_status() -> str:
     restricted. Useful for deciding which tools to attempt before calling them.
     `local_file_access` gives the LOCAL_FILE_ACCESS policy: its mode, whether it
     was set explicitly, the allowed directories in roots mode, and the local-only
-    tools off mode left unregistered.
+    tools off mode left unregistered. `tool_selection` gives the ENABLED_TOOLS
+    entries in effect (`default` when it's unset), whether it was set, and how many
+    tools (aliases aside) and which deprecated aliases are registered.
     """
     # mcp v2 dropped get_context() with no replacement for a static (non-templated)
     # resource — Context injection isn't supported there at all (confirmed live
@@ -655,7 +754,7 @@ def _auth_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="mcp-gee-sweet auth",
         description="Authorize OAuth access and save the token to TOKEN_PATH.",
-        # An abbreviated --include-tools would pass here, but _configured_tool_names
+        # An abbreviated --include-tools would pass here, but _configured_value
         # wouldn't read it, so the consent would ask for every scope.
         allow_abbrev=False,
     )
@@ -667,7 +766,7 @@ def _auth_main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--include-tools",
-        help="comma-separated tools the server will register; narrows the scopes",
+        help="comma-separated tools and tool groups the server will register; narrows the scopes",
     )
     args = parser.parse_args(argv)
     return run_auth_command(open_browser=not args.no_browser)
@@ -715,15 +814,11 @@ def main():
         version = "unknown"
     _version_logger.info("mcp-gee-sweet version %s", version)
 
-    if ENABLED_TOOLS is not None:
-        logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
-    else:
-        logger.debug("Tool filtering disabled. All tools are enabled.")
-
     # Here, not at import or in the lifespan: this runs once per server, and `auth`
     # and the doc generator never reach it. An SSE lifespan runs per connection.
-    if not _configured_tool_names():
-        logger.warning(_SMALLER_DEFAULT_WARNING)
+    # Always shown, like the version: which tools a server offers is basic
+    # operational info, and the root logger's WARNING default would swallow INFO.
+    _version_logger.info(_startup_tools_line(SELECTION))
 
     # The same parse the local-file policy made at import, so they agree (#796).
     transport = local_files.cli_transport(sys.argv)

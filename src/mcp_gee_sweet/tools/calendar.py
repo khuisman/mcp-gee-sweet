@@ -626,7 +626,7 @@ def register(tool):
         logger.debug("Removed ACL rule %s from calendar %s", rule_id, calendar_id)
         return {"calendar_id": calendar_id, "rule_id": rule_id, "action": "removed"}
 
-    @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True), default=True)
     async def list_events(
         calendar_id: str,
         time_min: str | None = None,
@@ -682,7 +682,7 @@ def register(tool):
 
         return [_shape_event(e) for e in result.get("items", [])]
 
-    @tool(annotations=ToolAnnotations(title="Get Event", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Event", readOnlyHint=True), default=True)
     async def get_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Fetch a single event by calendar ID and event ID.
@@ -706,7 +706,7 @@ def register(tool):
 
         return _shape_event(e, created=e.get("created"), updated=e.get("updated"))
 
-    @tool(annotations=ToolAnnotations(title="Create Event", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Create Event", destructiveHint=True), default=True)
     async def create_event(
         calendar_id: str,
         summary: str,
@@ -781,7 +781,7 @@ def register(tool):
         logger.debug("Created event %s in calendar %s", e["id"], calendar_id)
         return _shape_written_event(e)
 
-    @tool(annotations=ToolAnnotations(title="Update Event", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Update Event", destructiveHint=True), default=True)
     async def update_event(
         calendar_id: str,
         event_id: str,
@@ -869,7 +869,7 @@ def register(tool):
         logger.debug("Updated event %s in calendar %s", event_id, calendar_id)
         return _shape_written_event(e)
 
-    @tool(annotations=ToolAnnotations(title="Delete Event", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Delete Event", destructiveHint=True), default=True)
     async def delete_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Delete or cancel an event.
@@ -896,7 +896,7 @@ def register(tool):
         logger.debug("Deleted event %s from calendar %s", event_id, calendar_id)
         return {"calendar_id": calendar_id, "event_id": event_id, "action": "deleted"}
 
-    @tool(annotations=ToolAnnotations(title="Find Free Slots", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Find Free Slots", readOnlyHint=True), default=True)
     async def find_free_slots(
         calendar_ids: list[str],
         time_min: str,

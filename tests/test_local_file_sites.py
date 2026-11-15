@@ -392,7 +392,7 @@ class TestOtherReaders:
         (tmp_path / "a.csv").write_text("a,b\n")
         tools = {}
 
-        def tool(annotations=None, local_only=False):
+        def tool(annotations=None, local_only=False, **_):
             def decorator(func):
                 tools[func.__name__] = func
                 return func
@@ -458,7 +458,7 @@ def _all_tools():
 
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func

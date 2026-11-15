@@ -38,7 +38,7 @@ from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func

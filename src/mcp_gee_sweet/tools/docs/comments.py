@@ -65,7 +65,10 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="List Document Comments", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="List Document Comments", readOnlyHint=True),
+        groups=("comments",),
+    )
     async def list_doc_comments(
         doc_id: str,
         page_size: int = 20,
@@ -129,7 +132,10 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Add Document Comment", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Add Document Comment", destructiveHint=True),
+        groups=("comments",),
+    )
     async def add_doc_comment(
         doc_id: str,
         content: str,
@@ -175,7 +181,10 @@ def register(tool):
             "quoted_text": _quoted_text(result),
         }
 
-    @tool(annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True),
+        groups=("comments",),
+    )
     async def resolve_doc_comment(
         doc_id: str,
         comment_id: str,
